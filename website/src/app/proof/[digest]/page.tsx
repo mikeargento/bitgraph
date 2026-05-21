@@ -731,7 +731,7 @@ function SimpleView({
       </div>
 
       {/* C2PA card — only when the file actually contains a manifest */}
-      {hasC2PA && <C2PACard c2pa={c2pa!} prettyProofDate={blockTime ? prettyDate : null} />}
+      {hasC2PA && <C2PACard c2pa={c2pa!} />}
 
       {/* Submitter's note — self-attributed caption, clearly labelled */}
       {hasSubmitterNote && (
@@ -848,7 +848,7 @@ function extractJpegFromRaw(data: Uint8Array): Blob | null {
 
 /* ── C2PA card — top-level Content Credentials, shown when present ── */
 
-function C2PACard({ c2pa, prettyProofDate }: { c2pa: C2PAReadResult; prettyProofDate: string | null }) {
+function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
   const claimGenerator =
     c2pa.claimGeneratorInfo?.[0]?.name ||
     c2pa.claimGenerator ||
@@ -920,23 +920,10 @@ function C2PACard({ c2pa, prettyProofDate }: { c2pa: C2PAReadResult; prettyProof
           <BigField
             label="Derived from"
             value={`${c2pa.ingredientCount} source file${c2pa.ingredientCount === 1 ? "" : "s"}`}
-            isLast={!prettyProofDate}
+            isLast
           />
         )}
       </div>
-
-      {prettyProofDate && (
-        <div style={{
-          padding: "14px 24px",
-          background: "rgba(0,101,164,0.04)",
-          fontSize: 13,
-          color: "#374151",
-          lineHeight: 1.55,
-        }}>
-          A Bitgrapher sealed this manifest into the file&apos;s proven state on {prettyProofDate}.
-          Stripping or modifying it after this point would be detectable.
-        </div>
-      )}
     </div>
   );
 }
