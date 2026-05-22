@@ -1,7 +1,7 @@
 {
   "name": "@mikeargento/bitgraph",
-  "version": "1.0.2",
-  "description": "Portable cryptographic proof library for BitGraph.",
+  "version": "1.0.3",
+  "description": "Portable cryptographic proof of construction for digital artifacts.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
