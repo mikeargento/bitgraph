@@ -274,7 +274,7 @@ export default function BitGraphPage() {
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 57px); }
-        .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 32px; min-height: 0; }
+        .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-wrap .file-drop-container { height: 450px; }
         @media (max-width: 640px) { .bitgraph-wrap .file-drop-container { height: 280px; } }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
