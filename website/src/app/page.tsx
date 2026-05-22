@@ -30,6 +30,7 @@ export default function BitGraphPage() {
   const [step, setStep] = useState<Step>("drop");
   const [items, setItems] = useState<FileItem[]>([]);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
+  const [proveProgress, setProveProgress] = useState({ current: 0, total: 0 });
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [animCount, setAnimCount] = useState(0);
   const [anchorCountdown, setAnchorCountdown] = useState(0);
@@ -137,6 +138,7 @@ export default function BitGraphPage() {
     if (!toProve.length) return;
 
     setStep("proving");
+    setProveProgress({ current: 0, total: toProve.length });
     setItems(prev => prev.map(i => i.status === "new" ? { ...i, status: "proving" as const } : i));
 
     try {
@@ -145,16 +147,23 @@ export default function BitGraphPage() {
         setItems(prev => prev.map(i =>
           i.digestB64 === toProve[0].digestB64 ? { ...i, proof: p, valid: true, status: "proved" as const } : i
         ));
+        setProveProgress({ current: 1, total: 1 });
       } else {
-        const digests = toProve.map(i => ({ digestB64: i.digestB64, hashAlg: "sha256" as const }));
-        const proofs = await commitBatch(digests);
-        setItems(prev => prev.map(i => {
-          const idx = toProve.findIndex(t => t.digestB64 === i.digestB64);
-          if (idx >= 0 && proofs[idx]) {
-            return { ...i, proof: proofs[idx], valid: true, status: "proved" as const };
-          }
-          return i;
-        }));
+        // Chunked batches so we can show real progress + stay under Vercel's
+        // 60s function timeout. 50 per chunk ≈ 1s of TEE work per request at
+        // ~50 sign/sec, so progress ticks roughly every second.
+        const CHUNK_SIZE = 50;
+        for (let offset = 0; offset < toProve.length; offset += CHUNK_SIZE) {
+          const chunk = toProve.slice(offset, offset + CHUNK_SIZE);
+          const digests = chunk.map(t => ({ digestB64: t.digestB64, hashAlg: "sha256" as const }));
+          const proofs = await commitBatch(digests);
+          const chunkMap = new Map(chunk.map((t, i) => [t.digestB64, proofs[i]] as const));
+          setItems(prev => prev.map(i => {
+            const p = chunkMap.get(i.digestB64);
+            return p ? { ...i, proof: p, valid: true, status: "proved" as const } : i;
+          }));
+          setProveProgress({ current: Math.min(offset + CHUNK_SIZE, toProve.length), total: toProve.length });
+        }
       }
     } catch {
       setItems(prev => prev.map(i => i.status === "proving" ? { ...i, status: "error" as const } : i));
@@ -332,7 +341,10 @@ export default function BitGraphPage() {
               lineHeight: 1.2,
               animation: "pulse 1s ease-in-out infinite",
             }}>
-              BitGraphing
+              {proveProgress.current} of {proveProgress.total} BitGraphed
+            </div>
+            <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden", margin: "20px auto 0" }}>
+              <div style={{ width: `${proveProgress.total > 0 ? (proveProgress.current / proveProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
             </div>
           </div>
         )}
