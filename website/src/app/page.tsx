@@ -323,10 +323,17 @@ export default function BitGraphPage() {
         {/* ── Proving ── */}
         {step === "proving" && (
           <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
-            <div style={{ fontSize: 64, fontWeight: 800, color: "#0065A4", marginBottom: 8, fontFamily: "monospace", animation: "pulse 1s ease-in-out infinite", textShadow: "none", letterSpacing: "-0.04em" }}>
-              {unproven.length}
+            <div style={{
+              fontSize: "min(36px, 5.5vw)",
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+              color: "#111827",
+              whiteSpace: "nowrap",
+              lineHeight: 1.2,
+              animation: "pulse 1s ease-in-out infinite",
+            }}>
+              BitGraphing
             </div>
-            <div style={{ fontSize: 15, color: "#6b7280", fontWeight: 500 }}>Signing in enclave</div>
           </div>
         )}
 
