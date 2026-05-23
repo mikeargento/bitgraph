@@ -153,6 +153,10 @@ export default function BitGraphPage() {
         // 60s function timeout. 50 per chunk ≈ 1s of TEE work per request at
         // ~50 sign/sec, so progress ticks roughly every second.
         const CHUNK_SIZE = 50;
+        // Yield to the event loop after each chunk so React paints the
+        // progress update before the next batch starts (same pattern as the
+        // exporting loop). Without this, fast batches can flush together.
+        const tick = () => new Promise((r) => setTimeout(r, 0));
         for (let offset = 0; offset < toProve.length; offset += CHUNK_SIZE) {
           const chunk = toProve.slice(offset, offset + CHUNK_SIZE);
           const digests = chunk.map(t => ({ digestB64: t.digestB64, hashAlg: "sha256" as const }));
@@ -163,6 +167,7 @@ export default function BitGraphPage() {
             return p ? { ...i, proof: p, valid: true, status: "proved" as const } : i;
           }));
           setProveProgress({ current: Math.min(offset + CHUNK_SIZE, toProve.length), total: toProve.length });
+          await tick();
         }
       }
     } catch {
