@@ -31,6 +31,8 @@ export default function BitGraphPage() {
   const [items, setItems] = useState<FileItem[]>([]);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
   const [proveProgress, setProveProgress] = useState({ current: 0, total: 0 });
+  const [proveAnimCount, setProveAnimCount] = useState(0);
+  const proveAnimRef = useRef(0);
   const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
   const [animCount, setAnimCount] = useState(0);
   const [anchorCountdown, setAnchorCountdown] = useState(0);
@@ -63,6 +65,37 @@ export default function BitGraphPage() {
   useEffect(() => {
     return () => { cancelAnimationFrame(rafRef.current); };
   }, []);
+
+  // Smooth-tick the displayed proving counter toward each chunk's real value.
+  // The TEE signs atomically per chunk, so the truthful count only updates every
+  // CHUNK_SIZE items (every ~1.5s). We interpolate between those updates so the
+  // number visibly ticks 1, 2, 3, … instead of jumping by 50.
+  useEffect(() => {
+    const target = proveProgress.current;
+    if (target === 0) {
+      setProveAnimCount(0);
+      proveAnimRef.current = 0;
+      return;
+    }
+    const startValue = proveAnimRef.current;
+    if (startValue >= target) {
+      setProveAnimCount(target);
+      proveAnimRef.current = target;
+      return;
+    }
+    let raf = 0;
+    const startTime = performance.now();
+    const tick = () => {
+      const elapsed = performance.now() - startTime;
+      const ratio = Math.min(elapsed / 1500, 1);
+      const value = Math.round(startValue + (target - startValue) * ratio);
+      proveAnimRef.current = value;
+      setProveAnimCount(value);
+      if (ratio < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [proveProgress.current]);
 
   const found = items.filter(i => i.status === "found" || i.status === "proved");
   const unproven = items.filter(i => i.status === "new");
@@ -346,10 +379,10 @@ export default function BitGraphPage() {
               lineHeight: 1.2,
               animation: "pulse 1s ease-in-out infinite",
             }}>
-              {proveProgress.current} of {proveProgress.total} BitGraphed
+              {proveAnimCount} of {proveProgress.total} BitGraphed
             </div>
             <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden", margin: "20px auto 0" }}>
-              <div style={{ width: `${proveProgress.total > 0 ? (proveProgress.current / proveProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
+              <div style={{ width: `${proveProgress.total > 0 ? (proveAnimCount / proveProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
             </div>
           </div>
         )}
