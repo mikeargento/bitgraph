@@ -428,60 +428,75 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
   const json = JSON.stringify(proof, null, 2);
 
   return (
-    <div>
-      <div
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 16,
-          padding: "14px 24px",
-          borderBottom: open ? "1px solid #e2e5e9" : "none",
-          cursor: "pointer",
-        }}
-      >
-        <span style={{ fontSize: 14, color: "#374151", fontWeight: 500 }}>Raw JSON</span>
-        <span style={{ fontSize: 13, color: "var(--c-accent)", fontWeight: 600 }}>
-          {open ? "Hide" : "Show"}
-        </span>
+    <>
+      <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+        <button
+          onClick={() => setOpen(true)}
+          className="bg-btn-outline"
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+            color: "#0065A4", background: "#fff",
+            border: "1px solid #0065A4", borderRadius: 0,
+            cursor: "pointer",
+          }}
+        >
+          View Raw JSON
+        </button>
       </div>
       {open && (
-        <div style={{ padding: "14px 24px 18px 24px", background: "#f9fafb" }}>
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                navigator.clipboard.writeText(json);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-              style={{ ...btnStyle, fontSize: 12, padding: "5px 12px" }}
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-          <pre
-            style={{
-              fontSize: 12,
-              lineHeight: 1.6,
-              color: "#374151",
-              padding: 14,
-              margin: 0,
-              background: "#ffffff",
-              border: "1px solid #e5e7eb",
-              overflow: "auto",
-              maxHeight: 400,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
-              fontFamily: mono,
-            }}
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => setOpen(false)}
+        >
+          <div
+            style={{ width: "100%", maxWidth: 720, maxHeight: "85vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: 0, border: "1px solid #d0d5dd", overflow: "hidden" }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {json}
-          </pre>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 20px", borderBottom: "1px solid #e5e7eb" }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--c-accent)" }}>Raw JSON</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(json);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  }}
+                  style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "var(--c-accent)", background: "#fff", border: "1px solid var(--c-accent)", borderRadius: 0, cursor: "pointer" }}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </button>
+                <button
+                  onClick={() => setOpen(false)}
+                  style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "#fff", background: "var(--c-accent)", border: "none", borderRadius: 0, cursor: "pointer" }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: "18px 20px" }}>
+              <pre
+                style={{
+                  fontSize: 12,
+                  lineHeight: 1.6,
+                  color: "#374151",
+                  padding: 14,
+                  margin: 0,
+                  background: "#f9fafb",
+                  border: "1px solid #e5e7eb",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-all",
+                  fontFamily: mono,
+                }}
+              >
+                {json}
+              </pre>
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
