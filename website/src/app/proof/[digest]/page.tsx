@@ -283,7 +283,7 @@ export default function ProofPage() {
               <Field label="Etherscan" value={attr.title} link />
             </Card>
           ) : causalWindow?.anchorAfter ? (
-            <Card title="Proven Before">
+            <Card title="BitGraphed Before">
               <Field
                 label="Ethereum Block"
                 value={
@@ -319,7 +319,7 @@ export default function ProofPage() {
               )}
             </Card>
           ) : (
-            <Card title="Proven Before">
+            <Card title="BitGraphed Before">
               <div style={{ padding: "18px 24px", fontSize: 14, color: "#6b7280" }}>
                 Awaiting next Ethereum block…
               </div>
@@ -738,7 +738,7 @@ function SimpleView({
         />
         {anchored && blockNumber !== null ? (
           <BigField
-            label="Proven before"
+            label="BitGraphed before"
             value={`Ethereum block ${blockNumber.toLocaleString()}`}
             linkHref={etherscanUrl || undefined}
             linkLabel="View on Etherscan ↗"
@@ -746,7 +746,7 @@ function SimpleView({
           />
         ) : (
           <BigField
-            label="Proven before"
+            label="BitGraphed before"
             value="Awaiting next Ethereum block"
             muted
             isLast

@@ -14,7 +14,7 @@ The current application on **bitgraph.ing** is photos-first file provenance: "dr
 
 - **Causal slots** — The TEE pre-allocates a slot (nonce + counter) from hardware entropy **before** the artifact hash is known. The slot reserves a position in a sequence.
 - **Commit** — The artifact digest is bound to the pre-allocated slot and signed with Ed25519 inside the TEE.
-- **Proven before** — The counter chain is periodically anchored to Ethereum. Once an anchor is mined, every proof committed before that anchor is fixed in the public timeline and cannot be rewritten.
+- **BitGraphed before** — The counter chain is periodically anchored to Ethereum. Once an anchor is mined, every proof committed before that anchor is fixed in the public timeline and cannot be rewritten.
 - **Epoch isolation** — Every TEE restart generates a new keypair and resets the counter. Each epoch is a sealed compartment, and a compromise of one epoch cannot retroactively forge proofs under a prior epoch's destroyed key.
 
 This is **not**:
@@ -119,7 +119,7 @@ The `proofHash` field is added by the ledger at write time (see `packages/ledger
 - **Font**: Acumin Pro via Typekit (kit `svq0oqy`), fallback to Inter / system sans
 - **Nav**: solid `#f5f5f5` background, no border. Left: "BitGraph" text logo, `font-weight: 900`. Right: `Docs | Contact` (GitHub lives at the bottom of the docs sidebar, not in the nav)
 - **Drop zone**: 90% width, max 640px, 360px tall (280 mobile). Fluid typography: `min(22px, 4.25vw)` headline, `min(13px, 3vw)` subtitle so everything fits on one line at any viewport
-- **Proof pages**: 800px max width, single column. Simple view is the default; "See details" flips to the technical card grid (Slot → Artifact → Commit → Signer → Environment → Proven Before)
+- **Proof pages**: 800px max width, single column. Simple view is the default; "See details" flips to the technical card grid (Slot → Artifact → Commit → Signer → Environment → BitGraphed Before)
 - **Cards**: white `#ffffff`, 1px `#d0d5dd` border, 16px radius
 
 ## Language & Tone Guardrails
@@ -129,7 +129,7 @@ The chat system prompt and docs enforce conservative, infrastructure-style langu
 - "designed to prevent"
 - "detectably invalid if altered"
 - "cannot be retroactively constructed"
-- "proved before" / "causal order" / "causal position"
+- "BitGraphed before" / "causal order" / "causal position"
 
 **Do not use**:
 - "unforgeable", "impossible to fake"
