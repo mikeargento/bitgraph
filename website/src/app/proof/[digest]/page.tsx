@@ -300,15 +300,20 @@ export default function ProofPage() {
                 <Field label="Etherscan" value={causalWindow.anchorAfter.etherscanUrl} link />
               )}
               {causalWindow.anchorAfter.digestB64 && (
-                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
-                  <a
-                    href={`/proof/${encodeURIComponent((causalWindow.anchorAfter.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
-                    target="_blank" rel="noopener"
-                    style={{ fontSize: 14, fontWeight: 600, color: "var(--c-accent)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
-                  >
-                    View Anchor Proof #{causalWindow.anchorAfter.counter} &rarr;
-                  </a>
-                </div>
+                <a
+                  href={`/proof/${encodeURIComponent((causalWindow.anchorAfter.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
+                  target="_blank" rel="noopener"
+                  className="bg-btn-outline"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+                    color: "#0065A4", background: "#fff",
+                    border: "1px solid #0065A4", borderRadius: 0,
+                    textDecoration: "none", cursor: "pointer",
+                  }}
+                >
+                  View Anchor Proof #{causalWindow.anchorAfter.counter} &rarr;
+                </a>
               )}
             </Card>
           ) : (
