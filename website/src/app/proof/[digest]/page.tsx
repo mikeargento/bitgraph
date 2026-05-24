@@ -398,6 +398,7 @@ function Field({ label, value, mono: isMono, highlight, link }: { label: string;
       {link ? (
         <a href={value} target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{
           fontSize: 13, color: "var(--c-accent)", textDecoration: "none", wordBreak: "break-all", textAlign: "right",
+          maxWidth: "50%",
         }}>{value}</a>
       ) : (
         <span style={{
@@ -406,6 +407,7 @@ function Field({ label, value, mono: isMono, highlight, link }: { label: string;
           color: copied ? "#0065A4" : highlight ? "var(--c-accent)" : "#1f2937",
           fontWeight: highlight ? 700 : 400,
           wordBreak: "break-all", textAlign: "right",
+          maxWidth: "50%",
           transition: "color .2s", lineHeight: 1.4,
         }}>
           {copied ? "Copied!" : value}
