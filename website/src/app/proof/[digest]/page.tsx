@@ -725,11 +725,11 @@ function SimpleView({
           hint="SHA-256 of the file bytes. Click to copy the full hash."
         />
         <BigField
-          label="BitGraph ID"
+          label="Proof Hash"
           value={shortHash}
           mono
           copyValue={fullHash}
-          hint="Unique identifier for this BitGraph. Click to copy the full ID."
+          hint="SHA-256 of the canonicalized signed proof. Click to copy the full hash."
         />
         <BigField
           label="Zero bits have changed since"
