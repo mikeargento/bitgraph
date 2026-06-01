@@ -3,7 +3,7 @@ import { renderInline } from "@/lib/render-inline";
 
 export const metadata: Metadata = {
   title: "Verification",
-  description: "BitGraph five-step verification algorithm: structural validation, digest check, signature verification, policy enforcement.",
+  description: "BitGraph six-step verification algorithm: structural validation, digest check, signature verification, Nitro attestation binding, policy enforcement.",
 };
 
 export default function VerificationPage() {
@@ -14,7 +14,7 @@ export default function VerificationPage() {
         BitGraph verification is deterministic and runs offline. No network calls, no API keys, no accounts.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Five-step algorithm</h2>
+      <h2 className="text-xl font-semibold mt-12 mb-4">Six-step algorithm</h2>
       <p className="text-[#1f2937] mb-6">
         Input: a proof (<code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">BitGraphProof</code>), the original bytes (<code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">Uint8Array</code>), and an optional verification policy.
       </p>
@@ -43,6 +43,11 @@ export default function VerificationPage() {
           },
           {
             step: "5",
+            title: "Attestation binding (measured-tee)",
+            desc: "For `measured-tee` proofs, verify the AWS Nitro attestation in `environment.attestation`. Parse the COSE_Sign1 document (ES384) and validate the embedded certificate chain from the enclave leaf to the pinned AWS Nitro Enclaves root, checking each certificate at the attestation's timestamp (Nitro leaf certs are short-lived, roughly three hours). Confirm `PCR0` equals `environment.measurement`. Then confirm the binding to this exact proof: the attestation's `user_data` must equal `proofHash`. The `public_key` field is intentionally null, the binding runs through `user_data`, not `public_key`. Because `proofHash` is the SHA-256 of the canonical SignedBody, which commits to `signer.publicKeyB64`, this ties the genuine enclave to this proof and to the exact key that signed it. The chain is bundled in the proof and validates offline; only certificate revocation (CRL) status requires network and is outside this algorithm.",
+          },
+          {
+            step: "6",
             title: "Policy checks",
             desc: "If a `VerificationPolicy` is provided, enforce its constraints: enforcement tier, allowed measurements, allowed public keys, attestation requirements, counter range, time range, epoch requirements.",
           },
