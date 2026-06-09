@@ -146,41 +146,56 @@ export async function getAnchorBeforeCounter(proofCounter: number, epochId: stri
     const s3 = getClient();
     const bucket = getBucket();
     const safeEpoch = toSafe(epochId);
-    const prefix = `proofs/${safeEpoch}/`;
+    // Scan the counter-indexed anchors/ index (anchors only — no user proofs to
+    // skip), same source getAnchorsAfterCounter uses.
+    const anchorPrefix = `anchors/${safeEpoch}/`;
 
-    // List keys before this counter — we need to scan backwards
-    // S3 only lists forward, so list from start up to our counter and take the tail
-    const endKey = String(proofCounter).padStart(12, "0");
-
-    // List last 30 keys before this counter
-    const result = await s3.send(new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: prefix,
-      MaxKeys: 1000,
-    }));
-
-    const allKeys = (result.Contents || [])
-      .map(o => o.Key!)
-      .filter(k => {
-        if (!k) return false;
-        const filename = k.split("/").pop() || "";
-        const c = parseInt(filename.split("-")[0], 10);
-        return !isNaN(c) && c < proofCounter;
-      });
-
-    // Scan from the end (most recent first) to find the last anchor
-    const keysToCheck = allKeys.slice(-30).reverse();
-    for (const key of keysToCheck) {
-      try {
-        const getResult = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-        const body = await getResult.Body?.transformToString();
-        if (!body) continue;
-        const p = JSON.parse(body);
-        const attr = p.attribution as { name?: string } | undefined;
-        if (attr?.name === "Ethereum Anchor") return p;
-      } catch { /* skip */ }
+    // Nearest anchor strictly BEFORE proofCounter (the lower time bound). S3
+    // lists ascending only, so we open a window just below proofCounter via
+    // StartAfter, page forward keeping the highest anchor counter still
+    // < proofCounter, and stop as soon as keys reach proofCounter. The window
+    // starts wider than any realistic anchor gap (~600 commits per 12s at peak
+    // TEE throughput) and widens only if it somehow caught no anchor, e.g. a
+    // long anchoring outage left a large gap. Crucially this is bounded near
+    // proofCounter rather than scanning the whole epoch from the start, which
+    // was the previous bug (it always returned the first anchor of the epoch).
+    for (let window = 4096; ; window *= 8) {
+      const start = Math.max(0, proofCounter - window);
+      let token: string | undefined;
+      let bestKey: string | null = null;
+      let bestCounter = -1;
+      let reachedProof = false;
+      for (let page = 0; page < 128; page++) {
+        const res = await s3.send(new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: anchorPrefix,
+          StartAfter: `${anchorPrefix}${String(start).padStart(12, "0")}`,
+          ContinuationToken: token,
+          MaxKeys: 1000,
+        }));
+        for (const obj of res.Contents || []) {
+          const filename = (obj.Key || "").split("/").pop() || "";
+          const c = parseInt(filename.split("-")[0], 10);
+          if (isNaN(c)) continue;
+          if (c < proofCounter) {
+            if (c > bestCounter) { bestCounter = c; bestKey = obj.Key!; }
+          } else {
+            reachedProof = true;
+            break;
+          }
+        }
+        if (reachedProof || !res.IsTruncated) break;
+        token = res.NextContinuationToken;
+      }
+      if (bestKey) {
+        const gr = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: bestKey }));
+        const body = await gr.Body?.transformToString();
+        return body ? JSON.parse(body) : null;
+      }
+      // No anchor found in the window. If we already reached the epoch start,
+      // there is genuinely no anchor before this proof (very early proof).
+      if (start === 0 || window >= 8_388_608) return null;
     }
-    return null;
   } catch (err) {
     console.error("[s3] getAnchorBeforeCounter failed:", (err as Error).message);
     return null;
