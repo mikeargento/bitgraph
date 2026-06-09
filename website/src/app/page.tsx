@@ -264,27 +264,42 @@ export default function BitGraphPage() {
       proofEntry.push(proofBytes, true);
     }
 
-    // Fetch ETH anchors AFTER the last proof in the batch (highest counter = future boundary)
+    // Bracket the whole batch with BOTH bounding ETH anchors. The "after"
+    // anchor follows the highest counter (upper time bound); the "before"
+    // anchor precedes the lowest counter (lower time bound). Together they pin
+    // every proof in the batch to a public Ethereum time window. Both are
+    // required to read the window: the after-anchor alone is only "existed by
+    // now," the same one-sided bound a plain blockchain timestamp gives.
     setExportProgress({ current: withProofs.length + 1, total: totalSteps });
     await tick();
     try {
-      const last = withProofs.reduce((a, b) => {
-        const ac = parseInt(a.proof?.commit?.counter || "0", 10);
-        const bc = parseInt(b.proof?.commit?.counter || "0", 10);
-        return bc > ac ? b : a;
-      });
+      const last = withProofs.reduce((a, b) =>
+        parseInt(b.proof?.commit?.counter || "0", 10) > parseInt(a.proof?.commit?.counter || "0", 10) ? b : a);
+      const first = withProofs.reduce((a, b) =>
+        parseInt(b.proof?.commit?.counter || "0", 10) < parseInt(a.proof?.commit?.counter || "0", 10) ? b : a);
       const lastCounter = last.proof?.commit?.counter || "0";
-      const lastEpoch = last.proof?.commit?.epochId || "";
-      if (!lastEpoch) throw new Error("no epochId");
-      const url = `/api/proofs/anchors?counter=${lastCounter}&epoch=${encodeURIComponent(lastEpoch)}`;
-      console.log("[bitgraph] anchor lookup:", url);
-      const resp = await fetch(url);
-      if (resp.ok) {
-        const data = await resp.json();
+      const firstCounter = first.proof?.commit?.counter || "0";
+      const epoch = last.proof?.commit?.epochId || "";
+      if (!epoch) throw new Error("no epochId");
+      const enc = encodeURIComponent(epoch);
+      const [afterResp, beforeResp] = await Promise.all([
+        fetch(`/api/proofs/anchors?counter=${lastCounter}&epoch=${enc}`),
+        fetch(`/api/proofs/anchors?counter=${firstCounter}&epoch=${enc}&before=1`),
+      ]);
+      if (afterResp.ok) {
+        const data = await afterResp.json();
         if (data.anchors?.length > 0) {
-          const anchorEntry = new ZipPassThrough("ethereum-anchor.json");
-          z.add(anchorEntry);
-          anchorEntry.push(new TextEncoder().encode(JSON.stringify(data.anchors[0], null, 2)), true);
+          const e = new ZipPassThrough("ethereum-anchor-after.json");
+          z.add(e);
+          e.push(new TextEncoder().encode(JSON.stringify(data.anchors[0], null, 2)), true);
+        }
+      }
+      if (beforeResp.ok) {
+        const data = await beforeResp.json();
+        if (data.anchors?.length > 0) {
+          const e = new ZipPassThrough("ethereum-anchor-before.json");
+          z.add(e);
+          e.push(new TextEncoder().encode(JSON.stringify(data.anchors[0], null, 2)), true);
         }
       }
     } catch { /* non-critical */ }

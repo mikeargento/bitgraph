@@ -102,16 +102,28 @@ export default function ProofPage() {
     if (cachedFile) {
       files[cachedFile.name] = new Uint8Array(cachedFile.data);
     }
-    // Fetch bounding ETH anchors
+    // Fetch BOTH bounding ETH anchors. The proof was witnessed after the
+    // "before" anchor and before the "after" anchor, which brackets it to one
+    // anchor interval (~12s) of public Ethereum time. Both are required to read
+    // the window: the after-anchor alone gives only an upper bound, the same
+    // one-sided "existed by now" a plain blockchain timestamp gives.
     try {
       const counter = commit.counter;
-      const epoch = commit.epochId || "";
-      const resp = await fetch(`/api/proofs/anchors?counter=${counter}&epoch=${encodeURIComponent(epoch)}&limit=1`);
-      if (resp.ok) {
-        const data = await resp.json();
-        const anchors = data.anchors || [];
-        if (Array.isArray(anchors) && anchors.length > 0) {
-          files["ethereum-anchor.json"] = strToU8(JSON.stringify(anchors[0], null, 2));
+      const enc = encodeURIComponent(commit.epochId || "");
+      const [afterResp, beforeResp] = await Promise.all([
+        fetch(`/api/proofs/anchors?counter=${counter}&epoch=${enc}&limit=1`),
+        fetch(`/api/proofs/anchors?counter=${counter}&epoch=${enc}&before=1`),
+      ]);
+      if (afterResp.ok) {
+        const data = await afterResp.json();
+        if (Array.isArray(data.anchors) && data.anchors.length > 0) {
+          files["ethereum-anchor-after.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
+        }
+      }
+      if (beforeResp.ok) {
+        const data = await beforeResp.json();
+        if (Array.isArray(data.anchors) && data.anchors.length > 0) {
+          files["ethereum-anchor-before.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
         }
       }
     } catch (_) { /* ignore */ }
