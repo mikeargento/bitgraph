@@ -22,12 +22,6 @@ export default function ProofPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null } | null>(null);
-  // Simple view is the default entry for every proof page. The toggle to
-  // technical view is intentionally ephemeral — it resets on navigation.
-  // Previously this was persisted to localStorage, which caused new proofs
-  // to silently skip the Simple view entirely once a user had clicked
-  // "See details" on any prior proof. That was confusing.
-  const [simpleView, setSimpleView] = useState<boolean>(true);
 
   // Nav visible on proof pages
 
@@ -200,39 +194,16 @@ export default function ProofPage() {
             >
               Export Proof
             </button>
-            {!isEth && (
-              <button
-                onClick={() => setSimpleView((v) => !v)}
-                className="bg-btn-outline"
-                style={{
-                  height: 76, fontSize: 16, fontWeight: 500,
-                  color: "#0065A4", background: "#fff",
-                  border: "1px solid #0065A4", borderRadius: 0,
-                  cursor: "pointer",
-                }}
-              >
-                {simpleView ? "See details" : "← Overview"}
-              </button>
-            )}
           </div>
         </div>
 
-        {simpleView && !isEth && (
-          <SimpleView
-            proof={proof}
-            attr={attr}
-            causalWindow={causalWindow}
-            cachedFile={cachedFile}
-            c2pa={cachedFile?.c2pa ?? null}
-            isTee={isTee}
-          />
-        )}
-
-        {/* No separate causal window or ethereum link — consolidated into Ethereum Seal card below */}
-
-        {/* Cards grid — hidden in Simple view except on anchor proofs */}
-        {(!simpleView || isEth) && (
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
+
+          {/* Photo preview — borrowed from the old Simple view. Renders the
+              artifact image when one is available (a cached file on this
+              device, or a C2PA embedded thumbnail), and nothing otherwise.
+              Sits at the top of the grid, above the proof cards. */}
+          {!isEth && <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />}
 
           {/* BitGraph identity — top-level identifier, sits above the construction sequence */}
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
@@ -398,7 +369,6 @@ export default function ProofPage() {
             </Card>
           )}
         </div>
-        )}
 
 
       </div>
@@ -553,51 +523,35 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
   );
 }
 
-/* ── Simple View — plain-English proof page for non-technical visitors ── */
+/* ── Photo preview card — shows the artifact image when one is available ── */
 
-function SimpleView({
-  proof,
-  attr,
-  causalWindow,
+function PhotoCard({
   cachedFile,
   c2pa,
-  isTee,
 }: {
-  proof: BitGraphProof;
-  attr?: { name?: string; title?: string; message?: string };
-  causalWindow: {
-    anchorBefore: { counter: string; blockNumber: number | null; etherscanUrl: string | null; blockTime?: string | null } | null;
-    anchorAfter: { counter: string; blockNumber: number | null; etherscanUrl: string | null; blockTime?: string | null } | null;
-  } | null;
   cachedFile: { name: string; data: ArrayBuffer } | null;
   c2pa?: C2PAReadResult | null;
-  isTee: boolean;
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
 
   // Build an object URL for image preview if the cached file is an image.
   //
-  // Three categories:
-  //   1. Browser-native formats (JPEG, PNG, GIF, WebP, AVIF, BMP) → blob URL
-  //   2. HEIC/HEIF → convert to JPEG via heic2any (lazy-loaded ~500 KB),
-  //      then use the converted blob. iPhones shoot HEIC by default.
+  //   1. Browser-native formats (JPEG, PNG, GIF, WebP, AVIF, BMP, TIFF) → blob URL
+  //   2. HEIC/HEIF → convert to JPEG via heic2any (lazy-loaded ~500 KB).
+  //      iPhones shoot HEIC by default.
   //   3. RAW camera formats (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2, PEF,
-  //      SRW) → skip blob URL entirely, fall through to C2PA thumbnail.
-  //      No good browser decoder exists for these.
+  //      SRW, X3F) → extract the embedded JPEG preview from the raw bytes.
   //
-  // The <img> tag also has an onError handler that clears previewUrl so
-  // unsupported formats never render as a broken image — they gracefully
-  // fall back to the C2PA thumbnail or no image at all.
+  // The <img> onError handler clears previewUrl so an unsupported format
+  // never renders as a broken image — it falls back to the C2PA thumbnail
+  // or to nothing.
   useEffect(() => {
     if (!cachedFile) { setPreviewUrl(null); setPreviewFailed(false); return; }
     const name = cachedFile.name.toLowerCase();
 
     const isNative = /\.(jpe?g|png|gif|webp|avif|bmp|tiff?)$/i.test(name);
     const isHeic = /\.(heic|heif)$/i.test(name);
-    // RAW formats — browsers can't decode these, but they almost always
-    // contain an embedded JPEG preview (for the camera's LCD screen).
-    // We extract the largest JPEG block from the raw bytes.
     const isRaw = /\.(cr2|cr3|nef|arw|dng|raf|orf|rw2|pef|srw|raw|x3f)$/i.test(name);
 
     if (!isNative && !isHeic && !isRaw) {
@@ -606,7 +560,6 @@ function SimpleView({
     }
 
     if (isRaw) {
-      // Extract the embedded JPEG preview from the RAW file bytes.
       const rawData = new Uint8Array(cachedFile.data);
       const jpegBlob = extractJpegFromRaw(rawData);
       if (jpegBlob) {
@@ -614,7 +567,6 @@ function SimpleView({
         setPreviewUrl(url);
         return () => URL.revokeObjectURL(url);
       }
-      // No embedded JPEG found — fall through to C2PA thumbnail
       setPreviewUrl(null);
       return;
     }
@@ -622,17 +574,11 @@ function SimpleView({
     let revoke: (() => void) | null = null;
 
     if (isHeic) {
-      // HEIC: convert to JPEG in the browser via heic2any (lazy-loaded).
-      // Safari can render HEIC natively, but Chrome/Firefox cannot.
       (async () => {
         try {
           const heic2any = (await import("heic2any")).default;
           const blob = new Blob([new Uint8Array(cachedFile.data)]);
-          const result = await heic2any({
-            blob,
-            toType: "image/jpeg",
-            quality: 0.85,
-          });
+          const result = await heic2any({ blob, toType: "image/jpeg", quality: 0.85 });
           const jpegBlob = Array.isArray(result) ? result[0] : result;
           const url = URL.createObjectURL(jpegBlob);
           setPreviewUrl(url);
@@ -643,7 +589,6 @@ function SimpleView({
         }
       })();
     } else {
-      // Browser-native format — direct blob URL.
       const blob = new Blob([new Uint8Array(cachedFile.data)]);
       const url = URL.createObjectURL(blob);
       setPreviewUrl(url);
@@ -654,230 +599,42 @@ function SimpleView({
     return () => { revoke?.(); };
   }, [cachedFile]);
 
-  // Pull the human-readable date from the Ethereum anchor block time when available
-  const blockTime = causalWindow?.anchorAfter?.blockTime ?? null;
-  const blockNumber = causalWindow?.anchorAfter?.blockNumber ?? null;
-  const etherscanUrl = causalWindow?.anchorAfter?.etherscanUrl ?? null;
-  // Lower time bound (previous same-epoch anchor): the proof was BitGraphed
-  // AFTER this earlier block. Renders as a sibling "BitGraphed after" field.
-  const blockNumberBefore = causalWindow?.anchorBefore?.blockNumber ?? null;
-  const etherscanUrlBefore = causalWindow?.anchorBefore?.etherscanUrl ?? null;
-  // Anchored means the anchor exists in S3 (blockNumber present). blockTime is
-  // cosmetic — fetched from a public Ethereum RPC and may be null if that RPC
-  // is slow/down. Don't gate the anchor's existence on the cosmetic timestamp.
-  const anchored = blockNumber !== null;
-
-  // Format date and time separately, then join with a single breakable space
-  // before "at". Spaces inside each half become non-breaking — that way the
-  // line never breaks mid-time (e.g. orphaning "AM EDT" on mobile). On narrow
-  // viewports the line wraps cleanly between the date and "at 10:59 AM EDT".
-  const prettyDate = blockTime
-    ? (() => {
-        const d = new Date(blockTime);
-        const datePart = d
-          .toLocaleDateString(undefined, {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })
-          .replace(/ /g, " ");
-        const timePart = d
-          .toLocaleTimeString(undefined, {
-            hour: "numeric",
-            minute: "2-digit",
-            timeZoneName: "short",
-          })
-          .replace(/ /g, " ");
-        return `${datePart} at ${timePart}`;
-      })()
-    : blockNumber !== null
-      ? `Ethereum block #${blockNumber.toLocaleString()}`
-      : "Awaiting Ethereum anchor…";
-
-  // Short proofHash — matches the title pill
-  const ph = (proof as BitGraphProof & { proofHash?: string });
-  const fullHash = ph.proofHash || "";
-  const shortHash = fullHash.replace(/[+/=]/g, "").slice(0, 12);
-
-  // File hash (artifact digest) — the file's content fingerprint, distinct from the proof's hash
-  const fullFileHash = proof.artifact.digestB64 || "";
-  const shortFileHash = fullFileHash.replace(/[+/=]/g, "").slice(0, 12);
-
-  // File info. Creator is intentionally not shown in the default Simple view
-  // unless we can source it from a verified channel (C2PA manifest or an
-  // agency/actor field). Self-attributed `attribution.name` is rendered in
-  // a clearly labelled "Submitter's note" block below the facts instead —
-  // the signed-caption semantics are preserved, the identity-claim framing
-  // is not.
-  const fileTitle =
-    cachedFile?.name ||
-    c2pa?.title ||
-    (attr?.title && !attr.title.startsWith("http") ? attr.title : null) ||
-    "Untitled file";
-
-  const hasC2PA = !!(c2pa && c2pa.present);
-  const hasSubmitterNote = !!(attr?.name?.trim() || attr?.message?.trim());
-
   // Image source fallback chain:
-  // 1. Local preview URL (converted if HEIC, blob if native)
-  // 2. C2PA embedded thumbnail (covers RAW + shared links without cached file)
-  // 3. Nothing — photo card is hidden entirely
+  //   1. Local preview URL (converted if HEIC, blob if native)
+  //   2. C2PA embedded thumbnail (covers RAW + shared links with no cached file)
+  //   3. Nothing — the card is not rendered
   const imageSrc = (!previewFailed && previewUrl) || c2pa?.thumbnailDataUrl || "";
+  if (!imageSrc) return null;
+
+  const alt = cachedFile?.name || c2pa?.title || "Proof artifact";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {imageSrc && (
-        /* Photo card — full width so it matches the other fact cards
-            below. The photo itself sits centered inside, constrained to
-            500px on its largest dimension, with whatever whitespace on
-            the sides is necessary to preserve its aspect ratio. */
-        <div
-          style={{
-            background: "#ffffff",
-            border: "1px solid #d0d5dd",
-            borderRadius: 0,
-            padding: 24,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageSrc}
-            alt={fileTitle}
-            onError={() => {
-              // Browser can't render this blob — clear preview so imageSrc
-              // falls through to C2PA thumbnail or hides the card entirely.
-              if (previewUrl) setPreviewFailed(true);
-            }}
-            style={{
-              display: "block",
-              maxWidth: "min(100%, 500px)",
-              maxHeight: 500,
-              width: "auto",
-              height: "auto",
-              objectFit: "contain",
-              borderRadius: 0,
-            }}
-          />
-        </div>
-      )}
-
-      {/* Key facts */}
-      <div
+    <div
+      style={{
+        background: "#ffffff",
+        border: "1px solid #d0d5dd",
+        borderRadius: 0,
+        padding: 24,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={imageSrc}
+        alt={alt}
+        onError={() => { if (previewUrl) setPreviewFailed(true); }}
         style={{
-          background: "#ffffff",
-          border: "1px solid #d0d5dd",
+          display: "block",
+          maxWidth: "min(100%, 500px)",
+          maxHeight: 500,
+          width: "auto",
+          height: "auto",
+          objectFit: "contain",
           borderRadius: 0,
-          overflow: "hidden",
         }}
-      >
-        <BigField label="File name" value={fileTitle} />
-        <BigField
-          label="File hash"
-          value={shortFileHash}
-          mono
-          copyValue={fullFileHash}
-          hint="SHA-256 of the file bytes. Click to copy the full hash."
-        />
-        <BigField
-          label="Proof Hash"
-          value={shortHash}
-          mono
-          copyValue={fullHash}
-          hint="SHA-256 of the canonicalized signed proof. Click to copy the full hash."
-        />
-        <BigField
-          label="Zero bits have changed since"
-          value={prettyDate}
-          muted={!anchored}
-        />
-        {blockNumberBefore !== null && (
-          <BigField
-            label="BitGraphed after"
-            value={`Ethereum block ${blockNumberBefore.toLocaleString()}`}
-            linkHref={etherscanUrlBefore || undefined}
-            linkLabel="View on Etherscan ↗"
-          />
-        )}
-        {anchored && blockNumber !== null ? (
-          <BigField
-            label="BitGraphed before"
-            value={`Ethereum block ${blockNumber.toLocaleString()}`}
-            linkHref={etherscanUrl || undefined}
-            linkLabel="View on Etherscan ↗"
-            isLast
-          />
-        ) : (
-          <BigField
-            label="BitGraphed before"
-            value="Awaiting next Ethereum block"
-            muted
-            isLast
-          />
-        )}
-      </div>
-
-      {/* C2PA card — only when the file actually contains a manifest */}
-      {hasC2PA && <C2PACard c2pa={c2pa!} />}
-
-      {/* Submitter's note — self-attributed caption, clearly labelled */}
-      {hasSubmitterNote && (
-        <div
-          style={{
-            background: "#ffffff",
-            border: "1px solid #d0d5dd",
-            borderRadius: 0,
-            padding: "20px 24px",
-          }}
-        >
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-            Submitter&apos;s note
-          </div>
-          {attr?.name && (
-            <div style={{ fontSize: 15, color: "#111827", fontWeight: 600, marginBottom: 4 }}>
-              {attr.name}
-            </div>
-          )}
-          {attr?.message && (
-            <div style={{ fontSize: 14, color: "#4b5563", lineHeight: 1.55, fontStyle: "italic" }}>
-              &ldquo;{attr.message}&rdquo;
-            </div>
-          )}
-          <div style={{ fontSize: 11, color: "#6b7280", marginTop: 8 }}>
-            Self-attributed. Signed into the proof at commit time; identity is not verified.
-          </div>
-        </div>
-      )}
-
-      {/* "Verify this yourself" attestation action lives in the technical
-          details view (inside the Environment card). Simple view stays
-          minimal — status, facts, C2PA, explainer. */}
-
-      {/* Tightened "What this means" — proofs are created at commit time,
-          causal ordering, sealed into Ethereum. Neutral, concise. */}
-      <div
-        style={{
-          background: "#ffffff",
-          border: "1px solid #d0d5dd",
-          borderRadius: 0,
-          overflow: "hidden",
-        }}
-      >
-        <div style={{
-          fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
-          color: "#0065A4", padding: "18px 24px",
-          background: "rgba(0,101,164,0.04)",
-          borderBottom: "1px solid #e2e5e9",
-        }}>
-          What this means
-        </div>
-        <p style={{ fontSize: 18, color: "#374151", lineHeight: 1.5, margin: 0, padding: "24px 24px" }}>
-          Just as a photograph captures photons through the constraint of a single frame of film, a BitGraph captures bits through the constraint of a single mathematical slot.
-        </p>
-      </div>
+      />
     </div>
   );
 }
@@ -934,167 +691,6 @@ function extractJpegFromRaw(data: Uint8Array): Blob | null {
 
   if (bestStart < 0) return null;
   return new Blob([data.slice(bestStart, bestEnd)], { type: "image/jpeg" });
-}
-
-/* ── C2PA card — top-level Content Credentials, shown when present ── */
-
-function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
-  const claimGenerator =
-    c2pa.claimGeneratorInfo?.[0]?.name ||
-    c2pa.claimGenerator ||
-    undefined;
-  const claimGeneratorVersion = c2pa.claimGeneratorInfo?.[0]?.version;
-  const hasSignature = Boolean(c2pa.signatureIssuer);
-  const sigClean = c2pa.signatureValid !== false;
-
-  return (
-    <div
-      style={{
-        background: "#ffffff",
-        border: "1px solid #d0d5dd",
-        borderRadius: 0,
-        overflow: "hidden",
-      }}
-    >
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 12, padding: "14px 24px",
-        background: "rgba(0,101,164,0.04)",
-        borderBottom: "1px solid #e2e5e9",
-      }}>
-        <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4" }}>
-          Content Credentials (C2PA)
-        </div>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          fontSize: 11, fontWeight: 700, letterSpacing: "0.02em",
-          color: "#ffffff",
-          background: sigClean ? "#0065A4" : "#b45309",
-          padding: "5px 10px 5px 7px", borderRadius: 999,
-          lineHeight: 1,
-          boxShadow: sigClean ? "0 1px 4px rgba(0,101,164,0.28)" : "none",
-        }}>
-          {sigClean && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 14,
-                height: 14,
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.22)",
-              }}
-            >
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </span>
-          )}
-          {sigClean ? "Signed" : "Unverified"}
-        </div>
-      </div>
-
-      <div style={{ padding: "0 0 4px 0" }}>
-        {c2pa.creator && <BigField label="Author" value={c2pa.creator} />}
-        {claimGenerator && (
-          <BigField
-            label="Produced with"
-            value={claimGeneratorVersion ? `${claimGenerator} ${claimGeneratorVersion}` : claimGenerator}
-          />
-        )}
-        {c2pa.signatureIssuer && (
-          <BigField label="Signed by" value={c2pa.signatureIssuer} />
-        )}
-        {(c2pa.ingredientCount ?? 0) > 0 && (
-          <BigField
-            label="Derived from"
-            value={`${c2pa.ingredientCount} source file${c2pa.ingredientCount === 1 ? "" : "s"}`}
-            isLast
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-
-/* ── Big human-readable field (Simple view) ── */
-
-function BigField({
-  label,
-  value,
-  mono: isMono,
-  muted,
-  copyValue,
-  hint,
-  linkHref,
-  linkLabel,
-  isLast,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-  muted?: boolean;
-  copyValue?: string;
-  hint?: string;
-  linkHref?: string;
-  linkLabel?: string;
-  isLast?: boolean;
-}) {
-  const [copied, setCopied] = useState(false);
-  const clickable = Boolean(copyValue);
-
-  return (
-    <div
-      onClick={() => {
-        if (!clickable) return;
-        navigator.clipboard.writeText(copyValue!);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        padding: "20px 28px",
-        borderBottom: isLast ? "none" : "1px solid #e5e7eb",
-        cursor: clickable ? "pointer" : "default",
-      }}
-      title={clickable ? hint : undefined}
-    >
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        {label}
-      </div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <span
-          style={{
-            fontSize: isMono ? 22 : 20,
-            fontFamily: isMono ? mono : "inherit",
-            fontWeight: isMono ? 700 : 600,
-            color: copied ? "#0065A4" : muted ? "#6b7280" : "#111827",
-            letterSpacing: isMono ? "-0.01em" : "normal",
-            wordBreak: "break-word",
-            lineHeight: 1.3,
-            transition: "color .2s",
-          }}
-        >
-          {copied ? "Copied!" : value}
-        </span>
-        {linkHref && (
-          <a
-            href={linkHref}
-            target="_blank"
-            rel="noopener"
-            onClick={(e) => e.stopPropagation()}
-            style={{ fontSize: 13, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}
-          >
-            {linkLabel || linkHref}
-          </a>
-        )}
-      </div>
-    </div>
-  );
 }
 
 /* ── Attestation Verifier (modal) ── */
