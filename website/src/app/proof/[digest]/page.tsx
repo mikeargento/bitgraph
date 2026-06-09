@@ -288,6 +288,49 @@ export default function ProofPage() {
 
           {/* Ethereum Seal */}
           {/* Ethereum info — single card for both anchor proofs and user proofs */}
+
+          {/* BitGraphed After — the previous same-epoch anchor (lower time
+              bound). Renders anchorBefore, the earlier block: the proof was
+              witnessed AFTER this anchor. Shown above "BitGraphed Before" so the
+              pair reads as a window: after this block, before that one. */}
+          {!isEth && causalWindow?.anchorBefore && (
+            <Card title="BitGraphed After">
+              <Field
+                label="Ethereum Block"
+                value={
+                  causalWindow.anchorBefore.blockNumber !== null
+                    ? causalWindow.anchorBefore.blockNumber.toLocaleString()
+                    : "—"
+                }
+                highlight
+              />
+              {causalWindow.anchorBefore.blockTime && (
+                <Field label="Block Time" value={new Date(causalWindow.anchorBefore.blockTime).toLocaleString()} />
+              )}
+              {causalWindow.anchorBefore.etherscanUrl && (
+                <Field label="Etherscan" value={causalWindow.anchorBefore.etherscanUrl} link />
+              )}
+              {causalWindow.anchorBefore.digestB64 && (
+                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+                  <a
+                    href={`/proof/${encodeURIComponent((causalWindow.anchorBefore.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
+                    target="_blank" rel="noopener"
+                    className="bg-btn-outline"
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+                      color: "#0065A4", background: "#fff",
+                      border: "1px solid #0065A4", borderRadius: 0,
+                      textDecoration: "none", cursor: "pointer",
+                    }}
+                  >
+                    View Anchor Proof #{causalWindow.anchorBefore.counter} &rarr;
+                  </a>
+                </div>
+              )}
+            </Card>
+          )}
+
           {isEth && attr?.title ? (
             <Card title="Ethereum Block">
               <Field label="Block" value={`#${attr.title.match(/\/block\/(\d+)/)?.[1] || "?"}`} highlight />
@@ -523,6 +566,7 @@ function SimpleView({
   proof: BitGraphProof;
   attr?: { name?: string; title?: string; message?: string };
   causalWindow: {
+    anchorBefore: { counter: string; blockNumber: number | null; etherscanUrl: string | null; blockTime?: string | null } | null;
     anchorAfter: { counter: string; blockNumber: number | null; etherscanUrl: string | null; blockTime?: string | null } | null;
   } | null;
   cachedFile: { name: string; data: ArrayBuffer } | null;
@@ -614,6 +658,10 @@ function SimpleView({
   const blockTime = causalWindow?.anchorAfter?.blockTime ?? null;
   const blockNumber = causalWindow?.anchorAfter?.blockNumber ?? null;
   const etherscanUrl = causalWindow?.anchorAfter?.etherscanUrl ?? null;
+  // Lower time bound (previous same-epoch anchor): the proof was BitGraphed
+  // AFTER this earlier block. Renders as a sibling "BitGraphed after" field.
+  const blockNumberBefore = causalWindow?.anchorBefore?.blockNumber ?? null;
+  const etherscanUrlBefore = causalWindow?.anchorBefore?.etherscanUrl ?? null;
   // Anchored means the anchor exists in S3 (blockNumber present). blockTime is
   // cosmetic — fetched from a public Ethereum RPC and may be null if that RPC
   // is slow/down. Don't gate the anchor's existence on the cosmetic timestamp.
@@ -746,6 +794,14 @@ function SimpleView({
           value={prettyDate}
           muted={!anchored}
         />
+        {blockNumberBefore !== null && (
+          <BigField
+            label="BitGraphed after"
+            value={`Ethereum block ${blockNumberBefore.toLocaleString()}`}
+            linkHref={etherscanUrlBefore || undefined}
+            linkLabel="View on Etherscan ↗"
+          />
+        )}
         {anchored && blockNumber !== null ? (
           <BigField
             label="BitGraphed before"
