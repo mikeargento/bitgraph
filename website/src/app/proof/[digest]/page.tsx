@@ -576,9 +576,14 @@ function PhotoCard({
     if (!cachedFile) { setPreviewUrl(null); setPreviewFailed(false); return; }
     const name = cachedFile.name.toLowerCase();
 
-    const isNative = /\.(jpe?g|png|gif|webp|avif|bmp|tiff?)$/i.test(name);
     const isHeic = /\.(heic|heif)$/i.test(name);
     const isRaw = /\.(cr2|cr3|nef|arw|dng|raf|orf|rw2|pef|srw|raw|x3f)$/i.test(name);
+    // Prefer the extension, but fall back to sniffing magic bytes so a
+    // browser-renderable image still previews when the filename has no or an
+    // odd extension (some AI exports / ChatGPT downloads arrive that way).
+    const isNative =
+      /\.(jpe?g|png|gif|webp|avif|bmp|tiff?)$/i.test(name) ||
+      (!isHeic && !isRaw && sniffNativeImage(cachedFile.data));
 
     if (!isNative && !isHeic && !isRaw) {
       setPreviewUrl(null);
@@ -677,26 +682,38 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   digitalCapture: "Camera capture",
 };
 
+// Turn a raw C2PA generator into a human label, e.g.
+// "lightroom_classic/15.3.1" -> "Lightroom Classic 15.3.1". Prefers the
+// structured claimGeneratorInfo (clean name + version), falling back to the
+// User-Agent-style claim_generator string. Only word-initial letters are
+// cased, so acronyms like "ChatGPT" / "OpenAI" survive untouched.
+function formatGenerator(c2pa: C2PAReadResult): string | undefined {
+  const prettify = (s: string) =>
+    s.replace(/[_-]+/g, " ").trim().replace(/\b\w/g, (ch) => ch.toUpperCase());
+  const info = c2pa.claimGeneratorInfo?.find((g) => g.name);
+  if (info?.name) return info.version ? `${prettify(info.name)} ${info.version}` : prettify(info.name);
+  const raw = c2pa.claimGenerator;
+  if (!raw) return undefined;
+  const [namePart, version] = raw.split(/\s+/)[0].split("/");
+  return version ? `${prettify(namePart)} ${version}` : prettify(namePart);
+}
+
 function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
   const sourceText = c2pa.digitalSourceType ? SOURCE_TYPE_LABELS[c2pa.digitalSourceType] : undefined;
-  const generator =
-    c2pa.claimGenerator ||
-    c2pa.claimGeneratorInfo?.map((g) => g.name).filter(Boolean).join(", ") ||
-    undefined;
+  const generator = formatGenerator(c2pa);
   const signed = c2pa.signatureValid === true;
 
   return (
     <Card title="Content Credentials">
-      {/* Trust status. A hidden card already means "no manifest"; this pill
-          only distinguishes a CA-validated signature from a self-declared one.
-          It never asserts the file is authentic or that absence means human. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: signed ? "#10b981" : "#6b7280" }}>
-          <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>{signed ? "✓" : "○"}</span>
+      {/* Trust status, laid out like the other rows: label left, value right.
+          A hidden card already means "no manifest"; this only distinguishes a
+          CA-validated signature from a self-declared one. It never asserts the
+          file is authentic or that absence means human-made. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+        <span style={{ fontSize: 14, color: "#374151", fontWeight: 700, flexShrink: 0, minWidth: 80 }}>C2PA</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: signed ? "#10b981" : "#6b7280" }}>
+          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>{signed ? "✓" : "○"}</span>
           {signed ? "Signed" : "Self-declared"}
-        </span>
-        <span style={{ fontSize: 12, color: "#6b7280" }}>
-          {signed ? "signature validated" : "signature not validated"}
         </span>
       </div>
 
@@ -706,6 +723,27 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
       {c2pa.signatureIssuer && <Field label="Signed by" value={c2pa.signatureIssuer} />}
     </Card>
   );
+}
+
+/* ── Sniff browser-renderable image types from magic bytes ──
+   Lets the preview work when the filename has no usable extension (some AI
+   exports / ChatGPT downloads arrive that way). Covers only the formats an
+   <img> renders directly; HEIC and RAW are handled separately since they
+   need conversion. */
+function sniffNativeImage(buffer: ArrayBuffer): boolean {
+  const b = new Uint8Array(buffer, 0, Math.min(16, buffer.byteLength));
+  if (b.length < 4) return false;
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return true; // PNG
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return true;                  // JPEG
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return true;                  // GIF
+  if (b[0] === 0x42 && b[1] === 0x4d) return true;                                   // BMP
+  if ((b[0] === 0x49 && b[1] === 0x49 && b[2] === 0x2a && b[3] === 0x00) ||
+      (b[0] === 0x4d && b[1] === 0x4d && b[2] === 0x00 && b[3] === 0x2a)) return true; // TIFF
+  if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return true;  // RIFF/WEBP
+  if (b.length >= 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70 &&
+      b[8] === 0x61 && b[9] === 0x76 && b[10] === 0x69 && b[11] === 0x66) return true;  // ftyp 'avif'
+  return false;
 }
 
 /* ── Extract embedded JPEG preview from RAW camera files ── */
