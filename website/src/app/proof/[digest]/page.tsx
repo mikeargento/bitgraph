@@ -21,11 +21,12 @@ export default function ProofPage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null } | null>(null);
+  const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
 
   // Nav visible on proof pages
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         // 15s timeout guards against a stuck API route (e.g. a slow
@@ -45,29 +46,48 @@ export default function ProofPage() {
         if (data.proofs?.[0]?.proof) {
           setProof(data.proofs[0].proof as BitGraphProof);
           if (data.causalWindow) setCausalWindow(data.causalWindow);
-          // Try to load cached file from IndexedDB
-          try {
-            let digestB64 = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
-            while (digestB64.length % 4 !== 0) digestB64 += "=";
-            const db = await new Promise<IDBDatabase>((resolve, reject) => {
-              const req = indexedDB.open("bitgraph-files", 1);
-              req.onupgradeneeded = () => req.result.createObjectStore("files");
-              req.onsuccess = () => resolve(req.result);
-              req.onerror = () => reject(req.error);
-            });
-            const tx = db.transaction("files", "readonly");
-            const file = await new Promise<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null } | undefined>((resolve) => {
-              const req = tx.objectStore("files").get(digestB64);
-              req.onsuccess = () => resolve(req.result);
-              req.onerror = () => resolve(undefined);
-            });
-            db.close();
-            if (file) setCachedFile(file);
-          } catch (_) { /* no cached file */ }
+          // Load the cached file from IndexedDB. The home page writes it in
+          // the background after BitGraphing — bytes first, then a C2PA upgrade
+          // once the ~6 MB toolkit has parsed — and that write can land AFTER
+          // this page mounts. So poll briefly instead of reading once: pick up
+          // the bytes as soon as they appear (image preview), then keep polling
+          // until C2PA has been checked (card), bounded to a few seconds.
+          let digestB64 = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
+          while (digestB64.length % 4 !== 0) digestB64 += "=";
+          const readCached = async () => {
+            try {
+              const db = await new Promise<IDBDatabase>((resolve, reject) => {
+                const req = indexedDB.open("bitgraph-files", 1);
+                req.onupgradeneeded = () => req.result.createObjectStore("files");
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+              });
+              const tx = db.transaction("files", "readonly");
+              const file = await new Promise<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | undefined>((resolve) => {
+                const req = tx.objectStore("files").get(digestB64);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => resolve(undefined);
+              });
+              db.close();
+              return file;
+            } catch { return undefined; }
+          };
+          // Non-blocking poll so it never delays first paint.
+          void (async () => {
+            for (let attempt = 0; attempt < 20 && !cancelled; attempt++) {
+              const file = await readCached();
+              if (file && !cancelled) {
+                setCachedFile(file);
+                if (file.c2paChecked) break; // bytes + C2PA both settled
+              }
+              await new Promise((r) => setTimeout(r, 350));
+            }
+          })();
         } else setError("Proof not found");
       } catch { setError("Failed to load proof"); }
       setLoading(false);
     })();
+    return () => { cancelled = true; };
   }, [digestParam]);
 
   if (loading) return <Shell><div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh", fontSize: 20, fontWeight: 600, color: "var(--c-text-tertiary)" }}>Loading proof...</div></Shell>;

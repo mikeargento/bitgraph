@@ -14,6 +14,7 @@ import {
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
 import { Zip, ZipPassThrough } from "fflate";
+import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -483,26 +484,33 @@ export default function BitGraphPage() {
                   (async () => {
                     try {
                       const buf = await item.file.arrayBuffer();
-                      let c2pa = null;
+                      const writeRecord = async (c2pa: C2PAReadResult | null, c2paChecked: boolean) => {
+                        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+                          const req = indexedDB.open("bitgraph-files", 1);
+                          req.onupgradeneeded = () => req.result.createObjectStore("files");
+                          req.onsuccess = () => resolve(req.result);
+                          req.onerror = () => reject(req.error);
+                        });
+                        const tx = db.transaction("files", "readwrite");
+                        tx.objectStore("files").put({ name: item.file.name, data: buf, c2pa, c2paChecked }, proofDigest);
+                        await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
+                        db.close();
+                      };
+                      // Write the bytes first so the proof page can render the
+                      // image immediately, without waiting on the ~6 MB C2PA
+                      // WASM toolkit that loads lazily on the first file.
+                      await writeRecord(null, false);
+                      // Then read C2PA (slow on first use) and upgrade the
+                      // record. Mark it checked either way so the proof page's
+                      // poll stops even when there is no manifest.
+                      let c2pa: C2PAReadResult | null = null;
                       try {
                         const { readC2PA } = await import("@/lib/c2pa-reader");
                         c2pa = await readC2PA(item.file);
                       } catch (e) {
                         console.warn("[bitgraph] c2pa read failed:", e);
                       }
-                      const db = await new Promise<IDBDatabase>((resolve, reject) => {
-                        const req = indexedDB.open("bitgraph-files", 1);
-                        req.onupgradeneeded = () => req.result.createObjectStore("files");
-                        req.onsuccess = () => resolve(req.result);
-                        req.onerror = () => reject(req.error);
-                      });
-                      const tx = db.transaction("files", "readwrite");
-                      tx.objectStore("files").put(
-                        { name: item.file.name, data: buf, c2pa },
-                        proofDigest
-                      );
-                      await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
-                      db.close();
+                      await writeRecord(c2pa, true);
                     } catch (e) { console.error("[bitgraph] cache error:", e); }
                   })();
                 };
