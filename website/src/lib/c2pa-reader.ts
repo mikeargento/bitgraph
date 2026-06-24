@@ -114,12 +114,18 @@ export async function readC2PA(file: File | Blob, filename?: string): Promise<C2
     const result = await c2pa.read(input);
     const store = result.manifestStore as {
       activeManifest?: unknown;
+      manifests?: Record<string, unknown>;
       validationStatus?: Array<{ code: string; url?: string; explanation?: string }>;
     } | null;
 
-    if (!store || !store.activeManifest) return null;
+    if (!store) return null;
 
-    const active = store.activeManifest as {
+    // Resolve the active manifest. C2PA 2.x manifests (such as OpenAI's) can
+    // come back with activeManifest unset even though the manifest parsed fine
+    // and sits in the manifests map, which left the card blank. Fall back to
+    // the last manifest in the map (the active / most recent one) so it shows.
+    const active = (store.activeManifest ??
+      (store.manifests ? Object.values(store.manifests).pop() : undefined)) as {
       claimGenerator?: string;
       claimGeneratorInfo?: Array<{ name?: string; version?: string }>;
       title?: string;
@@ -134,7 +140,9 @@ export async function readC2PA(file: File | Blob, filename?: string): Promise<C2
       };
       thumbnail?: { getUrl?: () => { url: string; dispose?: () => void } };
       ingredients?: unknown[];
-    };
+    } | undefined;
+
+    if (!active) return null;
 
     const assertions = active.assertions?.data ?? [];
 
