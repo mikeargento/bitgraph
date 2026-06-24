@@ -17,6 +17,12 @@ export interface C2PAReadResult {
   claimGenerator?: string;
   /** Producer claim generator info details (device, software version, etc.). */
   claimGeneratorInfo?: Array<{ name?: string; version?: string }>;
+  /**
+   * IPTC DigitalSourceType (last URI segment) declared in the c2pa.actions
+   * assertion, e.g. "trainedAlgorithmicMedia" for AI-generated content or
+   * "digitalCapture" for a camera. Absent when the manifest declares none.
+   */
+  digitalSourceType?: string;
   /** Creator / author as reported by the active manifest, if signed. */
   creator?: string;
   /** Title / filename recorded in the manifest. */
@@ -127,6 +133,26 @@ export async function readC2PA(file: File | Blob, filename?: string): Promise<C2
       }
     }
 
+    // Origin signal: pull ONLY digitalSourceType off c2pa.actions and ignore
+    // everything else in the assertion. This is the standards-based "how was
+    // this made" flag (IPTC DigitalSourceType: trainedAlgorithmicMedia =
+    // AI-generated, digitalCapture = camera, etc.), distinct from the noisy
+    // per-edit action list we deliberately don't render (see note above).
+    let digitalSourceType: string | undefined;
+    const actionsAssertion = assertions.find((a) =>
+      a.label === "c2pa.actions" || a.label?.startsWith("c2pa.actions")
+    );
+    if (actionsAssertion) {
+      const data = (actionsAssertion.data ?? {}) as {
+        digitalSourceType?: string;
+        actions?: Array<{ action?: string; digitalSourceType?: string }>;
+      };
+      const raw =
+        data.digitalSourceType ||
+        data.actions?.find((act) => act?.digitalSourceType)?.digitalSourceType;
+      if (raw) digitalSourceType = raw.split("/").pop() || raw;
+    }
+
     // Thumbnail (best effort; older toolkit versions don't expose getUrl)
     let thumbnailDataUrl: string | undefined;
     try {
@@ -145,6 +171,7 @@ export async function readC2PA(file: File | Blob, filename?: string): Promise<C2
       present: true,
       claimGenerator: active.claimGenerator,
       claimGeneratorInfo: active.claimGeneratorInfo,
+      digitalSourceType,
       creator,
       title: active.title,
       format: active.format,
