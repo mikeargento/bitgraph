@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "copy-c2pa-assets": "mkdir -p public/c2pa && cp node_modules/c2pa/dist/assets/wasm/toolkit_bg.wasm public/c2pa/ && cp node_modules/c2pa/dist/c2pa.worker.min.js public/c2pa/",
+    "copy-c2pa-assets": "mkdir -p public/c2pa && cp node_modules/c2pa/dist/assets/wasm/toolkit_bg.wasm public/c2pa/ && cp node_modules/c2pa/dist/c2pa.worker.min.js public/c2pa/ && cp node_modules/@contentauth/toolkit/pkg/toolkit_bg.wasm public/c2pa/toolkit_core.wasm",
     "dev": "npm run copy-c2pa-assets && next dev",
     "build": "npm run copy-c2pa-assets && next build",
     "start": "next start",

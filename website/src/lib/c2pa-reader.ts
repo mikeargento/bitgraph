@@ -1,13 +1,18 @@
 /**
- * Thin wrapper around Adobe's c2pa-js library.
+ * C2PA manifest reader.
  *
- * Responsibilities:
- *   - Lazy-load the ~6 MB WASM toolkit only when a file is actually read
- *   - Normalize the c2pa manifest store into a flat, UI-friendly shape
- *   - Fail soft: if parsing throws or returns no manifest, return null so the
- *     BitGraph proof flow is never blocked by C2PA issues
+ * Reads embedded Content Credentials directly from the low-level
+ * @contentauth/toolkit WASM (getManifestStoreFromArrayBuffer) and normalizes
+ * the raw report into a flat, UI-friendly shape.
  *
- * This file is client-only. Do not import it from a server component.
+ * Why not the high-level `c2pa` SDK: its manifest post-processing throws on
+ * C2PA 2.x manifests (e.g. OpenAI's gpt-image), even though the underlying
+ * WASM reads them perfectly. The low-level call returns the same report shape
+ * for v1 and v2, so we parse it ourselves and skip the fragile wrapper.
+ *
+ * Fail soft: any parse error or missing manifest returns null so the BitGraph
+ * flow is never blocked by C2PA issues. Client-only; do not import from a
+ * server component.
  */
 
 export interface C2PAReadResult {
@@ -37,26 +42,51 @@ export interface C2PAReadResult {
   thumbnailDataUrl?: string;
   /** Count of ingredient parent manifests (derived / edited from …). */
   ingredientCount?: number;
-  /** Raw validation status codes from the toolkit (empty array = clean). */
-  validationStatus?: Array<{ code: string; url?: string; explanation?: string }>;
+  /** Validation failures from the toolkit (empty = signature validated cleanly). */
+  validationStatus?: Array<{ code?: string; url?: string; explanation?: string }>;
   /** Whether the manifest's active signature validated cleanly. */
   signatureValid?: boolean;
 }
 
-// Cached promise of the c2pa instance so we don't re-init the WASM worker.
-let c2paInstancePromise: Promise<unknown> | null = null;
+const EXT_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  gif: "image/gif",
+  bmp: "image/bmp",
+  tiff: "image/tiff",
+  webp: "image/webp",
+  avif: "image/avif",
+  heic: "image/heic",
+};
 
-async function getC2pa() {
-  if (c2paInstancePromise) return c2paInstancePromise;
-  c2paInstancePromise = (async () => {
-    // Dynamic import so the WASM isn't pulled into the main bundle.
-    const mod = await import("c2pa");
-    return await mod.createC2pa({
-      wasmSrc: "/c2pa/toolkit_bg.wasm",
-      workerSrc: "/c2pa/c2pa.worker.min.js",
-    });
+// Shape of a single manifest in the raw @contentauth/toolkit report (snake_case).
+interface RawManifest {
+  claim_generator?: string;
+  claim_generator_info?: Array<{ name?: string; version?: string }>;
+  title?: string;
+  format?: string;
+  signature_info?: { issuer?: string; time?: string };
+  assertions?: Array<{ label?: string; data?: unknown }>;
+  ingredients?: unknown[];
+}
+
+// Cached promise of the initialized toolkit so the ~6 MB WASM loads once.
+let toolkitPromise: Promise<{
+  getManifestStoreFromArrayBuffer: (buf: ArrayBuffer, mimeType: string, settings?: string) => Promise<unknown>;
+}> | null = null;
+
+async function getToolkit() {
+  if (toolkitPromise) return toolkitPromise;
+  toolkitPromise = (async () => {
+    // Dynamic import so the WASM glue isn't pulled into the main bundle.
+    const tk = (await import("@contentauth/toolkit")) as unknown as {
+      default: (init: { module_or_path: string }) => Promise<unknown>;
+      getManifestStoreFromArrayBuffer: (buf: ArrayBuffer, mimeType: string, settings?: string) => Promise<unknown>;
+    };
+    await tk.default({ module_or_path: "/c2pa/toolkit_core.wasm" });
+    return tk;
   })();
-  return c2paInstancePromise;
+  return toolkitPromise;
 }
 
 /** Identify a C2PA-relevant image type from magic bytes, or undefined. */
@@ -80,89 +110,46 @@ function sniffExtension(b: Uint8Array): string | undefined {
 /**
  * Read any embedded C2PA manifest from a File or Blob.
  *
- * Returns null if:
- *   - The file has no C2PA manifest
- *   - The library or WASM fails to load (no c2pa support on this browser)
- *   - Any exception is thrown during parsing
- *
- * Never throws. Never blocks the BitGraph flow.
+ * Returns null if the file has no manifest, the WASM fails to load, or anything
+ * throws during parsing. Never throws; never blocks the BitGraph flow.
  */
-export async function readC2PA(file: File | Blob, filename?: string): Promise<C2PAReadResult | null> {
+export async function readC2PA(file: File | Blob): Promise<C2PAReadResult | null> {
   try {
-    const c2pa = (await getC2pa()) as {
-      read: (input: File | Blob | { blob: Blob; name: string }) => Promise<{ manifestStore: unknown }>;
-    };
+    const buf = await file.arrayBuffer();
+    // The toolkit picks its parser from the MIME type. Sniff it from the bytes
+    // so a missing or wrong file extension (common for AI exports) can't hide
+    // the manifest; fall back to the blob's declared type.
+    const head = new Uint8Array(buf, 0, Math.min(16, buf.byteLength));
+    const ext = sniffExtension(head);
+    const mimeType = (ext && EXT_MIME[ext]) || file.type || "application/octet-stream";
 
-    // The toolkit leans on the asset name/extension to pick a parser, and AI
-    // exports / downloads sometimes arrive with no usable extension, so it
-    // never looks for the manifest. Sniff the real type from magic bytes and,
-    // only when the name carries no recognized image extension, hand the
-    // toolkit a corrected name so it can find a manifest it would otherwise
-    // miss. Files that already have a good extension (a camera/Lightroom JPEG)
-    // pass through unchanged, so the working path is untouched.
-    const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-    const sniffedExt = sniffExtension(head);
-    const currentName = (file instanceof File ? file.name : filename) || "";
-    const hasImageExt = /\.(jpe?g|png|gif|webp|avif|bmp|tiff?|heic|heif|dng|cr2|cr3|nef|arw)$/i.test(currentName);
-    const input =
-      !hasImageExt && sniffedExt
-        ? { blob: file, name: `upload.${sniffedExt}` }
-        : file instanceof File
-          ? file
-          : { blob: file, name: filename || "upload.bin" };
-
-    const result = await c2pa.read(input);
-    const store = result.manifestStore as {
-      activeManifest?: unknown;
-      manifests?: Record<string, unknown>;
-      validationStatus?: Array<{ code: string; url?: string; explanation?: string }>;
+    const tk = await getToolkit();
+    const report = (await tk.getManifestStoreFromArrayBuffer(buf, mimeType)) as {
+      manifest_store?: {
+        active_manifest?: string;
+        manifests?: Record<string, RawManifest>;
+        validation_results?: {
+          activeManifest?: { failure?: Array<{ code?: string; url?: string; explanation?: string }> };
+        };
+      };
     } | null;
 
-    if (!store) return null;
+    const ms = report?.manifest_store;
+    if (!ms || !ms.manifests) return null;
 
-    // Resolve the active manifest. C2PA 2.x manifests (such as OpenAI's) can
-    // come back with activeManifest unset even though the manifest parsed fine
-    // and sits in the manifests map, which left the card blank. Fall back to
-    // the last manifest in the map (the active / most recent one) so it shows.
-    const active = (store.activeManifest ??
-      (store.manifests ? Object.values(store.manifests).pop() : undefined)) as {
-      claimGenerator?: string;
-      claimGeneratorInfo?: Array<{ name?: string; version?: string }>;
-      title?: string;
-      format?: string;
-      signatureInfo?: {
-        issuer?: string;
-        time?: string;
-        cert_serial_number?: string;
-      };
-      assertions?: {
-        data?: Array<{ label: string; data: unknown }>;
-      };
-      thumbnail?: { getUrl?: () => { url: string; dispose?: () => void } };
-      ingredients?: unknown[];
-    } | undefined;
-
+    // Resolve the active manifest by label, falling back to the last entry.
+    const active: RawManifest | undefined =
+      (ms.active_manifest ? ms.manifests[ms.active_manifest] : undefined) ??
+      Object.values(ms.manifests).pop();
     if (!active) return null;
 
-    const assertions = active.assertions?.data ?? [];
+    const assertions = active.assertions ?? [];
 
-    // NOTE: We deliberately do not render the c2pa.actions assertion.
-    // Lightroom (and most Adobe tools) emit one entry per edit tagged
-    // as the generic "c2pa.color_adjustments" with no parameter values,
-    // which produces lists like "Color adjustments ×10" with zero added
-    // signal. If a future C2PA producer starts including meaningful
-    // per-action detail (parameters / descriptions), we can re-add
-    // extraction and rendering here.
-
-    // Creator assertion → first author's name
+    // Creator → first author of a schema.org CreativeWork assertion.
     let creator: string | undefined;
-    const creativeWork = assertions.find((a) =>
-      a.label?.startsWith("stds.schema-org.CreativeWork")
-    );
+    const creativeWork = assertions.find((a) => a.label?.startsWith("stds.schema-org.CreativeWork"));
     if (creativeWork) {
-      const data = (creativeWork.data ?? {}) as {
-        author?: Array<{ name?: string }> | { name?: string };
-      };
+      const data = (creativeWork.data ?? {}) as { author?: Array<{ name?: string }> | { name?: string } };
       if (Array.isArray(data.author)) {
         creator = data.author.find((a) => a?.name)?.name;
       } else if (data.author && typeof data.author === "object" && "name" in data.author) {
@@ -170,15 +157,11 @@ export async function readC2PA(file: File | Blob, filename?: string): Promise<C2
       }
     }
 
-    // Origin signal: pull ONLY digitalSourceType off c2pa.actions and ignore
-    // everything else in the assertion. This is the standards-based "how was
-    // this made" flag (IPTC DigitalSourceType: trainedAlgorithmicMedia =
-    // AI-generated, digitalCapture = camera, etc.), distinct from the noisy
-    // per-edit action list we deliberately don't render (see note above).
+    // Origin signal: IPTC digitalSourceType off the actions assertion (v1
+    // "c2pa.actions" or v2 "c2pa.actions.v2"). trainedAlgorithmicMedia =
+    // AI-generated, digitalCapture = camera, etc. We pull only that field.
     let digitalSourceType: string | undefined;
-    const actionsAssertion = assertions.find((a) =>
-      a.label === "c2pa.actions" || a.label?.startsWith("c2pa.actions")
-    );
+    const actionsAssertion = assertions.find((a) => a.label?.startsWith("c2pa.actions"));
     if (actionsAssertion) {
       const data = (actionsAssertion.data ?? {}) as {
         digitalSourceType?: string;
@@ -190,34 +173,22 @@ export async function readC2PA(file: File | Blob, filename?: string): Promise<C2
       if (raw) digitalSourceType = raw.split("/").pop() || raw;
     }
 
-    // Thumbnail (best effort; older toolkit versions don't expose getUrl)
-    let thumbnailDataUrl: string | undefined;
-    try {
-      const tb = active.thumbnail;
-      if (tb && typeof tb.getUrl === "function") {
-        const { url } = tb.getUrl();
-        thumbnailDataUrl = url;
-      }
-    } catch {
-      /* ignore — thumbnail is optional */
-    }
-
-    const validationStatus = store.validationStatus ?? [];
+    const failures = ms.validation_results?.activeManifest?.failure ?? [];
 
     return {
       present: true,
-      claimGenerator: active.claimGenerator,
-      claimGeneratorInfo: active.claimGeneratorInfo,
+      claimGenerator: active.claim_generator,
+      claimGeneratorInfo: active.claim_generator_info,
       digitalSourceType,
       creator,
       title: active.title,
       format: active.format,
-      signatureIssuer: active.signatureInfo?.issuer,
-      signatureTime: active.signatureInfo?.time,
-      thumbnailDataUrl,
+      signatureIssuer: active.signature_info?.issuer,
+      signatureTime: active.signature_info?.time,
+      thumbnailDataUrl: undefined,
       ingredientCount: Array.isArray(active.ingredients) ? active.ingredients.length : 0,
-      validationStatus,
-      signatureValid: validationStatus.length === 0,
+      validationStatus: failures,
+      signatureValid: failures.length === 0,
     };
   } catch (err) {
     if (typeof window !== "undefined") {
