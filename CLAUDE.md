@@ -48,7 +48,7 @@ bitgraph/
 │   ├── ledger/                   # S3 ledger read/write (occ-ledger-prod, legacy archive)
 │   └── adapter-nitro/            # Nitro NSM interface (PCR0, attestation)
 └── website/                      # Next.js app on Vercel (bitgraph.ing)
-    ├── src/app/                  # Routes — home, proof/[digest], docs, contact
+    ├── src/app/                  # Routes — home, proof/[digest], docs
     ├── src/components/           # FileDrop, SiteNav, Chat, etc.
     ├── src/lib/                  # bitgraph client, s3, c2pa-reader, nitro-verify
     └── public/                   # verify.html, c2pa/ WASM (copied at build)
@@ -62,7 +62,6 @@ bitgraph/
 | **Anchor service** | `occ.bitgraph.ing` (Railway project `content-quietude`) | Seals counter chain into Ethereum blocks, writes anchors to S3 |
 | **S3 ledger** | `occ-ledger-prod` (us-east-2, Object Lock COMPLIANCE, 10-year retention) | Sole storage. Keys: `proofs/{epoch}/{counter}-{hash}.json`, `anchors/{epoch}/`, `by-digest/{digest}.json` |
 | **Website** | `bitgraph.ing` (Vercel project `occ-docs`) | Built from `website/` subdirectory. Linked via `.vercel/` at the repo root |
-| **Contact form** | `bitgraph.ing/contact` → Resend | `mikeargento@gmail.com` inbox. `RESEND_API_KEY` env var on Vercel |
 
 **SSH to EC2**: `ssh -i ~/Desktop/Keys/occ-nitro-test.pem ec2-user@3.151.121.225`
 
@@ -117,7 +116,7 @@ The `proofHash` field is added by the ledger at write time (see `packages/ledger
 - **Brand accent**: blue `#0065A4` (changed from `#1A73E8` on April 7). Used for titles, links, primary buttons.
 - **Trust mark green**: emerald `#10b981` — verified check, C2PA "Signed" pill, attestation success states. Consistent across all trust indicators.
 - **Font**: Acumin Pro via Typekit (kit `svq0oqy`), fallback to Inter / system sans
-- **Nav**: solid `#f5f5f5` background, no border. Left: "BitGraph" text logo, `font-weight: 900`. Right: `Docs | Contact` (GitHub lives at the bottom of the docs sidebar, not in the nav)
+- **Nav**: solid `#f5f5f5` background, no border. Left: "BitGraph" text logo, `font-weight: 900`. Right: `Docs | GitHub` (GitHub is a top-level external link in the nav as of June 2026; the Resend contact form was removed and the duplicate GitHub entry in the docs dropdown was dropped)
 - **Drop zone**: 90% width, max 640px, 360px tall (280 mobile). Fluid typography: `min(22px, 4.25vw)` headline, `min(13px, 3vw)` subtitle so everything fits on one line at any viewport
 - **Proof pages**: 800px max width, single column. Simple view is the default; "See details" flips to the technical card grid (Slot → Artifact → Commit → Signer → Environment → BitGraphed Before)
 - **Cards**: white `#ffffff`, 1px `#d0d5dd` border, 16px radius
