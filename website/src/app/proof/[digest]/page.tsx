@@ -620,7 +620,7 @@ function BringYourFile({
         transition: "border-color .15s",
       }}
     >
-      <input ref={inputRef} type="file" style={{ display: "none" }} onChange={(e) => check(e.target.files?.[0])} />
+      <input ref={inputRef} type="file" style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ""; check(f); }} />
       {state === "checking" ? (
         <div style={{ fontSize: 15, fontWeight: 600, color: "#6b7280" }}>Checking…</div>
       ) : mismatch ? (
