@@ -23,8 +23,8 @@ export const metadata: Metadata = {
   description:
     "Live cryptographic proof chain. Create, verify, and explore BitGraph proofs.",
   keywords: [
-    "BitGraph", "BitGraph", "AI agent control", "AI safety",
-    "cryptographic policy", "AI governance", "default deny", "proof explorer",
+    "BitGraph", "content provenance", "causal order", "proof of integrity",
+    "cryptographic provenance", "tamper-evident", "C2PA", "proof explorer",
   ],
   openGraph: {
     title: "BitGraph",

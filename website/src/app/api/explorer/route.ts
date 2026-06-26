@@ -1,0 +1,155 @@
+import { NextRequest, NextResponse } from "next/server";
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+
+// Read-only explorer feed for the CURRENT epoch. Returns aggregate, safe
+// per-entry fields only (counter, type, short hash, link digest, anchor block).
+// Never returns attestation, signatures, agency, or any operator/clock detail.
+// See the disclosure audit: the per-proof page already carries the rest; this
+// surface deliberately exposes only the spine.
+
+export const dynamic = "force-dynamic";
+
+const region = (process.env.LEDGER_REGION || "us-east-2").trim();
+const bucket = (process.env.LEDGER_BUCKET || "occ-ledger-prod").trim();
+const s3 = new S3Client({ region });
+
+const PAGE = 25;
+const pad = (n: number) => String(n).padStart(12, "0");
+const toSafe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+// ── tiny in-memory caches (warm-instance scoped) ───────────────────────────
+let epochCache: { epoch: string; at: number } | null = null;
+const headCache = new Map<string, { head: number; at: number }>();
+const EPOCH_TTL = 60_000;
+const HEAD_TTL = 8_000;
+
+/** Current epoch = the one whose first object was written most recently
+ *  (a new epoch is born at counter 1 on every TEE restart). ~1 cheap LIST/epoch. */
+async function getCurrentEpoch(now: number): Promise<string | null> {
+  if (epochCache && now - epochCache.at < EPOCH_TTL) return epochCache.epoch;
+  const pe = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "proofs/", Delimiter: "/", MaxKeys: 200 }));
+  const prefixes = (pe.CommonPrefixes || []).map((p) => p.Prefix!).filter(Boolean);
+  let best: { epoch: string; born: number } | null = null;
+  for (const pfx of prefixes) {
+    const first = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: pfx, MaxKeys: 1 }));
+    const lm = first.Contents?.[0]?.LastModified?.getTime() ?? 0;
+    const epoch = pfx.replace("proofs/", "").replace(/\/$/, "");
+    if (!best || lm > best.born) best = { epoch, born: lm };
+  }
+  if (!best) return null;
+  epochCache = { epoch: best.epoch, at: now };
+  return best.epoch;
+}
+
+/** Highest counter under proofs/{epoch}/ via StartAfter binary search (~log2, bounded). */
+async function getHead(epoch: string, now: number): Promise<number> {
+  const cached = headCache.get(epoch);
+  if (cached && now - cached.at < HEAD_TTL) return cached.head;
+  const prefix = `proofs/${epoch}/`;
+  const has = async (n: number) => {
+    const r = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(n)}`, MaxKeys: 1 }));
+    return (r.Contents?.length ?? 0) > 0;
+  };
+  let lo = 0, cur = 1024, hi = 1_000_000_000;
+  while (cur < hi && (await has(cur))) { lo = cur; cur *= 4; }
+  hi = Math.min(hi, cur);
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (await has(mid)) lo = mid; else hi = mid; }
+  const head = Math.max(lo, 1);
+  headCache.set(epoch, { head, at: now });
+  return head;
+}
+
+type Entry = {
+  counter: number;
+  type: "proof" | "anchor";
+  digest: string;
+  hashShort: string;
+  blockNumber: number | null;
+  etherscanUrl: string | null;
+};
+
+function toEntry(p: Record<string, unknown>): Entry | null {
+  const commit = (p.commit as Record<string, unknown>) || {};
+  const artifact = (p.artifact as Record<string, unknown>) || {};
+  const attribution = (p.attribution as Record<string, unknown>) || {};
+  const counter = parseInt(String(commit.counter ?? "0"), 10);
+  if (!counter) return null;
+  const isAnchor = attribution.name === "Ethereum Anchor";
+  const digestB64 = String(artifact.digestB64 || "");
+  const proofHash = String((p.proofHash as string) || commit.prevB64 || digestB64 || "");
+  let blockNumber: number | null = null;
+  let etherscanUrl: string | null = null;
+  if (isAnchor) {
+    etherscanUrl = (attribution.title as string) || null;
+    const m = (etherscanUrl || "").match(/\/block\/(\d+)/);
+    blockNumber = m ? parseInt(m[1], 10) : null;
+  }
+  return {
+    counter,
+    type: isAnchor ? "anchor" : "proof",
+    digest: toSafe(digestB64),
+    hashShort: toSafe(proofHash).slice(0, 10),
+    blockNumber,
+    etherscanUrl,
+  };
+}
+
+/** The `limit` highest-counter proofs at or below `top`. One LIST + `limit` GETs.
+ *  Counters step by ~2 (slot + commit per event), so the LIST window is widened. */
+async function listRecent(epoch: string, top: number, limit: number): Promise<Entry[]> {
+  const prefix = `proofs/${epoch}/`;
+  const start = Math.max(0, top - limit * 2 - 16);
+  const res = await s3.send(new ListObjectsV2Command({
+    Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(start)}`, MaxKeys: limit * 2 + 24,
+  }));
+  const keys = (res.Contents || [])
+    .map((o) => ({ key: o.Key!, counter: parseInt((o.Key!.split("/").pop() || "").split("-")[0], 10) }))
+    .filter((x) => x.key && !isNaN(x.counter) && x.counter <= top)
+    .sort((a, b) => b.counter - a.counter)
+    .slice(0, limit);
+  const objs = await Promise.all(keys.map(async ({ key }) => {
+    try {
+      const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      const body = await r.Body?.transformToString();
+      return body ? (JSON.parse(body) as Record<string, unknown>) : null;
+    } catch { return null; }
+  }));
+  return objs
+    .map((o) => (o ? toEntry(o) : null))
+    .filter((e): e is Entry => e !== null)
+    .sort((a, b) => b.counter - a.counter);
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const now = Date.now();
+    const beforeParam = req.nextUrl.searchParams.get("before");
+    const epoch = await getCurrentEpoch(now);
+    if (!epoch) return NextResponse.json({ error: "no epoch" }, { status: 404 });
+
+    const head = await getHead(epoch, now);
+    let top = head;
+    if (beforeParam) {
+      const b = parseInt(beforeParam, 10);
+      if (isNaN(b)) return NextResponse.json({ error: "bad cursor" }, { status: 400 });
+      top = Math.min(b - 1, head);
+    }
+
+    const entries = top < 1 ? [] : await listRecent(epoch, top, PAGE);
+    const nextBefore = entries.length ? entries[entries.length - 1].counter : null;
+
+    return NextResponse.json(
+      { epoch, head, entries, nextBefore, hasMore: nextBefore != null && nextBefore > 1 },
+      {
+        headers: {
+          "Cache-Control": beforeParam
+            ? "public, s-maxage=300, stale-while-revalidate=600"
+            : "public, s-maxage=5, stale-while-revalidate=10",
+        },
+      },
+    );
+  } catch (e) {
+    console.error("GET /api/explorer error:", e);
+    return NextResponse.json({ error: "failed" }, { status: 500 });
+  }
+}

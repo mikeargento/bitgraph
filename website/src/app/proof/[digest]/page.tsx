@@ -441,14 +441,14 @@ function Field({ label, value, mono: isMono, highlight, link }: { label: string;
     <div
       onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
       style={{
-        display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16,
+        display: "flex", flexDirection: "column", gap: 5,
         padding: "14px 24px", borderBottom: "1px solid #e2e5e9", cursor: "pointer",
       }}
     >
-      <span style={{ fontSize: 14, color: "#374151", fontWeight: 700, flexShrink: 0, minWidth: 80 }}>{label}</span>
+      <span style={{ fontSize: 14, color: "#374151", fontWeight: 700 }}>{label}</span>
       {link ? (
         <a href={value} target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{
-          fontSize: 13, color: "var(--c-accent)", textDecoration: "none", wordBreak: "break-all", textAlign: "right",
+          fontSize: 13, color: "var(--c-accent)", textDecoration: "none", wordBreak: "break-all",
         }}>{value}</a>
       ) : (
         <span style={{
@@ -456,8 +456,8 @@ function Field({ label, value, mono: isMono, highlight, link }: { label: string;
           fontFamily: isMono ? mono : "inherit",
           color: copied ? "#0065A4" : highlight ? "var(--c-accent)" : "#1f2937",
           fontWeight: highlight ? 700 : 400,
-          wordBreak: "break-all", textAlign: "right",
-          transition: "color .2s", lineHeight: 1.4,
+          wordBreak: "break-all",
+          transition: "color .2s", lineHeight: 1.5,
         }}>
           {copied ? "Copied!" : value}
         </span>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FileDrop } from "@/components/file-drop";
+import { Explorer } from "@/components/explorer";
 // Footer is in root layout
 import {
   hashFile,
@@ -336,7 +337,7 @@ export default function BitGraphPage() {
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
-        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 57px); }
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 57px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-wrap .file-drop-container { height: 450px; }
         @media (max-width: 640px) { .bitgraph-wrap .file-drop-container { height: 280px; } }
@@ -353,14 +354,17 @@ export default function BitGraphPage() {
 
         {/* ── Drop zone + What is BitGraph button ── */}
         {step === "drop" && (
-          <div className="file-drop-container" style={{ animation: "slideIn 0.3s ease-out" }}>
-            <FileDrop
-              multiple
-              onFile={(f) => handleFiles([f])}
-              onFiles={handleFiles}
-              hint=""
-            />
-          </div>
+          <>
+            <div className="file-drop-container" style={{ animation: "slideIn 0.3s ease-out" }}>
+              <FileDrop
+                multiple
+                onFile={(f) => handleFiles([f])}
+                onFiles={handleFiles}
+                hint=""
+              />
+            </div>
+            <Explorer />
+          </>
         )}
 
         {/* ── Scanning ── */}
