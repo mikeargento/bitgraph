@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 // Nav is in root layout
-import { hashFile, type BitGraphProof } from "@/lib/bitgraph";
+import { hashFile, hashBytes, type BitGraphProof } from "@/lib/bitgraph";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
@@ -73,11 +73,39 @@ export default function ProofPage() {
               return file;
             } catch { return undefined; }
           };
+          // Self-heal: drop a cached record whose bytes don't match this proof.
+          // Older home-page builds cached the dropped proof.json itself under the
+          // digest key; those bytes aren't the artifact and would otherwise hide
+          // both the image and the bring-your-file box.
+          const dropCached = async () => {
+            try {
+              const db = await new Promise<IDBDatabase>((resolve, reject) => {
+                const req = indexedDB.open("bitgraph-files", 1);
+                req.onupgradeneeded = () => req.result.createObjectStore("files");
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+              });
+              const tx = db.transaction("files", "readwrite");
+              tx.objectStore("files").delete(digestB64);
+              await new Promise((r) => { tx.oncomplete = r; tx.onerror = r; });
+              db.close();
+            } catch { /* best effort */ }
+          };
           // Non-blocking poll so it never delays first paint.
           void (async () => {
+            let validated = false;
             for (let attempt = 0; attempt < 20 && !cancelled; attempt++) {
               const file = await readCached();
               if (file && !cancelled) {
+                // Trust a cached file only if its bytes actually hash to this
+                // proof's digest. A non-matching record (e.g. a stale cached
+                // proof.json) is dropped so the bring-your-file box can show.
+                if (!validated) {
+                  let matches = false;
+                  try { matches = (await hashBytes(new Uint8Array(file.data))) === digestB64; } catch { matches = false; }
+                  if (!matches) { void dropCached(); break; }
+                  validated = true;
+                }
                 setCachedFile(file);
                 if (file.c2paChecked) break; // bytes + C2PA both settled
               }
