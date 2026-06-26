@@ -25,6 +25,11 @@ interface FileItem {
   proof: BitGraphProof | null;
   valid: boolean | null;
   status: "found" | "new" | "proving" | "proved" | "error";
+  // True when this item came from a dropped proof.json rather than an artifact.
+  // The `file` in hand is then the JSON, not the thing the proof is about, so we
+  // offer an inline check to confirm the visitor holds the matching artifact.
+  fromProofJson?: boolean;
+  matchedFile?: File | null;
 }
 
 
@@ -123,7 +128,7 @@ export default function BitGraphPage() {
         const proofJson = couldBeProof ? isBitGraphProof(await f.text()) : null;
         if (proofJson) {
           const result = await verifyProofSignature(proofJson);
-          results.push({ file: f, digestB64: proofJson.artifact.digestB64, proof: proofJson, valid: result.valid, status: "found" });
+          results.push({ file: f, digestB64: proofJson.artifact.digestB64, proof: proofJson, valid: result.valid, status: "found", fromProofJson: true });
           continue;
         }
 
@@ -329,6 +334,14 @@ export default function BitGraphPage() {
 
   function reset() { setStep("drop"); setItems([]); setAnimCount(0); }
 
+  // A visitor supplied a file that hashes to a dropped proof.json's digest. Mark
+  // the row matched and cache the real artifact so opening the proof shows it.
+  function handleMatched(index: number, file: File) {
+    const proof = items[index]?.proof;
+    setItems(prev => prev.map((it, j) => j === index ? { ...it, matchedFile: file } : it));
+    if (proof) cacheArtifactToIDB(file, proof.artifact.digestB64).catch((e) => console.error("[bitgraph] cache error:", e));
+  }
+
   /* ── Styles ── */
   const card: React.CSSProperties = { border: "1px solid #d0d5dd", padding: "24px 20px", background: "#fff", borderRadius: 0, marginBottom: 16 };
   const btnFill: React.CSSProperties = { height: 76, fontSize: 16, fontWeight: 600, border: "none", borderRadius: 0, background: "#0065A4", color: "#ffffff", cursor: "pointer", letterSpacing: "-0.01em" };
@@ -482,45 +495,18 @@ export default function BitGraphPage() {
                   // Use the proof's digest (from TEE) for the URL, not the browser-computed hash.
                   const proofDigest = item.proof.artifact.digestB64;
                   window.open(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}`, "_blank");
-                  // Cache file (and any embedded C2PA manifest) to IndexedDB in the background
-                  // so the proof page can show them. C2PA parsing is best-effort and must
-                  // never block caching of the file itself.
-                  (async () => {
-                    try {
-                      const buf = await item.file.arrayBuffer();
-                      const writeRecord = async (c2pa: C2PAReadResult | null, c2paChecked: boolean) => {
-                        const db = await new Promise<IDBDatabase>((resolve, reject) => {
-                          const req = indexedDB.open("bitgraph-files", 1);
-                          req.onupgradeneeded = () => req.result.createObjectStore("files");
-                          req.onsuccess = () => resolve(req.result);
-                          req.onerror = () => reject(req.error);
-                        });
-                        const tx = db.transaction("files", "readwrite");
-                        tx.objectStore("files").put({ name: item.file.name, data: buf, c2pa, c2paChecked }, proofDigest);
-                        await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
-                        db.close();
-                      };
-                      // Write the bytes first so the proof page can render the
-                      // image immediately, without waiting on the ~6 MB C2PA
-                      // WASM toolkit that loads lazily on the first file.
-                      await writeRecord(null, false);
-                      // Then read C2PA (slow on first use) and upgrade the
-                      // record. Mark it checked either way so the proof page's
-                      // poll stops even when there is no manifest.
-                      let c2pa: C2PAReadResult | null = null;
-                      try {
-                        const { readC2PA } = await import("@/lib/c2pa-reader");
-                        c2pa = await readC2PA(item.file);
-                      } catch (e) {
-                        console.warn("[bitgraph] c2pa read failed:", e);
-                      }
-                      await writeRecord(c2pa, true);
-                    } catch (e) { console.error("[bitgraph] cache error:", e); }
-                  })();
+                  // Cache the artifact bytes (and any embedded C2PA manifest) so the proof
+                  // page can render the image. For a dropped proof.json the file in hand is
+                  // the JSON, not the artifact, so only cache a real file: a regular dropped
+                  // artifact, or one the visitor matched via the inline check below.
+                  const artifactFile = item.fromProofJson ? item.matchedFile : item.file;
+                  if (artifactFile) {
+                    cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+                  }
                 };
                 return (
+                  <div key={item.file.name + i} style={{ marginTop: i > 0 ? 8 : 0 }}>
                   <div
-                    key={item.file.name + i}
                     role={clickable ? "button" : undefined}
                     tabIndex={clickable ? 0 : undefined}
                     onClick={clickable ? openProof : undefined}
@@ -529,7 +515,6 @@ export default function BitGraphPage() {
                     style={{
                       height: 76,
                       padding: "0 12px",
-                      marginTop: i > 0 ? 8 : 0,
                       display: "flex", alignItems: "center", gap: 12,
                       animation: `slideIn 0.2s ease-out ${i * 0.05}s both`,
                       cursor: clickable ? "pointer" : "default",
@@ -572,6 +557,17 @@ export default function BitGraphPage() {
                       </span>
                     )}
                   </div>
+                  {item.fromProofJson && item.proof && (
+                    item.matchedFile ? (
+                      <div style={{ marginTop: 8, padding: "14px 16px", border: "1px solid #10b981", background: "#fff", fontSize: 14, fontWeight: 600, color: "#10b981", display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 700 }}>✓</span>
+                        <span>This file matches the proof. Open to view it.</span>
+                      </div>
+                    ) : (
+                      <FileMatchCheck proof={item.proof} onMatched={(f) => handleMatched(i, f)} />
+                    )
+                  )}
+                  </div>
                 );
               })}
             </div>
@@ -579,6 +575,91 @@ export default function BitGraphPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── Cache an artifact's bytes (and any embedded C2PA manifest) to IndexedDB
+   under the proof digest, so the proof page can render the image. The bytes are
+   written first so the image appears immediately; C2PA parsing is best-effort
+   (loads a ~6 MB WASM toolkit lazily) and never blocks caching the file. ── */
+async function cacheArtifactToIDB(file: File, proofDigest: string) {
+  const buf = await file.arrayBuffer();
+  const writeRecord = async (c2pa: C2PAReadResult | null, c2paChecked: boolean) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open("bitgraph-files", 1);
+      req.onupgradeneeded = () => req.result.createObjectStore("files");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const tx = db.transaction("files", "readwrite");
+    tx.objectStore("files").put({ name: file.name, data: buf, c2pa, c2paChecked }, proofDigest);
+    await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
+    db.close();
+  };
+  await writeRecord(null, false);
+  let c2pa: C2PAReadResult | null = null;
+  try {
+    const { readC2PA } = await import("@/lib/c2pa-reader");
+    c2pa = await readC2PA(file);
+  } catch (e) {
+    console.warn("[bitgraph] c2pa read failed:", e);
+  }
+  await writeRecord(c2pa, true);
+}
+
+/* ── Inline file-match check — shown under a dropped proof.json so the visitor
+   can confirm they hold the matching artifact. Hashed in the browser and
+   compared to the proof's digest; nothing is uploaded. Mirrors the proof page's
+   BringYourFile, scaled down to sit inside a results row. ── */
+function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched: (file: File) => void }) {
+  const [state, setState] = useState<"idle" | "checking" | "mismatch">("idle");
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function check(file: File | undefined | null) {
+    if (!file) return;
+    setState("checking");
+    try {
+      const digest = await hashFile(file);
+      if (digest !== proof.artifact.digestB64) { setState("mismatch"); return; }
+      onMatched(file);
+    } catch {
+      setState("mismatch");
+    }
+  }
+
+  const mismatch = state === "mismatch";
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); check(e.dataTransfer.files?.[0]); }}
+      style={{
+        marginTop: 8,
+        background: "#fff",
+        border: `1.5px dashed ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c4c9d0"}`,
+        padding: "18px 16px",
+        textAlign: "center",
+        cursor: "pointer",
+        transition: "border-color .15s",
+      }}
+    >
+      <input ref={inputRef} type="file" style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ""; check(f); }} />
+      {state === "checking" ? (
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#6b7280" }}>Checking…</div>
+      ) : mismatch ? (
+        <>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#dc2626" }}>These bytes don&rsquo;t match this proof</div>
+          <div style={{ fontSize: 12.5, color: "#6b7280", marginTop: 5 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>Have the file? Check it matches this proof.</div>
+          <div style={{ fontSize: 12.5, color: "#6b7280", marginTop: 5 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
+        </>
+      )}
     </div>
   );
 }
