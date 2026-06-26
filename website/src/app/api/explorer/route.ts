@@ -21,7 +21,7 @@ const toSafe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").repl
 let epochCache: { epoch: string; at: number } | null = null;
 const headCache = new Map<string, { head: number; at: number }>();
 const EPOCH_TTL = 60_000;
-const HEAD_TTL = 8_000;
+const HEAD_TTL = 12_000;
 
 /** Current epoch = the one whose first object was written most recently
  *  (a new epoch is born at counter 1 on every TEE restart). ~1 cheap LIST/epoch. */
@@ -29,13 +29,14 @@ async function getCurrentEpoch(now: number): Promise<string | null> {
   if (epochCache && now - epochCache.at < EPOCH_TTL) return epochCache.epoch;
   const pe = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "proofs/", Delimiter: "/", MaxKeys: 200 }));
   const prefixes = (pe.CommonPrefixes || []).map((p) => p.Prefix!).filter(Boolean);
-  let best: { epoch: string; born: number } | null = null;
-  for (const pfx of prefixes) {
+  // Probe every epoch's first-object timestamp in parallel (newest-born = current).
+  // Sequential here was a meaningful slice of cold-start latency.
+  const born = await Promise.all(prefixes.map(async (pfx) => {
     const first = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: pfx, MaxKeys: 1 }));
-    const lm = first.Contents?.[0]?.LastModified?.getTime() ?? 0;
-    const epoch = pfx.replace("proofs/", "").replace(/\/$/, "");
-    if (!best || lm > best.born) best = { epoch, born: lm };
-  }
+    return { epoch: pfx.replace("proofs/", "").replace(/\/$/, ""), born: first.Contents?.[0]?.LastModified?.getTime() ?? 0 };
+  }));
+  let best: { epoch: string; born: number } | null = null;
+  for (const b of born) if (!best || b.born > best.born) best = b;
   if (!best) return null;
   epochCache = { epoch: best.epoch, at: now };
   return best.epoch;

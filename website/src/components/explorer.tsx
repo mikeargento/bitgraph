@@ -25,25 +25,33 @@ export function Explorer() {
   const busyRef = useRef(false);
   const topRef = useRef(0);
 
-  // Initial load.
+  // Initial load. A cold request can be slow while the endpoint discovers the
+  // epoch head, so retry a few times with a per-attempt timeout rather than
+  // hanging forever on one stalled fetch.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const r = await fetch("/api/explorer");
-        if (!r.ok) throw new Error();
-        const j = await r.json();
-        if (cancelled) return;
-        setEntries(j.entries || []);
-        setHead(j.head ?? null);
-        setNextBefore(j.nextBefore ?? null);
-        setHasMore(!!j.hasMore);
-        topRef.current = j.entries?.[0]?.counter ?? 0;
-      } catch {
-        if (!cancelled) setError(true);
-      } finally {
-        if (!cancelled) setLoading(false);
+      for (let attempt = 0; attempt < 5 && !cancelled; attempt++) {
+        try {
+          const ctrl = new AbortController();
+          const to = setTimeout(() => ctrl.abort(), 15000);
+          const r = await fetch("/api/explorer", { signal: ctrl.signal });
+          clearTimeout(to);
+          if (!r.ok) throw new Error();
+          const j = await r.json();
+          if (cancelled) return;
+          setEntries(j.entries || []);
+          setHead(j.head ?? null);
+          setNextBefore(j.nextBefore ?? null);
+          setHasMore(!!j.hasMore);
+          topRef.current = j.entries?.[0]?.counter ?? 0;
+          setLoading(false);
+          return;
+        } catch {
+          if (!cancelled) await new Promise((res) => setTimeout(res, 1500));
+        }
       }
+      if (!cancelled) { setError(true); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, []);

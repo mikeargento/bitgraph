@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 // Nav is in root layout
-import type { BitGraphProof } from "@/lib/bitgraph";
+import { hashFile, type BitGraphProof } from "@/lib/bitgraph";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
@@ -22,6 +22,7 @@ export default function ProofPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
+  const [matchConfirmed, setMatchConfirmed] = useState(false);
 
   // Nav visible on proof pages
 
@@ -223,7 +224,14 @@ export default function ProofPage() {
               artifact image when one is available (a cached file on this
               device, or a C2PA embedded thumbnail), and nothing otherwise.
               Sits at the top of the grid, above the proof cards. */}
-          {!isEth && <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />}
+          {!isEth && matchConfirmed && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
+              <span aria-hidden>✓</span> This file matches this proof
+            </div>
+          )}
+          {!isEth && (cachedFile
+            ? <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
+            : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />)}
 
           {/* Content Credentials — what the file declares about itself (C2PA),
               shown only when the cached file actually carries a manifest. This
@@ -546,6 +554,87 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
         </div>
       )}
     </>
+  );
+}
+
+/* ── Bring-your-file checker — when no artifact is cached on this device, let
+   the visitor supply the file. It is hashed in the browser and matched against
+   the proof's digest; on a match the page fills in (image + C2PA), on a
+   mismatch it says so. Nothing is uploaded. ── */
+
+function BringYourFile({
+  proof,
+  onMatch,
+}: {
+  proof: BitGraphProof;
+  onMatch: (rec: { name: string; data: ArrayBuffer; c2pa: C2PAReadResult | null; c2paChecked: boolean }) => void;
+}) {
+  const [state, setState] = useState<"idle" | "checking" | "mismatch">("idle");
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function check(file: File | undefined | null) {
+    if (!file) return;
+    setState("checking");
+    try {
+      const digest = await hashFile(file);
+      if (digest !== proof.artifact.digestB64) { setState("mismatch"); return; }
+      const data = await file.arrayBuffer();
+      let c2pa: C2PAReadResult | null = null;
+      try {
+        const { readC2PA } = await import("@/lib/c2pa-reader");
+        c2pa = await readC2PA(file);
+      } catch (e) { console.warn("[bitgraph] c2pa read failed:", e); }
+      // Persist to the same IndexedDB store the page reads, so it survives reloads.
+      try {
+        const db = await new Promise<IDBDatabase>((res, rej) => {
+          const req = indexedDB.open("bitgraph-files", 1);
+          req.onupgradeneeded = () => req.result.createObjectStore("files");
+          req.onsuccess = () => res(req.result);
+          req.onerror = () => rej(req.error);
+        });
+        const tx = db.transaction("files", "readwrite");
+        tx.objectStore("files").put({ name: file.name, data, c2pa, c2paChecked: true }, proof.artifact.digestB64);
+        await new Promise((r, j) => { tx.oncomplete = () => r(null); tx.onerror = () => j(tx.error); });
+        db.close();
+      } catch (e) { console.warn("[bitgraph] cache write failed:", e); }
+      onMatch({ name: file.name, data, c2pa, c2paChecked: true });
+    } catch {
+      setState("mismatch");
+    }
+  }
+
+  const mismatch = state === "mismatch";
+  return (
+    <div
+      onClick={() => inputRef.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); check(e.dataTransfer.files?.[0]); }}
+      style={{
+        background: "#fff",
+        border: `1.5px dashed ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c4c9d0"}`,
+        padding: "34px 24px",
+        textAlign: "center",
+        cursor: "pointer",
+        transition: "border-color .15s",
+      }}
+    >
+      <input ref={inputRef} type="file" style={{ display: "none" }} onChange={(e) => check(e.target.files?.[0])} />
+      {state === "checking" ? (
+        <div style={{ fontSize: 15, fontWeight: 600, color: "#6b7280" }}>Checking…</div>
+      ) : mismatch ? (
+        <>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>These bytes don&rsquo;t match this proof</div>
+          <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Have the file? Check it against this proof.</div>
+          <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
+        </>
+      )}
+    </div>
   );
 }
 
