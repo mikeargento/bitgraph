@@ -44,7 +44,7 @@ export function Explorer() {
     try {
       const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
       const j = await r.json();
-      if (j.found && j.digest) window.location.href = `/proof/${encodeURIComponent(j.digest)}`;
+      if (j.found && j.digest) window.open(`/proof/${encodeURIComponent(j.digest)}`, "_blank", "noopener");
       else setSearchErr("No BitGraph found for that number or hash.");
     } catch {
       setSearchErr("Search failed, try again.");
