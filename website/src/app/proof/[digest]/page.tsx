@@ -257,7 +257,7 @@ export default function ProofPage() {
               <span aria-hidden>✓</span> This file matches this proof
             </div>
           )}
-          {!isEth && (cachedFile
+          {!isEth && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
             ? <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
             : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />)}
 
@@ -641,7 +641,7 @@ function BringYourFile({
       onDrop={(e) => { e.preventDefault(); setDragOver(false); check(e.dataTransfer.files?.[0]); }}
       style={{
         background: "#fff",
-        border: `1.5px dashed ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c4c9d0"}`,
+        border: `2px dashed ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c4c9d0"}`,
         padding: "34px 24px",
         textAlign: "center",
         cursor: "pointer",
@@ -847,6 +847,20 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
    exports / ChatGPT downloads arrive that way). Covers only the formats an
    <img> renders directly; HEIC and RAW are handled separately since they
    need conversion. */
+/* Whether a cached file can actually be shown as an image. When it can't (e.g.
+   a cached .txt arriving via the home "Open" link, or any non-image artifact),
+   PhotoCard would render nothing, so the proof page should fall through to the
+   bring-your-file checker instead of showing an empty slot. */
+function isDisplayableImage(
+  f: { name: string; data: ArrayBuffer } | null | undefined,
+  c2pa?: C2PAReadResult | null,
+): boolean {
+  if (c2pa?.thumbnailDataUrl) return true;
+  if (!f) return false;
+  if (/\.(jpe?g|png|gif|webp|avif|bmp|tiff?|heic|heif|cr2|cr3|nef|arw|dng|raf|orf|rw2|pef|srw|raw|x3f)$/i.test(f.name)) return true;
+  return sniffNativeImage(f.data);
+}
+
 function sniffNativeImage(buffer: ArrayBuffer): boolean {
   const b = new Uint8Array(buffer, 0, Math.min(16, buffer.byteLength));
   if (b.length < 4) return false;
