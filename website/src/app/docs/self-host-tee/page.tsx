@@ -149,6 +149,17 @@ nitro-cli build-enclave \\
 # Verifiers use this to confirm proofs came from YOUR enclave.`}</pre>
       </div>
 
+      <div style={{ padding: "16px 18px", background: "rgba(0,101,164,0.04)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: 0, margin: "16px 0" }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#0065A4", marginBottom: 8 }}>BitGraph&apos;s published measurement</div>
+        <p style={{ marginTop: 0, marginBottom: 10 }}>The BitGraph enclave image currently in production measures as:</p>
+        <div style={{ fontSize: 12, fontFamily: "var(--font-mono), monospace", wordBreak: "break-all", background: "#fff", border: "1px solid #d0d5dd", padding: "10px 12px", marginBottom: 10 }}>
+          PCR0 8530a6399399c4f23d89f5a1faa2e8bf2e09a5959f117070fca08148377f92c902c695fc926c17f67f35f110327dca92
+        </div>
+        <p style={{ marginTop: 0, marginBottom: 0, fontSize: 13, color: "#374151" }}>
+          This is the value BitGraph publishes and stands behind. Every proof embeds this measurement, and the &quot;Verify Attestation&quot; check confirms the attestation&apos;s PCR0 matches it. Be aware: <code>nitro-cli build-enclave</code> is not yet bit-for-bit deterministic, so your own rebuild may produce a different PCR0 even from identical source. Builds you can re-run to re-derive this exact value yourself, trusting no one, are in progress. Until then, you can audit the open enclave source to confirm what the published image does.
+        </p>
+      </div>
+
       <h2>Step 6: Launch the Enclave</h2>
       <div className="code-block">
         <div className="code-block-header">Shell</div>

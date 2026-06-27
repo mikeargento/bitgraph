@@ -1082,12 +1082,12 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
 
               {/* Reproducible build */}
               <div style={{ padding: "14px 18px", background: "rgba(0,101,164,0.04)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: 0, marginBottom: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-accent)", marginBottom: 6 }}>Reproducible Build</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-accent)", marginBottom: 6 }}>What PCR0 proves</div>
                 <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5, marginBottom: 8 }}>
-                  PCR0 is the SHA-384 hash of the exact enclave image that signed this proof. To independently confirm what code ran, build the enclave from source and check that you get the same PCR0.
+                  PCR0 is the SHA-384 hash of the exact enclave image that signed this proof, shown above. The enclave source is open, so you can audit exactly what runs inside the boundary. Builds you can re-run to re-derive this PCR0 from source yourself, trusting no one, are in progress; until then this is the measurement BitGraph publishes for this epoch.
                 </div>
                 <a href="/docs/self-host-tee" target="_blank" rel="noopener" style={{ fontSize: 12, fontWeight: 600, color: "var(--c-accent)", textDecoration: "none" }}>
-                  Build instructions →
+                  Enclave source and build →
                 </a>
               </div>
 
