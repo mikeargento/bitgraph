@@ -21,8 +21,15 @@ export async function GET(req: NextRequest) {
       const epoch = await getCurrentEpoch();
       if (!epoch) return NextResponse.json({ found: false });
       const counter = parseInt(num, 10);
-      const around = await getProofsAroundCounter(epoch, counter, 1, 1);
-      const p = around.find((x) => String((x.commit as { counter?: string } | undefined)?.counter) === String(counter));
+      // Each event uses two counters: the causal slot is allocated one counter
+      // before its commit. The proof is stored at the commit counter, but the
+      // proof page shows the slot counter too, so accept either: match the exact
+      // commit, else the commit that consumed slot==counter (it sits at counter+1).
+      const around = await getProofsAroundCounter(epoch, counter, 1, 2);
+      const is = (v: unknown) => String(v) === String(counter);
+      const p =
+        around.find((x) => is((x.commit as { counter?: string } | undefined)?.counter)) ||
+        around.find((x) => is((x.commit as { slotCounter?: string } | undefined)?.slotCounter) || is((x.slotAllocation as { counter?: string } | undefined)?.counter));
       digestB64 = (p?.artifact as { digestB64?: string } | undefined)?.digestB64 || null;
     } else {
       // Treat as a hash; accept url-safe or standard base64.
