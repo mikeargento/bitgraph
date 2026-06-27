@@ -62,6 +62,10 @@ export default function VerificationPage() {
         ))}
       </div>
 
+      <p className="text-sm text-[#1f2937] leading-relaxed mt-6">
+        Step 4 confirms PCR0 matches the measurement the proof claims, and the certificate chain proves that measurement came from genuine Nitro hardware. To confirm the measurement itself corresponds to the open enclave source, the build is bit-for-bit reproducible: rebuild it and re-derive the exact PCR0 yourself, trusting no one. See <a href="/docs/self-host-tee" className="text-[#0065A4] font-medium no-underline">reproducible builds</a>.
+      </p>
+
       <h2 className="text-xl font-semibold mt-12 mb-4">Verification policy</h2>
       <div className="code-block mb-6">
         <div className="code-block-header"><span>VerificationPolicy</span></div>

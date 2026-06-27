@@ -60,6 +60,12 @@ export default function TrustModelPage() {
         </table>
       </div>
 
+      <div className="border border-[#d0d5dd] p-4 mb-8 text-sm text-[#374151] leading-relaxed">
+        <span className="font-semibold text-[#0065A4]">Honest measurement is verifiable, not just assumed.</span>{" "}
+        The enclave build is bit-for-bit reproducible: rebuild it from source on any linux/amd64 host and you re-derive the exact PCR0 the production enclave reports. You confirm yourself that the measurement corresponds to the open source, trusting no one, so the only part delegated to the TEE vendor is the hardware honestly reporting that measurement (and AWS&apos;s signed kernel, which PCR1 measures independently).{" "}
+        <a href="/docs/self-host-tee" className="text-[#0065A4] font-medium no-underline">Rebuild and verify the PCR0 &rarr;</a>
+      </div>
+
       <h2 className="text-xl font-semibold mt-12 mb-4">Threat model</h2>
       <h3 className="text-base font-semibold mt-6 mb-3">In-scope threats</h3>
       <div className="space-y-3 mb-8">
