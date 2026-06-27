@@ -252,14 +252,18 @@ export default function ProofPage() {
               artifact image when one is available (a cached file on this
               device, or a C2PA embedded thumbnail), and nothing otherwise.
               Sits at the top of the grid, above the proof cards. */}
-          {!isEth && matchConfirmed && (
+          {/* A cached file is only ever set after the loader hashes it and
+              confirms it matches this proof's digest, so its presence means the
+              bytes match. Show the green banner for a confirmed match (manually
+              checked, or a verified non-image cached file that has no preview). */}
+          {!isEth && (matchConfirmed || (!!cachedFile && !isDisplayableImage(cachedFile, cachedFile?.c2pa))) && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
               <span aria-hidden>✓</span> This file matches this proof
             </div>
           )}
           {!isEth && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
             ? <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
-            : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />)}
+            : (cachedFile ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
 
           {/* Content Credentials — what the file declares about itself (C2PA),
               shown only when the cached file actually carries a manifest. This
