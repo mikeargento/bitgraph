@@ -252,18 +252,19 @@ export default function ProofPage() {
               artifact image when one is available (a cached file on this
               device, or a C2PA embedded thumbnail), and nothing otherwise.
               Sits at the top of the grid, above the proof cards. */}
-          {/* A cached file is only ever set after the loader hashes it and
-              confirms it matches this proof's digest, so its presence means the
-              bytes match. Show the green banner for a confirmed match (manually
-              checked, or a verified non-image cached file that has no preview). */}
-          {!isEth && (matchConfirmed || (!!cachedFile && !isDisplayableImage(cachedFile, cachedFile?.c2pa))) && (
+          {/* Green banner only after the visitor actively checks a file — never
+              from a passively cached file, so the check stays an explicit action. */}
+          {!isEth && matchConfirmed && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
               <span aria-hidden>✓</span> This file matches this proof
             </div>
           )}
+          {/* Show the artifact image when one is available; otherwise keep the
+              bring-your-file checker visible so checking is always an option —
+              until the visitor confirms a match, then drop the box. */}
           {!isEth && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
             ? <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
-            : (cachedFile ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
+            : (matchConfirmed ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
 
           {/* Content Credentials — what the file declares about itself (C2PA),
               shown only when the cached file actually carries a manifest. This
