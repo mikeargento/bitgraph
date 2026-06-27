@@ -18,7 +18,6 @@ export function Explorer() {
   // Counters that arrived via the live poll (not the initial load), so only
   // those rows get the arrival flash. Grows slowly; the animation runs once.
   const [freshIds, setFreshIds] = useState<Set<number>>(() => new Set());
-  const [head, setHead] = useState<number | null>(null);
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -69,7 +68,6 @@ export function Explorer() {
           const j = await r.json();
           if (cancelled) return;
           setEntries(j.entries || []);
-          setHead(j.head ?? null);
           setNextBefore(j.nextBefore ?? null);
           setHasMore(!!j.hasMore);
           topRef.current = j.entries?.[0]?.counter ?? 0;
@@ -91,7 +89,6 @@ export function Explorer() {
         const r = await fetch("/api/explorer");
         if (!r.ok) return;
         const j = await r.json();
-        setHead(j.head ?? null);
         const fresh: Entry[] = (j.entries || []).filter((e: Entry) => e.counter > topRef.current);
         if (fresh.length) {
           topRef.current = fresh[0].counter;
@@ -155,31 +152,6 @@ export function Explorer() {
         }
       `}</style>
 
-      {/* Header — live indicator, centered above the count */}
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 99, background: "#10b981", animation: "xpBlink 1.6s ease-in-out infinite" }} />
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#0065A4" }}>Live BitGraphs</span>
-        </span>
-      </div>
-
-      {/* Head counter — the machine running */}
-      <div style={{ textAlign: "center", padding: "2px 0 18px" }}>
-        <div style={{ fontSize: "min(34px, 7vw)", fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
-          {head != null ? fmt(head) : "—"}
-        </div>
-      </div>
-
-      {/* Legend — both are BitGraphs; the dot says what each one is of */}
-      <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: "4px 18px", marginBottom: 12, fontSize: 12, color: "#6b7280" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 99, background: "#0065A4" }} /> a BitGraphed file
-        </span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 99, background: "#94a3b8" }} /> a future anchor
-        </span>
-      </div>
-
       {/* Search — jump to any BitGraph by its number or hash */}
       <form onSubmit={onSearch} style={{ display: "flex", gap: 8, marginBottom: searchErr ? 6 : 12 }}>
         <input
@@ -215,6 +187,9 @@ export function Explorer() {
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: "#374151" }}>
                 BitGraph
                 <span style={{ marginLeft: 7, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>#{fmt(e.counter)}</span>
+              </span>
+              <span style={{ flexShrink: 0, fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                {isAnchor ? "anchor" : "file"}
               </span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#9ca3af", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
                 {e.hashShort}…
