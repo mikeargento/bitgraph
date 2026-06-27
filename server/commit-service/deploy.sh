@@ -27,29 +27,25 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 ENCLAVE_CPU="${ENCLAVE_CPU:-2}"
 ENCLAVE_MEM="${ENCLAVE_MEM:-1024}"
-EIF_PATH="$SCRIPT_DIR/enclave.eif"
+EIF_OUT_DIR="$SCRIPT_DIR/reproducible-build/eif-out"
+EIF_PATH="$EIF_OUT_DIR/enclave.eif"
 
 echo "=== BitGraph Enclave Deploy ==="
 echo "Repo root: $REPO_ROOT"
 echo "Enclave CPU: $ENCLAVE_CPU, Memory: ${ENCLAVE_MEM}MB"
 echo ""
 
-# Step 1: Build Docker image (context is the monorepo root)
-echo "[1/5] Building Docker image..."
-docker build \
-  -f "$SCRIPT_DIR/Dockerfile.enclave" \
-  -t bitgraph-enclave \
-  "$REPO_ROOT"
-
-# Step 2: Build EIF
-echo "[2/5] Building enclave image (EIF)..."
-nitro-cli build-enclave \
-  --docker-uri bitgraph-enclave \
-  --output-file "$EIF_PATH"
+# Steps 1-2: Reproducible build of the Docker image + EIF.
+# This replaces the old non-deterministic `docker build` + bare `nitro-cli
+# build-enclave` with the pinned, kaniko-based pipeline so the resulting PCR0 is
+# re-derivable by anyone. See reproducible-build/PINS.md and README.md.
+echo "[1/5] Building reproducible enclave image (EIF)..."
+"$SCRIPT_DIR/reproducible-build/build-eif.sh" HEAD "$EIF_OUT_DIR"
 
 echo ""
 echo "EIF built: $EIF_PATH"
-echo "PCR0 (measurement) from build output above — save this for your verifier policy."
+echo "PCR0 (measurement): $(cat "$EIF_OUT_DIR/pcr0.txt" 2>/dev/null || echo '<see output above>')"
+echo "Confirm it matches the published value with: reproducible-build/verify-pcr0.sh"
 echo ""
 
 # Step 3: Terminate any running enclave

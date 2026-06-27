@@ -1,15 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
 # Nitro Enclave Docker image — builds the EIF via nitro-cli
 #
-# Usage (on the EC2 parent instance):
+# REPRODUCIBLE BUILD: every input below is pinned so two people building from
+# identical source re-derive the identical PCR0. Do NOT build this with a plain
+# `docker build` if you care about reproducibility — use the kaniko-based
+# pipeline in reproducible-build/build-eif.sh, which canonicalizes layer
+# timestamps (`--reproducible`) and runs a pinned nitro-cli. See
+# reproducible-build/PINS.md for the meaning of every digest/version here and
+# reproducible-build/README.md for the "rebuild it yourself, trust no one" walkthrough.
+#
+# Manual (NON-reproducible) usage, for development only:
 #   docker build -f Dockerfile.enclave -t bitgraph-enclave ../../
 #   nitro-cli build-enclave --docker-uri bitgraph-enclave --output-file enclave.eif
-#   nitro-cli run-enclave --eif-path enclave.eif --cpu-count 2 --memory 512
 
-FROM node:20-alpine AS builder
+# node:20-alpine — pinned by index digest (Alpine 3.23.4). See PINS.md.
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS builder
 
-# Install gcc for nsm_ioctl C helper (compiled at build time, not JIT)
-RUN apk add --no-cache gcc musl-dev
+# Install gcc for nsm_ioctl C helper (compiled at build time, not JIT).
+# Pinned package versions (Alpine 3.23.4 main/community). See PINS.md.
+# `apk add` writes timestamped lines to /var/log/apk.log; remove it in the same
+# layer so the image content is byte-identical across builds (deterministic PCR0).
+RUN apk add --no-cache \
+      gcc=15.2.0-r2 \
+      musl-dev=1.2.5-r23 \
+    && rm -f /var/log/apk.log
 
 WORKDIR /build
 
@@ -20,13 +34,21 @@ COPY src/ ./src/
 # Copy adapter-nitro
 COPY packages/adapter-nitro/ ./packages/adapter-nitro/
 
+# Copy stub package. The enclave/parent never import it (it is mock-only), but
+# commit-service/package.json links it via `file:../../packages/stub`, so it must
+# be present for `npm ci` to resolve the lockfile. It is not copied into the
+# production stage, so it does not affect the measured image.
+COPY packages/stub/ ./packages/stub/
+
 # Copy commit-service (exclude mock sources — they depend on @bitgraph/stub
 # which is a dev/test package not needed inside the enclave)
 COPY server/commit-service/package.json server/commit-service/package-lock.json server/commit-service/tsconfig.json ./server/commit-service/
 COPY server/commit-service/src/enclave/ ./server/commit-service/src/enclave/
 COPY server/commit-service/src/parent/ ./server/commit-service/src/parent/
 
-# Install and build core library
+# Install and build core library.
+# npm ci is lockfile-driven and integrity-hash verified, so it is deterministic;
+# --ignore-scripts blocks arbitrary lifecycle code (a non-determinism + supply-chain risk).
 RUN npm ci --ignore-scripts
 RUN npx tsc
 
@@ -37,12 +59,22 @@ RUN npx tsc
 
 # Build commit-service (only enclave + parent, no mock/)
 WORKDIR /build/server/commit-service
+# sharp 0.34.5 and its musl prebuilt (@img/sharp-linuxmusl-x64 +
+# @img/sharp-libvips-linuxmusl-x64) are pinned in package-lock.json. `npm ci`
+# installs the musl-matching prebuilt from the lockfile by integrity hash — no
+# network-floating `npm install sharp` (which fetched whatever was newest and
+# was the single largest source of non-determinism in the old pipeline).
 RUN npm ci --ignore-scripts
-# Install sharp with scripts enabled (needs to download platform-specific prebuilds)
-RUN npm install sharp
+# Fail loudly if the musl prebuilt did not get installed (guards against silent
+# platform/lockfile drift that would otherwise break the build downstream).
+RUN test -d node_modules/@img/sharp-linuxmusl-x64 \
+      || (echo "FATAL: @img/sharp-linuxmusl-x64 prebuilt missing after npm ci" && exit 1)
 RUN npx tsc
 
-# Pre-compile the NSM ioctl helper (so it doesn't need gcc at runtime)
+# Pre-compile the NSM ioctl helper (so it doesn't need gcc at runtime).
+# Deterministic compile: -fno-ident drops the GCC version .comment, --build-id=none
+# drops the build-id note, -ffile-prefix-map strips the source path. With a pinned
+# gcc this yields byte-identical output across machines.
 RUN mkdir -p /tmp/nsm && \
     node -e " \
       const src = require('fs').readFileSync('/build/packages/adapter-nitro/src/nitro-host.ts','utf8'); \
@@ -50,13 +82,14 @@ RUN mkdir -p /tmp/nsm && \
       if (!match) { console.error('Could not extract C source'); process.exit(1); } \
       require('fs').writeFileSync('/tmp/nsm/nsm_ioctl.c', match[1].replace(/\\\\n/g,'\\n').replace(/\\\\\\\\/g,'\\\\')); \
     " && \
-    gcc -O2 -static -o /usr/local/bin/nsm_ioctl /tmp/nsm/nsm_ioctl.c && \
+    gcc -O2 -static -fno-ident -ffile-prefix-map=/tmp/nsm=. -Wl,--build-id=none \
+        -o /usr/local/bin/nsm_ioctl /tmp/nsm/nsm_ioctl.c && \
     rm -rf /tmp/nsm /tmp/extract-c.ts
 
 # ---------------------------------------------------------------------------
 # Production stage — minimal image for the enclave
 # ---------------------------------------------------------------------------
-FROM node:20-alpine
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 
 WORKDIR /app
 
@@ -81,8 +114,10 @@ COPY --from=builder /build/server/commit-service/node_modules/@img/ ./node_modul
 COPY --from=builder /build/server/commit-service/node_modules/detect-libc/ ./node_modules/detect-libc/
 COPY --from=builder /build/server/commit-service/node_modules/semver/ ./node_modules/semver/
 
-# socat bridges vsock:5000 → the Unix domain socket the enclave app listens on
-RUN apk add --no-cache socat
+# socat bridges vsock:5000 → the Unix domain socket the enclave app listens on.
+# Pinned version (Alpine 3.23.4). See PINS.md.
+# Remove the timestamped apk log so the measured image is byte-identical across builds.
+RUN apk add --no-cache socat=1.8.1.3-r0 && rm -f /var/log/apk.log
 
 # The enclave app listens on /app/enclave.sock.
 # socat bridges vsock port 5000 to that socket.
