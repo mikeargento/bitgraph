@@ -25,8 +25,33 @@ export function Explorer() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
 
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchErr, setSearchErr] = useState("");
+
   const busyRef = useRef(false);
   const topRef = useRef(0);
+
+  // Jump to a BitGraph by number (#614589 / 614,589) or by hash. One round-trip
+  // to /api/search, which only returns a link once the proof is retrievable, so
+  // it can never bounce to "Proof not found".
+  const onSearch = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q || searching) return;
+    setSearchErr("");
+    setSearching(true);
+    try {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const j = await r.json();
+      if (j.found && j.digest) window.location.href = `/proof/${encodeURIComponent(j.digest)}`;
+      else setSearchErr("No BitGraph found for that number or hash.");
+    } catch {
+      setSearchErr("Search failed, try again.");
+    } finally {
+      setSearching(false);
+    }
+  }, [query, searching]);
 
   // Initial load. A cold request can be slow while the endpoint discovers the
   // epoch head, so retry a few times with a per-attempt timeout rather than
@@ -154,6 +179,28 @@ export function Explorer() {
           <span style={{ width: 8, height: 8, borderRadius: 99, background: "#94a3b8" }} /> a future anchor
         </span>
       </div>
+
+      {/* Search — jump to any BitGraph by its number or hash */}
+      <form onSubmit={onSearch} style={{ display: "flex", gap: 8, marginBottom: searchErr ? 6 : 12 }}>
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); if (searchErr) setSearchErr(""); }}
+          placeholder="BitGraph number or hash"
+          aria-label="Search BitGraphs by number or hash"
+          spellCheck={false}
+          autoCapitalize="off"
+          autoCorrect="off"
+          style={{ flex: 1, minWidth: 0, height: 44, padding: "0 14px", border: "1px solid #d0d5dd", borderRadius: 0, fontSize: 14, background: "#fff", color: "#111827", outline: "none" }}
+        />
+        <button
+          type="submit"
+          disabled={searching || !query.trim()}
+          style={{ height: 44, padding: "0 20px", border: "none", borderRadius: 0, background: "#0065A4", color: "#fff", fontSize: 14, fontWeight: 600, cursor: searching || !query.trim() ? "default" : "pointer", opacity: searching || !query.trim() ? 0.55 : 1, flexShrink: 0, letterSpacing: "-0.01em" }}
+        >
+          {searching ? "…" : "Search"}
+        </button>
+      </form>
+      {searchErr && <div style={{ marginBottom: 12, fontSize: 13, color: "#dc2626" }}>{searchErr}</div>}
 
       {/* Stream — generic ledger rows; type and specifics live on the drill-in */}
       <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>

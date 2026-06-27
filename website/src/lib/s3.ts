@@ -20,6 +20,30 @@ function toSafe(b64: string): string {
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+// Warm-instance cache for the current epoch (a new epoch is born at counter 1
+// on every TEE restart, so it changes rarely).
+let epochCache: { epoch: string; at: number } | null = null;
+const EPOCH_TTL = 60_000;
+
+/** Current epoch = the one whose first object was written most recently. */
+export async function getCurrentEpoch(): Promise<string | null> {
+  const now = Date.now();
+  if (epochCache && now - epochCache.at < EPOCH_TTL) return epochCache.epoch;
+  const s3 = getClient();
+  const bucket = getBucket();
+  const pe = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "proofs/", Delimiter: "/", MaxKeys: 200 }));
+  const prefixes = (pe.CommonPrefixes || []).map((p) => p.Prefix!).filter(Boolean);
+  const born = await Promise.all(prefixes.map(async (pfx) => {
+    const first = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: pfx, MaxKeys: 1 }));
+    return { epoch: pfx.replace("proofs/", "").replace(/\/$/, ""), born: first.Contents?.[0]?.LastModified?.getTime() ?? 0 };
+  }));
+  let best: { epoch: string; born: number } | null = null;
+  for (const b of born) if (!best || b.born > best.born) best = b;
+  if (!best) return null;
+  epochCache = { epoch: best.epoch, at: now };
+  return best.epoch;
+}
+
 /** Look up a proof by artifact digest */
 export async function getProofByDigest(digestB64: string): Promise<Record<string, unknown> | null> {
   try {
