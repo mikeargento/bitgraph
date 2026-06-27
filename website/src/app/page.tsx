@@ -107,6 +107,8 @@ export default function BitGraphPage() {
   const found = items.filter(i => i.status === "found" || i.status === "proved");
   const unproven = items.filter(i => i.status === "new");
   const allDone = items.length > 0 && items.every(i => i.status === "found" || i.status === "proved");
+  // Exactly what the .zip bundles (each file + its proof.json + the ETH anchors).
+  const zipCount = items.filter(i => i.proof).length;
 
   /* ── Drop → Scan ── */
 
@@ -477,7 +479,7 @@ export default function BitGraphPage() {
                       ...(anchorCountdown > 0 ? { ...btnOut, opacity: 0.5, cursor: "default" } : allDone ? btnFill : btnOut),
                     }}
                   >
-                    {anchorCountdown > 0 ? <span style={{ fontSize: 14 }}>{`Anchoring to Ethereum... ${anchorCountdown}s`}</span> : "Download .zip"}
+                    {anchorCountdown > 0 ? <span style={{ fontSize: 14 }}>{`Anchoring to Ethereum... ${anchorCountdown}s`}</span> : zipCount > 1 ? `Download all ${zipCount} (.zip)` : "Download .zip"}
                   </button>
                 )}
                 <button onClick={reset} className="bg-btn-outline" style={btnOut}>
