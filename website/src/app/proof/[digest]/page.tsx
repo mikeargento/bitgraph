@@ -243,14 +243,12 @@ export default function ProofPage() {
             >
               {!isEth && cachedFile ? "Export Proof + File" : "Export Proof"}
             </button>
-            {/* Live readout of what the .zip will contain. The original file only
-                ever lives on the device that holds it (never the server), so the
-                label reflects the current state: bundled with the file, or proof-only. */}
-            {!isEth && (
-              <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {cachedFile
-                  ? <>Includes your file <span style={{ color: "#111827", fontWeight: 600 }}>{cachedFile.name}</span></>
-                  : "Proof only: the original file is not on this device"}
+            {/* The original file only ever lives on the device that holds it
+                (never the server). When it is present the "+ File" label says
+                enough; when it is not, this note explains the proof-only export. */}
+            {!isEth && !cachedFile && (
+              <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center" }}>
+                Proof only: the original file is not on this device
               </div>
             )}
           </div>
