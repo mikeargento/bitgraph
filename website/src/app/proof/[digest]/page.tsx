@@ -231,7 +231,7 @@ export default function ProofPage() {
               </span>
             )}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <button
               onClick={exportZip}
               style={{
@@ -241,8 +241,18 @@ export default function ProofPage() {
                 cursor: "pointer", letterSpacing: "-0.01em",
               }}
             >
-              Export Proof
+              {!isEth && cachedFile ? "Export Proof + File" : "Export Proof"}
             </button>
+            {/* Live readout of what the .zip will contain. The original file only
+                ever lives on the device that holds it (never the server), so the
+                label reflects the current state: bundled with the file, or proof-only. */}
+            {!isEth && (
+              <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {cachedFile
+                  ? <>Includes your file <span style={{ color: "#111827", fontWeight: 600 }}>{cachedFile.name}</span></>
+                  : "Proof only: the original file is not on this device"}
+              </div>
+            )}
           </div>
         </div>
 
