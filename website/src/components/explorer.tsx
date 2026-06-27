@@ -15,6 +15,9 @@ const fmt = (n: number) => n.toLocaleString();
 
 export function Explorer() {
   const [entries, setEntries] = useState<Entry[]>([]);
+  // Counters that arrived via the live poll (not the initial load), so only
+  // those rows get the arrival flash. Grows slowly; the animation runs once.
+  const [freshIds, setFreshIds] = useState<Set<number>>(() => new Set());
   const [head, setHead] = useState<number | null>(null);
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(true);
@@ -68,6 +71,11 @@ export function Explorer() {
         if (fresh.length) {
           topRef.current = fresh[0].counter;
           setEntries((prev) => [...fresh, ...prev]);
+          setFreshIds((prev) => {
+            const next = new Set(prev);
+            for (const e of fresh) next.add(e.counter);
+            return next;
+          });
         }
       } catch { /* transient, ignore */ }
     }, 12000);
@@ -109,8 +117,12 @@ export function Explorer() {
       <style>{`
         @keyframes xpBlink { 0%,100%{opacity:1} 50%{opacity:.25} }
         @keyframes xpIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+        @keyframes xpArrive { 0%{opacity:0;transform:translateY(-8px);background:#ecfdf5} 50%{opacity:1;transform:none;background:#ecfdf5} 100%{opacity:1;transform:none;background:transparent} }
         .xp-row { display:flex; align-items:center; gap:12px; padding:14px 16px; border-top:1px solid #eef0f1; text-decoration:none; animation:xpIn .25s ease-out; transition:background .12s; }
         .xp-row:first-child { border-top:none; }
+        /* Live arrivals only: a stronger slide plus a brief trust-green flash
+           that ends fully transparent, so nothing tinted is left behind. */
+        .xp-row-fresh { animation: xpArrive 1.4s ease-out; }
         .xp-open { display:inline-flex; align-items:center; gap:5px; flex-shrink:0; color:#0065A4; font-size:14px; font-weight:600; transition:gap .15s; }
         @media (hover:hover){
           .xp-row:hover { background:#f3f5f7; }
@@ -139,7 +151,7 @@ export function Explorer() {
           <span style={{ width: 8, height: 8, borderRadius: 99, background: "#0065A4" }} /> a BitGraphed file
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 99, background: "#94a3b8" }} /> a BitGraphed Ethereum block
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: "#94a3b8" }} /> a future anchor
         </span>
       </div>
 
@@ -151,7 +163,7 @@ export function Explorer() {
         {!loading && !error && entries.map((e) => {
           const isAnchor = e.type === "anchor";
           return (
-            <a key={e.counter} href={`/proof/${e.digest}`} target="_blank" rel="noopener" className="xp-row">
+            <a key={e.counter} href={`/proof/${e.digest}`} target="_blank" rel="noopener" className={freshIds.has(e.counter) ? "xp-row xp-row-fresh" : "xp-row"}>
               <span aria-hidden title={isAnchor ? "BitGraph of an Ethereum block" : "BitGraph of a file"} style={{ flexShrink: 0, width: 8, height: 8, borderRadius: 99, background: isAnchor ? "#94a3b8" : "#0065A4" }} />
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: "#374151" }}>
                 BitGraph
