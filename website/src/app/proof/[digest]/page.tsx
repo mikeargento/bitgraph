@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 // Nav is in root layout
-import { hashFile, hashBytes, type BitGraphProof } from "@/lib/bitgraph";
+import { hashFile, hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
@@ -327,7 +327,7 @@ export default function ProofPage() {
             {proof.environment?.attestation?.format && <Field label="Attestation Format" value={proof.environment.attestation.format} />}
             {proof.environment?.attestation?.reportB64 && proof.environment?.measurement && (
               <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
-                <AttestationButton reportB64={proof.environment.attestation.reportB64} measurement={proof.environment.measurement} />
+                <AttestationButton reportB64={proof.environment.attestation.reportB64} measurement={proof.environment.measurement} proof={proof} />
               </div>
             )}
           </Card>
@@ -946,7 +946,7 @@ function extractJpegFromRaw(data: Uint8Array): Blob | null {
 
 /* ── Attestation Verifier (modal) ── */
 
-function AttestationButton({ reportB64, measurement }: { reportB64: string; measurement: string }) {
+function AttestationButton({ reportB64, measurement, proof }: { reportB64: string; measurement: string; proof: BitGraphProof }) {
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<NitroVerifyResult | null>(null);
@@ -958,7 +958,10 @@ function AttestationButton({ reportB64, measurement }: { reportB64: string; meas
     // Yield to allow UI repaint
     await new Promise((r) => setTimeout(r, 50));
     try {
-      const r = await verifyNitroAttestation(reportB64, measurement);
+      // Recompute this proof's hash and require the attestation's user_data to
+      // match it, so a genuine attestation can't be lifted onto a forged proof.
+      const expectedUserData = await proofHashB64(proof);
+      const r = await verifyNitroAttestation(reportB64, measurement, expectedUserData);
       setResult(r);
     } catch (e) {
       setResult({

@@ -32,11 +32,16 @@ export interface NitroVerifyResult {
   moduleId?: string;
   timestamp?: number;
   certChainLength?: number;
+  userDataB64?: string;
 }
 
 export async function verifyNitroAttestation(
   reportB64: string,
   expectedPcr0: string,
+  // The proofHash this attestation must be bound to (its user_data). When
+  // provided, the verifier confirms the attestation belongs to THIS proof and
+  // wasn't lifted off another genuine BitGraph.
+  expectedUserDataB64?: string,
 ): Promise<NitroVerifyResult> {
   const checks: CheckResult[] = [];
   let pcrs: Record<number, string> = {};
@@ -44,6 +49,7 @@ export async function verifyNitroAttestation(
   let moduleId: string | undefined;
   let timestamp: number | undefined;
   let certChainLength: number | undefined;
+  let userDataB64: string | undefined;
 
   try {
     // Step 1: decode CBOR envelope
@@ -75,6 +81,8 @@ export async function verifyNitroAttestation(
     pcr0 = pcrs[0];
     moduleId = typeof attDoc.module_id === "string" ? attDoc.module_id : undefined;
     timestamp = typeof attDoc.timestamp === "number" ? attDoc.timestamp : undefined;
+    const ud = attDoc.user_data;
+    userDataB64 = ud instanceof Uint8Array && ud.length > 0 ? btoa(String.fromCharCode(...ud)) : undefined;
     const cabundle = attDoc.cabundle as Uint8Array[] | undefined;
     const leafCertBytes = attDoc.certificate as Uint8Array | undefined;
     if (!leafCertBytes || !(leafCertBytes instanceof Uint8Array)) {
@@ -160,8 +168,24 @@ export async function verifyNitroAttestation(
         : `PCR0 mismatch: expected ${expectedPcr0.slice(0, 16)}..., got ${(pcr0 ?? "").slice(0, 16)}...`,
     });
 
+    // Step 7: confirm the attestation is bound to THIS proof (user_data == proofHash).
+    // Without this, a genuine attestation lifted off another BitGraph (same
+    // enclave/PCR0) would otherwise pass on a forged proof body.
+    if (expectedUserDataB64 !== undefined) {
+      const bound = !!userDataB64 && userDataB64 === expectedUserDataB64;
+      checks.push({
+        name: "Bound to this proof",
+        pass: bound,
+        detail: bound
+          ? "Attestation user_data matches this proof's hash"
+          : userDataB64
+            ? "Attestation user_data does not match this proof"
+            : "Attestation carries no user_data to bind",
+      });
+    }
+
     const allPass = checks.every((c) => c.pass);
-    return { valid: allPass, checks, pcrs, pcr0, moduleId, timestamp, certChainLength };
+    return { valid: allPass, checks, pcrs, pcr0, moduleId, timestamp, certChainLength, userDataB64 };
   } catch (e) {
     checks.push({
       name: "Verification Error",

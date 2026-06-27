@@ -131,19 +131,8 @@ export function isBitGraphProof(text: string): BitGraphProof | null {
  * Does NOT require the original file — verifies the cryptographic
  * structure of the proof itself.
  */
-export async function verifyProofSignature(proof: BitGraphProof): Promise<ProofVerifyResult> {
-  const ed = await import("@noble/ed25519");
-
-  // Noble v3 requires SHA-512 to be configured for browser use
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (ed as any).etc.sha512Async = async (message: Uint8Array) => {
-    const hash = await crypto.subtle.digest("SHA-512", message as unknown as BufferSource);
-    return new Uint8Array(hash);
-  };
-
-  const checks: ProofVerifyResult["checks"] = [];
-
-  // 1. Reconstruct signed body (must match constructor.ts exactly)
+/** Reconstruct the canonical signed body — must match the enclave constructor exactly. */
+function buildSignedBody(proof: BitGraphProof): Record<string, unknown> {
   const signedBody: Record<string, unknown> = {
     version: proof.version,
     artifact: proof.artifact,
@@ -152,7 +141,6 @@ export async function verifyProofSignature(proof: BitGraphProof): Promise<ProofV
     enforcement: proof.environment.enforcement,
     measurement: proof.environment.measurement,
   };
-
   if (proof.environment.attestation !== undefined) {
     signedBody.attestationFormat = proof.environment.attestation.format;
   }
@@ -166,6 +154,32 @@ export async function verifyProofSignature(proof: BitGraphProof): Promise<ProofV
   if (proof.attribution !== undefined) {
     signedBody.attribution = proof.attribution;
   }
+  return signedBody;
+}
+
+/** Canonical proofHash = base64(SHA-256(canonical signed body)). The enclave
+ *  places this exact value in the attestation's user_data, binding the
+ *  attestation to this specific proof. */
+export async function proofHashB64(proof: BitGraphProof): Promise<string> {
+  const canonicalBytes = new TextEncoder().encode(JSON.stringify(sortKeys(buildSignedBody(proof))));
+  const hash = await crypto.subtle.digest("SHA-256", canonicalBytes as unknown as BufferSource);
+  return btoa(String.fromCharCode(...new Uint8Array(hash)));
+}
+
+export async function verifyProofSignature(proof: BitGraphProof): Promise<ProofVerifyResult> {
+  const ed = await import("@noble/ed25519");
+
+  // Noble v3 requires SHA-512 to be configured for browser use
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (ed as any).etc.sha512Async = async (message: Uint8Array) => {
+    const hash = await crypto.subtle.digest("SHA-512", message as unknown as BufferSource);
+    return new Uint8Array(hash);
+  };
+
+  const checks: ProofVerifyResult["checks"] = [];
+
+  // 1. Reconstruct signed body (must match constructor.ts exactly)
+  const signedBody = buildSignedBody(proof);
 
   // 2. Canonicalize (sorted keys, no whitespace, UTF-8)
   const canonicalJson = JSON.stringify(sortKeys(signedBody));
