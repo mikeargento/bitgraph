@@ -39,7 +39,7 @@ export default function BitGraphPage() {
   const [proveProgress, setProveProgress] = useState({ current: 0, total: 0 });
   const [proveAnimCount, setProveAnimCount] = useState(0);
   const proveAnimRef = useRef(0);
-  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+  const [, setExportProgress] = useState({ current: 0, total: 0 });
   const [animCount, setAnimCount] = useState(0);
   const [anchorCountdown, setAnchorCountdown] = useState(0);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -359,6 +359,7 @@ export default function BitGraphPage() {
         @keyframes slideIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes popIn { from { opacity: 0 } to { opacity: 1 } }
         @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.4 } }
+        @keyframes spin { to { transform: rotate(360deg) } }
         @keyframes glow { 0%, 100% { box-shadow: none } 50% { box-shadow: none } }
       `}</style>
       {/* Nav is in root layout */}
@@ -422,21 +423,11 @@ export default function BitGraphPage() {
 
         {/* ── Exporting ── */}
         {step === "exporting" && (
-          <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
-            <div style={{
-              fontSize: "min(22px, 4.5vw)",
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              color: "#111827",
-              whiteSpace: "nowrap",
-              lineHeight: 1.2,
-              animation: "pulse 1s ease-in-out infinite",
-            }}>
-              {exportProgress.current} of {exportProgress.total} packaged
-            </div>
-            <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden", margin: "20px auto 0" }}>
-              <div style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
+            {/* Packaging the .zip is quick and the step count (files + anchors +
+                zip) doesn't map to the file count, so show a plain spinner. */}
+            <div role="status" aria-label="Packaging" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <div style={{ fontSize: 14, color: "#6b7280" }}>Packaging…</div>
           </div>
         )}
 
