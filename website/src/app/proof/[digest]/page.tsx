@@ -888,7 +888,7 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
        self-declared one; it never asserts the file is authentic. */
     <Card title={
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <span>Content Credentials</span>
+        <span>Content Credentials (C2PA)</span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: "normal", color: signed ? "#10b981" : "#6b7280" }}>
           <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>{signed ? "✓" : "○"}</span>
           {signed ? "Signed" : "Self-declared"}
