@@ -386,7 +386,7 @@ export default function BitGraphPage() {
         {step === "scanning" && (
           <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
             <div style={{
-              fontSize: "min(36px, 5.5vw)",
+              fontSize: "min(30px, 5vw)",
               fontWeight: 800,
               letterSpacing: "-0.02em",
               color: "#111827",
@@ -406,7 +406,7 @@ export default function BitGraphPage() {
         {step === "proving" && (
           <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
             <div style={{
-              fontSize: "min(36px, 5.5vw)",
+              fontSize: "min(30px, 5vw)",
               fontWeight: 800,
               letterSpacing: "-0.02em",
               color: "#111827",
@@ -426,7 +426,7 @@ export default function BitGraphPage() {
         {step === "exporting" && (
           <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
             <div style={{
-              fontSize: "min(36px, 5.5vw)",
+              fontSize: "min(30px, 5vw)",
               fontWeight: 800,
               letterSpacing: "-0.02em",
               color: "#111827",
@@ -452,7 +452,7 @@ export default function BitGraphPage() {
                 viewport. */}
               <div style={{ textAlign: "center", padding: "16px 0" }}>
                 <div style={{
-                  fontSize: "min(36px, 5.5vw)",
+                  fontSize: "min(30px, 5vw)",
                   fontWeight: 800,
                   letterSpacing: "-0.02em",
                   color: allDone ? "#0065A4" : "#111827",
