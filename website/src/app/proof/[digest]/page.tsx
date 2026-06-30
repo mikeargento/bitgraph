@@ -11,6 +11,26 @@ import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
 
+// "sha256" -> "SHA-256", "sha-512" -> "SHA-512". Hyphenates the SHA family to
+// the conventional spelling; anything else is just upper-cased.
+function formatHashAlg(alg: string): string {
+  const up = alg.toUpperCase();
+  const m = up.match(/^SHA-?(\d+)$/);
+  return m ? `SHA-${m[1]}` : up;
+}
+
+// Leading icon for the page's action buttons, so they read as controls rather
+// than as bordered panels. Stroke style matches the title check mark.
+function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download"; color?: string; size?: number }) {
+  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, style: { flexShrink: 0 } };
+  if (name === "code") return <svg {...common}><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>;
+  // Attestation = a signed credential: a document with a ribboned seal (the
+  // Tabler "certificate" glyph).
+  if (name === "certificate") return <svg {...common}><path d="M15 15m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5l2 1.5v-4.5" /><path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -1 1.73" /><path d="M6 9l12 0" /><path d="M6 12l3 0" /><path d="M6 15l2 0" /></svg>;
+  if (name === "link") return <svg {...common}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>;
+  return <svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
+}
+
 export default function ProofPage() {
   const params = useParams();
   const digestParam = params.digest as string;
@@ -23,6 +43,9 @@ export default function ProofPage() {
   const [error, setError] = useState("");
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
   const [matchConfirmed, setMatchConfirmed] = useState(false);
+  // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
+  // line on Ethereum-anchor pages. Null for user proofs.
+  const [anchorBlock, setAnchorBlock] = useState<{ blockNumber: number | null; blockTime: string | null; etherscanUrl: string | null } | null>(null);
 
   // Nav visible on proof pages
 
@@ -42,11 +65,12 @@ export default function ProofPage() {
         } finally {
           clearTimeout(timeoutId);
         }
-        if (!resp.ok) { setError("Proof not found"); setLoading(false); return; }
+        if (!resp.ok) { setError("BitGraph not found"); setLoading(false); return; }
         const data = await resp.json();
         if (data.proofs?.[0]?.proof) {
           setProof(data.proofs[0].proof as BitGraphProof);
           if (data.causalWindow) setCausalWindow(data.causalWindow);
+          if (data.anchorBlock) setAnchorBlock(data.anchorBlock);
           // Load the cached file from IndexedDB. The home page writes it in
           // the background after BitGraphing — bytes first, then a C2PA upgrade
           // once the ~6 MB toolkit has parsed — and that write can land AFTER
@@ -112,18 +136,18 @@ export default function ProofPage() {
               await new Promise((r) => setTimeout(r, 350));
             }
           })();
-        } else setError("Proof not found");
-      } catch { setError("Failed to load proof"); }
+        } else setError("BitGraph not found");
+      } catch { setError("Failed to load BitGraph"); }
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [digestParam]);
 
-  if (loading) return <Shell><div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh", fontSize: 20, fontWeight: 600, color: "var(--c-text-tertiary)" }}>Loading proof...</div></Shell>;
+  if (loading) return <Shell><div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh", fontSize: 20, fontWeight: 600, color: "var(--c-text-tertiary)" }}>Loading BitGraph...</div></Shell>;
   if (error || !proof) return (
     <Shell>
       <div style={{ padding: "80px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: 16, color: "#f87171", marginBottom: 12 }}>{error || "Proof not found"}</div>
+        <div style={{ fontSize: 16, color: "#f87171", marginBottom: 12 }}>{error || "BitGraph not found"}</div>
         <a href="/" style={{ fontSize: 14, color: "var(--c-accent)" }}>BitGraph</a>
       </div>
     </Shell>
@@ -135,6 +159,33 @@ export default function ProofPage() {
   const isEth = attr?.name?.startsWith("Ethereum");
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
+
+  // Ethereum block number this anchor commits (parsed from the etherscan link),
+  // used in the "Recorded" line and the Ethereum Block card.
+  const ethBlockNum = isEth ? (attr?.title?.match(/\/block\/(\d+)/)?.[1] ?? null) : null;
+
+  // "Recorded" summary, shown the same way on both page types. User BitGraph:
+  // the two-sided ETH time window (committed after the earlier anchor, before
+  // the later one). Ethereum anchor: its own block and that block's timestamp.
+  // anchorBefore is the earlier block (lower bound), anchorAfter the later
+  // (upper bound) — see the naming note on the BitGraphed After/Before cards.
+  const lowerTime = causalWindow?.anchorBefore?.blockTime;
+  const upperTime = causalWindow?.anchorAfter?.blockTime;
+  let recordedLine: string | null = null;
+  if (isEth && ethBlockNum) {
+    const bt = anchorBlock?.blockTime;
+    recordedLine = bt
+      ? `Ethereum Block #${Number(ethBlockNum).toLocaleString()} at ${new Date(bt).toLocaleTimeString()} on ${new Date(bt).toLocaleDateString()}`
+      : `Ethereum Block #${Number(ethBlockNum).toLocaleString()}`;
+  } else if (!isEth && lowerTime && upperTime) {
+    const t1 = new Date(lowerTime), t2 = new Date(upperTime);
+    recordedLine = t1.toDateString() === t2.toDateString()
+      ? `between ${t1.toLocaleTimeString()} and ${t2.toLocaleTimeString()} on ${t2.toLocaleDateString()}`
+      : `between ${t1.toLocaleString()} and ${t2.toLocaleString()}`;
+  } else if (!isEth && lowerTime) {
+    const t1 = new Date(lowerTime);
+    recordedLine = `after ${t1.toLocaleTimeString()} on ${t1.toLocaleDateString()}`;
+  }
 
   async function exportZip() {
     try {
@@ -189,101 +240,24 @@ export default function ProofPage() {
 
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
 
-        {/* Title bar — centered hero + stacked actions, matching home.
-            marginBottom matches the grid `gap` below so the spacing from the
-            last button to the first card equals the spacing between cards. */}
-        <div style={{ marginBottom: 24, display: "flex", flexDirection: "column", alignItems: "stretch", gap: 24 }}>
-          <div style={{ textAlign: "center", padding: "16px 0" }}>
-            {isEth ? (
-              <span style={{ fontSize: "min(36px, 5.5vw)", fontWeight: 800, letterSpacing: "-0.02em", color: "var(--c-accent)", whiteSpace: "nowrap" }}>
-                Ethereum Anchor
-              </span>
-            ) : (
-              <span style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 12,
-                fontSize: "min(36px, 5.5vw)",
-                fontWeight: 800,
-                letterSpacing: "-0.02em",
-                color: "#0065A4",
-                whiteSpace: "nowrap",
-                lineHeight: 1,
-              }}>
-                <span
-                  aria-hidden="true"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 32,
-                    height: 32,
-                    borderRadius: 999,
-                    border: "2.5px solid #0065A4",
-                    flexShrink: 0,
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+        <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
+
+          {/* Lead card. No separate hero on any page: the card header is the
+              check-marked "Verified BitGraph" trust statement on every page,
+              since an anchor is a verified BitGraph too. Ethereum anchors add a
+              caption naming the block and omit the Recorded window (an anchor is
+              not bracketed; it IS the bracket). */}
+          {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
+            <Card title={(
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, border: "2px solid #0065A4", flexShrink: 0 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
                 <span>Verified BitGraph</span>
               </span>
-            )}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button
-              onClick={exportZip}
-              style={{
-                height: 76, fontSize: 16, fontWeight: 600,
-                color: "#ffffff", background: "#0065A4",
-                border: "none", borderRadius: 0,
-                cursor: "pointer", letterSpacing: "-0.01em",
-              }}
-            >
-              {!isEth && cachedFile ? "Export Proof + File" : "Export Proof"}
-            </button>
-            {/* The original file only ever lives on the device that holds it
-                (never the server). When it is present the "+ File" label says
-                enough; when it is not, this note explains the proof-only export. */}
-            {!isEth && !cachedFile && (
-              <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center" }}>
-                Proof only: the original file is not on this device
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
-
-          {/* Photo preview — borrowed from the old Simple view. Renders the
-              artifact image when one is available (a cached file on this
-              device, or a C2PA embedded thumbnail), and nothing otherwise.
-              Sits at the top of the grid, above the proof cards. */}
-          {/* Green banner only after the visitor actively checks a file — never
-              from a passively cached file, so the check stays an explicit action. */}
-          {!isEth && matchConfirmed && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
-              <span aria-hidden>✓</span> This file matches this proof
-            </div>
-          )}
-          {/* Show the artifact image when one is available; otherwise keep the
-              bring-your-file checker visible so checking is always an option —
-              until the visitor confirms a match, then drop the box. */}
-          {!isEth && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
-            ? <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
-            : (matchConfirmed ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
-
-          {/* Content Credentials — what the file declares about itself (C2PA),
-              shown only when the cached file actually carries a manifest. This
-              is pass-through provenance baked into the artifact bytes, not a
-              BitGraph claim. Sits right under the image it describes. */}
-          {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
-
-          {/* BitGraph identity — top-level identifier, sits above the construction sequence */}
-          {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
-            <Card title="BitGraph">
-              <Field label="Proof Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono highlight />
+            )}>
+              {recordedLine && <Field label="Recorded" value={recordedLine} />}
+              <Field label="Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
               <JsonSection proof={proof} />
             </Card>
           )}
@@ -291,26 +265,43 @@ export default function ProofPage() {
           {/* 1. Slot — reserved first, before anything else */}
           {slot && (
             <Card title="Causal Slot">
-              <Field label="Counter" value={`#${slot.counter}`} highlight />
+              <Field label="Slot Counter" value={`#${slot.counter}`} highlight />
               {slot.nonceB64 ? <Field label="Nonce" value={String(slot.nonceB64)} mono /> : null}
-              {slot.signatureB64 ? <Field label="Signature" value={String(slot.signatureB64)} mono /> : null}
+              {slot.signatureB64 ? <Field label="Slot Signature" value={String(slot.signatureB64)} mono /> : null}
               {slot.epochId ? <Field label="Epoch ID" value={String(slot.epochId)} mono /> : null}
             </Card>
           )}
 
-          {/* 2. Artifact — file hashed, digest computed */}
+          {/* 2. Artifact — the thing BitGraphed, then hashed. For a user proof it
+              is the file (digest = hash of the bytes). For an Ethereum anchor the
+              artifact IS the block hash, so show it explicitly and label the
+              digest as the SHA-256 of that block hash. */}
           <Card title="Artifact">
-            <Field label="Digest" value={proof.artifact.digestB64} mono />
-            <Field label="Algorithm" value={proof.artifact.hashAlg.toUpperCase()} />
+            {isEth && attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
+            <Field
+              label={isEth && attr?.message
+                ? `${formatHashAlg(proof.artifact.hashAlg)} of Block Hash`
+                : `${formatHashAlg(proof.artifact.hashAlg)} Digest`}
+              value={proof.artifact.digestB64}
+              mono
+            />
           </Card>
 
-          {/* 3. Commit — slot consumed, proof signed atomically */}
+          {/* 3. Commit — the artifact digest bound to its own position, one past
+              the reserved slot. commit.counter is a DISTINCT position from the
+              slot's (slot reserved at N, the artifact commits at N+1), so it is
+              labeled "Artifact Counter" to set it apart from the slot's counter.
+              When the Causal Slot card above is present it already shows the
+              Epoch ID, Nonce, and slot counter (commit.slotCounter is the same
+              value), so those are not echoed here; the Slot Hash remains as the
+              cryptographic link binding this commit to that slot. With no slot
+              card, they surface here so nothing is hidden. */}
           <Card title="Commit">
-            <Field label="Counter" value={`#${commit.counter}`} highlight />
-            {commit.epochId && <Field label="Epoch ID" value={String(commit.epochId)} mono />}
+            <Field label="Artifact Counter" value={`#${commit.counter}`} highlight />
+            {!slot && commit.epochId && <Field label="Epoch ID" value={String(commit.epochId)} mono />}
             {commit.prevB64 && <Field label="Previous Hash" value={commit.prevB64} mono />}
-            {commit.nonceB64 && <Field label="Nonce" value={commit.nonceB64} mono />}
-            {commit.slotCounter != null && <Field label="Slot Counter" value={`#${commit.slotCounter}`} />}
+            {!slot && commit.nonceB64 && <Field label="Nonce" value={commit.nonceB64} mono />}
+            {!slot && commit.slotCounter != null && <Field label="Slot Counter" value={`#${commit.slotCounter}`} />}
             {commit.slotHashB64 && <Field label="Slot Hash" value={commit.slotHashB64} mono />}
           </Card>
 
@@ -363,14 +354,15 @@ export default function ProofPage() {
                     target="_blank" rel="noopener"
                     className="bg-btn-outline"
                     style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
                       width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-                      color: "#0065A4", background: "#fff",
+                      color: "#0065A4", background: "#f4f6f9",
                       border: "1px solid #0065A4", borderRadius: 0,
                       textDecoration: "none", cursor: "pointer",
                     }}
                   >
-                    View Anchor Proof #{causalWindow.anchorBefore.counter} &rarr;
+                    <BtnIcon name="link" />
+                    <span>View Anchor BitGraph #{causalWindow.anchorBefore.counter} &rarr;</span>
                   </a>
                 </div>
               )}
@@ -379,8 +371,7 @@ export default function ProofPage() {
 
           {isEth && attr?.title ? (
             <Card title="Ethereum Block">
-              <Field label="Block" value={`#${attr.title.match(/\/block\/(\d+)/)?.[1] || "?"}`} highlight />
-              {attr.message && <Field label="Block Hash" value={attr.message} mono />}
+              <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
               <Field label="Etherscan" value={attr.title} link />
             </Card>
           ) : causalWindow?.anchorAfter ? (
@@ -407,14 +398,15 @@ export default function ProofPage() {
                     target="_blank" rel="noopener"
                     className="bg-btn-outline"
                     style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
                       width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-                      color: "#0065A4", background: "#fff",
+                      color: "#0065A4", background: "#f4f6f9",
                       border: "1px solid #0065A4", borderRadius: 0,
                       textDecoration: "none", cursor: "pointer",
                     }}
                   >
-                    View Anchor Proof #{causalWindow.anchorAfter.counter} &rarr;
+                    <BtnIcon name="link" />
+                    <span>View Anchor BitGraph #{causalWindow.anchorAfter.counter} &rarr;</span>
                   </a>
                 </div>
               )}
@@ -427,24 +419,79 @@ export default function ProofPage() {
             </Card>
           )}
 
-          {/* Attribution — only show for non-ETH proofs that have it */}
+          {/* Submitter's Note — self-supplied, only for non-ETH proofs that carry
+              it. These values are typed in by whoever made the proof and are NOT
+              verified by BitGraph, so the card says so and never labels the name
+              as "Creator". */}
           {attr && !isEth && (
-            <Card title="Attribution">
-              {attr.name && <Field label="Name" value={attr.name} />}
-              {attr.message && <Field label="Data" value={attr.message} mono />}
+            <Card title="Submitter's Note">
+              <div style={{ padding: "12px 24px 4px", fontSize: 12.5, color: "#6b7280", lineHeight: 1.5 }}>
+                Self-attributed, not verified by BitGraph.
+              </div>
+              {attr.name && <Field label="Submitted by" value={attr.name} />}
+              {attr.message && <Field label="Note" value={attr.message} mono />}
               {attr.title && <Field label="Link" value={attr.title} link />}
             </Card>
           )}
 
+          {/* Advisory timestamp — the Ethereum window above is the authoritative
+              time mechanism. A TSA time, if present, is advisory only, so it is
+              labeled as such and sits last. */}
           {ts && (
-            <Card title="Timestamps">
+            <Card title="Advisory Timestamp">
               {ts.authority ? <Field label="Authority" value={String(ts.authority)} /> : null}
               {ts.time ? <Field label="TSA Time" value={String(ts.time)} /> : null}
               {ts.digestAlg ? <Field label="Digest Algorithm" value={String(ts.digestAlg)} /> : null}
             </Card>
           )}
+
+          {/* Your file — moved to the bottom, just above the export action: the
+              page reads as the BitGraph first, then "do you have the file?", then
+              export. Green banner only after the visitor actively checks a file. */}
+          {!isEth && matchConfirmed && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
+              <span aria-hidden>✓</span> This file matches this BitGraph
+            </div>
+          )}
+          {/* Show the artifact image when one is available; otherwise keep the
+              bring-your-file checker visible so checking is always an option —
+              until the visitor confirms a match, then drop the box. */}
+          {!isEth && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
+            ? <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
+            : (matchConfirmed ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
+
+          {/* Content Credentials (C2PA) — sits right under the image it describes,
+              just above the export button. */}
+          {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
         </div>
 
+        {/* Export — the closing action. A receipt is read first and saved last,
+            so the primary action sits below the cards. marginTop matches the grid
+            `gap` so the spacing from the last card equals the spacing between
+            cards. */}
+        <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
+          <button
+            onClick={exportZip}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              height: 76, fontSize: 16, fontWeight: 600,
+              color: "#ffffff", background: "#0065A4",
+              border: "none", borderRadius: 0,
+              cursor: "pointer", letterSpacing: "-0.01em",
+            }}
+          >
+            <BtnIcon name="download" color="#ffffff" />
+            <span>{!isEth && cachedFile ? "Export BitGraph + File" : "Export BitGraph"}</span>
+          </button>
+          {/* The original file only ever lives on the device that holds it
+              (never the server). When it is present the "+ File" label says
+              enough; when it is not, this note explains the proof-only export. */}
+          {!isEth && !cachedFile && (
+            <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center" }}>
+              BitGraph only: the original file is not on this device
+            </div>
+          )}
+        </div>
 
       </div>
     </Shell>
@@ -463,7 +510,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 /* ── Card ── */
 
-function Card({ title, children }: { title: string; accent?: string; children: React.ReactNode }) {
+function Card({ title, children }: { title: React.ReactNode; accent?: string; children: React.ReactNode }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
       <div style={{
@@ -532,14 +579,15 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
           onClick={() => setOpen(true)}
           className="bg-btn-outline"
           style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
             width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-            color: "#0065A4", background: "#fff",
+            color: "#0065A4", background: "#f4f6f9",
             border: "1px solid #0065A4", borderRadius: 0,
             cursor: "pointer",
           }}
         >
-          View Raw JSON
+          <BtnIcon name="code" />
+          <span>View Raw JSON</span>
         </button>
       </div>
       {open && (
@@ -666,12 +714,12 @@ function BringYourFile({
         <div style={{ fontSize: 15, fontWeight: 600, color: "#6b7280" }}>Checking…</div>
       ) : mismatch ? (
         <>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>These bytes don&rsquo;t match this proof</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>These bytes don&rsquo;t match this BitGraph</div>
           <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Have the file? Check it against this proof.</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Have the file? Check it against this BitGraph.</div>
           <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
         </>
       )}
@@ -979,13 +1027,15 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
         onClick={() => { setOpen(true); runVerify(); }}
         className="bg-btn-outline"
         style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
           width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-          color: "#0065A4", background: "#fff",
+          color: "#0065A4", background: "#f4f6f9",
           border: "1px solid #0065A4", borderRadius: 0,
           cursor: "pointer",
         }}
       >
-        Verify Attestation
+        <BtnIcon name="certificate" />
+        <span>Verify Attestation</span>
       </button>
     );
   }
@@ -1026,7 +1076,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
                 </div>
                 <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
                   {result.valid
-                    ? "All checks passed. This proof was signed inside an AWS Nitro Enclave with the displayed PCR0."
+                    ? "All checks passed. This BitGraph was signed inside an AWS Nitro Enclave with the displayed PCR0."
                     : "One or more verification steps failed. See details below."}
                 </div>
               </div>
@@ -1084,7 +1134,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               <div style={{ padding: "14px 18px", background: "rgba(0,101,164,0.04)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: 0, marginBottom: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-accent)", marginBottom: 6 }}>What PCR0 proves</div>
                 <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5, marginBottom: 8 }}>
-                  PCR0 is the SHA-384 hash of the exact enclave image that signed this proof, shown above. The enclave source is open and the build is bit-for-bit reproducible: you can rebuild it on any linux/amd64 host and re-derive this exact PCR0 yourself, trusting no one. You do not have to take BitGraph at its word for what runs inside the boundary.
+                  PCR0 is the SHA-384 hash of the exact enclave image that signed this BitGraph, shown above. The enclave source is open and the build is bit-for-bit reproducible: you can rebuild it on any linux/amd64 host and re-derive this exact PCR0 yourself, trusting no one. You do not have to take BitGraph at its word for what runs inside the boundary.
                 </div>
                 <a href="/docs/self-host-tee" target="_blank" rel="noopener" style={{ fontSize: 12, fontWeight: 600, color: "var(--c-accent)", textDecoration: "none" }}>
                   Rebuild and verify this PCR0 &rarr;

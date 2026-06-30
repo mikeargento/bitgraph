@@ -105,7 +105,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ dig
       }
     } catch (_) { /* non-critical */ }
 
-    return NextResponse.json({ proofs: [{ proof }], causalWindow });
+    // For an Ethereum anchor, resolve its OWN block (number + timestamp) so the
+    // proof page can show a "Recorded: Ethereum Block #N at <time>" line, the
+    // anchor's equivalent of a user proof's causal time window. The stored
+    // anchor proof carries the block hash/number but not the timestamp, so
+    // buildAnchorView fills it in (from the block number via RPC fallback).
+    let anchorBlock = null;
+    try {
+      const anchorAttr = proof.attribution as { name?: string } | undefined;
+      if (anchorAttr?.name?.startsWith("Ethereum")) {
+        anchorBlock = await buildAnchorView(proof);
+      }
+    } catch (_) { /* non-critical */ }
+
+    return NextResponse.json({ proofs: [{ proof }], causalWindow, anchorBlock });
   } catch (e) {
     console.error("GET /api/proofs/digest error:", e);
     return NextResponse.json({ error: "Failed" }, { status: 500 });

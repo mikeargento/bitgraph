@@ -424,7 +424,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .bg-btn-outline { transition: background 0.15s; }
 .bitgraph-file-row { transition: background 0.15s; }
 @media (hover: hover) {
-  .bg-btn-outline:hover { background: #f5f9fc !important; }
+  .bg-btn-outline:hover { background: #e8eef5 !important; }
   .bitgraph-file-row:hover { background: #f5f9fc; }
 }
 
