@@ -347,7 +347,7 @@ export default function BitGraphPage() {
   /* ── Styles ── */
   const card: React.CSSProperties = { border: "1px solid #d0d5dd", padding: "24px 20px", background: "#fff", borderRadius: 0, marginBottom: 16 };
   const btnFill: React.CSSProperties = { height: 76, fontSize: 16, fontWeight: 600, border: "none", borderRadius: 0, background: "#0065A4", color: "#ffffff", cursor: "pointer", letterSpacing: "-0.01em" };
-  const btnOut: React.CSSProperties = { height: 76, fontSize: 16, fontWeight: 500, borderRadius: 0, cursor: "pointer", border: "1px solid #0065A4", background: "#fff", color: "#0065A4" };
+  const btnOut: React.CSSProperties = { height: 76, fontSize: 16, fontWeight: 500, borderRadius: 0, cursor: "pointer", border: "1px solid #0065A4", background: "#f4f6f9", color: "#0065A4" };
 
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
@@ -487,8 +487,10 @@ export default function BitGraphPage() {
                 </button>
               </div>
 
-              {/* File list — whole row tappable when there's a proof */}
-              <div>
+              {/* File list — compact ledger rows in one container, matching the
+                  explorer. Hairline separators instead of boxed rows; the whole
+                  row is tappable when a proof exists. */}
+              <div style={{ border: "1px solid #d0d5dd", background: "#fff" }}>
               {items.map((item, i) => {
                 const clickable = !!item.proof;
                 const openProof = () => {
@@ -506,8 +508,19 @@ export default function BitGraphPage() {
                     cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
                   }
                 };
+                const dotColor = item.status === "found" || item.status === "proved" ? "#0065A4"
+                  : item.status === "proving" ? "#f0c060"
+                  : item.status === "error" ? "#dc2626"
+                  : "#9ca3af";
+                const statusLabel =
+                  item.status === "found" && item.valid ? <span style={{ color: "#0065A4" }}>Signature valid</span>
+                  : item.status === "proved" ? <span style={{ color: "#0065A4" }}>Just BitGraphed</span>
+                  : item.status === "new" ? <>Not yet BitGraphed</>
+                  : item.status === "proving" ? <>BitGraphing…</>
+                  : item.status === "error" ? <span style={{ color: "#dc2626" }}>Error</span>
+                  : null;
                 return (
-                  <div key={item.file.name + i} style={{ marginTop: i > 0 ? 8 : 0 }}>
+                  <div key={item.file.name + i}>
                   <div
                     role={clickable ? "button" : undefined}
                     tabIndex={clickable ? 0 : undefined}
@@ -515,59 +528,40 @@ export default function BitGraphPage() {
                     onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(); } } : undefined}
                     className={clickable ? "bitgraph-file-row" : undefined}
                     style={{
-                      height: 76,
-                      padding: "0 12px",
                       display: "flex", alignItems: "center", gap: 12,
-                      animation: `slideIn 0.2s ease-out ${i * 0.05}s both`,
+                      padding: "14px 16px",
+                      borderTop: i > 0 ? "1px solid #eef0f1" : "none",
+                      animation: `slideIn 0.2s ease-out ${i * 0.04}s both`,
                       cursor: clickable ? "pointer" : "default",
-                      background: "transparent",
-                      border: clickable ? "1px solid #0065A4" : "1px solid transparent",
                     }}
                   >
-                    <span style={{
-                      fontSize: 20, flexShrink: 0, width: 22, textAlign: "center",
-                      color: item.status === "found" || item.status === "proved" ? "#0065A4"
-                        : item.status === "proving" ? "#f0c060"
-                        : item.status === "error" ? "#f87171"
-                        : "#9ca3af",
-                      fontWeight: 700, lineHeight: 1,
-                    }}>
-                      {item.status === "found" || item.status === "proved" ? "✓"
-                        : item.status === "proving" ? "~"
-                        : item.status === "error" ? "!"
-                        : "○"}
+                    <span aria-hidden style={{ flexShrink: 0, width: 8, height: 8, borderRadius: 99, background: dotColor }} />
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.file.name}
                     </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {item.file.name}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>
-                        {formatFileSize(item.file.size)}
-                        {item.status === "found" && item.valid && <><span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span><span style={{ color: "#0065A4" }}>Signature valid</span></>}
-                        {item.status === "proved" && <><span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span><span style={{ color: "#0065A4" }}>Just BitGraphed</span></>}
-                        {item.status === "new" && <><span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span>Not yet BitGraphed</>}
-                        {item.status === "proving" && <><span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span>BitGraphing…</>}
-                        {item.status === "error" && <><span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span><span style={{ color: "#dc2626" }}>Error</span></>}
-                      </div>
-                    </div>
+                    <span style={{ flexShrink: 0, fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                      {statusLabel}
+                      {statusLabel && <span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span>}
+                      {formatFileSize(item.file.size)}
+                    </span>
                     {clickable && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#0065A4", fontSize: 14, fontWeight: 600, flexShrink: 0, paddingRight: 4, letterSpacing: "-0.01em" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#0065A4", fontSize: 13, fontWeight: 600, flexShrink: 0, letterSpacing: "-0.01em" }}>
                         Open
-                        <span aria-hidden="true" style={{ fontSize: 22, lineHeight: 1, fontWeight: 600 }}>
-                          ›
-                        </span>
+                        <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1, fontWeight: 600 }}>›</span>
                       </span>
                     )}
                   </div>
                   {item.fromProofJson && item.proof && (
-                    item.matchedFile ? (
-                      <div style={{ marginTop: 8, padding: "14px 16px", border: "1px solid #10b981", background: "#fff", fontSize: 14, fontWeight: 600, color: "#10b981", display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 700 }}>✓</span>
-                        <span>This file matches the proof. Open to view it.</span>
-                      </div>
-                    ) : (
-                      <FileMatchCheck proof={item.proof} onMatched={(f) => handleMatched(i, f)} />
-                    )
+                    <div style={{ padding: "0 16px 14px" }}>
+                      {item.matchedFile ? (
+                        <div style={{ padding: "12px 14px", border: "1px solid #10b981", background: "#fff", fontSize: 13, fontWeight: 600, color: "#10b981", display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontWeight: 700 }}>✓</span>
+                          <span>This file matches the proof. Open to view it.</span>
+                        </div>
+                      ) : (
+                        <FileMatchCheck proof={item.proof} onMatched={(f) => handleMatched(i, f)} />
+                      )}
+                    </div>
                   )}
                   </div>
                 );
