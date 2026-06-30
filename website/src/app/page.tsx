@@ -8,7 +8,6 @@ import {
   hashFile,
   commitDigest,
   commitBatch,
-  formatFileSize,
   isBitGraphProof,
   verifyProofSignature,
   type BitGraphProof,
@@ -446,26 +445,14 @@ export default function BitGraphPage() {
         {step === "results" && items.length > 0 && (
           <div style={{ animation: "slideIn 0.3s ease-out", display: "flex", flexDirection: "column", gap: 24 }}>
 
-            {/* Counter as a single line, floating on the page background to
-                match the proof page hero. min() font-size + whiteSpace nowrap
-                keep "10000 of 10000 BitGraphed" on a single line at every
-                viewport. */}
-              <div style={{ textAlign: "center", padding: "16px 0" }}>
-                <div style={{
-                  fontSize: "min(30px, 5vw)",
-                  fontWeight: 800,
-                  letterSpacing: "-0.02em",
-                  color: allDone ? "#0065A4" : "#111827",
-                  whiteSpace: "nowrap",
-                  lineHeight: 1.2,
-                  animation: "countPop 0.4s ease-out",
-                }}>
-                  {animCount} of {items.length} {allDone ? "BitGraphed" : "found"}
-                </div>
-              </div>
-
-              {/* Actions — stacked */}
+              {/* Actions — "Choose new files" on top, then the BitGraph-remaining
+                  CTA (only while some files are still unproven), then Download.
+                  The count is no longer a floating hero; it is the header of the
+                  list card below. */}
               <div className="bitgraph-actions">
+                <button onClick={reset} className="bg-btn-outline" style={btnOut}>
+                  {allDone ? "Choose new files" : "Start over"}
+                </button>
                 {unproven.length > 0 && (
                   <button onClick={proveRemaining} style={{ ...btnFill, background: "var(--c-accent)", color: "#ffffff" }}>
                     BitGraph {unproven.length} remaining
@@ -482,15 +469,15 @@ export default function BitGraphPage() {
                     {anchorCountdown > 0 ? <span style={{ fontSize: 14 }}>{`Anchoring to Ethereum... ${anchorCountdown}s`}</span> : zipCount > 1 ? `Download all ${zipCount} (.zip)` : "Download .zip"}
                   </button>
                 )}
-                <button onClick={reset} className="bg-btn-outline" style={btnOut}>
-                  {allDone ? "Choose new files" : "Start over"}
-                </button>
               </div>
 
-              {/* File list — compact ledger rows in one container, matching the
-                  explorer. Hairline separators instead of boxed rows; the whole
-                  row is tappable when a proof exists. */}
+              {/* File list as a card whose header is the count, like the proof
+                  page cards. Compact ledger rows matching the explorer: hairline
+                  separators, whole row tappable when a proof exists. */}
               <div style={{ border: "1px solid #d0d5dd", background: "#fff" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "18px 24px", background: "rgba(0,101,164,0.04)", borderBottom: "1px solid #e2e5e9" }}>
+                {animCount} of {items.length} {allDone ? "BitGraphed" : "found"}
+              </div>
               {items.map((item, i) => {
                 const clickable = !!item.proof;
                 const openProof = () => {
@@ -540,9 +527,11 @@ export default function BitGraphPage() {
                       {item.file.name}
                     </span>
                     <span style={{ flexShrink: 0, fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                      {item.proof?.commit?.counter != null && (
+                        <span style={{ color: "#374151" }}>BitGraph <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(item.proof.commit.counter).toLocaleString()}</span></span>
+                      )}
+                      {item.proof?.commit?.counter != null && statusLabel && <span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span>}
                       {statusLabel}
-                      {statusLabel && <span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span>}
-                      {formatFileSize(item.file.size)}
                     </span>
                     {clickable && (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#0065A4", fontSize: 14, fontWeight: 600, flexShrink: 0, letterSpacing: "-0.01em" }}>
