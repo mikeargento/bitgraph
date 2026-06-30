@@ -361,6 +361,13 @@ export default function BitGraphPage() {
         @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.4 } }
         @keyframes spin { to { transform: rotate(360deg) } }
         @keyframes glow { 0%, 100% { box-shadow: none } 50% { box-shadow: none } }
+        /* Freshly-created BitGraph row: slides up while a brand-tinted wash
+           fades out, so the eye lands on the new #number. */
+        @keyframes proveReveal { 0% { opacity: 0; transform: translateY(12px); background: rgba(0,101,164,0.16) } 55% { background: rgba(0,101,164,0.16) } 100% { opacity: 1; transform: translateY(0); background: rgba(0,101,164,0) } }
+        /* Success header: the badge pops and the check strokes itself in — the
+           canonical "done" cue — while the count tallies up beside it. */
+        @keyframes headerReveal { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes checkDraw { from { stroke-dashoffset: 26 } to { stroke-dashoffset: 0 } }
       `}</style>
       {/* Nav is in root layout */}
 
@@ -472,8 +479,15 @@ export default function BitGraphPage() {
                   page cards. Compact ledger rows matching the explorer: hairline
                   separators, whole row tappable when a proof exists. */}
               <div style={{ border: "1px solid #d0d5dd", background: "#fff" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "18px 24px", background: "rgba(0,101,164,0.04)", borderBottom: "1px solid #e2e5e9" }}>
-                {animCount} of {items.length} {allDone ? "BitGraphed" : "found"}
+              <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "18px 24px", background: "rgba(0,101,164,0.04)", borderBottom: "1px solid #e2e5e9", display: "flex", alignItems: "center", gap: 8 }}>
+                {allDone && (
+                  <span key={`badge-${items.length}`} aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 17, height: 17, borderRadius: 999, background: "#10b981", flexShrink: 0, animation: "countPop 0.4s ease-out both" }}>
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" style={{ strokeDasharray: 26, animation: "checkDraw 0.35s ease-out 0.18s both" }} /></svg>
+                  </span>
+                )}
+                <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
+                  {animCount} of {items.length} {allDone ? "BitGraphed" : "found"}
+                </span>
               </div>
               {items.map((item, i) => {
                 const clickable = !!item.proof;
@@ -515,7 +529,9 @@ export default function BitGraphPage() {
                       display: "flex", alignItems: "center", gap: 12,
                       padding: "14px 16px",
                       borderTop: i > 0 ? "1px solid #eef0f1" : "none",
-                      animation: `slideIn 0.2s ease-out ${i * 0.04}s both`,
+                      animation: item.status === "proved"
+                        ? `proveReveal 1.1s ease-out ${i * 0.04}s both`
+                        : `slideIn 0.2s ease-out ${i * 0.04}s both`,
                       cursor: clickable ? "pointer" : "default",
                     }}
                   >
@@ -532,9 +548,9 @@ export default function BitGraphPage() {
                       {item.file.name}
                     </span>
                     {clickable && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#0065A4", fontSize: 14, fontWeight: 600, flexShrink: 0, letterSpacing: "-0.01em" }}>
+                      <span className="bitgraph-open-pill">
                         Open
-                        <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1, fontWeight: 600 }}>›</span>
+                        <span aria-hidden="true" style={{ fontSize: 17, lineHeight: 1, fontWeight: 600 }}>›</span>
                       </span>
                     )}
                   </div>

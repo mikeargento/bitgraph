@@ -172,19 +172,44 @@ export default function ProofPage() {
   const lowerTime = causalWindow?.anchorBefore?.blockTime;
   const upperTime = causalWindow?.anchorAfter?.blockTime;
   let recordedLine: string | null = null;
+  // Optional pre-formatted node so the Ethereum-anchor line breaks cleanly
+  // between the block and its time (one line on desktop, time drops to line 2
+  // on mobile) instead of wrapping mid-time/mid-date via wordBreak.
+  let recordedNode: React.ReactNode = null;
+  // The actual time/date values are emphasized in brand blue (the connector
+  // words stay default gray), so the receipt's key temporal fact reads as the
+  // focal point, consistent with how counters/block numbers are highlighted.
+  const emStyle: React.CSSProperties = { color: "#0065A4", fontWeight: 600 };
+  const Em = ({ children }: { children: React.ReactNode }) => <span style={emStyle}>{children}</span>;
   if (isEth && ethBlockNum) {
     const bt = anchorBlock?.blockTime;
-    recordedLine = bt
-      ? `Ethereum Block #${Number(ethBlockNum).toLocaleString()} at ${new Date(bt).toLocaleTimeString()} on ${new Date(bt).toLocaleDateString()}`
-      : `Ethereum Block #${Number(ethBlockNum).toLocaleString()}`;
+    const blockPart = `Ethereum Block #${Number(ethBlockNum).toLocaleString()}`;
+    if (bt) {
+      const timeStr = new Date(bt).toLocaleTimeString();
+      const dateStr = new Date(bt).toLocaleDateString();
+      recordedLine = `${blockPart} at ${timeStr} on ${dateStr}`;
+      recordedNode = (
+        <>
+          <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>{" "}
+          <span style={{ whiteSpace: "nowrap" }}>at <Em>{timeStr}</Em> on <Em>{dateStr}</Em></span>
+        </>
+      );
+    } else {
+      recordedLine = blockPart;
+    }
   } else if (!isEth && lowerTime && upperTime) {
     const t1 = new Date(lowerTime), t2 = new Date(upperTime);
-    recordedLine = t1.toDateString() === t2.toDateString()
-      ? `between ${t1.toLocaleTimeString()} and ${t2.toLocaleTimeString()} on ${t2.toLocaleDateString()}`
-      : `between ${t1.toLocaleString()} and ${t2.toLocaleString()}`;
+    if (t1.toDateString() === t2.toDateString()) {
+      recordedLine = `between ${t1.toLocaleTimeString()} and ${t2.toLocaleTimeString()} on ${t2.toLocaleDateString()}`;
+      recordedNode = <>between <Em>{t1.toLocaleTimeString()}</Em> and <Em>{t2.toLocaleTimeString()}</Em> on <Em>{t2.toLocaleDateString()}</Em></>;
+    } else {
+      recordedLine = `between ${t1.toLocaleString()} and ${t2.toLocaleString()}`;
+      recordedNode = <>between <Em>{t1.toLocaleString()}</Em> and <Em>{t2.toLocaleString()}</Em></>;
+    }
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
     recordedLine = `after ${t1.toLocaleTimeString()} on ${t1.toLocaleDateString()}`;
+    recordedNode = <>after <Em>{t1.toLocaleTimeString()}</Em> on <Em>{t1.toLocaleDateString()}</Em></>;
   }
 
   async function exportZip() {
@@ -250,21 +275,20 @@ export default function ProofPage() {
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
             <Card title={(
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, border: "2px solid #0065A4", flexShrink: 0 }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#10b981", flexShrink: 0 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
                 <span>Verified BitGraph</span>
               </span>
             )}>
-              {recordedLine && <Field label="Recorded" value={recordedLine} />}
+              {recordedLine && <Field label="Recorded" value={recordedLine} valueNode={recordedNode} />}
               <Field label="Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
-              <JsonSection proof={proof} />
             </Card>
           )}
 
           {/* 1. Slot — reserved first, before anything else */}
           {slot && (
-            <Card title="Causal Slot">
+            <Card title="Causal Slot" info={TIPS.slot}>
               <Field label="Slot Counter" value={`#${slot.counter}`} highlight />
               {slot.nonceB64 ? <Field label="Nonce" value={String(slot.nonceB64)} mono /> : null}
               {slot.signatureB64 ? <Field label="Slot Signature" value={String(slot.signatureB64)} mono /> : null}
@@ -276,7 +300,7 @@ export default function ProofPage() {
               is the file (digest = hash of the bytes). For an Ethereum anchor the
               artifact IS the block hash, so show it explicitly and label the
               digest as the SHA-256 of that block hash. */}
-          <Card title="Artifact">
+          <Card title="Artifact" info={TIPS.artifact}>
             {isEth && attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
             <Field
               label={isEth && attr?.message
@@ -296,7 +320,7 @@ export default function ProofPage() {
               value), so those are not echoed here; the Slot Hash remains as the
               cryptographic link binding this commit to that slot. With no slot
               card, they surface here so nothing is hidden. */}
-          <Card title="Commit">
+          <Card title="Commit" info={TIPS.commit}>
             <Field label="Artifact Counter" value={`#${commit.counter}`} highlight />
             {!slot && commit.epochId && <Field label="Epoch ID" value={String(commit.epochId)} mono />}
             {commit.prevB64 && <Field label="Previous Hash" value={commit.prevB64} mono />}
@@ -306,13 +330,13 @@ export default function ProofPage() {
           </Card>
 
           {/* 4. Signer — who signed it */}
-          <Card title="Signer">
+          <Card title="Signer" info={TIPS.signer}>
             <Field label="Public Key" value={proof.signer.publicKeyB64} mono />
             <Field label="Signature" value={proof.signer.signatureB64} mono />
           </Card>
 
           {/* 5. Environment — where it was signed */}
-          <Card title="Environment">
+          <Card title="Environment" info={TIPS.environment}>
             <Field label="Enforcement" value={isTee ? "Hardware Enclave (AWS Nitro)" : "Software"} />
             {proof.environment?.measurement && <Field label="PCR0 Measurement" value={proof.environment.measurement} mono />}
             {proof.environment?.attestation?.format && <Field label="Attestation Format" value={proof.environment.attestation.format} />}
@@ -331,7 +355,7 @@ export default function ProofPage() {
               witnessed AFTER this anchor. Shown above "BitGraphed Before" so the
               pair reads as a window: after this block, before that one. */}
           {!isEth && causalWindow?.anchorBefore && (
-            <Card title="BitGraphed After">
+            <Card title="BitGraphed After" info={TIPS.bgAfter}>
               <Field
                 label="Ethereum Block"
                 value={
@@ -370,12 +394,12 @@ export default function ProofPage() {
           )}
 
           {isEth && attr?.title ? (
-            <Card title="Ethereum Block">
+            <Card title="Ethereum Block" info={TIPS.ethBlock}>
               <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
               <Field label="Etherscan" value={attr.title} link />
             </Card>
           ) : causalWindow?.anchorAfter ? (
-            <Card title="BitGraphed Before">
+            <Card title="BitGraphed Before" info={TIPS.bgBefore}>
               <Field
                 label="Ethereum Block"
                 value={
@@ -412,7 +436,7 @@ export default function ProofPage() {
               )}
             </Card>
           ) : (
-            <Card title="BitGraphed Before">
+            <Card title="BitGraphed Before" info={TIPS.bgBefore}>
               <div style={{ padding: "18px 24px", fontSize: 14, color: "#6b7280" }}>
                 Awaiting next Ethereum block…
               </div>
@@ -424,7 +448,7 @@ export default function ProofPage() {
               verified by BitGraph, so the card says so and never labels the name
               as "Creator". */}
           {attr && !isEth && (
-            <Card title="Submitter's Note">
+            <Card title="Submitter's Note" info={TIPS.submitter}>
               <div style={{ padding: "12px 24px 4px", fontSize: 12.5, color: "#6b7280", lineHeight: 1.5 }}>
                 Self-attributed, not verified by BitGraph.
               </div>
@@ -438,7 +462,7 @@ export default function ProofPage() {
               time mechanism. A TSA time, if present, is advisory only, so it is
               labeled as such and sits last. */}
           {ts && (
-            <Card title="Advisory Timestamp">
+            <Card title="Advisory Timestamp" info={TIPS.advisory}>
               {ts.authority ? <Field label="Authority" value={String(ts.authority)} /> : null}
               {ts.time ? <Field label="TSA Time" value={String(ts.time)} /> : null}
               {ts.digestAlg ? <Field label="Digest Algorithm" value={String(ts.digestAlg)} /> : null}
@@ -470,6 +494,9 @@ export default function ProofPage() {
             `gap` so the spacing from the last card equals the spacing between
             cards. */}
         <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Raw JSON sits with Export: both are "do something with the data"
+              actions. Outline (inspect) above filled (download). */}
+          <JsonSection proof={proof} />
           <button
             onClick={exportZip}
             style={{
@@ -510,16 +537,22 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 /* ── Card ── */
 
-function Card({ title, children }: { title: React.ReactNode; accent?: string; children: React.ReactNode }) {
+function Card({ title, info, children }: { title: React.ReactNode; info?: string; accent?: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
+    <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
       <div style={{
+        position: "relative",
         fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
         color: "#0065A4", padding: "18px 24px",
         background: "rgba(0,101,164,0.04)",
         borderBottom: "1px solid #e2e5e9",
       }}>
-        {title}
+        {info ? (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            {title}
+            <InfoTip text={info} />
+          </span>
+        ) : title}
       </div>
       <div className="proof-fields" style={{ padding: "4px 0" }}>
         {children}
@@ -528,9 +561,94 @@ function Card({ title, children }: { title: React.ReactNode; accent?: string; ch
   );
 }
 
+/* ── "i" section explainer — plain-language tooltip. Hover on desktop (with a
+   short close delay so the icon→popover gap does not flicker), tap on mobile,
+   Escape or click-outside to dismiss. The popover is positioned against the
+   card header (which is position:relative) so it stays within the card width on
+   any screen. ── */
+const TIPS = {
+  slot: "Before BitGraph saw your file, the secure hardware reserved a numbered place in line and generated a random nonce, a number used once. The slot exists first, so your file fills a position that was already waiting, not one created after the fact.",
+  artifact: "The fingerprint of this exact file state, computed from its contents. Change a single bit and this fingerprint changes, so later alteration is detectable.",
+  commit: "The moment your file's fingerprint was bound to the reserved slot and signed inside the secure hardware. The slot can be filled only once: it is consumed here and cannot be reused. Each commit also links to the one before it, preserving the order of the sequence.",
+  signer: "The public key and signature for this proof. The matching private key is held inside the secure hardware. Anyone can check the signature against the public key, so the proof can be verified without trusting BitGraph's website.",
+  environment: "Describes the attested secure enclave environment that produced this proof. PCR0 is a fingerprint of the software loaded inside it. Because the build is public, others can rebuild the code and compare the expected measurement.",
+  ethBlock: "BitGraph reads a recent Ethereum block hash and records it in its own sequence; nothing is written to Ethereum. Since that hash did not exist before the block was created, nearby proofs can be checked against Ethereum's public order without claiming an exact timestamp.",
+  bgAfter: "Your file was BitGraphed after BitGraph recorded this Ethereum block hash in its sequence.",
+  bgBefore: "Your file was BitGraphed before BitGraph recorded this Ethereum block hash in its sequence.",
+  c2pa: "Provenance the file carries about itself, such as the camera, app, or creator claim attached to it. ‘Signed’ means an external authority cryptographically vouched for that metadata. ‘Self-declared’ means the metadata is present but not independently verified. Because this metadata is part of the file, removing or altering it changes the file's fingerprint, so the altered file no longer matches this BitGraph.",
+  submitter: "A note added by whoever submitted the file. It is self-claimed and not independently verified.",
+  advisory: "An optional conventional timestamp. It can help with readability, but it is not the source of proof. BitGraph's sequence and Ethereum anchors are the authoritative references for order.",
+} as const;
+
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setOpen(false), 140); };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  useEffect(() => () => cancelClose(), []);
+
+  return (
+    <span
+      ref={ref}
+      style={{ display: "inline-flex", alignItems: "center" }}
+      onMouseEnter={() => { cancelClose(); setOpen(true); }}
+      onMouseLeave={scheduleClose}
+    >
+      <button
+        type="button"
+        aria-label="What this section means"
+        aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 16, height: 16, borderRadius: 999,
+          border: `1px solid ${open ? "#0065A4" : "#9aa3ad"}`,
+          background: "transparent", color: open ? "#0065A4" : "#6b7280",
+          fontSize: 11, fontWeight: 700, fontStyle: "italic",
+          fontFamily: "Georgia, 'Times New Roman', serif",
+          lineHeight: 1, cursor: "pointer", padding: 0, flexShrink: 0,
+          transition: "color .15s, border-color .15s",
+        }}
+      >
+        i
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute", top: "calc(100% + 6px)", left: 24, zIndex: 50,
+            maxWidth: "min(360px, calc(100% - 48px))",
+            background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.10)",
+            padding: "12px 14px",
+            fontSize: 13, fontWeight: 400, lineHeight: 1.55,
+            letterSpacing: "normal", textTransform: "none",
+            color: "#374151", whiteSpace: "normal", cursor: "default",
+          }}
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /* ── Field with copy ── */
 
-function Field({ label, value, mono: isMono, highlight, link }: { label: string; value: string; mono?: boolean; highlight?: boolean; link?: boolean }) {
+function Field({ label, value, valueNode, mono: isMono, highlight, link }: { label: string; value: string; valueNode?: React.ReactNode; mono?: boolean; highlight?: boolean; link?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   return (
@@ -552,10 +670,10 @@ function Field({ label, value, mono: isMono, highlight, link }: { label: string;
           fontFamily: isMono ? mono : "inherit",
           color: copied ? "#0065A4" : highlight ? "var(--c-accent)" : "#1f2937",
           fontWeight: highlight ? 700 : 400,
-          wordBreak: "break-all",
+          wordBreak: valueNode ? "normal" : "break-all",
           transition: "color .2s", lineHeight: 1.5,
         }}>
-          {copied ? "Copied!" : value}
+          {copied ? "Copied!" : (valueNode ?? value)}
         </span>
       )}
     </div>
@@ -574,22 +692,20 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
 
   return (
     <>
-      <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
-        <button
-          onClick={() => setOpen(true)}
-          className="bg-btn-outline"
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-            width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-            color: "#0065A4", background: "#f4f6f9",
-            border: "1px solid #0065A4", borderRadius: 0,
-            cursor: "pointer",
-          }}
-        >
-          <BtnIcon name="code" />
-          <span>View Raw JSON</span>
-        </button>
-      </div>
+      <button
+        onClick={() => setOpen(true)}
+        className="bg-btn-outline"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+          width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+          color: "#0065A4", background: "#f4f6f9",
+          border: "1px solid #0065A4", borderRadius: 0,
+          cursor: "pointer",
+        }}
+      >
+        <BtnIcon name="code" />
+        <span>View Raw JSON</span>
+      </button>
       {open && (
         <div
           style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
@@ -882,18 +998,33 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
   const signed = c2pa.signatureValid === true;
 
   return (
-    /* Signed / Self-declared is the overall trust status of the manifest, so it
-       sits in the header as a badge (like the "Verified BitGraph" header), not as
-       a separate row. It only distinguishes a CA-validated signature from a
-       self-declared one; it never asserts the file is authentic. */
+    /* Trust status sits in the header. A CA-validated signature gets the same
+       green check badge as the "Verified BitGraph" header (the "Signed by …"
+       field below names the issuer, so the word "Signed" is redundant). A
+       self-declared manifest keeps an explicit gray label, since that caveat is
+       not conveyable by a glyph and a green check must never imply CA validation
+       the manifest does not have. It never asserts the file is authentic. */
     <Card title={
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <span>Content Credentials (C2PA)</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: "normal", color: signed ? "#10b981" : "#6b7280" }}>
-          <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>{signed ? "✓" : "○"}</span>
-          {signed ? "Signed" : "Self-declared"}
+      signed ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#10b981", flexShrink: 0 }}>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          </span>
+          <span>Content Credentials (C2PA)</span>
+          <InfoTip text={TIPS.c2pa} />
         </span>
-      </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span>Content Credentials (C2PA)</span>
+            <InfoTip text={TIPS.c2pa} />
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: "normal", color: "#6b7280" }}>
+            <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>○</span>
+            Self-declared
+          </span>
+        </div>
+      )
     }>
       {sourceText && <Field label="Source" value={sourceText} highlight />}
       {generator && <Field label="Made with" value={generator} />}

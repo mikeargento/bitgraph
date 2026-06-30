@@ -145,10 +145,10 @@ export function Explorer() {
         /* Live arrivals only: a stronger slide plus a brief trust-green flash
            that ends fully transparent, so nothing tinted is left behind. */
         .xp-row-fresh { animation: xpArrive 1.4s ease-out; }
-        .xp-open { display:inline-flex; align-items:center; gap:5px; flex-shrink:0; color:#0065A4; font-size:14px; font-weight:600; transition:gap .15s; }
+        .xp-open { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; color:#0065A4; font-size:13px; font-weight:600; letter-spacing:-0.01em; border:1px solid #0065A4; border-radius:0; padding:4px 12px; background:#fff; transition:background .15s, color .15s; }
         @media (hover:hover){
           .xp-row:hover { background:#f3f5f7; }
-          .xp-row:hover .xp-open { gap:9px; }
+          .xp-row:hover .xp-open { background:#0065A4; color:#fff; }
         }
       `}</style>
 
@@ -196,7 +196,7 @@ export function Explorer() {
               </span>
               <span className="xp-open">
                 Open
-                <span aria-hidden style={{ fontSize: 20, lineHeight: 1, fontWeight: 600 }}>›</span>
+                <span aria-hidden style={{ fontSize: 17, lineHeight: 1, fontWeight: 600 }}>›</span>
               </span>
             </a>
           );
