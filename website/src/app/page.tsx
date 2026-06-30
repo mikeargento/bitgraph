@@ -333,7 +333,6 @@ export default function BitGraphPage() {
     setStep("results");
   }
 
-  function reset() { setStep("drop"); setItems([]); setAnimCount(0); }
 
   // A visitor supplied a file that hashes to a dropped proof.json's digest. Mark
   // the row matched and cache the real artifact so opening the proof shows it.
@@ -445,14 +444,21 @@ export default function BitGraphPage() {
         {step === "results" && items.length > 0 && (
           <div style={{ animation: "slideIn 0.3s ease-out", display: "flex", flexDirection: "column", gap: 24 }}>
 
-              {/* Actions — "Choose new files" on top, then the BitGraph-remaining
-                  CTA (only while some files are still unproven), then Download.
-                  The count is no longer a floating hero; it is the header of the
-                  list card below. */}
+              {/* Choose new files — the same drop box as the home page, so you can
+                  drag, paste, or click to start a fresh set. Dropping here re-runs
+                  the scan and replaces the list. Sits on top. */}
+              <div className="file-drop-container" style={{ animation: "slideIn 0.3s ease-out" }}>
+                <FileDrop
+                  multiple
+                  onFile={(f) => handleFiles([f])}
+                  onFiles={handleFiles}
+                  hint=""
+                />
+              </div>
+
+              {/* Actions — the BitGraph-remaining CTA (while files are unproven),
+                  then Download. The count is the header of the list card below. */}
               <div className="bitgraph-actions">
-                <button onClick={reset} className="bg-btn-outline" style={btnOut}>
-                  {allDone ? "Choose new files" : "Start over"}
-                </button>
                 {unproven.length > 0 && (
                   <button onClick={proveRemaining} style={{ ...btnFill, background: "var(--c-accent)", color: "#ffffff" }}>
                     BitGraph {unproven.length} remaining
