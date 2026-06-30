@@ -545,7 +545,7 @@ export default function BitGraphPage() {
                       {formatFileSize(item.file.size)}
                     </span>
                     {clickable && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#0065A4", fontSize: 13, fontWeight: 600, flexShrink: 0, letterSpacing: "-0.01em" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#0065A4", fontSize: 14, fontWeight: 600, flexShrink: 0, letterSpacing: "-0.01em" }}>
                         Open
                         <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1, fontWeight: 600 }}>›</span>
                       </span>
