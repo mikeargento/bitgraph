@@ -384,7 +384,7 @@ export default function BitGraphPage() {
         {step === "scanning" && (
           <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
             <div style={{
-              fontSize: "min(30px, 5vw)",
+              fontSize: "min(22px, 4.5vw)",
               fontWeight: 800,
               letterSpacing: "-0.02em",
               color: "#111827",
@@ -404,7 +404,7 @@ export default function BitGraphPage() {
         {step === "proving" && (
           <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
             <div style={{
-              fontSize: "min(30px, 5vw)",
+              fontSize: "min(22px, 4.5vw)",
               fontWeight: 800,
               letterSpacing: "-0.02em",
               color: "#111827",
@@ -424,7 +424,7 @@ export default function BitGraphPage() {
         {step === "exporting" && (
           <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
             <div style={{
-              fontSize: "min(30px, 5vw)",
+              fontSize: "min(22px, 4.5vw)",
               fontWeight: 800,
               letterSpacing: "-0.02em",
               color: "#111827",
@@ -501,16 +501,16 @@ export default function BitGraphPage() {
                     cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
                   }
                 };
-                const dotColor = item.status === "found" || item.status === "proved" ? "#0065A4"
+                const dotColor = (item.status === "found" && item.valid) || item.status === "proved" ? "#0065A4"
+                  : (item.status === "found" && !item.valid) || item.status === "error" ? "#dc2626"
                   : item.status === "proving" ? "#f0c060"
-                  : item.status === "error" ? "#dc2626"
                   : "#9ca3af";
-                const statusLabel =
-                  item.status === "found" && item.valid ? <span style={{ color: "#0065A4" }}>Signature valid</span>
-                  : item.status === "proved" ? <span style={{ color: "#0065A4" }}>Just BitGraphed</span>
-                  : item.status === "new" ? <>Not yet BitGraphed</>
-                  : item.status === "proving" ? <>BitGraphing…</>
-                  : item.status === "error" ? <span style={{ color: "#dc2626" }}>Error</span>
+                const counter = item.proof?.commit?.counter;
+                // Rows without a counter yet show their state in the left slot.
+                const pendingLabel =
+                  item.status === "new" ? "Not yet BitGraphed"
+                  : item.status === "proving" ? "BitGraphing…"
+                  : item.status === "error" ? "Error"
                   : null;
                 return (
                   <div key={item.file.name + i}>
@@ -528,16 +528,17 @@ export default function BitGraphPage() {
                       cursor: clickable ? "pointer" : "default",
                     }}
                   >
+                    {/* Left — matches the explorer: dot + "BitGraph #N" (or the
+                        pending state for rows not yet BitGraphed). */}
                     <span aria-hidden style={{ flexShrink: 0, width: 8, height: 8, borderRadius: 99, background: dotColor }} />
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.file.name}
+                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#9ca3af" }}>
+                      {counter != null
+                        ? <>BitGraph <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span></>
+                        : pendingLabel}
                     </span>
-                    <span style={{ flexShrink: 0, fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>
-                      {item.proof?.commit?.counter != null && (
-                        <span style={{ color: "#374151" }}>BitGraph <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(item.proof.commit.counter).toLocaleString()}</span></span>
-                      )}
-                      {item.proof?.commit?.counter != null && statusLabel && <span style={{ margin: "0 6px", color: "#d0d5dd" }}>·</span>}
-                      {statusLabel}
+                    {/* Filename — right-aligned, next to Open. */}
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: "#111827", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.file.name}
                     </span>
                     {clickable && (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#0065A4", fontSize: 14, fontWeight: 600, flexShrink: 0, letterSpacing: "-0.01em" }}>

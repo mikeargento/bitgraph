@@ -882,19 +882,19 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
   const signed = c2pa.signatureValid === true;
 
   return (
-    <Card title="Content Credentials">
-      {/* Trust status, laid out like the other rows: label left, value right.
-          A hidden card already means "no manifest"; this only distinguishes a
-          CA-validated signature from a self-declared one. It never asserts the
-          file is authentic or that absence means human-made. */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
-        <span style={{ fontSize: 14, color: "#374151", fontWeight: 700, flexShrink: 0, minWidth: 80 }}>C2PA</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: signed ? "#10b981" : "#6b7280" }}>
-          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>{signed ? "✓" : "○"}</span>
+    /* Signed / Self-declared is the overall trust status of the manifest, so it
+       sits in the header as a badge (like the "Verified BitGraph" header), not as
+       a separate row. It only distinguishes a CA-validated signature from a
+       self-declared one; it never asserts the file is authentic. */
+    <Card title={
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <span>Content Credentials</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: "normal", color: signed ? "#10b981" : "#6b7280" }}>
+          <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>{signed ? "✓" : "○"}</span>
           {signed ? "Signed" : "Self-declared"}
         </span>
       </div>
-
+    }>
       {sourceText && <Field label="Source" value={sourceText} highlight />}
       {generator && <Field label="Made with" value={generator} />}
       {c2pa.creator && <Field label="Creator" value={c2pa.creator} />}
