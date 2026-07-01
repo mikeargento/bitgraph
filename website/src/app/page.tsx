@@ -470,7 +470,7 @@ export default function BitGraphPage() {
                       ...(anchorCountdown > 0 ? { ...btnOut, opacity: 0.5, cursor: "default" } : allDone ? btnFill : btnOut),
                     }}
                   >
-                    {anchorCountdown > 0 ? <span style={{ fontSize: 14 }}>{`Anchoring to Ethereum... ${anchorCountdown}s`}</span> : zipCount > 1 ? `Download all ${zipCount} (.zip)` : "Download .zip"}
+                    {anchorCountdown > 0 ? <span style={{ fontSize: 14 }}>{`BitGraphing the next Ethereum block hash... ${anchorCountdown}s`}</span> : zipCount > 1 ? `Download all ${zipCount} (.zip)` : "Download .zip"}
                   </button>
                 )}
               </div>
