@@ -481,7 +481,7 @@ export default function BitGraphPage() {
               <div style={{ border: "1px solid #d0d5dd", background: "#fff" }}>
               <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "18px 24px", background: "rgba(0,101,164,0.04)", borderBottom: "1px solid #e2e5e9", display: "flex", alignItems: "center", gap: 8 }}>
                 {allDone && (
-                  <span key={`badge-${items.length}`} aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 17, height: 17, borderRadius: 999, background: "#10b981", flexShrink: 0, animation: "countPop 0.4s ease-out both" }}>
+                  <span key={`badge-${items.length}`} aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 17, height: 17, borderRadius: 999, background: "#0065A4", flexShrink: 0, animation: "countPop 0.4s ease-out both" }}>
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" style={{ strokeDasharray: 26, animation: "checkDraw 0.35s ease-out 0.18s both" }} /></svg>
                   </span>
                 )}
@@ -557,7 +557,7 @@ export default function BitGraphPage() {
                   {item.fromProofJson && item.proof && (
                     <div style={{ padding: "0 16px 14px" }}>
                       {item.matchedFile ? (
-                        <div style={{ padding: "12px 14px", border: "1px solid #10b981", background: "#fff", fontSize: 13, fontWeight: 600, color: "#10b981", display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ padding: "12px 14px", border: "1px solid #0065A4", background: "#fff", fontSize: 13, fontWeight: 600, color: "#0065A4", display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontWeight: 700 }}>✓</span>
                           <span>This file matches the proof. Open to view it.</span>
                         </div>

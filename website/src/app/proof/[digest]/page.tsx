@@ -275,7 +275,7 @@ export default function ProofPage() {
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
             <Card title={(
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#10b981", flexShrink: 0 }}>
+                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
                 <span>Verified BitGraph</span>
@@ -1007,7 +1007,7 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
     <Card title={
       signed ? (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#10b981", flexShrink: 0 }}>
+          <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
           </span>
           <span>Content Credentials (C2PA)</span>
