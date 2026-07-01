@@ -979,53 +979,80 @@ function sniffNativeImage(buffer: ArrayBuffer): boolean {
 /**
  * RAW camera files (CR2, NEF, ARW, DNG, RAF, etc.) embed one or more
  * JPEG previews for the camera's LCD screen. This function scans the
- * raw bytes for JPEG start (0xFF 0xD8) and end (0xFF 0xD9) markers
- * and returns the largest JPEG block found — which is typically the
- * full-resolution preview.
+ * raw bytes for JPEG start (0xFF 0xD8) and end (0xFF 0xD9) markers and
+ * returns the largest *browser-renderable* JPEG block.
  *
- * No external dependency. Works for every major DSLR RAW format
- * because they all embed JPEG previews the same way.
+ * The renderable check matters for DNG: DNGs store the raw sensor data
+ * as a lossless JPEG (Start-Of-Frame marker 0xC3) that is far larger
+ * than the baseline preview but cannot be decoded by an <img>. Grabbing
+ * the largest block blindly picks that lossless stream and shows no
+ * preview, so we accept only baseline / extended / progressive frames
+ * (0xC0 / 0xC1 / 0xC2) and take the largest of those.
+ *
+ * No external dependency. Works for every major DSLR RAW format.
  */
 function extractJpegFromRaw(data: Uint8Array): Blob | null {
-  // Find all JPEG SOI (Start of Image) markers
+  // Collect every JPEG SOI (Start Of Image) offset.
   const starts: number[] = [];
   for (let i = 0; i < data.length - 1; i++) {
-    if (data[i] === 0xFF && data[i + 1] === 0xD8) {
-      starts.push(i);
-    }
+    if (data[i] === 0xFF && data[i + 1] === 0xD8) starts.push(i);
   }
   if (starts.length === 0) return null;
 
-  let bestStart = -1;
-  let bestEnd = -1;
-  let bestSize = 0;
+  // Walk a JPEG's marker segments to read its Start-Of-Frame type.
+  // Browsers decode only baseline (C0), extended-sequential (C1), and
+  // progressive (C2); lossless (C3) and arithmetic (C9–CB) fail.
+  const frameType = (start: number, end: number): number | null => {
+    let i = start + 2;
+    while (i < end - 1) {
+      if (data[i] !== 0xFF) { i++; continue; }
+      let marker = data[i + 1];
+      while (marker === 0xFF && i + 2 < end) { i++; marker = data[i + 1]; } // skip fill bytes
+      // Standalone markers (SOI, TEM, RSTn, EOI) carry no length payload.
+      if (marker === 0xD8 || marker === 0x01 || (marker >= 0xD0 && marker <= 0xD9)) { i += 2; continue; }
+      // Start-Of-Frame markers are 0xC0–0xCF except DHT(C4), JPG(C8), DAC(CC).
+      if (marker >= 0xC0 && marker <= 0xCF && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC) {
+        return marker;
+      }
+      if (i + 3 >= end) break;
+      const len = (data[i + 2] << 8) | data[i + 3];
+      if (len < 2) break;
+      i += 2 + len;
+    }
+    return null;
+  };
+
+  let bestStart = -1, bestEnd = -1, bestSize = 0;   // largest renderable JPEG
+  let fbStart = -1, fbEnd = -1, fbSize = 0;          // fallback: largest of any type
 
   for (let s = 0; s < starts.length; s++) {
     const start = starts[s];
-    // Search boundary: next JPEG SOI or end of file
+    // Search boundary: next JPEG SOI or end of file.
     const boundary = s + 1 < starts.length ? starts[s + 1] : data.length;
 
-    // Find the last JPEG EOI (End of Image) marker before the boundary
+    // Last JPEG EOI (End Of Image) before the boundary.
     let end = -1;
     for (let j = boundary - 2; j >= start + 2; j--) {
-      if (data[j] === 0xFF && data[j + 1] === 0xD9) {
-        end = j + 2;
-        break;
-      }
+      if (data[j] === 0xFF && data[j + 1] === 0xD9) { end = j + 2; break; }
     }
 
     if (end < 0) continue;
     const size = end - start;
-    // Skip tiny thumbnails (< 10 KB) — we want the full-res preview
-    if (size > bestSize && size > 10000) {
-      bestStart = start;
-      bestEnd = end;
-      bestSize = size;
-    }
+    if (size <= 10000) continue; // skip tiny thumbnails — we want the full-res preview
+
+    if (size > fbSize) { fbStart = start; fbEnd = end; fbSize = size; }
+
+    const sof = frameType(start, end);
+    const renderable = sof === 0xC0 || sof === 0xC1 || sof === 0xC2;
+    if (renderable && size > bestSize) { bestStart = start; bestEnd = end; bestSize = size; }
   }
 
-  if (bestStart < 0) return null;
-  return new Blob([data.slice(bestStart, bestEnd)], { type: "image/jpeg" });
+  // Prefer the largest renderable JPEG; if none was confirmed (odd container),
+  // fall back to the largest block found — still better than no preview.
+  const outStart = bestStart >= 0 ? bestStart : fbStart;
+  const outEnd = bestStart >= 0 ? bestEnd : fbEnd;
+  if (outStart < 0) return null;
+  return new Blob([data.slice(outStart, outEnd)], { type: "image/jpeg" });
 }
 
 /* ── Attestation Verifier (modal) ── */
