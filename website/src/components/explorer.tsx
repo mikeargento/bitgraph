@@ -183,12 +183,11 @@ export function Explorer() {
           const isAnchor = e.type === "anchor";
           return (
             <a key={e.counter} href={`/proof/${e.digest}`} target="_blank" rel="noopener" className={freshIds.has(e.counter) ? "xp-row xp-row-fresh" : "xp-row"}>
-              <span aria-hidden title={isAnchor ? "BitGraph of an Ethereum block" : "BitGraph of a file"} style={{ flexShrink: 0, width: 8, height: 8, borderRadius: 99, background: isAnchor ? "#94a3b8" : "#0065A4" }} />
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: "#374151" }}>
                 BitGraph
                 <span style={{ marginLeft: 7, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>#{fmt(e.counter)}</span>
               </span>
-              <span style={{ flexShrink: 0, fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>
+              <span style={{ flexShrink: 0, fontSize: 12, color: isAnchor ? "#9ca3af" : "#0065A4", fontWeight: isAnchor ? 400 : 600, whiteSpace: "nowrap" }}>
                 {isAnchor ? "anchor" : "file"}
               </span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#9ca3af", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>

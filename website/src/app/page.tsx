@@ -506,10 +506,6 @@ export default function BitGraphPage() {
                     cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
                   }
                 };
-                const dotColor = (item.status === "found" && item.valid) || item.status === "proved" ? "#0065A4"
-                  : (item.status === "found" && !item.valid) || item.status === "error" ? "#dc2626"
-                  : item.status === "proving" ? "#f0c060"
-                  : "#9ca3af";
                 const counter = item.proof?.commit?.counter;
                 // Rows without a counter yet show their state in the left slot.
                 const pendingLabel =
@@ -535,9 +531,8 @@ export default function BitGraphPage() {
                       cursor: clickable ? "pointer" : "default",
                     }}
                   >
-                    {/* Left — matches the explorer: dot + "BitGraph #N" (or the
-                        pending state for rows not yet BitGraphed). */}
-                    <span aria-hidden style={{ flexShrink: 0, width: 8, height: 8, borderRadius: 99, background: dotColor }} />
+                    {/* Left — "BitGraph #N" (or the pending state for rows not
+                        yet BitGraphed). */}
                     <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#9ca3af" }}>
                       {counter != null
                         ? <>BitGraph <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span></>
