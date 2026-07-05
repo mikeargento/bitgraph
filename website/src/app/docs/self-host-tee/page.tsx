@@ -121,22 +121,22 @@ cd bitgraph
 # --reproducible mode, and packs the EIF with a pinned nitro-cli. Requires
 # Docker + git on a linux/amd64 host; Nitro hardware is NOT needed to build the
 # EIF (only to run it). Build the tagged enclave source release: the production
-# enclave is built from the enclave-v3 tag, not necessarily the latest commit.
-./server/commit-service/reproducible-build/build-eif.sh enclave-v3
+# enclave is built from the enclave-v4 tag, not necessarily the latest commit.
+./server/commit-service/reproducible-build/build-eif.sh enclave-v4
 
 # PCR0 is printed at the end and written to eif-out/pcr0.txt.`}</pre>
       </div>
 
       <h2>Step 5: Verify the PCR0 is reproducible</h2>
-      <p>PCR0 is a SHA-384 measurement of the entire EIF, and it is the enclave&apos;s identity that every proof embeds. Because the build above pins all of its inputs, you can prove the build is deterministic: build it twice and confirm the PCR0 is byte-identical, and that it equals the value BitGraph publishes. If it matches, you have independently confirmed the production enclave runs exactly the code at the tagged enclave source release (<code>enclave-v3</code>) in this repository, trusting no one.</p>
+      <p>PCR0 is a SHA-384 measurement of the entire EIF, and it is the enclave&apos;s identity that every proof embeds. Because the build above pins all of its inputs, you can prove the build is deterministic: build it twice and confirm the PCR0 is byte-identical, and that it equals the value BitGraph publishes. If it matches, you have independently confirmed the production enclave runs exactly the code at the tagged enclave source release (<code>enclave-v4</code>) in this repository, trusting no one.</p>
       <div className="code-block">
         <div className="code-block-header">Shell</div>
         <pre>{`# Build twice from clean state and assert identical PCR0 == the published value:
-./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v3 \\
-  d7f677417e5db917a6be785b9908bba4a44addac7fd52fdccffacefff631ea20ac05d7014f26d18b2e5b0e9d24b19595
+./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v4 \\
+  e2fccbae77ee40aac4830e84f195e05d69eb4547bbd961f4d3459feba10807140424aca42ad03810354982598c86b9cb
 
 # PASS: two independent builds produced identical PCR0:
-#   d7f67741...24b19595
+#   e2fccbae...8c86b9cb
 # PASS: matches the published PCR0.
 
 # See server/commit-service/reproducible-build/PINS.md for every pinned
@@ -147,7 +147,7 @@ cd bitgraph
         <div style={{ fontSize: 14, fontWeight: 700, color: "#0065A4", marginBottom: 8 }}>BitGraph&apos;s published measurement</div>
         <p style={{ marginTop: 0, marginBottom: 10 }}>The BitGraph enclave image in production measures as:</p>
         <div style={{ fontSize: 12, fontFamily: "var(--font-mono), monospace", wordBreak: "break-all", background: "#fff", border: "1px solid #d0d5dd", padding: "10px 12px", marginBottom: 10 }}>
-          PCR0 d7f677417e5db917a6be785b9908bba4a44addac7fd52fdccffacefff631ea20ac05d7014f26d18b2e5b0e9d24b19595
+          PCR0 e2fccbae77ee40aac4830e84f195e05d69eb4547bbd961f4d3459feba10807140424aca42ad03810354982598c86b9cb
         </div>
         <p style={{ marginTop: 0, marginBottom: 0, fontSize: 13, color: "#374151" }}>
           This is the value BitGraph publishes and stands behind. Every proof embeds this measurement, and the &quot;Verify Attestation&quot; check confirms the attestation&apos;s PCR0 matches it. The build is <strong>bit-for-bit reproducible</strong>: rebuild from this source on any linux/amd64 host with <code>verify-pcr0.sh</code> and you will re-derive exactly this PCR0. You do not have to trust BitGraph&apos;s assertion, you can recompute it yourself. The one input you trust AWS for is their signed enclave kernel, which is what PCR1 independently measures; everything else folded into PCR0 is built from the auditable source in this repository.
