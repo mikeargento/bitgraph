@@ -172,4 +172,4 @@ This repository is source-available, not open-source. The code is published so a
 
 Certain prior versions were distributed under the Apache License, Version 2.0; rights validly granted with respect to those prior versions are not affected.
 
-Verification of BitGraph proofs is and remains permissionless. Anyone can verify a proof without asking permission, and the published verifier package retains a permissive license for that purpose.
+Verification of BitGraph proofs is and remains permissionless. Anyone can verify a proof without asking permission: the [LICENSE](LICENSE) grants express, irrevocable permission to copy, build, and run this code for verifying proofs and for reproducing and auditing the published enclave measurements.

@@ -72,7 +72,7 @@ e57bb1779b348da7eae118a8e0a034d2aa4c28205c07db07dea8285ff206bb69  linuxkit
 ```
 
 This is the one input you trust AWS for: their signed enclave kernel. It is what
-PCR1 independently measures. Everything else in PCR0 is built from open source you can audit.
+PCR1 independently measures. Everything else in PCR0 is built from published source you can audit.
 
 ## Re-deriving R
 

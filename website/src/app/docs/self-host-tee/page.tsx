@@ -120,18 +120,19 @@ cd bitgraph
 # fixes the kernel measured into PCR0), builds the image with kaniko in
 # --reproducible mode, and packs the EIF with a pinned nitro-cli. Requires
 # Docker + git on a linux/amd64 host; Nitro hardware is NOT needed to build the
-# EIF (only to run it).
-./server/commit-service/reproducible-build/build-eif.sh
+# EIF (only to run it). Build the tagged enclave source release: the production
+# enclave is built from the enclave-v3 tag, not necessarily the latest commit.
+./server/commit-service/reproducible-build/build-eif.sh enclave-v3
 
 # PCR0 is printed at the end and written to eif-out/pcr0.txt.`}</pre>
       </div>
 
       <h2>Step 5: Verify the PCR0 is reproducible</h2>
-      <p>PCR0 is a SHA-384 measurement of the entire EIF, and it is the enclave&apos;s identity that every proof embeds. Because the build above pins all of its inputs, you can prove the build is deterministic: build it twice and confirm the PCR0 is byte-identical, and that it equals the value BitGraph publishes. If it matches, you have independently confirmed the production enclave runs exactly the code in this repository, trusting no one.</p>
+      <p>PCR0 is a SHA-384 measurement of the entire EIF, and it is the enclave&apos;s identity that every proof embeds. Because the build above pins all of its inputs, you can prove the build is deterministic: build it twice and confirm the PCR0 is byte-identical, and that it equals the value BitGraph publishes. If it matches, you have independently confirmed the production enclave runs exactly the code at the tagged enclave source release (<code>enclave-v3</code>) in this repository, trusting no one.</p>
       <div className="code-block">
         <div className="code-block-header">Shell</div>
         <pre>{`# Build twice from clean state and assert identical PCR0 == the published value:
-./server/commit-service/reproducible-build/verify-pcr0.sh HEAD \\
+./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v3 \\
   d7f677417e5db917a6be785b9908bba4a44addac7fd52fdccffacefff631ea20ac05d7014f26d18b2e5b0e9d24b19595
 
 # PASS: two independent builds produced identical PCR0:

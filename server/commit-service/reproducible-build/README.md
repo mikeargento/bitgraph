@@ -2,7 +2,7 @@
 
 Every BitGraph proof embeds a TEE attestation whose `PCR0` is the measurement of
 the enclave image. That measurement is only meaningful if you can confirm it
-corresponds to the open source you can read. This directory lets you do exactly
+corresponds to the published source you can read. This directory lets you do exactly
 that: rebuild the enclave from source and re-derive the **identical PCR0** that
 production publishes, on your own machine, trusting no one.
 
