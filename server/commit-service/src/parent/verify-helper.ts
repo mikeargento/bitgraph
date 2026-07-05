@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
-// Copyright 2024-2026 Mike Argento
+// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
 
 import { verifyAsync as ed25519VerifyAsync } from "@noble/ed25519";
 import { canonicalize } from "bitgraph";

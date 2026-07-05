@@ -1,6 +1,7 @@
 {
   "name": "@mikeargento/bitgraph",
-  "version": "1.0.3",
+  "version": "1.0.4",
+  "license": "SEE LICENSE IN LICENSE",
   "description": "Portable cryptographic proof of construction for digital artifacts.",
   "type": "module",
   "main": "./dist/index.js",

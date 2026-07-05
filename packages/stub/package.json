@@ -1,6 +1,8 @@
 {
   "name": "@bitgraph/stub",
   "version": "0.0.1",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts"

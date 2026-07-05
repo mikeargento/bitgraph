@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) Mike Argento. All rights reserved. See LICENSE.
 # Pinned nitro-cli container that turns a (reproducibly built) Docker image into
 # an EIF. Running nitro-cli inside a digest-pinned base with a version-pinned
 # package fixes BOTH the EIF-packing toolchain AND the kernel/init blobs that get

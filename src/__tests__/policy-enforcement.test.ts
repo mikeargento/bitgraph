@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
 // End-to-end test for the BitGraph policy enforcement pipeline.
 
 import { test, describe } from "node:test";
