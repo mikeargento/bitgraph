@@ -132,10 +132,10 @@ cd bitgraph
         <div className="code-block-header">Shell</div>
         <pre>{`# Build twice from clean state and assert identical PCR0 == the published value:
 ./server/commit-service/reproducible-build/verify-pcr0.sh HEAD \\
-  bb9dd158703603ec222fe565495ceaa7edc08f665da5c1cddad91442ac2211731390267036d79deb720d13fb704f648a
+  d7f677417e5db917a6be785b9908bba4a44addac7fd52fdccffacefff631ea20ac05d7014f26d18b2e5b0e9d24b19595
 
 # PASS: two independent builds produced identical PCR0:
-#   bb9dd158...704f648a
+#   d7f67741...24b19595
 # PASS: matches the published PCR0.
 
 # See server/commit-service/reproducible-build/PINS.md for every pinned
@@ -146,7 +146,7 @@ cd bitgraph
         <div style={{ fontSize: 14, fontWeight: 700, color: "#0065A4", marginBottom: 8 }}>BitGraph&apos;s published measurement</div>
         <p style={{ marginTop: 0, marginBottom: 10 }}>The BitGraph enclave image in production measures as:</p>
         <div style={{ fontSize: 12, fontFamily: "var(--font-mono), monospace", wordBreak: "break-all", background: "#fff", border: "1px solid #d0d5dd", padding: "10px 12px", marginBottom: 10 }}>
-          PCR0 bb9dd158703603ec222fe565495ceaa7edc08f665da5c1cddad91442ac2211731390267036d79deb720d13fb704f648a
+          PCR0 d7f677417e5db917a6be785b9908bba4a44addac7fd52fdccffacefff631ea20ac05d7014f26d18b2e5b0e9d24b19595
         </div>
         <p style={{ marginTop: 0, marginBottom: 0, fontSize: 13, color: "#374151" }}>
           This is the value BitGraph publishes and stands behind. Every proof embeds this measurement, and the &quot;Verify Attestation&quot; check confirms the attestation&apos;s PCR0 matches it. The build is <strong>bit-for-bit reproducible</strong>: rebuild from this source on any linux/amd64 host with <code>verify-pcr0.sh</code> and you will re-derive exactly this PCR0. You do not have to trust BitGraph&apos;s assertion, you can recompute it yourself. The one input you trust AWS for is their signed enclave kernel, which is what PCR1 independently measures; everything else folded into PCR0 is built from the auditable source in this repository.
