@@ -31,6 +31,11 @@ WORKDIR /build
 COPY package.json package-lock.json tsconfig.json ./
 COPY src/ ./src/
 
+# Copy the verifier workspace (@mikeargento/bitgraph-verify). The core library
+# re-exports the read side from it, so it must be present for npm ci (workspace
+# link) and for the core tsc build.
+COPY packages/verify/ ./packages/verify/
+
 # Copy adapter-nitro
 COPY packages/adapter-nitro/ ./packages/adapter-nitro/
 
@@ -50,6 +55,8 @@ COPY server/commit-service/src/parent/ ./server/commit-service/src/parent/
 # npm ci is lockfile-driven and integrity-hash verified, so it is deterministic;
 # --ignore-scripts blocks arbitrary lifecycle code (a non-determinism + supply-chain risk).
 RUN npm ci --ignore-scripts
+# Build the verifier workspace first — the core library imports its dist.
+RUN npx tsc -p packages/verify
 RUN npx tsc
 
 # Build adapter-nitro
@@ -99,6 +106,8 @@ COPY --from=builder /usr/local/bin/nsm_ioctl /usr/local/bin/nsm_ioctl
 # Copy built artifacts
 COPY --from=builder /build/dist/ ./node_modules/bitgraph/dist/
 COPY --from=builder /build/package.json ./node_modules/bitgraph/package.json
+COPY --from=builder /build/packages/verify/dist/ ./node_modules/@mikeargento/bitgraph-verify/dist/
+COPY --from=builder /build/packages/verify/package.json ./node_modules/@mikeargento/bitgraph-verify/package.json
 COPY --from=builder /build/packages/adapter-nitro/dist/ ./node_modules/@bitgraph/adapter-nitro/dist/
 COPY --from=builder /build/packages/adapter-nitro/package.json ./node_modules/@bitgraph/adapter-nitro/package.json
 COPY --from=builder /build/server/commit-service/dist/ ./dist/

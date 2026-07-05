@@ -13,7 +13,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import type { BitGraphProof } from "../types.js";
+import type { BitGraphProof } from "../index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

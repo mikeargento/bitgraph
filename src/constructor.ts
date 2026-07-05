@@ -29,9 +29,9 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
-import { canonicalize } from "./canonical.js";
+import { canonicalize } from "@mikeargento/bitgraph-verify";
 import type { HostCapabilities } from "./host.js";
-import type { BitGraphPolicy, BitGraphProof, SignedBody, AgencyEnvelope, Attribution, PolicyBinding } from "./types.js";
+import type { BitGraphPolicy, BitGraphProof, SignedBody, AgencyEnvelope, Attribution, PolicyBinding } from "@mikeargento/bitgraph-verify";
 
 // ---------------------------------------------------------------------------
 // Constructor class

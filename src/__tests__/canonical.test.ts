@@ -6,7 +6,7 @@ import {
   canonicalize,
   canonicalizeToString,
   constantTimeEqual,
-} from "../canonical.js";
+} from "../index.js";
 
 // ---------------------------------------------------------------------------
 // canonicalizeToString

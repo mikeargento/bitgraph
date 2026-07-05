@@ -28,7 +28,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
-import type { PolicyBinding } from "./types.js";
+import type { PolicyBinding } from "@mikeargento/bitgraph-verify";
 
 // ---------------------------------------------------------------------------
 // Policy document types

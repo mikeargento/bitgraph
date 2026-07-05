@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import { computeProofHash, canonicalize } from "../index.js";
-import type { BitGraphProof } from "../types.js";
+import type { BitGraphProof } from "../index.js";
 
 const MOCK_PROOF: BitGraphProof = {
   version: "bitgraph/1",

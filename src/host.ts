@@ -33,7 +33,7 @@
  *   BitGraph's atomic causality invariant.
  */
 
-import type { EnforcementTier } from "./types.js";
+import type { EnforcementTier } from "@mikeargento/bitgraph-verify";
 
 // ---------------------------------------------------------------------------
 // Core interface

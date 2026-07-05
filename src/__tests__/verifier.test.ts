@@ -4,9 +4,9 @@ import { describe, test, before } from "node:test";
 import * as assert from "node:assert/strict";
 import { getPublicKeyAsync, signAsync } from "@noble/ed25519";
 import { Constructor } from "../constructor.js";
-import { verify, resetEpochLinkState } from "../verifier.js";
+import { verify, resetEpochLinkState } from "../index.js";
 import type { HostCapabilities } from "../host.js";
-import type { BitGraphProof } from "../types.js";
+import type { BitGraphProof } from "../index.js";
 
 // ---------------------------------------------------------------------------
 // Test-fixture helpers

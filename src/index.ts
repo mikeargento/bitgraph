@@ -5,9 +5,13 @@
  *
  * Portable cryptographic proof at finalization.
  * Hardware TEE enforcement via AWS Nitro Enclaves.
+ *
+ * The verification side (verify, proof schema, canonicalization, proofHash)
+ * lives in @mikeargento/bitgraph-verify (MIT) and is re-exported here for
+ * compatibility. Verification of BitGraph proofs is permissionless.
  */
 
-// Types
+// Read side — re-exported from the permissive verifier package
 export type {
   BitGraphProof,
   BitGraphPolicy,
@@ -21,17 +25,17 @@ export type {
   AuthorizationPayload,
   WebAuthnAuthorization,
   AgencyEnvelope,
-} from "./types.js";
+} from "@mikeargento/bitgraph-verify";
+export { verify, resetEpochLinkState } from "@mikeargento/bitgraph-verify";
+export type { VerifyResult } from "@mikeargento/bitgraph-verify";
+export { computeProofHash } from "@mikeargento/bitgraph-verify";
+export { canonicalize, canonicalizeToString, constantTimeEqual } from "@mikeargento/bitgraph-verify";
 
 // Host interface
 export type { HostCapabilities } from "./host.js";
 
 // Constructor (write path)
 export { Constructor } from "./constructor.js";
-
-// Verifier (read path)
-export { verify, resetEpochLinkState } from "./verifier.js";
-export type { VerifyResult } from "./verifier.js";
 
 // Policy parsing, hashing, and validation
 export {
@@ -45,9 +49,3 @@ export type {
   PolicyRules,
   ActionValidationResult,
 } from "./policy.js";
-
-// Proof hash
-export { computeProofHash } from "./proof-hash.js";
-
-// Canonical serialization
-export { canonicalize, canonicalizeToString, constantTimeEqual } from "./canonical.js";

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Constructor } from "../constructor.js";
-import { canonicalize } from "../canonical.js";
+import { canonicalize } from "../index.js";
 import { hashPolicy, createPolicyBinding } from "../policy.js";
 import { sha256 } from "@noble/hashes/sha256";
 
