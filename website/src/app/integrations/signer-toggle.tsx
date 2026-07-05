@@ -79,7 +79,7 @@ export function SignerDescription({ mode }: { mode: "local" | "tee" }) {
       <strong className="text-text">TEE signing</strong> — Hardware-attested via AWS Nitro Enclave.
       Only a cryptographic hash leaves your machine. The enclave is sealed — not even BitGraph can access it.
       <br />
-      <span className="text-text-tertiary">Open source. Verify the attestation yourself.</span>
+      <span className="text-text-tertiary">Source available. Verify the attestation yourself.</span>
     </p>
   );
 }

@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
-// Copyright 2024-2026 Mike Argento
+// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
 
 import { createVerify, createHash, randomBytes } from "node:crypto";
 import { sha256 } from "@noble/hashes/sha256";

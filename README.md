@@ -166,6 +166,10 @@ See [bitgraph.ing/docs](https://bitgraph.ing/docs) for the full proof format, ve
 
 ## License
 
-Copyright 2024-2026 Mike Argento. Patent Pending.
+Copyright 2024-2026 Mike Argento. All rights reserved. Patent Pending.
 
-Licensed under the Apache License, Version 2.0.
+This repository is source-available, not open-source. The code is published so anyone can read, audit, and reproduce the enclave build, but it is proprietary: copying, modification, distribution, and commercial use require a separate written agreement with the copyright owner. See [LICENSE](LICENSE).
+
+Certain prior versions were distributed under the Apache License, Version 2.0; rights validly granted with respect to those prior versions are not affected.
+
+Verification of BitGraph proofs is and remains permissionless. Anyone can verify a proof without asking permission, and the published verifier package retains a permissive license for that purpose.
