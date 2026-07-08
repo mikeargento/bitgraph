@@ -20,8 +20,8 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "build": "npm run build --workspace=packages/verify && tsc",
+    "typecheck": "npm run build --workspace=packages/verify && tsc --noEmit",
     "test:core": "tsc && node --test dist/__tests__/canonical.test.js dist/__tests__/constructor.test.js dist/__tests__/verifier.test.js",
     "test": "npm run test:core"
   },
