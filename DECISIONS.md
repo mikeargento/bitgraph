@@ -191,6 +191,116 @@ range `^1.0.0` already accepts 1.1.0; root package.json version untouched.
 - The existing test files' describe titles use em dashes; the new test file
   uses colons per the current style rule. Existing files were not reworded.
 
+## Phase 3: Bundle format specification (docs/BUNDLE-FORMAT.md)
+
+Date: 2026-07-09
+
+### Placement
+
+Created `docs/BUNDLE-FORMAT.md` (new `docs/` directory at the repo root). The
+repo had no prior docs directory or docs-file convention beyond root-level
+markdown (README.md, BITGRAPH-DOCS.md, DECISIONS.md) and the live site pages
+under `website/src/app/docs` (off-limits per the hard rules, and site content
+rather than normative spec). BITGRAPH-DOCS.md is a monolithic site-content
+draft, not a home for a normative interchange spec, so a dedicated `docs/`
+directory was created per the brief's default path. Future spec documents
+(e.g. the audit report schema) can live beside it.
+
+### Format identifiers
+
+- Bundle format version: `bitgraph-bundle/1`, carried only in the manifest's
+  `version` field. Follows the repo's existing discriminator convention
+  (`bitgraph/1`, `bitgraph/slot/1`). Distinct from the proof schema version by
+  design; the two evolve separately.
+- Anchor witness discriminator: `version: "bitgraph-anchor-witness/1"`, same
+  convention, so witnesses are discovered by shape exactly like proofs and no
+  filename is ever load-bearing (the sole exception being the reserved root
+  `manifest.json`, which cannot be shape-discovered because it describes the
+  bundle rather than participating in it).
+
+### Deterministic contents hash scheme
+
+Chose the hash-of-hashes variant of the scheme sketched in the brief, fully
+specified in spec section 8: per entry e = SHA-256(UTF-8(path) || 0x00 ||
+content bytes); sort entries by raw UTF-8 path bytes (unsigned byte-wise, no
+locale, no Unicode normalization); final hash = SHA-256 of the concatenated
+32-byte entry digests; base64-standard encoded as `contentsHashB64`.
+Rationale for hashing per-entry digests instead of hashing one long
+path/NUL/content concatenation: raw concatenation is boundary-ambiguous
+(content bytes may contain NULs, and nothing terminates content, so two
+different bundles could serialize to identical streams). Fixed 32-byte entry
+digests make the final concatenation unambiguous, and the NUL separator
+inside each entry digest is unambiguous because paths cannot contain NUL.
+The hashed set is every entry except the root manifest.json itself
+(interpretation-free file-level fixity; unrelated files included). Two test
+vectors embedded in the spec, including the empty-set value
+(47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=), computed and verified locally.
+
+### Manifest design choices
+
+- All fields advisory and unsigned; only `version` is required. Unknown
+  manifest fields tolerated, mirroring the G3 unknown-field tolerance rule.
+- `counterRanges` is an array of { epochId, chainId, min, max } partitions
+  rather than the brief's singular "counter range", because counters are
+  epoch-local and chain-local (G6); a flat cross-epoch range would be
+  meaningless. Recorded as a deliberate widening of the brief's field list.
+- Default chain representation: proofs lacking commit.chainId belong to the
+  enclave's default "global" chain (app.ts DEFAULT_CHAIN), so the manifest
+  uses the literal string "global" for them in `chainIds`/`counterRanges`.
+- Open-epoch snapshot: `openEpochs?: Array<{ epochId, counterAtSnapshot }>`;
+  a non-empty array IS the snapshot flag (flag and counter in one field, per
+  the brief's "flag with counter at snapshot time").
+- `proofCount` counts distinct canonical proof hashes, not files, so
+  duplicate copies do not skew it.
+
+### Discovery and matching choices
+
+- "Proof-shaped" defined precisely: top-level JSON object with string
+  `version` plus object-valued `artifact`, `commit`, and `signer`. Shaped +
+  version === "bitgraph/1" -> member candidate (then full canonical
+  structural validation; structural failures are reported members, not
+  silently dropped). Shaped + any other version -> `unsupported-version`.
+  Not shaped -> ignored. Standalone bitgraph/slot/1 records are not
+  proof-shaped and are therefore ignored, which is correct: slots ride
+  embedded in proofs.
+- Base64 digest comparison specified as decode-then-compare-bytes with the
+  strict round-trip decoding the canonical verifier uses (fromBase64 in
+  verifier.ts rejects non-round-tripping strings), never string comparison.
+- Stored-form proofs (S3 StoredProof with appended proofHash) explicitly
+  anticipated: the extra field is tolerated at ingest and cross-checked per
+  G4, never trusted.
+
+### Anchor witness design (per G5)
+
+Narrow three-required-field JSON (headerRlpHex, blockNumber, blockHash, plus
+optional network label) around the RLP-encoded header as the only
+load-bearing field. Mandatory six-step consumer procedure in spec 10.3:
+decode RLP; recompute the block hash locally with Ethereum's Keccak-256
+(original Keccak padding, explicitly not FIPS-202 SHA3-256); compare against
+signed attribution.message (lowercased, full 0x string); bind message to
+artifact.digestB64 via SHA-256 over the UTF-8 bytes of the exact signed
+message string (matching bitcoin-anchor.ts:188-189, which hashes the block
+hash STRING); cross-check block number against the header's RLP field index 8
+and the signed etherscan URL in attribution.title; only then read the
+timestamp from RLP field index 11. Case handling is deliberate: the
+hash-string comparison in step 3 normalizes case (hex is case-insensitive),
+but the digest binding in step 4 uses the exact signed string bytes, because
+that is what the enclave hashed and signed. Witness is optional inbound
+evidence, never fetched, and an unverified or failed witness confers nothing;
+a failed witness does not change the anchor proof's own standing.
+
+### Spec-versus-brief deltas worth flagging
+
+- The ledger's `anchorKey()` (`anchors/{epoch}/{counter12}-{hash}.json`) and
+  the live anchor service's write path (`anchors/{epoch}/{counter12}.json`,
+  bitcoin-anchor.ts:110-115) disagree on the anchor filename shape. The spec
+  lists both as acceptable advisory forms; discovery is shape-based so the
+  divergence is harmless in bundles. Not fixed in product code in this run.
+- Tar bundle-root normalization (single common top-level directory is
+  stripped) was specified to make `tar -czf bundle.tgz mybundle/` output
+  conform naturally; the rule is deterministic (applies iff all entries share
+  the same first path component).
+
 ## Notes and minor drift observed (no ground-truth corrections needed)
 
 - `initEnclave()` cited at server.ts:159-175 now sits at server.ts:164-176. Behavior unchanged.
