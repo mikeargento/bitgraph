@@ -306,3 +306,155 @@ a failed witness does not change the anchor proof's own standing.
 - `initEnclave()` cited at server.ts:159-175 now sits at server.ts:164-176. Behavior unchanged.
 - The repo-root CLAUDE.md structure diagram still lists `src/types.ts` and `src/proof-hash.ts`; both actually live in `packages/verify/src/`. G3's statement is the correct one. Not modified in this run.
 - Stale DynamoDB comments confirmed present for Phase 6: `packages/verify/src/types.ts:448` and `packages/adapter-nitro/src/kms-counter.ts:8`.
+
+## Phase 4a: Audit package core (scaffold, ingest, verification tiers)
+
+Date: 2026-07-09
+
+### Scaffold and wiring
+
+- Created `packages/audit` = `@mikeargento/bitgraph-audit` 0.1.0, MIT
+  (LICENSE copyright 2024-2026 Mike Argento, matching packages/verify),
+  pure ESM, NodeNext, tsconfig byte-identical to packages/verify's.
+- Runtime dependencies: `@mikeargento/bitgraph-verify` `^1.1.0` (the
+  bytes-free integrity API landed in 1.1.0, so `^1.0.0` would be wrong)
+  and `@noble/hashes` `^1.4.0` (the range the repo already uses). Nothing
+  else: the tar reader is implemented in-package (`src/tar.ts`), gzip via
+  `node:zlib`, hashing via @noble/hashes' incremental API. No runtime
+  network access; the only node builtins imported are fs, path, zlib.
+- Root package.json: workspaces now `["packages/verify", "packages/audit"]`;
+  build and typecheck chain audit after verify
+  (`npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && tsc`).
+- Root `test:core` changed from `tsc && node --test ...` to
+  `npm run build && node --test ...`: the new audit tests import
+  `@mikeargento/bitgraph-audit`, so the workspace dists must exist before
+  the root tsc compile. `npm run build` ends in the same root `tsc` the
+  script ran before; this is a strict superset, and it makes `npm test`
+  self-sufficient on a fresh checkout.
+- Root devDependencies gained `@mikeargento/bitgraph-audit": "^0.1.0"`
+  (declares what the root test suite imports; npm resolves it to the
+  workspace). The root package does NOT re-export anything from the audit
+  package and its version is untouched.
+
+### Test placement (repo convention decision)
+
+Tests live at root `src/__tests__/` and run via the root node:test
+`test:core` script, exactly like the Phase 2 proof-integrity suite:
+`audit-ingest.test.ts` (21 tests), `audit-tiers.test.ts` (13 tests), plus
+a shared non-test helper module `audit-fixtures.ts` (Constructor-built and
+manually signed Ed25519 fixtures, in-memory tar writer with ustar + PAX +
+GNU long-name support, bundle directory writer). Root placement also lets
+fixtures use the real root Constructor commit path, which an in-package
+suite could not import. Baseline before this phase: 144 tests; after: 178,
+all passing.
+
+### Module map
+
+- `src/types.ts`: ObservedProof, ProofSource, ProofVerification,
+  UnsupportedVersionRecord, ArtifactRecord, AnchorWitnessFile,
+  BundleManifest, ManifestReport, IngestResult, IngestCounts,
+  VerificationSummary, AuditFinding, and the status unions. AnomalyCode is
+  an OPEN string-literal union (`| (string & {})`) so reconstruction,
+  anchor, and attestation stages extend it without touching this file.
+  Codes emitted by this phase: unsupported-version, proofhash-mismatch,
+  exact-duplicate, semantic-duplicate, unsafe-path, duplicate-path,
+  manifest-unparseable, manifest-unrecognized-version,
+  manifest-field-invalid, manifest-contents-hash-mismatch.
+- `src/tar.ts` (internal, not exported): minimal streaming tar reader.
+  ustar headers with checksum verification, prefix field, PAX 'x' records
+  (path, size applied; others parsed and ignored), PAX 'g' global defaults,
+  GNU 'L' long names, 'K' long linknames consumed and discarded, GNU
+  base-256 numeric fields. Bodies are async chunk generators; unconsumed
+  remainders are skipped automatically, so nothing is ever buffered by the
+  layer itself.
+- `src/contents-hash.ts`: the spec section 8 scheme. `computeContentsHashB64`
+  (one-shot, exported; the Phase 5 exporter can produce manifests with it)
+  plus `combineEntryDigests` for streaming consumers. Path sort is over raw
+  UTF-8 path bytes (Buffer-level compare), not JS string order.
+- `src/ingest.ts`: `ingestBundle()` and `streamMatchedArtifacts()` (the
+  latter exported as the low-level artifact-bytes hook for later stages).
+- `src/verify-tiers.ts`: `verifyObservedProofs()`.
+- `src/index.ts` public API: `ingestBundle`, `streamMatchedArtifacts`,
+  `verifyObservedProofs`, `computeContentsHashB64`, `computeEntryDigest`,
+  and the types above.
+
+### Memory design (bounded relative to payload sizes, not constant)
+
+Ingest is a single streaming pass: every entry is hashed incrementally
+(three parallel SHA-256 states per tar entry: content hash, contents-hash
+entry digest under the full path, and the same under the stripped-root
+path variant, so the root-strip decision never forces a second pass over
+the container). Only JSON candidates up to MAX_CANDIDATE_JSON_BYTES
+(8 MiB, a documented constant; real proofs are kilobytes) are buffered
+whole; artifact bytes are hashed and dropped. Retained state scales with
+the number of entries plus the total size of the proof JSONs. The
+verification pass re-reads matched artifact bytes one artifact at a time
+(direct file reads for directories, one sequential re-stream of the
+archive for tars), because the canonical verify() API takes a whole byte
+array; peak memory is bounded by the largest matched artifact. Re-read
+bytes are re-hashed before use: bytes that no longer match the recorded
+digest (file changed between passes, shadowed duplicate tar paths) are
+never fed to verify() under a stale identity.
+
+### Judgment calls and interpretations
+
+- ObservedProof retains the parsed proof object (`proof` field) in
+  addition to the compact chain metadata. The verification pass needs the
+  full object after ingest completes (artifact bytes can precede their
+  proofs in a stream, so verification cannot run inline), and proofs ARE
+  payload, so this stays within the bounded-memory contract. Report
+  emitters serialize the compact fields, not the object.
+- Verification ordering is deterministic and documented: full-tier proofs
+  are verified as their artifact bytes stream by (container order), then
+  the rest in first-observation order. `resetEpochLinkState()` runs
+  exactly once per `verifyObservedProofs()` call, before any proof.
+  Consequence tested: within one run, the second consumer of a shared
+  epochLink predecessor fails with the verifier's FORK reason; across
+  runs, fresh state means a re-audit is never poisoned by a prior bundle.
+- "Artifact mismatched digest" (the brief's tier test item) is realized
+  honestly: matching is content-addressed, so an artifact that does not
+  hash to a proof's digest simply never binds (proof lands at the
+  integrity tier), and a proof whose digestB64 was corrupted fails with
+  the verifier's exact signature reason, because the digest lives inside
+  the signed body. There is no code path that feeds non-matching bytes to
+  verify(); the digest-mismatch branch of verify() itself stays covered by
+  the verify package's own suite. Both bundle-level scenarios (corrupted
+  digest, decoy filename) are tested.
+- Tar bundle-root normalization counts EVERY file entry in the archive,
+  including unsafe-path entries that are skipped and reported: the spec
+  says the rule applies iff all entries share one top-level directory, and
+  an entry outside the candidate root (or with no directory component, or
+  escaping the root) rules stripping out. Initially implemented over safe
+  entries only; corrected during testing, and the unsafe-path test now
+  pins the behavior.
+- Unsupported-version proof-shaped files remain candidate artifacts after
+  rejection, per spec section 6.3 (they are not member proofs). Harmless:
+  matching is by content hash.
+- Standalone anchor witness files are discovered by their version
+  discriminator and retained (path, file hash, parsed object) but not
+  cryptographically verified in this stage; the spec 10.3 procedure
+  belongs to the anchor analysis stage. Witnesses are excluded from
+  artifact candidacy per spec 6.3.
+- Structurally invalid bitgraph/1 member candidates are still observed
+  (spec 6.1): chain metadata is extracted best-effort with type guards,
+  and the precise structural failure reason comes from the canonical
+  verifier during the verification pass rather than a duplicated
+  validator at ingest. No verification semantics are duplicated into the
+  audit package anywhere.
+- chainId: read from the signed commit body when it is a non-empty
+  string; absent normalized to the literal "global" (the enclave's
+  DEFAULT_CHAIN), per G6 and the Phase 3 manifest convention.
+- Chainless proofs (no counter AND no epochId) are tagged
+  `chainless: true` at ingest and counted in the verification summary.
+  No finding is emitted: observed-but-unchained is not an anomaly.
+- Duplicate semantics: exact duplicate = same canonical identity AND a
+  byte-identical prior source (file SHA-256 equality); semantic duplicate
+  = same canonical identity, new byte encoding. Both collapse into one
+  ObservedProof with appended sources; counts and findings record each
+  extra copy. An embedded proofHash mismatch on ANY copy marks the record
+  "mismatch" and emits a per-file finding.
+- The manifest is classified by its reserved root path only, before shape
+  checks, so a manifest is never mistaken for a proof or artifact. The
+  computed contents hash is always present on IngestResult
+  (`computedContentsHashB64`), whether or not a manifest declared one;
+  comparison and the advisory mismatch finding happen only when declared.

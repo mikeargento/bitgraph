@@ -1,0 +1,420 @@
+// Copyright (c) 2024-2026 Mike Argento. Licensed under the MIT License. See LICENSE.
+
+/**
+ * bitgraph-audit types
+ *
+ * Public data structures for the BitGraph Audit Bundle consumer.
+ * This file intentionally contains no logic.
+ *
+ * Two dimensions are kept deliberately separate throughout:
+ *
+ *   - Verification status: what the canonical verify package said about a
+ *     proof object (and whether artifact bytes were available to say it).
+ *   - Chain topology: where the proof sits in the causal record (counters,
+ *     predecessor links, epochs, chains). Reconstruction and anomaly
+ *     classification build on this in later stages.
+ *
+ * A verifier failure is never reinterpreted as a chain anomaly, and a chain
+ * observation never upgrades a proof's verification status.
+ */
+
+// ---------------------------------------------------------------------------
+// Anomaly codes
+// ---------------------------------------------------------------------------
+
+/**
+ * Stable machine-readable codes for audit findings.
+ *
+ * This is an OPEN union: the listed literals are the codes emitted by the
+ * ingest and verification layers, and later stages (chain reconstruction,
+ * anchor analysis, attestation validation) extend it with additional codes
+ * (for example unexplained counter positions, counter collisions,
+ * predecessor reuse, chain breaks, authority divergence, epoch link
+ * anomalies). The `(string & {})` arm keeps the type open for those
+ * extensions while preserving literal completion for the known codes.
+ *
+ * Codes are contract: report consumers match on them and must never need
+ * to parse English to determine what happened.
+ */
+export type AnomalyCode =
+  /** Proof-shaped file whose version is not exactly "bitgraph/1". Rejected at ingest. */
+  | "unsupported-version"
+  /** A stored copy carries an embedded proofHash that does not match the computed canonical hash. */
+  | "proofhash-mismatch"
+  /** Byte-identical proof file observed at more than one path. */
+  | "exact-duplicate"
+  /** Same canonical proof identity observed in different byte encodings. */
+  | "semantic-duplicate"
+  /** Container entry whose path is absolute, escapes the bundle root, or contains NUL. Skipped entirely. */
+  | "unsafe-path"
+  /** Multiple tar entries normalized to the same path; the last entry wins. */
+  | "duplicate-path"
+  /** Root manifest.json failed to parse as a single JSON object. */
+  | "manifest-unparseable"
+  /** Root manifest.json parsed but its version field is missing or unrecognized. */
+  | "manifest-unrecognized-version"
+  /** A manifest field is present but fails the type rules of the bundle spec (section 7.1). */
+  | "manifest-field-invalid"
+  /** The manifest's contentsHashB64 does not match the computed deterministic contents hash. Advisory; never a proof failure. */
+  | "manifest-contents-hash-mismatch"
+  | (string & {});
+
+/**
+ * A single machine-readable audit finding.
+ *
+ * Findings are advisory observations about the bundle and its files. They
+ * never change a proof's verification status; verification results live on
+ * the ObservedProof records themselves.
+ */
+export interface AuditFinding {
+  code: AnomalyCode;
+  /** Bundle-root-relative path of the entry this finding is about, when applicable. */
+  path?: string;
+  /** Plain-language description. Consumers must key on `code`, not this text. */
+  message: string;
+  /** Extra machine-readable detail specific to the code. */
+  details?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Verification dimensions
+// ---------------------------------------------------------------------------
+
+/**
+ * Which verification path ran for a proof.
+ *
+ *   "full"       verify() from @mikeargento/bitgraph-verify, with the
+ *                original artifact bytes (content-addressed match found
+ *                in the bundle). The artifact digest comparison ran.
+ *   "integrity"  verifyProofIntegrity(): every check verify() performs
+ *                except the artifact digest comparison. No artifact bytes
+ *                were available. Artifact binding was NOT checked.
+ */
+export type VerificationTier = "full" | "integrity";
+
+/**
+ * Outcome of the verification pass for a proof.
+ *
+ *   "verified"             Full tier only: verify() passed with the
+ *                          original artifact bytes.
+ *   "failed"               The canonical checks failed at either tier.
+ *                          The exact verifier reason is recorded.
+ *   "artifact-unavailable" Integrity tier only: the bytes-free checks
+ *                          passed, but no artifact bytes were present in
+ *                          the bundle, so digest matching was not
+ *                          independently checked. Never reported as
+ *                          "verified".
+ */
+export type VerificationStatus = "verified" | "failed" | "artifact-unavailable";
+
+/** Result of cross-checking an embedded proofHash field against the computed canonical hash. */
+export type EmbeddedProofHashStatus = "absent" | "match" | "mismatch";
+
+/**
+ * Verification record attached to an ObservedProof by the verification
+ * pass (verifyObservedProofs). Absent until that pass has run.
+ */
+export interface ProofVerification {
+  tier: VerificationTier;
+  status: VerificationStatus;
+  /** Exact failure reason from the canonical verifier. Present only when status is "failed". */
+  reason?: string;
+  /** Bundle-root-relative path of the artifact bytes used. Full tier only. */
+  artifactPath?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Observed proofs
+// ---------------------------------------------------------------------------
+
+/** One source file observed to carry a proof. */
+export interface ProofSource {
+  /** Bundle-root-relative path. */
+  path: string;
+  /** Lowercase hex SHA-256 over the file's raw bytes (byte-level identity, distinct from the canonical proof hash). */
+  fileSha256Hex: string;
+  /** Raw byte length of the file. */
+  byteLength: number;
+}
+
+/**
+ * A unique observed proof, keyed by canonical identity.
+ *
+ * Identity is the canonical proof hash (base64 SHA-256 over the canonical
+ * signed body, computed by computeProofHash from
+ * @mikeargento/bitgraph-verify). Byte-identical copies and re-encodings of
+ * the same proof collapse into one ObservedProof with multiple sources.
+ *
+ * Chain metadata fields are extracted best-effort at ingest so that
+ * reconstruction never needs to re-walk raw files. Structurally invalid
+ * member candidates are still recorded here (the bundle spec requires it);
+ * their missing fields stay undefined and their precise failure reason is
+ * produced by the verification pass.
+ */
+export interface ObservedProof {
+  /** Canonical identity: base64 SHA-256 over the canonical signed body. Always computed, never read from the file. */
+  proofHash: string;
+  /**
+   * The parsed proof object, retained for the verification pass.
+   * Report emitters serialize the compact metadata fields below, not this.
+   */
+  proof: import("@mikeargento/bitgraph-verify").BitGraphProof;
+  /** Every source file observed carrying this canonical identity, in observation order. */
+  sources: ProofSource[];
+
+  /** Schema version. Members are always exactly "bitgraph/1" (version policy). */
+  version: "bitgraph/1";
+  /** commit.counter when present (decimal string, epoch-local and chain-local). */
+  counter?: string;
+  /** commit.slotCounter when present: the counter position consumed by this proof's slot. */
+  slotCounter?: string;
+  /** commit.prevB64 when present: canonical hash of the predecessor proof in the same epoch and chain. */
+  prevB64?: string;
+  /** commit.epochId when present. */
+  epochId?: string;
+  /**
+   * Chain identifier from the signed commit body. The live enclave injects
+   * this as an undeclared field for non-default chains; a proof without it
+   * belongs to the enclave's default chain, normalized here to the literal
+   * string "global".
+   */
+  chainId: string;
+  /** signer.publicKeyB64, when structurally present. */
+  publicKeyB64?: string;
+  /** environment.measurement (declared, self-reported), when structurally present. */
+  measurement?: string;
+  /** environment.enforcement (declared, self-reported), when structurally present. */
+  enforcement?: string;
+
+  /** Whether a slotAllocation record is embedded. */
+  hasSlotAllocation: boolean;
+  /** Whether an environment.attestation document is present. Presence alone proves nothing. */
+  hasAttestation: boolean;
+  /** Whether an agency envelope is present. */
+  hasAgency: boolean;
+  /** Whether commit.epochLink is present (epoch lineage evidence). */
+  hasEpochLink: boolean;
+
+  /** Cross-check of any embedded proofHash field (stored-form proofs) against the computed canonical hash. */
+  embeddedProofHash: EmbeddedProofHashStatus;
+
+  /**
+   * True when the proof carries neither commit.counter nor commit.epochId:
+   * observed-but-unchained. Permitted by the schema, reported separately,
+   * not an anomaly.
+   */
+  chainless: boolean;
+
+  /** Filled by the verification pass (verifyObservedProofs). */
+  verification?: ProofVerification;
+}
+
+// ---------------------------------------------------------------------------
+// Rejected inputs
+// ---------------------------------------------------------------------------
+
+/**
+ * A proof-shaped file rejected under the version policy: the audit system
+ * supports exactly bitgraph/1. Rejected inputs are counted and listed but
+ * are excluded from verification, chain reconstruction, and anomaly
+ * analysis. They are not observed objects and not chain members.
+ */
+export interface UnsupportedVersionRecord {
+  code: "unsupported-version";
+  /** Bundle-root-relative path. */
+  path: string;
+  /** The offending version string exactly as it appeared. */
+  version: string;
+  /** Lowercase hex SHA-256 over the file's raw bytes. */
+  fileSha256Hex: string;
+}
+
+// ---------------------------------------------------------------------------
+// Artifacts and witnesses
+// ---------------------------------------------------------------------------
+
+/**
+ * A candidate artifact: any entry that is not a member proof, not an anchor
+ * witness, and not the root manifest. Indexed by content hash for
+ * content-addressed matching against proof digests. Filenames are never
+ * load-bearing.
+ */
+export interface ArtifactRecord {
+  /** Lowercase hex SHA-256 over the entry's raw bytes. */
+  sha256Hex: string;
+  /** The same digest in standard base64, the form proofs carry in artifact.digestB64. */
+  sha256B64: string;
+  /** Raw byte length. */
+  byteLength: number;
+  /** Every path holding these exact bytes, in observation order. Byte-identical copies create no ambiguity. */
+  paths: string[];
+  /** Canonical hashes of every observed proof whose artifact digest equals this content hash. One artifact may satisfy many proofs. */
+  matchedProofHashes: string[];
+}
+
+/**
+ * An anchor witness file discovered by its version discriminator
+ * ("bitgraph-anchor-witness/1"). Ingest records it; the anchor analysis
+ * stage performs the mandatory verification procedure of the bundle spec
+ * (section 10.3). An unverified witness confers nothing.
+ */
+export interface AnchorWitnessFile {
+  /** Bundle-root-relative path. */
+  path: string;
+  /** Lowercase hex SHA-256 over the file's raw bytes. */
+  fileSha256Hex: string;
+  /** The parsed witness object, unvalidated beyond the version discriminator. */
+  witness: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Manifest
+// ---------------------------------------------------------------------------
+
+/**
+ * The optional root manifest, as declared by the producer. Every field is
+ * unsigned and advisory; the consumer cross-checks and reports, it never
+ * treats manifest fields as evidence about proofs, ordering, or time.
+ */
+export interface BundleManifest {
+  version: string;
+  epochIds?: string[];
+  chainIds?: string[];
+  proofCount?: number;
+  counterRanges?: Array<{ epochId: string; chainId: string; min: string; max: string }>;
+  generatedAt?: string;
+  contentsHashB64?: string;
+  artifactsIncluded?: boolean;
+  openEpochs?: Array<{ epochId: string; counterAtSnapshot: string }>;
+  /** Unknown fields are tolerated and preserved here untyped. */
+  [key: string]: unknown;
+}
+
+/** What the consumer found at the reserved root path manifest.json. */
+export interface ManifestReport {
+  /** Always "manifest.json"; the only load-bearing filename in the format. */
+  path: string;
+  /** Whether the file parsed as a single JSON object. */
+  parsed: boolean;
+  /** The raw version value when parsed, whatever it was. */
+  version?: string;
+  /** Whether version was exactly "bitgraph-bundle/1". When false the manifest is reported but not interpreted. */
+  recognized: boolean;
+  /** The manifest object, present when parsed and recognized. */
+  manifest?: BundleManifest;
+  /** Field validation problems per the bundle spec section 7.1. Advisory. */
+  problems: string[];
+  /** Contents hash comparison, present when the manifest declared contentsHashB64. */
+  contentsHash?: {
+    declaredB64: string;
+    computedB64: string;
+    match: boolean;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Ingest result
+// ---------------------------------------------------------------------------
+
+/** Accepted container forms per the bundle spec section 4. */
+export type ContainerKind = "directory" | "tar" | "tar-gz";
+
+export interface IngestCounts {
+  /** Unique observed proofs by canonical identity. */
+  observed: number;
+  /** Proof-carrying files, including duplicate copies. */
+  proofFiles: number;
+  /** Byte-identical duplicate proof files beyond the first copy. */
+  exactDuplicates: number;
+  /** Re-encoded duplicate proof files (same canonical identity, different bytes) beyond the first copy. */
+  semanticDuplicates: number;
+  /** Proof-shaped files rejected under the version policy. */
+  unsupportedVersion: number;
+  /** Candidate artifact files (unique by content hash). */
+  artifacts: number;
+  /** Anchor witness files. */
+  witnesses: number;
+  /** Container entries skipped for unsafe paths. */
+  skippedUnsafePaths: number;
+}
+
+/**
+ * Everything the ingest pass learned about a bundle.
+ *
+ * Memory shape: proofs, witnesses, and per-entry metadata are held in
+ * memory (O(number of entries) plus the parsed proof objects themselves);
+ * artifact bytes are never retained, only their streaming hashes. The
+ * verification pass re-reads matched artifact bytes one artifact at a time.
+ */
+export interface IngestResult {
+  /** The path the bundle was opened from, exactly as given. */
+  bundlePath: string;
+  container: ContainerKind;
+  /**
+   * Present when the tar container had a single common top-level directory
+   * that was stripped per the bundle spec section 4.1 (the usual result of
+   * `tar -czf bundle.tgz mybundle/`). All reported paths are relative to
+   * the stripped root.
+   */
+  strippedRootPrefix?: string;
+  /** Total regular-file entries scanned, including skipped and duplicate-path entries. */
+  entriesScanned: number;
+
+  /** Unique observed proofs in first-observation order. */
+  proofs: ObservedProof[];
+  /** Proof-shaped files rejected under the version policy. */
+  unsupportedVersions: UnsupportedVersionRecord[];
+  /** Candidate artifacts, unique by content hash, in first-observation order. */
+  artifacts: ArtifactRecord[];
+  /** Anchor witness files in observation order. */
+  witnesses: AnchorWitnessFile[];
+  /** Present when a root manifest.json entry existed. */
+  manifest?: ManifestReport;
+
+  /**
+   * The deterministic contents hash computed over every final entry except
+   * the root manifest.json, per the bundle spec section 8. Computed whether
+   * or not a manifest declared one.
+   */
+  computedContentsHashB64: string;
+
+  /** Machine-readable findings, in detection order. */
+  findings: AuditFinding[];
+  counts: IngestCounts;
+}
+
+// ---------------------------------------------------------------------------
+// Verification pass
+// ---------------------------------------------------------------------------
+
+/** Options for the verification pass. */
+export interface VerifyObservedOptions {
+  /**
+   * Optional policy constraints passed through unchanged to the canonical
+   * verifier (both verify() and verifyProofIntegrity()).
+   */
+  trustAnchors?: import("@mikeargento/bitgraph-verify").VerificationPolicy;
+}
+
+/** Aggregate outcome of the verification pass. */
+export interface VerificationSummary {
+  /** Unique proofs processed. */
+  total: number;
+  /** Full tier, canonical verify() passed with artifact bytes. */
+  verified: number;
+  /** Canonical checks failed at either tier. */
+  failed: number;
+  /** Integrity checks passed but no artifact bytes were available; binding not independently checked. */
+  artifactUnavailable: number;
+  /** Proofs with neither counter nor epochId (observed-but-unchained). Informational; orthogonal to status. */
+  chainless: number;
+}
+
+/** One matched artifact's bytes, yielded by streamMatchedArtifacts. */
+export interface MatchedArtifactBytes {
+  /** Lowercase hex SHA-256 of the bytes. */
+  sha256Hex: string;
+  /** Bundle-root-relative path the bytes were read from. */
+  path: string;
+  bytes: Uint8Array;
+}
