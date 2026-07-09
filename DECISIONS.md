@@ -644,3 +644,271 @@ Gap and chain-break messages state absence from the bundle and explicitly
 say the absence "does not, by itself, establish" authority failure or
 predecessor nonexistence. Divergence explanations state that the audit
 does not choose between parties. No em dashes anywhere.
+
+## Phase 4c: Anchor analysis, witness verification, temporal bounds, offline attestation
+
+Date: 2026-07-09
+
+### Module map
+
+- `packages/audit/src/anchors.ts`: anchor identification per G5. Exports
+  `identifyAnchors(ingest)`.
+- `packages/audit/src/rlp.ts` (internal, not exported): minimal RLP
+  decoder (list-of-items, bounds-checked, exact-consumption), big-endian
+  integer reads, hex helpers. No dependency; canonical-form minimality is
+  not enforced because the Keccak hash comparison is the actual gate
+  (any re-encoding changes the hash).
+- `packages/audit/src/witness.ts`: the full BUNDLE-FORMAT.md section 10.3
+  procedure. Exports `verifyAnchorWitnesses(ingest, identification)` and
+  the single-pair `verifyAnchorWitness(witnessFile, observedProof)`.
+- `packages/audit/src/temporal.ts`: segment bounds from verified-witness
+  anchors, EpochRecord.anchorBounds population, cross-epoch ordering
+  pairs. Exports `deriveTemporalBounds(ingest, reconstruction,
+  identification, witnessAnalysis)`.
+- `packages/audit/src/attestation.ts`: offline Nitro attestation
+  validation. Exports `validateAttestations(ingest, authority?, options?)`
+  and the low-level `validateNitroAttestationDocument(reportB64, options?)`.
+- `packages/audit/src/aws-nitro-root-ca.ts`: the AWS Nitro Enclaves Root
+  CA G1 PEM, byte-for-byte the same constant the website embeds
+  (website/src/lib/aws-nitro-root-ca.ts). DER SHA-256 fingerprint
+  641a0321a3e244efe456463195d606317ed7cdcc3c1756e09893f3c68f79bb5b,
+  matching the value AWS publishes for Root G1 (verified locally during
+  the build). Exported as `AWS_NITRO_ROOT_CA_PEM` for transparency.
+- Pipeline ordering (documented on each module): verifyObservedProofs ->
+  reconstructChains -> identifyAnchors -> verifyAnchorWitnesses ->
+  deriveTemporalBounds; analyzeAuthorities -> validateAttestations.
+
+### Anchor identification decisions (G5)
+
+- Signed `attribution.name === "Ethereum Anchor"` is the only
+  discriminator. Unsigned `metadata.type` is corroboration: "agrees",
+  "disagrees" (present and different, finding
+  `anchor-metadata-disagreement`), or "absent" (missing type is absent
+  corroboration, not disagreement). A metadata-only claim never makes an
+  anchor; it is listed in `metadataOnlyProofHashes` with finding
+  `anchor-metadata-only-claim`.
+- Block number parses ONLY from the strict signed Etherscan form
+  `https://etherscan.io/block/{digits}` (anchored regex, the exact string
+  bitcoin-anchor.ts signs). Anything else is treated as absent with
+  finding `anchor-title-unparseable`, never guessed. The website's loose
+  `/\/block\/(\d+)/` parse was deliberately not copied: for evidence,
+  a stricter parse that refuses is better than a looser one that guesses.
+- AnchorRecord carries no time field of any kind (pinned by test): the
+  unsigned metadata.anchor timestamps are never read, and no wall-clock
+  time is ever derived from a block number.
+
+### Witness verification decisions (spec 10.3)
+
+- Failure code taxonomy, stable AnomalyCode literals, one distinct code
+  per corruption class: `witness-malformed` (field rules of 10.2,
+  including hex format violations of headerRlpHex), `witness-rlp-invalid`
+  (bytes are not a single well-formed RLP list), `witness-hash-mismatch`
+  (step 3: recomputed hash vs signed message; this is where a tampered
+  header lands), `witness-digest-mismatch` (step 4, including an anchor
+  digest that fails strict base64-of-32-bytes decoding),
+  `witness-block-number-mismatch` (step 5, detail states whether the
+  witness claim or the signed Etherscan URL disagreed),
+  `witness-claimed-hash-mismatch` (step 5, claimed blockHash vs
+  recomputed), `witness-header-shape` (RLP items at index 8 or 11 missing
+  or not byte strings; the spec does not gate on item count, so this
+  surfaces exactly where the fields are needed), `witness-anchor-invalid`
+  (precondition), `witness-unmatched`.
+- Pipeline matching: a witness is a candidate for every anchor whose
+  signed message equals (case-insensitively) the RECOMPUTED hash OR the
+  CLAIMED blockHash. The second route exists so a tampered-header witness
+  still fails loudly against its intended anchor (hash-mismatch) instead
+  of disappearing as unmatched. One witness may verify multiple anchors
+  (the same block hash can legitimately be anchored in different epochs).
+- The 10.3 precondition ("its own cryptographic verification has
+  succeeded") uses the Phase 4b intrinsic-validity helper, consistent
+  with divergence parties and lineage edges: a run-order epoch-link
+  artifact never disqualifies a sound anchor, and run verification
+  records are never modified.
+- Case handling as specified: step 3 compares lowercased, step 4 hashes
+  the exact signed string bytes (tested with an uppercase-signed hash).
+- `timestamp` appears on an outcome ONLY when verified; a rejected
+  witness confers nothing and the anchor's own standing is unchanged.
+
+### Temporal bounds: correction toward honesty (the main judgment call)
+
+The 4c brief asked for "existed by block time T" upper bounds for proofs
+before a verified anchor. Verified against source, the anchor mechanism
+is inbound-only: the Railway service READS the latest block over RPC and
+commits its hash INTO the chain (packages/hosted/src/bitcoin-anchor.ts;
+no transaction is ever sent to Ethereum, no key material exists for one).
+An inbound commitment cannot cryptographically upper-bound prior events:
+the consumed block proves the anchor commit came AT OR AFTER the block's
+timestamp, not how promptly, so "existed by T" for prior proofs
+additionally assumes the anchor consumed a recently published block.
+That is the deployed service's designed behavior (latest block, 12s
+interval) but it is service behavior, not proof. Per the build brief's
+halt rule 6 ("when honesty and the prompt conflict, correct toward
+honesty, never toward the stronger claim") the bounds are implemented as:
+
+- `not-before` (proofs causally after an anchor): committed no earlier
+  than T. Grounded in block-hash unpredictability; cryptographically
+  sound. basis: "block-hash-unpredictability".
+- `not-after` (proofs causally before an anchor): existed before the
+  anchor commit that consumed a block published at T; the wall-clock
+  ceiling reading carries the explicitly stated freshness assumption on
+  every bound record and in every claim string. basis:
+  "causal-precedence".
+- Cross-epoch ordering pairs derived from a not-after below a not-before
+  are marked `assumptionDependent: true` and scoped to the COVERED
+  portions of the two epochs, with covered/total proof counts on the
+  pair. Overlapping or absent bounds produce no pair
+  (concurrent-or-unordered, never divergence). Strict inequality: equal
+  timestamps order nothing.
+- BUNDLE-FORMAT.md was updated accordingly (sections 10.1 and 10.3 step
+  6): the old sentence "proofs causally before the anchor existed no
+  later than a block bearing this timestamp" overstated; the spec now
+  states both directions with their exact strength and requires the
+  ceiling assumption to be stated. This is the Phase 3 rule
+  ("implementation forces a spec change, update the spec and note it")
+  applied to claim language. The website's two-sided "Recorded between"
+  window and CLAUDE.md's "BitGraphed before" language rest on the same
+  freshness assumption; website copy is out of scope for this run (hard
+  rule: website/ untouched), noted here for the maintainer.
+
+Other temporal decisions:
+
+- Bounds are commit-event bounds. A not-before bound says the COMMIT came
+  no earlier than T; the proof's slot may predate the anchor (slot
+  counter below the anchor's counter) even when its commit follows it.
+  Slot positions are never used to derive bounds. A not-after bound
+  automatically covers the slot as well (the slot precedes the commit).
+- Evidence classes per bound: "chain-link" (a verified prevB64 path
+  connects proof and anchor inside the partition; for not-before the
+  anchor is an ancestor, for not-after a descendant walk from the anchor
+  reaches the proof) versus "counter-order" (commit-counter comparison
+  only, relies on the authority's counter discipline, marked
+  weaker: true). An anchor is its own strongest not-before source (it
+  consumed the hash directly), reported as chain-link.
+- Bound selection per segment and direction: the tightest bound overall
+  (max T for not-before, min T for not-after), plus the tightest
+  chain-link bound as a second entry when the overall tightest rests only
+  on counter ordering. At most two entries, tightest first.
+- Segments group members of one partition sharing an identical selected
+  bound set (anchor + evidence per direction), so an anchor and the
+  proofs it brackets identically land in one segment. Statuses:
+  bracketed, lower-bounded, upper-bounded, ordered-but-unanchored. A
+  one-sided bound is never presented as an interval; no individual
+  proof's creation time is ever stated.
+- Epoch-level anchorBounds use conservative representatives: not-before =
+  MINIMUM lower-bound timestamp over covered members (every covered
+  member is not-before at least that), not-after = MAXIMUM upper-bound
+  timestamp. Coverage ("members-after-anchor" / "members-before-anchor")
+  plus covered/total counts ride on each EpochAnchorBound: anchors sit
+  inside epochs, so a bound never covers a whole epoch, and the uncovered
+  remainder is stated. EpochAnchorBound gained optional fields (coverage,
+  coveredProofCount, totalProofCount, basis, claim); reconstruction
+  still never populates the field, temporal analysis does.
+- Anchors without a verified witness are listed
+  (`unverifiedAnchorProofHashes`): causal order only, no wall-clock
+  evidence, their segments report ordered-but-unanchored.
+
+### Offline attestation port: fidelity notes (G9)
+
+Ported from website/src/lib/nitro-verify.ts. Kept exactly:
+
+- Check sequence and check names: CBOR Decode, COSE Structure, Payload
+  Decode, Leaf Certificate, ECDSA P-384 Signature, Certificate Chain,
+  AWS Nitro Root CA, PCR0 Match, Bound to this proof. Document checks
+  short-circuit in the same order.
+- CBOR reader subset (same major types, tag skipping, indefinite
+  lengths, map keys stringified), Sig_structure construction per RFC
+  9052 section 4.4, X.509 walk (TBS slice, skipped signatureAlgorithm,
+  BIT STRING signature, SPKI extraction by position), DER ECDSA to raw
+  r||s conversion, cabundle order [root, intermediates] with leaf last,
+  top-of-bundle verified against the trust root, PCR extraction with
+  all-zero PCRs treated as absent (a debug-mode enclave's zero PCR0
+  therefore never matches), strict `===` PCR0 comparison, user_data
+  binding = base64(user_data bytes) === canonical proof hash (confirmed
+  against the enclave: user_data is the raw SHA-256 of the canonical
+  signed body, app.ts "attestation-correct" flow, and against the
+  website caller, proof/[digest]/page.tsx runVerify), lowS not enforced
+  (webcrypto never enforces it; the website passed lowS: false).
+
+Changed, all fail-closed or additive:
+
+- ECDSA via node:crypto webcrypto (raw point import, SHA-384 named hash)
+  instead of @noble/curves; no new dependency. WebCrypto hashes the
+  message itself, so the manual sha384 prehash step disappears.
+- Strict base64: the website's atob throws on stray characters, Node's
+  Buffer.from silently filters them, so the port restores strictness via
+  a round-trip check after the same base64url normalization the website
+  applies. The REALISTIC_PROOF truncated blob fails here with a precise
+  reason (it fails in the website too, via atob throwing).
+- CBOR and DER reads are bounds-checked with precise errors; the website
+  indexes past the end and fails with NaN artifacts. Same outcomes,
+  better reasons.
+- ADDED: certificate validity windows evaluated at the attestation
+  document's OWN timestamp ("Certificate Validity Window" check). The
+  4c brief assumed the website performs this check; verified against
+  source it does NOT (no notBefore/notAfter logic anywhere in
+  nitro-verify.ts; the May 17-19 session note describes intent that
+  never landed in this file). The audit validator adds it because audits
+  run long after the short-lived leaf certs expire and the document
+  timestamp is the only offline-evaluable instant; the choice and the
+  discrepancy are recorded here as instructed. Documents without a
+  timestamp fail the window check with a precise reason.
+- Trust root: default is the bundled AWS constant; an explicit
+  `trustedRootCaDer` override exists for tests and user-supplied trust
+  material (sanctioned by the brief's "locally bundled or user-supplied
+  trust material"). The audit pipeline never sets it unless the caller
+  passes it through. A test pins that a synthetic chain FAILS against
+  the default root.
+
+Fact separation (G9): per-proof records track declared measurement
+present, document present, document cryptographically validated,
+attested-PCR0-matches-declared, user_data-bound separately.
+`pcr0MatchesDeclared` and `userDataBoundToProof` are set ONLY on a
+validated document: values parsed from an unvalidated document prove
+nothing and are never compared. Findings: `attestation-invalid`
+(document present, validation failed, precise reason),
+`attestation-measurement-mismatch`, `attestation-user-data-mismatch`.
+`AuthorityGroup.attested` is populated only for groups with documents:
+status "validated" (all member documents validated) or
+"validation-failed", with validatedProofCount/failedProofCount,
+attestedMeasurement only when the validated documents attest exactly one
+value (attestedMeasurements lists them when mixed; the interface gained
+these optional fields), matchesDeclared only when both sides exist.
+"unsupported" remains in the type but is never emitted: every check was
+genuinely implementable offline, so attestation-validation-unsupported
+was not needed.
+
+### Fixture and test decisions
+
+- REALISTIC_PROOF moved verbatim (values byte-for-byte unchanged) from
+  proof-hash-regression.test.ts to the shared non-test module
+  src/__tests__/realistic-proof-fixture.ts, re-imported by the
+  regression test. Importing a .test.js from another suite would
+  re-register its describes under node:test; a pure move avoids that
+  without editing any fixture value.
+- audit-fixtures.ts gained: signBody extras (attribution in the signed
+  body; attestationFormat in the signed body with reportB64 outside it,
+  so tests can attach the real document after computing the canonical
+  hash, exactly like the enclave), makeAnchorProof (digest over the
+  block-hash STRING per bitcoin-anchor.ts, with deliberate wrong-digest
+  and wrong-title variants that stay validly signed), a minimal RLP
+  encoder, makeEthereumHeader (20 items, number at index 8, timestamp at
+  index 11), witnessJson.
+- Synthetic attestation fixtures build a real self-signed P-384 chain
+  in-test with node:crypto webcrypto plus hand-rolled DER and CBOR
+  (certificate generation with builtins proved practical, so nothing in
+  the validator went untested; no attestation sub-check is exempt). A
+  pinned assertion shows swapping reportB64 never changes the canonical
+  proof hash.
+- New suites wired into root test:core: audit-anchors.test.ts (7),
+  audit-witness.test.ts (12), audit-temporal.test.ts (9),
+  audit-attestation.test.ts (9). Baseline before this phase: 210 tests.
+  After: 247, all passing (npm run build green, npm test green).
+
+### New stable codes added to AnomalyCode
+
+anchor-metadata-disagreement, anchor-metadata-only-claim,
+anchor-title-unparseable, witness-malformed, witness-rlp-invalid,
+witness-header-shape, witness-hash-mismatch, witness-digest-mismatch,
+witness-block-number-mismatch, witness-claimed-hash-mismatch,
+witness-anchor-invalid, witness-unmatched, attestation-invalid,
+attestation-measurement-mismatch, attestation-user-data-mismatch.

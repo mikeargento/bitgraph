@@ -12,50 +12,10 @@ import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import { computeProofHash, canonicalize } from "../index.js";
-
-// Realistic proof — mirrors what the TEE actually produces
-const REALISTIC_PROOF = {
-  version: "bitgraph/1" as const,
-  artifact: {
-    hashAlg: "sha256" as const,
-    digestB64: "NkYJQ1Gi0hE0SIhv6c46MlqJdurmKHtbScOprDfoL6A=",
-  },
-  commit: {
-    nonceB64: "z1272XEvkMtibuBP0qG3oY37cewo6cJ/o1AuigOSVOk=",
-    counter: "1370",
-    slotCounter: "1369",
-    slotHashB64: "8IyrBOGB64ppP/RETEZTYyYesF5bfcwJ5dI9+u7r2yY=",
-    epochId: "7jU4N9703cm6A2t8YNoGsyOvbdePDpoaD8AKCFs7wko=",
-    prevB64: "KsJfA3MinpSwF+t4GuxU9vLmmaqAK8FhzhaepEnJBDc=",
-    chainId: "bitgraph:main",
-  },
-  signer: {
-    publicKeyB64: "9XjqKDS+e8NhhNoBqbisCKHpaR/HK6hH0x5AKdwc56w=",
-    signatureB64: "wbhAtN1dcF2nESBDB0sCQ4ebuZCav8ziLivYgofh7cXeupw5H97VyovHN4I/R9uS0vNaoPIP8js8uTkZnn/IBA==",
-  },
-  environment: {
-    enforcement: "measured-tee",
-    measurement: "638d655ad6091bed5c358628b7780de0cdbe138a37fe09d52bf8021a720680a2b3c730fee9f6bef79c1dbe68ef3cdd94",
-    attestation: {
-      format: "aws-nitro",
-      reportB64: "hEShATgioFkR...(truncated for test)",
-    },
-  },
-  slotAllocation: {
-    version: "bitgraph/slot/1" as const,
-    nonceB64: "z1272XEvkMtibuBP0qG3oY37cewo6cJ/o1AuigOSVOk=",
-    counter: "1369",
-    epochId: "7jU4N9703cm6A2t8YNoGsyOvbdePDpoaD8AKCFs7wko=",
-    publicKeyB64: "9XjqKDS+e8NhhNoBqbisCKHpaR/HK6hH0x5AKdwc56w=",
-    chainId: "bitgraph:main",
-    signatureB64: "yO34pHfmkjGY6HgDxcPIaFd/lnt/UFZuHQa10LmUvTHgsQP3S3bIEJX/xcXPRENKZ9duVe7c+81rAWdmhiRMBg==",
-  },
-  attribution: {
-    name: "Ethereum Anchor",
-    title: "https://etherscan.io/block/24800448",
-    message: "0x28ed3639cd705fb8cb2b915c1991e9f808b40e775bc8eb540702942729fec2c0",
-  },
-};
+// Fixture extracted verbatim to a shared non-test module so other suites
+// (audit attestation honesty tests) can import it without re-registering
+// this file's suites. Values unchanged.
+import { REALISTIC_PROOF } from "./realistic-proof-fixture.js";
 
 /**
  * Inline signed-body hash — the OLD way ledger s3.ts computed it.

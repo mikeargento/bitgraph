@@ -90,6 +90,37 @@ export type AnomalyCode =
   | "mid-epoch-signer-change"
   /** Two or more distinct declared measurements appear within a single epochId. */
   | "mid-epoch-measurement-change"
+  // --- Anchor analysis, witness verification, attestation validation (Phase 4c) ---
+  /** Signed attribution identifies an Ethereum anchor, but the unsigned metadata.type is present and disagrees. The signed field governs. */
+  | "anchor-metadata-disagreement"
+  /** Unsigned metadata claims ethereum-anchor, but the signed attribution does not. Metadata alone never makes a proof an anchor. */
+  | "anchor-metadata-only-claim"
+  /** An anchor's signed attribution.title does not parse as an Etherscan block URL; the signed block number is treated as absent. */
+  | "anchor-title-unparseable"
+  /** Anchor witness file fails the field rules of the bundle spec (section 10.2). Confers nothing. */
+  | "witness-malformed"
+  /** Anchor witness headerRlpHex is not a single well-formed RLP list. Confers nothing. */
+  | "witness-rlp-invalid"
+  /** Witness header decoded and hashed correctly, but the RLP items at index 8 (number) or 11 (timestamp) are missing or not byte strings. */
+  | "witness-header-shape"
+  /** Locally recomputed block hash does not equal the anchor's signed attribution.message (spec 10.3 step 3). */
+  | "witness-hash-mismatch"
+  /** SHA-256 of the exact signed attribution.message string does not equal the anchor's artifact digest (spec 10.3 step 4). */
+  | "witness-digest-mismatch"
+  /** The header's number field disagrees with the witness's claimed blockNumber or the signed Etherscan URL (spec 10.3 step 5). */
+  | "witness-block-number-mismatch"
+  /** The witness's claimed blockHash does not equal the locally recomputed block hash (spec 10.3 step 5). */
+  | "witness-claimed-hash-mismatch"
+  /** The candidate anchor proof is not cryptographically valid; a witness cannot rescue an invalid proof (spec 10.3 preconditions). */
+  | "witness-anchor-invalid"
+  /** The witness's reconstructed (and claimed) block hash matches no observed anchor's signed attribution.message. */
+  | "witness-unmatched"
+  /** An attestation document is present but failed offline cryptographic validation (COSE, chain, root, or validity window). */
+  | "attestation-invalid"
+  /** A validated attestation document's PCR0 does not equal the proof's declared environment.measurement. */
+  | "attestation-measurement-mismatch"
+  /** A validated attestation document's user_data is not bound to this proof's canonical proof hash. */
+  | "attestation-user-data-mismatch"
   | (string & {});
 
 /**
@@ -586,6 +617,30 @@ export interface EpochAnchorBound {
    * hash. Never sourced from unsigned metadata.
    */
   witnessTimestamp?: number;
+  /**
+   * Which of the epoch's proofs this bound covers. Anchors sit inside
+   * epochs, so a bound never covers a whole epoch: a "not-before" bound
+   * covers members causally after its anchor, a "not-after" bound covers
+   * members causally before its anchor. The uncovered remainder has no
+   * bound from this anchor.
+   */
+  coverage?: "members-before-anchor" | "members-after-anchor";
+  /** How many of the epoch's partitioned proofs this bound covers. */
+  coveredProofCount?: number;
+  /** Total partitioned proofs observed for the epoch. */
+  totalProofCount?: number;
+  /**
+   * What grounds the bound. "block-hash-unpredictability" (not-before):
+   * the block hash was unpredictable before the block's timestamp and the
+   * covered proofs embed it through the chain. "causal-precedence"
+   * (not-after): the covered proofs existed before the anchor commit,
+   * which is proven to be no earlier than the block timestamp; reading the
+   * timestamp as a wall-clock ceiling additionally assumes the anchor
+   * consumed a recently published block.
+   */
+  basis?: "block-hash-unpredictability" | "causal-precedence";
+  /** Plain-language statement of exactly what this bound claims. */
+  claim?: string;
 }
 
 /** One observed epoch, aggregated across chains and partitions. */
@@ -753,10 +808,16 @@ export interface AnomalyReport {
  */
 export interface AttestedMeasurementEvidence {
   status: "validated" | "validation-failed" | "unsupported";
-  /** PCR0 measurement extracted from a cryptographically validated attestation document. */
+  /** PCR0 measurement extracted from a cryptographically validated attestation document. Present when the group's validated documents attest exactly one value. */
   attestedMeasurement?: string;
   /** Whether the attested measurement equals the declared environment.measurement. */
   matchesDeclared?: boolean;
+  /** Member proofs whose attestation documents validated. */
+  validatedProofCount?: number;
+  /** Member proofs whose attestation documents failed validation. */
+  failedProofCount?: number;
+  /** All distinct PCR0 values attested by the group's validated documents, when more than one. */
+  attestedMeasurements?: string[];
 }
 
 /** One authority group: proofs sharing declared measurement, signer key, epoch, chain, and attestation presence. */
@@ -789,4 +850,329 @@ export interface AuthorityAnalysis {
   anomalies: ChainAnomaly[];
   /** Same-signer-across-epochs observations (normal transition evidence). */
   sharedSignersAcrossEpochs: SignerEpochSpan[];
+}
+
+// ---------------------------------------------------------------------------
+// Anchor analysis (Phase 4c)
+// ---------------------------------------------------------------------------
+
+/**
+ * How the unsigned metadata relates to the signed anchor identification.
+ * The signed attribution.name is the discriminator; metadata.type is
+ * corroboration only and is never trusted alone.
+ */
+export type AnchorMetadataCorroboration = "agrees" | "disagrees" | "absent";
+
+/**
+ * One identified Ethereum anchor proof (G5): an ordinary chain member
+ * whose SIGNED attribution.name is exactly "Ethereum Anchor".
+ *
+ * Everything here comes from the signed body or the run verification
+ * record. The block timestamp is deliberately absent: it exists only in
+ * unsigned metadata (never trusted) and in verified witness headers
+ * (see AnchorWitnessOutcome). No wall-clock time is ever derived from a
+ * block number.
+ */
+export interface AnchorRecord {
+  /** Canonical proof hash of the anchor proof. */
+  proofHash: string;
+  epochId?: string;
+  chainId: string;
+  /** Commit counter (the anchor's causal position in its partition). */
+  counter?: string;
+  slotCounter?: string;
+  /** The Ethereum block hash string from the SIGNED attribution.message, exactly as signed. */
+  blockHash?: string;
+  /**
+   * Block number parsed from the SIGNED Etherscan URL in
+   * attribution.title (decimal string). Absent when the title is missing
+   * or does not parse; unparseable titles are reported, never guessed.
+   */
+  blockNumber?: string;
+  metadataCorroboration: AnchorMetadataCorroboration;
+  /** Run verification record, copied from the observed proof. */
+  verificationTier?: VerificationTier;
+  verificationStatus?: VerificationStatus;
+  verificationReason?: string;
+}
+
+/** Output of the anchor identification pass. */
+export interface AnchorIdentification {
+  /** Identified anchors, in observation order. */
+  anchors: AnchorRecord[];
+  /**
+   * Proofs whose unsigned metadata claims ethereum-anchor while the
+   * signed attribution does not. Never treated as anchors.
+   */
+  metadataOnlyProofHashes: string[];
+  /** anchor-metadata-disagreement, anchor-metadata-only-claim, anchor-title-unparseable findings. */
+  findings: AuditFinding[];
+}
+
+// ---------------------------------------------------------------------------
+// Anchor witness verification (Phase 4c, bundle spec section 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Outcome of the mandatory witness verification procedure (bundle spec
+ * 10.3) for one witness file against one candidate anchor. A witness
+ * confers evidence only when verified is true; any failure means it
+ * confers nothing and the anchor proof's own standing is unchanged.
+ */
+export interface AnchorWitnessOutcome {
+  /** Bundle-root-relative path of the witness file. */
+  witnessPath: string;
+  /** Canonical hash of the candidate anchor proof. Absent when the witness matched no anchor or failed before matching. */
+  anchorProofHash?: string;
+  verified: boolean;
+  /** Stable failure code. Present exactly when verified is false. */
+  reason?: AnomalyCode;
+  /** Plain-language failure detail. Consumers key on reason. */
+  detail?: string;
+  /** Locally recomputed Keccak-256 block hash (0x + 64 lowercase hex), when the header decoded. */
+  computedBlockHash?: string;
+  /** Block number from the header's RLP index 8 (decimal string), when read. */
+  blockNumber?: string;
+  /**
+   * Unix seconds from the header's RLP index 11. PRESENT ONLY when every
+   * verification step passed: this is the external wall-clock evidence.
+   */
+  timestamp?: number;
+}
+
+/** Output of the witness verification pass. */
+export interface AnchorWitnessAnalysis {
+  /** One outcome per (witness, candidate anchor) pair, plus one per unusable or unmatched witness. */
+  outcomes: AnchorWitnessOutcome[];
+  /** witness-* findings for every failure, in detection order. */
+  findings: AuditFinding[];
+}
+
+// ---------------------------------------------------------------------------
+// Temporal bounds (Phase 4c)
+// ---------------------------------------------------------------------------
+
+/**
+ * What relates a bounded proof to the anchor supplying the bound.
+ *
+ *   "chain-link"     a verified prevB64 hash-link path connects the proof
+ *                    and the anchor within the partition. The relation is
+ *                    independently checkable from the objects themselves.
+ *   "counter-order"  only the commit counters order them. This relies on
+ *                    the authority's per-chain counter discipline rather
+ *                    than verifiable hash links, and is marked weaker.
+ */
+export type BoundEvidence = "chain-link" | "counter-order";
+
+/**
+ * One one-sided temporal bound on a segment, derived from a verified
+ * anchor witness. Never an interval by itself, and never a statement of
+ * any individual proof's exact creation time.
+ *
+ * Bound semantics, stated precisely:
+ *
+ *   "not-before": the covered proofs were COMMITTED no earlier than the
+ *   block timestamp. Grounded in block-hash unpredictability: the hash
+ *   did not exist before the block, the anchor commit consumed it, and
+ *   the covered proofs come after the anchor. Cryptographically sound
+ *   along chain-link evidence.
+ *
+ *   "not-after": the covered proofs existed before the anchor commit
+ *   that consumed a block published at the timestamp. The block
+ *   timestamp proves the anchor commit came AT OR AFTER it, not how
+ *   promptly, so reading the timestamp as a wall-clock ceiling
+ *   additionally assumes the anchor consumed a recently published block
+ *   (the deployed anchor service commits the latest block on a short
+ *   interval, but that is service behavior, not proof). The causal
+ *   precedence itself is sound along chain-link evidence.
+ */
+export interface SegmentBound {
+  kind: "not-before" | "not-after";
+  anchorProofHash: string;
+  /** Block number confirmed by the verified witness header (decimal string). */
+  blockNumber?: string;
+  /** Locally recomputed block hash (0x + 64 lowercase hex). */
+  blockHash: string;
+  /** Unix seconds from the verified witness header. */
+  timestamp: number;
+  evidence: BoundEvidence;
+  /** True for counter-order evidence: weaker, as documented on BoundEvidence. */
+  weaker: boolean;
+  basis: "block-hash-unpredictability" | "causal-precedence";
+  /** Plain-language statement of exactly what this bound claims and assumes. */
+  claim: string;
+}
+
+export type TemporalSegmentStatus =
+  /** Verified anchor evidence exists on both sides. Still two one-sided bounds, reported together. */
+  | "bracketed"
+  | "lower-bounded"
+  | "upper-bounded"
+  /** No verified anchor evidence relates to these proofs. Their causal order stands; no wall-clock claim is made. */
+  | "ordered-but-unanchored";
+
+/**
+ * A group of proofs in one partition sharing the same verified-anchor
+ * bound set. Bounds attach to segments, never to individual proofs.
+ */
+export interface TemporalSegment {
+  partition: PartitionKey;
+  /** Member canonical hashes, ordered by counter evidence then hash. */
+  memberProofHashes: string[];
+  /** Min and max over the members' parseable commit and slot counter positions. */
+  positionRange?: { min: string; max: string };
+  status: TemporalSegmentStatus;
+  /**
+   * Tightest not-before bounds, tightest first. At most two entries: the
+   * tightest overall, plus the tightest chain-link bound when the overall
+   * tightest rests only on counter ordering.
+   */
+  lowerBounds: SegmentBound[];
+  /** Tightest not-after bounds, same structure as lowerBounds. */
+  upperBounds: SegmentBound[];
+}
+
+/**
+ * Anchor-derived cross-epoch ordering evidence. Always about the COVERED
+ * portions of the two epochs (see EpochAnchorBound.coverage), and always
+ * dependent on the not-after freshness assumption documented on
+ * SegmentBound. Epoch pairs without such evidence are
+ * concurrent-or-unordered, which is never divergence.
+ */
+export interface AnchorOrderedPair {
+  beforeEpochId: string;
+  afterEpochId: string;
+  /** The before-epoch's covering not-after bound. */
+  upperAnchorProofHash: string;
+  upperBoundTimestamp: number;
+  /** The after-epoch's covering not-before bound. */
+  lowerAnchorProofHash: string;
+  lowerBoundTimestamp: number;
+  basis: "anchor-bounds";
+  /** Always true: the upper side of the comparison rests on the anchor-freshness assumption. */
+  assumptionDependent: true;
+  beforeCoveredProofCount: number;
+  beforeTotalProofCount: number;
+  afterCoveredProofCount: number;
+  afterTotalProofCount: number;
+  note: string;
+}
+
+/** Output of the temporal bounds pass. */
+export interface TemporalAnalysis {
+  /** Per-partition segments with their bounds, deterministically ordered. */
+  segments: TemporalSegment[];
+  /** Anchor-derived cross-epoch ordering evidence (assumption-dependent; see AnchorOrderedPair). */
+  anchorOrderedPairs: AnchorOrderedPair[];
+  /** Anchors with at least one verified witness, sorted by proof hash. */
+  verifiedAnchorProofHashes: string[];
+  /** Identified anchors with no verified witness: they still establish causal order, but confer no wall-clock evidence. Sorted. */
+  unverifiedAnchorProofHashes: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Offline attestation validation (Phase 4c)
+// ---------------------------------------------------------------------------
+
+/** One named validation check, mirroring the shape of the website validator's check list. */
+export interface AttestationCheck {
+  name: string;
+  pass: boolean;
+  detail: string;
+}
+
+/** Options for the low-level attestation document validator. */
+export interface NitroValidationOptions {
+  /** Declared measurement to compare PCR0 against. Compared only after the document validates. */
+  expectedPcr0?: string;
+  /** Canonical proof hash the attestation's user_data must be bound to. Compared only after the document validates. */
+  expectedUserDataB64?: string;
+  /**
+   * DER bytes of the trust anchor the certificate chain must terminate
+   * at. Defaults to the bundled AWS Nitro Enclaves Root CA G1. Supplying
+   * other trust material is for tests and non-AWS deployments; the audit
+   * pipeline default is always the bundled AWS root.
+   */
+  trustedRootCaDer?: Uint8Array;
+}
+
+/** Result of the low-level offline attestation document validation. */
+export interface NitroValidationResult {
+  /**
+   * True when the DOCUMENT checks all passed: COSE decode, payload parse,
+   * leaf presence, ECDSA P-384 signature over the Sig_structure,
+   * certificate chain walk, trust-root anchoring, and certificate
+   * validity windows evaluated at the document's own timestamp. Says
+   * nothing about PCR0 or user_data binding; those are separate facts.
+   */
+  documentValid: boolean;
+  /** Every check performed, in order. Later checks are absent when an earlier one failed. */
+  checks: AttestationCheck[];
+  /** Detail of the first failed document check. */
+  failure?: string;
+  /** PCR0 from the attestation payload (lowercase hex). Zero-valued PCRs are treated as absent. */
+  pcr0?: string;
+  /** All non-zero PCRs (lowercase hex by index). */
+  pcrs: Record<number, string>;
+  moduleId?: string;
+  /** The attestation document's own timestamp, milliseconds since epoch. */
+  timestamp?: number;
+  certChainLength?: number;
+  /** Base64 of the document's user_data bytes, when present. */
+  userDataB64?: string;
+  /** PCR0 equals expectedPcr0. Present only when expectedPcr0 was given AND the document validated. */
+  pcr0Matches?: boolean;
+  /** user_data is bound to expectedUserDataB64. Present only when expectedUserDataB64 was given AND the document validated. */
+  userDataMatches?: boolean;
+}
+
+/**
+ * Per-proof attestation facts. The five facts the report must never
+ * conflate are tracked separately: declared measurement present,
+ * attestation document present, document cryptographically validated,
+ * attested PCR0 matches declared measurement, user_data bound to the
+ * signed body. pcr0MatchesDeclared and userDataBoundToProof are set only
+ * when the document validated; values parsed from an unvalidated
+ * document prove nothing and are never compared.
+ */
+export interface ProofAttestationRecord {
+  proofHash: string;
+  declaredMeasurementPresent: boolean;
+  declaredMeasurement?: string;
+  documentPresent: boolean;
+  /** environment.attestation.format, when declared. */
+  attestationFormat?: string;
+  documentValidated: boolean;
+  /** Precise failure reason when documentValidated is false and a document was present. */
+  validationFailure?: string;
+  /** The full check list from the validator. Empty when no document was present. */
+  checks: AttestationCheck[];
+  attestedPcr0?: string;
+  pcrs?: Record<number, string>;
+  moduleId?: string;
+  timestamp?: number;
+  certChainLength?: number;
+  userDataB64?: string;
+  /** Present only when the document validated and a declared measurement exists. */
+  pcr0MatchesDeclared?: boolean;
+  /** Present only when the document validated. */
+  userDataBoundToProof?: boolean;
+}
+
+/** Output of the attestation validation pass. */
+export interface AttestationAnalysis {
+  /** One record per observed proof, in observation order. */
+  records: ProofAttestationRecord[];
+  /** attestation-* findings, in detection order. */
+  findings: AuditFinding[];
+  counts: {
+    proofsWithDeclaredMeasurement: number;
+    proofsWithDocument: number;
+    documentsValidated: number;
+    documentsFailed: number;
+    pcr0Matches: number;
+    pcr0Mismatches: number;
+    userDataBound: number;
+    userDataUnbound: number;
+  };
 }

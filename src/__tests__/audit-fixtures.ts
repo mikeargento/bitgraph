@@ -55,14 +55,25 @@ export async function makeKey(): Promise<ManualKey> {
  * verifier reconstructs. The commit object may carry extra fields (for
  * example the live enclave's undeclared chainId); because it is part of
  * the signed body, the signature covers them.
+ *
+ * Optional extras follow the canonical SignedBody rules: attribution is
+ * included in the signed body when provided; attestationFormat is
+ * included when an attestation is provided (the reportB64 itself stays
+ * OUTSIDE the signed body, exactly like the enclave output, so the
+ * report can be attached or swapped after signing without changing the
+ * canonical hash).
  */
 export async function signBody(
   key: ManualKey,
   artifact: BitGraphProof["artifact"],
   commit: BitGraphProof["commit"],
-  measurement: string
+  measurement: string,
+  extras?: {
+    attribution?: { name?: string; title?: string; message?: string };
+    attestation?: { format: string; reportB64: string };
+  }
 ): Promise<BitGraphProof> {
-  const signedBody = {
+  const signedBody: Record<string, unknown> = {
     version: "bitgraph/1" as const,
     artifact,
     commit,
@@ -70,14 +81,26 @@ export async function signBody(
     enforcement: "stub" as const,
     measurement,
   };
+  if (extras?.attribution !== undefined) signedBody["attribution"] = extras.attribution;
+  if (extras?.attestation !== undefined) signedBody["attestationFormat"] = extras.attestation.format;
   const signatureB64 = b64(await signAsync(canonicalize(signedBody), key.privateKey));
-  return {
+  const proof: BitGraphProof = {
     version: "bitgraph/1",
     artifact,
     commit,
     signer: { publicKeyB64: key.publicKeyB64, signatureB64 },
-    environment: { enforcement: "stub", measurement },
+    environment: {
+      enforcement: "stub",
+      measurement,
+      ...(extras?.attestation !== undefined
+        ? { attestation: { format: extras.attestation.format, reportB64: extras.attestation.reportB64 } }
+        : {}),
+    },
   };
+  if (extras?.attribution !== undefined) {
+    (proof as unknown as Record<string, unknown>)["attribution"] = extras.attribution;
+  }
+  return proof;
 }
 
 /**
@@ -259,6 +282,150 @@ export function healthyPairs(length: number): Array<{ slot: string; commit: stri
     pairs.push({ slot: String(2 * i + 1), commit: String(2 * i + 2) });
   }
   return pairs;
+}
+
+// ---------------------------------------------------------------------------
+// Ethereum anchor fixtures (matching packages/hosted/src/bitcoin-anchor.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a verifier-valid Ethereum anchor proof: signed attribution
+ * name "Ethereum Anchor", message = the block hash string, title = the
+ * Etherscan block URL, artifact digest = SHA-256 over the block-hash
+ * STRING (exactly like bitcoin-anchor.ts lines 188-189). Unsigned
+ * metadata is attached after signing when provided.
+ */
+export async function makeAnchorProof(opts: {
+  blockHash: string;
+  blockNumber?: string | number;
+  /** Overrides the Etherscan URL entirely (for unparseable-title cases). */
+  title?: string;
+  /** Omit the title field entirely. */
+  noTitle?: boolean;
+  /** Overrides the artifact digest (for digest-binding failure cases; the proof stays validly signed). */
+  digestB64?: string;
+  key?: ManualKey;
+  epochId?: string;
+  counter?: string;
+  slotCounter?: string;
+  prevB64?: string;
+  chainId?: string;
+  measurement?: string;
+  /** Unsigned metadata object attached verbatim after signing. */
+  metadata?: unknown;
+  /** Overrides attribution.name (for non-anchor attribution cases). */
+  attributionName?: string;
+}): Promise<{ proof: BitGraphProof; proofHash: string; key: ManualKey }> {
+  const key = opts.key ?? (await makeKey());
+  const commit: BitGraphProof["commit"] = {
+    nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
+    ...(opts.counter !== undefined ? { counter: opts.counter } : {}),
+    ...(opts.slotCounter !== undefined ? { slotCounter: opts.slotCounter } : {}),
+    ...(opts.prevB64 !== undefined ? { prevB64: opts.prevB64 } : {}),
+    ...(opts.epochId !== undefined ? { epochId: opts.epochId } : {}),
+  };
+  if (opts.chainId !== undefined) {
+    (commit as unknown as Record<string, unknown>)["chainId"] = opts.chainId;
+  }
+  const attribution: { name: string; title?: string; message: string } = {
+    name: opts.attributionName ?? "Ethereum Anchor",
+    message: opts.blockHash,
+  };
+  if (opts.noTitle !== true) {
+    attribution.title = opts.title ?? `https://etherscan.io/block/${opts.blockNumber ?? 0}`;
+  }
+  const proof = await signBody(
+    key,
+    {
+      hashAlg: "sha256",
+      digestB64: opts.digestB64 ?? b64(sha256(utf8(opts.blockHash))),
+    },
+    commit,
+    opts.measurement ?? "test-measurement-anchor",
+    { attribution }
+  );
+  if (opts.metadata !== undefined) {
+    (proof as unknown as Record<string, unknown>)["metadata"] = opts.metadata;
+  }
+  return { proof, proofHash: computeProofHash(proof), key };
+}
+
+// ---------------------------------------------------------------------------
+// Minimal RLP encoder + synthetic Ethereum block headers (test side only;
+// the audit package carries its own independent decoder)
+// ---------------------------------------------------------------------------
+
+export type RlpInput = Uint8Array | RlpInput[];
+
+export function encodeRlp(item: RlpInput): Uint8Array {
+  if (item instanceof Uint8Array) {
+    if (item.length === 1 && (item[0] as number) < 0x80) return item;
+    return concatBytes([encodeRlpLength(item.length, 0x80), item]);
+  }
+  const payload = concatBytes(item.map(encodeRlp));
+  return concatBytes([encodeRlpLength(payload.length, 0xc0), payload]);
+}
+
+function encodeRlpLength(length: number, offset: number): Uint8Array {
+  if (length <= 55) return new Uint8Array([offset + length]);
+  const bytes: number[] = [];
+  let v = length;
+  while (v > 0) {
+    bytes.unshift(v & 0xff);
+    v = Math.floor(v / 256);
+  }
+  return new Uint8Array([offset + 55 + bytes.length, ...bytes]);
+}
+
+/** Minimal big-endian bytes of a non-negative integer; empty for zero (Ethereum header integer encoding). */
+export function beBytes(value: number | bigint): Uint8Array {
+  let v = BigInt(value);
+  const bytes: number[] = [];
+  while (v > 0n) {
+    bytes.unshift(Number(v & 0xffn));
+    v >>= 8n;
+  }
+  return new Uint8Array(bytes);
+}
+
+/**
+ * Build a synthetic 20-item RLP block header with the number at index 8
+ * and the timestamp at index 11 (the stable Ethereum header positions).
+ * Other items are deterministic filler byte strings.
+ */
+export function makeEthereumHeader(opts: {
+  blockNumber: number | bigint;
+  timestamp: number | bigint;
+  itemCount?: number;
+}): { headerBytes: Uint8Array; headerRlpHex: string } {
+  const count = opts.itemCount ?? 20;
+  const items: RlpInput[] = [];
+  for (let i = 0; i < count; i++) {
+    if (i === 8) items.push(beBytes(opts.blockNumber));
+    else if (i === 11) items.push(beBytes(opts.timestamp));
+    else items.push(new Uint8Array(32).fill(i + 1));
+  }
+  const headerBytes = encodeRlp(items);
+  return {
+    headerBytes,
+    headerRlpHex: `0x${Buffer.from(headerBytes).toString("hex")}`,
+  };
+}
+
+/** JSON string of a bitgraph-anchor-witness/1 file. */
+export function witnessJson(opts: {
+  headerRlpHex?: unknown;
+  blockNumber?: unknown;
+  blockHash?: unknown;
+  network?: string;
+  omit?: Array<"headerRlpHex" | "blockNumber" | "blockHash">;
+}): string {
+  const witness: Record<string, unknown> = { version: "bitgraph-anchor-witness/1" };
+  if (!(opts.omit ?? []).includes("headerRlpHex")) witness["headerRlpHex"] = opts.headerRlpHex;
+  if (!(opts.omit ?? []).includes("blockNumber")) witness["blockNumber"] = opts.blockNumber;
+  if (!(opts.omit ?? []).includes("blockHash")) witness["blockHash"] = opts.blockHash;
+  if (opts.network !== undefined) witness["network"] = opts.network;
+  return JSON.stringify(witness);
 }
 
 // ---------------------------------------------------------------------------

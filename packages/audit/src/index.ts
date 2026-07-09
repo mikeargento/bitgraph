@@ -52,6 +52,22 @@ export type {
   AuthorityGroup,
   SignerEpochSpan,
   AuthorityAnalysis,
+  AnchorMetadataCorroboration,
+  AnchorRecord,
+  AnchorIdentification,
+  AnchorWitnessOutcome,
+  AnchorWitnessAnalysis,
+  BoundEvidence,
+  SegmentBound,
+  TemporalSegmentStatus,
+  TemporalSegment,
+  AnchorOrderedPair,
+  TemporalAnalysis,
+  AttestationCheck,
+  NitroValidationOptions,
+  NitroValidationResult,
+  ProofAttestationRecord,
+  AttestationAnalysis,
 } from "./types.js";
 
 export { ingestBundle, streamMatchedArtifacts } from "./ingest.js";
@@ -63,6 +79,16 @@ export { reconstructChains } from "./reconstruct.js";
 export { classifyAnomalies } from "./anomalies.js";
 
 export { analyzeAuthorities } from "./authority.js";
+
+export { identifyAnchors } from "./anchors.js";
+
+export { verifyAnchorWitnesses, verifyAnchorWitness } from "./witness.js";
+
+export { deriveTemporalBounds } from "./temporal.js";
+
+export { validateAttestations, validateNitroAttestationDocument } from "./attestation.js";
+
+export { AWS_NITRO_ROOT_CA_PEM } from "./aws-nitro-root-ca.js";
 
 export { computeContentsHashB64, computeEntryDigest } from "./contents-hash.js";
 export type { ContentsHashEntry } from "./contents-hash.js";
