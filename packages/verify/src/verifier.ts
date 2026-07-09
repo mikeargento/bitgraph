@@ -21,6 +21,16 @@
  *   - attestation.reportB64 is stored in the proof but not interpreted here;
  *     platform-specific attestation verification belongs in adapter packages.
  *
+ * Two entry points share one implementation of every check:
+ *   - verify()               requires the original artifact bytes and runs
+ *                            every check, including the artifact digest
+ *                            comparison (step 2).
+ *   - verifyProofIntegrity() runs every check EXCEPT the artifact digest
+ *                            comparison. It never sees artifact bytes, and
+ *                            its result type states artifactBinding:
+ *                            "not-checked" so the distinction cannot be
+ *                            missed by callers.
+ *
  * Trust model:
  *   - environment.enforcement is tamper-evident (signed) but self-reported.
  *   - Verifiers requiring measured-tee guarantees MUST combine
@@ -86,6 +96,30 @@ export interface VerifyResult {
 }
 
 /**
+ * Result of a bytes-free proof integrity check.
+ *
+ * The `artifactBinding` field is the literal string "not-checked" on every
+ * result, success or failure. It exists so that no caller can mistake a
+ * passing integrity check for full verification: the artifact digest was
+ * never compared against any bytes, so nothing here says that a given file
+ * is the committed artifact.
+ */
+export interface ProofIntegrityResult {
+  valid: boolean;
+  /**
+   * Always the literal "not-checked". verifyProofIntegrity() never sees
+   * artifact bytes and never compares them against artifact.digestB64.
+   * A valid result means the proof object is internally consistent and
+   * correctly signed. It does NOT mean any particular file matches the
+   * committed digest. Use verify() with the original bytes to establish
+   * artifact binding.
+   */
+  artifactBinding: "not-checked";
+  /** Human-readable failure reason. Present only when `valid` is false. */
+  reason?: string;
+}
+
+/**
  * Verify a BitGraphProof against the original input bytes.
  *
  * @param opts.proof        - The proof to verify
@@ -101,30 +135,102 @@ export async function verify(opts: {
   trustAnchors?: VerificationPolicy;
 }): Promise<VerifyResult> {
   const { proof, bytes, trustAnchors } = opts;
+  const reason = await runChecks(proof, bytes, trustAnchors);
+  return reason === null ? { valid: true } : fail(reason);
+}
 
+/**
+ * Check a BitGraphProof's cryptographic integrity WITHOUT the artifact bytes.
+ *
+ * Runs every check that verify() runs, in the same order, with the single
+ * exception of the artifact digest comparison (verify() step 2). Checks
+ * performed:
+ *
+ *   - Structural validation, including strict version === "bitgraph/1"
+ *   - artifact.digestB64 base64 well-formedness (the digest string itself,
+ *     never compared against bytes)
+ *   - Canonical SignedBody reconstruction
+ *   - Ed25519 signature over the canonical bytes
+ *   - Agency envelope (P-256 device signature) when present
+ *   - Slot allocation (slot signature, slotHash binding, nonce binding,
+ *     slot counter ordering, key and epoch match) when present
+ *   - Epoch link (structure, successor binding, single-successor invariant)
+ *     when present
+ *   - Policy constraints when trustAnchors is provided
+ *
+ * NOT performed: the artifact-digest-versus-bytes comparison. A valid
+ * result proves the proof object is internally consistent and correctly
+ * signed. It does NOT prove that any particular file is the committed
+ * artifact. When the original bytes are available, use verify() instead;
+ * the result type here carries the literal artifactBinding: "not-checked"
+ * so this limitation is visible at every call site.
+ *
+ * Intended for auditors and indexers that hold proofs without the original
+ * artifacts (bytes-free ingest, chain reconstruction, ledger sweeps).
+ *
+ * @param opts.proof        - The proof to check
+ * @param opts.trustAnchors - Optional policy constraints
+ *
+ * @throws {TypeError}  if `proof` is not the expected type
+ * @returns             `{ valid: true, artifactBinding: "not-checked" }` on
+ *                      success, `{ valid: false, artifactBinding:
+ *                      "not-checked", reason }` on failure
+ */
+export async function verifyProofIntegrity(opts: {
+  proof: BitGraphProof;
+  trustAnchors?: VerificationPolicy;
+}): Promise<ProofIntegrityResult> {
+  const { proof, trustAnchors } = opts;
+  const reason = await runChecks(proof, undefined, trustAnchors);
+  return reason === null
+    ? { valid: true, artifactBinding: "not-checked" }
+    : { valid: false, artifactBinding: "not-checked", reason };
+}
+
+// ---------------------------------------------------------------------------
+// Shared check pipeline
+// ---------------------------------------------------------------------------
+
+/**
+ * Single implementation of every verification check, shared by verify()
+ * and verifyProofIntegrity().
+ *
+ * When `bytes` is a Uint8Array, the artifact digest comparison runs
+ * (verify() semantics). When `bytes` is undefined, that comparison is
+ * skipped and everything else runs unchanged (verifyProofIntegrity()
+ * semantics). Check order and failure strings are identical in both modes.
+ *
+ * @returns null on success, or the failure reason string.
+ */
+async function runChecks(
+  proof: BitGraphProof,
+  bytes: Uint8Array | undefined,
+  trustAnchors: VerificationPolicy | undefined
+): Promise<string | null> {
   // ------------------------------------------------------------------
   // 1. Structural validation
   // ------------------------------------------------------------------
   const structureError = validateStructure(proof);
   if (structureError !== null) {
-    return fail(structureError);
+    return structureError;
   }
 
   // ------------------------------------------------------------------
   // 2. Artifact check: SHA-256 of provided bytes must match proof digest
+  //    (bytes mode only). The committed digest string must decode as
+  //    valid base64 in both modes; in bytes-free mode the comparison is
+  //    skipped, so artifact binding is NOT established.
   // ------------------------------------------------------------------
-  const computedDigest = sha256(bytes);
+  const computedDigest = bytes === undefined ? undefined : sha256(bytes);
   let proofDigest: Uint8Array;
   try {
     proofDigest = fromBase64(proof.artifact.digestB64);
   } catch {
-    return fail("artifact.digestB64 is not valid base64");
+    return "artifact.digestB64 is not valid base64";
   }
 
-  if (!constantTimeEqual(computedDigest, proofDigest)) {
-    return fail(
-      "artifact digest mismatch: the provided bytes do not match the committed digest"
-    );
+  if (computedDigest !== undefined && !constantTimeEqual(computedDigest, proofDigest)) {
+    return "artifact digest mismatch: the provided bytes do not match the committed digest";
   }
 
   // ------------------------------------------------------------------
@@ -134,13 +240,11 @@ export async function verify(opts: {
   try {
     publicKeyBytes = fromBase64(proof.signer.publicKeyB64);
   } catch {
-    return fail("signer.publicKeyB64 is not valid base64");
+    return "signer.publicKeyB64 is not valid base64";
   }
 
   if (publicKeyBytes.length !== 32) {
-    return fail(
-      `signer.publicKeyB64 decodes to ${publicKeyBytes.length} bytes; expected 32 (Ed25519)`
-    );
+    return `signer.publicKeyB64 decodes to ${publicKeyBytes.length} bytes; expected 32 (Ed25519)`;
   }
 
   const signedBody: SignedBody = {
@@ -181,13 +285,11 @@ export async function verify(opts: {
   try {
     signatureBytes = fromBase64(proof.signer.signatureB64);
   } catch {
-    return fail("signer.signatureB64 is not valid base64");
+    return "signer.signatureB64 is not valid base64";
   }
 
   if (signatureBytes.length !== 64) {
-    return fail(
-      `signer.signatureB64 decodes to ${signatureBytes.length} bytes; expected 64 (Ed25519)`
-    );
+    return `signer.signatureB64 decodes to ${signatureBytes.length} bytes; expected 64 (Ed25519)`;
   }
 
   let signatureValid: boolean;
@@ -198,13 +300,11 @@ export async function verify(opts: {
       publicKeyBytes
     );
   } catch (err: unknown) {
-    return fail(
-      `signature verification error: ${err instanceof Error ? err.message : String(err)}`
-    );
+    return `signature verification error: ${err instanceof Error ? err.message : String(err)}`;
   }
 
   if (!signatureValid) {
-    return fail("signature verification failed: signature does not match");
+    return "signature verification failed: signature does not match";
   }
 
   // ------------------------------------------------------------------
@@ -213,7 +313,7 @@ export async function verify(opts: {
   if (proof.agency !== undefined) {
     const agencyError = verifyAgency(proof);
     if (agencyError !== null) {
-      return fail(agencyError);
+      return agencyError;
     }
   }
 
@@ -223,7 +323,7 @@ export async function verify(opts: {
   if (proof.slotAllocation !== undefined) {
     const slotError = await verifySlotAllocation(proof);
     if (slotError !== null) {
-      return fail(slotError);
+      return slotError;
     }
   }
 
@@ -233,7 +333,7 @@ export async function verify(opts: {
   if (proof.commit.epochLink !== undefined) {
     const epochLinkError = verifyEpochLink(proof);
     if (epochLinkError !== null) {
-      return fail(epochLinkError);
+      return epochLinkError;
     }
   }
 
@@ -243,11 +343,11 @@ export async function verify(opts: {
   if (trustAnchors !== undefined) {
     const policyError = checkPolicy(proof, trustAnchors);
     if (policyError !== null) {
-      return fail(policyError);
+      return policyError;
     }
   }
 
-  return { valid: true };
+  return null;
 }
 
 // ---------------------------------------------------------------------------

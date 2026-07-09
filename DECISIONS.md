@@ -107,6 +107,90 @@ discriminator: `slotAllocation.version` must be exactly `bitgraph/slot/1`
 (`packages/verify/src/types.ts:698`, exact match). For exit-code purposes,
 `unsupported-version` inputs count under the verification-failures flag.
 
+## Phase 2: Bytes-free proof integrity API in @mikeargento/bitgraph-verify
+
+Date: 2026-07-09
+
+### Naming decision
+
+Following the package's existing design language (`verify` / `VerifyResult` /
+`computeProofHash`), the new API is:
+
+- `verifyProofIntegrity(opts: { proof: BitGraphProof; trustAnchors?: VerificationPolicy }): Promise<ProofIntegrityResult>`
+- `ProofIntegrityResult = { valid: boolean; artifactBinding: "not-checked"; reason?: string }`
+
+The `artifactBinding: "not-checked"` field is a literal type carried on every
+result, success or failure, so no caller can mistake a passing integrity
+check for full verification. "Integrity" was chosen over alternatives like
+`verifyOffline` (wrong: verify() is also offline) or `verifySignatureOnly`
+(wrong: it checks far more than the signature).
+
+### Refactor shape (no duplicated checks)
+
+`verify()` and `verifyProofIntegrity()` now delegate to a single internal
+`runChecks(proof, bytes | undefined, trustAnchors)` pipeline in
+`packages/verify/src/verifier.ts`. Every check has exactly one
+implementation. When `bytes` is undefined, only the artifact digest
+comparison is skipped; check order and failure strings are otherwise
+identical. `verify()` result semantics are byte-for-byte unchanged:
+same checks, same order, same failure strings, same result shapes
+(verified by exact-string regression tests plus the pre-existing 114-test
+suite passing unmodified).
+
+One deliberate judgment call: the bytes-free path still requires
+`artifact.digestB64` to decode as valid base64 (failure string
+"artifact.digestB64 is not valid base64", same as verify()). That is a
+proof-internal well-formedness property, not artifact binding; a proof
+whose digest field cannot decode could never verify against any bytes.
+The digest-versus-bytes comparison is the only skipped check. Ordering
+note: in bytes mode, sha256(bytes) is still computed before the digest
+decode, exactly as before the refactor.
+
+### Tests
+
+New suite `src/__tests__/proof-integrity.test.ts` (30 tests), wired into
+the root `test:core` script alongside the existing files (repo convention:
+root node:test over dist/__tests__). Baseline before: 114 tests. After:
+144 tests, all passing. Slot-carrying and epochLink-carrying fixtures are
+built manually with real Ed25519 signatures over the canonical SignedBody
+(the root Constructor does not produce slots or epoch links); no verifier
+semantics are bypassed. Covers: valid proof without bytes; the contrast
+case (verify() fails on wrong bytes while verifyProofIntegrity passes,
+proving binding is genuinely not checked); tampered signature; tampered
+version (exact reason); slot binding (tampered slotHashB64, swapped slot
+record, tampered slot counter, slot ordering violation); epochLink (valid,
+idempotent re-verify, same-key rejection, fork detection); policy
+enforcement via trustAnchors (allowedMeasurements, requireEnforcement,
+requireSlot, minCounter); and exact-failure-string regression tests for
+verify().
+
+### Version and changelog
+
+`packages/verify` bumped 1.0.0 to 1.1.0 (minor: additive API). Created
+`packages/verify/CHANGELOG.md` with 1.1.0 and 1.0.0 entries. NOT published;
+publishing is the maintainer's decision. The root package's dependency
+range `^1.0.0` already accepts 1.1.0; root package.json version untouched.
+
+### Scope choices
+
+- The root package (`src/index.ts`, `@mikeargento/bitgraph`) does NOT
+  re-export `verifyProofIntegrity` in this run. The Phase 2 task scopes the
+  API to packages/verify; adding a root re-export would change the
+  proprietary package's public API outside its own version bump. The new
+  test suite imports from `@mikeargento/bitgraph-verify` directly (the same
+  import path `src/constructor.ts` already uses), which also exercises the
+  workspace export. The maintainer can add the root re-export with a root
+  version bump later if desired.
+- Consolidation opportunity (not done in this run, per the brief): the
+  partial helpers `verifyProofSignature` (`website/src/lib/bitgraph.ts:169`)
+  and `verifySignatureOnly`
+  (`server/commit-service/src/parent/verify-helper.ts:13`) are future
+  consumers of `verifyProofIntegrity`. Both check only the Ed25519
+  signature; neither checks slot binding, agency, or epochLink. Replacing
+  them would strengthen both call sites.
+- The existing test files' describe titles use em dashes; the new test file
+  uses colons per the current style rule. Existing files were not reworded.
+
 ## Notes and minor drift observed (no ground-truth corrections needed)
 
 - `initEnclave()` cited at server.ts:159-175 now sits at server.ts:164-176. Behavior unchanged.
