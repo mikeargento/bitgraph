@@ -458,3 +458,189 @@ never fed to verify() under a stale identity.
   computed contents hash is always present on IngestResult
   (`computedContentsHashB64`), whether or not a manifest declared one;
   comparison and the advisory mismatch finding happen only when declared.
+
+## Phase 4b: Causal reconstruction and anomaly classification
+
+Date: 2026-07-09
+
+### Module split
+
+- `packages/audit/src/reconstruct.ts`: partitioning per (signer
+  publicKeyB64, epochId, chainId), chain components from prevB64 hash
+  links, epoch relationship derivation (epochLink lineage edges, hard-edge
+  transitive ordering). Exports `reconstructChains(ingest)`.
+- `packages/audit/src/anomalies.ts`: G2 gap logic, collisions, predecessor
+  reuse, chain breaks, multiple genesis, slot ordering, epochLink
+  anomalies, divergence records. Exports
+  `classifyAnomalies(ingest, reconstruction)`.
+- `packages/audit/src/authority.ts`: authority grouping and intra-epoch
+  change flags. Exports `analyzeAuthorities(ingest)`.
+- `packages/audit/src/validity.ts` (internal, not exported): the shared
+  intrinsic-validity helper plus counter parsing and deterministic
+  ordering helpers.
+- All new data structures live in `types.ts` (which stays logic-free);
+  everything is re-exported from `index.ts`.
+
+### Intrinsic validity (the one place validity meets topology)
+
+Divergence parties and hard lineage edges require cryptographic validity,
+but the run verification record alone cannot supply it: the canonical
+verifier's epoch link single-successor check is order-dependent (whichever
+fork consumer verifies second fails with FORK DETECTED), and policy
+rejections are trust decisions, not cryptographic unsoundness. The helper
+`isIntrinsicallyValid` therefore treats run statuses "verified" and
+"artifact-unavailable" as valid and gives everything else one isolated
+bytes-free recheck via `verifyProofIntegrity` with fresh epoch link state
+and NO policy. The run verification record is never modified and is shown
+unmodified on every divergence party. Consequence tested: in an
+epochlink-fork, BOTH branches appear as valid competing parties even
+though one carries a run FORK failure; the divergence explanation states
+that the failure is an artifact of verification order, not evidence of
+which branch is authoritative. State discipline: the recheck resets the
+verify package's module-level epoch link state before and after each
+call, so reconstruction and classification are documented to run after
+verifyObservedProofs (which resets its own state at the start of every
+run; a later audit run is unaffected).
+
+### G2 gap logic decisions
+
+- Explained set: every parseable commit.counter and every parseable
+  commit.slotCounter of the partition's observed members, as distinct
+  positions, never deduplicated against each other. Range: [min, max]
+  over both position kinds. Positions outside the observed range are
+  never flagged (a bundle missing an epoch's head produces a chain-break,
+  not phantom gaps at positions 1..k).
+- One "unexplained-counter-positions" anomaly per partition with a
+  UnexplainedPositionsDetail payload: complete contiguous `ranges`,
+  BigInt-safe total `count`, flat `positions` list capped at 10,000
+  entries with a `truncated` flag. The cap prevents a fabricated
+  counter pair like (1, 10^18) from exploding the report; ranges and
+  count stay complete and exact.
+- Topology anomalies are computed over ALL observed members regardless of
+  verification outcome (dimension separation): a forged proof's counters
+  still explain positions, and its dangling prevB64 is still a chain
+  break, with statuses reported alongside. Exceptions below.
+
+### Anomaly definitions as implemented
+
+- counter-collision / slot-collision / predecessor-reuse follow the brief
+  letter: they exist only between two or more VALID non-identical proofs
+  (canonical identities are distinct by construction since ingest dedups).
+  Invalid proofs sharing the contested resource appear in the divergence's
+  invalidContext, never as parties; with fewer than two valid claimants no
+  collision or fork is declared (the invalid objects are already reported
+  on the verification dimension).
+- multiple-genesis has no validity qualifier in the brief, so the anomaly
+  counts all observed no-prevB64 members (with validity in details); the
+  divergence still requires two or more valid parties.
+- chain-break sub-cases became three stable codes: `chain-break-missing`,
+  `chain-break-malformed` (prevB64 not strict base64 of 32 bytes), and
+  `chain-break-cross-partition` (the hash resolves to an observed proof in
+  a DIFFERENT partition; the mission brief calls this case
+  "known-conflicting"). Cross-partition links are never honored as edges:
+  prevB64 never bridges epochs or chains per G1/G6.
+- `epochlink-terminal-missing` = the prior epoch IS observed but the
+  referenced terminal proof is absent; `epochlink-dangling` = neither the
+  referenced proof nor the prior epoch is observed.
+- Added `epochlink-mismatch` beyond the four listed codes: the link's
+  prevProofHashB64 matches an observed proof but the declared prevEpochId,
+  prevPublicKeyB64, or prevCounter disagrees with that proof. The
+  canonical verifier cannot detect this (it never sees the predecessor);
+  hiding it under another code would misreport. Such edges are recorded
+  with `metadataConsistent: false` and are never hard ordering evidence.
+- `epochlink-fork` requires two or more DISTINCT successor epochs on one
+  predecessor tuple, matching the verifier's single-successor semantics
+  (keyed prevEpochId|prevCounter|prevProofHashB64, comparing toEpochId).
+- slot-order-violation (slotCounter >= counter) is reachable on
+  verifier-valid proofs: the canonical slot ordering check runs only when
+  a slotAllocation record is embedded, so a bare commit.slotCounter can
+  violate ordering without failing verification. Classified per member.
+- Deliberately NOT flagged in this phase: one proof's slotCounter equal to
+  a DIFFERENT proof's commit counter (cross-kind position sharing). The
+  brief's collision codes are same-kind only. Noted as a candidate future
+  code (e.g. position-collision) for the report stage to consider.
+
+### Reconstruction decisions
+
+- Components are built by union-find over hash-link edges only; an edge
+  exists when a member's prevB64 equals another member's computed
+  canonical hash within the same partition. Counters never create or
+  break edges. Link order is a deterministic iterative DFS (no recursion,
+  safe for 50k-length chains) from genesis and broken-link entry points,
+  branches ordered by counter then hash. prevB64 cycles are impossible
+  among observed members (a cycle requires a proof whose canonical
+  SHA-256 appears inside its own signed body, a hash fixpoint), but the
+  traversal still covers leftovers defensively.
+- Genesis (no prevB64 field) is distinguished from broken-link entry
+  points (prevB64 present but unresolved); a single genesis is normal per
+  G1 and produces nothing.
+- Proofs with chain fields but no signer key cannot join a lineage and
+  are listed as `unpartitionedProofHashes` (their structural failure is
+  reported by the verification dimension). Chainless proofs are
+  `unchainedProofHashes`, not anomalies. Multiple signer lineages are
+  never merged; same signer + epoch on different chainIds are separate
+  partitions per G6.
+- Epoch ordering derives ONLY from hard lineage edges (matched,
+  metadata-consistent, both endpoint proofs intrinsically valid),
+  propagated transitively into `orderedPairs`. In an epochlink-fork BOTH
+  edges stay hard: each genesis embeds the terminal's hash in its signed
+  body, so "terminal existed before each successor" holds regardless of
+  which branch is authoritative; the fork itself is separately classified
+  and diverged. A lineage cycle makes ordering claims contradictory:
+  pairs reachable in both directions are REMOVED from orderedPairs
+  (asserting neither direction) and the cycle is classified
+  `epochlink-cycle`. Cycles are constructible from fabricated
+  signature-valid proofs, hence detected over all matched edges.
+- `EpochRecord.anchorBounds` (typed `EpochAnchorBound[]`) is the Phase 4c
+  extension point for anchor-derived one-sided bounds; reconstruction
+  always leaves it undefined. Epochs with no hard edge are
+  "observed-but-unordered"; overlapping or absent bounds are
+  concurrent-or-unordered, never divergence (tested).
+- A malformed epochLink shape (any of the six fields missing or
+  non-string) produces no lineage edge; the canonical verifier reports it
+  on the verification dimension. An edge whose matched predecessor has an
+  observed in-partition successor is recorded with
+  `referencedProofIsTerminal: false` but still counts as ordering
+  evidence (the hash embedding is unaffected); no dedicated code, the
+  field is on the edge for the report stage.
+
+### Authority analysis decisions
+
+- Groups key on (declared measurement, signer key, epochId, chainId,
+  attestation presence) over ALL observed proofs including chainless.
+- mid-epoch-signer-change and mid-epoch-measurement-change aggregate per
+  epochId ACROSS chains: an epochId is boot-scoped (one keypair, one
+  measurement per boot, shared by every chain the boot serves), so a
+  per-chain scope would miss real intra-epoch changes.
+- Same signer across epochs is surfaced as `sharedSignersAcrossEpochs`
+  (normal transition evidence), never an anomaly.
+- `AuthorityGroup.attested` (typed `AttestedMeasurementEvidence`) is the
+  clearly typed extension point for Phase 4c; authority analysis never
+  populates it and never treats a declared measurement as attested.
+
+### Fixtures and tests
+
+- `makeCounterChain` in src/__tests__/audit-fixtures.ts builds real
+  Ed25519-signed linked chains with enclave-style slot/commit pairs
+  (slot 1/commit 2, slot 3/commit 4, ...), prevB64 = computeProofHash of
+  the predecessor, genesis omitting prevB64 per G1. The chains carry
+  commit.slotCounter/counter WITHOUT embedded slotAllocation records:
+  the verifier's slot checks run only when the record is present (G7),
+  so the proofs are verifier-valid, and reconstruction/gap logic read
+  only the commit fields. makeEpochLinkProof gained optional
+  prevPublicKeyB64/key/counter/slotCounter/prevB64/chainId (backwards
+  compatible) so lineage tests can reference real observed predecessors.
+- New suites `src/__tests__/audit-reconstruct.test.ts` (11 tests) and
+  `src/__tests__/audit-anomalies.test.ts` (21 tests), wired into the root
+  test:core script. Baseline before this phase: 178 tests. After: 210,
+  all passing. The critical regression is pinned: a healthy slot/commit
+  chain (including interleaved concurrent slot allocation, slot 1/slot 2/
+  commit 3/commit 4) produces one component, zero anomalies, zero
+  unexplained positions, zero divergences.
+
+### Report language
+
+Gap and chain-break messages state absence from the bundle and explicitly
+say the absence "does not, by itself, establish" authority failure or
+predecessor nonexistence. Divergence explanations state that the audit
+does not choose between parties. No em dashes anywhere.

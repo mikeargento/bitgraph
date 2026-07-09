@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { getPublicKeyAsync, signAsync } from "@noble/ed25519";
 import { sha256 } from "@noble/hashes/sha256";
-import { canonicalize } from "@mikeargento/bitgraph-verify";
+import { canonicalize, computeProofHash } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
 import { Constructor } from "../constructor.js";
 import type { HostCapabilities } from "../host.js";
@@ -144,36 +144,121 @@ export async function makeChainIdProof(opts?: {
 /**
  * Build a verifier-valid epoch-genesis proof carrying an epochLink that
  * consumes the given predecessor into the given successor epoch.
+ *
+ * By default the predecessor key is a fresh random key; pass
+ * prevPublicKeyB64 to reference the actual signer of an observed
+ * predecessor. Optional counter, slotCounter, prevB64, and chainId land
+ * in the signed commit body, matching real enclave output shapes.
  */
 export async function makeEpochLinkProof(opts: {
   prevEpochId: string;
   prevCounter: string;
   prevProofHashB64: string;
   toEpochId: string;
+  prevPublicKeyB64?: string;
+  key?: ManualKey;
+  counter?: string;
+  slotCounter?: string;
+  prevB64?: string;
+  chainId?: string;
+  measurement?: string;
   payload?: string;
-}): Promise<{ proof: BitGraphProof; bytes: Uint8Array }> {
-  const key = await makeKey();
-  const prevKey = await makeKey();
+}): Promise<{ proof: BitGraphProof; bytes: Uint8Array; key: ManualKey }> {
+  const key = opts.key ?? (await makeKey());
+  const prevPublicKeyB64 = opts.prevPublicKeyB64 ?? (await makeKey()).publicKeyB64;
   const bytes = utf8(opts.payload ?? `bitgraph-audit-epochlink-${opts.toEpochId}`);
   const commit: BitGraphProof["commit"] = {
     nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
+    ...(opts.counter !== undefined ? { counter: opts.counter } : {}),
+    ...(opts.slotCounter !== undefined ? { slotCounter: opts.slotCounter } : {}),
+    ...(opts.prevB64 !== undefined ? { prevB64: opts.prevB64 } : {}),
     epochId: opts.toEpochId,
     epochLink: {
       prevEpochId: opts.prevEpochId,
-      prevPublicKeyB64: prevKey.publicKeyB64,
+      prevPublicKeyB64,
       prevCounter: opts.prevCounter,
       prevProofHashB64: opts.prevProofHashB64,
       toEpochId: opts.toEpochId,
       toPublicKeyB64: key.publicKeyB64,
     },
   };
+  if (opts.chainId !== undefined) {
+    (commit as unknown as Record<string, unknown>)["chainId"] = opts.chainId;
+  }
   const proof = await signBody(
     key,
     { hashAlg: "sha256", digestB64: b64(sha256(bytes)) },
     commit,
-    "test-measurement-epochlink"
+    opts.measurement ?? "test-measurement-epochlink"
   );
-  return { proof, bytes };
+  return { proof, bytes, key };
+}
+
+// ---------------------------------------------------------------------------
+// Linked slot/commit counter chains (real enclave shape)
+// ---------------------------------------------------------------------------
+
+export interface CounterChainLink {
+  proof: BitGraphProof;
+  bytes: Uint8Array;
+  proofHash: string;
+}
+
+/**
+ * Build a linked chain of verifier-valid proofs under one signer key,
+ * epoch, and chain, with explicit counter positions per proof. Each
+ * non-first proof carries prevB64 equal to the canonical proof hash of
+ * its predecessor; the first proof omits prevB64 entirely (genesis per
+ * G1). Pass pairs like real enclave output (slot 1/commit 2, slot 3/
+ * commit 4, ...) or leave positions out for counterless link chains.
+ */
+export async function makeCounterChain(opts: {
+  epochId: string;
+  pairs: Array<{ slot?: string; commit?: string }>;
+  key?: ManualKey;
+  chainId?: string;
+  measurement?: string;
+  payloadPrefix?: string;
+}): Promise<{ key: ManualKey; proofs: CounterChainLink[] }> {
+  const key = opts.key ?? (await makeKey());
+  const measurement = opts.measurement ?? "test-measurement-chain";
+  const proofs: CounterChainLink[] = [];
+
+  for (let i = 0; i < opts.pairs.length; i++) {
+    const pair = opts.pairs[i]!;
+    const bytes = utf8(`${opts.payloadPrefix ?? opts.epochId}-payload-${i}`);
+    const commit: BitGraphProof["commit"] = {
+      nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
+      ...(pair.commit !== undefined ? { counter: pair.commit } : {}),
+      ...(pair.slot !== undefined ? { slotCounter: pair.slot } : {}),
+      ...(i > 0 ? { prevB64: proofs[i - 1]!.proofHash } : {}),
+      epochId: opts.epochId,
+    };
+    if (opts.chainId !== undefined) {
+      (commit as unknown as Record<string, unknown>)["chainId"] = opts.chainId;
+    }
+    const proof = await signBody(
+      key,
+      { hashAlg: "sha256", digestB64: b64(sha256(bytes)) },
+      commit,
+      measurement
+    );
+    proofs.push({ proof, bytes, proofHash: computeProofHash(proof) });
+  }
+
+  return { key, proofs };
+}
+
+/**
+ * The standard healthy enclave counter sequence: slot 1/commit 2,
+ * slot 3/commit 4, ... for `length` proofs.
+ */
+export function healthyPairs(length: number): Array<{ slot: string; commit: string }> {
+  const pairs: Array<{ slot: string; commit: string }> = [];
+  for (let i = 0; i < length; i++) {
+    pairs.push({ slot: String(2 * i + 1), commit: String(2 * i + 2) });
+  }
+  return pairs;
 }
 
 // ---------------------------------------------------------------------------

@@ -57,6 +57,39 @@ export type AnomalyCode =
   | "manifest-field-invalid"
   /** The manifest's contentsHashB64 does not match the computed deterministic contents hash. Advisory; never a proof failure. */
   | "manifest-contents-hash-mismatch"
+  // --- Chain reconstruction and anomaly classification (Phase 4b) ---
+  /** Counter positions inside a partition's observed range that are neither a commit counter nor a referenced slot counter. The proofs are absent from the bundle; this is never asserted as authority failure. */
+  | "unexplained-counter-positions"
+  /** Two or more valid non-identical proofs claim the same commit counter in one partition. */
+  | "counter-collision"
+  /** Two or more valid non-identical proofs reference the same slot counter in one partition. */
+  | "slot-collision"
+  /** One prevB64 predecessor hash is claimed by two or more valid successors: a detectable fork. All branches are preserved. */
+  | "predecessor-reuse"
+  /** prevB64 references a predecessor absent from the bundle (no observed proof has that canonical hash). */
+  | "chain-break-missing"
+  /** prevB64 is not decodable as standard base64 of 32 bytes; it can never match a canonical proof hash. */
+  | "chain-break-malformed"
+  /** prevB64 resolves to an observed proof in a different partition (different signer, epoch, or chain). prevB64 never bridges partitions. */
+  | "chain-break-cross-partition"
+  /** More than one proof without prevB64 in a single partition. A single genesis without prevB64 is normal and never an anomaly. */
+  | "multiple-genesis"
+  /** commit.slotCounter is not strictly less than commit.counter. */
+  | "slot-order-violation"
+  /** epochLink references a prior epoch that is observed, but the referenced terminal proof is absent from the bundle. */
+  | "epochlink-terminal-missing"
+  /** epochLink references a prior epoch and terminal proof, neither of which is observed in the bundle. */
+  | "epochlink-dangling"
+  /** The same predecessor terminal is consumed by genesis proofs of two or more distinct successor epochs. */
+  | "epochlink-fork"
+  /** epochLink lineage edges form a cycle among epochs: the claimed ordering is self-contradictory. */
+  | "epochlink-cycle"
+  /** epochLink's prevProofHashB64 matches an observed proof, but the link's declared epoch, key, or counter disagrees with that proof. */
+  | "epochlink-mismatch"
+  /** Two or more distinct signer keys appear within a single epochId. */
+  | "mid-epoch-signer-change"
+  /** Two or more distinct declared measurements appear within a single epochId. */
+  | "mid-epoch-measurement-change"
   | (string & {});
 
 /**
@@ -417,4 +450,343 @@ export interface MatchedArtifactBytes {
   /** Bundle-root-relative path the bytes were read from. */
   path: string;
   bytes: Uint8Array;
+}
+
+// ---------------------------------------------------------------------------
+// Chain reconstruction (Phase 4b)
+// ---------------------------------------------------------------------------
+
+/**
+ * A partition of the observed record: one signer lineage on one chain in
+ * one epoch, per G6. Multiple signer lineages are never merged. Proofs
+ * that carry a counter but no epochId partition with epochId absent.
+ */
+export interface PartitionKey {
+  /** signer.publicKeyB64. */
+  publicKeyB64: string;
+  /** commit.epochId; absent when the proof carries a counter without an epochId. */
+  epochId?: string;
+  /** Chain identifier, normalized to "global" when the signed body omits it. */
+  chainId: string;
+}
+
+/**
+ * A connected chain component reconstructed from prevB64 hash links.
+ *
+ * Hash links are the primary reconstruction evidence: an edge exists from
+ * proof P to proof S exactly when S's commit.prevB64 equals P's canonical
+ * proof hash and both are members of the same partition. Counters are
+ * ordering and anomaly evidence, never the reconstruction mechanism.
+ */
+export interface ChainComponent {
+  /**
+   * Member canonical hashes in link order: a deterministic traversal from
+   * the component's genesis and broken-link entry points, following
+   * successor hash links (branches ordered by counter, then hash).
+   */
+  memberProofHashes: string[];
+  /** Members with no prevB64 field at all: epoch genesis candidates (normal per G1). */
+  genesisProofHashes: string[];
+  /** Members whose prevB64 did not resolve to any member of this partition (chain-break entry points). */
+  brokenLinkProofHashes: string[];
+  /** Members with no observed successor in this partition. */
+  terminalProofHashes: string[];
+  /** Whether any member carries a parseable commit counter or slot counter. */
+  hasCounterEvidence: boolean;
+  /** Min and max over all parseable commit and slot counter positions of the members. */
+  positionRange?: { min: string; max: string };
+}
+
+/** One partition's reconstructed chain structure. */
+export interface ChainPartition {
+  key: PartitionKey;
+  /** All member canonical hashes, sorted by counter evidence then hash. */
+  memberProofHashes: string[];
+  /** Connected components, sorted by lowest counter position then first member hash. */
+  components: ChainComponent[];
+}
+
+/** The six epochLink fields exactly as declared in the signed commit body. */
+export interface EpochLinkFields {
+  prevEpochId: string;
+  prevPublicKeyB64: string;
+  prevCounter: string;
+  prevProofHashB64: string;
+  toEpochId: string;
+  toPublicKeyB64: string;
+}
+
+/**
+ * Analysis of one observed epochLink: cross-epoch lineage evidence per G1.
+ *
+ *   "matched"           prevProofHashB64 equals the canonical hash of an
+ *                       observed proof.
+ *   "terminal-missing"  the prior epoch is observed, but the referenced
+ *                       terminal proof is absent from the bundle.
+ *   "dangling"          neither the referenced proof nor the prior epoch
+ *                       is observed.
+ */
+export interface EpochLineageEdge {
+  /** Predecessor epoch, from the link. */
+  fromEpochId: string;
+  /** Successor epoch, from the link. */
+  toEpochId: string;
+  /** Canonical hash of the proof carrying the epochLink. */
+  viaProofHash: string;
+  /** The declared link fields (part of the signed body of the via proof). */
+  link: EpochLinkFields;
+  resolution: "matched" | "terminal-missing" | "dangling";
+  /** Canonical hash of the observed predecessor proof. Matched only. */
+  predecessorProofHash?: string;
+  /** Whether the observed predecessor's epochId, signer key, and counter agree with the link's declared fields. Matched only. */
+  metadataConsistent?: boolean;
+  /** Plain-language descriptions of each disagreement. Matched and inconsistent only. */
+  inconsistencies?: string[];
+  /** Whether the observed predecessor has no observed successor within its own partition. Matched and partitioned predecessors only. */
+  referencedProofIsTerminal?: boolean;
+  /**
+   * Intrinsic cryptographic validity of the via proof: run verification
+   * status when it passed, otherwise an isolated bytes-free recheck that
+   * is immune to run-order effects (the epoch link single-successor check
+   * depends on verification order) and to supplied trust policy.
+   */
+  viaProofValid: boolean;
+  /** Intrinsic validity of the observed predecessor. Matched only. */
+  predecessorValid?: boolean;
+  /**
+   * True when this edge is hard cross-epoch ordering evidence: matched,
+   * metadata-consistent, and both proofs intrinsically valid. Only hard
+   * edges derive epoch ordering.
+   */
+  hardEdge: boolean;
+}
+
+/**
+ * Typed extension point for anchor-derived one-sided temporal bounds.
+ * Reconstruction always leaves EpochRecord.anchorBounds undefined; the
+ * anchor analysis stage (Phase 4c) populates it from verified anchor
+ * evidence. Overlapping or absent bounds mean concurrent-or-unordered,
+ * never divergence.
+ */
+export interface EpochAnchorBound {
+  /**
+   * "not-after": proofs of this epoch existed before the referenced
+   * anchor evidence. "not-before": they came after it. Always one-sided.
+   */
+  kind: "not-after" | "not-before";
+  /** Canonical hash of the anchor proof providing the bound. */
+  anchorProofHash: string;
+  /** Ethereum block number parsed from the signed anchor title URL (decimal string). */
+  blockNumber?: string;
+  /** Ethereum block hash from the signed attribution message. */
+  blockHash?: string;
+  /**
+   * Unix seconds from an offline-verified anchor witness header. Present
+   * only when witness material allowed local reconstruction of the block
+   * hash. Never sourced from unsigned metadata.
+   */
+  witnessTimestamp?: number;
+}
+
+/** One observed epoch, aggregated across chains and partitions. */
+export interface EpochRecord {
+  epochId: string;
+  /** Chains on which this epoch produced observed proofs, sorted. */
+  chainIds: string[];
+  /** Distinct signer keys observed under this epochId, sorted. One is normal; more is an authority anomaly. */
+  publicKeysB64: string[];
+  /** Unique observed proofs carrying this epochId. */
+  proofCount: number;
+  /**
+   * "linked" when the epoch participates in at least one hard epochLink
+   * lineage edge. "observed-but-unordered" otherwise: the bundle contains
+   * no verified evidence ordering this epoch against any other. Epochs
+   * without lineage or anchor evidence are concurrent-or-unordered
+   * relative to each other, which is never divergence.
+   */
+  ordering: "linked" | "observed-but-unordered";
+  /** Epochs verified to come directly before this one (hard edges only). */
+  linkedPredecessorEpochIds: string[];
+  /** Epochs verified to come directly after this one (hard edges only). */
+  linkedSuccessorEpochIds: string[];
+  /** Anchor-derived one-sided bounds. Undefined until the anchor analysis stage (Phase 4c) populates it. */
+  anchorBounds?: EpochAnchorBound[];
+}
+
+/** Cross-epoch relationships per G1: independent chains, ordered only by verified evidence. */
+export interface EpochRelationshipResult {
+  /** Observed epochs, sorted by epochId. */
+  epochs: EpochRecord[];
+  /** Every observed epochLink, analyzed. Includes non-hard edges with their failure modes. */
+  edges: EpochLineageEdge[];
+  /**
+   * Transitive ordering derived from hard lineage edges only. Pairs whose
+   * evidence is contradictory (reachable in both directions, which only a
+   * lineage cycle produces) are removed rather than asserted either way.
+   * Epoch pairs absent from this list are concurrent-or-unordered.
+   */
+  orderedPairs: Array<{ beforeEpochId: string; afterEpochId: string }>;
+}
+
+/** Everything the reconstruction pass derived from an ingested bundle. */
+export interface ReconstructionResult {
+  /** Partitions per (signer key, epochId, chainId), deterministically sorted. */
+  partitions: ChainPartition[];
+  /** Canonical hashes of chainless proofs (neither counter nor epochId): observed-but-unchained, outside all partitions, not an anomaly. */
+  unchainedProofHashes: string[];
+  /** Canonical hashes of proofs carrying chain fields but no signer key: they cannot join a signer lineage. */
+  unpartitionedProofHashes: string[];
+  epochRelationships: EpochRelationshipResult;
+}
+
+// ---------------------------------------------------------------------------
+// Anomaly classification (Phase 4b)
+// ---------------------------------------------------------------------------
+
+/**
+ * A chain-level anomaly: a structural observation about the reconstructed
+ * record. Chain topology and verification status are separate dimensions:
+ * an anomaly never changes a proof's verification status, and a verifier
+ * failure is never reinterpreted as a chain anomaly.
+ */
+export interface ChainAnomaly {
+  code: AnomalyCode;
+  /** The partition this anomaly is scoped to, when partition-scoped. */
+  partition?: PartitionKey;
+  /** Canonical hashes of the observed proofs involved. Empty when the anomaly is about absent proofs. */
+  proofHashes: string[];
+  /** Plain language. Consumers key on `code`, never on this text. */
+  message: string;
+  /** Machine-readable detail specific to the code. All values are JSON-safe strings, arrays, or objects. */
+  details?: Record<string, unknown>;
+}
+
+/**
+ * Detail payload of an "unexplained-counter-positions" anomaly (G2).
+ * A position is explained when it is some observed proof's commit counter
+ * or is referenced by some observed proof's slotCounter. Every proof
+ * consumes two positions; slot positions never produce stored proofs.
+ */
+export interface UnexplainedPositionsDetail {
+  /** Total unexplained positions, decimal string (BigInt-safe). */
+  count: string;
+  /** Contiguous unexplained ranges, ascending, inclusive. */
+  ranges: Array<{ start: string; end: string }>;
+  /** Flat position list, ascending, capped; see truncated. */
+  positions: string[];
+  /** True when count exceeded the flat-list cap and positions is incomplete. Ranges are always complete. */
+  truncated: boolean;
+}
+
+/** The conflicts that produce divergence records. */
+export type DivergenceKind =
+  | "counter-collision"
+  | "slot-collision"
+  | "predecessor-reuse"
+  | "multiple-genesis"
+  | "epochlink-fork";
+
+/** One competing (or context) proof in a divergence, with everything a reader needs to adjudicate. */
+export interface DivergenceParty {
+  proofHash: string;
+  /** Every bundle path this proof was observed at. */
+  sourcePaths: string[];
+  verificationTier?: VerificationTier;
+  verificationStatus?: VerificationStatus;
+  verificationReason?: string;
+  counter?: string;
+  slotCounter?: string;
+  prevB64?: string;
+  publicKeyB64?: string;
+  epochId?: string;
+  chainId: string;
+  measurement?: string;
+}
+
+/**
+ * A conflict between valid proof objects. All parties are preserved; the
+ * audit never selects a winner by file order, counter height, verification
+ * order, or any other heuristic. The reader adjudicates.
+ *
+ * Cryptographically invalid proofs related to the same conflict appear in
+ * invalidContext, never among the competing parties. Intrinsic validity is
+ * assessed independently of run-order effects (the epoch link
+ * single-successor check fails whichever consumer verifies second) and of
+ * supplied trust policy; the recorded run verification status of every
+ * party is shown unmodified.
+ */
+export interface DivergenceRecord {
+  kind: DivergenceKind;
+  /** The partition the conflict occurred in, when partition-scoped. */
+  partition?: PartitionKey;
+  /** The contested resource, e.g. { counter: "18442" } or { prevB64: "..." }. */
+  contested: Record<string, string>;
+  /** Valid competing branches. Always two or more. */
+  parties: DivergenceParty[];
+  /** Cryptographically invalid observed proofs involved in the same conflict. Context only, never competing branches. */
+  invalidContext: DivergenceParty[];
+  /** Plain-language structural explanation of the conflict. */
+  explanation: string;
+}
+
+/** Output of the anomaly classification pass. */
+export interface AnomalyReport {
+  /** Chain anomalies in deterministic order (partition order, then detection order within a partition). */
+  anomalies: ChainAnomaly[];
+  /** Divergence records for every conflict between valid proofs. */
+  divergences: DivergenceRecord[];
+}
+
+// ---------------------------------------------------------------------------
+// Authority analysis (Phase 4b)
+// ---------------------------------------------------------------------------
+
+/**
+ * Attested-measurement evidence for an authority group.
+ *
+ * TYPED EXTENSION POINT: authority analysis never populates this. The
+ * attestation validation stage (Phase 4c) fills it after cryptographically
+ * validating attestation documents offline. Declared measurement
+ * (environment.measurement, self-reported) and attested measurement (from
+ * a validated attestation document) are never conflated: the fields live
+ * apart and the declared value never appears here.
+ */
+export interface AttestedMeasurementEvidence {
+  status: "validated" | "validation-failed" | "unsupported";
+  /** PCR0 measurement extracted from a cryptographically validated attestation document. */
+  attestedMeasurement?: string;
+  /** Whether the attested measurement equals the declared environment.measurement. */
+  matchesDeclared?: boolean;
+}
+
+/** One authority group: proofs sharing declared measurement, signer key, epoch, chain, and attestation presence. */
+export interface AuthorityGroup {
+  /** Declared environment.measurement (self-reported; presence proves nothing). */
+  measurement?: string;
+  publicKeyB64?: string;
+  epochId?: string;
+  chainId: string;
+  /** Whether an attestation document is present on these proofs. Presence alone is not validation. */
+  attestationPresent: boolean;
+  /** Canonical hashes of member proofs, in observation order. */
+  proofHashes: string[];
+  /** Filled by the attestation validation stage (Phase 4c). Always undefined here. */
+  attested?: AttestedMeasurementEvidence;
+}
+
+/** A signer key observed under more than one epochId: normal epoch-transition evidence, never an anomaly. */
+export interface SignerEpochSpan {
+  publicKeyB64: string;
+  /** Sorted epochIds this key signed under. */
+  epochIds: string[];
+}
+
+/** Output of the authority analysis pass. */
+export interface AuthorityAnalysis {
+  /** Authority groups, deterministically sorted. */
+  groups: AuthorityGroup[];
+  /** mid-epoch-signer-change and mid-epoch-measurement-change anomalies. */
+  anomalies: ChainAnomaly[];
+  /** Same-signer-across-epochs observations (normal transition evidence). */
+  sharedSignersAcrossEpochs: SignerEpochSpan[];
 }

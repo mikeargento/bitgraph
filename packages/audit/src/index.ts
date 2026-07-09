@@ -33,11 +33,36 @@ export type {
   VerifyObservedOptions,
   VerificationSummary,
   MatchedArtifactBytes,
+  PartitionKey,
+  ChainComponent,
+  ChainPartition,
+  EpochLinkFields,
+  EpochLineageEdge,
+  EpochAnchorBound,
+  EpochRecord,
+  EpochRelationshipResult,
+  ReconstructionResult,
+  ChainAnomaly,
+  UnexplainedPositionsDetail,
+  DivergenceKind,
+  DivergenceParty,
+  DivergenceRecord,
+  AnomalyReport,
+  AttestedMeasurementEvidence,
+  AuthorityGroup,
+  SignerEpochSpan,
+  AuthorityAnalysis,
 } from "./types.js";
 
 export { ingestBundle, streamMatchedArtifacts } from "./ingest.js";
 
 export { verifyObservedProofs } from "./verify-tiers.js";
+
+export { reconstructChains } from "./reconstruct.js";
+
+export { classifyAnomalies } from "./anomalies.js";
+
+export { analyzeAuthorities } from "./authority.js";
 
 export { computeContentsHashB64, computeEntryDigest } from "./contents-hash.js";
 export type { ContentsHashEntry } from "./contents-hash.js";
