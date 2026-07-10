@@ -20,6 +20,16 @@
  * artifact bytes are hashed and dropped. What ingest retains scales with
  * the number of entries and the total size of the proof JSONs, not with
  * artifact payload sizes.
+ *
+ * Untrusted .tar / .tar.gz containers are additionally bounded by
+ * configurable caps (IngestLimits, defaults DEFAULT_INGEST_LIMITS): a total
+ * decompressed-byte ceiling, a maximum entry count, and a maximum size for
+ * metadata entries buffered whole (PAX headers, GNU long names). A crafted
+ * archive that would otherwise exhaust memory (a decompression bomb, an
+ * entry flood, or a header declaring an absurd size) aborts ingest with a
+ * clear error rather than allocating without bound. The defaults sit well
+ * above any legitimate bundle; directory bundles are already on disk and
+ * are not capped here.
  */
 
 import { createReadStream } from "node:fs";
@@ -39,6 +49,7 @@ import type {
   ContainerKind,
   EmbeddedProofHashStatus,
   IngestCounts,
+  IngestLimits,
   IngestResult,
   ManifestReport,
   MatchedArtifactBytes,
@@ -55,6 +66,18 @@ import type {
  */
 const MAX_CANDIDATE_JSON_BYTES = 8 * 1024 * 1024;
 
+/**
+ * Default resource caps for untrusted .tar / .tar.gz ingest. Chosen well
+ * above any legitimate bundle (the 50k-proof benchmark bundle decompresses
+ * to a few hundred MiB across ~50k entries, with kilobyte-scale metadata),
+ * so real inputs never approach them while a crafted archive aborts.
+ */
+export const DEFAULT_INGEST_LIMITS: IngestLimits = {
+  maxTotalBytes: 2 * 1024 * 1024 * 1024, // 2 GiB decompressed
+  maxEntryCount: 1_000_000,
+  maxMetadataEntryBytes: 8 * 1024 * 1024, // 8 MiB per PAX/GNU metadata entry
+};
+
 const NUL = new Uint8Array([0]);
 const MANIFEST_PATH = "manifest.json";
 const BUNDLE_VERSION = "bitgraph-bundle/1";
@@ -70,11 +93,17 @@ const WITNESS_VERSION = "bitgraph-anchor-witness/1";
  * Performs no verification; run verifyObservedProofs() on the result.
  * Performs no network access of any kind.
  *
+ * @param limits Resource caps for untrusted tar/tar.gz containers; defaults
+ *               to DEFAULT_INGEST_LIMITS. Ignored for directory bundles.
  * @throws {TypeError} when the path is not one of the accepted container
  *                     forms. Corrupt archives throw Error from the tar or
- *                     gzip layer.
+ *                     gzip layer, and an archive that exceeds a cap throws
+ *                     Error rather than exhausting memory.
  */
-export async function ingestBundle(bundlePath: string): Promise<IngestResult> {
+export async function ingestBundle(
+  bundlePath: string,
+  limits: IngestLimits = DEFAULT_INGEST_LIMITS
+): Promise<IngestResult> {
   const container = await detectContainer(bundlePath);
   const findings: AuditFinding[] = [];
   let skippedUnsafePaths = 0;
@@ -96,7 +125,7 @@ export async function ingestBundle(bundlePath: string): Promise<IngestResult> {
   } else {
     const { stream, close } = openContainerByteStream(bundlePath, container);
     try {
-      for await (const entry of readTarEntries(stream)) {
+      for await (const entry of readTarEntries(stream, limits)) {
         if (entry.kind !== "file") continue;
         entriesScanned++;
         const normalized = normalizeEntryPath(entry.path);
@@ -313,7 +342,7 @@ export async function* streamMatchedArtifacts(
   const satisfied = new Set<string>();
   const { stream, close } = openContainerByteStream(ingest.bundlePath, ingest.container);
   try {
-    for await (const entry of readTarEntries(stream)) {
+    for await (const entry of readTarEntries(stream, DEFAULT_INGEST_LIMITS)) {
       if (satisfied.size === needed.length) break;
       if (entry.kind !== "file") continue;
       const normalized = normalizeEntryPath(entry.path);

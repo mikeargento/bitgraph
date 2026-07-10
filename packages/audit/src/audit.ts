@@ -88,20 +88,46 @@ export async function runAudit(bundlePath: string, options?: AuditOptions): Prom
 }
 
 /**
+ * Anchor witness verification-failure codes: every finding the witness
+ * stage emits is a failure (verifyAnchorWitnesses records findings only for
+ * unverified outcomes), so any witness finding is a genuine problem with
+ * supplied evidence and sets bit 2. The three anchor-stage findings
+ * (anchor-metadata-disagreement, anchor-metadata-only-claim,
+ * anchor-title-unparseable) are informational: the signed body governs and
+ * none is a verification failure, so they never set an exit bit.
+ */
+const WITNESS_VERIFICATION_FAILURE_CODES: ReadonlySet<string> = new Set([
+  "witness-malformed",
+  "witness-rlp-invalid",
+  "witness-header-shape",
+  "witness-hash-mismatch",
+  "witness-digest-mismatch",
+  "witness-block-number-mismatch",
+  "witness-claimed-hash-mismatch",
+  "witness-anchor-invalid",
+  "witness-unmatched",
+]);
+
+/**
  * Derive the CLI exit bit flags from an audit result. Semantics are
  * documented on the ExitFlags type: bit 1 is verification failures
  * (including unsupported-version rejections), bit 2 is chain or authority
- * anomalies or divergences between valid proofs. artifact-unavailable is
- * never a failure by itself; attestation results never set bits on their
- * own; benign ingest findings never set bits.
+ * anomalies, divergences between valid proofs, or anchor witness
+ * verification failures. artifact-unavailable is never a failure by itself;
+ * attestation results and informational anchor findings never set bits;
+ * benign ingest findings never set bits.
  */
 export function computeExitFlags(result: AuditResult): ExitFlags {
   const verificationFailures =
     result.verification.failed > 0 || result.ingest.counts.unsupportedVersion > 0;
+  const witnessVerificationFailures = result.witnesses.findings.some((f) =>
+    WITNESS_VERIFICATION_FAILURE_CODES.has(f.code)
+  );
   const chainAnomaliesOrDivergences =
     result.anomalies.anomalies.length > 0 ||
     result.anomalies.divergences.length > 0 ||
-    result.authorities.anomalies.length > 0;
+    result.authorities.anomalies.length > 0 ||
+    witnessVerificationFailures;
   return {
     verificationFailures,
     chainAnomaliesOrDivergences,

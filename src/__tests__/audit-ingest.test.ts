@@ -431,6 +431,90 @@ describe("audit ingest: tar and tar.gz containers", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Untrusted-archive resource caps (gzip-bomb / entry-flood defense)
+// ---------------------------------------------------------------------------
+
+describe("audit ingest: untrusted-archive resource caps", () => {
+  test("an entry count over the cap aborts cleanly instead of unbounded scanning", async () => {
+    const dir = await newBundleDir();
+    // Many zero-length entries: a small archive that would scan forever
+    // under an unbounded reader.
+    const entries = [];
+    for (let i = 0; i < 200; i++) {
+      entries.push({ name: `empty-${i}.bin`, content: new Uint8Array(0) });
+    }
+    const tarPath = join(dir, "flood.tar.gz");
+    await writeFile(tarPath, gzipSync(makeTar(entries)));
+
+    await assert.rejects(
+      ingestBundle(tarPath, {
+        maxEntryCount: 25,
+        maxTotalBytes: 1 << 30,
+        maxMetadataEntryBytes: 8 * 1024 * 1024,
+      }),
+      /archive exceeds the maximum of 25 entries/
+    );
+  });
+
+  test("a total decompressed-byte ceiling aborts a bomb before it is fully read", async () => {
+    const dir = await newBundleDir();
+    // A single large artifact whose decompressed size exceeds a low cap.
+    const big = new Uint8Array(512 * 1024).fill(0x41);
+    const tarPath = join(dir, "big.tar.gz");
+    await writeFile(tarPath, gzipSync(makeTar([{ name: "blob.bin", content: big }])));
+
+    await assert.rejects(
+      ingestBundle(tarPath, {
+        maxEntryCount: 1_000_000,
+        maxTotalBytes: 64 * 1024, // far below the 512 KiB payload
+        maxMetadataEntryBytes: 8 * 1024 * 1024,
+      }),
+      /archive exceeds the maximum decompressed size of 65536 bytes/
+    );
+  });
+
+  test("a PAX header declaring an absurd size aborts before allocating that buffer", async () => {
+    const dir = await newBundleDir();
+    // The PAX 'x' header claims 2 GiB; the archive itself is tiny. A reader
+    // that trusted the declared size would try to allocate 2 GiB.
+    const tar = makeTar([
+      {
+        name: "pax-truncated",
+        paxPath: "renamed/proof.json",
+        paxHeaderDeclaredSize: 2 * 1024 * 1024 * 1024,
+        content: proofJson(fxProof),
+      },
+    ]);
+    const tarPath = join(dir, "pax-bomb.tar.gz");
+    await writeFile(tarPath, gzipSync(tar));
+
+    // Default limits: the 8 MiB metadata cap trips before any allocation.
+    await assert.rejects(
+      ingestBundle(tarPath),
+      /PAX metadata entry of \d+ bytes exceeds the \d+-byte cap/
+    );
+  });
+
+  test("legitimate archives ingest normally under the default caps", async () => {
+    const dir = await newBundleDir();
+    const tarPath = join(dir, "ok.tar.gz");
+    await writeFile(
+      tarPath,
+      gzipSync(
+        makeTar([
+          { name: "proofs/p.json", content: proofJson(fxProof) },
+          { name: "media/original.bin", content: fxBytes },
+        ])
+      )
+    );
+    // No limits argument: DEFAULT_INGEST_LIMITS apply and never trip.
+    const result = await ingestBundle(tarPath);
+    assert.equal(result.counts.observed, 1);
+    assert.equal(result.proofs[0]!.proofHash, fxHash);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Deterministic contents hash vectors (docs/BUNDLE-FORMAT.md section 8.3)
 // ---------------------------------------------------------------------------
 

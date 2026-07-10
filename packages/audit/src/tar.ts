@@ -25,6 +25,21 @@
 
 const BLOCK = 512;
 
+/**
+ * Resource caps for the streaming reader, defended against untrusted
+ * archives (decompression bombs, absurd declared sizes, entry floods).
+ * When any cap is exceeded the reader throws so the caller aborts cleanly
+ * instead of exhausting memory.
+ */
+export interface TarLimits {
+  /** Ceiling on total bytes pulled from the underlying (decompressed) stream. */
+  maxTotalBytes: number;
+  /** Ceiling on the number of header blocks processed. */
+  maxEntryCount: number;
+  /** Ceiling on a single metadata entry (PAX x/g, GNU L) buffered whole. */
+  maxMetadataEntryBytes: number;
+}
+
 export interface TarEntry {
   /** Entry path exactly as recorded (after PAX / GNU long-name resolution). Not normalized. */
   path: string;
@@ -43,14 +58,31 @@ export interface TarEntry {
 
 /**
  * Read tar entries sequentially from a byte stream.
+ *
+ * When `limits` is supplied, the reader enforces caps against untrusted
+ * archives: a total decompressed-byte ceiling, a maximum entry count, and
+ * a maximum size for metadata entries buffered whole (PAX headers and GNU
+ * long names). Exceeding any cap throws so the caller aborts cleanly.
  */
 export async function* readTarEntries(
-  source: AsyncIterable<Uint8Array>
+  source: AsyncIterable<Uint8Array>,
+  limits?: TarLimits
 ): AsyncGenerator<TarEntry, void, void> {
-  const reader = new ChunkReader(source);
+  const reader = new ChunkReader(source, limits?.maxTotalBytes);
+  const maxEntryCount = limits?.maxEntryCount ?? Number.POSITIVE_INFINITY;
+  const maxMetadataEntryBytes = limits?.maxMetadataEntryBytes ?? Number.POSITIVE_INFINITY;
   let pendingPax: Map<string, string> | null = null;
   let globalPax: Map<string, string> | null = null;
   let pendingLongName: string | null = null;
+  let entryCount = 0;
+
+  const guardMetadata = (size: number, kind: string): void => {
+    if (size > maxMetadataEntryBytes) {
+      throw new Error(
+        `tar: ${kind} metadata entry of ${size} bytes exceeds the ${maxMetadataEntryBytes}-byte cap`
+      );
+    }
+  };
 
   for (;;) {
     const block = await reader.readExact(BLOCK);
@@ -65,11 +97,16 @@ export async function* readTarEntries(
       return;
     }
 
+    if (++entryCount > maxEntryCount) {
+      throw new Error(`tar: archive exceeds the maximum of ${maxEntryCount} entries`);
+    }
+
     const header = parseHeader(block);
     const typeflag = header.typeflag;
 
     // --- Metadata entries that modify the NEXT real entry ---------------
     if (typeflag === "x" || typeflag === "g") {
+      guardMetadata(header.size, "PAX");
       const data = await readAll(reader, header.size);
       await reader.skip(padOf(header.size));
       const records = parsePaxRecords(data);
@@ -81,6 +118,7 @@ export async function* readTarEntries(
       continue;
     }
     if (typeflag === "L") {
+      guardMetadata(header.size, "GNU long-name");
       const data = await readAll(reader, header.size);
       await reader.skip(padOf(header.size));
       pendingLongName = decodeString(stripTrailingNuls(data));
@@ -309,9 +347,12 @@ class ChunkReader {
   private head = 0;
   private available = 0;
   private ended = false;
+  private totalPulled = 0;
+  private readonly maxTotalBytes: number;
 
-  constructor(source: AsyncIterable<Uint8Array>) {
+  constructor(source: AsyncIterable<Uint8Array>, maxTotalBytes?: number) {
     this.iter = source[Symbol.asyncIterator]();
+    this.maxTotalBytes = maxTotalBytes ?? Number.POSITIVE_INFINITY;
   }
 
   private async fill(): Promise<boolean> {
@@ -323,6 +364,12 @@ class ChunkReader {
     }
     const chunk = result.value;
     if (chunk.length > 0) {
+      this.totalPulled += chunk.length;
+      if (this.totalPulled > this.maxTotalBytes) {
+        throw new Error(
+          `tar: archive exceeds the maximum decompressed size of ${this.maxTotalBytes} bytes`
+        );
+      }
       this.chunks.push(chunk);
       this.available += chunk.length;
     }

@@ -122,4 +122,20 @@ describe("audit package dependency audit: zero network surface", () => {
     const count = await assertGraphClean(join(repoRoot, "packages", "verify", "dist"));
     assert.ok(count >= 4, `walked the full verify module graph (${count} files)`);
   });
+
+  it("README ships resolvable doc links (absolute GitHub URLs, never repo-relative)", async () => {
+    // README.md is in the package "files" allowlist but docs/ is not, so
+    // repo-relative doc links would be dead on npmjs.com. They must be
+    // absolute GitHub URLs.
+    const readme = await readFile(
+      join(repoRoot, "packages", "audit", "README.md"),
+      "utf8"
+    );
+    const base = "https://github.com/mikeargento/bitgraph/blob/main/docs";
+    assert.ok(readme.includes(`${base}/BUNDLE-FORMAT.md`), "BUNDLE-FORMAT.md link is absolute");
+    assert.ok(readme.includes(`${base}/HOW-TO-AUDIT.md`), "HOW-TO-AUDIT.md link is absolute");
+    // No markdown link target resolves to a repo-relative docs path.
+    assert.ok(!/\]\(docs\//.test(readme), "no repo-relative docs/ link targets");
+    assert.ok(!/\]\(\.{1,2}\/.*docs\//.test(readme), "no relative docs/ link targets");
+  });
 });

@@ -12,8 +12,10 @@
  * inequality, and concurrent slot allocation can interleave). A position
  * within a partition's observed [min, max] range is EXPLAINED when it
  * appears as any observed proof's commit counter OR any observed proof's
- * slotCounter. Only unexplained positions are reported, always as absence
- * from the bundle, never as asserted authority failure. Anchor proofs are
+ * slotCounter. Only unexplained positions are reported, always as
+ * unexplained from the supplied evidence (a proof absent from the bundle
+ * OR a slot that was allocated but never committed, indistinguishable
+ * offline), never as asserted authority failure. Anchor proofs are
  * ordinary chain members; their positions count normally.
  *
  * Dimension discipline: verification status and chain topology stay
@@ -60,8 +62,9 @@ const MAX_LISTED_POSITIONS = 10_000;
  * Classify anomalies and build divergence records over a reconstructed
  * bundle. Read-only over its inputs. Deterministic: anomalies follow
  * partition order, then a fixed per-partition analysis order (gaps,
- * counter collisions, slot collisions, predecessor reuse, chain breaks,
- * multiple genesis, slot order), then epoch link anomalies.
+ * counter collisions, slot collisions, cross-kind position reuse,
+ * predecessor reuse, chain breaks, multiple genesis, slot order), then
+ * epoch link anomalies.
  */
 export async function classifyAnomalies(
   ingest: IngestResult,
@@ -81,6 +84,7 @@ export async function classifyAnomalies(
     analyzeGaps(partition, members, anomalies);
     await analyzeCollisions(partition, members, "counter", anomalies, divergences);
     await analyzeCollisions(partition, members, "slot", anomalies, divergences);
+    await analyzeCrossKindPositionReuse(partition, members, anomalies, divergences);
     await analyzePredecessorReuse(partition, members, byHash, anomalies, divergences);
     analyzeChainBreaks(partition, members, byHash, partitionOf, anomalies);
     await analyzeMultipleGenesis(partition, members, anomalies, divergences);
@@ -144,8 +148,10 @@ function analyzeGaps(
     message:
       `${count} counter position${count === 1n ? "" : "s"} within the observed range [${min}, ${max}] ` +
       `of this partition ${count === 1n ? "is" : "are"} neither a commit position nor a referenced slot position ` +
-      `in the supplied bundle. The proofs for ${count === 1n ? "this position" : "these positions"} are absent ` +
-      `from the bundle; this does not, by itself, establish that the authority failed to create them.`,
+      `in the supplied bundle. Such ${count === 1n ? "a position" : "positions"} may mean a proof is absent ` +
+      `from the bundle, or a slot that was allocated but never committed (a routine, benign occurrence); ` +
+      `this offline audit cannot distinguish the two. It does not, by itself, establish that the authority ` +
+      `failed to create or withheld any proof.`,
     details: detail as unknown as Record<string, unknown>,
   });
 }
@@ -210,6 +216,103 @@ async function analyzeCollisions(
             `signer, epoch, and chain partition. A slot position is allocated once and consumed by one ` +
             `commit, so at most one of these can belong to the authoritative sequence. The audit tool does ` +
             `not choose between them.`,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cross-kind position reuse (one causal position double-allocated)
+// ---------------------------------------------------------------------------
+
+/**
+ * A single causal position is consumed exactly once: reserved as a slot and
+ * later consumed by exactly one commit. The same-kind collision checks
+ * above catch two commits at one counter or two slots at one counter. This
+ * catches the cross-kind case the collision checks miss: one proof's commit
+ * counter equal to a DIFFERENT proof's slotCounter in the same partition,
+ * a double-allocation of one position that only enclave malfunction,
+ * replay, or compromise can produce. A single proof whose own commit and
+ * slot share a position is slot-order-violation, handled separately, and is
+ * never flagged here. Only intrinsically valid, distinct proofs are
+ * declared parties, consistent with the module's other divergences.
+ */
+async function analyzeCrossKindPositionReuse(
+  partition: ChainPartition,
+  members: ObservedProof[],
+  anomalies: ChainAnomaly[],
+  divergences: DivergenceRecord[]
+): Promise<void> {
+  const commitAt = new Map<string, ObservedProof[]>();
+  const slotAt = new Map<string, ObservedProof[]>();
+  for (const m of members) {
+    const commit = parseCounter(m.counter);
+    if (commit !== undefined) pushMap(commitAt, String(commit), m);
+    const slot = parseCounter(m.slotCounter);
+    if (slot !== undefined) pushMap(slotAt, String(slot), m);
+  }
+
+  const positions = [...commitAt.keys()]
+    .filter((p) => slotAt.has(p))
+    .sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0));
+
+  for (const position of positions) {
+    const committers = commitAt.get(position) as ObservedProof[];
+    const slotters = slotAt.get(position) as ObservedProof[];
+
+    // Divergence parties must be intrinsically valid, as everywhere in this
+    // module. Invalid proofs sharing the position stay on the verification
+    // dimension and appear only as context.
+    const validCommitters: ObservedProof[] = [];
+    for (const m of committers) if (await isIntrinsicallyValid(m)) validCommitters.push(m);
+    const validSlotters: ObservedProof[] = [];
+    for (const m of slotters) if (await isIntrinsicallyValid(m)) validSlotters.push(m);
+
+    // A double-allocation requires a valid commit-side proof and a valid
+    // slot-side proof that are DIFFERENT objects. One proof committing and
+    // reserving the same position is slot-order-violation, not this.
+    const distinctCrossPair = validCommitters.some((c) =>
+      validSlotters.some((s) => s.proofHash !== c.proofHash)
+    );
+    if (!distinctCrossPair) continue;
+
+    const partyMap = new Map<string, ObservedProof>();
+    for (const m of [...validCommitters, ...validSlotters]) partyMap.set(m.proofHash, m);
+    const parties = [...partyMap.values()];
+
+    const involvedMap = new Map<string, ObservedProof>();
+    for (const m of [...committers, ...slotters]) involvedMap.set(m.proofHash, m);
+    const context = [...involvedMap.values()].filter((m) => !partyMap.has(m.proofHash));
+
+    anomalies.push({
+      code: "cross-kind-position-reuse",
+      partition: partition.key,
+      proofHashes: [...involvedMap.keys()],
+      message:
+        `Counter position ${position} is committed by one proof and reserved as a slot by a ` +
+        `different proof in the same partition. A single causal position is consumed once, as a ` +
+        `slot or as a commit, never both across distinct proofs. The audit does not choose between ` +
+        `them; all parties are preserved for adjudication.`,
+      details: {
+        position,
+        commitParties: validCommitters.map((m) => m.proofHash),
+        slotParties: validSlotters.map((m) => m.proofHash),
+        validParties: parties.map((m) => m.proofHash),
+        invalidObserved: context.map((m) => m.proofHash),
+      },
+    });
+    divergences.push({
+      kind: "cross-kind-position-reuse",
+      partition: partition.key,
+      contested: { position },
+      parties: parties.map(toParty),
+      invalidContext: context.map(toParty),
+      explanation:
+        `Two or more independently valid proof objects allocate counter position ${position} in the ` +
+        `same signer, epoch, and chain partition through different roles: at least one commits at it ` +
+        `and at least one reserves it as a slot. Each position in a chain is consumed exactly once, so ` +
+        `at most one of these allocations can belong to the authoritative sequence. This pattern only ` +
+        `arises through enclave malfunction, replay, or compromise. The audit tool does not choose ` +
+        `between them; every party is preserved for adjudication.`,
     });
   }
 }

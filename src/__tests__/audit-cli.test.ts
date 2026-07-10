@@ -18,17 +18,21 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   healthyPairs,
+  makeAnchorProof,
   makeCounterChain,
+  makeEthereumHeader,
   makeStandardAuditBundle,
   makeTempDir,
   proofJson,
   signBody,
   utf8,
+  witnessJson,
   writeBundleDir,
   b64,
   type StandardAuditBundle,
 } from "./audit-fixtures.js";
 import { sha256 } from "@noble/hashes/sha256";
+import { keccak_256 } from "@noble/hashes/sha3";
 import { computeProofHash } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
 
@@ -143,7 +147,7 @@ describe("bitgraph-audit CLI", () => {
     assert.ok(run.stdout.includes("audit-report.md"));
     assert.ok(run.stdout.includes("exit 3"));
     assert.ok(run.stdout.includes("verification failures"));
-    assert.ok(run.stdout.includes("chain anomalies or divergences"));
+    assert.ok(run.stdout.includes("chain anomalies"));
 
     // The written JSON is the real report.
     const written = JSON.parse(readFileSync(jsonPath, "utf8")) as {
@@ -182,6 +186,49 @@ describe("bitgraph-audit CLI", () => {
     const run = runCli([forkOnlyDir, "--out", outDir]);
     assert.equal(run.status, 2, run.stderr);
     assert.ok(run.stdout.includes("exit 2"));
+  });
+
+  it("exits 2 on a bundle whose anchor witness fails offline verification", async () => {
+    const witnessDir = await makeTempDir("bitgraph-audit-cli-witness-");
+    tempDirs.push(witnessDir);
+    const blockNumber = 555000;
+    // The anchor commits the hash of the correct header; the witness carries
+    // a tampered header (different timestamp, so a different keccak hash)
+    // while claiming the correct block hash, so it still matches the anchor
+    // and fails loudly at the hash step instead of disappearing as unmatched.
+    const correct = makeEthereumHeader({ blockNumber, timestamp: 1_700_000_000 });
+    const correctHash = `0x${Buffer.from(keccak_256(correct.headerBytes)).toString("hex")}`;
+    const tampered = makeEthereumHeader({ blockNumber, timestamp: 1_699_999_999 });
+    const anchor = await makeAnchorProof({
+      blockHash: correctHash,
+      blockNumber,
+      epochId: "epoch-cli-witness",
+      counter: "2",
+      slotCounter: "1",
+    });
+    await writeBundleDir(witnessDir, {
+      "proofs/anchor.json": proofJson(anchor.proof),
+      "witnesses/block.json": witnessJson({
+        headerRlpHex: tampered.headerRlpHex,
+        blockNumber,
+        blockHash: correctHash,
+      }),
+    });
+
+    const outDir = await makeTempDir("bitgraph-audit-cli-out-witness-");
+    tempDirs.push(outDir);
+    const run = runCli([witnessDir, "--out", outDir]);
+    // The anchor itself verifies (no bytes: artifact-unavailable, not a
+    // failure), so bit 1 stays clear; the witness verification failure sets
+    // bit 2. Before the fix this bundle exited 0 "clean".
+    assert.equal(run.status, 2, run.stderr);
+    assert.ok(run.stdout.includes("exit 2"));
+    assert.ok(run.stdout.includes("anchor witness verification failures"));
+    const report = JSON.parse(readFileSync(join(outDir, "audit-report.json"), "utf8")) as {
+      summary: { exit: { code: number }; anomalyCountsByCode: Record<string, number> };
+    };
+    assert.equal(report.summary.exit.code, 2);
+    assert.ok((report.summary.anomalyCountsByCode["witness-hash-mismatch"] ?? 0) >= 1);
   });
 
   it("exits 1 when a supplied policy makes bytes-free proofs fail (requireSlot)", async () => {

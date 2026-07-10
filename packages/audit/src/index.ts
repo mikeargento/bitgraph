@@ -29,6 +29,7 @@ export type {
   ManifestReport,
   ContainerKind,
   IngestCounts,
+  IngestLimits,
   IngestResult,
   VerifyObservedOptions,
   VerificationSummary,
@@ -83,7 +84,7 @@ export type {
   AuditJsonReport,
 } from "./types.js";
 
-export { ingestBundle, streamMatchedArtifacts } from "./ingest.js";
+export { ingestBundle, streamMatchedArtifacts, DEFAULT_INGEST_LIMITS } from "./ingest.js";
 
 export { verifyObservedProofs } from "./verify-tiers.js";
 

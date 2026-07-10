@@ -15,7 +15,11 @@
  *   consumed the hash of a block published at time T was COMMITTED no
  *   earlier than T. Grounded in block-hash unpredictability: the hash did
  *   not exist before T and the covered proofs embed it through the chain.
- *   This is the cryptographically sound direction.
+ *   This additionally assumes the anchored header is a genuine, publicly
+ *   published Ethereum block, which this offline audit cannot confirm: it
+ *   checks the header's structure and hash binding, not proof-of-work,
+ *   consensus, or chain membership. Every not-before claim states that
+ *   assumption. Sound along chain-link evidence, subject to it.
  *
  *   not-after (upper bound): a proof causally BEFORE an anchor existed
  *   before that anchor's commit, and the consumed block proves the commit
@@ -310,7 +314,10 @@ function makeBound(
     kind === "not-before"
       ? `These proofs were committed no earlier than ${iso} (unix ${info.timestamp}), the ` +
         `timestamp of ${blockName}: the block hash was unpredictable before that time and the ` +
-        `anchor commit consumed it. ${evidenceSentence}`
+        `anchor commit consumed it. Reading this as a wall-clock floor additionally assumes the ` +
+        `anchored header is a genuine, publicly published Ethereum block: this offline audit checks ` +
+        `the header's structure and hash binding, not proof-of-work, consensus, or chain membership, ` +
+        `so it cannot confirm the block is real. ${evidenceSentence}`
       : `These proofs existed before the anchor commit that consumed the hash of ${blockName} ` +
         `(block timestamp ${iso}, unix ${info.timestamp}). The block timestamp proves the anchor ` +
         `commit came at or after it, not how promptly; reading it as a wall-clock ceiling ` +
@@ -402,14 +409,25 @@ function compareSegments(a: TemporalSegment, b: TemporalSegment): number {
 // Epoch aggregation and cross-epoch ordering
 // ---------------------------------------------------------------------------
 
+interface CoverageRepresentative {
+  timestamp: number;
+  anchorProofHash: string;
+  blockHash: string;
+  blockNumber?: string;
+  /** Evidence class of the bound chosen as the conservative representative. */
+  evidence: BoundEvidence;
+  /** True when that representative rests on counter-order evidence. */
+  weaker: boolean;
+}
+
 interface EpochCoverage {
   totalProofCount: number;
   /** Distinct members covered by any not-before bound, and the most conservative (minimum) covering timestamp. */
   lowerCovered: Set<string>;
-  lowerMin?: { timestamp: number; anchorProofHash: string; blockHash: string; blockNumber?: string };
+  lowerMin?: CoverageRepresentative;
   /** Distinct members covered by any not-after bound, and the most conservative (maximum) covering timestamp. */
   upperCovered: Set<string>;
-  upperMax?: { timestamp: number; anchorProofHash: string; blockHash: string; blockNumber?: string };
+  upperMax?: CoverageRepresentative;
 }
 
 /**
@@ -425,6 +443,14 @@ interface EpochCoverage {
  * epoch B's not-before orders the covered portion of A before the covered
  * portion of B, subject to the not-after freshness assumption.
  */
+/** Sentence appended to an epoch-level claim when its representative bound rests on counter-order evidence. */
+function weakerCaveat(weaker: boolean): string {
+  return weaker
+    ? " The representative bound rests on commit-counter ordering rather than a verified hash-link " +
+        "path, which relies on the authority's counter discipline (weaker evidence)."
+    : "";
+}
+
 function aggregateEpochs(
   reconstruction: ReconstructionResult,
   segments: TemporalSegment[]
@@ -446,25 +472,41 @@ function aggregateEpochs(
 
     // The tightest bound is entry 0 by construction; every listed bound
     // covers the members, so the conservative representative scans all.
+    // Conservative representative: minimum timestamp for not-before. At an
+    // equal timestamp, prefer chain-link evidence so the epoch bound is
+    // never marked weaker when a hash-link bound justifies the same time.
     for (const bound of segment.lowerBounds) {
       for (const h of segment.memberProofHashes) cov.lowerCovered.add(h);
-      if (cov.lowerMin === undefined || bound.timestamp < cov.lowerMin.timestamp) {
+      if (
+        cov.lowerMin === undefined ||
+        bound.timestamp < cov.lowerMin.timestamp ||
+        (bound.timestamp === cov.lowerMin.timestamp && cov.lowerMin.weaker && !bound.weaker)
+      ) {
         cov.lowerMin = {
           timestamp: bound.timestamp,
           anchorProofHash: bound.anchorProofHash,
           blockHash: bound.blockHash,
           ...(bound.blockNumber !== undefined ? { blockNumber: bound.blockNumber } : {}),
+          evidence: bound.evidence,
+          weaker: bound.weaker,
         };
       }
     }
+    // Maximum timestamp for not-after, same chain-link tie preference.
     for (const bound of segment.upperBounds) {
       for (const h of segment.memberProofHashes) cov.upperCovered.add(h);
-      if (cov.upperMax === undefined || bound.timestamp > cov.upperMax.timestamp) {
+      if (
+        cov.upperMax === undefined ||
+        bound.timestamp > cov.upperMax.timestamp ||
+        (bound.timestamp === cov.upperMax.timestamp && cov.upperMax.weaker && !bound.weaker)
+      ) {
         cov.upperMax = {
           timestamp: bound.timestamp,
           anchorProofHash: bound.anchorProofHash,
           blockHash: bound.blockHash,
           ...(bound.blockNumber !== undefined ? { blockNumber: bound.blockNumber } : {}),
+          evidence: bound.evidence,
+          weaker: bound.weaker,
         };
       }
     }
@@ -485,11 +527,17 @@ function aggregateEpochs(
         coveredProofCount: cov.lowerCovered.size,
         totalProofCount: cov.totalProofCount,
         basis: "block-hash-unpredictability",
+        evidence: cov.lowerMin.evidence,
+        weaker: cov.lowerMin.weaker,
         claim:
           `${cov.lowerCovered.size} of ${cov.totalProofCount} observed proofs of this epoch were ` +
           `committed no earlier than unix ${cov.lowerMin.timestamp}, grounded in block-hash ` +
-          `unpredictability through verified anchor witnesses. The remaining proofs sit causally ` +
-          `before the covering anchors and carry no lower bound from this evidence.`,
+          `unpredictability through verified anchor witnesses. This additionally assumes the anchored ` +
+          `header is a genuine, publicly published Ethereum block, which this offline audit cannot ` +
+          `confirm.` +
+          weakerCaveat(cov.lowerMin.weaker) +
+          ` The remaining proofs sit causally before the covering anchors and carry no lower bound ` +
+          `from this evidence.`,
       });
     }
     if (cov.upperMax !== undefined) {
@@ -503,12 +551,16 @@ function aggregateEpochs(
         coveredProofCount: cov.upperCovered.size,
         totalProofCount: cov.totalProofCount,
         basis: "causal-precedence",
+        evidence: cov.upperMax.evidence,
+        weaker: cov.upperMax.weaker,
         claim:
           `${cov.upperCovered.size} of ${cov.totalProofCount} observed proofs of this epoch ` +
           `existed before an anchor commit that consumed a block published at unix ` +
           `${cov.upperMax.timestamp}. Reading that timestamp as a wall-clock ceiling additionally ` +
           `assumes the anchor consumed a recently published block; the causal precedence itself ` +
-          `is verified. Proofs after the covering anchors are not covered.`,
+          `is verified.` +
+          weakerCaveat(cov.upperMax.weaker) +
+          ` Proofs after the covering anchors are not covered.`,
       });
     }
     if (bounds.length > 0) epoch.anchorBounds = bounds;
@@ -527,6 +579,9 @@ function aggregateEpochs(
       const covB = coverage.get(after.epochId) as EpochCoverage;
       if (covB.lowerMin === undefined) continue;
       if (covA.upperMax.timestamp >= covB.lowerMin.timestamp) continue;
+      const upperEvidence = covA.upperMax.evidence;
+      const lowerEvidence = covB.lowerMin.evidence;
+      const weaker = covA.upperMax.weaker || covB.lowerMin.weaker;
       pairs.push({
         beforeEpochId: before.epochId,
         afterEpochId: after.epochId,
@@ -536,6 +591,9 @@ function aggregateEpochs(
         lowerBoundTimestamp: covB.lowerMin.timestamp,
         basis: "anchor-bounds",
         assumptionDependent: true,
+        upperEvidence,
+        lowerEvidence,
+        weaker,
         beforeCoveredProofCount: covA.upperCovered.size,
         beforeTotalProofCount: covA.totalProofCount,
         afterCoveredProofCount: covB.lowerCovered.size,
@@ -547,8 +605,12 @@ function aggregateEpochs(
           `(${covB.lowerCovered.size} of ${covB.totalProofCount} proofs): the first is bounded ` +
           `not-after unix ${covA.upperMax.timestamp} and the second not-before unix ` +
           `${covB.lowerMin.timestamp}. One-sided evidence about the covered portions only; the ` +
-          `not-after side rests on the anchor-freshness assumption documented on its bound. ` +
-          `This is ordering evidence, never divergence.`,
+          `not-after side rests on the anchor-freshness assumption documented on its bound.` +
+          (weaker
+            ? ` At least one side rests on commit-counter ordering rather than a verified hash-link ` +
+              `path (weaker evidence), which relies on the authority's counter discipline.`
+            : "") +
+          ` This is ordering evidence, never divergence.`,
       });
     }
   }

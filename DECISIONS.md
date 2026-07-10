@@ -1373,3 +1373,186 @@ git render three source files as binary.
 - Nothing committed (per the phase instructions), nothing published,
   server/commit-service/ and .env* untouched, website/ untouched in
   this phase.
+
+## Phase 7: Adversarial-review fixes before npm publish
+
+Date: 2026-07-10
+
+Seven confirmed findings from an adversarial review of the audit package,
+each fixed with a proving test. Baseline before this phase: 308 tests.
+After: 317 tests, all passing (npm run build green, npm test green). Nine
+new tests; findings 4 and 5 tightened assertions on existing tests. No em
+dashes introduced (the only em dashes in changed files are the pre-existing
+em-dash-guard assertions in audit-cli.test.ts that literally search for the
+character). server/commit-service/, website/, and .env* untouched; nothing
+committed or published.
+
+### Finding 1: untrusted .tar / .tar.gz resource caps (gzip-bomb defense)
+
+- Added `IngestLimits` (types.ts) and `DEFAULT_INGEST_LIMITS` (ingest.ts):
+  `maxTotalBytes` 2 GiB decompressed, `maxEntryCount` 1,000,000,
+  `maxMetadataEntryBytes` 8 MiB. `ingestBundle(bundlePath, limits?)` takes
+  an optional second argument (defaults to DEFAULT_INGEST_LIMITS);
+  streamMatchedArtifacts re-reads under the same defaults. Directory
+  bundles are already on disk and are not capped.
+- Threaded through `readTarEntries(source, limits?)` (tar.ts): the
+  `ChunkReader` accumulates `totalPulled` in `fill()` and throws when it
+  passes `maxTotalBytes` (catches a bomb before the whole stream is read);
+  a per-header entry counter throws past `maxEntryCount` (catches a
+  zero-length-entry flood); and PAX 'x'/'g' and GNU 'L' metadata entries
+  are gated by `guardMetadata` BEFORE `readAll` allocates, so a header
+  declaring an absurd size throws instead of doing `new Uint8Array(n)` with
+  attacker-controlled n. All three throw a clear Error the CLI's runAudit
+  try/catch reports on stderr and exits 64 (non-zero, no OOM).
+- Judgment call: enforced the total-bytes cap in the ChunkReader (which
+  consumes openContainerByteStream's output) rather than modifying
+  openContainerByteStream itself; the ChunkReader is the single funnel for
+  every byte, including streamed and skipped bodies, so the cap is complete.
+- Softened the ingest.ts:17-23 memory docstring: it now states the caps and
+  the clean-abort behavior instead of an unbounded guarantee.
+- Defaults are well above legitimate use (the 50k benchmark decompresses to
+  a few hundred MiB across ~50k entries with kilobyte metadata), so the
+  bench-smoke test and all existing ingest tests pass unchanged.
+- Tests (audit-ingest.test.ts, +4): entry-count flood aborts under a low
+  custom cap; a 512 KiB payload aborts under a 64 KiB total cap; a PAX
+  header declaring 2 GiB aborts under the DEFAULT 8 MiB metadata cap while
+  the archive on disk stays tiny (proves abort-before-allocate); a normal
+  tar.gz still ingests under the defaults. audit-fixtures `makeTar` gained
+  `paxHeaderDeclaredSize` to emit a header claiming a false size.
+
+### Finding 2: cross-kind position double-allocation
+
+- New stable code `cross-kind-position-reuse` (AnomalyCode and
+  DivergenceKind in types.ts). `analyzeCrossKindPositionReuse` (anomalies.ts)
+  runs per partition after the same-kind collision checks: when a commit
+  counter value equals a DIFFERENT proof's slotCounter, it emits the code
+  plus a divergence preserving both valid parties (choosing none), exactly
+  like the collision handlers. Gated by `isIntrinsicallyValid` and by
+  distinctness: a single proof whose own slot equals its own commit is
+  slot-order-violation, never this (verified: the existing slot-order test
+  still asserts exactly `["slot-order-violation"]`).
+- Report wiring: codeMeaning and divergenceSummarySentence cases added in
+  report-md.ts (the switch default already handled unknown kinds, but the
+  explicit cases are honest and specific).
+- Property-test correction: `buildCounterCollision` in audit-property.test.ts
+  had (per the Phase 4e note) deliberately used `slot: "2"`, an existing
+  COMMIT position, to exercise "cross-kind sharing is not a collision." That
+  scenario is exactly what Finding 2 says SHOULD now be flagged, so the
+  collider now carries no slotCounter of its own (a pure counter collision);
+  this is the minimal generator fix, consumes identical PRNG bytes, and
+  keeps every other seed assertion unchanged. The audit code was right; the
+  Phase 4e decision it documented is the thing this review corrected.
+- Test (audit-anomalies.test.ts, +2): p0 commit 5 and p1 slot 5 in one
+  partition (positions kept contiguous 4,5,6 so no gap fires) asserts the
+  new code plus a two-party divergence contesting `{ position: "5" }`; a
+  companion test pins that self-position stays slot-order.
+
+### Finding 3: evidence class dropped on cross-epoch bounds
+
+- `EpochAnchorBound` gained optional `evidence`/`weaker`; `AnchorOrderedPair`
+  gained required `upperEvidence`/`lowerEvidence`/`weaker` (types.ts).
+- temporal.ts: the epoch-coverage representative (`CoverageRepresentative`)
+  now carries the evidence class and weaker flag of the min-timestamp
+  (not-before) / max-timestamp (not-after) bound it stands on, with a
+  chain-link tie-preference so an epoch bound is never marked weaker when a
+  hash-link bound justifies the same timestamp (honest, and conservative
+  toward the weaker claim only when nothing stronger exists at that time).
+  The cross-epoch pair's `weaker` is true when either side rests on
+  counter-order, and both the EpochAnchorBound claim and the pair note state
+  the weaker-evidence caveat when weaker (so report-json passes it through
+  and report-md renders it, now also printing the evidence classes on the
+  pair line).
+- Structural realization worth recording: an epoch's not-before
+  representative is essentially always chain-link, because the earliest
+  anchor is its own chain-link not-before at its block time; the weaker
+  path a bundle actually exposes is a not-after representative on an epoch
+  whose latest anchor has no in-partition chain ancestors, so the Finding 3
+  test drives the caveat through the before-epoch's counter-order not-after.
+- Test (audit-temporal.test.ts, +1): epoch WA (a low-counter user proof
+  bounded not-after a genesis anchor only by counter order) precedes epoch
+  WB (chain-linked): the single ordered pair is `weaker: true`,
+  `upperEvidence: "counter-order"`, its note says "weaker evidence", and
+  WA's not-after EpochAnchorBound carries the same. The existing E1->EB pair
+  now also asserts chain-link/chain-link/weaker:false.
+
+### Finding 4: expired-slot gaps mislabeled
+
+- Wording only, no detection change. The `unexplained-counter-positions`
+  message (anomalies.ts), the executive-summary gap sentence and the
+  codeMeaning entry (report-md.ts), the AnomalyCode doc and the module doc
+  (types.ts, anomalies.ts) no longer presume a withheld proof. They now
+  state that an unexplained interior position may be a proof absent from the
+  bundle OR a slot allocated but never committed (a routine, benign
+  occurrence), that the offline audit cannot distinguish the two, and that
+  it does not by itself indicate authority failure or withholding. The
+  existing "does not, by itself" framing and the "absent from the bundle" /
+  "neither commit positions nor referenced slot positions" phrases that the
+  report test keys on are preserved.
+- Test: audit-anomalies.test.ts gap test gained assertions for the new
+  benign-slot phrasing ("allocated but never committed", "failed to create
+  or withheld any proof"); report test assertions still pass unchanged.
+
+### Finding 5: not-before bound overstated block-hash unpredictability
+
+- Symmetric to the existing not-after freshness caveat. The per-bound
+  not-before claim (temporal.ts makeBound), the epoch-level not-before claim
+  (aggregateEpochs), the SegmentBound and module docstrings (types.ts,
+  temporal.ts), and the report prose (report-md.ts External time evidence)
+  now add: the lower bound additionally assumes the anchored header is a
+  genuine, publicly published Ethereum block, which this offline audit
+  cannot confirm because the witness (witness.ts) checks only RLP
+  structure, keccak, and digest binding, never proof-of-work, consensus, or
+  chain membership.
+- Test: audit-temporal.test.ts asserts a not-before claim contains "genuine,
+  publicly published Ethereum block"; the existing /no earlier than/ and
+  basis assertions still hold.
+
+### Finding 6: exit code hid witness/anchor verification failures
+
+- `computeExitFlags` (audit.ts) now sets bit 2 when any witness-stage
+  finding is present. Every witness finding is a verification failure
+  (verifyAnchorWitnesses records findings only for unverified outcomes), so
+  the nine witness-* codes are enumerated in
+  `WITNESS_VERIFICATION_FAILURE_CODES` and all set the bit. The three
+  anchor-stage findings (anchor-metadata-disagreement,
+  anchor-metadata-only-claim, anchor-title-unparseable) stay exit-neutral:
+  the signed body governs and none is a verification failure; an unparseable
+  title only leaves the parsed block number absent, which verification does
+  not depend on. Attestation results remain neutral.
+- Judgment call: clean separation WAS feasible (witness findings are all
+  failures; anchor findings are all informational), so bit 2 keys on
+  witness findings and the benign anchor findings are documented as neutral,
+  rather than the fallback of setting the bit for all anchor/witness
+  findings.
+- --help (cli.ts), the ExitFlags type doc, the cli/audit module docs, and
+  the stdout meaning line were rewritten to state bit-2 semantics
+  completely. The stdout bit-2 phrase became "chain anomalies, divergences,
+  or anchor witness verification failures"; the existing CLI assertion was
+  updated from "chain anomalies or divergences" to the "chain anomalies"
+  substring. The field name `chainAnomaliesOrDivergences` was kept (renaming
+  would ripple through report-json and tests for no behavioral gain); its
+  doc now notes it also reflects witness failures.
+- The standard mixed bundle's witness verifies, so it emits no witness
+  finding and its exit stays 3; no existing exit assertion regressed.
+- Test (audit-cli.test.ts, +1): a valid anchor plus a tampered-header
+  witness (claiming the correct block hash so it still matches the anchor,
+  then failing witness-hash-mismatch) exits 2, where before the fix it
+  exited 0 "clean". Confirmed manually by running the built CLI once against
+  such a bundle: exit 2, meaning line naming anchor witness verification
+  failures.
+
+### Finding 8: dead doc links in the npm tarball
+
+- packages/audit/README.md linked repo-relative `docs/BUNDLE-FORMAT.md` and
+  `docs/HOW-TO-AUDIT.md`, which are not in the package "files" allowlist and
+  are dead on npmjs.com. Converted both to absolute GitHub URLs
+  (https://github.com/mikeargento/bitgraph/blob/main/docs/...). The
+  three-paragraph thesis framing is unchanged.
+- Test (audit-dependencies.test.ts, +1, packaging-correctness suite):
+  asserts the README contains the absolute URLs and no repo-relative or
+  relative `docs/` markdown link target.
+
+### Finding 7 (publish order)
+
+Left untouched per the brief: a process step for the maintainer at publish
+time, no code change.

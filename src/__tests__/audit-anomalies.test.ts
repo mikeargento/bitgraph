@@ -109,6 +109,10 @@ describe("anomalies: G2 gap logic", () => {
     // Report language: absence from the bundle, never asserted authority failure.
     assert.match(gap.message, /absent\s+from the bundle/);
     assert.match(gap.message, /does not, by itself, establish/);
+    // The message must NOT presume a proof exists: an uncommitted slot is a
+    // routine, benign alternative the offline audit cannot rule out.
+    assert.match(gap.message, /allocated but never committed/);
+    assert.match(gap.message, /failed to create or withheld any proof/);
 
     const chainBreak = report.anomalies.find((a) => a.code === "chain-break-missing")!;
     assert.deepEqual(chainBreak.proofHashes, [chain.proofs[2]!.proofHash]);
@@ -273,6 +277,54 @@ describe("anomalies: collisions", () => {
       !divergence.parties.some((p) => p.proofHash === computeProofHash(forged)),
       "the forged proof must never appear as a valid competing branch"
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-kind position reuse
+// ---------------------------------------------------------------------------
+
+describe("anomalies: cross-kind position reuse", () => {
+  test("one proof's commit counter equal to a different proof's slot counter is a double-allocation", async () => {
+    // Same signer, epoch, and chain. p0 commits position 5; p1 reserves
+    // position 5 as its slot. Positions stay contiguous (4,5,6) so no gap
+    // is produced, isolating the cross-kind detection.
+    const chain = await makeCounterChain({
+      epochId: "epoch-cross-kind",
+      pairs: [
+        { slot: "4", commit: "5" },
+        { slot: "5", commit: "6" },
+      ],
+    });
+    const { report } = await auditBundle({
+      "p0.json": proofJson(chain.proofs[0]!.proof),
+      "p1.json": proofJson(chain.proofs[1]!.proof),
+    });
+
+    assert.deepEqual(codes(report), ["cross-kind-position-reuse"]);
+    const anomaly = report.anomalies[0]!;
+    assert.equal(anomaly.details!["position"], "5");
+
+    assert.equal(report.divergences.length, 1);
+    const divergence = report.divergences[0]!;
+    assert.equal(divergence.kind, "cross-kind-position-reuse");
+    assert.deepEqual(divergence.contested, { position: "5" });
+    assert.equal(divergence.parties.length, 2);
+    assert.deepEqual(
+      divergence.parties.map((p) => p.proofHash).sort(),
+      [chain.proofs[0]!.proofHash, chain.proofs[1]!.proofHash].sort()
+    );
+    assert.deepEqual(divergence.invalidContext, []);
+    assert.match(divergence.explanation, /does not choose/);
+  });
+
+  test("a single proof whose own slot equals its own commit stays slot-order, never cross-kind", async () => {
+    const chain = await makeCounterChain({
+      epochId: "epoch-self-position",
+      pairs: [{ slot: "5", commit: "5" }],
+    });
+    const { report } = await auditBundle({ "p.json": proofJson(chain.proofs[0]!.proof) });
+    assert.deepEqual(codes(report), ["slot-order-violation"]);
   });
 });
 

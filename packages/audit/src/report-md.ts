@@ -342,12 +342,17 @@ function executiveSummary(
       "A verified anchor bounds time in one direction at a time. Proofs " +
         "that come after an anchor in the chain were committed no earlier " +
         "than that block's timestamp, because the block's fingerprint " +
-        "could not have been known before the block existed. Proofs that " +
-        "come before an anchor existed before the commit that consumed " +
-        "the block; reading that as a wall-clock ceiling additionally " +
-        "assumes the anchor consumed a recently published block, and every " +
-        "such bound in this report states that assumption. No individual " +
-        "proof's exact creation time is ever stated."
+        "could not have been known before the block existed. That lower " +
+        "bound additionally assumes the anchored header is a genuine, " +
+        "publicly published Ethereum block: this offline audit checks the " +
+        "header's structure and hash binding, not proof-of-work, " +
+        "consensus, or chain membership, so it cannot confirm the block " +
+        "is real. Proofs that come before an anchor existed before the " +
+        "commit that consumed the block; reading that as a wall-clock " +
+        "ceiling additionally assumes the anchor consumed a recently " +
+        "published block. Every such bound in this report states its " +
+        "assumption. No individual proof's exact creation time is ever " +
+        "stated."
     );
     lines.push("");
     lines.push(
@@ -391,10 +396,12 @@ function partitionSummarySentences(report: AuditJsonReport, partition: ReportPar
       const singular = count === "1";
       out.push(
         `${withCommas(count)} counter ${singular ? "position is neither a commit position nor a referenced slot position" : "positions are neither commit positions nor referenced slot positions"} ` +
-          "in the supplied bundle. This means the auditor cannot " +
-          "reconstruct those positions from the supplied evidence. It " +
-          "does not, by itself, prove that the BitGraph authority failed " +
-          "to create them."
+          "in the supplied bundle. An unexplained interior position may " +
+          "mean a proof is absent from the bundle, or a slot that was " +
+          "allocated but never committed (a routine, benign occurrence); " +
+          "this offline audit cannot tell the two apart. It does not, by " +
+          "itself, prove that the BitGraph authority failed to create or " +
+          "withheld any proof."
       );
     } else if (anomaly.code === "chain-break-missing") {
       out.push(
@@ -427,6 +434,13 @@ function divergenceSummarySentence(divergence: DivergenceRecord): string {
       return (
         `${head} ${n === 2 ? "both reference" : "all reference"} slot counter ` +
         `${withCommas(divergence.contested["slotCounter"] ?? "?")} in the same epoch.` +
+        tail
+      );
+    case "cross-kind-position-reuse":
+      return (
+        `${head} allocate one causal position ` +
+        `${withCommas(divergence.contested["position"] ?? "?")} in the same epoch, at least one ` +
+        "committing it and at least one reserving it as a slot." +
         tail
       );
     case "predecessor-reuse":
@@ -764,7 +778,9 @@ function temporalDetails(lines: string[], report: AuditJsonReport): void {
         `- Covered portion of epoch ${inlineCode(pair.beforeEpochId)} ` +
           `(${withCommas(pair.beforeCoveredProofCount)} of ${withCommas(pair.beforeTotalProofCount)} proofs) ` +
           `before covered portion of epoch ${inlineCode(pair.afterEpochId)} ` +
-          `(${withCommas(pair.afterCoveredProofCount)} of ${withCommas(pair.afterTotalProofCount)} proofs). ${pair.note}`
+          `(${withCommas(pair.afterCoveredProofCount)} of ${withCommas(pair.afterTotalProofCount)} proofs) ` +
+          `(evidence: not-after ${pair.upperEvidence}, not-before ${pair.lowerEvidence}` +
+          `${pair.weaker ? ", weaker" : ""}). ${pair.note}`
       );
     }
     lines.push("");
@@ -930,11 +946,13 @@ function codeMeaning(code: AnomalyCode): string {
     case "manifest-contents-hash-mismatch":
       return "The manifest's declared contents hash does not match the computed one. The manifest is advisory; the computed value governs.";
     case "unexplained-counter-positions":
-      return "Counter positions inside the observed range are neither commit positions nor referenced slot positions. The proofs for those positions are absent from the bundle; this does not, by itself, prove the authority failed to create them.";
+      return "Counter positions inside the observed range are neither commit positions nor referenced slot positions. Such a position may be a proof absent from the bundle, or a slot that was allocated but never committed (routine and benign); this offline audit cannot distinguish them, and it does not, by itself, prove the authority failed to create or withheld any proof.";
     case "counter-collision":
       return "Two or more valid proofs claim the same commit counter. All are preserved; the audit tool does not choose between them.";
     case "slot-collision":
       return "Two or more valid proofs reference the same slot counter. All are preserved; the audit tool does not choose between them.";
+    case "cross-kind-position-reuse":
+      return "A commit counter in one proof equals a different valid proof's slot position in the same partition: one causal position allocated twice across kinds, which only enclave malfunction, replay, or compromise produces. All parties are preserved; the audit tool does not choose between them.";
     case "predecessor-reuse":
       return "Two or more valid proofs name the same predecessor: the chain forks at that point. All branches are preserved; the audit tool does not choose between them.";
     case "chain-break-missing":

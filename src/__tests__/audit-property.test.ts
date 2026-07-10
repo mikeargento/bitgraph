@@ -189,14 +189,15 @@ const buildCounterCollision: ScenarioBuilder = async (ctx) => {
   addChainFiles(ctx, prefix, chain.proofs);
   const collideWith = chain.proofs[1]!.proof.commit.counter as string; // "4"
   const tail = chain.proofs[length - 1]!;
-  // The collider stays protocol-correct on its own terms: slot strictly
-  // below commit per the G2 nonce-first order, and its slot ("2") is an
-  // existing COMMIT position, never another slot, because cross-kind
-  // position sharing is deliberately not a collision.
+  // The collider reuses only the commit counter and carries no slotCounter
+  // of its own, so this scenario stays a pure counter collision: it never
+  // reuses another proof's slot (slot-collision) and never reuses a commit
+  // position as its own slot (cross-kind-position-reuse), both of which are
+  // exercised by their own dedicated scenarios.
   const extra = await makeCounterChain({
     epochId: `${prefix}-epoch`,
     key: chain.key,
-    pairs: [{ slot: "2", commit: collideWith }],
+    pairs: [{ commit: collideWith }],
     payloadPrefix: `${prefix}-collider`,
     prevB64OfFirst: tail.proofHash,
     random: ctx.random,

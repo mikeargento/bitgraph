@@ -483,6 +483,12 @@ export interface TarWriteEntry {
   typeflag?: string;
   /** Emit a PAX extended header carrying path=<value> before the entry. */
   paxPath?: string;
+  /**
+   * Override the size field written in the PAX 'x' header (defaults to the
+   * real record length). Used by ingest cap tests to declare an absurd
+   * metadata-entry size without writing that many bytes.
+   */
+  paxHeaderDeclaredSize?: number;
   /** Emit a GNU long-name ('L') entry carrying this name before the entry. */
   gnuLongName?: string;
 }
@@ -494,7 +500,8 @@ export function makeTar(entries: TarWriteEntry[]): Uint8Array {
     const content = typeof entry.content === "string" ? utf8(entry.content) : entry.content;
     if (entry.paxPath !== undefined) {
       const record = paxRecord("path", entry.paxPath);
-      parts.push(tarHeaderBlock("PaxHeaders.0/entry", record.length, "x"), padTo512(record));
+      const declaredSize = entry.paxHeaderDeclaredSize ?? record.length;
+      parts.push(tarHeaderBlock("PaxHeaders.0/entry", declaredSize, "x"), padTo512(record));
     }
     if (entry.gnuLongName !== undefined) {
       const nameBytes = utf8(`${entry.gnuLongName}\0`);

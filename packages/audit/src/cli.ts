@@ -12,8 +12,9 @@
  *
  * Exit codes are bit flags (documented in --help and on the ExitFlags
  * type): 0 clean, 1 verification failures (including unsupported-version
- * rejections), 2 chain anomalies or divergences between valid proofs,
- * 3 both, 64 usage or input error (no report was produced).
+ * rejections), 2 chain or authority anomalies, divergences between valid
+ * proofs, or anchor witness verification failures, 3 both, 64 usage or
+ * input error (no report was produced).
  */
 
 import { readFileSync } from "node:fs";
@@ -83,12 +84,18 @@ function helpText(): string {
     "      bytes-free checks decide, unless a supplied trust policy makes",
     "      them fail (for example requireSlot), in which case it counts",
     "      here.",
-    "  2   Chain anomalies or divergences between valid proofs:",
-    "      unexplained counter positions, chain breaks, collisions,",
-    "      forks, authority changes inside an epoch, or epoch link",
-    "      anomalies. Benign ingest findings (duplicate copies, manifest",
-    "      advisories, unsafe paths, embedded proofHash mismatches) are",
-    "      reported but never set exit bits.",
+    "  2   Chain or authority anomalies, divergences between valid proofs,",
+    "      or anchor witness verification failures: unexplained counter",
+    "      positions, chain breaks, collisions, cross-kind position reuse,",
+    "      forks, authority changes inside an epoch, epoch link anomalies,",
+    "      or a supplied anchor witness that fails its offline verification",
+    "      (block-hash mismatch, digest binding, block number, header or",
+    "      RLP malformation, an invalid candidate anchor, or an unmatched",
+    "      witness). Benign findings are reported but never set exit bits:",
+    "      duplicate copies, manifest advisories, unsafe paths, embedded",
+    "      proofHash mismatches, and informational anchor findings (unsigned",
+    "      metadata disagreements, metadata-only anchor claims, and",
+    "      unparseable anchor titles, all overridden by the signed body).",
     "  3   Both 1 and 2.",
     "  64  Usage or input error: unknown option, unreadable bundle, or",
     "      invalid trust policy. No report was produced.",
@@ -195,7 +202,7 @@ function exitMeaning(flags: ExitFlags): string {
   const parts: string[] = [];
   if (flags.verificationFailures) parts.push("verification failures");
   if (flags.chainAnomaliesOrDivergences) {
-    parts.push("chain anomalies or divergences between valid proofs");
+    parts.push("chain anomalies, divergences, or anchor witness verification failures");
   }
   return parts.join("; ");
 }

@@ -58,12 +58,14 @@ export type AnomalyCode =
   /** The manifest's contentsHashB64 does not match the computed deterministic contents hash. Advisory; never a proof failure. */
   | "manifest-contents-hash-mismatch"
   // --- Chain reconstruction and anomaly classification (Phase 4b) ---
-  /** Counter positions inside a partition's observed range that are neither a commit counter nor a referenced slot counter. The proofs are absent from the bundle; this is never asserted as authority failure. */
+  /** Counter positions inside a partition's observed range that are neither a commit counter nor a referenced slot counter. Each may be a proof absent from the bundle or a slot that was allocated but never committed (routine); the audit cannot distinguish these offline and never asserts authority failure. */
   | "unexplained-counter-positions"
   /** Two or more valid non-identical proofs claim the same commit counter in one partition. */
   | "counter-collision"
   /** Two or more valid non-identical proofs reference the same slot counter in one partition. */
   | "slot-collision"
+  /** A commit counter value in one proof equals a different valid proof's slotCounter in the same partition: one causal position double-allocated across kinds. Only possible through enclave malfunction, replay, or compromise. */
+  | "cross-kind-position-reuse"
   /** One prevB64 predecessor hash is claimed by two or more valid successors: a detectable fork. All branches are preserved. */
   | "predecessor-reuse"
   /** prevB64 references a predecessor absent from the bundle (no observed proof has that canonical hash). */
@@ -403,6 +405,33 @@ export interface IngestCounts {
 }
 
 /**
+ * Resource caps applied to untrusted .tar / .tar.gz ingest so a crafted
+ * archive (a decompression bomb, a header declaring an absurd size, or a
+ * flood of tiny entries) aborts with a clear error instead of exhausting
+ * memory. Directory bundles are already materialized on disk and are not
+ * capped here. All caps are well above legitimate bundle sizes; the
+ * defaults are DEFAULT_INGEST_LIMITS.
+ */
+export interface IngestLimits {
+  /**
+   * Ceiling on the total number of decompressed bytes read from a tar or
+   * tar.gz container across the whole archive. Exceeding it aborts ingest.
+   */
+  maxTotalBytes: number;
+  /**
+   * Ceiling on the number of tar entries (headers) processed. Exceeding it
+   * aborts ingest, bounding a flood of zero-length entries.
+   */
+  maxEntryCount: number;
+  /**
+   * Ceiling on the size of a single tar metadata entry that is buffered
+   * whole (PAX extended headers and GNU long-name entries). A header
+   * declaring a larger size aborts ingest before any allocation.
+   */
+  maxMetadataEntryBytes: number;
+}
+
+/**
  * Everything the ingest pass learned about a bundle.
  *
  * Memory shape: proofs, witnesses, and per-entry metadata are held in
@@ -639,6 +668,17 @@ export interface EpochAnchorBound {
    * consumed a recently published block.
    */
   basis?: "block-hash-unpredictability" | "causal-precedence";
+  /**
+   * Evidence class of the representative bound this epoch bound rests on
+   * (the minimum-timestamp bound for not-before, the maximum-timestamp
+   * bound for not-after): "chain-link" (a verified prevB64 hash-link path)
+   * or "counter-order" (commit-counter ordering only, which relies on the
+   * authority's counter discipline). Undefined until the temporal stage
+   * (Phase 4c) populates it.
+   */
+  evidence?: BoundEvidence;
+  /** True when evidence is "counter-order": the epoch bound rests on weaker evidence. */
+  weaker?: boolean;
   /** Plain-language statement of exactly what this bound claims. */
   claim?: string;
 }
@@ -737,6 +777,7 @@ export interface UnexplainedPositionsDetail {
 export type DivergenceKind =
   | "counter-collision"
   | "slot-collision"
+  | "cross-kind-position-reuse"
   | "predecessor-reuse"
   | "multiple-genesis"
   | "epochlink-fork";
@@ -974,8 +1015,12 @@ export type BoundEvidence = "chain-link" | "counter-order";
  *   "not-before": the covered proofs were COMMITTED no earlier than the
  *   block timestamp. Grounded in block-hash unpredictability: the hash
  *   did not exist before the block, the anchor commit consumed it, and
- *   the covered proofs come after the anchor. Cryptographically sound
- *   along chain-link evidence.
+ *   the covered proofs come after the anchor. This additionally assumes
+ *   the anchored header is a genuine, publicly published Ethereum block:
+ *   the offline audit checks the header's structure and hash binding, not
+ *   proof-of-work, consensus, or chain membership, so it cannot confirm
+ *   the block is real. Sound along chain-link evidence, subject to that
+ *   assumption.
  *
  *   "not-after": the covered proofs existed before the anchor commit
  *   that consumed a block published at the timestamp. The block
@@ -1051,6 +1096,12 @@ export interface AnchorOrderedPair {
   basis: "anchor-bounds";
   /** Always true: the upper side of the comparison rests on the anchor-freshness assumption. */
   assumptionDependent: true;
+  /** Evidence class of the before-epoch's not-after (upper) bound. */
+  upperEvidence: BoundEvidence;
+  /** Evidence class of the after-epoch's not-before (lower) bound. */
+  lowerEvidence: BoundEvidence;
+  /** True when either side rests on "counter-order" evidence: the cross-epoch ordering is weaker. */
+  weaker: boolean;
   beforeCoveredProofCount: number;
   beforeTotalProofCount: number;
   afterCoveredProofCount: number;
@@ -1240,16 +1291,28 @@ export interface AuditResult {
  *   their own; they affect it only when a supplied policy made
  *   verification itself fail.
  *
- *   bit 2 (value 2): chain anomalies or divergences between valid proofs.
- *   Set when chain anomaly classification or authority analysis produced
- *   any anomaly, or any divergence record exists. Benign ingest findings
- *   (duplicates, manifest advisories, unsafe paths, embedded proofHash
- *   mismatches) are reported but never set exit bits.
+ *   bit 2 (value 2): structural anomalies. Set when chain anomaly
+ *   classification or authority analysis produced any anomaly, any
+ *   divergence record between valid proofs exists, or any supplied anchor
+ *   witness failed its offline verification (a witness-* code: RLP or
+ *   header malformation, block-hash mismatch, digest-binding mismatch,
+ *   block-number mismatch, an invalid candidate anchor, or an unmatched
+ *   witness). Benign findings are reported but never set exit bits: ingest
+ *   advisories (duplicate copies, manifest advisories, unsafe paths,
+ *   embedded proofHash mismatches) and informational anchor findings
+ *   (anchor-metadata-disagreement, anchor-metadata-only-claim,
+ *   anchor-title-unparseable, all of which the signed body overrides).
+ *   Attestation validation results never set this bit on their own.
  */
 export interface ExitFlags {
   verificationFailures: boolean;
+  /**
+   * Bit 2: chain or authority anomalies, divergences between valid proofs,
+   * or anchor witness verification failures. Informational anchor findings
+   * and attestation results never set it.
+   */
   chainAnomaliesOrDivergences: boolean;
-  /** 0 clean, 1 verification failures, 2 chain anomalies or divergences, 3 both. */
+  /** 0 clean, 1 verification failures, 2 structural anomalies (chain/authority/divergence/witness), 3 both. */
   code: number;
 }
 

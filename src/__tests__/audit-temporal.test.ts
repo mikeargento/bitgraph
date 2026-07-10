@@ -261,6 +261,10 @@ describe("audit temporal: one-sided bounds and brackets along chain links", () =
     assert.equal(lower.evidence, "chain-link");
     assert.equal(lower.basis, "block-hash-unpredictability");
     assert.match(lower.claim, /no earlier than/);
+    // The not-before claim carries the genuine-public-block assumption: the
+    // offline audit cannot confirm the anchored header is a real Ethereum
+    // block (no proof-of-work, consensus, or chain-membership check).
+    assert.match(lower.claim, /genuine, publicly published Ethereum block/);
     const upper = segment.upperBounds[0]!;
     assert.equal(upper.anchorProofHash, fx.hashes["A2"]);
     assert.equal(upper.timestamp, T2);
@@ -343,5 +347,95 @@ describe("audit temporal: epoch bounds and cross-epoch ordering", () => {
     assert.equal(pair.afterCoveredProofCount, 2);
     assert.equal(pair.afterTotalProofCount, 2);
     assert.match(pair.note, /covered portions only/);
+    // The existing E1 -> EB pair rests on chain-link evidence on both sides.
+    assert.equal(pair.upperEvidence, "chain-link");
+    assert.equal(pair.lowerEvidence, "chain-link");
+    assert.equal(pair.weaker, false);
+  });
+});
+
+describe("audit temporal: cross-epoch ordering carries its evidence class", () => {
+  it("a pair whose before-side rests on counter-order is marked weaker with the caveat", async () => {
+    const T_LOW = 2_000_000;
+    const T_HIGH = 3_000_000;
+    const hLow = header(200, T_LOW);
+    const hHigh = header(201, T_HIGH);
+
+    // Epoch WA: a user proof PW (lower counter, no chain link to the
+    // anchor) plus a genesis anchor AW. PW is bounded not-after AW only by
+    // commit-counter ordering, so WA's covered not-after rests on the
+    // weaker evidence class.
+    const ka = await makeKey();
+    const pw = await userProof(ka, "WA", "1", "2"); // genesis, counter 2
+    const aw = await makeAnchorProof({
+      key: ka,
+      blockHash: hLow.hash,
+      blockNumber: "200",
+      epochId: "WA",
+      counter: "10",
+      slotCounter: "9",
+      chainId: "bitgraph:main",
+    });
+
+    // Epoch WB: an anchor AB and its chain-linked successor PB, both
+    // bounded not-before AB by a verified hash-link path.
+    const kb = await makeKey();
+    const ab = await makeAnchorProof({
+      key: kb,
+      blockHash: hHigh.hash,
+      blockNumber: "201",
+      epochId: "WB",
+      counter: "2",
+      slotCounter: "1",
+      chainId: "bitgraph:main",
+    });
+    const pb = await userProof(kb, "WB", "3", "4", ab.proofHash);
+
+    const dir = await makeTempDir("bg-audit-temporal-weaker-");
+    await writeBundleDir(dir, {
+      "proofs/wa-pw.json": proofJson(pw.proof),
+      "proofs/wa-aw.json": proofJson(aw.proof),
+      "proofs/wb-ab.json": proofJson(ab.proof),
+      "proofs/wb-pb.json": proofJson(pb.proof),
+      "witnesses/low.json": witnessJson({
+        headerRlpHex: hLow.rlpHex,
+        blockNumber: 200,
+        blockHash: hLow.hash,
+      }),
+      "witnesses/high.json": witnessJson({
+        headerRlpHex: hHigh.rlpHex,
+        blockNumber: 201,
+        blockHash: hHigh.hash,
+      }),
+    });
+    const ingest = await ingestBundle(dir);
+    await verifyObservedProofs(ingest);
+    const reconstruction = await reconstructChains(ingest);
+    const anchors = identifyAnchors(ingest);
+    const witnesses = await verifyAnchorWitnesses(ingest, anchors);
+    const analysis = deriveTemporalBounds(ingest, reconstruction, anchors, witnesses);
+
+    // Exactly one cross-epoch ordering pair, WA before WB, marked weaker
+    // because the before side (WA's covered not-after) rests on
+    // counter-order evidence.
+    assert.equal(analysis.anchorOrderedPairs.length, 1);
+    const pair = analysis.anchorOrderedPairs[0]!;
+    assert.equal(pair.beforeEpochId, "WA");
+    assert.equal(pair.afterEpochId, "WB");
+    assert.equal(pair.upperEvidence, "counter-order");
+    assert.equal(pair.lowerEvidence, "chain-link");
+    assert.equal(pair.weaker, true);
+    assert.match(pair.note, /weaker evidence/);
+
+    // WA's covered not-after epoch bound carries the evidence class and the
+    // weaker-evidence caveat in its own claim string (so the JSON report
+    // and the markdown both state it).
+    const wa = reconstruction.epochRelationships.epochs.find((e) => e.epochId === "WA");
+    assert.ok(wa?.anchorBounds !== undefined);
+    const notAfter = wa.anchorBounds.find((b) => b.kind === "not-after");
+    assert.ok(notAfter !== undefined);
+    assert.equal(notAfter.evidence, "counter-order");
+    assert.equal(notAfter.weaker, true);
+    assert.match(notAfter.claim as string, /weaker evidence/);
   });
 });
