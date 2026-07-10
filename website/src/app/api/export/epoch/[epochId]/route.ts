@@ -3,6 +3,7 @@ import { listKeysUnderPrefix, getObjectText, getCurrentEpoch } from "@/lib/s3";
 import {
   exportEpoch,
   EpochTooLargeError,
+  MAX_EXPORT_OBJECTS,
   type EpochDataSource,
 } from "@/lib/export-epoch";
 
@@ -30,9 +31,16 @@ const SAFE_EPOCH_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 const RESPONSE_CHUNK = 64 * 1024;
 
+// Cap the listing itself at one past the export limit. A too-large epoch then
+// trips the cap after listing about MAX_EXPORT_OBJECTS keys and returns 413
+// fast, instead of paginating every key in the epoch (tens of thousands of
+// billable S3 list results) only to reject the request. The exportEpoch cap
+// check still governs correctness; this just bounds the wasted work.
+const LIST_CAP = MAX_EXPORT_OBJECTS + 1;
+
 const s3Source: EpochDataSource = {
-  listProofKeys: (safeEpochId) => listKeysUnderPrefix(`proofs/${safeEpochId}/`),
-  listAnchorKeys: (safeEpochId) => listKeysUnderPrefix(`anchors/${safeEpochId}/`),
+  listProofKeys: (safeEpochId) => listKeysUnderPrefix(`proofs/${safeEpochId}/`, LIST_CAP),
+  listAnchorKeys: (safeEpochId) => listKeysUnderPrefix(`anchors/${safeEpochId}/`, LIST_CAP),
   getObjectText: (key) => getObjectText(key),
   getCurrentEpochSafeId: () => getCurrentEpoch(),
 };

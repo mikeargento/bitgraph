@@ -57,8 +57,10 @@ export interface EpochExportResult {
   skipped: number;
 }
 
-/** Upper bound on ledger objects fetched per export; the route maps an excess to 413. */
-export const MAX_EXPORT_OBJECTS = 20000;
+/** Upper bound on ledger objects fetched per export; the route maps an excess to 413.
+ * Kept small on purpose: epoch export is a demo and comprehensive-audit tool, not a
+ * bulk-ledger download. Larger epochs (including the live one) return 413 by design. */
+export const MAX_EXPORT_OBJECTS = 100;
 
 /** Parallel S3 GETs while gathering. */
 const FETCH_CONCURRENCY = 16;
