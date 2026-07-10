@@ -23,8 +23,12 @@
   ],
   "scripts": {
     "build": "tsc",
+    "prepack": "tsc",
     "typecheck": "tsc --noEmit",
     "bench": "node scripts/bench-audit.mjs"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@mikeargento/bitgraph-verify": "^1.1.0",
