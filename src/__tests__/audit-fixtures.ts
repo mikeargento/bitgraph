@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { getPublicKeyAsync, signAsync } from "@noble/ed25519";
 import { sha256 } from "@noble/hashes/sha256";
+import { keccak_256 } from "@noble/hashes/sha3";
 import { canonicalize, computeProofHash } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
 import { Constructor } from "../constructor.js";
@@ -559,4 +560,148 @@ export function proofJson(proof: BitGraphProof): string {
 /** Stored form: the proof with a trailing proofHash field, as the ledger serves it. */
 export function storedProofJson(proof: BitGraphProof, proofHash: string): string {
   return JSON.stringify({ ...proof, proofHash });
+}
+
+// ---------------------------------------------------------------------------
+// Standard mixed audit bundle (shared by the report and CLI suites)
+// ---------------------------------------------------------------------------
+
+export interface StandardAuditBundle {
+  dir: string;
+  epochId: string;
+  anchorEpochId: string;
+  chainId: string;
+  /** Canonical hashes of the four chain proofs, in chain order, INCLUDING the dropped one. */
+  chainProofHashes: string[];
+  /** Canonical hash of the chain proof deliberately absent from the bundle (index 1, slot 3/commit 4). */
+  droppedProofHash: string;
+  forkAProofHash: string;
+  forkBProofHash: string;
+  anchorProofHash: string;
+  blockNumber: number;
+  blockTimestamp: number;
+  /** Bundle path of the occ/1 reject. */
+  unsupportedPath: string;
+  /** Expected counts for assertions. */
+  expected: {
+    observed: number;
+    proofFiles: number;
+    exactDuplicates: number;
+    semanticDuplicates: number;
+    unsupportedVersion: number;
+    verified: number;
+    failed: number;
+    artifactUnavailable: number;
+    chainless: number;
+  };
+}
+
+/**
+ * Build the standard mixed bundle in a temp directory, per the Phase 4d
+ * brief: a healthy signed chain (4 proofs, slot/commit pairs 1..8) with
+ * one proof missing (index 1, producing an unexplained-position gap and
+ * a chain break), a predecessor-reuse fork off the chain tail, an occ/1
+ * unsupported-version reject, one artifact-present proof (chain genesis)
+ * and artifact-absent proofs (everything else), an Ethereum anchor in
+ * its own epoch with a valid offline witness, plus one exact-duplicate
+ * copy and one semantic-duplicate (stored-form) copy of the genesis.
+ */
+export async function makeStandardAuditBundle(): Promise<StandardAuditBundle> {
+  const dir = await makeTempDir("bitgraph-audit-standard-");
+  const epochId = "epoch-standard-main";
+  const anchorEpochId = "epoch-standard-anchor";
+  const chainId = "bitgraph:main";
+  const measurement = "test-measurement-chain";
+
+  const chain = await makeCounterChain({
+    epochId,
+    pairs: healthyPairs(4),
+    chainId,
+    measurement,
+    payloadPrefix: "standard-bundle",
+  });
+
+  const tail = chain.proofs[3]!;
+  const forkChild = async (slot: string, commit: string, payload: string) => {
+    const bytes = utf8(payload);
+    const commitBody: BitGraphProof["commit"] = {
+      nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
+      counter: commit,
+      slotCounter: slot,
+      prevB64: tail.proofHash,
+      epochId,
+    };
+    (commitBody as unknown as Record<string, unknown>)["chainId"] = chainId;
+    const proof = await signBody(
+      chain.key,
+      { hashAlg: "sha256", digestB64: b64(sha256(bytes)) },
+      commitBody,
+      measurement
+    );
+    return { proof, proofHash: computeProofHash(proof) };
+  };
+  const forkA = await forkChild("9", "10", "standard-bundle-fork-a");
+  const forkB = await forkChild("11", "12", "standard-bundle-fork-b");
+
+  const blockNumber = 123456;
+  const blockTimestamp = 1_700_000_000;
+  const { headerBytes, headerRlpHex } = makeEthereumHeader({ blockNumber, timestamp: blockTimestamp });
+  const blockHash = `0x${Buffer.from(keccak_256(headerBytes)).toString("hex")}`;
+  const anchor = await makeAnchorProof({
+    blockHash,
+    blockNumber,
+    epochId: anchorEpochId,
+    counter: "2",
+    slotCounter: "1",
+  });
+
+  const unsupportedPath = "legacy/old.json";
+  const occProof = JSON.stringify({
+    version: "occ/1",
+    artifact: { hashAlg: "sha256", digestB64: "b2NjLWxlZ2FjeQ==" },
+    commit: { nonceB64: "b2NjLW5vbmNl" },
+    signer: { publicKeyB64: "b2NjLWtleQ==", signatureB64: "b2NjLXNpZw==" },
+  });
+
+  const genesis = chain.proofs[0]!;
+  await writeBundleDir(dir, {
+    "proofs/chain-0.json": proofJson(genesis.proof),
+    "proofs/chain-0-copy.json": proofJson(genesis.proof),
+    "proofs/chain-0-stored.json": storedProofJson(genesis.proof, genesis.proofHash),
+    // chain-1 (slot 3 / commit 4) is deliberately absent: the gap.
+    "proofs/chain-2.json": proofJson(chain.proofs[2]!.proof),
+    "proofs/chain-3.json": proofJson(tail.proof),
+    "proofs/fork-a.json": proofJson(forkA.proof),
+    "proofs/fork-b.json": proofJson(forkB.proof),
+    "proofs/anchor.json": proofJson(anchor.proof),
+    "witnesses/block.json": witnessJson({ headerRlpHex, blockNumber, blockHash }),
+    "artifacts/payload-0.bin": genesis.bytes,
+    [unsupportedPath]: occProof,
+  });
+
+  return {
+    dir,
+    epochId,
+    anchorEpochId,
+    chainId,
+    chainProofHashes: chain.proofs.map((p) => p.proofHash),
+    droppedProofHash: chain.proofs[1]!.proofHash,
+    forkAProofHash: forkA.proofHash,
+    forkBProofHash: forkB.proofHash,
+    anchorProofHash: anchor.proofHash,
+    blockNumber,
+    blockTimestamp,
+    unsupportedPath,
+    expected: {
+      observed: 6,
+      proofFiles: 8,
+      exactDuplicates: 1,
+      semanticDuplicates: 1,
+      unsupportedVersion: 1,
+      verified: 1,
+      failed: 0,
+      artifactUnavailable: 5,
+      chainless: 0,
+    },
+  };
 }

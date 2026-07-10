@@ -1176,3 +1176,290 @@ export interface AttestationAnalysis {
     userDataUnbound: number;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Audit orchestration (Phase 4d)
+// ---------------------------------------------------------------------------
+
+/** Options for the full audit pipeline (runAudit). */
+export interface AuditOptions {
+  /**
+   * Optional trust policy passed unchanged to the canonical verifier at
+   * both verification tiers. Policy rejections surface as verification
+   * failures with the verifier's exact reason.
+   */
+  trustAnchors?: import("@mikeargento/bitgraph-verify").VerificationPolicy;
+  /**
+   * DER bytes of the attestation trust root. Defaults to the bundled AWS
+   * Nitro Enclaves Root CA G1; supplying other material is for tests and
+   * explicitly non-AWS deployments.
+   */
+  trustedRootCaDer?: Uint8Array;
+}
+
+/**
+ * Run metadata for one audit execution. This is the ONLY nondeterministic
+ * data the pipeline produces: startedAt is a wall-clock read, and nothing
+ * else in an AuditResult or either report depends on the clock. Two runs
+ * over the same bundle differ in this block alone.
+ */
+export interface AuditRunMetadata {
+  /** Tool version, read from the audit package's package.json. */
+  toolVersion: string;
+  /** ISO 8601 wall-clock start time of the run. */
+  startedAt: string;
+  /** The bundle path exactly as given to runAudit. */
+  bundlePath: string;
+  container: ContainerKind;
+}
+
+/** Everything one full audit run produced, in pipeline order. */
+export interface AuditResult {
+  runMetadata: AuditRunMetadata;
+  ingest: IngestResult;
+  verification: VerificationSummary;
+  reconstruction: ReconstructionResult;
+  anomalies: AnomalyReport;
+  authorities: AuthorityAnalysis;
+  anchors: AnchorIdentification;
+  witnesses: AnchorWitnessAnalysis;
+  temporal: TemporalAnalysis;
+  attestations: AttestationAnalysis;
+}
+
+/**
+ * CLI exit semantics as bit flags.
+ *
+ *   bit 1 (value 1): verification failures. Set when any proof's canonical
+ *   checks failed at either tier, or any proof-shaped input was rejected
+ *   as an unsupported version. artifact-unavailable is NOT a failure: a
+ *   proof without artifact bytes passes or fails on its bytes-free checks
+ *   alone, unless a supplied trust policy makes those checks fail (for
+ *   example requireSlot), in which case its status is "failed" and it
+ *   counts here. Attestation validation results never set this bit on
+ *   their own; they affect it only when a supplied policy made
+ *   verification itself fail.
+ *
+ *   bit 2 (value 2): chain anomalies or divergences between valid proofs.
+ *   Set when chain anomaly classification or authority analysis produced
+ *   any anomaly, or any divergence record exists. Benign ingest findings
+ *   (duplicates, manifest advisories, unsafe paths, embedded proofHash
+ *   mismatches) are reported but never set exit bits.
+ */
+export interface ExitFlags {
+  verificationFailures: boolean;
+  chainAnomaliesOrDivergences: boolean;
+  /** 0 clean, 1 verification failures, 2 chain anomalies or divergences, 3 both. */
+  code: number;
+}
+
+// ---------------------------------------------------------------------------
+// JSON report (Phase 4d)
+// ---------------------------------------------------------------------------
+
+/** Which pipeline stage produced a reported anomaly. */
+export type AnomalyStage =
+  | "ingest"
+  | "chain"
+  | "authority"
+  | "anchor"
+  | "witness"
+  | "attestation";
+
+/**
+ * One entry of the report's unified anomaly list. Every classification is
+ * a stable code; message text is supplementary and consumers must never
+ * parse it.
+ */
+export interface ReportAnomaly {
+  stage: AnomalyStage;
+  code: AnomalyCode;
+  message: string;
+  /** Bundle-root-relative path, for file-scoped findings. */
+  path?: string;
+  /** Partition scope, for partition-scoped chain anomalies. */
+  partition?: PartitionKey;
+  /** Canonical hashes of the observed proofs involved. */
+  proofHashes?: string[];
+  /** Machine-readable detail specific to the code. */
+  details?: Record<string, unknown>;
+}
+
+/** Per-proof record in the JSON report. Compact fields only; never the raw proof object. */
+export interface ReportProofRecord {
+  proofHash: string;
+  sources: ProofSource[];
+  verificationTier?: VerificationTier;
+  verificationStatus?: VerificationStatus;
+  verificationReason?: string;
+  /** Bundle path of the artifact bytes used. Full tier only. */
+  artifactPath?: string;
+  embeddedProofHash: EmbeddedProofHashStatus;
+  counter?: string;
+  slotCounter?: string;
+  prevB64?: string;
+  epochId?: string;
+  chainId: string;
+  publicKeyB64?: string;
+  measurement?: string;
+  enforcement?: string;
+  chainless: boolean;
+  hasSlotAllocation: boolean;
+  hasAttestation: boolean;
+  hasAgency: boolean;
+  hasEpochLink: boolean;
+}
+
+/** One partition in the JSON report, with its reconstructed components and an intactness verdict. */
+export interface ReportPartition {
+  key: PartitionKey;
+  memberProofHashes: string[];
+  components: ChainComponent[];
+  /**
+   * True when the partition's observed record is one connected component
+   * and no chain anomaly or divergence is scoped to this partition.
+   */
+  intact: boolean;
+}
+
+/** An epoch pair with no ordering evidence in either direction: concurrent-or-unordered, never divergence. */
+export interface UnorderedEpochPair {
+  epochIdA: string;
+  epochIdB: string;
+}
+
+/** Epoch relationship section of the JSON report. */
+export interface ReportEpochRelationships {
+  /** Observed epochs, sorted by epochId, with anchorBounds populated by the temporal stage where evidence exists. */
+  epochs: EpochRecord[];
+  /** Every observed epochLink, analyzed. */
+  lineageEdges: EpochLineageEdge[];
+  /** Transitive ordering from hard lineage edges only. */
+  orderedPairs: Array<{ beforeEpochId: string; afterEpochId: string }>;
+  /** Anchor-derived, assumption-dependent ordering of covered epoch portions. */
+  anchorOrderedPairs: AnchorOrderedPair[];
+  /** Distinct epoch pairs with no ordering evidence from either source. */
+  unorderedPairs: UnorderedEpochPair[];
+}
+
+/** Deterministic input summary of the JSON report. */
+export interface ReportInputSummary {
+  container: ContainerKind;
+  entriesScanned: number;
+  strippedRootPrefix?: string;
+  computedContentsHashB64: string;
+  manifest?: ManifestReport;
+  counts: {
+    observed: number;
+    proofFiles: number;
+    exactDuplicates: number;
+    semanticDuplicates: number;
+    unsupportedVersion: number;
+    verified: number;
+    failed: number;
+    artifactUnavailable: number;
+    chainless: number;
+    artifacts: number;
+    witnesses: number;
+    skippedUnsafePaths: number;
+  };
+}
+
+/** Summary statistics of the JSON report. */
+export interface ReportSummary {
+  proofsObserved: number;
+  fullyVerified: number;
+  failed: number;
+  artifactUnavailable: number;
+  unsupportedVersion: number;
+  chainless: number;
+  exactDuplicates: number;
+  semanticDuplicates: number;
+  partitions: number;
+  partitionsIntact: number;
+  /** True when every partition is intact and no chain or authority anomaly or divergence exists. */
+  chainIntact: boolean;
+  epochsObserved: number;
+  /** Anomaly counts keyed by stable code, keys sorted. */
+  anomalyCountsByCode: Record<string, number>;
+  divergenceCount: number;
+  authorityGroupCount: number;
+  distinctSignerCount: number;
+  distinctDeclaredMeasurementCount: number;
+  /** The five separately tracked attestation facts (G9), as proof counts. */
+  attestation: {
+    declaredMeasurementPresent: number;
+    documentsPresent: number;
+    documentsValidated: number;
+    pcr0MatchesDeclared: number;
+    userDataBound: number;
+  };
+  temporal: {
+    anchorsIdentified: number;
+    anchorsWithVerifiedWitness: number;
+    segments: number;
+    segmentsBracketed: number;
+    segmentsLowerBounded: number;
+    segmentsUpperBounded: number;
+    segmentsUnanchored: number;
+  };
+  exit: ExitFlags;
+}
+
+/**
+ * The audit-report.json object, schema "bitgraph-audit-report/1".
+ *
+ * Deterministic given the same bundle except for the runMetadata block,
+ * which is explicitly identified as the only nondeterministic section.
+ * Object keys are built in fixed order; arrays are sorted by stable keys
+ * (partition key, counter, canonical hash) or carry the deterministic
+ * order of the producing stage. Machine consumers key on stable codes and
+ * fields, never on message prose.
+ */
+export interface AuditJsonReport {
+  reportSchemaVersion: "bitgraph-audit-report/1";
+  toolVersion: string;
+  runMetadata: {
+    /** Always true: this block is the only nondeterministic section of the report. */
+    nondeterministic: true;
+    note: string;
+    toolVersion: string;
+    startedAt: string;
+    bundlePath: string;
+    container: ContainerKind;
+  };
+  input: ReportInputSummary;
+  /** Sorted by canonical proof hash. */
+  proofs: ReportProofRecord[];
+  /** Sorted by path. */
+  unsupportedVersions: UnsupportedVersionRecord[];
+  /** In the reconstruction pass's deterministic partition order. */
+  partitions: ReportPartition[];
+  unchainedProofHashes: string[];
+  unpartitionedProofHashes: string[];
+  epochRelationships: ReportEpochRelationships;
+  /** Unified anomaly list: stage order (ingest, chain, authority, anchor, witness, attestation), stage-internal detection order. */
+  anomalies: ReportAnomaly[];
+  divergences: DivergenceRecord[];
+  authorities: {
+    groups: AuthorityGroup[];
+    sharedSignersAcrossEpochs: SignerEpochSpan[];
+  };
+  attestations: {
+    records: ProofAttestationRecord[];
+    counts: AttestationAnalysis["counts"];
+  };
+  anchors: {
+    records: AnchorRecord[];
+    metadataOnlyProofHashes: string[];
+  };
+  witnesses: {
+    outcomes: AnchorWitnessOutcome[];
+  };
+  temporal: {
+    segments: TemporalSegment[];
+    verifiedAnchorProofHashes: string[];
+    unverifiedAnchorProofHashes: string[];
+  };
+  summary: ReportSummary;
+}

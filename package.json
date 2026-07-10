@@ -22,7 +22,7 @@
   "scripts": {
     "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && tsc",
     "typecheck": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && tsc --noEmit",
-    "test:core": "npm run build && node --test dist/__tests__/canonical.test.js dist/__tests__/constructor.test.js dist/__tests__/verifier.test.js dist/__tests__/proof-integrity.test.js dist/__tests__/audit-ingest.test.js dist/__tests__/audit-tiers.test.js dist/__tests__/audit-reconstruct.test.js dist/__tests__/audit-anomalies.test.js dist/__tests__/audit-anchors.test.js dist/__tests__/audit-witness.test.js dist/__tests__/audit-temporal.test.js dist/__tests__/audit-attestation.test.js",
+    "test:core": "npm run build && node --test dist/__tests__/canonical.test.js dist/__tests__/constructor.test.js dist/__tests__/verifier.test.js dist/__tests__/proof-integrity.test.js dist/__tests__/audit-ingest.test.js dist/__tests__/audit-tiers.test.js dist/__tests__/audit-reconstruct.test.js dist/__tests__/audit-anomalies.test.js dist/__tests__/audit-anchors.test.js dist/__tests__/audit-witness.test.js dist/__tests__/audit-temporal.test.js dist/__tests__/audit-attestation.test.js dist/__tests__/audit-report.test.js dist/__tests__/audit-cli.test.js",
     "test": "npm run test:core"
   },
   "dependencies": {

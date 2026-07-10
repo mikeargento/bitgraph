@@ -68,6 +68,19 @@ export type {
   NitroValidationResult,
   ProofAttestationRecord,
   AttestationAnalysis,
+  AuditOptions,
+  AuditRunMetadata,
+  AuditResult,
+  ExitFlags,
+  AnomalyStage,
+  ReportAnomaly,
+  ReportProofRecord,
+  ReportPartition,
+  UnorderedEpochPair,
+  ReportEpochRelationships,
+  ReportInputSummary,
+  ReportSummary,
+  AuditJsonReport,
 } from "./types.js";
 
 export { ingestBundle, streamMatchedArtifacts } from "./ingest.js";
@@ -87,6 +100,12 @@ export { verifyAnchorWitnesses, verifyAnchorWitness } from "./witness.js";
 export { deriveTemporalBounds } from "./temporal.js";
 
 export { validateAttestations, validateNitroAttestationDocument } from "./attestation.js";
+
+export { runAudit, computeExitFlags, auditToolVersion } from "./audit.js";
+
+export { buildJsonReport } from "./report-json.js";
+
+export { buildMarkdownReport } from "./report-md.js";
 
 export { AWS_NITRO_ROOT_CA_PEM } from "./aws-nitro-root-ca.js";
 
