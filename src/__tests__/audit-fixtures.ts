@@ -40,13 +40,22 @@ export function utf8(text: string): Uint8Array {
 // Proof fixtures
 // ---------------------------------------------------------------------------
 
+/**
+ * Source of random bytes for fixture generation. Defaults everywhere to
+ * crypto.getRandomValues; property-based suites pass a seeded deterministic
+ * source so the same seed always regenerates byte-identical fixtures.
+ */
+export type RandomSource = (byteLength: number) => Uint8Array;
+
+const defaultRandom: RandomSource = (n) => crypto.getRandomValues(new Uint8Array(n));
+
 export interface ManualKey {
   privateKey: Uint8Array;
   publicKeyB64: string;
 }
 
-export async function makeKey(): Promise<ManualKey> {
-  const privateKey = crypto.getRandomValues(new Uint8Array(32));
+export async function makeKey(random?: RandomSource): Promise<ManualKey> {
+  const privateKey = (random ?? defaultRandom)(32);
   const publicKeyB64 = b64(await getPublicKeyAsync(privateKey));
   return { privateKey, publicKeyB64 };
 }
@@ -187,12 +196,14 @@ export async function makeEpochLinkProof(opts: {
   chainId?: string;
   measurement?: string;
   payload?: string;
+  random?: RandomSource;
 }): Promise<{ proof: BitGraphProof; bytes: Uint8Array; key: ManualKey }> {
-  const key = opts.key ?? (await makeKey());
-  const prevPublicKeyB64 = opts.prevPublicKeyB64 ?? (await makeKey()).publicKeyB64;
+  const random = opts.random ?? defaultRandom;
+  const key = opts.key ?? (await makeKey(random));
+  const prevPublicKeyB64 = opts.prevPublicKeyB64 ?? (await makeKey(random)).publicKeyB64;
   const bytes = utf8(opts.payload ?? `bitgraph-audit-epochlink-${opts.toEpochId}`);
   const commit: BitGraphProof["commit"] = {
-    nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
+    nonceB64: b64(random(16)),
     ...(opts.counter !== undefined ? { counter: opts.counter } : {}),
     ...(opts.slotCounter !== undefined ? { slotCounter: opts.slotCounter } : {}),
     ...(opts.prevB64 !== undefined ? { prevB64: opts.prevB64 } : {}),
@@ -233,7 +244,8 @@ export interface CounterChainLink {
  * epoch, and chain, with explicit counter positions per proof. Each
  * non-first proof carries prevB64 equal to the canonical proof hash of
  * its predecessor; the first proof omits prevB64 entirely (genesis per
- * G1). Pass pairs like real enclave output (slot 1/commit 2, slot 3/
+ * G1) unless prevB64OfFirst continues the chain from an existing proof.
+ * Pass pairs like real enclave output (slot 1/commit 2, slot 3/
  * commit 4, ...) or leave positions out for counterless link chains.
  */
 export async function makeCounterChain(opts: {
@@ -243,19 +255,24 @@ export async function makeCounterChain(opts: {
   chainId?: string;
   measurement?: string;
   payloadPrefix?: string;
+  /** Continue an existing chain: the first proof carries this prevB64 instead of being a genesis. */
+  prevB64OfFirst?: string;
+  random?: RandomSource;
 }): Promise<{ key: ManualKey; proofs: CounterChainLink[] }> {
-  const key = opts.key ?? (await makeKey());
+  const random = opts.random ?? defaultRandom;
+  const key = opts.key ?? (await makeKey(random));
   const measurement = opts.measurement ?? "test-measurement-chain";
   const proofs: CounterChainLink[] = [];
 
   for (let i = 0; i < opts.pairs.length; i++) {
     const pair = opts.pairs[i]!;
     const bytes = utf8(`${opts.payloadPrefix ?? opts.epochId}-payload-${i}`);
+    const prevB64 = i > 0 ? proofs[i - 1]!.proofHash : opts.prevB64OfFirst;
     const commit: BitGraphProof["commit"] = {
-      nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
+      nonceB64: b64(random(16)),
       ...(pair.commit !== undefined ? { counter: pair.commit } : {}),
       ...(pair.slot !== undefined ? { slotCounter: pair.slot } : {}),
-      ...(i > 0 ? { prevB64: proofs[i - 1]!.proofHash } : {}),
+      ...(prevB64 !== undefined ? { prevB64 } : {}),
       epochId: opts.epochId,
     };
     if (opts.chainId !== undefined) {
@@ -316,10 +333,12 @@ export async function makeAnchorProof(opts: {
   metadata?: unknown;
   /** Overrides attribution.name (for non-anchor attribution cases). */
   attributionName?: string;
+  random?: RandomSource;
 }): Promise<{ proof: BitGraphProof; proofHash: string; key: ManualKey }> {
-  const key = opts.key ?? (await makeKey());
+  const random = opts.random ?? defaultRandom;
+  const key = opts.key ?? (await makeKey(random));
   const commit: BitGraphProof["commit"] = {
-    nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
+    nonceB64: b64(random(16)),
     ...(opts.counter !== undefined ? { counter: opts.counter } : {}),
     ...(opts.slotCounter !== undefined ? { slotCounter: opts.slotCounter } : {}),
     ...(opts.prevB64 !== undefined ? { prevB64: opts.prevB64 } : {}),

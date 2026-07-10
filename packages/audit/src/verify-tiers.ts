@@ -63,13 +63,19 @@ export async function verifyObservedProofs(
   const trustAnchors = options?.trustAnchors;
 
   // Index proofs by the hex form of their artifact digest, mirroring the
-  // strict decoding used for artifact matching at ingest.
+  // strict decoding used for artifact matching at ingest. Resolution goes
+  // through a proofHash map so a bundle with many artifacts stays
+  // O(proofs + artifacts + matches); ingest built matchedProofHashes in
+  // first-observation order, so the per-artifact proof order is unchanged.
+  const proofsByHash = new Map<string, ObservedProof>(
+    ingest.proofs.map((p) => [p.proofHash, p])
+  );
   const byDigestHex = new Map<string, ObservedProof[]>();
   for (const artifact of ingest.artifacts) {
     if (artifact.matchedProofHashes.length === 0) continue;
-    const matched = ingest.proofs.filter((p) =>
-      artifact.matchedProofHashes.includes(p.proofHash)
-    );
+    const matched = artifact.matchedProofHashes
+      .map((hash) => proofsByHash.get(hash))
+      .filter((p): p is ObservedProof => p !== undefined);
     byDigestHex.set(artifact.sha256Hex, matched);
   }
 

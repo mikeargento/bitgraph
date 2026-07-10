@@ -3,28 +3,9 @@ import * as assert from "node:assert/strict";
 import { sha256 } from "@noble/hashes/sha256";
 import { computeProofHash, canonicalize } from "../index.js";
 import type { BitGraphProof } from "../index.js";
-
-const MOCK_PROOF: BitGraphProof = {
-  version: "bitgraph/1",
-  artifact: { hashAlg: "sha256", digestB64: "abc123==" },
-  commit: {
-    nonceB64: "nonce==",
-    counter: "42",
-    slotCounter: "41",
-    epochId: "epoch==",
-    prevB64: "prev==",
-  },
-  signer: {
-    publicKeyB64: "pubkey==",
-    signatureB64: "sig==",
-  },
-  environment: {
-    enforcement: "measured-tee",
-    measurement: "pcr0hash",
-    attestation: { format: "aws-nitro", reportB64: "report==" },
-  },
-  attribution: { name: "test", message: "hello" },
-};
+// Fixture moved verbatim to a shared non-test module so other suites can
+// import it without re-registering this file's describes under node:test.
+import { MOCK_PROOF } from "./mock-proof-fixture.js";
 
 describe("computeProofHash", () => {
   it("produces base64-encoded SHA-256", () => {

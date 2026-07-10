@@ -1076,3 +1076,174 @@ substituting out each run's own startedAt string.
   a temp dir, ran the CLI once against it, confirmed both
   audit-report.json and audit-report.md were written, exit 3 with the
   correct completion lines, and reviewed the generated markdown by hand.
+
+## Phase 4e: Property-based tests, 50k benchmark, dependency audit
+
+Date: 2026-07-10
+
+### Property-based topology tests (src/__tests__/audit-property.test.ts)
+
+- PRNG: mulberry32 with fixed literal seeds in the test file (12 property
+  seeds plus an isolation seed). No Date.now, no unseeded Math.random;
+  the same seed regenerates a byte-identical bundle. audit-fixtures.ts
+  gained an optional `random: (n) => Uint8Array` source on makeKey,
+  makeCounterChain, makeAnchorProof, and makeEpochLinkProof (default
+  remains crypto.getRandomValues, fully backwards compatible), plus
+  `prevB64OfFirst` on makeCounterChain so a chain can continue from an
+  existing proof instead of always being a genesis.
+- Generator goes through the REAL signing path: Ed25519 private keys,
+  nonces, and payload variation all come from the seeded source; bodies
+  are signed over the canonical SignedBody; prevB64 links are real
+  computeProofHash values; counters follow the G2 two-position pattern
+  (slot 2i+1 / commit 2i+2). No verifier semantics are bypassed;
+  deliberately absent proofs are simply not written to the bundle.
+- Mutation engine: 16 scenario builders, each in its own partition
+  (fresh key + unique epochId) so expected codes compose by union across
+  any random subset: control (zero codes), removed proof
+  (unexplained-counter-positions + chain-break-missing), counter
+  collision, slot collision, predecessor-reuse fork, missing predecessor
+  (dangling 32-byte prevB64), malformed prevB64, exact duplicate,
+  semantic duplicate, disconnected chains (second genesis in one
+  partition -> multiple-genesis), valid epochLink transition (zero
+  codes, hard edge, orderedPairs asserted), dangling epochLink, multiple
+  lineages (zero codes, two partitions), mid-epoch measurement change,
+  mid-epoch signer change, chainless proofs (zero codes), occ/1 reject
+  (unsupported-version).
+- Semantic-duplicate honesty: the builder re-serializes with reordered
+  keys plus an extra unsigned metadata field and ASSERTS
+  computeProofHash equality against the original before writing the
+  file, per the brief (metadata sits outside the canonical signed body,
+  confirmed; proof-hash.test.ts pins the same property).
+- Property loop: 12 fixed seeds; each run picks a random subset of the
+  16 classes (p = 0.5 each, drawn before any builder runs), builds the
+  bundle in a temp dir, runs the full runAudit, and asserts the report's
+  anomaly code multiset deep-equals the injected expectation exactly (no
+  missing detections, no spurious extras), plus observed /
+  unsupported-version / chainless counts, zero verification failures,
+  and all-integrity-tier statuses. Determinism test: the same seed
+  regenerated into a fresh directory yields a deep-equal AND
+  byte-equal-serialized JSON report modulo runMetadata.
+- Two generator bugs caught by the loop itself and fixed IN THE
+  GENERATOR (the audit code was right both times): (1) the original
+  counter-collision collider used slot 2L+1 with commit 4, violating the
+  G2 nonce-first order, so the audit honestly added
+  slot-order-violation; the collider now uses slot "2" (an existing
+  COMMIT position, exercising the documented rule that cross-kind
+  position sharing is not a collision) below its commit. (2) the valid
+  epochLink scenario mixed two helper-default measurements inside epoch
+  B, so the audit honestly added mid-epoch-measurement-change; the
+  scenario now declares one measurement per epoch, matching the
+  boot-scoped epochId reality.
+
+### Real-fixture test (src/__tests__/audit-real-fixtures.test.ts)
+
+- MOCK_PROOF was moved verbatim (values byte-for-byte unchanged) from
+  proof-hash.test.ts to the shared non-test module
+  src/__tests__/mock-proof-fixture.ts, re-imported by proof-hash.test.ts,
+  exactly the Phase 4c precedent set for REALISTIC_PROOF. No fixture
+  value was edited.
+- Asserted honest results over a bundle of both fixtures: both observed,
+  zero unsupported-version; REALISTIC_PROOF fails at the integrity tier
+  with the verifier's exact reason "signature verification failed:
+  signature does not match" (placeholder signature, a NON-version
+  reason); MOCK_PROOF fails with "artifact.digestB64 is not valid
+  base64" (placeholder digest, also non-version); REALISTIC_PROOF is
+  identified as an Ethereum anchor by SIGNED attribution (block 24800448,
+  the signed block hash, metadata corroboration "absent", listed in
+  unverifiedAnchorProofHashes since no witness exists); its attestation
+  reports document-present-but-invalid with a precise failure and
+  pcr0MatchesDeclared/userDataBoundToProof both unset. The exact anomaly
+  multiset is pinned: attestation-invalid x2, chain-break-malformed
+  (MOCK's "prev=="), chain-break-missing (REALISTIC's real-shaped
+  prevB64 into unobserved history). Nothing ever passes; exit code 3.
+
+### 50,000-proof benchmark (packages/audit/scripts/bench-audit.mjs, npm run bench)
+
+- Corpus: deterministic (mulberry32, seed 0xb17c0de), 5 epochs x 10,000
+  proofs, one chain (bitgraph:main), G2 slot/commit interleaving, 100
+  Ethereum anchor proofs interleaved as ordinary chain members (1 per
+  500 positions) each with an offline-verifiable RLP header witness
+  (spec 10.2/10.3), real Ed25519 signatures throughout (signing is
+  batched 512-wide; the prevB64 chain never waits on signatures because
+  the canonical hash does not cover signatureB64). Written as BOTH a
+  directory bundle and a .tar.gz bundle. Sanity gate: the script exits
+  non-zero unless both containers audit completely clean (observed =
+  50,000, zero failures, zero anomalies, all 100 witnesses verified,
+  exit flags 0).
+- Measured 2026-07-10 on Apple Silicon (arm64 darwin, node v24.13.1):
+  - generation (50k real signatures): 14.62 s
+  - write directory bundle: 2.28 s; write .tar.gz: 1.40 s
+  - staged pipeline over the directory bundle, 69.00 s total
+    (725 proofs/sec): ingest 6.96 s; verify tiers 61.23 s (Ed25519
+    verification is ~89% of the pipeline); reconstruct 0.10 s; classify
+    anomalies 0.12 s; authorities 0.05 s; identify anchors 0.01 s;
+    witnesses 0.01 s; temporal bounds 0.50 s; attestations 0.02 s;
+    build JSON report 0.05 s; serialize JSON 0.14 s; markdown 0.07 s
+  - full runAudit over the .tar.gz: 63.67 s (785 proofs/sec)
+  - peak RSS (whole process, corpus generation included): 747.4 MiB;
+    final RSS 394.2 MiB; report sizes JSON 74.1 MiB, markdown 0.3 MiB
+    (the 200-row table caps hold)
+  - both containers: sanity clean, exit 0
+- Comfortably inside the "few minutes" target with no verification
+  weakened; the cost is honestly dominated by real signature checks.
+- Smoke version in CI (src/__tests__/audit-bench-smoke.test.ts): 2,000
+  proofs through runAudit + both reports, asserting a clean result, a
+  generous 180 s wall ceiling, and < 1 GiB RSS growth so a quadratic
+  regression fails loudly without exact-time flakiness. Observed locally:
+  2.7 s, 46 MiB growth.
+- One algorithmic hot path fixed while reviewing for accidental O(N^2)
+  (packages/audit/src/verify-tiers.ts): the full-tier index was built by
+  filtering ALL proofs per artifact with Array.includes,
+  O(artifacts x proofs x matches); a bytes-included 50k bundle would
+  have hit ~2.5e9 operations. Replaced with a proofHash Map lookup,
+  O(proofs + artifacts + matches). Per-artifact proof order is unchanged
+  (ingest builds matchedProofHashes in first-observation order), so
+  results and report ordering are byte-identical; no verification
+  semantics touched. No other superlinear paths survived measurement:
+  every non-crypto stage is at or under 0.5 s at 50k.
+- Benchmark script judgment calls: witness blockNumber must be a JSON
+  NUMBER per spec 10.2 (the script initially wrote a string and the
+  auditor correctly rejected it witness-malformed; the script was fixed,
+  not the auditor). The full runAudit wall time is measured on the
+  .tar.gz container and the directory container is covered by the staged
+  pipeline sum, so the 50k Ed25519 verification pass runs twice per
+  benchmark instead of three times. The script lives outside the
+  package "files" allowlist (dev tooling, never published) and
+  @noble/ed25519 was added to packages/audit devDependencies for the
+  script's generation-side signing (devDependencies do not touch the
+  runtime closure).
+
+### Dependency audit (recorded here + pinned by src/__tests__/audit-dependencies.test.ts)
+
+- Runtime closure of @mikeargento/bitgraph-audit per `npm ls --omit=dev`
+  on 2026-07-10: @mikeargento/bitgraph-verify@1.1.0 -> @noble/ed25519@2.3.0
+  + @noble/hashes@1.8.0 (deduped), plus the audit package's own direct
+  @noble/hashes@1.8.0. Exactly the allowed set (verify + hashes +
+  ed25519-transitively), nothing else.
+- Source grep of the closure for network APIs (http, https, net, dgram,
+  tls, fetch, XMLHttpRequest, WebSocket): packages/audit/dist and
+  packages/verify/dist have ZERO references. @noble/ed25519: clean.
+  @noble/hashes: one finding, sha3-addons.js defines a hash CLASS METHOD
+  named `fetch(bytes)` on its XOF type (returns this.xof(bytes)); it is
+  not the global fetch, performs no I/O, and the audit package does not
+  import sha3-addons. Both @noble packages are pure crypto with no
+  network surface, as expected.
+- The test pins this mechanically: declared dependency sets of both
+  packages are asserted exactly (and no peer/optional/bundled
+  dependencies exist to widen them), and an fs walk of the compiled
+  module graphs (packages/audit/dist plus packages/verify/dist, the
+  runtime closure member) asserts no file contains node:http,
+  node:https, node:net, node:dgram, node:tls, XMLHttpRequest, WebSocket,
+  a bare http/https/net/tls/dgram import/require, or a global fetch
+  call. The @noble internals are not re-walked by the test (hash-locked
+  by package-lock.json and audited by hand above); the walk covers the
+  first-party graph where regressions could actually be introduced.
+
+### Test wiring
+
+- Four new suites appended to the root test:core script:
+  audit-property.test.js, audit-real-fixtures.test.js,
+  audit-dependencies.test.js, audit-bench-smoke.test.js. Baseline before
+  this phase: 261 tests. After: 302, all passing (npm run build green,
+  npm test green, 70 suites). The property suite runs in about 1 s; the
+  smoke benchmark adds about 4 s.
