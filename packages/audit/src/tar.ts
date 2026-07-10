@@ -394,3 +394,147 @@ class ChunkReader {
 function padOf(size: number): number {
   return (BLOCK - (size % BLOCK)) % BLOCK;
 }
+
+// ---------------------------------------------------------------------------
+// Minimal deterministic tar writer
+// ---------------------------------------------------------------------------
+//
+// The producer counterpart of the reader above, used by the bundle archive
+// builder (export.ts). Deliberately minimal and deterministic:
+//
+//   - Regular-file entries only. No directories, links, or special files.
+//   - Fixed header metadata: mode 0644, uid/gid 0, mtime 0, empty
+//     uname/gname. The same entry list always produces the same bytes.
+//   - Long paths use the ustar prefix field when the path splits cleanly
+//     (name <= 100 bytes, prefix <= 155 bytes), and a PAX 'x' path record
+//     otherwise. Both forms are read back by the reader above and required
+//     of consumers by docs/BUNDLE-FORMAT.md section 4.
+//   - Entries are written in the order given; ordering policy (the bundle
+//     builder sorts by raw UTF-8 path bytes) belongs to the caller.
+
+/** A regular-file entry to be written. */
+export interface TarWriteFile {
+  /** Bundle-root-relative path, "/" separators. Validated by the caller. */
+  path: string;
+  content: Uint8Array;
+}
+
+/** Build a complete tar archive (ustar + PAX long paths) in memory. */
+export function writeTarArchive(files: TarWriteFile[]): Uint8Array {
+  const parts: Uint8Array[] = [];
+  for (const file of files) {
+    const pathBytes = new TextEncoder().encode(file.path);
+    if (pathBytes.length <= 100) {
+      parts.push(writeHeader(file.path, "", file.content.length, "0"));
+    } else {
+      const split = splitUstarPath(file.path, pathBytes);
+      if (split !== null) {
+        parts.push(writeHeader(split.name, split.prefix, file.content.length, "0"));
+      } else {
+        // PAX extended header carrying the full path, then a header whose
+        // name field holds a deterministic truncation.
+        const record = paxPathRecord(file.path);
+        const paxName = truncateBytes(`PaxHeaders.0/${file.path}`, 100);
+        parts.push(writeHeader(paxName, "", record.length, "x"), padBlock(record));
+        parts.push(writeHeader(truncateBytes(file.path, 100), "", file.content.length, "0"));
+      }
+    }
+    parts.push(padBlock(file.content));
+  }
+  parts.push(new Uint8Array(BLOCK), new Uint8Array(BLOCK));
+  return concatParts(parts);
+}
+
+/**
+ * Split a long path for the ustar prefix field: the rightmost "/" such
+ * that the name part fits 100 bytes and the prefix part fits 155 bytes.
+ * Returns null when no split works (PAX fallback).
+ */
+function splitUstarPath(
+  path: string,
+  pathBytes: Uint8Array
+): { prefix: string; name: string } | null {
+  for (let i = path.length - 1; i > 0; i--) {
+    if (path.charCodeAt(i) !== 0x2f) continue;
+    const prefix = path.slice(0, i);
+    const name = path.slice(i + 1);
+    const prefixLen = new TextEncoder().encode(prefix).length;
+    const nameLen = pathBytes.length - prefixLen - 1;
+    if (name.length > 0 && nameLen <= 100 && prefixLen <= 155) {
+      return { prefix, name };
+    }
+  }
+  return null;
+}
+
+function writeHeader(name: string, prefix: string, size: number, typeflag: string): Uint8Array {
+  const block = new Uint8Array(BLOCK);
+  const ascii = (text: string, offset: number, length: number): void => {
+    const bytes = new TextEncoder().encode(text);
+    block.set(bytes.subarray(0, Math.min(bytes.length, length)), offset);
+  };
+  ascii(name, 0, 100);
+  block.set(octal(0o644, 8), 100); // mode
+  block.set(octal(0, 8), 108); // uid
+  block.set(octal(0, 8), 116); // gid
+  block.set(octal(size, 12), 124); // size
+  block.set(octal(0, 12), 136); // mtime, fixed 0 for determinism
+  for (let i = 148; i < 156; i++) block[i] = 0x20; // checksum spaces
+  block[156] = typeflag.charCodeAt(0);
+  ascii("ustar", 257, 6); // magic, NUL-terminated by the zeroed block
+  ascii("00", 263, 2); // version
+  if (prefix.length > 0) ascii(prefix, 345, 155);
+  let sum = 0;
+  for (let i = 0; i < BLOCK; i++) sum += block[i] as number;
+  ascii(sum.toString(8).padStart(6, "0"), 148, 6);
+  block[154] = 0;
+  block[155] = 0x20;
+  return block;
+}
+
+function octal(value: number, length: number): Uint8Array {
+  const out = new Uint8Array(length);
+  const text = value.toString(8).padStart(length - 1, "0");
+  for (let i = 0; i < text.length; i++) out[i] = text.charCodeAt(i);
+  out[length - 1] = 0;
+  return out;
+}
+
+/** PAX record "<len> path=<value>\n" where len counts the whole record. */
+function paxPathRecord(path: string): Uint8Array {
+  const baseBytes = new TextEncoder().encode(` path=${path}\n`);
+  let length = baseBytes.length + 1;
+  while (String(length).length + baseBytes.length !== length) {
+    length = String(length).length + baseBytes.length;
+  }
+  return concatParts([new TextEncoder().encode(String(length)), baseBytes]);
+}
+
+/** Truncate a string to at most n UTF-8 bytes (paths here are ASCII in practice). */
+function truncateBytes(text: string, n: number): string {
+  const bytes = new TextEncoder().encode(text);
+  if (bytes.length <= n) return text;
+  let end = n;
+  // Do not cut inside a multi-byte sequence.
+  while (end > 0 && ((bytes[end] as number) & 0xc0) === 0x80) end--;
+  return new TextDecoder("utf-8").decode(bytes.subarray(0, end));
+}
+
+function padBlock(content: Uint8Array): Uint8Array {
+  const padding = padOf(content.length);
+  if (padding === 0) return content;
+  const out = new Uint8Array(content.length + padding);
+  out.set(content, 0);
+  return out;
+}
+
+function concatParts(parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}

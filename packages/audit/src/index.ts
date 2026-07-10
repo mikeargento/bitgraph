@@ -111,3 +111,11 @@ export { AWS_NITRO_ROOT_CA_PEM } from "./aws-nitro-root-ca.js";
 
 export { computeContentsHashB64, computeEntryDigest } from "./contents-hash.js";
 export type { ContentsHashEntry } from "./contents-hash.js";
+
+export { buildBundleArchive } from "./export.js";
+export type {
+  BundleArchiveInput,
+  BundleArchiveProofEntry,
+  BundleArchiveWitnessEntry,
+  BundleArchiveArtifactFile,
+} from "./export.js";

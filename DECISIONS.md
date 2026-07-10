@@ -1247,3 +1247,11 @@ Date: 2026-07-10
   this phase: 261 tests. After: 302, all passing (npm run build green,
   npm test green, 70 suites). The property suite runs in about 1 s; the
   smoke benchmark adds about 4 s.
+
+### Phase 5 completion notes (orchestrator, 2026-07-10)
+
+The Phase 5 agent was interrupted by a session limit during final verification. The orchestrator completed three items:
+
+* Fixed TypeScript strictness in src/__tests__/audit-roundtrip.test.ts (namespace assert import, double-casts through unknown, ChainComponent.memberProofHashes field name) and wired the suite into test:core.
+* Parametrized assertCleanAudit with verifiedWitnesses: website export variants expect zero verified witnesses because the live ledger stores neither witnesses nor artifacts; the reference-builder variants keep expecting one. This is honest behavior, not a defect: website epoch exports contain anchors but no witness files, and the audit stays clean either way.
+* Replaced one BigInt literal (0n) with BigInt(0) in website/src/lib/export-epoch.ts: the website tsconfig targets ES2017 and BigInt literals require ES2020. Constructor form is functionally identical. Website production build passes with the export route.
