@@ -1255,3 +1255,121 @@ The Phase 5 agent was interrupted by a session limit during final verification. 
 * Fixed TypeScript strictness in src/__tests__/audit-roundtrip.test.ts (namespace assert import, double-casts through unknown, ChainComponent.memberProofHashes field name) and wired the suite into test:core.
 * Parametrized assertCleanAudit with verifiedWitnesses: website export variants expect zero verified witnesses because the live ledger stores neither witnesses nor artifacts; the reference-builder variants keep expecting one. This is honest behavior, not a defect: website epoch exports contain anchors but no witness files, and the audit stays clean either way.
 * Replaced one BigInt literal (0n) with BigInt(0) in website/src/lib/export-epoch.ts: the website tsconfig targets ES2017 and BigInt literals require ES2020. Constructor form is functionally identical. Website production build passes with the export route.
+
+## Phase 6: Documentation, contradiction fix, final report
+
+Date: 2026-07-10
+
+### docs/HOW-TO-AUDIT.md (new)
+
+One-page recipient walkthrough: get the bundle, optionally check hashes,
+run the audit, read the executive summary, exit codes, and the
+skeptic's path (read the MIT source or reimplement against
+docs/BUNDLE-FORMAT.md). One honesty judgment call: the brief's step
+"check its hash against the manifest contentsHash" conflates two
+different hashes. The archive file's SHA-256 is what a notarization
+commit would pin; the manifest's contentsHashB64 is the deterministic
+per-entry hash of spec section 8, which the audit tool recomputes and
+checks automatically (manifest-contents-hash-mismatch). The doc states
+both distinctly instead of merging them. The npx one-liner is shown
+alongside the from-source path, with an explicit note that the package
+must be published for npx to work.
+
+### BITGRAPH-DOCS.md contradiction fix (code-verified per G1/G2)
+
+The unpublished repo-root draft contradicted itself and the code. Fixed
+surgically, keeping the document's voice:
+
+- Production Checklist bullet (was line 919): "the epochId changes but
+  the chain continues via prevB64" replaced with: new epochId, counter
+  resets, first proof has no prevB64, cross-epoch ordering from the
+  Ethereum anchors.
+- Epoch Transitions section (was lines 969-977): the false claims ("the
+  first proof of the new epoch references the last proof of the
+  previous epoch via prevB64", "the causal chain does not break")
+  replaced with the code's behavior: counter resets (first slot =
+  counter 1, first commit = counter 2), no prevB64 at genesis, prevB64
+  never bridges epochs, optional commit.epochLink carries lineage (the
+  verifier checks it when present; the deployed parent does not
+  currently exercise it), Ethereum anchors order epochs. The fail-closed
+  restart bullet kept unchanged.
+- FAQ "What happens if the enclave restarts?" (was line 994): "counter
+  potentially resets" made definite, and the stale "DynamoDB anchor"
+  sentence replaced with epochLink lineage + Ethereum anchor ordering.
+  No DynamoDB anywhere (it is on the CLAUDE.md Legacy/Removed list).
+- FAQ "What is prevB64?" (line ~1022) already agreed with the code
+  ("The first proof of an epoch has no prevB64") and was left alone.
+
+### Stale comment fixes (exactly two, per the brief)
+
+- packages/verify/src/types.ts, requireEpochId doc comment: "an
+  external monotonic anchor (e.g., DynamoDB)" is now "an external
+  monotonic anchor". No other change in the file. A pre-existing em
+  dash elsewhere in the file (allowedActorKeyIds comment) was left
+  untouched: out of the named scope, same precedent as Phase 2.
+- packages/adapter-nitro/src/kms-counter.ts header: "External DynamoDB
+  anchor closes the blob rollback gap" is now "An external monotonic
+  anchor closes the blob rollback gap". The pre-existing em dash on the
+  comment's first line was likewise left untouched (out of scope).
+
+### READMEs
+
+- Root README.md gained a "Verification and audit packages" section
+  between Quickstart and License: bitgraph-verify (MIT, verify one
+  proof, plus the bytes-free verifyProofIntegrity with its explicit
+  not-checked binding statement) and bitgraph-audit (MIT, offline
+  bundle audit: causal reconstruction, stable anomaly codes, divergence
+  preserved for the reader, CLI), linking docs/BUNDLE-FORMAT.md and
+  docs/HOW-TO-AUDIT.md. Tone matched to the existing document; no
+  em dashes; no npm link for the unpublished audit package.
+- packages/audit/README.md: verified against the Phase 4 brief (thesis
+  framing, incomplete input -> incomplete reconstruction, divergence
+  presented not resolved, wall-clock bounds only with offline evidence,
+  bitgraph/1 only with legacy beta out of scope: all present). One fix:
+  the third paragraph's "current library surface" sentence predated
+  Phases 4b-4e and named only ingestBundle/verifyObservedProofs; it now
+  describes the finished pipeline, the CLI, runAudit(), and points at
+  the two docs. Still three paragraphs.
+
+### Sample audit report for the project report
+
+Built the standard synthetic bundle with the compiled fixture helpers
+(dist/__tests__/audit-fixtures.js, makeStandardAuditBundle) and ran the
+real CLI (node packages/audit/dist/cli.js) over it once. Exit 3 as
+designed (occ/1 reject sets bit 1; the injected gap, chain break, and
+predecessor-reuse fork set bit 2); both report files written; the
+executive summary quoted in PROJECT-REPORT.md section 7. The run used
+temp directories only; nothing was written into the repo.
+
+### PROJECT-REPORT.md (new, repo root)
+
+The brief's required final report: full file inventory (committed diff
+main...HEAD, 59 files, plus this phase's working-tree changes), the
+three public API surfaces, the complete 41-code anomaly list, test
+results (308 tests, 72 suites, 0 failures via root npm test; the two
+proof-hash suites are outside test:core exactly as on main and pass
+manually, 18 tests), the Phase 4e 50k benchmark numbers, the sample
+executive summary, fixture ingest results, the export round-trip
+results, G1-G10 resolutions (all ten confirmed), and the corrections
+of the brief against the code. Also records the open items for the
+maintainer, including the literal-NUL-byte composite keys that make
+git render three source files as binary.
+
+### Verification
+
+- npm run build green; npm test green after all Phase 6 edits: 308
+  tests, 72 suites, 0 failures (docs-only phase; the two comment edits
+  change no behavior). Phase 4d's "all 40 codes" count was a miscount;
+  the union has 41 members and PROJECT-REPORT.md lists all 41.
+- Em-dash sweep over every file created or edited in this phase: zero
+  em dashes in the introduced text, and zero in full in
+  BITGRAPH-DOCS.md, README.md, packages/audit/README.md,
+  docs/HOW-TO-AUDIT.md, PROJECT-REPORT.md, and DECISIONS.md.
+  Pre-existing em dashes inside packages/verify/src/types.ts (51,
+  the file's comment style throughout) and
+  packages/adapter-nitro/src/kms-counter.ts (2), all outside the two
+  named comments, were left as-is per the only-the-named-comments
+  scope and the Phase 2 precedent of not rewording existing text.
+- Nothing committed (per the phase instructions), nothing published,
+  server/commit-service/ and .env* untouched, website/ untouched in
+  this phase.

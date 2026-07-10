@@ -5,7 +5,7 @@
  *
  * See the old prethereum repo for full design rationale.
  * Counter value sealed with KMS, restored on enclave restart.
- * External DynamoDB anchor closes the blob rollback gap.
+ * An external monotonic anchor closes the blob rollback gap.
  */
 
 import { request as httpsRequest } from "node:https";

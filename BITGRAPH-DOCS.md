@@ -916,7 +916,7 @@ const TEE_URL = process.env.TEE_URL || "https://nitro.occproof.com";
 - Save the PCR0 measurement -- this is your enclave's identity for verification
 - Set up monitoring on `/health` endpoint
 - Configure log rotation for parent server and socat logs
-- The enclave generates a new keypair on each restart -- the epochId changes but the chain continues via prevB64
+- The enclave generates a new keypair on each restart -- a new epochId begins, the counter resets, and the first proof of the new epoch has no prevB64. Cross-epoch ordering comes from the Ethereum anchors
 
 ### Using the Deploy Script
 
@@ -971,8 +971,10 @@ For each proof request:
 When the enclave restarts (deploy, crash, reboot):
 
 - A new keypair is generated -> new `epochId`
-- The first proof of the new epoch references the last proof of the previous epoch via `prevB64`
-- The causal chain does not break -- only the epochId changes
+- The counter resets: the first slot of the new epoch takes counter 1, and the first commit takes counter 2
+- The first proof of the new epoch has no `prevB64`. Each epoch is an independent hash chain; `prevB64` never bridges epochs
+- Cross-epoch lineage can ride in the optional `commit.epochLink` field, which binds the new epoch's first proof to the previous epoch's terminal proof. The verifier checks `epochLink` when present; the deployed parent does not currently exercise it
+- Cross-epoch ordering comes from the Ethereum anchors woven into each epoch's chain: they tie each epoch to the public Ethereum timeline, which is how epochs are ordered against each other
 - During restart, all actions are denied (fail closed)
 
 ---
@@ -991,7 +993,7 @@ Yes. Core verification (digest match + Ed25519 signature) is fully offline. You 
 
 ### What happens if the enclave restarts?
 
-A new epoch begins: new Ed25519 keypair, new epochId, counter potentially resets. The first proof of the new epoch has no prevB64 (chain link). Cross-epoch counter continuity can be maintained via a DynamoDB anchor.
+A new epoch begins: new Ed25519 keypair, new epochId, and the counter resets (the first slot of the new epoch takes counter 1, the first commit takes counter 2). The first proof of the new epoch has no prevB64 (chain link). Cross-epoch lineage can ride in the optional commit.epochLink field, and cross-epoch ordering comes from the Ethereum anchors.
 
 ### Is this a blockchain?
 

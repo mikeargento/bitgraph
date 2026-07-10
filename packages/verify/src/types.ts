@@ -445,7 +445,7 @@ export interface VerificationPolicy {
    * Required for production deployments using the epoch model.
    * Verifiers should track epochId to detect epoch boundaries
    * (enclave restarts) and cross-reference with an external
-   * monotonic anchor (e.g., DynamoDB) for cross-epoch continuity.
+   * monotonic anchor for cross-epoch continuity.
    */
   requireEpochId?: boolean;
 
