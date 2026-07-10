@@ -2,9 +2,7 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
-## 1.1.0
-
-Not yet published.
+## 1.1.0 (2026-07-10)
 
 ### Added
 
