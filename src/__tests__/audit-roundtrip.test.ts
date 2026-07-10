@@ -21,6 +21,7 @@ import { promisify } from "node:util";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createRequire } from "node:module";
 import { keccak_256 } from "@noble/hashes/sha3";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
 import {
@@ -310,6 +311,27 @@ const WEBSITE_LIB_PATH = fileURLToPath(
   new URL("../../website/src/lib/export-epoch.ts", import.meta.url)
 );
 
+// The website lib is TypeScript and self-contained (node builtins only).
+// Transpile it to plain ESM with the TypeScript compiler rather than relying
+// on the Node runtime to strip types: native type stripping is on by default
+// only on Node 22.6 and up, so importing the .ts directly fails on the Node 20
+// floor that CI runs against. Transpiling here makes the spawned runner import
+// work identically on every supported Node version.
+const tsRequire = createRequire(import.meta.url);
+async function transpileWebsiteLib(destDir: string): Promise<string> {
+  const ts = tsRequire("typescript") as typeof import("typescript");
+  const source = await readFile(WEBSITE_LIB_PATH, "utf8");
+  const js = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const libPath = join(destDir, "export-epoch.mjs");
+  await writeFile(libPath, js);
+  return pathToFileURL(libPath).href;
+}
+
 const RUNNER_SOURCE = `
 const [configPath] = process.argv.slice(2);
 const { readFile, writeFile } = await import("node:fs/promises");
@@ -368,11 +390,12 @@ async function runWebsiteExport(epoch: SyntheticEpoch, opts: { open: boolean }):
   const configPath = join(dir, "config.json");
   const outPath = join(dir, "website-export.tar.gz");
   const metaPath = join(dir, "meta.json");
+  const libUrl = await transpileWebsiteLib(dir);
   await writeFile(runnerPath, RUNNER_SOURCE);
   await writeFile(
     configPath,
     JSON.stringify({
-      libUrl: pathToFileURL(WEBSITE_LIB_PATH).href,
+      libUrl,
       safeEpochId: safeEpoch,
       currentSafeId: opts.open ? safeEpoch : "some-other-epoch",
       generatedAt: GENERATED_AT,
