@@ -1,11 +1,14 @@
 {
-  "name": "@mikeargento/bitgraph-verify",
-  "version": "1.1.0",
-  "description": "Offline verification of BitGraph proofs. Permissionless by design.",
+  "name": "@mikeargento/bitgraph-audit",
+  "version": "0.1.0",
+  "description": "Offline audit of BitGraph proof bundles: ingest, tiered verification, causal reconstruction, divergence reporting.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "bitgraph-audit": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -21,16 +24,18 @@
   "scripts": {
     "build": "tsc",
     "prepack": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bench": "node scripts/bench-audit.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@noble/ed25519": "^2.1.0",
+    "@mikeargento/bitgraph-verify": "^1.1.0",
     "@noble/hashes": "^1.4.0"
   },
   "devDependencies": {
+    "@noble/ed25519": "^2.1.0",
     "@types/node": "^20.0.0",
     "typescript": "^5.4.0"
   }

@@ -164,6 +164,14 @@ if (result.ok) {
 
 See [bitgraph.ing/docs](https://bitgraph.ing/docs) for the full proof format, verification checklist, attestation handling, and self-host instructions.
 
+## Verification and audit packages
+
+Two MIT-licensed packages in this repository make BitGraph evidence checkable without permission:
+
+**[`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)** verifies one proof. `verify()` checks a proof against the original artifact bytes: structure, canonical Ed25519 signature, slot binding, epoch link, and the digest match. `verifyProofIntegrity()` runs every check except the artifact binding for cases where the bytes are not available, and its result states explicitly that the binding was not checked.
+
+**`@mikeargento/bitgraph-audit`** audits a whole bundle of proofs, fully offline. It ingests a directory, `.tar`, or `.tar.gz`, verifies every proof through the canonical verifier, reconstructs causal order from the hash links and counters, classifies anomalies with stable machine-readable codes, and preserves divergence between valid proofs for the reader to adjudicate instead of choosing a winner. It ships a CLI (`bitgraph-audit <bundle>`) that writes machine-readable and human-readable reports. The bundle format is specified in [docs/BUNDLE-FORMAT.md](docs/BUNDLE-FORMAT.md); the recipient walkthrough is [docs/HOW-TO-AUDIT.md](docs/HOW-TO-AUDIT.md).
+
 ## License
 
 Copyright 2024-2026 Mike Argento. All rights reserved. Patent Pending.

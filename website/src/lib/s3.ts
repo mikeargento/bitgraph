@@ -44,6 +44,41 @@ export async function getCurrentEpoch(): Promise<string | null> {
   return best.epoch;
 }
 
+/** List every key under a prefix, paginated, lexicographically sorted (read-only). */
+export async function listKeysUnderPrefix(prefix: string, maxKeys = 100_000): Promise<string[]> {
+  const s3 = getClient();
+  const bucket = getBucket();
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+  do {
+    const result = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    }));
+    for (const obj of result.Contents || []) {
+      if (obj.Key) keys.push(obj.Key);
+      if (keys.length >= maxKeys) return keys.sort();
+    }
+    continuationToken = result.NextContinuationToken;
+  } while (continuationToken);
+  return keys.sort(); // counter-padded keys sort lexicographically = causal order
+}
+
+/** Fetch one object's raw UTF-8 text, or null when missing (read-only). */
+export async function getObjectText(key: string): Promise<string | null> {
+  try {
+    const s3 = getClient();
+    const result = await s3.send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+    return (await result.Body?.transformToString()) ?? null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    console.error("[s3] getObjectText failed:", name, (err as Error).message);
+    return null;
+  }
+}
+
 /** Look up a proof by artifact digest */
 export async function getProofByDigest(digestB64: string): Promise<Record<string, unknown> | null> {
   try {

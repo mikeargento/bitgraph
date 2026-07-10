@@ -23,8 +23,8 @@ export type {
   AgencyEnvelope,
 } from "./types.js";
 
-export { verify, resetEpochLinkState } from "./verifier.js";
-export type { VerifyResult } from "./verifier.js";
+export { verify, verifyProofIntegrity, resetEpochLinkState } from "./verifier.js";
+export type { VerifyResult, ProofIntegrityResult } from "./verifier.js";
 
 export { computeProofHash } from "./proof-hash.js";
 
