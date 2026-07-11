@@ -139,9 +139,13 @@ function buildPartition(
   members: ObservedProof[],
   hasInPartitionSuccessor: Set<string>
 ): ChainPartition {
-  const byHash = new Map<string, ObservedProof>(members.map((m) => [m.proofHash, m]));
+  // Predecessor lookup is keyed by the CHAIN hash, not the identity hash:
+  // commit.prevB64 references sha256(canonicalize(whole predecessor proof)),
+  // which is computeChainHash, not the signed-body computeProofHash. Keying by
+  // proofHash here would fail to link every real chain.
+  const byChainHash = new Map<string, ObservedProof>(members.map((m) => [m.chainHash, m]));
 
-  // Hash-link edges: successor's prevB64 equals a member's canonical hash.
+  // Hash-link edges: successor's prevB64 equals a member's chain hash.
   const successors = new Map<string, ObservedProof[]>();
   const resolvedPrev = new Set<string>(); // member hashes whose prevB64 resolved in-partition
 
@@ -168,7 +172,7 @@ function buildPartition(
 
   for (const m of members) {
     if (m.prevB64 === undefined) continue;
-    const pred = byHash.get(m.prevB64);
+    const pred = byChainHash.get(m.prevB64);
     if (pred === undefined || pred.proofHash === m.proofHash) continue;
     resolvedPrev.add(m.proofHash);
     pushMap(successors, pred.proofHash, m);
@@ -292,7 +296,10 @@ async function buildEpochRelationships(
     accum.proofCount += partition.memberProofHashes.length;
   }
 
-  const byHash = new Map<string, ObservedProof>(ingest.proofs.map((p) => [p.proofHash, p]));
+  // Keyed by CHAIN hash: epochLink.prevProofHashB64 references the predecessor
+  // terminal proof's chain hash (the same whole-proof hash the enclave writes
+  // into prevB64), not its signed-body identity hash.
+  const byChainHash = new Map<string, ObservedProof>(ingest.proofs.map((p) => [p.chainHash, p]));
 
   // Analyze every observed epochLink, in observation order.
   const edges: EpochLineageEdge[] = [];
@@ -301,7 +308,7 @@ async function buildEpochRelationships(
     const link = extractEpochLink(proof);
     if (link === null) continue; // malformed shape; the verification dimension reports it
     edges.push(
-      await analyzeEdge(link, proof, byHash, epochAccum, hasInPartitionSuccessor, partitionOf)
+      await analyzeEdge(link, proof, byChainHash, epochAccum, hasInPartitionSuccessor, partitionOf)
     );
   }
 
@@ -362,13 +369,13 @@ function extractEpochLink(proof: ObservedProof): EpochLinkFields | null {
 async function analyzeEdge(
   link: EpochLinkFields,
   viaProof: ObservedProof,
-  byHash: Map<string, ObservedProof>,
+  byChainHash: Map<string, ObservedProof>,
   epochAccum: Map<string, { chainIds: Set<string>; publicKeys: Set<string>; proofCount: number }>,
   hasInPartitionSuccessor: Set<string>,
   partitionOf: Map<string, PartitionKey>
 ): Promise<EpochLineageEdge> {
   const viaProofValid = await isIntrinsicallyValid(viaProof);
-  const predecessor = byHash.get(link.prevProofHashB64);
+  const predecessor = byChainHash.get(link.prevProofHashB64);
 
   if (predecessor === undefined) {
     const priorEpochObserved = epochAccum.has(link.prevEpochId);

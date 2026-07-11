@@ -105,7 +105,7 @@ describe("bitgraph-audit CLI", () => {
         nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
         counter: commit,
         slotCounter: slot,
-        prevB64: tail.proofHash,
+        prevB64: tail.chainHash,
         epochId: "epoch-cli-fork",
       };
       (commitBody as unknown as Record<string, unknown>)["chainId"] = "bitgraph:main";

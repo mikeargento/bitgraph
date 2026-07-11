@@ -218,8 +218,10 @@ export interface ProofSource {
  * produced by the verification pass.
  */
 export interface ObservedProof {
-  /** Canonical identity: base64 SHA-256 over the canonical signed body. Always computed, never read from the file. */
+  /** Canonical identity: base64 SHA-256 over the canonical signed body (computeProofHash). Used for dedup and identity, NOT for chain linking. Always computed, never read from the file. */
   proofHash: string;
+  /** Chain-link identity: base64 SHA-256 over the canonical WHOLE proof minus the ledger-added proofHash (computeChainHash). This is the value a successor's commit.prevB64 (and epochLink.prevProofHashB64) references. Always computed. */
+  chainHash: string;
   /**
    * The parsed proof object, retained for the verification pass.
    * Report emitters serialize the compact metadata fields below, not this.

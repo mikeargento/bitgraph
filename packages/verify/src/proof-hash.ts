@@ -16,11 +16,17 @@
  *   - attribution (if present)
  *   - attestationFormat (if attestation present)
  *
- * This hash is used for:
- *   - prevB64 chain linking
+ * This hash (the signed-body hash) is used for:
  *   - S3 ledger key generation
  *   - Ethereum anchor binding
- *   - Proof deduplication and verification
+ *   - Proof deduplication and canonical identity
+ *
+ * It is NOT the value referenced by commit.prevB64 or by
+ * epochLink.prevProofHashB64. Those reference the CHAIN hash: SHA-256 over
+ * the canonicalized WHOLE proof (every field, minus the ledger-added
+ * proofHash), computed by computeChainHash below. Matching prevB64 against
+ * computeProofHash instead of computeChainHash silently fails to link real
+ * chains.
  *
  * Algorithm:
  *   1. Extract signed body fields
@@ -69,12 +75,48 @@ export function computeProofHash(proof: BitGraphProof | Record<string, unknown>)
 
   const bytes = canonicalize(signedBody as unknown as BitGraphProof);
   const hash = sha256(bytes);
+  return base64(hash);
+}
 
-  // Base64 encode (works in both Node.js and browser)
+/**
+ * Compute the CHAIN hash of a BitGraph proof: SHA-256 over the canonicalized
+ * whole proof object, with the ledger-added `proofHash` field removed.
+ *
+ * This is the value the enclave writes into the NEXT proof's
+ * `commit.prevB64` (and into `epochLink.prevProofHashB64` at an epoch
+ * boundary): the enclave hashes the entire assembled proof, before the ledger
+ * appends its convenience `proofHash` field. To link a chain, match a proof's
+ * `commit.prevB64` against `computeChainHash(predecessor)`.
+ *
+ * This differs from computeProofHash, which hashes only the signed-body
+ * subset. The chain hash covers every field (signer signature, attestation
+ * report, slot allocation, attribution, and so on), so any change anywhere in
+ * a proof breaks the link from its successor.
+ *
+ * @param proof - The full BitGraphProof object (or equivalent Record). A
+ *   top-level `proofHash` field, if present, is excluded before hashing.
+ * @returns Base64-standard encoded SHA-256 hash
+ */
+export function computeChainHash(proof: BitGraphProof | Record<string, unknown>): string {
+  const p = proof as Record<string, unknown>;
+  let hashable: Record<string, unknown> = p;
+  if (Object.prototype.hasOwnProperty.call(p, "proofHash")) {
+    // Shallow copy without the ledger-added field; the enclave hashed the
+    // proof before this field existed.
+    hashable = {};
+    for (const key of Object.keys(p)) {
+      if (key !== "proofHash") hashable[key] = p[key];
+    }
+  }
+  const bytes = canonicalize(hashable as unknown as BitGraphProof);
+  return base64(sha256(bytes));
+}
+
+// Base64-standard encode (works in both Node.js and browser).
+function base64(hash: Uint8Array): string {
   if (typeof Buffer !== "undefined") {
     return Buffer.from(hash).toString("base64");
   }
-  // Browser fallback
   let binary = "";
   for (let i = 0; i < hash.length; i++) {
     binary += String.fromCharCode(hash[i]!);

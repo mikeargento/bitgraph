@@ -266,7 +266,7 @@ describe("reconstruct: epoch relationships", () => {
     const genesisB = await makeEpochLinkProof({
       prevEpochId: "epoch-lineage-A",
       prevCounter: terminalA.proof.commit.counter as string,
-      prevProofHashB64: terminalA.proofHash,
+      prevProofHashB64: terminalA.chainHash,
       prevPublicKeyB64: chainA.key.publicKeyB64,
       toEpochId: "epoch-lineage-B",
       counter: "2",

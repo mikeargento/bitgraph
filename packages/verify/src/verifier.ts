@@ -801,8 +801,11 @@ async function verifySlotAllocation(proof: BitGraphProof): Promise<string | null
   if (typeof slot.counter !== "string" || slot.counter.length === 0) {
     return "slotAllocation.counter must be a non-empty string";
   }
-  if (typeof slot.time !== "number" || !Number.isFinite(slot.time) || slot.time < 0) {
-    return "slotAllocation.time must be a non-negative finite number";
+  // time is OPTIONAL: the enclave builds slot bodies deliberately without a
+  // clock ("NO clocks. NO timestamps"), so real slot allocations omit it. Only
+  // validate it when present, mirroring commit.time.
+  if (slot.time !== undefined && (typeof slot.time !== "number" || !Number.isFinite(slot.time) || slot.time < 0)) {
+    return "slotAllocation.time must be a non-negative finite number when present";
   }
   if (typeof slot.epochId !== "string" || slot.epochId.length === 0) {
     return "slotAllocation.epochId must be a non-empty string";
@@ -819,7 +822,10 @@ async function verifySlotAllocation(proof: BitGraphProof): Promise<string | null
     version: slot.version,
     nonceB64: slot.nonceB64,
     counter: slot.counter,
-    time: slot.time,
+    // time is included only when present, so the reconstructed body matches the
+    // enclave's signed bytes for clockless slots (the real, common case) and
+    // for any slot that did carry a time.
+    ...(slot.time !== undefined ? { time: slot.time } : {}),
     epochId: slot.epochId,
     publicKeyB64: slot.publicKeyB64,
     ...(slot.chainId ? { chainId: slot.chainId } : {}),
@@ -853,8 +859,8 @@ async function verifySlotAllocation(proof: BitGraphProof): Promise<string | null
   }
 
   // 3. Confirm slot body has no artifact data (causal independence)
-  // The slot body contains: version, nonceB64, counter, time, epochId, publicKeyB64,
-  // and optionally chainId. If any artifact-related field were present, it would
+  // The slot body contains: version, nonceB64, counter, epochId, publicKeyB64,
+  // and optionally time and chainId. If any artifact-related field were present, it would
   // break the causal argument. We reject known artifact fields defensively.
   const forbiddenKeys = new Set(["digestB64", "artifact", "hashAlg", "signatureB64"]);
   const slotBodyKeys = Object.keys(slotBody);

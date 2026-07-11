@@ -199,7 +199,7 @@ const buildCounterCollision: ScenarioBuilder = async (ctx) => {
     key: chain.key,
     pairs: [{ commit: collideWith }],
     payloadPrefix: `${prefix}-collider`,
-    prevB64OfFirst: tail.proofHash,
+    prevB64OfFirst: tail.chainHash,
     random: ctx.random,
   });
   ctx.files[`${prefix}/collider.json`] = proofJson(extra.proofs[0]!.proof);
@@ -225,7 +225,7 @@ const buildSlotCollision: ScenarioBuilder = async (ctx) => {
     key: chain.key,
     pairs: [{ slot: collideWith, commit: String(2 * length + 1) }],
     payloadPrefix: `${prefix}-collider`,
-    prevB64OfFirst: tail.proofHash,
+    prevB64OfFirst: tail.chainHash,
     random: ctx.random,
   });
   ctx.files[`${prefix}/collider.json`] = proofJson(extra.proofs[0]!.proof);
@@ -254,7 +254,7 @@ const buildPredecessorReuse: ScenarioBuilder = async (ctx) => {
       key: chain.key,
       pairs: [{ slot: String(2 * length + 1 + offset), commit: String(2 * length + 2 + offset) }],
       payloadPrefix: `${prefix}-branch-${branch}`,
-      prevB64OfFirst: tail.proofHash,
+      prevB64OfFirst: tail.chainHash,
       random: ctx.random,
     });
     ctx.files[`${prefix}/branch-${branch}.json`] = proofJson(child.proofs[0]!.proof);
@@ -405,7 +405,7 @@ const buildValidEpochLink: ScenarioBuilder = async (ctx) => {
   const genesis = await makeEpochLinkProof({
     prevEpochId: `${prefix}-epoch-a`,
     prevCounter: terminal.proof.commit.counter as string,
-    prevProofHashB64: terminal.proofHash,
+    prevProofHashB64: terminal.chainHash,
     toEpochId: `${prefix}-epoch-b`,
     prevPublicKeyB64: prior.key.publicKeyB64,
     counter: "2",
@@ -421,7 +421,7 @@ const buildValidEpochLink: ScenarioBuilder = async (ctx) => {
     pairs: [{ slot: "3", commit: "4" }],
     measurement: measurementB,
     payloadPrefix: `${prefix}-b`,
-    prevB64OfFirst: computeProofHash(genesis.proof),
+    prevB64OfFirst: genesis.chainHash,
     random: ctx.random,
   });
   ctx.files[`${prefix}/b-1.json`] = proofJson(continuation.proofs[0]!.proof);
@@ -477,7 +477,7 @@ const buildMeasurementChange: ScenarioBuilder = async (ctx) => {
     pairs: [{ slot: "5", commit: "6" }],
     measurement: `${prefix}-measurement-two`,
     payloadPrefix: `${prefix}-two`,
-    prevB64OfFirst: first.proofs[1]!.proofHash,
+    prevB64OfFirst: first.proofs[1]!.chainHash,
     random: ctx.random,
   });
   ctx.files[`${prefix}/two.json`] = proofJson(second.proofs[0]!.proof);
@@ -649,7 +649,7 @@ describe("audit property tests: anomaly classes in isolation", () => {
     assert.deepEqual((gap?.details as { positions: string[] }).positions, ["3", "4"]);
     const brk = result.anomalies.anomalies.find((a) => a.code === "chain-break-missing");
     assert.deepEqual(brk?.proofHashes, [chain.proofs[2]!.proofHash]);
-    assert.equal((brk?.details as { prevB64: string }).prevB64, chain.proofs[1]!.proofHash);
+    assert.equal((brk?.details as { prevB64: string }).prevB64, chain.proofs[1]!.chainHash);
     // The removal splits the partition into two observed components.
     assert.equal(findPartition(result, `${prefix}-epoch`)?.components.length, 2);
   });

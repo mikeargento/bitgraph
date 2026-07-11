@@ -142,7 +142,10 @@ function buildPartitionSegments(
   evidence: Map<string, VerifiedAnchorEvidence>
 ): TemporalSegment[] {
   const members = partition.memberProofHashes.map((h) => byHash.get(h) as ObservedProof);
-  const memberSet = new Map<string, ObservedProof>(members.map((m) => [m.proofHash, m]));
+  // Keyed by CHAIN hash: this map is used only to resolve prevB64 pointers
+  // (here and in collectAncestors), and prevB64 references the predecessor's
+  // chain hash, not its identity hash.
+  const memberSet = new Map<string, ObservedProof>(members.map((m) => [m.chainHash, m]));
 
   const anchors = members.filter((m) => evidence.has(m.proofHash));
 

@@ -2,6 +2,28 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.1.1 (2026-07-10)
+
+Correctness fixes found by running against real production proofs. Earlier
+versions could not verify a real proof carrying a slot (all of them); upgrade
+is recommended.
+
+### Fixed
+
+- `verify()` / `verifyProofIntegrity()`: `slotAllocation.time` is now optional.
+  The enclave builds slot allocations without a clock, so real proofs omit it;
+  1.1.0 required it and rejected every real proof with a slot. The canonical
+  slot body now includes `time` only when present, matching what the enclave
+  signs.
+
+### Added
+
+- `computeChainHash(proof)`: SHA-256 over the canonicalized whole proof (minus
+  the ledger-added `proofHash`). This is the value a successor's
+  `commit.prevB64` and `epochLink.prevProofHashB64` reference. It differs from
+  `computeProofHash` (the signed-body subset). Corrected the `computeProofHash`
+  documentation, which had wrongly stated it was used for chain linking.
+
 ## 1.1.0 (2026-07-10)
 
 ### Added

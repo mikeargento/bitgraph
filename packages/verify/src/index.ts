@@ -26,6 +26,6 @@ export type {
 export { verify, verifyProofIntegrity, resetEpochLinkState } from "./verifier.js";
 export type { VerifyResult, ProofIntegrityResult } from "./verifier.js";
 
-export { computeProofHash } from "./proof-hash.js";
+export { computeProofHash, computeChainHash } from "./proof-hash.js";
 
 export { canonicalize, canonicalizeToString, constantTimeEqual } from "./canonical.js";

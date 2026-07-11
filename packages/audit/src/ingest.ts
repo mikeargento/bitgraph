@@ -37,7 +37,7 @@ import { open, readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { createGunzip } from "node:zlib";
 import { sha256 } from "@noble/hashes/sha256";
-import { computeProofHash } from "@mikeargento/bitgraph-verify";
+import { computeProofHash, computeChainHash } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
 import { readTarEntries } from "./tar.js";
 import { combineEntryDigests } from "./contents-hash.js";
@@ -718,6 +718,7 @@ function recordMemberProof(
 
   const observed: ObservedProof = {
     proofHash,
+    chainHash: computeChainHash(parsed),
     proof: parsed as unknown as BitGraphProof,
     sources: [source],
     version: "bitgraph/1",

@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 import { getPublicKeyAsync, signAsync } from "@noble/ed25519";
 import { sha256 } from "@noble/hashes/sha256";
 import { keccak_256 } from "@noble/hashes/sha3";
-import { canonicalize, computeProofHash } from "@mikeargento/bitgraph-verify";
+import { canonicalize, computeProofHash, computeChainHash } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
 import { Constructor } from "../constructor.js";
 import type { HostCapabilities } from "../host.js";
@@ -197,7 +197,7 @@ export async function makeEpochLinkProof(opts: {
   measurement?: string;
   payload?: string;
   random?: RandomSource;
-}): Promise<{ proof: BitGraphProof; bytes: Uint8Array; key: ManualKey }> {
+}): Promise<{ proof: BitGraphProof; bytes: Uint8Array; proofHash: string; chainHash: string; key: ManualKey }> {
   const random = opts.random ?? defaultRandom;
   const key = opts.key ?? (await makeKey(random));
   const prevPublicKeyB64 = opts.prevPublicKeyB64 ?? (await makeKey(random)).publicKeyB64;
@@ -226,7 +226,7 @@ export async function makeEpochLinkProof(opts: {
     commit,
     opts.measurement ?? "test-measurement-epochlink"
   );
-  return { proof, bytes, key };
+  return { proof, bytes, proofHash: computeProofHash(proof), chainHash: computeChainHash(proof), key };
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +236,10 @@ export async function makeEpochLinkProof(opts: {
 export interface CounterChainLink {
   proof: BitGraphProof;
   bytes: Uint8Array;
+  /** Signed-body identity hash (computeProofHash). */
   proofHash: string;
+  /** Whole-proof chain hash (computeChainHash): the value a successor's prevB64 references. */
+  chainHash: string;
 }
 
 /**
@@ -267,7 +270,7 @@ export async function makeCounterChain(opts: {
   for (let i = 0; i < opts.pairs.length; i++) {
     const pair = opts.pairs[i]!;
     const bytes = utf8(`${opts.payloadPrefix ?? opts.epochId}-payload-${i}`);
-    const prevB64 = i > 0 ? proofs[i - 1]!.proofHash : opts.prevB64OfFirst;
+    const prevB64 = i > 0 ? proofs[i - 1]!.chainHash : opts.prevB64OfFirst;
     const commit: BitGraphProof["commit"] = {
       nonceB64: b64(random(16)),
       ...(pair.commit !== undefined ? { counter: pair.commit } : {}),
@@ -284,7 +287,7 @@ export async function makeCounterChain(opts: {
       commit,
       measurement
     );
-    proofs.push({ proof, bytes, proofHash: computeProofHash(proof) });
+    proofs.push({ proof, bytes, proofHash: computeProofHash(proof), chainHash: computeChainHash(proof) });
   }
 
   return { key, proofs };
@@ -334,7 +337,7 @@ export async function makeAnchorProof(opts: {
   /** Overrides attribution.name (for non-anchor attribution cases). */
   attributionName?: string;
   random?: RandomSource;
-}): Promise<{ proof: BitGraphProof; proofHash: string; key: ManualKey }> {
+}): Promise<{ proof: BitGraphProof; proofHash: string; chainHash: string; key: ManualKey }> {
   const random = opts.random ?? defaultRandom;
   const key = opts.key ?? (await makeKey(random));
   const commit: BitGraphProof["commit"] = {
@@ -367,7 +370,7 @@ export async function makeAnchorProof(opts: {
   if (opts.metadata !== undefined) {
     (proof as unknown as Record<string, unknown>)["metadata"] = opts.metadata;
   }
-  return { proof, proofHash: computeProofHash(proof), key };
+  return { proof, proofHash: computeProofHash(proof), chainHash: computeChainHash(proof), key };
 }
 
 // ---------------------------------------------------------------------------
@@ -654,7 +657,7 @@ export async function makeStandardAuditBundle(): Promise<StandardAuditBundle> {
       nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
       counter: commit,
       slotCounter: slot,
-      prevB64: tail.proofHash,
+      prevB64: tail.chainHash,
       epochId,
     };
     (commitBody as unknown as Record<string, unknown>)["chainId"] = chainId;
@@ -664,7 +667,7 @@ export async function makeStandardAuditBundle(): Promise<StandardAuditBundle> {
       commitBody,
       measurement
     );
-    return { proof, proofHash: computeProofHash(proof) };
+    return { proof, proofHash: computeProofHash(proof), chainHash: computeChainHash(proof) };
   };
   const forkA = await forkChild("9", "10", "standard-bundle-fork-a");
   const forkB = await forkChild("11", "12", "standard-bundle-fork-b");

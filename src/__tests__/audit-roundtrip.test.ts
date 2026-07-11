@@ -97,7 +97,7 @@ async function makeSyntheticEpoch(): Promise<SyntheticEpoch> {
     epochId: EPOCH_ID,
     counter: "6",
     slotCounter: "5",
-    prevB64: part1.proofs[1]!.proofHash,
+    prevB64: part1.proofs[1]!.chainHash,
     chainId: CHAIN_ID,
     measurement: MEASUREMENT,
   });
@@ -112,7 +112,7 @@ async function makeSyntheticEpoch(): Promise<SyntheticEpoch> {
     chainId: CHAIN_ID,
     measurement: MEASUREMENT,
     payloadPrefix: "rt-part2",
-    prevB64OfFirst: anchor.proofHash,
+    prevB64OfFirst: anchor.chainHash,
   });
 
   const userProofs = [...part1.proofs, ...part2.proofs];

@@ -74,6 +74,9 @@ export async function classifyAnomalies(
   const divergences: DivergenceRecord[] = [];
 
   const byHash = new Map<string, ObservedProof>(ingest.proofs.map((p) => [p.proofHash, p]));
+  // Predecessor links (prevB64, epochLink.prevProofHashB64) reference the CHAIN
+  // hash, not the identity hash, so predecessor resolution keys on chainHash.
+  const byChainHash = new Map<string, ObservedProof>(ingest.proofs.map((p) => [p.chainHash, p]));
   const partitionOf = new Map<string, PartitionKey>();
   for (const partition of reconstruction.partitions) {
     for (const hash of partition.memberProofHashes) partitionOf.set(hash, partition.key);
@@ -85,12 +88,15 @@ export async function classifyAnomalies(
     await analyzeCollisions(partition, members, "counter", anomalies, divergences);
     await analyzeCollisions(partition, members, "slot", anomalies, divergences);
     await analyzeCrossKindPositionReuse(partition, members, anomalies, divergences);
-    await analyzePredecessorReuse(partition, members, byHash, anomalies, divergences);
-    analyzeChainBreaks(partition, members, byHash, partitionOf, anomalies);
+    await analyzePredecessorReuse(partition, members, byChainHash, anomalies, divergences);
+    analyzeChainBreaks(partition, members, byChainHash, partitionOf, anomalies);
     await analyzeMultipleGenesis(partition, members, anomalies, divergences);
     analyzeSlotOrder(partition, members, anomalies);
   }
 
+  // analyzeEpochLinks resolves edge.viaProofHash, which is an IDENTITY hash, so
+  // it takes the proofHash-keyed map. Predecessor (prevProofHashB64) resolution
+  // happened upstream in reconstruct.ts against chain hashes.
   await analyzeEpochLinks(reconstruction.epochRelationships.edges, byHash, anomalies, divergences);
 
   return { anomalies, divergences };
@@ -324,7 +330,7 @@ async function analyzeCrossKindPositionReuse(
 async function analyzePredecessorReuse(
   partition: ChainPartition,
   members: ObservedProof[],
-  byHash: Map<string, ObservedProof>,
+  byChainHash: Map<string, ObservedProof>,
   anomalies: ChainAnomaly[],
   divergences: DivergenceRecord[]
 ): Promise<void> {
@@ -339,7 +345,7 @@ async function analyzePredecessorReuse(
     const { parties, context } = await splitByValidity(claimants);
     if (parties.length < 2) continue;
 
-    const predecessorObserved = byHash.has(prevB64);
+    const predecessorObserved = byChainHash.has(prevB64);
     anomalies.push({
       code: "predecessor-reuse",
       partition: partition.key,
@@ -377,14 +383,15 @@ async function analyzePredecessorReuse(
 function analyzeChainBreaks(
   partition: ChainPartition,
   members: ObservedProof[],
-  byHash: Map<string, ObservedProof>,
+  byChainHash: Map<string, ObservedProof>,
   partitionOf: Map<string, PartitionKey>,
   anomalies: ChainAnomaly[]
 ): void {
-  const memberHashes = new Set(members.map((m) => m.proofHash));
+  // prevB64 resolves in-partition when it equals a member's CHAIN hash.
+  const memberChainHashes = new Set(members.map((m) => m.chainHash));
   for (const m of [...members].sort(byCounterThenHash)) {
     if (m.prevB64 === undefined) continue;
-    if (memberHashes.has(m.prevB64)) continue; // resolved in-partition
+    if (memberChainHashes.has(m.prevB64)) continue; // resolved in-partition
 
     if (!isStrict32ByteBase64(m.prevB64)) {
       anomalies.push({
@@ -399,7 +406,7 @@ function analyzeChainBreaks(
       continue;
     }
 
-    const elsewhere = byHash.get(m.prevB64);
+    const elsewhere = byChainHash.get(m.prevB64);
     if (elsewhere !== undefined) {
       const otherKey = partitionOf.get(elsewhere.proofHash);
       anomalies.push({

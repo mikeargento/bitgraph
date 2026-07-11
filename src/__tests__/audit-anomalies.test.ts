@@ -26,7 +26,7 @@ import type {
   UnexplainedPositionsDetail,
 } from "@mikeargento/bitgraph-audit";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
-import { computeProofHash } from "@mikeargento/bitgraph-verify";
+import { computeProofHash, computeChainHash } from "@mikeargento/bitgraph-verify";
 import {
   b64,
   healthyPairs,
@@ -116,7 +116,7 @@ describe("anomalies: G2 gap logic", () => {
 
     const chainBreak = report.anomalies.find((a) => a.code === "chain-break-missing")!;
     assert.deepEqual(chainBreak.proofHashes, [chain.proofs[2]!.proofHash]);
-    assert.equal(chainBreak.details!["prevB64"], chain.proofs[1]!.proofHash);
+    assert.equal(chainBreak.details!["prevB64"], chain.proofs[1]!.chainHash);
     assert.deepEqual(report.divergences, []);
   });
 
@@ -153,7 +153,7 @@ describe("anomalies: collisions", () => {
       payloadPrefix: "rival",
     });
     const rivalProof = JSON.parse(proofJson(rival.proofs[0]!.proof)) as Record<string, unknown>;
-    (rivalProof["commit"] as Record<string, unknown>)["prevB64"] = chain.proofs[1]!.proofHash;
+    (rivalProof["commit"] as Record<string, unknown>)["prevB64"] = chain.proofs[1]!.chainHash;
     // Re-sign with the same key over the modified commit.
     const resigned = await signBody(
       key,
@@ -205,7 +205,7 @@ describe("anomalies: collisions", () => {
       payloadPrefix: "slot-rival",
     });
     const rivalCommit = JSON.parse(proofJson(rival.proofs[0]!.proof)) as Record<string, unknown>;
-    (rivalCommit["commit"] as Record<string, unknown>)["prevB64"] = chain.proofs[1]!.proofHash;
+    (rivalCommit["commit"] as Record<string, unknown>)["prevB64"] = chain.proofs[1]!.chainHash;
     const resigned = await signBody(
       key,
       rival.proofs[0]!.proof.artifact,
@@ -244,7 +244,7 @@ describe("anomalies: collisions", () => {
       string,
       unknown
     >;
-    (validCommit["commit"] as Record<string, unknown>)["prevB64"] = chain.proofs[1]!.proofHash;
+    (validCommit["commit"] as Record<string, unknown>)["prevB64"] = chain.proofs[1]!.chainHash;
     const resignedValid = await signBody(
       key,
       rivalValid.proofs[0]!.proof.artifact,
@@ -348,7 +348,7 @@ describe("anomalies: predecessor reuse", () => {
       payloadPrefix: "branch",
     });
     const branchCommit = JSON.parse(proofJson(branch.proofs[0]!.proof)) as Record<string, unknown>;
-    (branchCommit["commit"] as Record<string, unknown>)["prevB64"] = chain.proofs[0]!.proofHash;
+    (branchCommit["commit"] as Record<string, unknown>)["prevB64"] = chain.proofs[0]!.chainHash;
     const resigned = await signBody(
       key,
       branch.proofs[0]!.proof.artifact,
@@ -373,7 +373,7 @@ describe("anomalies: predecessor reuse", () => {
     assert.deepEqual(codes(report), ["predecessor-reuse"]);
     const divergence = report.divergences[0]!;
     assert.equal(divergence.kind, "predecessor-reuse");
-    assert.deepEqual(divergence.contested, { prevB64: chain.proofs[0]!.proofHash });
+    assert.deepEqual(divergence.contested, { prevB64: chain.proofs[0]!.chainHash });
     assert.equal(divergence.parties.length, 2);
     assert.deepEqual(divergence.invalidContext, []);
     assert.match(divergence.explanation, /fork/);
@@ -424,7 +424,7 @@ describe("anomalies: chain breaks", () => {
       nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
       counter: "2",
       slotCounter: "1",
-      prevB64: chainA.proofs[0]!.proofHash, // points into epoch A
+      prevB64: chainA.proofs[0]!.chainHash, // points into epoch A
       epochId: "epoch-cross-B",
     } as BitGraphProof["commit"];
     const crossProof = await signBody(
@@ -541,7 +541,7 @@ describe("anomalies: epoch links", () => {
     const genesis = await makeEpochLinkProof({
       prevEpochId: "epoch-mm-A",
       prevCounter: "999", // the observed terminal's counter is 2
-      prevProofHashB64: chainA.proofs[0]!.proofHash,
+      prevProofHashB64: chainA.proofs[0]!.chainHash,
       prevPublicKeyB64: chainA.key.publicKeyB64,
       toEpochId: "epoch-mm-B",
       counter: "2",
@@ -564,7 +564,7 @@ describe("anomalies: epoch links", () => {
     const linkFields = {
       prevEpochId: "epoch-ef-A",
       prevCounter: terminal.proof.commit.counter as string,
-      prevProofHashB64: terminal.proofHash,
+      prevProofHashB64: terminal.chainHash,
       prevPublicKeyB64: chainA.key.publicKeyB64,
     };
     const genesisB = await makeEpochLinkProof({
@@ -628,7 +628,7 @@ describe("anomalies: epoch links", () => {
     const genesisB = await makeEpochLinkProof({
       prevEpochId: "epoch-cy-A",
       prevCounter: "2",
-      prevProofHashB64: terminalA.proofHash,
+      prevProofHashB64: terminalA.chainHash,
       prevPublicKeyB64: keyA.publicKeyB64,
       key: keyB,
       toEpochId: "epoch-cy-B",
@@ -643,7 +643,7 @@ describe("anomalies: epoch links", () => {
         nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
         counter: "4",
         slotCounter: "3",
-        prevB64: computeProofHash(genesisB.proof),
+        prevB64: computeChainHash(genesisB.proof),
         epochId: "epoch-cy-B",
       },
       "test-measurement-epochlink"
@@ -652,13 +652,13 @@ describe("anomalies: epoch links", () => {
     const cycleCloser = await makeEpochLinkProof({
       prevEpochId: "epoch-cy-B",
       prevCounter: "4",
-      prevProofHashB64: computeProofHash(terminalB),
+      prevProofHashB64: computeChainHash(terminalB),
       prevPublicKeyB64: keyB.publicKeyB64,
       key: keyA,
       toEpochId: "epoch-cy-A",
       counter: "4",
       slotCounter: "3",
-      prevB64: terminalA.proofHash,
+      prevB64: terminalA.chainHash,
     });
 
     const { reconstruction, report } = await auditBundle({
@@ -728,7 +728,7 @@ describe("authority: intra-epoch changes", () => {
       nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
       counter: "4",
       slotCounter: "3",
-      prevB64: first.proofs[0]!.proofHash,
+      prevB64: first.proofs[0]!.chainHash,
       epochId: "epoch-measure",
     } as BitGraphProof["commit"];
     const second = await signBody(

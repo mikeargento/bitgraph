@@ -28,7 +28,7 @@ import type {
   TemporalSegment,
 } from "@mikeargento/bitgraph-audit";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
-import { computeProofHash } from "@mikeargento/bitgraph-verify";
+import { computeProofHash, computeChainHash } from "@mikeargento/bitgraph-verify";
 import {
   b64,
   makeAnchorProof,
@@ -64,7 +64,7 @@ async function userProof(
   slot: string,
   commit: string,
   prevB64?: string
-): Promise<{ proof: BitGraphProof; proofHash: string }> {
+): Promise<{ proof: BitGraphProof; proofHash: string; chainHash: string }> {
   const bytes = utf8(`temporal-${epochId}-${commit}`);
   const commitBody: BitGraphProof["commit"] = {
     nonceB64: b64(crypto.getRandomValues(new Uint8Array(16))),
@@ -80,7 +80,7 @@ async function userProof(
     commitBody,
     "test-measurement-temporal"
   );
-  return { proof, proofHash: computeProofHash(proof) };
+  return { proof, proofHash: computeProofHash(proof), chainHash: computeChainHash(proof) };
 }
 
 interface Fixture {
@@ -113,10 +113,10 @@ before(async () => {
     epochId: "E1",
     counter: "4",
     slotCounter: "3",
-    prevB64: p1.proofHash,
+    prevB64: p1.chainHash,
     chainId: "bitgraph:main",
   });
-  const p2 = await userProof(k1, "E1", "5", "6", a1.proofHash);
+  const p2 = await userProof(k1, "E1", "5", "6", a1.chainHash);
   const a2 = await makeAnchorProof({
     key: k1,
     blockHash: H2.hash,
@@ -124,10 +124,10 @@ before(async () => {
     epochId: "E1",
     counter: "8",
     slotCounter: "7",
-    prevB64: p2.proofHash,
+    prevB64: p2.chainHash,
     chainId: "bitgraph:main",
   });
-  const p3 = await userProof(k1, "E1", "9", "10", a2.proofHash);
+  const p3 = await userProof(k1, "E1", "9", "10", a2.chainHash);
   const p4 = await userProof(k1, "E1", "11", "12", b64(sha256(utf8("dangling-predecessor"))));
 
   hashes["P1"] = p1.proofHash;
@@ -148,7 +148,7 @@ before(async () => {
   // Epoch E2: linked chain, no anchors at all (ordered-but-unanchored).
   const k2 = await makeKey();
   const q1 = await userProof(k2, "E2", "1", "2");
-  const q2 = await userProof(k2, "E2", "3", "4", q1.proofHash);
+  const q2 = await userProof(k2, "E2", "3", "4", q1.chainHash);
   hashes["Q1"] = q1.proofHash;
   hashes["Q2"] = q2.proofHash;
   files["proofs/e2-q1.json"] = proofJson(q1.proof);
@@ -180,7 +180,7 @@ before(async () => {
     slotCounter: "1",
     chainId: "bitgraph:main",
   });
-  const pb = await userProof(kb, "EB", "3", "4", ab.proofHash);
+  const pb = await userProof(kb, "EB", "3", "4", ab.chainHash);
   hashes["AB"] = ab.proofHash;
   hashes["PB"] = pb.proofHash;
   files["proofs/eb-ab.json"] = proofJson(ab.proof);
@@ -389,7 +389,7 @@ describe("audit temporal: cross-epoch ordering carries its evidence class", () =
       slotCounter: "1",
       chainId: "bitgraph:main",
     });
-    const pb = await userProof(kb, "WB", "3", "4", ab.proofHash);
+    const pb = await userProof(kb, "WB", "3", "4", ab.chainHash);
 
     const dir = await makeTempDir("bg-audit-temporal-weaker-");
     await writeBundleDir(dir, {
