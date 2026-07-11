@@ -43,8 +43,8 @@ export default function Sections1Through3() {
           </p>
           <p>
             We provide a formal model based on labeled transition systems and
-            closure algebras, define a security game capturing the adversarial
-            model, and systematically distinguish this architecture from existing
+            their reachability structure, define a security game capturing the
+            adversarial model, and systematically distinguish this architecture from existing
             approaches including attested execution, post-hoc provenance, and
             content credential systems. We show that BitGraph
             defines a new enforcement primitive: authentication as a{" "}

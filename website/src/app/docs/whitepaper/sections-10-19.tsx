@@ -93,7 +93,7 @@ export default function Sections10to19() {
           <p className="text-sm text-[#1f2937] leading-relaxed mb-2">
             A genesis monitor (BitGraph) enforces:
           </p>
-          <MBlock c={"\\forall\\, \\mathit{obj} \\in \\Sigma_{\\text{auth}} : \\mathit{obj} \\in \\Sigma \\Rightarrow \\exists\\, e \\in E_{\\text{auth}} : \\mathit{genesis}(\\mathit{obj}) = \\mathcal{C}(e, \\mathit{data})"} />
+          <MBlock c={"\\forall\\, s' \\in \\Sigma_{\\text{auth}} : \\exists\\, s \\in \\Sigma,\\; e \\in E_{\\text{auth}} : (s, e, s') \\in \\mathcal{C}"} />
           <p className="text-sm text-[#1f2937] leading-relaxed mb-4">
             The key difference: a reference monitor assumes objects exist and mediates access. A
             genesis monitor constrains which authenticated objects can exist at all. This is{" "}

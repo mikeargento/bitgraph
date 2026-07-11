@@ -20,7 +20,7 @@ const sections = [
   { id: "sec-formal", num: "7", title: "Formal Model" },
   { id: "sec-state-space", num: "7.1", title: "State Space and Transition System", indent: true },
   { id: "sec-core-invariants", num: "7.2", title: "Core Invariants", indent: true },
-  { id: "sec-closure-algebra", num: "7.3", title: "Closure Algebra", indent: true },
+  { id: "sec-closure-algebra", num: "7.3", title: "Constructor Image", indent: true },
   { id: "sec-duality", num: "7.4", title: "Token\u2013Nonce Duality", indent: true },
   { id: "sec-security", num: "8", title: "Adversarial Model and Security Game" },
   { id: "sec-threat-model", num: "8.1", title: "Threat Model", indent: true },
