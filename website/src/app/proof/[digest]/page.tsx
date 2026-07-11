@@ -46,9 +46,6 @@ export default function ProofPage() {
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
   const [anchorBlock, setAnchorBlock] = useState<{ blockNumber: number | null; blockTime: string | null; etherscanUrl: string | null } | null>(null);
-  // Whole-epoch bundle download state. "toolarge" is the expected 413 for any
-  // epoch above the export cap (the live epoch is), not an error.
-  const [epochDl, setEpochDl] = useState<"idle" | "working" | "toolarge" | "error">("idle");
 
   // Nav visible on proof pages
 
@@ -255,29 +252,6 @@ export default function ProofPage() {
     const a = document.createElement("a"); a.href = url; a.download = `bitgraph-proof-${commit.counter}.zip`; a.click();
     URL.revokeObjectURL(url);
     } catch (e) { console.error("[bitgraph] export error:", e); alert("Export failed: " + e); }
-  }
-
-  // Download the whole epoch this proof belongs to as a spec-conformant
-  // .tar.gz from /api/export/epoch, auditable offline with
-  // @mikeargento/bitgraph-audit. Epochs above the export cap return 413,
-  // which is expected and surfaced as "too large", not an error.
-  async function downloadEpoch() {
-    const epochId = commit.epochId;
-    if (!epochId) return;
-    setEpochDl("working");
-    try {
-      const resp = await fetch(`/api/export/epoch/${encodeURIComponent(String(epochId))}`);
-      if (resp.status === 413) { setEpochDl("toolarge"); return; }
-      if (!resp.ok) { setEpochDl("error"); return; }
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `bitgraph-epoch-${String(epochId).replace(/[^A-Za-z0-9_-]/g, "_")}.tar.gz`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setEpochDl("idle");
-    } catch (e) { console.error("[bitgraph] epoch export error:", e); setEpochDl("error"); }
   }
 
   return (
@@ -545,46 +519,6 @@ export default function ProofPage() {
             </div>
           )}
         </div>
-
-        {/* Whole-epoch bundle — the auditable compartment. Distinct from the
-            per-proof Export above: this pulls every proof in this proof's epoch
-            as a .tar.gz you can verify offline with bitgraph-audit. Deliberately
-            capped, so large epochs (the live one) report "too large". */}
-        {commit.epochId && (
-          <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
-            <button
-              onClick={downloadEpoch}
-              disabled={epochDl === "working"}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                height: 76, fontSize: 16, fontWeight: 600,
-                color: "#ffffff", background: "#c0392b",
-                border: "none", borderRadius: 0,
-                cursor: epochDl === "working" ? "default" : "pointer",
-                opacity: epochDl === "working" ? 0.7 : 1,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              <BtnIcon name="download" color="#ffffff" />
-              <span>{epochDl === "working" ? "Preparing epoch bundle..." : "Download epoch bundle"}</span>
-            </button>
-            {epochDl === "toolarge" && (
-              <div style={{ fontSize: 12.5, color: "#c0392b", textAlign: "center" }}>
-                This epoch is too large to export. Epoch download is a demo, capped to small epochs.
-              </div>
-            )}
-            {epochDl === "error" && (
-              <div style={{ fontSize: 12.5, color: "#c0392b", textAlign: "center" }}>
-                Epoch export failed. Please try again.
-              </div>
-            )}
-            {epochDl !== "toolarge" && epochDl !== "error" && (
-              <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center" }}>
-                Every proof in this epoch, as a bundle you can audit offline
-              </div>
-            )}
-          </div>
-        )}
 
       </div>
     </Shell>
