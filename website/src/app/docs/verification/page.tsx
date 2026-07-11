@@ -63,7 +63,7 @@ export default function VerificationPage() {
       </div>
 
       <p className="text-sm text-[#1f2937] leading-relaxed mt-6">
-        Step 4 confirms PCR0 matches the measurement the proof claims, and the certificate chain proves that measurement came from genuine Nitro hardware. To confirm the measurement itself corresponds to the open enclave source, the build is bit-for-bit reproducible: rebuild it and re-derive the exact PCR0 yourself, trusting no one. See <a href="/docs/self-host-tee" className="text-[#0065A4] font-medium no-underline">reproducible builds</a>.
+        Step 5 confirms PCR0 matches the measurement the proof claims, and the certificate chain proves that measurement came from genuine Nitro hardware. To confirm the measurement itself corresponds to the open enclave source, the build is bit-for-bit reproducible: rebuild it and re-derive the exact PCR0 yourself, trusting no one. See <a href="/docs/self-host-tee" className="text-[#0065A4] font-medium no-underline">reproducible builds</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Verification policy</h2>
@@ -115,8 +115,8 @@ export default function VerificationPage() {
           </thead>
           <tbody className="text-[#1f2937]">
             <tr className="border-b border-[#e5e7eb]">
-              <td className="py-2 pr-4">Attestation report content</td>
-              <td className="py-2">Vendor-signed; platform-specific verification is caller responsibility</td>
+              <td className="py-2 pr-4">Attestation revocation status</td>
+              <td className="py-2">Offline verification validates the bundled certificate chain and attestation binding; network CRL checks are outside this algorithm.</td>
             </tr>
             <tr className="border-b border-[#e5e7eb]">
               <td className="py-2 pr-4">prevB64 chain integrity</td>
