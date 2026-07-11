@@ -12,3 +12,7 @@ dashboard/
 .occ/
 .npmrc
 .vercel
+
+# Local Claude Code tooling and instructions; not for the public repo
+CLAUDE.md
+.claude/
