@@ -1,4 +1,5 @@
 import { M, MBlock } from "@/components/math";
+import { Figure6, Figure7 } from "./figures";
 
 export default function Sections10to19() {
   return (
@@ -606,82 +607,7 @@ export default function Sections10to19() {
 
           {/* Figure 6: Enforced Provenance Chains */}
           <div className="my-6 border border-[#e5e7eb] bg-[#f9fafb] p-5">
-            {/* Desktop layout */}
-            <div className="hidden sm:flex items-start justify-center gap-3 flex-wrap text-xs">
-              <div className="text-center pt-2">
-                <div className="border border-[#e5e7eb] p-2.5 px-3.5 text-[#1f2937]">
-                  Pre-existing<br />content
-                </div>
-                <div className="text-[10px] text-[#6b7280] mt-1">(unauthenticated)</div>
-              </div>
-              <div className="pt-5 text-[#6b7280]">&rarr;</div>
-              <div className="text-center">
-                <div className="font-bold text-[11px] mb-1 text-text">Boundary A</div>
-                <div className="border-2 border-[#e5e7eb] bg-[#f9fafb] p-2.5 px-3.5 text-[#1f2937]">Ingest</div>
-                <div className="text-[#6b7280] mt-1">&darr;</div>
-                <div className="bg-[#f9fafb] border border-text-tertiary p-1 px-2.5 text-[11px] font-mono text-[#1f2937]">
-                  (H, N<sub>1</sub>, <M c={"\\sigma_1"} />)
-                </div>
-                <div className="text-[10px] text-[#6b7280]">origin<sub>1</sub></div>
-              </div>
-              <div className="pt-5 text-[#6b7280]">&rarr;</div>
-              <div className="text-center">
-                <div className="font-bold text-[11px] mb-1 text-text">Boundary B</div>
-                <div className="border-2 border-[#e5e7eb] bg-[#f9fafb] p-2.5 px-3.5 text-[#1f2937]">Process</div>
-                <div className="text-[#6b7280] mt-1">&darr;</div>
-                <div className="bg-[#f9fafb] border border-text-tertiary p-1 px-2.5 text-[11px] font-mono text-[#1f2937]">
-                  (H&prime;, N<sub>2</sub>, <M c={"\\sigma_2"} />)
-                </div>
-                <div className="text-[10px] text-[#6b7280]">origin<sub>2</sub></div>
-              </div>
-              <div className="pt-5 text-[#6b7280]">&rarr;</div>
-              <div className="text-center">
-                <div className="font-bold text-[11px] mb-1 text-text">Boundary C</div>
-                <div className="border-2 border-[#e5e7eb] bg-[#f9fafb] p-2.5 px-3.5 text-[#1f2937]">Publish</div>
-                <div className="text-[#6b7280] mt-1">&darr;</div>
-                <div className="bg-[#f9fafb] border border-text-tertiary p-1 px-2.5 text-[11px] font-mono text-[#1f2937]">
-                  (H&Prime;, N<sub>3</sub>, <M c={"\\sigma_3"} />)
-                </div>
-                <div className="text-[10px] text-[#6b7280]">origin<sub>3</sub></div>
-              </div>
-              <div className="pt-5 text-[#6b7280]">&rarr;</div>
-              <div className="text-center pt-2">
-                <div className="border border-[#e5e7eb] p-2.5 px-3.5 text-[#1f2937]">
-                  Authenticated<br />artifact
-                </div>
-                <div className="text-[10px] text-[#6b7280] mt-1">(3 enforced origins)</div>
-              </div>
-            </div>
-
-            {/* Mobile layout */}
-            <div className="flex sm:hidden flex-col items-center gap-1.5 text-xs">
-              <div className="border border-[#e5e7eb] p-2 px-3.5 w-full text-center text-[#1f2937]">
-                Pre-existing content<br />
-                <span className="text-[10px] text-[#6b7280]">(unauthenticated)</span>
-              </div>
-              <div className="text-[#6b7280]">&darr;</div>
-              {[
-                { label: "Boundary A", action: "Ingest", tuple: "(H, N\u2081, \u03C3\u2081)", origin: "origin\u2081" },
-                { label: "Boundary B", action: "Process", tuple: "(H\u2032, N\u2082, \u03C3\u2082)", origin: "origin\u2082" },
-                { label: "Boundary C", action: "Publish", tuple: "(H\u2033, N\u2083, \u03C3\u2083)", origin: "origin\u2083" },
-              ].map((b, i) => (
-                <div key={i} className="w-full">
-                  <div className="w-full border-2 border-[#e5e7eb] bg-[#f9fafb] p-2.5 px-3.5 text-center">
-                    <div className="font-bold text-[11px] mb-1 text-text">{b.label} &rarr; {b.action}</div>
-                    <div className="bg-[#f9fafb] border border-text-tertiary p-1 px-2.5 text-[11px] font-mono text-[#1f2937] inline-block">
-                      {b.tuple}
-                    </div>
-                    <div className="text-[10px] text-[#6b7280] mt-0.5">{b.origin}</div>
-                  </div>
-                  <div className="text-center text-[#6b7280]">&darr;</div>
-                </div>
-              ))}
-              <div className="border border-[#e5e7eb] p-2 px-3.5 w-full text-center text-[#1f2937]">
-                Authenticated artifact<br />
-                <span className="text-[10px] text-[#6b7280]">(3 enforced origins)</span>
-              </div>
-            </div>
-
+            <Figure6 />
             <p className="text-xs text-[#6b7280] italic text-center mt-3">
               <strong>Figure 6.</strong> Enforced provenance chains. Pre-existing content traverses
               multiple BitGraph boundaries, each producing independent verification material. Each
@@ -888,122 +814,7 @@ export default function Sections10to19() {
 
         {/* Figure 7: Birth-Death Semantics */}
         <div className="my-6 border border-[#e5e7eb] bg-[#f9fafb] p-5">
-          {/* Desktop layout */}
-          <div className="hidden sm:flex items-start justify-center gap-8">
-            {/* Detect-After Model */}
-            <div className="text-center w-56">
-              <div className="font-bold text-[13px] mb-3 text-text">Detect-After Model</div>
-              <div className="bg-[#f9fafb] border border-[#e5e7eb] p-2.5 px-4 text-[13px] text-[#1f2937] mb-2">
-                Authority S<sub>0</sub>
-              </div>
-              <div className="flex justify-center gap-10 my-1">
-                <span className="text-[#6b7280] text-lg">↙</span>
-                <span className="text-[#6b7280] text-lg">↘</span>
-              </div>
-              <div className="flex justify-center gap-3 my-1">
-                <div className="bg-[#f9fafb] border border-[#e5e7eb] p-2 px-3 text-xs text-[#1f2937]">
-                  S<sub>1</sub> <span className="text-[10px] text-[#6b7280]">valid</span>
-                </div>
-                <div className="bg-[#f9fafb] border border-[#e5e7eb] p-2 px-3 text-xs text-[#1f2937]">
-                  S<sub>1</sub>&prime; <span className="text-[10px] text-[#6b7280]">valid</span>
-                </div>
-              </div>
-              <div className="text-[#6b7280] text-lg my-1.5">&darr;</div>
-              <div className="bg-[#f9fafb] border border-dashed border-[#e5e7eb] p-2 px-3.5 text-xs text-[#6b7280]">
-                Conflict detected<br />
-                <span className="text-[11px]">retrospective resolution</span>
-              </div>
-              <div className="text-[#6b7280] text-[11px] mt-2">fork now, detect later</div>
-            </div>
-
-            {/* Arrow */}
-            <div className="flex flex-col items-center justify-center pt-16">
-              <div className="text-[28px] font-light text-[#6b7280]">&rarr;</div>
-              <div className="text-[11px] text-[#6b7280] text-center mt-0.5">BitGraph<br />enforces</div>
-            </div>
-
-            {/* Birth-Death Semantics */}
-            <div className="text-center w-56">
-              <div className="font-bold text-[13px] mb-3 text-text">Birth&ndash;Death Semantics</div>
-              <div className="bg-[#f9fafb] border border-[#e5e7eb] p-2.5 px-4 text-[13px] text-[#1f2937] mb-2">
-                Authority S<sub>0</sub>
-              </div>
-              <div className="text-[#6b7280] text-lg">&darr;</div>
-              <div className="border-2 border-[#e5e7eb] bg-[#f9fafb] p-3.5 my-1">
-                <div className="flex justify-center gap-2 items-center mb-1.5">
-                  <div className="bg-red-500/10 border border-red-500/30 p-1.5 px-2.5 text-xs text-[#6b7280]">Death</div>
-                  <div className="text-[#6b7280] text-[11px]">S<sub>0</sub> consumed</div>
-                </div>
-                <div className="text-[#6b7280] text-sm">&darr;</div>
-                <div className="flex justify-center gap-2 items-center mt-1.5">
-                  <div className="bg-green-600/10 border border-green-600/30 p-1.5 px-2.5 text-xs text-[#1f2937]">Birth</div>
-                  <div className="text-[#6b7280] text-[11px]">S<sub>1</sub> committed</div>
-                </div>
-              </div>
-              <div className="flex justify-center gap-10 my-1.5">
-                <div>
-                  <div className="text-[#1f2937] text-lg">&darr;</div>
-                  <div className="bg-[#f9fafb] border border-green-600/30 p-2 px-3 text-xs text-[#1f2937]">
-                    S<sub>1</sub> <span className="text-[10px] text-[#6b7280]">valid</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[#6b7280] text-lg">&darr;</div>
-                  <div className="bg-[#f9fafb] border border-dashed border-[#e5e7eb] p-2 px-3 text-xs text-[#6b7280]">
-                    S<sub>1</sub>&prime;
-                  </div>
-                </div>
-              </div>
-              <div className="text-[#6b7280] text-[11px] mt-2">fork structurally unreachable</div>
-            </div>
-          </div>
-
-          {/* Mobile layout */}
-          <div className="flex sm:hidden flex-col items-center gap-1.5 text-xs">
-            <div className="font-bold text-[13px] mb-2 text-text">Detect-After Model</div>
-            <div className="bg-[#f9fafb] border border-[#e5e7eb] p-2 px-4 text-[13px] w-full text-center text-[#1f2937]">
-              Authority S<sub>0</sub>
-            </div>
-            <div className="flex justify-center gap-3">
-              <span className="text-[#6b7280]">↙</span>
-              <span className="text-[#6b7280]">↘</span>
-            </div>
-            <div className="flex justify-center gap-2">
-              <div className="bg-[#f9fafb] border border-[#e5e7eb] p-1.5 px-2.5 text-xs text-[#1f2937]">S<sub>1</sub> valid</div>
-              <div className="bg-[#f9fafb] border border-[#e5e7eb] p-1.5 px-2.5 text-xs text-[#1f2937]">S<sub>1</sub>&prime; valid</div>
-            </div>
-            <div className="text-[#6b7280]">&darr;</div>
-            <div className="bg-[#f9fafb] border border-dashed border-[#e5e7eb] p-2 px-3.5 w-full text-center text-[#6b7280]">
-              Conflict detected
-            </div>
-            <div className="text-[11px] text-[#6b7280]">fork now, detect later</div>
-
-            <div className="text-[22px] font-light text-[#6b7280] my-2">&darr;</div>
-            <div className="text-[11px] text-[#6b7280] mb-3">BitGraph enforces</div>
-
-            <div className="font-bold text-[13px] mb-2 text-text">Birth&ndash;Death Semantics</div>
-            <div className="bg-[#f9fafb] border border-[#e5e7eb] p-2 px-4 text-[13px] w-full text-center text-[#1f2937]">
-              Authority S<sub>0</sub>
-            </div>
-            <div className="text-[#6b7280]">&darr;</div>
-            <div className="border-2 border-[#e5e7eb] bg-[#f9fafb] p-3 w-full text-center">
-              <div className="text-xs text-[#6b7280] mb-1">Death &mdash; S<sub>0</sub> consumed</div>
-              <div className="text-[#6b7280]">&darr;</div>
-              <div className="text-xs text-[#1f2937] mt-1">Birth &mdash; S<sub>1</sub> committed</div>
-            </div>
-            <div className="flex justify-center gap-4">
-              <div className="text-center">
-                <div className="text-[#1f2937]">&darr;</div>
-                <div className="bg-[#f9fafb] border border-green-600/30 p-1.5 px-2.5 text-xs text-[#1f2937]">S<sub>1</sub> valid</div>
-              </div>
-              <div className="text-center">
-                <div className="text-[#6b7280]">&darr;</div>
-                <div className="bg-[#f9fafb] border border-dashed border-[#e5e7eb] p-1.5 px-2.5 text-xs text-[#6b7280]">S<sub>1</sub>&prime;</div>
-              </div>
-            </div>
-            <div className="text-[11px] text-[#6b7280]">fork structurally unreachable</div>
-          </div>
-
+          <Figure7 />
           <p className="text-xs text-[#6b7280] italic text-center mt-3">
             <strong>Figure 7.</strong> Detect-after vs. birth&ndash;death enforcement. Traditional
             systems (left) permit both successor states to be produced and detect conflicts
