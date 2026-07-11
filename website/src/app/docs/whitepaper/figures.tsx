@@ -303,7 +303,7 @@ export function Figure4() {
         <Box x={40} y={52} w={130} h={38} title="Genesis" stroke={C.brand} />
         <Arrow id={id} d={`M 190 67 L 250 67`} label="finalize" lx={220} ly={58} />
         <Box x={254} y={40} w={130} h={54} title="Artifact" sub="content bytes" />
-        <Arrow id={id} d={`M 105 104 L 105 176`} label="store proof" lx={105} ly={144} labelSize={9} />
+        <Arrow id={id} d={`M 105 104 L 105 176`} label="store proof" lx={73} ly={144} labelSize={9} />
         <rect x={20} y={180} width={170} height={70} fill={C.white} stroke={C.line} />
         <text x={105} y={203} textAnchor="middle" fontSize={12.5} fontWeight={600} fill={C.body}>Reference Point</text>
         <Chip x={45} y={214} w={120} h={24} label="(H, N, σ)" />
@@ -313,7 +313,7 @@ export function Figure4() {
         <Box x={464} y={12} w={140} h={44} title="Copy (with proof)" titleSize={11.5} />
         <Box x={464} y={94} w={140} h={44} title="Copy (stripped)" sub="metadata removed" titleSize={11.5} />
         {/* converge to verifier */}
-        <Arrow id={id} d={`M 534 56 L 534 68 L 622 68 L 622 177`} label="portable proof" lx={650} ly={128} labelSize={9} />
+        <Arrow id={id} d={`M 534 56 L 534 68 L 622 68 L 622 177`} label="portable proof" lx={578} ly={80} labelSize={9} />
         <Arrow id={id} d={`M 534 138 L 534 176`} label="content hash" lx={492} ly={162} labelSize={9} />
         <Box x={464} y={180} w={190} h={70} title="Verifier" sub={["validates under the same", "accepted trust anchors"]} stroke={C.green} sw={1.5} />
         {/* reference lookup round trip */}
