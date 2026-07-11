@@ -10,6 +10,7 @@ const sections = [
   { href: "/docs/whitepaper", label: "Whitepaper" },
   { href: "/docs/proof-format", label: "Proof Format (bitgraph/1)" },
   { href: "/docs/verification", label: "Verification" },
+  { href: "/docs/audit", label: "Audit a Bundle" },
   { href: "/docs/trust-model", label: "Trust Model" },
   { href: "/docs/self-host-tee", label: "Self-Host TEE" },
   { href: "/docs/integration", label: "Integration Guide" },
