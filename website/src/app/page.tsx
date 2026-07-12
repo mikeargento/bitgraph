@@ -110,10 +110,6 @@ export default function BitGraphPage() {
   const found = items.filter(i => i.status === "found" || i.status === "proved");
   const unproven = items.filter(i => i.status === "new");
   const allDone = items.length > 0 && items.every(i => i.status === "found" || i.status === "proved");
-  // Total recordings across all files vs files that have one: when bytes were
-  // BitGraphed more than once, the header names the extra positions.
-  const totalRecordings = items.reduce((s, i) => s + (i.proofs.length || (i.proof ? 1 : 0)), 0);
-  const filesWithProofs = items.filter(i => i.proof).length;
   // Exactly what the .zip bundles (each file + its proof.json + the ETH anchors).
   const zipCount = items.filter(i => i.proof).length;
 
@@ -518,7 +514,6 @@ export default function BitGraphPage() {
                 )}
                 <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
                   {animCount} of {items.length} {allDone ? "BitGraphed" : "found"}
-                  {totalRecordings > filesWithProofs && ` (${totalRecordings} BitGraphs)`}
                 </span>
               </div>
               {items.map((item, i) => {
@@ -552,8 +547,23 @@ export default function BitGraphPage() {
                   : item.status === "proving" ? "BitGraphing…"
                   : item.status === "error" ? "Error"
                   : null;
+                // Bytes with several recordings render as a bracketed group: a
+                // filename header carrying the count, then one row per
+                // recording (no filename repeat). Single recordings keep the
+                // classic one-line row with the filename on the right.
+                const grouped = rowProofs.length > 1;
                 return (
                   <div key={item.file.name + i}>
+                  {grouped && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px 6px", borderTop: i > 0 ? "1px solid #eef0f1" : "none", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.file.name}
+                      </span>
+                      <span style={{ flexShrink: 0, fontSize: 12.5, color: "#9ca3af" }}>
+                        {rowProofs.length} BitGraphs
+                      </span>
+                    </div>
+                  )}
                   {rowProofs.map((p, k) => {
                     const clickable = !!p;
                     const counter = p?.commit?.counter;
@@ -567,8 +577,8 @@ export default function BitGraphPage() {
                     className={clickable ? "bitgraph-file-row" : undefined}
                     style={{
                       display: "flex", alignItems: "center", gap: 12,
-                      padding: "14px 16px",
-                      borderTop: i > 0 || k > 0 ? "1px solid #eef0f1" : "none",
+                      padding: grouped ? "12px 16px 12px 28px" : "14px 16px",
+                      borderTop: grouped ? (k > 0 ? "1px solid #eef0f1" : "none") : i > 0 ? "1px solid #eef0f1" : "none",
                       animation: item.status === "proved"
                         ? `proveReveal 1.1s ease-out ${(i + k) * 0.04}s both`
                         : `slideIn 0.2s ease-out ${(i + k) * 0.04}s both`,
@@ -582,9 +592,10 @@ export default function BitGraphPage() {
                         ? <>BitGraph <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span></>
                         : pendingLabel}
                     </span>
-                    {/* Filename — right-aligned, next to Open. */}
+                    {/* Filename — right-aligned next to Open; the group header
+                        already names the file for grouped rows. */}
                     <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: "#111827", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.file.name}
+                      {grouped ? "" : item.file.name}
                     </span>
                     {clickable && (
                       <span className="bitgraph-open-pill">
