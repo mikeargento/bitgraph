@@ -504,11 +504,12 @@ export default function BitGraphPage() {
                 )}
               </div>
 
-              {/* File list as a card whose header is the count, like the proof
-                  page cards. Compact ledger rows matching the explorer: hairline
-                  separators, whole row tappable when a proof exists. */}
-              <div style={{ border: "1px solid #d0d5dd", background: "#fff" }}>
-              <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "18px 24px", background: "rgba(0,101,164,0.04)", borderBottom: "1px solid #e2e5e9", display: "flex", alignItems: "center", gap: 8 }}>
+              {/* File list: a count banner, then one card per file separated by
+                  a gap so each file's set of BitGraphs reads as a distinct
+                  block. Within a card, recordings share hairline separators;
+                  the gap between cards is the file boundary. */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "18px 24px", background: "rgba(0,101,164,0.04)", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", gap: 8 }}>
                 {allDone && (
                   <span key={`badge-${items.length}`} aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 17, height: 17, borderRadius: 999, background: "#0065A4", flexShrink: 0, animation: "countPop 0.4s ease-out both" }}>
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" style={{ strokeDasharray: 26, animation: "checkDraw 0.35s ease-out 0.18s both" }} /></svg>
@@ -555,9 +556,9 @@ export default function BitGraphPage() {
                 // classic one-line row with the filename on the right.
                 const grouped = rowProofs.length > 1;
                 return (
-                  <div key={item.file.name + i}>
+                  <div key={item.file.name + i} style={{ border: "1px solid #d0d5dd", background: "#fff", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
                   {grouped && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px 6px", borderTop: i > 0 ? "1px solid #eef0f1" : "none", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px 6px" }}>
                       <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {item.file.name}
                       </span>
@@ -580,10 +581,12 @@ export default function BitGraphPage() {
                     style={{
                       display: "flex", alignItems: "center", gap: 12,
                       padding: grouped ? "12px 16px 12px 28px" : "14px 16px",
-                      borderTop: grouped ? (k > 0 ? "1px solid #eef0f1" : "none") : i > 0 ? "1px solid #eef0f1" : "none",
+                      // The card boundary + gap separates files; within a card,
+                      // hairlines separate a file's recordings (k > 0).
+                      borderTop: k > 0 ? "1px solid #eef0f1" : "none",
                       animation: item.status === "proved"
                         ? `proveReveal 1.1s ease-out ${(i + k) * 0.04}s both`
-                        : `slideIn 0.2s ease-out ${(i + k) * 0.04}s both`,
+                        : undefined,
                       cursor: clickable ? "pointer" : "default",
                     }}
                   >
