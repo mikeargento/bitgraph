@@ -110,6 +110,10 @@ export default function BitGraphPage() {
   const found = items.filter(i => i.status === "found" || i.status === "proved");
   const unproven = items.filter(i => i.status === "new");
   const allDone = items.length > 0 && items.every(i => i.status === "found" || i.status === "proved");
+  // Total recordings across all files vs files that have one: when bytes were
+  // BitGraphed more than once, the header names the extra positions.
+  const totalRecordings = items.reduce((s, i) => s + (i.proofs.length || (i.proof ? 1 : 0)), 0);
+  const filesWithProofs = items.filter(i => i.proof).length;
   // Exactly what the .zip bundles (each file + its proof.json + the ETH anchors).
   const zipCount = items.filter(i => i.proof).length;
 
@@ -502,6 +506,7 @@ export default function BitGraphPage() {
                 )}
                 <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
                   {animCount} of {items.length} {allDone ? "BitGraphed" : "found"}
+                  {totalRecordings > filesWithProofs && ` (${totalRecordings} BitGraphs)`}
                 </span>
               </div>
               {items.map((item, i) => {
