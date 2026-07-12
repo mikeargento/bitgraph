@@ -261,7 +261,40 @@ export default function BitGraphPage() {
     // Helper: yield to event loop so React can repaint progress
     const tick = () => new Promise(r => setTimeout(r, 0));
 
+    // Add a text entry to the zip
+    const addText = (name: string, text: string) => {
+      const entry = new ZipPassThrough(name);
+      z.add(entry);
+      entry.push(new TextEncoder().encode(text), true);
+    };
+
+    // Fetch the two bounding ETH anchors for one recording and add them under
+    // `dir`. The "after" anchor follows the counter (upper time bound), the
+    // "before" anchor precedes it (lower time bound); together they pin the
+    // recording to a public Ethereum time window. Both are required to read
+    // the window: the after-anchor alone is only "existed by now," the same
+    // one-sided bound a plain blockchain timestamp gives.
+    const addAnchorsFor = async (dir: string, afterCounter: string, beforeCounter: string, epoch: string) => {
+      try {
+        if (!epoch) return;
+        const enc = encodeURIComponent(epoch);
+        const [afterResp, beforeResp] = await Promise.all([
+          fetch(`/api/proofs/anchors?counter=${afterCounter}&epoch=${enc}`),
+          fetch(`/api/proofs/anchors?counter=${beforeCounter}&epoch=${enc}&before=1`),
+        ]);
+        if (afterResp.ok) {
+          const data = await afterResp.json();
+          if (data.anchors?.length > 0) addText(`${dir}ethereum-anchor-after.json`, JSON.stringify(data.anchors[0], null, 2));
+        }
+        if (beforeResp.ok) {
+          const data = await beforeResp.json();
+          if (data.anchors?.length > 0) addText(`${dir}ethereum-anchor-before.json`, JSON.stringify(data.anchors[0], null, 2));
+        }
+      } catch { /* non-critical */ }
+    };
+
     // Add files one at a time, updating progress between each
+    const singles: BitGraphProof[] = [];
     for (let i = 0; i < withProofs.length; i++) {
       setExportProgress({ current: i + 1, total: totalSteps });
       await tick();
@@ -275,61 +308,40 @@ export default function BitGraphPage() {
       z.add(fileEntry);
       fileEntry.push(fileBytes, true);
 
-      // Proof entries. proof.json is the earliest (originating) position; any
-      // later positions the same bytes occupy are bundled alongside it, named
-      // by their counter.
+      // Proof entries. A single recording keeps the flat layout (proof.json
+      // beside the file, covered by the batch-level anchor window below).
+      // Bytes that occupy SEVERAL causal positions get one self-contained
+      // export per recording: bitgraph-{counter}/proof.json plus that
+      // recording's own bounding anchors, since a shared window spanning
+      // distant recordings is uselessly loose for the older ones.
       const allPositions = withProofs[i].proofs.length ? withProofs[i].proofs : p ? [p] : [];
-      for (let j = 0; j < allPositions.length; j++) {
-        const name = j === 0 ? "proof.json" : `proof-${allPositions[j].commit?.counter ?? j + 1}.json`;
-        const proofBytes = new TextEncoder().encode(JSON.stringify(allPositions[j], null, 2));
-        const proofEntry = new ZipPassThrough(`${prefix}${name}`);
-        z.add(proofEntry);
-        proofEntry.push(proofBytes, true);
+      if (allPositions.length <= 1) {
+        for (const pos of allPositions) {
+          addText(`${prefix}proof.json`, JSON.stringify(pos, null, 2));
+          singles.push(pos);
+        }
+      } else {
+        for (const pos of allPositions) {
+          const c = pos.commit?.counter;
+          const dir = `${prefix}bitgraph-${c ?? "unknown"}/`;
+          addText(`${dir}proof.json`, JSON.stringify(pos, null, 2));
+          if (c) await addAnchorsFor(dir, c, c, pos.commit?.epochId || "");
+        }
       }
     }
 
-    // Bracket the whole batch with BOTH bounding ETH anchors. The "after"
-    // anchor follows the highest counter (upper time bound); the "before"
-    // anchor precedes the lowest counter (lower time bound). Together they pin
-    // every proof in the batch to a public Ethereum time window. Both are
-    // required to read the window: the after-anchor alone is only "existed by
-    // now," the same one-sided bound a plain blockchain timestamp gives.
+    // Bracket the single-recording proofs with a batch-level anchor window:
+    // "after" follows the highest counter, "before" precedes the lowest.
+    // Multi-recording files already carry per-recording anchors above.
     setExportProgress({ current: withProofs.length + 1, total: totalSteps });
     await tick();
-    try {
-      // Window over every position in the batch, including re-BitGraphed
-      // positions of the same bytes, so the bracket covers them all.
-      const flat = withProofs.flatMap(i => (i.proofs.length ? i.proofs : i.proof ? [i.proof] : []));
-      const last = flat.reduce((a, b) =>
+    if (singles.length > 0) {
+      const last = singles.reduce((a, b) =>
         parseInt(b.commit?.counter || "0", 10) > parseInt(a.commit?.counter || "0", 10) ? b : a);
-      const first = flat.reduce((a, b) =>
+      const first = singles.reduce((a, b) =>
         parseInt(b.commit?.counter || "0", 10) < parseInt(a.commit?.counter || "0", 10) ? b : a);
-      const lastCounter = last.commit?.counter || "0";
-      const firstCounter = first.commit?.counter || "0";
-      const epoch = last.commit?.epochId || "";
-      if (!epoch) throw new Error("no epochId");
-      const enc = encodeURIComponent(epoch);
-      const [afterResp, beforeResp] = await Promise.all([
-        fetch(`/api/proofs/anchors?counter=${lastCounter}&epoch=${enc}`),
-        fetch(`/api/proofs/anchors?counter=${firstCounter}&epoch=${enc}&before=1`),
-      ]);
-      if (afterResp.ok) {
-        const data = await afterResp.json();
-        if (data.anchors?.length > 0) {
-          const e = new ZipPassThrough("ethereum-anchor-after.json");
-          z.add(e);
-          e.push(new TextEncoder().encode(JSON.stringify(data.anchors[0], null, 2)), true);
-        }
-      }
-      if (beforeResp.ok) {
-        const data = await beforeResp.json();
-        if (data.anchors?.length > 0) {
-          const e = new ZipPassThrough("ethereum-anchor-before.json");
-          z.add(e);
-          e.push(new TextEncoder().encode(JSON.stringify(data.anchors[0], null, 2)), true);
-        }
-      }
-    } catch { /* non-critical */ }
+      await addAnchorsFor("", last.commit?.counter || "0", first.commit?.counter || "0", last.commit?.epochId || "");
+    }
     setExportProgress({ current: totalSteps - 1, total: totalSteps });
     await tick();
     z.end();
