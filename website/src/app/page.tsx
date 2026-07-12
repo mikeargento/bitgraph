@@ -22,6 +22,10 @@ interface FileItem {
   file: File;
   digestB64: string;
   proof: BitGraphProof | null;
+  // Every proof recorded for these bytes, earliest causal position first.
+  // The same bits can be BitGraphed more than once; `proof` is the earliest
+  // (originating) one and drives the row's open/verify behavior.
+  proofs: BitGraphProof[];
   valid: boolean | null;
   status: "found" | "new" | "proving" | "proved" | "error";
   // True when this item came from a dropped proof.json rather than an artifact.
@@ -129,28 +133,30 @@ export default function BitGraphPage() {
         const proofJson = couldBeProof ? isBitGraphProof(await f.text()) : null;
         if (proofJson) {
           const result = await verifyProofSignature(proofJson);
-          results.push({ file: f, digestB64: proofJson.artifact.digestB64, proof: proofJson, valid: result.valid, status: "found", fromProofJson: true });
+          results.push({ file: f, digestB64: proofJson.artifact.digestB64, proof: proofJson, proofs: [proofJson], valid: result.valid, status: "found", fromProofJson: true });
           continue;
         }
 
-        // Regular file: hash and look up
+        // Regular file: hash and look up. The lookup returns EVERY proof
+        // recorded for these bytes (earliest causal position first) — the same
+        // bits can occupy several positions when BitGraphed more than once.
         const d = await hashFile(f);
         const resp = await fetch(`/api/proofs/${encodeURIComponent(toUrlSafeB64(d))}`);
         if (resp.ok) {
           const data = await resp.json();
           if (data.proofs?.length > 0) {
-            const p = data.proofs[0].proof as BitGraphProof;
-            const result = await verifyProofSignature(p);
-            results.push({ file: f, digestB64: d, proof: p, valid: result.valid, status: "found" });
+            const all = (data.proofs as Array<{ proof: BitGraphProof }>).map((x) => x.proof);
+            const result = await verifyProofSignature(all[0]);
+            results.push({ file: f, digestB64: d, proof: all[0], proofs: all, valid: result.valid, status: "found" });
           } else {
-            results.push({ file: f, digestB64: d, proof: null, valid: null, status: "new" });
+            results.push({ file: f, digestB64: d, proof: null, proofs: [], valid: null, status: "new" });
           }
         } else {
-          results.push({ file: f, digestB64: d, proof: null, valid: null, status: "new" });
+          results.push({ file: f, digestB64: d, proof: null, proofs: [], valid: null, status: "new" });
         }
       } catch {
         const d = await hashFile(f).catch(() => "");
-        results.push({ file: f, digestB64: d, proof: null, valid: null, status: "new" });
+        results.push({ file: f, digestB64: d, proof: null, proofs: [], valid: null, status: "new" });
       }
 
       // Yield so iOS Safari can reclaim the previous file's buffer before the next iteration.
@@ -186,7 +192,7 @@ export default function BitGraphPage() {
       if (toProve.length === 1) {
         const p = await commitDigest(toProve[0].digestB64);
         setItems(prev => prev.map(i =>
-          i.digestB64 === toProve[0].digestB64 ? { ...i, proof: p, valid: true, status: "proved" as const } : i
+          i.digestB64 === toProve[0].digestB64 ? { ...i, proof: p, proofs: [p], valid: true, status: "proved" as const } : i
         ));
         setProveProgress({ current: 1, total: 1 });
       } else {
@@ -205,7 +211,7 @@ export default function BitGraphPage() {
           const chunkMap = new Map(chunk.map((t, i) => [t.digestB64, proofs[i]] as const));
           setItems(prev => prev.map(i => {
             const p = chunkMap.get(i.digestB64);
-            return p ? { ...i, proof: p, valid: true, status: "proved" as const } : i;
+            return p ? { ...i, proof: p, proofs: [p], valid: true, status: "proved" as const } : i;
           }));
           setProveProgress({ current: Math.min(offset + CHUNK_SIZE, toProve.length), total: toProve.length });
           await tick();
@@ -265,11 +271,17 @@ export default function BitGraphPage() {
       z.add(fileEntry);
       fileEntry.push(fileBytes, true);
 
-      // Proof entry
-      const proofBytes = new TextEncoder().encode(JSON.stringify(p, null, 2));
-      const proofEntry = new ZipPassThrough(`${prefix}proof.json`);
-      z.add(proofEntry);
-      proofEntry.push(proofBytes, true);
+      // Proof entries. proof.json is the earliest (originating) position; any
+      // later positions the same bytes occupy are bundled alongside it, named
+      // by their counter.
+      const allPositions = withProofs[i].proofs.length ? withProofs[i].proofs : p ? [p] : [];
+      for (let j = 0; j < allPositions.length; j++) {
+        const name = j === 0 ? "proof.json" : `proof-${allPositions[j].commit?.counter ?? j + 1}.json`;
+        const proofBytes = new TextEncoder().encode(JSON.stringify(allPositions[j], null, 2));
+        const proofEntry = new ZipPassThrough(`${prefix}${name}`);
+        z.add(proofEntry);
+        proofEntry.push(proofBytes, true);
+      }
     }
 
     // Bracket the whole batch with BOTH bounding ETH anchors. The "after"
@@ -281,13 +293,16 @@ export default function BitGraphPage() {
     setExportProgress({ current: withProofs.length + 1, total: totalSteps });
     await tick();
     try {
-      const last = withProofs.reduce((a, b) =>
-        parseInt(b.proof?.commit?.counter || "0", 10) > parseInt(a.proof?.commit?.counter || "0", 10) ? b : a);
-      const first = withProofs.reduce((a, b) =>
-        parseInt(b.proof?.commit?.counter || "0", 10) < parseInt(a.proof?.commit?.counter || "0", 10) ? b : a);
-      const lastCounter = last.proof?.commit?.counter || "0";
-      const firstCounter = first.proof?.commit?.counter || "0";
-      const epoch = last.proof?.commit?.epochId || "";
+      // Window over every position in the batch, including re-BitGraphed
+      // positions of the same bytes, so the bracket covers them all.
+      const flat = withProofs.flatMap(i => (i.proofs.length ? i.proofs : i.proof ? [i.proof] : []));
+      const last = flat.reduce((a, b) =>
+        parseInt(b.commit?.counter || "0", 10) > parseInt(a.commit?.counter || "0", 10) ? b : a);
+      const first = flat.reduce((a, b) =>
+        parseInt(b.commit?.counter || "0", 10) < parseInt(a.commit?.counter || "0", 10) ? b : a);
+      const lastCounter = last.commit?.counter || "0";
+      const firstCounter = first.commit?.counter || "0";
+      const epoch = last.commit?.epochId || "";
       if (!epoch) throw new Error("no epochId");
       const enc = encodeURIComponent(epoch);
       const [afterResp, beforeResp] = await Promise.all([
@@ -507,6 +522,11 @@ export default function BitGraphPage() {
                   }
                 };
                 const counter = item.proof?.commit?.counter;
+                // Every causal position these bytes occupy (same bits can be
+                // BitGraphed more than once). Shown as "#a · #b", capped at 3.
+                const counters = (item.proofs.length ? item.proofs : item.proof ? [item.proof] : [])
+                  .map(p => p.commit?.counter)
+                  .filter((c): c is string => c != null);
                 // Rows without a counter yet show their state in the left slot.
                 const pendingLabel =
                   item.status === "new" ? "Not yet BitGraphed"
@@ -534,8 +554,14 @@ export default function BitGraphPage() {
                     {/* Left — "BitGraph #N" (or the pending state for rows not
                         yet BitGraphed). */}
                     <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#9ca3af" }}>
-                      {counter != null
-                        ? <>BitGraph <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span></>
+                      {counters.length > 0
+                        ? <>
+                            {counters.length > 1 ? "BitGraphs " : "BitGraph "}
+                            <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                              {counters.slice(0, 3).map(c => `#${Number(c).toLocaleString()}`).join(" · ")}
+                            </span>
+                            {counters.length > 3 && <span style={{ color: "#9ca3af" }}> +{counters.length - 3} more</span>}
+                          </>
                         : pendingLabel}
                     </span>
                     {/* Filename — right-aligned, next to Open. */}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProofByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter } from "@/lib/s3";
-import { fromUrlSafeB64 } from "@/lib/explorer";
+import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter } from "@/lib/s3";
+import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 
 export const dynamic = "force-dynamic";
 
@@ -71,14 +71,42 @@ async function buildAnchorView(anchor: Record<string, unknown>): Promise<AnchorV
   };
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ digest: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ digest: string }> }) {
   try {
     const { digest } = await params;
     const standardB64 = fromUrlSafeB64(decodeURIComponent(digest));
-    const proof = await getProofByDigest(standardB64);
-    if (!proof) {
+    // The same bytes can occupy several causal positions (BitGraphed more than
+    // once). Fetch them all, earliest first; ?counter= (plus optional ?epoch=,
+    // url-safe) selects which position this page load describes. Default: the
+    // earliest, i.e. the originating proof.
+    const all = await getProofsByDigest(standardB64);
+    if (all.length === 0) {
       return NextResponse.json({ proofs: [] });
     }
+    const selCounter = req.nextUrl.searchParams.get("counter");
+    const selEpoch = req.nextUrl.searchParams.get("epoch");
+    let proof = all[0].proof;
+    if (selCounter) {
+      const match = all.find((e) => {
+        const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
+        if (String(c?.counter) !== String(parseInt(selCounter, 10))) return false;
+        return !selEpoch || toUrlSafeB64(c?.epochId ?? "") === selEpoch;
+      });
+      if (match) proof = match.proof;
+    }
+
+    // Summary of every causal position for these bytes, in the same order, so
+    // the page can offer the full set. `time` is the index entry's S3 write
+    // time — advisory display only (stored proofs carry no clock field); the
+    // Ethereum window remains the time mechanism.
+    const positions = all.map((e) => {
+      const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
+      return {
+        counter: c?.counter ?? null,
+        epoch: c?.epochId ? toUrlSafeB64(c.epochId) : null,
+        time: e.writeTime,
+      };
+    });
 
     // Causal time window from S3 anchors. NOTE the naming inversion that the UI
     // depends on: anchorBefore is the anchor with the LOWER counter (earlier
@@ -118,7 +146,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ dig
       }
     } catch (_) { /* non-critical */ }
 
-    return NextResponse.json({ proofs: [{ proof }], causalWindow, anchorBlock });
+    return NextResponse.json({ proofs: [{ proof }], positions, causalWindow, anchorBlock });
   } catch (e) {
     console.error("GET /api/proofs/digest error:", e);
     return NextResponse.json({ error: "Failed" }, { status: 500 });

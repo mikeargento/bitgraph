@@ -3,13 +3,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 // Nav is in root layout
-import { hashFile, hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
+import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 // QR code removed — replaced with Ethereum Seal card
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
+
+// Standard base64 -> url-safe, for comparing epoch ids against URL params.
+const toSafeB64 = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 // "sha256" -> "SHA-256", "sha-512" -> "SHA-512". Hyphenates the SHA family to
 // the conventional spelling; anything else is just upper-cased.
@@ -21,13 +24,14 @@ function formatHashAlg(alg: string): string {
 
 // Leading icon for the page's action buttons, so they read as controls rather
 // than as bordered panels. Stroke style matches the title check mark.
-function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download"; color?: string; size?: number }) {
+function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus"; color?: string; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, style: { flexShrink: 0 } };
   if (name === "code") return <svg {...common}><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>;
   // Attestation = a signed credential: a document with a ribboned seal (the
   // Tabler "certificate" glyph).
   if (name === "certificate") return <svg {...common}><path d="M15 15m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5l2 1.5v-4.5" /><path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -1 1.73" /><path d="M6 9l12 0" /><path d="M6 12l3 0" /><path d="M6 15l2 0" /></svg>;
   if (name === "link") return <svg {...common}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>;
+  if (name === "plus") return <svg {...common}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
   return <svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
 }
 
@@ -46,6 +50,10 @@ export default function ProofPage() {
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
   const [anchorBlock, setAnchorBlock] = useState<{ blockNumber: number | null; blockTime: string | null; etherscanUrl: string | null } | null>(null);
+  // Every causal position recorded for these bytes (the same bits can be
+  // BitGraphed more than once), earliest first. ?counter=&epoch= in the URL
+  // picks which one this page describes.
+  const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; time: number | null }>>([]);
 
   // Nav visible on proof pages
 
@@ -61,7 +69,17 @@ export default function ProofPage() {
         const timeoutId = setTimeout(() => controller.abort(), 15000);
         let resp: Response;
         try {
-          resp = await fetch(`/api/proofs/digest/${digestParam}`, { signal: controller.signal });
+          // Pass ?counter=&epoch= through so a specific causal position can be
+          // selected when the same bytes were BitGraphed more than once.
+          // window.location is read directly (not useSearchParams) so the page
+          // needs no Suspense boundary; links between positions do full loads.
+          const qs = new URLSearchParams(window.location.search);
+          const sel = new URLSearchParams();
+          if (qs.get("counter")) sel.set("counter", qs.get("counter")!);
+          if (qs.get("epoch")) sel.set("epoch", qs.get("epoch")!);
+          const selStr = sel.toString();
+          const selQ = selStr ? `?${selStr}` : "";
+          resp = await fetch(`/api/proofs/digest/${digestParam}${selQ}`, { signal: controller.signal });
         } finally {
           clearTimeout(timeoutId);
         }
@@ -71,6 +89,7 @@ export default function ProofPage() {
           setProof(data.proofs[0].proof as BitGraphProof);
           if (data.causalWindow) setCausalWindow(data.causalWindow);
           if (data.anchorBlock) setAnchorBlock(data.anchorBlock);
+          if (Array.isArray(data.positions)) setPositions(data.positions);
           // Load the cached file from IndexedDB. The home page writes it in
           // the background after BitGraphing — bytes first, then a C2PA upgrade
           // once the ~6 MB toolkit has parsed — and that write can land AFTER
@@ -329,6 +348,44 @@ export default function ProofPage() {
             {commit.slotHashB64 && <Field label="Slot Hash" value={commit.slotHashB64} mono />}
           </Card>
 
+          {/* 3b. Causal Positions — shown only when these exact bytes were
+              BitGraphed more than once. Each recording is a distinct causal
+              position; the bits are identical, the positions are not. Rows link
+              between positions with ?counter=&epoch= on the same digest URL. */}
+          {positions.length > 1 && (
+            <Card title="Causal Positions">
+              <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
+                These exact bytes were BitGraphed {positions.length} times. Each recording occupies its own causal position.
+              </div>
+              {positions.map((pos, i) => {
+                const isCurrent =
+                  String(pos.counter) === String(commit.counter) &&
+                  (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
+                const label = `BitGraph #${pos.counter != null ? Number(pos.counter).toLocaleString() : "?"}`;
+                const when = pos.time ? new Date(pos.time).toLocaleString() : null;
+                return (
+                  <div key={`${pos.epoch}-${pos.counter}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "var(--c-accent)", fontFamily: mono }}>{label}</span>
+                    <span style={{ flex: 1, fontSize: 13, color: "#6b7280" }}>
+                      {i === 0 ? "Earliest recorded position" : "Recorded again"}
+                      {when ? ` · ${when}` : ""}
+                    </span>
+                    {isCurrent ? (
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: "#374151" }}>Viewing</span>
+                    ) : (
+                      <a
+                        href={`/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}`}
+                        style={{ fontSize: 12.5, fontWeight: 600, color: "var(--c-accent)", textDecoration: "none" }}
+                      >
+                        View &rarr;
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
+            </Card>
+          )}
+
           {/* 4. Signer — who signed it */}
           <Card title="Signer">
             <Field label="Public Key" value={proof.signer.publicKeyB64} mono />
@@ -497,6 +554,16 @@ export default function ProofPage() {
           {/* Raw JSON sits with Export: both are "do something with the data"
               actions. Outline (inspect) above filled (download). */}
           <JsonSection proof={proof} />
+          {/* BitGraph again — record these same bytes at a NEW causal position.
+              Identical bits, distinct recording: the TEE consumes a fresh slot
+              and the counter advances. Only offered when the artifact is in
+              hand on this device (cachedFile is set only after its bytes hash
+              to this proof's digest), keeping the file-as-key rule: viewing a
+              proof page alone doesn't let you mint positions for bytes you
+              don't hold. */}
+          {!isEth && cachedFile && (
+            <BitGraphAgainButton proof={proof} digestParam={digestParam} />
+          )}
           <button
             onClick={exportZip}
             style={{
@@ -593,6 +660,54 @@ const btnStyle: React.CSSProperties = {
   padding: "8px 16px", fontSize: 13, fontWeight: 600, color: "#ffffff",
   background: "#0065A4", border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer",
 };
+
+/* ── BitGraph again — commit the same digest into a fresh slot, then reload
+   onto the new position's URL so the page shows the recording that was just
+   made (with the Causal Positions card now listing every position). ── */
+
+function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; digestParam: string }) {
+  const [state, setState] = useState<"idle" | "working" | "error">("idle");
+
+  async function run() {
+    if (state === "working") return;
+    setState("working");
+    try {
+      const p = await commitDigest(proof.artifact.digestB64);
+      const counter = p.commit?.counter;
+      const epoch = p.commit?.epochId ? toSafeB64(String(p.commit.epochId)) : "";
+      window.location.href = `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}`;
+    } catch (e) {
+      console.error("[bitgraph] BitGraph again failed:", e);
+      setState("error");
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={run}
+        disabled={state === "working"}
+        className="bg-btn-outline"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+          width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+          color: state === "working" ? "#9ca3af" : "#0065A4",
+          background: "#f4f6f9",
+          border: `1px solid ${state === "working" ? "#d0d5dd" : "#0065A4"}`,
+          borderRadius: 0, cursor: state === "working" ? "default" : "pointer",
+        }}
+      >
+        <BtnIcon name="plus" color={state === "working" ? "#9ca3af" : "#0065A4"} />
+        <span>{state === "working" ? "BitGraphing…" : "BitGraph Again"}</span>
+      </button>
+      <div style={{ fontSize: 12.5, color: state === "error" ? "#dc2626" : "#6b7280", textAlign: "center" }}>
+        {state === "error"
+          ? "Could not record a new position. Try again in a moment."
+          : "Records these same bytes at a new causal position. The existing BitGraph is unchanged."}
+      </div>
+    </>
+  );
+}
 
 function JsonSection({ proof }: { proof: BitGraphProof }) {
   const [open, setOpen] = useState(false);

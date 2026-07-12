@@ -14,6 +14,11 @@ export async function GET(req: NextRequest) {
     if (!raw) return NextResponse.json({ found: false }, { status: 400 });
 
     let digestB64: string | null = null;
+    // Commit counter the query resolved to (number searches only). Returned so
+    // the proof link pins that exact causal position: the same bytes can be
+    // BitGraphed more than once, and a number names one recording, not the
+    // bytes. Hash searches leave it null and the page defaults to the earliest.
+    let matchedCounter: string | null = null;
 
     // Number? strip #, commas, and whitespace first (the UI shows "#614,589").
     const num = raw.replace(/[#,\s]/g, "");
@@ -31,6 +36,7 @@ export async function GET(req: NextRequest) {
         around.find((x) => is((x.commit as { counter?: string } | undefined)?.counter)) ||
         around.find((x) => is((x.commit as { slotCounter?: string } | undefined)?.slotCounter) || is((x.slotAllocation as { counter?: string } | undefined)?.counter));
       digestB64 = (p?.artifact as { digestB64?: string } | undefined)?.digestB64 || null;
+      matchedCounter = (p?.commit as { counter?: string } | undefined)?.counter ?? null;
     } else {
       // Treat as a hash; accept url-safe or standard base64.
       digestB64 = fromUrlSafeB64(raw);
@@ -42,7 +48,7 @@ export async function GET(req: NextRequest) {
     const proof = await getProofByDigest(digestB64);
     if (!proof) return NextResponse.json({ found: false });
 
-    return NextResponse.json({ found: true, digest: toUrlSafeB64(digestB64) });
+    return NextResponse.json({ found: true, digest: toUrlSafeB64(digestB64), counter: matchedCounter });
   } catch (e) {
     console.error("GET /api/search error:", e);
     return NextResponse.json({ found: false }, { status: 500 });

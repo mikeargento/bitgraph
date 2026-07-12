@@ -6,7 +6,7 @@
  *   anchors-by-time/{timestamp}.json — chronological anchor listing
  */
 
-import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 
 function getClient() {
   return new S3Client({ region: (process.env.LEDGER_REGION || "us-east-2").trim() });
@@ -79,7 +79,7 @@ export async function getObjectText(key: string): Promise<string | null> {
   }
 }
 
-/** Look up a proof by artifact digest */
+/** Look up a proof by artifact digest (legacy single-object index: latest proof only) */
 export async function getProofByDigest(digestB64: string): Promise<Record<string, unknown> | null> {
   try {
     const s3 = getClient();
@@ -96,21 +96,152 @@ export async function getProofByDigest(digestB64: string): Promise<Record<string
   }
 }
 
-/** Store a proof indexed by artifact digest */
+/**
+ * Store a proof indexed by artifact digest.
+ *
+ * Two writes per proof:
+ *   by-digest/{digest}.json                      — legacy single-object index
+ *     (latest proof wins; kept so older readers keep working)
+ *   by-digest/{digest}/{epoch}-{counter}.json    — one entry per causal
+ *     position, so the same bytes can be BitGraphed more than once and every
+ *     position stays findable. Digests are fixed-length so the "/" sub-prefix
+ *     can never collide with another digest's legacy key.
+ */
 export async function storeProofByDigest(proof: Record<string, unknown>): Promise<void> {
   try {
     const s3 = getClient();
+    const bucket = getBucket();
     const artifact = proof.artifact as { digestB64: string };
-    const key = `by-digest/${toSafe(artifact.digestB64)}.json`;
-    await s3.send(new PutObjectCommand({
-      Bucket: getBucket(),
-      Key: key,
-      Body: JSON.stringify(proof, null, 2),
-      ContentType: "application/json",
-    }));
+    const body = JSON.stringify(proof, null, 2);
+    const safeDigest = toSafe(artifact.digestB64);
+
+    const positionKeyFor = (p: Record<string, unknown>): string | null => {
+      const c = p.commit as { epochId?: string; counter?: string } | undefined;
+      if (!c?.epochId || !c?.counter) return null;
+      return `by-digest/${safeDigest}/${toSafe(c.epochId)}-${String(c.counter).padStart(12, "0")}.json`;
+    };
+
+    // Backfill: digests BitGraphed before the per-position index existed live
+    // ONLY in the legacy key, and the write below replaces it. If the legacy
+    // key holds a DIFFERENT position than the proof being stored and that
+    // position has no index entry yet, copy it into the index first so no
+    // recording is orphaned. The entry is flagged as a backfill (metadata) so
+    // the reader orders it before same-second index writes: a proof that was
+    // ever legacy-only necessarily predates every indexed one.
+    const newPositionKey = positionKeyFor(proof);
+    try {
+      const existing = await getProofByDigest(artifact.digestB64);
+      if (existing) {
+        const existingPositionKey = positionKeyFor(existing);
+        if (existingPositionKey && existingPositionKey !== newPositionKey) {
+          const alreadyIndexed = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: existingPositionKey }))
+            .then(() => true, () => false);
+          if (!alreadyIndexed) {
+            await s3.send(new PutObjectCommand({
+              Bucket: bucket,
+              Key: existingPositionKey,
+              Body: JSON.stringify(existing, null, 2),
+              ContentType: "application/json",
+              Metadata: { "bg-backfill": "1" },
+            }));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[s3] by-digest backfill failed:", (err as Error).message);
+    }
+
+    const puts = [
+      s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: `by-digest/${safeDigest}.json`,
+        Body: body,
+        ContentType: "application/json",
+      })),
+    ];
+    if (newPositionKey) {
+      puts.push(s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: newPositionKey,
+        Body: body,
+        ContentType: "application/json",
+      })));
+    }
+    await Promise.all(puts);
   } catch (err) {
     console.error("[s3] storeProofByDigest failed:", (err as Error).message);
   }
+}
+
+export interface DigestProofEntry {
+  proof: Record<string, unknown>;
+  /** S3 write time of the position-index entry (ms), null for the legacy key. */
+  writeTime: number | null;
+}
+
+/**
+ * Look up EVERY proof recorded for an artifact digest, earliest causal
+ * position first. Merges the per-position index with the legacy single-object
+ * key (which is the only record for digests BitGraphed before the
+ * per-position index existed) and dedupes by (epoch, counter).
+ *
+ * Ordering: within an epoch the counter is exact causal order. Across epochs
+ * counters reset (TEE restart), and stored proofs carry no clock field, so
+ * entries are ordered by the index entry's S3 write time; the legacy entry has
+ * no per-position write time and necessarily predates the index, so it sorts
+ * first.
+ */
+export async function getProofsByDigest(digestB64: string): Promise<DigestProofEntry[]> {
+  const safeDigest = toSafe(digestB64);
+  const entries: DigestProofEntry[] = [];
+  try {
+    const s3 = getClient();
+    const bucket = getBucket();
+    const listed = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: `by-digest/${safeDigest}/`,
+      MaxKeys: 1000,
+    }));
+    const objects = (listed.Contents || []).filter((o) => o.Key);
+    const fetched = await Promise.all(objects.map(async (obj): Promise<DigestProofEntry | null> => {
+      try {
+        const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key! }));
+        const body = await result.Body?.transformToString();
+        if (!body) return null;
+        // Backfilled entries were legacy-only records copied into the index at
+        // some later commit; they predate every genuinely indexed entry, so
+        // they order like the legacy key (before any write time).
+        const backfilled = result.Metadata?.["bg-backfill"] === "1";
+        return { proof: JSON.parse(body) as Record<string, unknown>, writeTime: backfilled ? null : obj.LastModified?.getTime() ?? null };
+      } catch { return null; }
+    }));
+    for (const e of fetched) if (e) entries.push(e);
+  } catch (err) {
+    console.error("[s3] getProofsByDigest failed:", (err as Error).message);
+  }
+  const legacy = await getProofByDigest(digestB64);
+  if (legacy) entries.push({ proof: legacy, writeTime: null });
+
+  const positionOf = (p: Record<string, unknown>) => {
+    const c = p.commit as { epochId?: string; counter?: string } | undefined;
+    return { epoch: c?.epochId ?? "", counter: parseInt(c?.counter ?? "0", 10) || 0 };
+  };
+  const seen = new Set<string>();
+  const unique = entries.filter((e) => {
+    const pos = positionOf(e.proof);
+    const id = `${pos.epoch}:${pos.counter}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  unique.sort((a, b) => {
+    const pa = positionOf(a.proof);
+    const pb = positionOf(b.proof);
+    if (pa.epoch && pa.epoch === pb.epoch) return pa.counter - pb.counter;
+    return (a.writeTime ?? 0) - (b.writeTime ?? 0);
+  });
+  return unique;
 }
 
 /**

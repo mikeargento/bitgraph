@@ -43,7 +43,9 @@ export function Explorer() {
     try {
       const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
       const j = await r.json();
-      if (j.found && j.digest) window.open(`/proof/${encodeURIComponent(j.digest)}`, "_blank", "noopener");
+      // ?counter= selects the exact causal position when the same bytes were
+      // BitGraphed more than once (a hash search omits it: earliest wins).
+      if (j.found && j.digest) window.open(`/proof/${encodeURIComponent(j.digest)}${j.counter ? `?counter=${encodeURIComponent(j.counter)}` : ""}`, "_blank", "noopener");
       else setSearchErr("No BitGraph found for that number or hash.");
     } catch {
       setSearchErr("Search failed, try again.");
@@ -181,8 +183,10 @@ export function Explorer() {
 
         {!loading && !error && entries.map((e) => {
           const isAnchor = e.type === "anchor";
+          // ?counter= pins the drill-in to THIS row's causal position; the
+          // same bytes can occupy several (BitGraphed more than once).
           return (
-            <a key={e.counter} href={`/proof/${e.digest}`} target="_blank" rel="noopener" className={freshIds.has(e.counter) ? "xp-row xp-row-fresh" : "xp-row"}>
+            <a key={e.counter} href={`/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}`} target="_blank" rel="noopener" className={freshIds.has(e.counter) ? "xp-row xp-row-fresh" : "xp-row"}>
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: "#374151" }}>
                 BitGraph
                 <span style={{ marginLeft: 7, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>#{fmt(e.counter)}</span>
