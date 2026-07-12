@@ -354,7 +354,7 @@ export default function ProofPage() {
               between positions with ?counter=&epoch= on the same digest URL. */}
           {positions.length > 1 && (
             <Card title="Causal Positions">
-              <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
+              <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
                 These exact bytes were BitGraphed {positions.length} times. Each recording occupies its own causal position.
               </div>
               {[...positions].reverse().map((pos) => {
