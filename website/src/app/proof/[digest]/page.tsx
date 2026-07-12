@@ -699,14 +699,7 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
         }}
       >
         <BtnIcon name="plus" color={state === "working" ? "#9ca3af" : "#0065A4"} />
-        {state === "working" ? (
-          <span>BitGraphing…</span>
-        ) : (
-          <span>
-            BitGraph Again{" "}
-            <span style={{ fontSize: 13, fontWeight: 400, color: "#6b7280" }}>(same bits, different causal position)</span>
-          </span>
-        )}
+        <span>{state === "working" ? "BitGraphing…" : "BitGraph Again"}</span>
       </button>
       {state === "error" && (
         <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
