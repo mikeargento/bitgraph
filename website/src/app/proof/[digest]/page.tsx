@@ -295,19 +295,17 @@ export default function ProofPage() {
       <style>{`
         @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
         .proof-fields > div:last-child { border-bottom: none !important; }
-        /* Causal Positions rows: counter + meta + action on one line at
-           desktop width. On narrow screens the timestamp meta drops to its own
-           line so the counter and action never get squeezed into a ragged
-           3-line wrap. */
-        .causal-row { display: flex; align-items: center; gap: 12px; padding: 14px 24px; }
+        /* Causal Positions rows: a stacked entry that reads the same at every
+           width. Line 1 is the counter (left) and the View/Viewing action
+           (right); below it the role reads as a bold heading, then the ETH
+           anchor window as secondary detail. Stacking avoids the ragged inline
+           wrap the single-line layout produced on narrow screens. */
+        .causal-row { padding: 14px 24px; }
+        .causal-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .causal-label { font-size: 14px; font-weight: 700; white-space: nowrap; }
-        .causal-meta { flex: 1 1 auto; font-size: 13px; color: #6b7280; }
         .causal-action { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-        @media (max-width: 560px) {
-          .causal-row { flex-wrap: wrap; }
-          .causal-action { margin-left: auto; }
-          .causal-meta { order: 3; flex-basis: 100%; margin-top: 4px; }
-        }
+        .causal-role { font-size: 13px; font-weight: 700; color: #111827; margin-top: 6px; }
+        .causal-window { font-size: 13px; color: #6b7280; line-height: 1.5; margin-top: 2px; }
         @media print {
         }
       `}</style>
@@ -396,22 +394,22 @@ export default function ProofPage() {
                 const window = formatWindow(pos.lowerTime, pos.upperTime);
                 return (
                   <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid #e2e5e9" }}>
-                    <span className="causal-label" style={{ color: "var(--c-accent)", fontFamily: mono }}>{label}</span>
-                    <span className="causal-meta">
-                      {isEarliest ? "Earliest recorded position" : "Recorded again"}
-                      {window ? ` · ${window}` : ""}
-                    </span>
-                    {isCurrent ? (
-                      <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>
-                    ) : (
-                      <a
-                        className="causal-action"
-                        href={`/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}`}
-                        style={{ color: "var(--c-accent)", textDecoration: "none" }}
-                      >
-                        View &rarr;
-                      </a>
-                    )}
+                    <div className="causal-top">
+                      <span className="causal-label" style={{ color: "var(--c-accent)", fontFamily: mono }}>{label}</span>
+                      {isCurrent ? (
+                        <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>
+                      ) : (
+                        <a
+                          className="causal-action"
+                          href={`/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}`}
+                          style={{ color: "var(--c-accent)", textDecoration: "none" }}
+                        >
+                          View &rarr;
+                        </a>
+                      )}
+                    </div>
+                    <div className="causal-role">{isEarliest ? "Earliest recorded position" : "Recorded again"}</div>
+                    {window && <div className="causal-window">{window}</div>}
                   </div>
                 );
               })}
