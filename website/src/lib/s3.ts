@@ -107,7 +107,16 @@ export async function getProofByDigest(digestB64: string): Promise<Record<string
  *     position stays findable. Digests are fixed-length so the "/" sub-prefix
  *     can never collide with another digest's legacy key.
  */
-export async function storeProofByDigest(proof: Record<string, unknown>): Promise<void> {
+/**
+ * @param priorLegacy The proof the legacy by-digest key held BEFORE this
+ * commit, when the caller pre-read it (null = key absent). MUST be pre-read
+ * before the commit that produced `proof`: the EC2 parent also overwrites the
+ * legacy key fire-and-forget as soon as the TEE responds, so reading it here
+ * races that write and can see the NEW proof — skipping the backfill and
+ * orphaning the original recording from digest lookup. When undefined, the
+ * key is read here (best effort, race-prone).
+ */
+export async function storeProofByDigest(proof: Record<string, unknown>, priorLegacy?: Record<string, unknown> | null): Promise<void> {
   try {
     const s3 = getClient();
     const bucket = getBucket();
@@ -130,7 +139,7 @@ export async function storeProofByDigest(proof: Record<string, unknown>): Promis
     // ever legacy-only necessarily predates every indexed one.
     const newPositionKey = positionKeyFor(proof);
     try {
-      const existing = await getProofByDigest(artifact.digestB64);
+      const existing = priorLegacy !== undefined ? priorLegacy : await getProofByDigest(artifact.digestB64);
       if (existing) {
         const existingPositionKey = positionKeyFor(existing);
         if (existingPositionKey && existingPositionKey !== newPositionKey) {

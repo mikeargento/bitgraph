@@ -505,13 +505,20 @@ export default function BitGraphPage() {
                 </span>
               </div>
               {items.map((item, i) => {
-                const clickable = !!item.proof;
-                const openProof = () => {
-                  if (!item.proof) return;
+                // One row per BitGraph: bytes recorded at several causal
+                // positions list each recording individually, like the
+                // explorer. A file with no proof yet renders one pending row.
+                const rowProofs: Array<BitGraphProof | null> =
+                  item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
+                const openProof = (p: BitGraphProof) => {
                   // Open immediately (synchronous) so mobile browsers don't block the popup.
-                  // Use the proof's digest (from TEE) for the URL, not the browser-computed hash.
-                  const proofDigest = item.proof.artifact.digestB64;
-                  window.open(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}`, "_blank");
+                  // Use the proof's digest (from TEE) for the URL, not the browser-computed
+                  // hash; ?counter=&epoch= pins THIS row's causal position.
+                  const proofDigest = p.artifact.digestB64;
+                  const c = p.commit?.counter;
+                  const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
+                  const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
+                  window.open(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`, "_blank");
                   // Cache the artifact bytes (and any embedded C2PA manifest) so the proof
                   // page can render the image. For a dropped proof.json the file in hand is
                   // the JSON, not the artifact, so only cache a real file: a regular dropped
@@ -521,12 +528,6 @@ export default function BitGraphPage() {
                     cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
                   }
                 };
-                const counter = item.proof?.commit?.counter;
-                // Every causal position these bytes occupy (same bits can be
-                // BitGraphed more than once). Shown as "#a · #b", capped at 3.
-                const counters = (item.proofs.length ? item.proofs : item.proof ? [item.proof] : [])
-                  .map(p => p.commit?.counter)
-                  .filter((c): c is string => c != null);
                 // Rows without a counter yet show their state in the left slot.
                 const pendingLabel =
                   item.status === "new" ? "Not yet BitGraphed"
@@ -535,33 +536,32 @@ export default function BitGraphPage() {
                   : null;
                 return (
                   <div key={item.file.name + i}>
+                  {rowProofs.map((p, k) => {
+                    const clickable = !!p;
+                    const counter = p?.commit?.counter;
+                    return (
                   <div
+                    key={`${item.file.name}-${counter ?? "pending"}-${k}`}
                     role={clickable ? "button" : undefined}
                     tabIndex={clickable ? 0 : undefined}
-                    onClick={clickable ? openProof : undefined}
-                    onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(); } } : undefined}
+                    onClick={clickable ? () => openProof(p) : undefined}
+                    onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(p); } } : undefined}
                     className={clickable ? "bitgraph-file-row" : undefined}
                     style={{
                       display: "flex", alignItems: "center", gap: 12,
                       padding: "14px 16px",
-                      borderTop: i > 0 ? "1px solid #eef0f1" : "none",
+                      borderTop: i > 0 || k > 0 ? "1px solid #eef0f1" : "none",
                       animation: item.status === "proved"
-                        ? `proveReveal 1.1s ease-out ${i * 0.04}s both`
-                        : `slideIn 0.2s ease-out ${i * 0.04}s both`,
+                        ? `proveReveal 1.1s ease-out ${(i + k) * 0.04}s both`
+                        : `slideIn 0.2s ease-out ${(i + k) * 0.04}s both`,
                       cursor: clickable ? "pointer" : "default",
                     }}
                   >
                     {/* Left — "BitGraph #N" (or the pending state for rows not
                         yet BitGraphed). */}
                     <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#9ca3af" }}>
-                      {counters.length > 0
-                        ? <>
-                            {counters.length > 1 ? "BitGraphs " : "BitGraph "}
-                            <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                              {counters.slice(0, 3).map(c => `#${Number(c).toLocaleString()}`).join(" · ")}
-                            </span>
-                            {counters.length > 3 && <span style={{ color: "#9ca3af" }}> +{counters.length - 3} more</span>}
-                          </>
+                      {counter != null
+                        ? <>BitGraph <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span></>
                         : pendingLabel}
                     </span>
                     {/* Filename — right-aligned, next to Open. */}
@@ -575,6 +575,8 @@ export default function BitGraphPage() {
                       </span>
                     )}
                   </div>
+                    );
+                  })}
                   {item.fromProofJson && item.proof && (
                     <div style={{ padding: "0 16px 14px" }}>
                       {item.matchedFile ? (
