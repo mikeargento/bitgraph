@@ -698,13 +698,20 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
         }}
       >
         <BtnIcon name="plus" color={state === "working" ? "#9ca3af" : "#0065A4"} />
-        <span>{state === "working" ? "BitGraphing…" : "BitGraph Again"}</span>
+        {state === "working" ? (
+          <span>BitGraphing…</span>
+        ) : (
+          <span>
+            BitGraph Again{" "}
+            <span style={{ fontSize: 13, fontWeight: 400, color: "#6b7280" }}>(same bits, different causal position)</span>
+          </span>
+        )}
       </button>
-      <div style={{ fontSize: 12.5, color: state === "error" ? "#dc2626" : "#6b7280", textAlign: "center" }}>
-        {state === "error"
-          ? "Could not record a new position. Try again in a moment."
-          : "Records these same bytes at a new causal position. The existing BitGraph is unchanged."}
-      </div>
+      {state === "error" && (
+        <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
+          Could not record a new position. Try again in a moment.
+        </div>
+      )}
     </>
   );
 }
