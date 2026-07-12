@@ -550,20 +550,23 @@ export default function BitGraphPage() {
                   : item.status === "proving" ? "BitGraphing…"
                   : item.status === "error" ? "Error"
                   : null;
-                // Bytes with several recordings render as a bracketed group: a
-                // filename header carrying the count, then one row per
-                // recording (no filename repeat). Single recordings keep the
-                // classic one-line row with the filename on the right.
-                const grouped = rowProofs.length > 1;
+                // Every BitGraphed file reads the same: a filename header with
+                // its recording count (top-left name, top-right count), then
+                // one row per recording (no filename repeat), whether the count
+                // is 1 or many. Files with NO BitGraph yet (pending/proving/
+                // error) have no count to show, so they keep the classic
+                // one-line row with the filename on the right.
+                const proofCount = item.proofs.length || (item.proof ? 1 : 0);
+                const showHeader = proofCount > 0;
                 return (
                   <div key={item.file.name + i} style={{ border: "1px solid #d0d5dd", background: "#fff", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
-                  {grouped && (
+                  {showHeader && (
                     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px 6px" }}>
                       <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {item.file.name}
                       </span>
                       <span style={{ flexShrink: 0, fontSize: 12.5, color: "#9ca3af" }}>
-                        {rowProofs.length} BitGraphs
+                        {proofCount} BitGraph{proofCount === 1 ? "" : "s"}
                       </span>
                     </div>
                   )}
@@ -580,7 +583,7 @@ export default function BitGraphPage() {
                     className={clickable ? "bitgraph-file-row" : undefined}
                     style={{
                       display: "flex", alignItems: "center", gap: 12,
-                      padding: grouped ? "12px 16px 12px 28px" : "14px 16px",
+                      padding: showHeader ? "12px 16px 12px 28px" : "14px 16px",
                       // The card boundary + gap separates files; within a card,
                       // hairlines separate a file's recordings (k > 0).
                       borderTop: k > 0 ? "1px solid #eef0f1" : "none",
@@ -597,10 +600,11 @@ export default function BitGraphPage() {
                         ? <>BitGraph <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span></>
                         : pendingLabel}
                     </span>
-                    {/* Filename — right-aligned next to Open; the group header
-                        already names the file for grouped rows. */}
+                    {/* Filename — right-aligned next to Open; the header already
+                        names the file for BitGraphed rows, so it's only shown
+                        inline on pending/proving/error rows that have no header. */}
                     <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: "#111827", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {grouped ? "" : item.file.name}
+                      {showHeader ? "" : item.file.name}
                     </span>
                     {clickable && (
                       <span className="bitgraph-open-pill">
