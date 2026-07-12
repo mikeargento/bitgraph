@@ -14,6 +14,22 @@ const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
 // Standard base64 -> url-safe, for comparing epoch ids against URL params.
 const toSafeB64 = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
+// The two-sided ETH anchor window as a compact phrase, matching the lead
+// "Recorded" card: "between X and Y on DATE" when both bounds share a day, a
+// full range across days, or a one-sided "after/before X" when only one anchor
+// is known yet (a very recent recording whose next anchor is unmined).
+function formatWindow(lower: string | null, upper: string | null): string | null {
+  if (lower && upper) {
+    const t1 = new Date(lower), t2 = new Date(upper);
+    return t1.toDateString() === t2.toDateString()
+      ? `between ${t1.toLocaleTimeString()} and ${t2.toLocaleTimeString()} on ${t2.toLocaleDateString()}`
+      : `between ${t1.toLocaleString()} and ${t2.toLocaleString()}`;
+  }
+  if (lower) { const t = new Date(lower); return `after ${t.toLocaleTimeString()} on ${t.toLocaleDateString()}`; }
+  if (upper) { const t = new Date(upper); return `before ${t.toLocaleTimeString()} on ${t.toLocaleDateString()}`; }
+  return null;
+}
+
 // "sha256" -> "SHA-256", "sha-512" -> "SHA-512". Hyphenates the SHA family to
 // the conventional spelling; anything else is just upper-cased.
 function formatHashAlg(alg: string): string {
@@ -52,8 +68,9 @@ export default function ProofPage() {
   const [anchorBlock, setAnchorBlock] = useState<{ blockNumber: number | null; blockTime: string | null; etherscanUrl: string | null } | null>(null);
   // Every causal position recorded for these bytes (the same bits can be
   // BitGraphed more than once), earliest first. ?counter=&epoch= in the URL
-  // picks which one this page describes.
-  const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; time: number | null }>>([]);
+  // picks which one this page describes. lowerTime/upperTime are the ETH anchor
+  // window bounds (block times) that bracket each recording.
+  const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; lowerTime: string | null; upperTime: string | null }>>([]);
 
   // Nav visible on proof pages
 
@@ -376,13 +393,13 @@ export default function ProofPage() {
                   String(pos.counter) === String(commit.counter) &&
                   (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
                 const label = `BitGraph #${pos.counter != null ? Number(pos.counter).toLocaleString() : "?"}`;
-                const when = pos.time ? new Date(pos.time).toLocaleString() : null;
+                const window = formatWindow(pos.lowerTime, pos.upperTime);
                 return (
                   <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid #e2e5e9" }}>
                     <span className="causal-label" style={{ color: "var(--c-accent)", fontFamily: mono }}>{label}</span>
                     <span className="causal-meta">
                       {isEarliest ? "Earliest recorded position" : "Recorded again"}
-                      {when ? ` · ${when}` : ""}
+                      {window ? ` · ${window}` : ""}
                     </span>
                     {isCurrent ? (
                       <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>

@@ -95,43 +95,54 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       if (match) proof = match.proof;
     }
 
-    // Summary of every causal position for these bytes, in the same order, so
-    // the page can offer the full set. `time` is the index entry's S3 write
-    // time — advisory display only (stored proofs carry no clock field); the
-    // Ethereum window remains the time mechanism.
-    const positions = all.map((e) => {
+    // The two-sided ETH anchor window for one counter+epoch. NOTE the naming
+    // inversion the UI depends on: anchorBefore is the anchor with the LOWER
+    // counter (earlier Ethereum block) — the proof was BitGraphed AFTER it
+    // (lower time bound). anchorAfter is the HIGHER counter (later block) — the
+    // proof was BitGraphed BEFORE it (upper time bound). Together they bracket
+    // the proof to roughly one anchor interval of public Ethereum time.
+    const computeWindow = async (counter: number, epochId: string) => {
+      const [anchorsAfter, anchorBeforeRaw] = await Promise.all([
+        getAnchorsAfterCounter(counter, epochId, 1),
+        getAnchorBeforeCounter(counter, epochId),
+      ]);
+      const [anchorAfter, anchorBefore] = await Promise.all([
+        anchorsAfter.length > 0 ? buildAnchorView(anchorsAfter[0]) : Promise.resolve(null),
+        anchorBeforeRaw ? buildAnchorView(anchorBeforeRaw) : Promise.resolve(null),
+      ]);
+      return { anchorBefore, anchorAfter };
+    };
+
+    // Compute EVERY position's anchor window in parallel. The anchor window is
+    // the defensible time statement (the S3 write time is just our server
+    // clock, not part of the proof), so each position in the Causal Positions
+    // card shows the same two-sided "between X and Y" as the lead card.
+    const positionWindows = await Promise.all(all.map(async (e) => {
       const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
+      if (!c?.counter || !c?.epochId) return { anchorBefore: null, anchorAfter: null };
+      try { return await computeWindow(parseInt(c.counter, 10), c.epochId); }
+      catch { return { anchorBefore: null, anchorAfter: null }; }
+    }));
+
+    const positions = all.map((e, idx) => {
+      const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
+      const w = positionWindows[idx];
       return {
         counter: c?.counter ?? null,
         epoch: c?.epochId ? toUrlSafeB64(c.epochId) : null,
-        time: e.writeTime,
+        lowerTime: w.anchorBefore?.blockTime ?? null,
+        upperTime: w.anchorAfter?.blockTime ?? null,
       };
     });
 
-    // Causal time window from S3 anchors. NOTE the naming inversion that the UI
-    // depends on: anchorBefore is the anchor with the LOWER counter (earlier
-    // Ethereum block) — the proof was BitGraphed AFTER it (lower time bound).
-    // anchorAfter is the anchor with the HIGHER counter (later block) — the
-    // proof was BitGraphed BEFORE it (upper time bound). Both together bracket
-    // the proof to roughly one anchor interval of public Ethereum time.
+    // The lead card's window is the selected proof's — reuse it from the set
+    // just computed instead of looking it up a second time.
     let causalWindow = null;
-    try {
-      const commit = proof.commit as { counter?: string; epochId?: string };
-      if (commit?.counter && commit?.epochId) {
-        const counter = parseInt(commit.counter, 10);
-        const [anchorsAfter, anchorBeforeRaw] = await Promise.all([
-          getAnchorsAfterCounter(counter, commit.epochId, 1),
-          getAnchorBeforeCounter(counter, commit.epochId),
-        ]);
-        const [anchorAfter, anchorBefore] = await Promise.all([
-          anchorsAfter.length > 0 ? buildAnchorView(anchorsAfter[0]) : Promise.resolve(null),
-          anchorBeforeRaw ? buildAnchorView(anchorBeforeRaw) : Promise.resolve(null),
-        ]);
-        if (anchorAfter || anchorBefore) {
-          causalWindow = { anchorBefore, anchorAfter };
-        }
-      }
-    } catch (_) { /* non-critical */ }
+    const selIdx = all.findIndex((e) => e.proof === proof);
+    if (selIdx >= 0) {
+      const w = positionWindows[selIdx];
+      if (w.anchorAfter || w.anchorBefore) causalWindow = { anchorBefore: w.anchorBefore, anchorAfter: w.anchorAfter };
+    }
 
     // For an Ethereum anchor, resolve its OWN block (number + timestamp) so the
     // proof page can show a "Recorded: Ethereum Block #N at <time>" line, the
