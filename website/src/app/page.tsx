@@ -507,9 +507,10 @@ export default function BitGraphPage() {
               {items.map((item, i) => {
                 // One row per BitGraph: bytes recorded at several causal
                 // positions list each recording individually, like the
-                // explorer. A file with no proof yet renders one pending row.
+                // explorer, newest first. A file with no proof yet renders one
+                // pending row.
                 const rowProofs: Array<BitGraphProof | null> =
-                  item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
+                  item.proofs.length ? [...item.proofs].reverse() : item.proof ? [item.proof] : [null];
                 const openProof = (p: BitGraphProof) => {
                   // Open immediately (synchronous) so mobile browsers don't block the popup.
                   // Use the proof's digest (from TEE) for the URL, not the browser-computed

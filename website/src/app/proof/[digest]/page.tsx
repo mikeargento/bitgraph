@@ -357,7 +357,8 @@ export default function ProofPage() {
               <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
                 These exact bytes were BitGraphed {positions.length} times. Each recording occupies its own causal position.
               </div>
-              {positions.map((pos, i) => {
+              {[...positions].reverse().map((pos) => {
+                const isEarliest = pos === positions[0];
                 const isCurrent =
                   String(pos.counter) === String(commit.counter) &&
                   (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
@@ -367,7 +368,7 @@ export default function ProofPage() {
                   <div key={`${pos.epoch}-${pos.counter}`} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: "var(--c-accent)", fontFamily: mono }}>{label}</span>
                     <span style={{ flex: 1, fontSize: 13, color: "#6b7280" }}>
-                      {i === 0 ? "Earliest recorded position" : "Recorded again"}
+                      {isEarliest ? "Earliest recorded position" : "Recorded again"}
                       {when ? ` · ${when}` : ""}
                     </span>
                     {isCurrent ? (
