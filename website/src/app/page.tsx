@@ -297,21 +297,20 @@ export default function BitGraphPage() {
       const { file: f, proof: p } = withProofs[i];
       const base = f.name.replace(/\.[^.]+$/, "");
       const prefix = multi ? `${base}/` : "";
-
-      // File entry
       const fileBytes = new Uint8Array(await f.arrayBuffer());
-      const fileEntry = new ZipPassThrough(`${prefix}${f.name}`);
-      z.add(fileEntry);
-      fileEntry.push(fileBytes, true);
 
-      // Proof entries. A single recording keeps the flat layout (proof.json
-      // beside the file, covered by the batch-level anchor window below).
-      // Bytes that occupy SEVERAL causal positions get one self-contained
-      // export per recording: bitgraph-{counter}/proof.json plus that
-      // recording's own bounding anchors, since a shared window spanning
-      // distant recordings is uselessly loose for the older ones.
+      // A single recording keeps the flat layout (file + proof.json, covered
+      // by the batch-level anchor window below). Bytes that occupy SEVERAL
+      // causal positions export each recording as its own complete unit,
+      // exactly like separate files in a batch: bitgraph-{counter}/ holds its
+      // own copy of the file, proof.json, and that recording's own bounding
+      // anchors. A shared window spanning distant recordings would be
+      // uselessly loose for the older ones.
       const allPositions = withProofs[i].proofs.length ? withProofs[i].proofs : p ? [p] : [];
       if (allPositions.length <= 1) {
+        const fileEntry = new ZipPassThrough(`${prefix}${f.name}`);
+        z.add(fileEntry);
+        fileEntry.push(fileBytes, true);
         for (const pos of allPositions) {
           addText(`${prefix}proof.json`, JSON.stringify(pos, null, 2));
           singles.push(pos);
@@ -320,6 +319,9 @@ export default function BitGraphPage() {
         for (const pos of allPositions) {
           const c = pos.commit?.counter;
           const dir = `${prefix}bitgraph-${c ?? "unknown"}/`;
+          const fileEntry = new ZipPassThrough(`${dir}${f.name}`);
+          z.add(fileEntry);
+          fileEntry.push(fileBytes, true);
           addText(`${dir}proof.json`, JSON.stringify(pos, null, 2));
           if (c) await addAnchorsFor(dir, c, c, pos.commit?.epochId || "");
         }
