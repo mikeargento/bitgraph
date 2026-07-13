@@ -270,6 +270,25 @@ export default function BitGraphPage() {
     // recording to a public Ethereum time window. Both are required to read
     // the window: the after-anchor alone is only "existed by now," the same
     // one-sided bound a plain blockchain timestamp gives.
+    // For one anchor, add a block-header witness so the anchor's Ethereum time
+    // claim is verifiable fully offline: the audit recomputes keccak256(header)
+    // and confirms it equals the anchor's signed block hash, then reads the
+    // block timestamp from the header. The server re-encodes and self-checks
+    // the header, so a witness is only returned when it hashes to the signed
+    // block hash; on any failure we simply omit it (the bundle stays valid,
+    // just without the offline time witness for that anchor).
+    const addWitnessFor = async (name: string, anchor: Record<string, unknown>) => {
+      try {
+        const eth = anchor.ethereum as { blockNumber?: number; blockHash?: string } | undefined;
+        const attr = anchor.attribution as { title?: string; message?: string } | undefined;
+        const blockNumber = eth?.blockNumber ?? (attr?.title?.match(/\/block\/(\d+)/)?.[1] ? parseInt(attr.title.match(/\/block\/(\d+)/)![1], 10) : undefined);
+        const blockHash = eth?.blockHash ?? attr?.message;
+        if (blockNumber === undefined || !blockHash) return;
+        const resp = await fetch(`/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`);
+        if (resp.ok) addText(name, JSON.stringify(await resp.json(), null, 2));
+      } catch { /* non-critical: the bundle is valid without the witness */ }
+    };
+
     const addAnchorsFor = async (dir: string, afterCounter: string, beforeCounter: string, epoch: string) => {
       try {
         if (!epoch) return;
@@ -280,11 +299,17 @@ export default function BitGraphPage() {
         ]);
         if (afterResp.ok) {
           const data = await afterResp.json();
-          if (data.anchors?.length > 0) addText(`${dir}ethereum-anchor-after.json`, JSON.stringify(data.anchors[0], null, 2));
+          if (data.anchors?.length > 0) {
+            addText(`${dir}ethereum-anchor-after.json`, JSON.stringify(data.anchors[0], null, 2));
+            await addWitnessFor(`${dir}ethereum-anchor-after-witness.json`, data.anchors[0]);
+          }
         }
         if (beforeResp.ok) {
           const data = await beforeResp.json();
-          if (data.anchors?.length > 0) addText(`${dir}ethereum-anchor-before.json`, JSON.stringify(data.anchors[0], null, 2));
+          if (data.anchors?.length > 0) {
+            addText(`${dir}ethereum-anchor-before.json`, JSON.stringify(data.anchors[0], null, 2));
+            await addWitnessFor(`${dir}ethereum-anchor-before-witness.json`, data.anchors[0]);
+          }
         }
       } catch { /* non-critical */ }
     };
