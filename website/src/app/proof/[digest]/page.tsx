@@ -285,18 +285,22 @@ export default function ProofPage() {
           if (wResp.ok) files[name] = strToU8(JSON.stringify(await wResp.json(), null, 2));
         } catch (_) { /* the bundle is valid without the witness */ }
       };
+      // The four ETH anchor files (before/after anchor + their block-header
+      // witnesses) go in an ethereum-anchors/ subfolder so they don't clutter
+      // the bundle root. Audit discovery is by schema shape, not path, so the
+      // nesting is transparent to the verifier.
       if (afterResp.ok) {
         const data = await afterResp.json();
         if (Array.isArray(data.anchors) && data.anchors.length > 0) {
-          files["ethereum-anchor-after.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
-          await addWitness("ethereum-anchor-after-witness.json", data.anchors[0]);
+          files["ethereum-anchors/anchor-after.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
+          await addWitness("ethereum-anchors/anchor-after-witness.json", data.anchors[0]);
         }
       }
       if (beforeResp.ok) {
         const data = await beforeResp.json();
         if (Array.isArray(data.anchors) && data.anchors.length > 0) {
-          files["ethereum-anchor-before.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
-          await addWitness("ethereum-anchor-before-witness.json", data.anchors[0]);
+          files["ethereum-anchors/anchor-before.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
+          await addWitness("ethereum-anchors/anchor-before-witness.json", data.anchors[0]);
         }
       }
     } catch (_) { /* ignore */ }

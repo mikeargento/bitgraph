@@ -297,18 +297,23 @@ export default function BitGraphPage() {
           fetch(`/api/proofs/anchors?counter=${afterCounter}&epoch=${enc}`),
           fetch(`/api/proofs/anchors?counter=${beforeCounter}&epoch=${enc}&before=1`),
         ]);
+        // The four ETH anchor files (before/after anchor + their block-header
+        // witnesses) live together in an ethereum-anchors/ subfolder so they
+        // don't clutter the bundle root. Audit discovery is by schema shape,
+        // not filename or path, so nesting is transparent to the verifier.
+        const anchorDir = `${dir}ethereum-anchors/`;
         if (afterResp.ok) {
           const data = await afterResp.json();
           if (data.anchors?.length > 0) {
-            addText(`${dir}ethereum-anchor-after.json`, JSON.stringify(data.anchors[0], null, 2));
-            await addWitnessFor(`${dir}ethereum-anchor-after-witness.json`, data.anchors[0]);
+            addText(`${anchorDir}anchor-after.json`, JSON.stringify(data.anchors[0], null, 2));
+            await addWitnessFor(`${anchorDir}anchor-after-witness.json`, data.anchors[0]);
           }
         }
         if (beforeResp.ok) {
           const data = await beforeResp.json();
           if (data.anchors?.length > 0) {
-            addText(`${dir}ethereum-anchor-before.json`, JSON.stringify(data.anchors[0], null, 2));
-            await addWitnessFor(`${dir}ethereum-anchor-before-witness.json`, data.anchors[0]);
+            addText(`${anchorDir}anchor-before.json`, JSON.stringify(data.anchors[0], null, 2));
+            await addWitnessFor(`${anchorDir}anchor-before-witness.json`, data.anchors[0]);
           }
         }
       } catch { /* non-critical */ }
