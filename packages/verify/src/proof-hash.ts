@@ -79,33 +79,54 @@ export function computeProofHash(proof: BitGraphProof | Record<string, unknown>)
 }
 
 /**
+ * Fields that are NOT produced by the enclave. They are appended to a proof
+ * AFTER it is signed, by the ledger or the anchor service, purely as read-time
+ * convenience. The enclave computed its chain hash before any of these
+ * existed, so they MUST be excluded from computeChainHash — otherwise a
+ * successor's `commit.prevB64` (computed by the enclave over the clean proof)
+ * can never match.
+ *
+ *   proofHash — SHA-256 of the signed-body subset; added by the ledger at
+ *               write time (see computeProofHash above).
+ *   ethereum  — { blockNumber, blockHash }; added by the anchor service to
+ *               anchor records after the transaction is mined. Purely
+ *               redundant: the block hash is already in the signed
+ *               `attribution.message` and the block number in
+ *               `attribution.title`. Present only on Ethereum-anchor proofs.
+ *
+ * Any future ledger/service-added field must be added here as well.
+ */
+const LEDGER_ADDED_FIELDS: readonly string[] = ["proofHash", "ethereum"];
+
+/**
  * Compute the CHAIN hash of a BitGraph proof: SHA-256 over the canonicalized
- * whole proof object, with the ledger-added `proofHash` field removed.
+ * whole proof object, with the ledger/service-added fields removed.
  *
  * This is the value the enclave writes into the NEXT proof's
  * `commit.prevB64` (and into `epochLink.prevProofHashB64` at an epoch
  * boundary): the enclave hashes the entire assembled proof, before the ledger
- * appends its convenience `proofHash` field. To link a chain, match a proof's
- * `commit.prevB64` against `computeChainHash(predecessor)`.
+ * or anchor service appends its convenience fields. To link a chain, match a
+ * proof's `commit.prevB64` against `computeChainHash(predecessor)`.
  *
  * This differs from computeProofHash, which hashes only the signed-body
- * subset. The chain hash covers every field (signer signature, attestation
- * report, slot allocation, attribution, and so on), so any change anywhere in
- * a proof breaks the link from its successor.
+ * subset. The chain hash covers every enclave-produced field (signer
+ * signature, attestation report, slot allocation, attribution, and so on), so
+ * any change anywhere in a proof breaks the link from its successor.
  *
- * @param proof - The full BitGraphProof object (or equivalent Record). A
- *   top-level `proofHash` field, if present, is excluded before hashing.
+ * @param proof - The full BitGraphProof object (or equivalent Record). Any
+ *   ledger/service-added field (see LEDGER_ADDED_FIELDS) is excluded before
+ *   hashing.
  * @returns Base64-standard encoded SHA-256 hash
  */
 export function computeChainHash(proof: BitGraphProof | Record<string, unknown>): string {
   const p = proof as Record<string, unknown>;
   let hashable: Record<string, unknown> = p;
-  if (Object.prototype.hasOwnProperty.call(p, "proofHash")) {
-    // Shallow copy without the ledger-added field; the enclave hashed the
-    // proof before this field existed.
+  if (LEDGER_ADDED_FIELDS.some((k) => Object.prototype.hasOwnProperty.call(p, k))) {
+    // Shallow copy without the ledger/service-added fields; the enclave hashed
+    // the proof before these existed.
     hashable = {};
     for (const key of Object.keys(p)) {
-      if (key !== "proofHash") hashable[key] = p[key];
+      if (!LEDGER_ADDED_FIELDS.includes(key)) hashable[key] = p[key];
     }
   }
   const bytes = canonicalize(hashable as unknown as BitGraphProof);
