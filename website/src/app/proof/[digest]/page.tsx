@@ -269,16 +269,34 @@ export default function ProofPage() {
         fetch(`/api/proofs/anchors?counter=${counter}&epoch=${enc}&limit=1`),
         fetch(`/api/proofs/anchors?counter=${counter}&epoch=${enc}&before=1`),
       ]);
+      // For an anchor, also add its block-header witness so the anchor's
+      // Ethereum time claim verifies fully offline. The server re-encodes and
+      // self-checks the header (returns it only when keccak256 == the signed
+      // block hash), so a failure just omits the witness; the bundle stays valid.
+      const addWitness = async (name: string, anchor: Record<string, unknown>) => {
+        try {
+          const eth = anchor.ethereum as { blockNumber?: number; blockHash?: string } | undefined;
+          const attr = anchor.attribution as { title?: string; message?: string } | undefined;
+          const m = attr?.title?.match(/\/block\/(\d+)/);
+          const blockNumber = eth?.blockNumber ?? (m ? parseInt(m[1], 10) : undefined);
+          const blockHash = eth?.blockHash ?? attr?.message;
+          if (blockNumber === undefined || !blockHash) return;
+          const wResp = await fetch(`/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`);
+          if (wResp.ok) files[name] = strToU8(JSON.stringify(await wResp.json(), null, 2));
+        } catch (_) { /* the bundle is valid without the witness */ }
+      };
       if (afterResp.ok) {
         const data = await afterResp.json();
         if (Array.isArray(data.anchors) && data.anchors.length > 0) {
           files["ethereum-anchor-after.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
+          await addWitness("ethereum-anchor-after-witness.json", data.anchors[0]);
         }
       }
       if (beforeResp.ok) {
         const data = await beforeResp.json();
         if (Array.isArray(data.anchors) && data.anchors.length > 0) {
           files["ethereum-anchor-before.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
+          await addWitness("ethereum-anchor-before-witness.json", data.anchors[0]);
         }
       }
     } catch (_) { /* ignore */ }
