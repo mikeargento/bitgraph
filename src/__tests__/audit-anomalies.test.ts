@@ -120,16 +120,21 @@ describe("anomalies: G2 gap logic", () => {
     assert.deepEqual(report.divergences, []);
   });
 
-  test("a partition missing its head reports no gaps outside the observed range", async () => {
+  test("a partition missing its head is an expected boundary, not an anomaly", async () => {
     const chain = await makeCounterChain({ epochId: "epoch-headless", pairs: healthyPairs(3) });
     // Only the last two proofs are in the bundle: positions 3,4,5,6.
     const { report } = await auditBundle({
       "p1.json": proofJson(chain.proofs[1]!.proof),
       "p2.json": proofJson(chain.proofs[2]!.proof),
     });
-    // Positions 1 and 2 are outside the observed [min, max] range and are
-    // not flagged; the missing predecessor is a chain break instead.
-    assert.deepEqual(codes(report), ["chain-break-missing"]);
+    // Positions 1 and 2 are outside the observed [min, max] range and are not
+    // flagged. The earliest included proof's dangling prevB64 is the excerpt's
+    // starting boundary — an expected bundle frontier, not a chain-integrity
+    // anomaly — so there are no anomalies at all.
+    assert.deepEqual(codes(report), []);
+    assert.equal(report.boundaryEntryPoints.length, 1);
+    assert.equal(report.boundaryEntryPoints[0]!.proofHash, chain.proofs[1]!.proofHash);
+    assert.equal(report.boundaryEntryPoints[0]!.prevB64, chain.proofs[0]!.chainHash);
   });
 });
 

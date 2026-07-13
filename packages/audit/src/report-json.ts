@@ -104,6 +104,7 @@ export function buildJsonReport(result: AuditResult): AuditJsonReport {
     },
     anomalies,
     divergences: result.anomalies.divergences,
+    boundaryEntryPoints: result.anomalies.boundaryEntryPoints,
     authorities: {
       groups: result.authorities.groups,
       sharedSignersAcrossEpochs: result.authorities.sharedSignersAcrossEpochs,
@@ -307,6 +308,7 @@ function buildSummary(
     epochsObserved: result.reconstruction.epochRelationships.epochs.length,
     anomalyCountsByCode,
     divergenceCount: result.anomalies.divergences.length,
+    boundaryEntryPoints: result.anomalies.boundaryEntryPoints.length,
     authorityGroupCount: result.authorities.groups.length,
     distinctSignerCount: signers.size,
     distinctDeclaredMeasurementCount: measurements.size,

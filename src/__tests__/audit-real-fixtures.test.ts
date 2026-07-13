@@ -135,10 +135,15 @@ describe("audit over the repo's real embedded fixtures", () => {
       "attestation-invalid", // MOCK_PROOF's placeholder attestation blob
       "attestation-invalid", // REALISTIC_PROOF's truncated attestation blob
       "chain-break-malformed", // MOCK_PROOF's placeholder prevB64 ("prev==")
-      "chain-break-missing", // REALISTIC_PROOF's real-shaped prevB64 into unobserved history
     ]);
+    // REALISTIC_PROOF's real-shaped prevB64 into unobserved history is the
+    // frontier of its (single-proof) partition, so it is an expected bundle
+    // boundary, not a chain-integrity anomaly.
+    assert.equal(report.boundaryEntryPoints.length, 1);
     assert.ok(!codes.includes("unsupported-version"));
     assert.equal(report.summary.fullyVerified, 0);
+    // Still exit 3: attestation-invalid trips verification, chain-break-malformed
+    // trips chain anomalies. The boundary alone would never set an exit bit.
     assert.deepEqual(report.summary.exit, {
       verificationFailures: true,
       chainAnomaliesOrDivergences: true,

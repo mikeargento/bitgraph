@@ -34,6 +34,7 @@
 
 import type {
   AnomalyReport,
+  BoundaryEntryPoint,
   ChainAnomaly,
   ChainPartition,
   DivergenceParty,
@@ -72,6 +73,7 @@ export async function classifyAnomalies(
 ): Promise<AnomalyReport> {
   const anomalies: ChainAnomaly[] = [];
   const divergences: DivergenceRecord[] = [];
+  const boundaryEntryPoints: BoundaryEntryPoint[] = [];
 
   const byHash = new Map<string, ObservedProof>(ingest.proofs.map((p) => [p.proofHash, p]));
   // Predecessor links (prevB64, epochLink.prevProofHashB64) reference the CHAIN
@@ -89,7 +91,7 @@ export async function classifyAnomalies(
     await analyzeCollisions(partition, members, "slot", anomalies, divergences);
     await analyzeCrossKindPositionReuse(partition, members, anomalies, divergences);
     await analyzePredecessorReuse(partition, members, byChainHash, anomalies, divergences);
-    analyzeChainBreaks(partition, members, byChainHash, partitionOf, anomalies);
+    analyzeChainBreaks(partition, members, byChainHash, partitionOf, anomalies, boundaryEntryPoints);
     await analyzeMultipleGenesis(partition, members, anomalies, divergences);
     analyzeSlotOrder(partition, members, anomalies);
   }
@@ -99,7 +101,7 @@ export async function classifyAnomalies(
   // happened upstream in reconstruct.ts against chain hashes.
   await analyzeEpochLinks(reconstruction.epochRelationships.edges, byHash, anomalies, divergences);
 
-  return { anomalies, divergences };
+  return { anomalies, divergences, boundaryEntryPoints };
 }
 
 // ---------------------------------------------------------------------------
@@ -385,10 +387,20 @@ function analyzeChainBreaks(
   members: ObservedProof[],
   byChainHash: Map<string, ObservedProof>,
   partitionOf: Map<string, PartitionKey>,
-  anomalies: ChainAnomaly[]
+  anomalies: ChainAnomaly[],
+  boundaryEntryPoints: BoundaryEntryPoint[]
 ): void {
   // prevB64 resolves in-partition when it equals a member's CHAIN hash.
   const memberChainHashes = new Set(members.map((m) => m.chainHash));
+  // Lowest observed commit counter: a dangling link AT the lowest position is
+  // the excerpt's frontier (an expected boundary); a dangling link ABOVE it is
+  // an interior hole (a real chain break, and the missing proof's positions
+  // also surface as unexplained-counter-positions).
+  let minCounter: bigint | undefined;
+  for (const m of members) {
+    const c = parseCounter(m.counter);
+    if (c !== undefined && (minCounter === undefined || c < minCounter)) minCounter = c;
+  }
   for (const m of [...members].sort(byCounterThenHash)) {
     if (m.prevB64 === undefined) continue;
     if (memberChainHashes.has(m.prevB64)) continue; // resolved in-partition
@@ -433,14 +445,42 @@ function analyzeChainBreaks(
       continue;
     }
 
+    // A well-formed, in-partition prevB64 whose predecessor is absent splits
+    // into two cases by position:
+    //
+    //  - FRONTIER (m is at the lowest observed counter): the excerpt simply
+    //    starts here; its predecessor precedes the exported window. This is the
+    //    EXPECTED boundary of any bounded bundle, not a defect. A validly
+    //    signed, attested proof only exists by extending the chain (fail-closed
+    //    construction), so its predecessor did exist; it is just not included.
+    //    Recorded as an informational boundary entry point — never sets the
+    //    exit code, never marks the partition non-intact. A full-epoch export
+    //    has none of these (its earliest proof is the genesis, no prevB64).
+    //
+    //  - INTERIOR (a lower-counter member is present): a proof sits below m yet
+    //    the link into m is broken — a genuine hole. Stays a chain-break-missing
+    //    anomaly. The missing proof's own positions also surface as
+    //    unexplained-counter-positions, so an interior hole always fails.
+    const c = parseCounter(m.counter);
+    const isFrontier = c === undefined || minCounter === undefined || c <= minCounter;
+    if (isFrontier) {
+      boundaryEntryPoints.push({
+        partition: partition.key,
+        proofHash: m.proofHash,
+        prevB64: m.prevB64,
+      });
+      continue;
+    }
+
     anomalies.push({
       code: "chain-break-missing",
       partition: partition.key,
       proofHashes: [m.proofHash],
       message:
-        "commit.prevB64 references a predecessor proof that is absent from the supplied bundle. The " +
-        "chain cannot be reconstructed across this link from the supplied evidence; this does not, by " +
-        "itself, establish that the predecessor never existed.",
+        "commit.prevB64 references a predecessor proof that is absent from the supplied bundle, and a " +
+        "lower-positioned proof IS present, so this is an interior break (a hole), not the excerpt's " +
+        "starting boundary. The chain cannot be reconstructed across this link from the supplied " +
+        "evidence; this does not, by itself, establish that the predecessor never existed.",
       details: { prevB64: m.prevB64 },
     });
   }

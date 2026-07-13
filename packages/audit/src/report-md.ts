@@ -252,6 +252,23 @@ function executiveSummary(
   }
   lines.push("");
 
+  // Boundary entry points (expected excerpt frontiers, not anomalies).
+  const boundaries = report.boundaryEntryPoints.length;
+  if (boundaries > 0) {
+    lines.push("### Bundle boundaries");
+    lines.push("");
+    lines.push(
+      `${withCommas(boundaries)} ${plural(boundaries, "proof is", "proofs are")} the earliest of a ` +
+        "reconstructed chain and reference a predecessor that precedes the exported window. This is the " +
+        "expected boundary of a bounded excerpt (a single-file proof bundle or a small batch), not a " +
+        "chain-integrity defect: a validly signed, attested proof only comes into existence by extending " +
+        "the chain, so its predecessor did exist and is simply not included here. Boundaries never set the " +
+        "exit code. A full-epoch export has none (its earliest proof is the epoch genesis, which has no " +
+        "predecessor link)."
+    );
+    lines.push("");
+  }
+
   // Divergences.
   lines.push("### Divergences");
   lines.push("");

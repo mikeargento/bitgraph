@@ -759,6 +759,36 @@ export interface ChainAnomaly {
 }
 
 /**
+ * A chain link whose predecessor is absent from the supplied bundle: the
+ * earliest proof of a reconstructed run points to history that precedes the
+ * exported window.
+ *
+ * This is the EXPECTED boundary of any bounded excerpt (a single-file proof
+ * bundle, a small batch), NOT a chain-integrity defect: a validly signed,
+ * attested proof only comes into existence by extending the chain (the
+ * fail-closed construction property), so its own existence is evidence it
+ * occupied a real position; the predecessor is simply not included in this
+ * export. A full-epoch export has NO boundary entry points, its earliest
+ * proof is the epoch genesis, which carries no prevB64 at all. An INTERIOR
+ * hole never masquerades as a boundary: a missing mid-chain proof both
+ * fragments the component (so the successor becomes its own component's
+ * boundary) AND surfaces as an `unexplained-counter-positions` anomaly within
+ * the observed range, which still trips the exit code.
+ *
+ * Boundary entry points are informational: they never set the exit code and
+ * never mark a partition non-intact. The count is surfaced in the summary so a
+ * full-epoch audit (which expects zero) makes a stray boundary visible.
+ */
+export interface BoundaryEntryPoint {
+  /** The partition this boundary is scoped to. */
+  partition: PartitionKey;
+  /** The proof whose commit.prevB64 references a predecessor absent from the bundle. */
+  proofHash: string;
+  /** The unresolved predecessor chain hash (standard base64). */
+  prevB64: string;
+}
+
+/**
  * Detail payload of an "unexplained-counter-positions" anomaly (G2).
  * A position is explained when it is some observed proof's commit counter
  * or is referenced by some observed proof's slotCounter. Every proof
@@ -833,6 +863,12 @@ export interface AnomalyReport {
   anomalies: ChainAnomaly[];
   /** Divergence records for every conflict between valid proofs. */
   divergences: DivergenceRecord[];
+  /**
+   * Expected excerpt boundaries: a bundle's earliest proofs whose predecessor
+   * precedes the exported window. Informational only, never affects the exit
+   * code or partition intactness. Zero for a full-epoch export.
+   */
+  boundaryEntryPoints: BoundaryEntryPoint[];
 }
 
 // ---------------------------------------------------------------------------
@@ -1448,6 +1484,13 @@ export interface ReportSummary {
   /** Anomaly counts keyed by stable code, keys sorted. */
   anomalyCountsByCode: Record<string, number>;
   divergenceCount: number;
+  /**
+   * Count of expected excerpt boundaries (earliest proofs whose predecessor
+   * precedes the exported window). Informational, never a failure. A
+   * full-epoch export has zero; a bounded proof bundle has one per included
+   * chain segment.
+   */
+  boundaryEntryPoints: number;
   authorityGroupCount: number;
   distinctSignerCount: number;
   distinctDeclaredMeasurementCount: number;
@@ -1506,6 +1549,8 @@ export interface AuditJsonReport {
   /** Unified anomaly list: stage order (ingest, chain, authority, anchor, witness, attestation), stage-internal detection order. */
   anomalies: ReportAnomaly[];
   divergences: DivergenceRecord[];
+  /** Expected excerpt boundaries (informational; never a failure). Empty for a full-epoch export. */
+  boundaryEntryPoints: BoundaryEntryPoint[];
   authorities: {
     groups: AuthorityGroup[];
     sharedSignersAcrossEpochs: SignerEpochSpan[];
