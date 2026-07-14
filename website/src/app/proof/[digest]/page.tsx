@@ -197,7 +197,6 @@ export default function ProofPage() {
   // user submission. It gets its own card (not "Submitter's Note") and, like an
   // anchor, carries no user file.
   const isInterval = attr?.name === "Interval";
-  const interval = (proof.metadata as { interval?: { depth?: number; role?: string; originalCounter?: string; originalBlockNumber?: number } } | undefined)?.interval;
   // Type badge in the lead card header, mirroring the explorer's labels/colors:
   // file (blue), anchor (gray), interval (violet).
   const typeLabel = isInterval ? "interval" : isEth ? "anchor" : "file";
@@ -257,6 +256,16 @@ export default function ProofPage() {
     recordedLine = `after ${t1.toLocaleTimeString()} on ${t1.toLocaleDateString()}`;
     recordedNode = <>after <Em>{t1.toLocaleTimeString()}</Em> on <Em>{t1.toLocaleDateString()}</Em></>;
   }
+
+  // Interval window, derived from the causal positions the page already loads
+  // (metadata.interval does not survive the TEE, so nothing here relies on it):
+  // the earliest recording is the original anchor = when the window BEGAN, and
+  // this proof's own ETH bounds (recordedLine) are when it ENDED. The counter
+  // gap between them is the causal activity across the window.
+  const intervalBlockNum = isInterval ? (attr?.title?.match(/\/block\/(\d+)/)?.[1] ?? null) : null;
+  const originalPos = isInterval && positions.length > 0 && positions[0]?.counter !== commit?.counter ? positions[0] : null;
+  const intervalBegan = originalPos ? formatWindow(originalPos.lowerTime, originalPos.upperTime) : null;
+  const intervalActivity = originalPos?.counter && commit?.counter ? Number(commit.counter) - Number(originalPos.counter) : null;
 
   async function exportZip() {
     try {
@@ -574,21 +583,14 @@ export default function ProofPage() {
           {isInterval ? (
             <Card title="Interval Checkpoint">
               <div style={{ padding: "12px 24px 4px", fontSize: 12.5, color: "#6b7280", lineHeight: 1.5 }}>
-                These are the exact bytes of an Ethereum block hash, re-recorded {interval?.depth ?? 25} anchors after it was first anchored. The BitGraphs between the two recordings measure how much came into existence during that externally paced window. The block hash is independently verifiable on Ethereum.
+                The same Ethereum block-hash bytes, re-recorded 25 anchors after they were first anchored.
               </div>
-              {interval?.originalBlockNumber != null && (
-                <Field label="Ethereum block" value={`https://etherscan.io/block/${interval.originalBlockNumber}`} link />
-              )}
+              {intervalBlockNum && <Field label="Ethereum block" value={`https://etherscan.io/block/${intervalBlockNum}`} link />}
               {attr?.message && <Field label="Block hash" value={attr.message} mono />}
-              <Field label="Window depth" value={`${interval?.depth ?? 25} Ethereum anchors`} />
-              {interval?.originalCounter && (
-                <Field label="Window opened at" value={`BitGraph #${Number(interval.originalCounter).toLocaleString()}`} />
-              )}
-              {commit?.counter && interval?.originalCounter && (
-                <Field
-                  label="Causal activity in window"
-                  value={`${(Number(commit.counter) - Number(interval.originalCounter)).toLocaleString()} BitGraphs`}
-                />
+              {intervalBegan && <Field label="Window began" value={intervalBegan} />}
+              {recordedLine && <Field label="Window ended" value={recordedLine} valueNode={recordedNode} />}
+              {intervalActivity != null && (
+                <Field label="Causal activity" value={`${intervalActivity.toLocaleString()} BitGraphs`} />
               )}
             </Card>
           ) : attr && !isEth ? (
