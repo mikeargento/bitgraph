@@ -610,8 +610,11 @@ async function commitAnchor(block: EthBlock): Promise<{ proof: unknown; digestB6
     const data = await res.json();
     const proof = Array.isArray(data) ? data[0] : data.proofs?.[0] ?? data;
 
-    // Persist to S3 (same chain, same format, just with anchor index too)
-    void persistAnchor(proof, { blockNumber: block.number, blockHash: block.hash });
+    // Persist to S3 (same chain, same format, just with anchor index too).
+    // Awaited, not fire-and-forget: the watermark is seeded by reading
+    // anchors/{epoch}/ back, so a write still in flight lets a starting instance
+    // read a ledger that trails what we just committed and re-anchor this block.
+    await persistAnchor(proof, { blockNumber: block.number, blockHash: block.hash });
 
     return { proof, digestB64 };
   } catch (err) {
@@ -691,6 +694,56 @@ async function ensureWatermark(): Promise<boolean> {
   }
 }
 
+/**
+ * Atomically claim a block before anchoring it. Returns "claimed" if this
+ * process owns the block, "taken" if another already does, "error" if
+ * ownership could not be established at all.
+ *
+ * The watermark cannot prevent duplicates on its own, because it lives inside
+ * one process and the duplicate is a race between two. A Railway rolling deploy
+ * runs the outgoing and incoming instances concurrently: both seed from the
+ * ledger, both see the same next block, and both anchor it. The seed is racy in
+ * its own right, since persistAnchor's write is not awaited, so a starting
+ * instance can read a ledger that has not yet caught up to what the outgoing one
+ * just committed. Block 25533154 landed twice this way (counters 9146 and 9148).
+ *
+ * A conditional write is the only arbiter both instances share. S3 PutObject
+ * with IfNoneMatch "*" succeeds for exactly one caller and returns 412 to every
+ * other, so the claim decides ownership rather than either process's local view.
+ *
+ * Claims are global rather than epoch-scoped. Block numbers are globally
+ * monotonic, so a fresh epoch never revisits an old block, and skipping the
+ * epoch lookup keeps this off the /key path (which a starting process has not
+ * necessarily called yet). The cost of that simplification: right after a TEE
+ * restart, the new epoch may skip a single block the previous epoch had already
+ * claimed. A missing anchor is harmless; a duplicate is permanent.
+ */
+async function claimBlock(blockNumber: number): Promise<"claimed" | "taken" | "error"> {
+  const ops = await s3ops();
+  const bucket = process.env.LEDGER_BUCKET;
+  if (!ops || !bucket) return "claimed"; // no ledger configured (local dev): nothing to arbitrate
+
+  try {
+    await ops.client.send(new ops.PutObjectCommand({
+      Bucket: bucket,
+      Key: `anchor-claims/${String(blockNumber).padStart(12, "0")}.json`,
+      Body: JSON.stringify({ blockNumber, claimedAt: new Date().toISOString() }),
+      ContentType: "application/json",
+      IfNoneMatch: "*",
+    }));
+    return "claimed";
+  } catch (err) {
+    const meta = (err as { $metadata?: { httpStatusCode?: number } }).$metadata;
+    const name = (err as { name?: string }).name;
+    if (meta?.httpStatusCode === 412 || name === "PreconditionFailed") {
+      console.log(`[eth-anchor] block #${blockNumber} already claimed by another instance — skipping`);
+      return "taken";
+    }
+    console.error(`[eth-anchor] claim failed for #${blockNumber}, not anchoring: ${(err as Error).message}`);
+    return "error";
+  }
+}
+
 async function checkAndAnchor(): Promise<void> {
   if (anchoring) return;
   anchoring = true;
@@ -700,6 +753,19 @@ async function checkAndAnchor(): Promise<void> {
     const block = await getLatestBlock();
 
     if (block.number <= lastAnchoredBlock) {
+      return;
+    }
+
+    const claim = await claimBlock(block.number);
+    if (claim === "taken") {
+      // Another instance owns it, so the block is anchored, just not by us.
+      // Advance the watermark or we retry it every tick for no reason.
+      lastAnchoredBlock = block.number;
+      return;
+    }
+    if (claim === "error") {
+      // Ownership unproven. Do NOT advance: the block may be anchored by nobody,
+      // and skipping it permanently is worse than retrying in 12 seconds.
       return;
     }
 
@@ -735,6 +801,10 @@ export async function manualAnchor(): Promise<{ block: EthBlock; proof: unknown;
     if (block.number <= lastAnchoredBlock) {
       throw new Error(`Block #${block.number} is already anchored (watermark #${lastAnchoredBlock}) — nothing to do`);
     }
+
+    const claim = await claimBlock(block.number);
+    if (claim === "taken") throw new Error(`Block #${block.number} is already claimed by another instance — nothing to do`);
+    if (claim === "error") throw new Error(`Could not establish a claim on block #${block.number} — refusing to anchor`);
 
     const result = await commitAnchor(block);
     if (result) {
