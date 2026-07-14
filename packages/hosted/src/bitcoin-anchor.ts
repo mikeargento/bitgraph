@@ -624,9 +624,79 @@ async function commitAnchor(block: EthBlock): Promise<{ proof: unknown; digestB6
 
 let lastAnchoredBlock = 0;
 let intervalId: ReturnType<typeof setInterval> | null = null;
+let anchoring = false;        // in-flight guard: a slow commit must not overlap the next tick
+let watermarkSeeded = false;  // has lastAnchoredBlock been restored from the durable ledger?
+
+/**
+ * Restore lastAnchoredBlock from the ledger before anchoring anything.
+ *
+ * The watermark lives only in memory, so without this a redeploy restarts it at
+ * 0, the current block trivially passes the freshness check, and the block the
+ * previous instance just anchored is anchored a second time. The TEE is a
+ * separate service that keeps running across our deploys, so that duplicate
+ * lands in the SAME epoch, and the ledger is Object Lock COMPLIANCE: it can
+ * never be removed. It also inflates the anchor count that reconcileIntervals
+ * uses as its window ruler, so a window of INTERVAL_DEPTH entries would span
+ * fewer than INTERVAL_DEPTH real blocks while still claiming the full depth.
+ *
+ * Ethereum block numbers are globally monotonic, so any recent epoch's high
+ * water mark is a safe floor: a stale /key read costs at most one skipped
+ * block, never a duplicate. A fresh epoch has no anchors yet and correctly
+ * leaves the watermark at 0 so its genesis anchor lands immediately.
+ *
+ * Throws on failure so the caller declines to anchor and retries next tick. A
+ * TEE that cannot serve /key cannot serve /commit either, so failing closed
+ * here costs no availability that was not already lost.
+ */
+async function seedLastAnchoredBlock(): Promise<void> {
+  const ops = await s3ops();
+  const bucket = process.env.LEDGER_BUCKET;
+  if (!ops || !bucket) return; // no ledger configured (local dev): nothing to restore
+
+  const res = await fetch(`${TEE_URL}/key`);
+  if (!res.ok) throw new Error(`TEE /key ${res.status}`);
+  const { epochId } = (await res.json()) as { epochId?: string };
+  if (!epochId) throw new Error("TEE /key returned no epochId");
+
+  const safeEpoch = toSafeId(epochId);
+  const counters = await listCounters(ops, bucket, `anchors/${safeEpoch}/`);
+
+  // Newest first. Walk back a few in case the most recent object predates the
+  // ethereum field; loadAnchorBytes returns blockNumber as optional.
+  for (const counter of counters.slice(-5).reverse()) {
+    const bytes = await loadAnchorBytes(ops, bucket, safeEpoch, counter);
+    if (bytes?.blockNumber) {
+      lastAnchoredBlock = bytes.blockNumber;
+      console.log(`[eth-anchor] watermark restored: block #${lastAnchoredBlock} (${counters.length} anchors this epoch)`);
+      return;
+    }
+  }
+
+  if (counters.length > 0) throw new Error(`no recoverable blockNumber in the last ${Math.min(5, counters.length)} anchors`);
+  console.log(`[eth-anchor] no prior anchor this epoch — starting from genesis`);
+}
+
+/** Restore the watermark once, then report whether anchoring may proceed. */
+async function ensureWatermark(): Promise<boolean> {
+  if (watermarkSeeded) return true;
+  try {
+    await seedLastAnchoredBlock();
+    watermarkSeeded = true;
+    return true;
+  } catch (err) {
+    // Fail closed: without a watermark we cannot tell a new block from one the
+    // previous instance already anchored, and a wrong guess is permanent.
+    console.error(`[eth-anchor] watermark seed failed, not anchoring this tick: ${(err as Error).message}`);
+    return false;
+  }
+}
 
 async function checkAndAnchor(): Promise<void> {
+  if (anchoring) return;
+  anchoring = true;
   try {
+    if (!(await ensureWatermark())) return;
+
     const block = await getLatestBlock();
 
     if (block.number <= lastAnchoredBlock) {
@@ -644,24 +714,48 @@ async function checkAndAnchor(): Promise<void> {
     }
   } catch (err) {
     console.error("[eth-anchor] check failed:", (err as Error).message);
+  } finally {
+    anchoring = false;
   }
 }
 
+/**
+ * Operator-triggered anchor (POST /api/anchor/now). Shares the tick's in-flight
+ * guard and watermark so a manual call cannot race the timer or re-anchor a
+ * block already on the ledger. Throws rather than returning null on a refusal,
+ * because null is the caller's "TEE unavailable" signal.
+ */
 export async function manualAnchor(): Promise<{ block: EthBlock; proof: unknown; digestB64: string } | null> {
-  const block = await getLatestBlock();
-  const result = await commitAnchor(block);
-  if (result) {
-    lastAnchoredBlock = block.number;
-    await trackAnchorForIntervals(result.proof);
-    return { block, proof: result.proof, digestB64: result.digestB64 };
+  if (anchoring) throw new Error("An anchor is already in flight — try again in a moment");
+  anchoring = true;
+  try {
+    if (!(await ensureWatermark())) throw new Error("Cannot restore the anchor watermark from the ledger — refusing to anchor");
+
+    const block = await getLatestBlock();
+    if (block.number <= lastAnchoredBlock) {
+      throw new Error(`Block #${block.number} is already anchored (watermark #${lastAnchoredBlock}) — nothing to do`);
+    }
+
+    const result = await commitAnchor(block);
+    if (result) {
+      lastAnchoredBlock = block.number;
+      await trackAnchorForIntervals(result.proof);
+      return { block, proof: result.proof, digestB64: result.digestB64 };
+    }
+    return null;
+  } finally {
+    anchoring = false;
   }
-  return null;
 }
 
-export function getAnchorStatus(): { running: boolean; lastAnchoredBlock: number; source: string; intervalSeconds: number } {
+export function getAnchorStatus(): { running: boolean; lastAnchoredBlock: number; watermarkSeeded: boolean; source: string; intervalSeconds: number } {
   return {
     running: intervalId !== null,
     lastAnchoredBlock,
+    // False means the watermark has not been restored from the ledger yet, so
+    // no anchoring is happening: either the first tick has not run or the seed
+    // is failing (see logs). It is never false while anchors are landing.
+    watermarkSeeded,
     source: "ethereum",
     intervalSeconds: anchorIntervalMs / 1000,
   };
