@@ -198,6 +198,11 @@ export default function ProofPage() {
   // anchor, carries no user file.
   const isInterval = attr?.name === "Interval";
   const interval = (proof.metadata as { interval?: { depth?: number; role?: string; originalCounter?: string; originalBlockNumber?: number } } | undefined)?.interval;
+  // Type badge in the lead card header, mirroring the explorer's labels/colors:
+  // file (blue), anchor (gray), interval (violet).
+  const typeLabel = isInterval ? "interval" : isEth ? "anchor" : "file";
+  const typeColor = isInterval ? "#7c3aed" : isEth ? "#9ca3af" : "#0065A4";
+  const typeWeight = isEth ? 400 : 600;
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
 
@@ -348,11 +353,16 @@ export default function ProofPage() {
               not bracketed; it IS the bracket). */}
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
             <Card title={(
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 8 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  </span>
+                  <span>Verified BitGraph</span>
                 </span>
-                <span>Verified BitGraph</span>
+                <span style={{ fontSize: 12, fontWeight: typeWeight, letterSpacing: "0.02em", color: typeColor, flexShrink: 0 }}>
+                  {typeLabel}
+                </span>
               </span>
             )}>
               {recordedLine && <Field label="Recorded" value={recordedLine} valueNode={recordedNode} />}
