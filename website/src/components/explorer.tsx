@@ -147,9 +147,13 @@ export function Explorer() {
         /* Live arrivals only: a stronger slide plus a brief trust-green flash
            that ends fully transparent, so nothing tinted is left behind. */
         .xp-row-fresh { animation: xpArrive 1.4s ease-out; }
+        /* Interval rows: a violet wash plus a violet left rail so they read as
+           a distinct kind of row at a glance, not just a colored label. */
+        .xp-row-interval { background:#f4f1fe; box-shadow: inset 3px 0 0 0 #7c3aed; }
         .xp-open { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; color:#0065A4; font-size:13px; font-weight:600; letter-spacing:-0.01em; border:1px solid #0065A4; border-radius:0; padding:4px 12px; background:#fff; transition:background .15s, color .15s; }
         @media (hover:hover){
           .xp-row:hover { background:#f3f5f7; }
+          .xp-row-interval:hover { background:#ece5fd; }
           .xp-row:hover .xp-open { background:#0065A4; color:#fff; }
         }
       `}</style>
@@ -193,7 +197,7 @@ export function Explorer() {
           // ?counter= pins the drill-in to THIS row's causal position; the
           // same bytes can occupy several (BitGraphed more than once).
           return (
-            <a key={e.counter} href={`/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}`} target="_blank" rel="noopener" className={freshIds.has(e.counter) ? "xp-row xp-row-fresh" : "xp-row"}>
+            <a key={e.counter} href={`/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}`} target="_blank" rel="noopener" className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: "#374151" }}>
                 BitGraph
                 <span style={{ marginLeft: 7, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>#{fmt(e.counter)}</span>
