@@ -193,6 +193,11 @@ export default function ProofPage() {
   const attr = proof.attribution as { name?: string; title?: string; message?: string } | undefined;
   const slot = (proof as unknown as Record<string, unknown>).slotAllocation as Record<string, unknown> | undefined;
   const isEth = attr?.name?.startsWith("Ethereum");
+  // Interval checkpoint: a system re-recording of an Ethereum block hash, not a
+  // user submission. It gets its own card (not "Submitter's Note") and, like an
+  // anchor, carries no user file.
+  const isInterval = attr?.name === "Interval";
+  const interval = (proof.metadata as { interval?: { depth?: number; role?: string; originalCounter?: string; originalBlockNumber?: number } } | undefined)?.interval;
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
 
@@ -556,7 +561,27 @@ export default function ProofPage() {
               it. These values are typed in by whoever made the proof and are NOT
               verified by BitGraph, so the card says so and never labels the name
               as "Creator". */}
-          {attr && !isEth && (
+          {isInterval ? (
+            <Card title="Interval Checkpoint">
+              <div style={{ padding: "12px 24px 4px", fontSize: 12.5, color: "#6b7280", lineHeight: 1.5 }}>
+                These are the exact bytes of an Ethereum block hash, re-recorded {interval?.depth ?? 25} anchors after it was first anchored. The BitGraphs between the two recordings measure how much came into existence during that externally paced window. The block hash is independently verifiable on Ethereum.
+              </div>
+              {interval?.originalBlockNumber != null && (
+                <Field label="Ethereum block" value={`https://etherscan.io/block/${interval.originalBlockNumber}`} link />
+              )}
+              {attr?.message && <Field label="Block hash" value={attr.message} mono />}
+              <Field label="Window depth" value={`${interval?.depth ?? 25} Ethereum anchors`} />
+              {interval?.originalCounter && (
+                <Field label="Window opened at" value={`BitGraph #${Number(interval.originalCounter).toLocaleString()}`} />
+              )}
+              {commit?.counter && interval?.originalCounter && (
+                <Field
+                  label="Causal activity in window"
+                  value={`${(Number(commit.counter) - Number(interval.originalCounter)).toLocaleString()} BitGraphs`}
+                />
+              )}
+            </Card>
+          ) : attr && !isEth ? (
             <Card title="Submitter's Note">
               <div style={{ padding: "12px 24px 4px", fontSize: 12.5, color: "#6b7280", lineHeight: 1.5 }}>
                 Self-attributed, not verified by BitGraph.
@@ -565,7 +590,7 @@ export default function ProofPage() {
               {attr.message && <Field label="Note" value={attr.message} mono />}
               {attr.title && <Field label="Link" value={attr.title} link />}
             </Card>
-          )}
+          ) : null}
 
           {/* Advisory timestamp — the Ethereum window above is the authoritative
               time mechanism. A TSA time, if present, is advisory only, so it is
@@ -581,7 +606,7 @@ export default function ProofPage() {
           {/* Your file — moved to the bottom, just above the export action: the
               page reads as the BitGraph first, then "do you have the file?", then
               export. Green banner only after the visitor actively checks a file. */}
-          {!isEth && matchConfirmed && (
+          {!isEth && !isInterval && matchConfirmed && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
               <span aria-hidden>✓</span> This file matches this BitGraph
             </div>
@@ -589,7 +614,7 @@ export default function ProofPage() {
           {/* Show the artifact image when one is available; otherwise keep the
               bring-your-file checker visible so checking is always an option —
               until the visitor confirms a match, then drop the box. */}
-          {!isEth && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
+          {!isEth && !isInterval && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
             ? <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
             : (matchConfirmed ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
 
@@ -632,7 +657,7 @@ export default function ProofPage() {
           {/* The original file only ever lives on the device that holds it
               (never the server). When it is present the "+ File" label says
               enough; when it is not, this note explains the proof-only export. */}
-          {!isEth && !cachedFile && (
+          {!isEth && !isInterval && !cachedFile && (
             <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center" }}>
               BitGraph only: the original file is not on this device
             </div>
