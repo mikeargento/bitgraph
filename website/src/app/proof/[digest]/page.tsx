@@ -589,9 +589,6 @@ export default function ProofPage() {
               as "Creator". */}
           {isInterval ? (
             <Card title="Interval Checkpoint">
-              <div style={{ padding: "12px 24px 4px", fontSize: 12.5, color: "#6b7280", lineHeight: 1.5 }}>
-                The same Ethereum block-hash bytes, re-recorded 25 anchors after they were first anchored.
-              </div>
               {intervalBlockNum && <Field label="Ethereum block" value={`https://etherscan.io/block/${intervalBlockNum}`} link />}
               {attr?.message && <Field label="Block hash" value={attr.message} mono />}
               {intervalBegan && <Field label="Window began" value={intervalBegan} valueNode={intervalBeganNode} />}
