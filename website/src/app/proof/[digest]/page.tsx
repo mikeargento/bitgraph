@@ -265,7 +265,14 @@ export default function ProofPage() {
   const intervalBlockNum = isInterval ? (attr?.title?.match(/\/block\/(\d+)/)?.[1] ?? null) : null;
   const originalPos = isInterval && positions.length > 0 && positions[0]?.counter !== commit?.counter ? positions[0] : null;
   const intervalBegan = originalPos ? formatWindow(originalPos.lowerTime, originalPos.upperTime) : null;
-  const intervalActivity = originalPos?.counter && commit?.counter ? Number(commit.counter) - Number(originalPos.counter) : null;
+  // Highlighted node form so "Window began" reads like "Window ended".
+  let intervalBeganNode: React.ReactNode = intervalBegan;
+  if (originalPos?.lowerTime && originalPos?.upperTime) {
+    const b1 = new Date(originalPos.lowerTime), b2 = new Date(originalPos.upperTime);
+    intervalBeganNode = b1.toDateString() === b2.toDateString()
+      ? <>between <Em>{b1.toLocaleTimeString()}</Em> and <Em>{b2.toLocaleTimeString()}</Em> on <Em>{b2.toLocaleDateString()}</Em></>
+      : <>between <Em>{b1.toLocaleString()}</Em> and <Em>{b2.toLocaleString()}</Em></>;
+  }
 
   async function exportZip() {
     try {
@@ -587,11 +594,8 @@ export default function ProofPage() {
               </div>
               {intervalBlockNum && <Field label="Ethereum block" value={`https://etherscan.io/block/${intervalBlockNum}`} link />}
               {attr?.message && <Field label="Block hash" value={attr.message} mono />}
-              {intervalBegan && <Field label="Window began" value={intervalBegan} />}
+              {intervalBegan && <Field label="Window began" value={intervalBegan} valueNode={intervalBeganNode} />}
               {recordedLine && <Field label="Window ended" value={recordedLine} valueNode={recordedNode} />}
-              {intervalActivity != null && (
-                <Field label="Causal activity" value={`${intervalActivity.toLocaleString()} BitGraphs`} />
-              )}
             </Card>
           ) : attr && !isEth ? (
             <Card title="Submitter's Note">
