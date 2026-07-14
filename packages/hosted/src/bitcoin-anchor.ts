@@ -136,14 +136,15 @@ async function persistAnchor(
 
 /**
  * Each committed Ethereum anchor BitGraphs the exact block-hash string as its
- * artifact. INTERVAL_DEPTH anchors later, those same exact bytes are committed
- * again through the normal TEE path as an "Interval" recurrence: a fresh slot,
- * nonce, counter, chain link, signature, and proofHash, but the identical
- * artifact digest. That produces rolling overlapping windows — A1→re-A1,
- * A2→re-A2 — each exactly INTERVAL_DEPTH subsequent anchor occurrences deep,
- * regardless of how many ordinary BitGraphs land in between. The counter
- * distance between the two occurrences measures the causal activity during
- * that externally paced window.
+ * artifact. The engine counts INTERVAL_DEPTH NEW anchors, then re-BitGraphs the
+ * anchor that opened that span through the normal TEE path as one "Interval"
+ * checkpoint: a fresh slot, nonce, counter, chain link, signature, and
+ * proofHash, but the identical artifact digest. Then it counts INTERVAL_DEPTH
+ * more and lays the next checkpoint. Windows are back-to-back and NON
+ * overlapping (one re-BitGraph per window, NOT one per anchor), each exactly
+ * INTERVAL_DEPTH anchor occurrences wide regardless of how many ordinary
+ * BitGraphs land in between. The counter distance between the two occurrences
+ * measures the causal activity during that externally paced window.
  *
  * Recurrences are NOT anchors: they never write under anchors/, they carry
  * attribution.name "Interval" (not "Ethereum Anchor"), and the trigger only
@@ -337,10 +338,13 @@ async function reBitgraphAnchorBytes(
       digests: [{ digestB64, hashAlg: "sha256" }],
       chainId: "bitgraph:main",
       // Signed. name "Interval" distinguishes a recurrence from a real anchor.
+      // title is a REAL etherscan URL for the original block (renders as a
+      // working "Link" on the proof page); the interval framing lives in
+      // metadata.interval, not in a fake link.
       attribution: {
         name: "Interval",
         message: blockHash,
-        title: `interval:+${INTERVAL_DEPTH}:block#${blockNumber ?? "?"}`,
+        ...(blockNumber !== undefined ? { title: `https://etherscan.io/block/${blockNumber}` } : {}),
       },
       // Unsigned, advisory: the interval measurement and its origin.
       metadata: {
@@ -452,9 +456,13 @@ async function maybeSeedGenesis(): Promise<void> {
 }
 
 /**
- * Emit any due recurrences: every anchor at least INTERVAL_DEPTH behind the
- * newest, at or beyond the baseline, that has not already closed. Runs after
- * each new anchor; guarded so overlapping ticks don't double-fire.
+ * Emit any due checkpoints. Windows are back-to-back and NON-overlapping: one
+ * re-BitGraph per INTERVAL_DEPTH anchors, not one per anchor. Only anchors
+ * whose ordinal is a whole number of windows past the baseline (baseline,
+ * baseline+DEPTH, baseline+2*DEPTH, …) are re-BitGraphed, and only once each
+ * exactly INTERVAL_DEPTH anchors have accrued behind the newest. So the engine
+ * counts DEPTH new anchors, lays one checkpoint bracketing that span, counts
+ * DEPTH more, and so on. Runs after each new anchor; guarded against overlap.
  */
 async function reconcileIntervals(): Promise<void> {
   if (reconciling || !intervalEpoch) return;
@@ -462,6 +470,8 @@ async function reconcileIntervals(): Promise<void> {
   try {
     const dueCount = anchorCounters.length - INTERVAL_DEPTH;
     for (let i = baselineOrdinal; i < dueCount; i++) {
+      // Sparse: one checkpoint per window, at each DEPTH-th anchor past baseline.
+      if ((i - baselineOrdinal) % INTERVAL_DEPTH !== 0) continue;
       const origCounter = anchorCounters[i];
       if (recurredOrig.has(origCounter)) continue;
       const ok = await commitRecurrence(origCounter);
