@@ -588,7 +588,7 @@ export default function ProofPage() {
               verified by BitGraph, so the card says so and never labels the name
               as "Creator". */}
           {isInterval ? (
-            <Card title="Interval Checkpoint">
+            <Card title="Interval BitGraph">
               {intervalBlockNum && <Field label="Ethereum block" value={`https://etherscan.io/block/${intervalBlockNum}`} link />}
               {attr?.message && <Field label="Block hash" value={attr.message} mono />}
               {intervalBegan && <Field label="Window began" value={intervalBegan} valueNode={intervalBeganNode} />}
