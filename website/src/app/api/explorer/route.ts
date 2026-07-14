@@ -62,7 +62,7 @@ async function getHead(epoch: string, now: number): Promise<number> {
 
 type Entry = {
   counter: number;
-  type: "proof" | "anchor";
+  type: "proof" | "anchor" | "interval";
   digest: string;
   hashShort: string;
   blockNumber: number | null;
@@ -76,18 +76,22 @@ function toEntry(p: Record<string, unknown>): Entry | null {
   const counter = parseInt(String(commit.counter ?? "0"), 10);
   if (!counter) return null;
   const isAnchor = attribution.name === "Ethereum Anchor";
+  // An interval recurrence re-commits an anchor's exact block-hash bytes 25
+  // anchors later. Same artifact digest, new causal position, distinct label.
+  const isInterval = attribution.name === "Interval";
   const digestB64 = String(artifact.digestB64 || "");
   const proofHash = String((p.proofHash as string) || commit.prevB64 || digestB64 || "");
   let blockNumber: number | null = null;
   let etherscanUrl: string | null = null;
-  if (isAnchor) {
+  if (isAnchor || isInterval) {
+    const meta = ((p.metadata as Record<string, unknown>)?.interval as { originalBlockNumber?: number }) || null;
     etherscanUrl = (attribution.title as string) || null;
     const m = (etherscanUrl || "").match(/\/block\/(\d+)/);
-    blockNumber = m ? parseInt(m[1], 10) : null;
+    blockNumber = m ? parseInt(m[1], 10) : (meta?.originalBlockNumber ?? null);
   }
   return {
     counter,
-    type: isAnchor ? "anchor" : "proof",
+    type: isAnchor ? "anchor" : isInterval ? "interval" : "proof",
     digest: toSafe(digestB64),
     hashShort: toSafe(proofHash).slice(0, 10),
     blockNumber,

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Entry = {
   counter: number;
-  type: "proof" | "anchor";
+  type: "proof" | "anchor" | "interval";
   digest: string;
   hashShort: string;
   blockNumber: number | null;
@@ -183,6 +183,13 @@ export function Explorer() {
 
         {!loading && !error && entries.map((e) => {
           const isAnchor = e.type === "anchor";
+          const isInterval = e.type === "interval";
+          // Interval recurrences are the same bytes as an anchor 25 anchors
+          // back, re-committed at a new position: distinct label + violet so
+          // they read differently from anchors (gray) and files (blue).
+          const tagLabel = isAnchor ? "anchor" : isInterval ? "interval" : "file";
+          const tagColor = isAnchor ? "#9ca3af" : isInterval ? "#7c3aed" : "#0065A4";
+          const tagWeight = isAnchor ? 400 : 600;
           // ?counter= pins the drill-in to THIS row's causal position; the
           // same bytes can occupy several (BitGraphed more than once).
           return (
@@ -191,8 +198,8 @@ export function Explorer() {
                 BitGraph
                 <span style={{ marginLeft: 7, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>#{fmt(e.counter)}</span>
               </span>
-              <span style={{ flexShrink: 0, fontSize: 12, color: isAnchor ? "#9ca3af" : "#0065A4", fontWeight: isAnchor ? 400 : 600, whiteSpace: "nowrap" }}>
-                {isAnchor ? "anchor" : "file"}
+              <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
+                {tagLabel}
               </span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#9ca3af", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
                 {e.hashShort}…
