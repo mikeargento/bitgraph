@@ -70,7 +70,7 @@ function formatHashAlg(alg: string): string {
 
 // Leading icon for the page's action buttons, so they read as controls rather
 // than as bordered panels. Stroke style matches the title check mark.
-function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus" | "brackets"; color?: string; size?: number }) {
+function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus" | "brackets" | "key"; color?: string; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, style: { flexShrink: 0 } };
   if (name === "code") return <svg {...common}><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>;
   // Attestation = a signed credential: a document with a ribboned seal (the
@@ -81,6 +81,7 @@ function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certi
   // Interval = brackets around a span of the chain; the Close action seals the
   // right bracket, so the glyph is the bracket pair itself.
   if (name === "brackets") return <svg {...common}><path d="M9 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h3" /><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3" /></svg>;
+  if (name === "key") return <svg {...common}><circle cx="8" cy="15" r="4" /><path d="M10.85 12.15 19 4" /><path d="M18 5l2 2" /><path d="M15 8l2 2" /></svg>;
   return <svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
 }
 
@@ -537,25 +538,6 @@ export default function ProofPage() {
                   Closing requires the interval key file. Drop it in the checker below to unlock.
                 </div>
               )}
-              {cachedFile && (
-                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
-                  <button
-                    onClick={() => {
-                      const buf = new Uint8Array(cachedFile.data);
-                      const blob = new Blob([buf as unknown as BlobPart], { type: "text/plain" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a"); a.href = url; a.download = cachedFile.name || "interval-key.txt"; a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                    style={{ padding: "8px 16px", fontSize: 13, fontWeight: 600, color: "#0065A4", background: "#f4f6f9", border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer" }}
-                  >
-                    Download key file
-                  </button>
-                  <div style={{ fontSize: 12.5, color: "#6b7280", marginTop: 8, lineHeight: 1.5 }}>
-                    BitGraph never holds a copy. Without this file the interval cannot be closed.
-                  </div>
-                </div>
-              )}
             </Card>
           )}
 
@@ -833,6 +815,35 @@ export default function ProofPage() {
               close itself is server-verified from those bytes. */}
           {intervalRec && !intervalRec.closed && cachedFile && (
             <CloseIntervalButton bytes={cachedFile.data} digestParam={digestParam} />
+          )}
+          {/* The interval key, exportable wherever this browser holds it. Same
+              stack and style as the other actions; the warning note mirrors the
+              proof-only export note below. */}
+          {intervalRec && cachedFile && (
+            <>
+              <button
+                onClick={() => {
+                  const buf = new Uint8Array(cachedFile.data);
+                  const blob = new Blob([buf as unknown as BlobPart], { type: "text/plain" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = cachedFile.name || "interval-key.txt"; a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="bg-btn-outline"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+                  width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+                  color: "#0065A4", background: "#f4f6f9",
+                  border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer",
+                }}
+              >
+                <BtnIcon name="key" />
+                <span>Download Interval Key</span>
+              </button>
+              <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center" }}>
+                BitGraph never holds a copy. Without this file the interval cannot be closed.
+              </div>
+            </>
           )}
           <button
             onClick={exportZip}
