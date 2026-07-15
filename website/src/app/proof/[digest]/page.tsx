@@ -517,7 +517,6 @@ export default function ProofPage() {
                   valueNode={
                     <span>
                       {intervalRec.report.fileCommits ?? 0} file commit{(intervalRec.report.fileCommits ?? 0) === 1 ? "" : "s"} ({intervalRec.report.uniqueDigests ?? 0} unique) · {intervalRec.report.anchors ?? 0} Ethereum anchor{(intervalRec.report.anchors ?? 0) === 1 ? "" : "s"}
-                      {intervalRec.report.slots != null ? <> · {intervalRec.report.slots} slot reservation{intervalRec.report.slots === 1 ? "" : "s"}</> : null}
                       {intervalRec.report.truncated ? <> <span style={{ color: "#6b7280" }}>(large interval, counts truncated)</span></> : null}
                     </span>
                   }
