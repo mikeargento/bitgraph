@@ -329,11 +329,22 @@ export default function ProofPage() {
   const openPos = findPos(intervalRec?.opened);
   const closePos = findPos(intervalRec?.closed);
   let elapsedLine: string | null = null;
+  let elapsedNode: React.ReactNode = null;
   if (openPos?.lowerTime && openPos?.upperTime && closePos?.lowerTime && closePos?.upperTime) {
     const minS = (new Date(closePos.lowerTime).getTime() - new Date(openPos.upperTime).getTime()) / 1000;
     const maxS = (new Date(closePos.upperTime).getTime() - new Date(openPos.lowerTime).getTime()) / 1000;
     elapsedLine = `between ${formatDuration(minS)} and ${formatDuration(maxS)}`;
+    elapsedNode = <>between <Em>{formatDuration(minS)}</Em> and <Em>{formatDuration(maxS)}</Em></>;
   }
+  // Anchor-window times get the same bold-blue emphasis as the lead card's
+  // Recorded line: temporal values are focal, connector words stay gray.
+  const windowNode = (pos: { lowerTime: string | null; upperTime: string | null } | null): React.ReactNode => {
+    if (!pos?.lowerTime || !pos?.upperTime) return null;
+    const t1 = new Date(pos.lowerTime), t2 = new Date(pos.upperTime);
+    return t1.toDateString() === t2.toDateString()
+      ? <>between <Em>{t1.toLocaleTimeString()}</Em> and <Em>{t2.toLocaleTimeString()}</Em> on <Em>{t2.toLocaleDateString()}</Em></>
+      : <>between <Em>{t1.toLocaleString()}</Em> and <Em>{t2.toLocaleString()}</Em></>;
+  };
   // Recurrences of the marker bytes that are neither the open nor the verified
   // close: anyone holding (or re-committing) the digest can add positions, but
   // only the key-verified close flips the interval's state.
@@ -477,7 +488,7 @@ export default function ProofPage() {
                 valueNode={
                   <span>
                     at position <span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>#{Number(intervalRec.opened.counter).toLocaleString()}</span>
-                    {openPos?.lowerTime && openPos?.upperTime ? <>, {formatWindow(openPos.lowerTime, openPos.upperTime)}</> : null}
+                    {openPos?.lowerTime && openPos?.upperTime ? <>, {windowNode(openPos)}</> : null}
                     {!isCurrentPos(intervalRec.opened) && <> · <a href={positionUrl(intervalRec.opened)} style={{ color: "var(--c-accent)", textDecoration: "none", fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>View</a></>}
                   </span>
                 }
@@ -489,14 +500,14 @@ export default function ProofPage() {
                   valueNode={
                     <span>
                       at position <span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>#{Number(intervalRec.closed.counter).toLocaleString()}</span>
-                      {closePos?.lowerTime && closePos?.upperTime ? <>, {formatWindow(closePos.lowerTime, closePos.upperTime)}</> : null}
+                      {closePos?.lowerTime && closePos?.upperTime ? <>, {windowNode(closePos)}</> : null}
                       {" "}<span style={{ color: "#10b981", fontWeight: 700 }}>(key-verified)</span>
                       {!isCurrentPos(intervalRec.closed) && <> · <a href={positionUrl(intervalRec.closed)} style={{ color: "var(--c-accent)", textDecoration: "none", fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>View</a></>}
                     </span>
                   }
                 />
               )}
-              {intervalRec.closed && elapsedLine && <Field label="Elapsed" value={elapsedLine} valueNode={<span>{elapsedLine} <span style={{ color: "#6b7280" }}>(each end is located to one Ethereum anchor window, so the elapsed time is a range)</span></span>} />}
+              {intervalRec.closed && elapsedLine && <Field label="Elapsed" value={elapsedLine} valueNode={<span>{elapsedNode} <span style={{ color: "#6b7280" }}>(each end is located to one Ethereum anchor window, so the elapsed time is a range)</span></span>} />}
               {intervalRec.closed && intervalRec.report?.sameEpoch && intervalRec.report.counterDistance != null && (
                 <Field label="Counter distance" value={String(intervalRec.report.counterDistance)} valueNode={
                   <span><span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>{intervalRec.report.counterDistance.toLocaleString()}</span> positions</span>
