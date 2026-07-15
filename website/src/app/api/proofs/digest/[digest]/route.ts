@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, getIntervalRecord } from "@/lib/s3";
+import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 
 export const dynamic = "force-dynamic";
@@ -79,20 +79,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // once). Fetch them all, earliest first; ?counter= (plus optional ?epoch=,
     // url-safe) selects which position this page load describes. Default: the
     // earliest, i.e. the originating proof.
-    const [all, intervalRec] = await Promise.all([
-      getProofsByDigest(standardB64),
-      getIntervalRecord(standardB64),
-    ]);
+    const all = await getProofsByDigest(standardB64);
     if (all.length === 0) {
       return NextResponse.json({ proofs: [] });
     }
-    // Interval view for the page: epochs converted to url-safe form so the
-    // client can compare them against ?epoch= params and build position links.
-    const interval = intervalRec ? {
-      opened: { counter: intervalRec.opened.counter, epoch: toUrlSafeB64(intervalRec.opened.epochId), at: intervalRec.opened.at },
-      closed: intervalRec.closed ? { counter: intervalRec.closed.counter, epoch: toUrlSafeB64(intervalRec.closed.epochId), at: intervalRec.closed.at } : null,
-      report: intervalRec.report ?? null,
-    } : null;
     const selCounter = req.nextUrl.searchParams.get("counter");
     const selEpoch = req.nextUrl.searchParams.get("epoch");
     let proof = all[0].proof;
@@ -167,7 +157,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       }
     } catch (_) { /* non-critical */ }
 
-    return NextResponse.json({ proofs: [{ proof }], positions, causalWindow, anchorBlock, interval });
+    return NextResponse.json({ proofs: [{ proof }], positions, causalWindow, anchorBlock });
   } catch (e) {
     console.error("GET /api/proofs/digest error:", e);
     return NextResponse.json({ error: "Failed" }, { status: 500 });

@@ -30,36 +30,6 @@ function formatWindow(lower: string | null, upper: string | null): string | null
   return null;
 }
 
-// The interval view served by /api/proofs/digest: where the marker opened,
-// where (if anywhere) it verifiably closed, and the close-time activity report.
-type IntervalView = {
-  opened: { counter: string; epoch: string; at: string };
-  closed: { counter: string; epoch: string; at: string } | null;
-  report: {
-    sameEpoch: boolean;
-    counterDistance: number | null;
-    entriesBetween: number | null;
-    fileCommits: number | null;
-    anchors: number | null;
-    slots: number | null;
-    uniqueDigests: number | null;
-    truncated?: boolean;
-  } | null;
-};
-
-// Humanize a duration in seconds: "24s", "1m 24s", "2h 5m", "4d 7h". Units
-// roll over as soon as they are reached; zero remainders are dropped.
-function formatDuration(totalSec: number): string {
-  const s = Math.max(0, Math.round(totalSec));
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return s % 60 ? `${m}m ${s % 60}s` : `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
-  const d = Math.floor(h / 24);
-  return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
-}
-
 // "sha256" -> "SHA-256", "sha-512" -> "SHA-512". Hyphenates the SHA family to
 // the conventional spelling; anything else is just upper-cased.
 function formatHashAlg(alg: string): string {
@@ -70,7 +40,7 @@ function formatHashAlg(alg: string): string {
 
 // Leading icon for the page's action buttons, so they read as controls rather
 // than as bordered panels. Stroke style matches the title check mark.
-function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus" | "brackets" | "key"; color?: string; size?: number }) {
+function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus"; color?: string; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, style: { flexShrink: 0 } };
   if (name === "code") return <svg {...common}><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>;
   // Attestation = a signed credential: a document with a ribboned seal (the
@@ -78,10 +48,6 @@ function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certi
   if (name === "certificate") return <svg {...common}><path d="M15 15m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5l2 1.5v-4.5" /><path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -1 1.73" /><path d="M6 9l12 0" /><path d="M6 12l3 0" /><path d="M6 15l2 0" /></svg>;
   if (name === "link") return <svg {...common}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>;
   if (name === "plus") return <svg {...common}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
-  // Interval = brackets around a span of the chain; the Close action seals the
-  // right bracket, so the glyph is the bracket pair itself.
-  if (name === "brackets") return <svg {...common}><path d="M9 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h3" /><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3" /></svg>;
-  if (name === "key") return <svg {...common}><circle cx="8" cy="15" r="4" /><path d="M10.85 12.15 19 4" /><path d="M18 5l2 2" /><path d="M15 8l2 2" /></svg>;
   return <svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
 }
 
@@ -105,9 +71,6 @@ export default function ProofPage() {
   // picks which one this page describes. lowerTime/upperTime are the ETH anchor
   // window bounds (block times) that bracket each recording.
   const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; lowerTime: string | null; upperTime: string | null }>>([]);
-  // User interval registered for this digest (marker recorded to open, key-
-  // verified re-recording to close). Epochs arrive url-safe from the API.
-  const [intervalRec, setIntervalRec] = useState<IntervalView | null>(null);
 
   // Nav visible on proof pages
 
@@ -144,7 +107,6 @@ export default function ProofPage() {
           if (data.causalWindow) setCausalWindow(data.causalWindow);
           if (data.anchorBlock) setAnchorBlock(data.anchorBlock);
           if (Array.isArray(data.positions)) setPositions(data.positions);
-          if (data.interval) setIntervalRec(data.interval as IntervalView);
           // Load the cached file from IndexedDB. The home page writes it in
           // the background after BitGraphing — bytes first, then a C2PA upgrade
           // once the ~6 MB toolkit has parsed — and that write can land AFTER
@@ -236,16 +198,9 @@ export default function ProofPage() {
   // anchor, carries no user file.
   const isInterval = attr?.name === "Interval";
   // Type badge in the lead card header, mirroring the explorer's labels/colors:
-  // file (blue), anchor (gray), interval (violet). A user-interval marker names
-  // its ROLE at this position (open/close), driven by the registry record.
-  const matchesEnd = (end: { counter: string; epoch: string } | null | undefined) =>
-    !!end && String(parseInt(end.counter, 10)) === String(parseInt(String(commit.counter), 10)) &&
-    (!commit.epochId || toSafeB64(String(commit.epochId)) === end.epoch);
-  const userIntervalRole = intervalRec
-    ? (matchesEnd(intervalRec.opened) ? "interval open" : matchesEnd(intervalRec.closed) ? "interval close" : "interval")
-    : null;
-  const typeLabel = userIntervalRole ?? (isInterval ? "interval" : isEth ? "anchor" : "file");
-  const typeColor = userIntervalRole || isInterval ? "#7c3aed" : isEth ? "#9ca3af" : "#0065A4";
+  // file (blue), anchor (gray), interval (violet).
+  const typeLabel = isInterval ? "interval" : isEth ? "anchor" : "file";
+  const typeColor = isInterval ? "#7c3aed" : isEth ? "#9ca3af" : "#0065A4";
   const typeWeight = isEth ? 400 : 600;
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
@@ -318,43 +273,6 @@ export default function ProofPage() {
       ? <>between <Em>{b1.toLocaleTimeString()}</Em> and <Em>{b2.toLocaleTimeString()}</Em> on <Em>{b2.toLocaleDateString()}</Em></>
       : <>between <Em>{b1.toLocaleString()}</Em> and <Em>{b2.toLocaleString()}</Em></>;
   }
-
-  // ── User interval derivations ──
-  // Match this digest's causal positions against the registry record to find
-  // each end's ETH anchor window; elapsed time is a RANGE (close window minus
-  // open window), since each end is only located to one anchor interval.
-  // Anchor windows come from Ethereum blocks, so elapsed survives TEE epoch
-  // restarts; counter distance (in the report) does not.
-  const findPos = (end: { counter: string; epoch: string } | null | undefined) =>
-    end ? positions.find((p) =>
-      String(parseInt(String(p.counter), 10)) === String(parseInt(end.counter, 10)) &&
-      (!p.epoch || p.epoch === end.epoch)) ?? null : null;
-  const openPos = findPos(intervalRec?.opened);
-  const closePos = findPos(intervalRec?.closed);
-  let elapsedLine: string | null = null;
-  let elapsedNode: React.ReactNode = null;
-  if (openPos?.lowerTime && openPos?.upperTime && closePos?.lowerTime && closePos?.upperTime) {
-    const minS = (new Date(closePos.lowerTime).getTime() - new Date(openPos.upperTime).getTime()) / 1000;
-    const maxS = (new Date(closePos.upperTime).getTime() - new Date(openPos.lowerTime).getTime()) / 1000;
-    elapsedLine = `between ${formatDuration(minS)} and ${formatDuration(maxS)}`;
-    elapsedNode = <>between <Em>{formatDuration(minS)}</Em> and <Em>{formatDuration(maxS)}</Em></>;
-  }
-  // Anchor-window times get the same bold-blue emphasis as the lead card's
-  // Recorded line: temporal values are focal, connector words stay gray.
-  const windowNode = (pos: { lowerTime: string | null; upperTime: string | null } | null): React.ReactNode => {
-    if (!pos?.lowerTime || !pos?.upperTime) return null;
-    const t1 = new Date(pos.lowerTime), t2 = new Date(pos.upperTime);
-    return t1.toDateString() === t2.toDateString()
-      ? <>between <Em>{t1.toLocaleTimeString()}</Em> and <Em>{t2.toLocaleTimeString()}</Em> on <Em>{t2.toLocaleDateString()}</Em></>
-      : <>between <Em>{t1.toLocaleString()}</Em> and <Em>{t2.toLocaleString()}</Em></>;
-  };
-  // Recurrences of the marker bytes that are neither the open nor the verified
-  // close: anyone holding (or re-committing) the digest can add positions, but
-  // only the key-verified close flips the interval's state.
-  const strayPositions = intervalRec ? positions.filter((p) => p !== openPos && p !== closePos).length : 0;
-  const positionUrl = (end: { counter: string; epoch: string }) =>
-    `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(end.counter)}&epoch=${encodeURIComponent(end.epoch)}`;
-  const isCurrentPos = matchesEnd;
 
   async function exportZip() {
     try {
@@ -465,79 +383,6 @@ export default function ProofPage() {
             )}>
               {recordedLine && <Field label="Recorded" value={recordedLine} valueNode={recordedNode} />}
               <Field label="Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
-            </Card>
-          )}
-
-          {/* User interval — the same uniquely generated marker at two causal
-              positions. Open: one position, waiting for the key-holder. Closed:
-              a possession-verified second position, with the span's report.
-              Everything here is presentation over ordinary proofs; the signed
-              facts live in the cards below. */}
-          {intervalRec && (
-            <Card
-              accent="#7c3aed"
-              title={isCurrentPos(intervalRec.opened) ? "Interval Open"
-                : isCurrentPos(intervalRec.closed) ? "Interval Close"
-                : "Interval"}
-            >
-              <Field
-                label="Opened"
-                value={`#${Number(intervalRec.opened.counter).toLocaleString()}`}
-                valueNode={
-                  <span>
-                    at position <span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>#{Number(intervalRec.opened.counter).toLocaleString()}</span>
-                    {openPos?.lowerTime && openPos?.upperTime ? <>, {windowNode(openPos)}</> : null}
-                    {!isCurrentPos(intervalRec.opened) && <> · <a href={positionUrl(intervalRec.opened)} style={{ color: "var(--c-accent)", textDecoration: "none", fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>View</a></>}
-                  </span>
-                }
-              />
-              {intervalRec.closed && (
-                <Field
-                  label="Closed"
-                  value={`#${Number(intervalRec.closed.counter).toLocaleString()}`}
-                  valueNode={
-                    <span>
-                      at position <span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>#{Number(intervalRec.closed.counter).toLocaleString()}</span>
-                      {closePos?.lowerTime && closePos?.upperTime ? <>, {windowNode(closePos)}</> : null}
-                      {" "}<span style={{ color: "#10b981", fontWeight: 700 }}>(key-verified)</span>
-                      {!isCurrentPos(intervalRec.closed) && <> · <a href={positionUrl(intervalRec.closed)} style={{ color: "var(--c-accent)", textDecoration: "none", fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>View</a></>}
-                    </span>
-                  }
-                />
-              )}
-              {intervalRec.closed && elapsedLine && <Field label="Elapsed" value={elapsedLine} valueNode={elapsedNode} />}
-              {intervalRec.closed && intervalRec.report?.sameEpoch && intervalRec.report.counterDistance != null && (
-                <Field label="Counter distance" value={String(intervalRec.report.counterDistance)} valueNode={
-                  <span><span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>{intervalRec.report.counterDistance.toLocaleString()}</span> positions</span>
-                } />
-              )}
-              {intervalRec.closed && intervalRec.report?.sameEpoch && intervalRec.report.entriesBetween != null && (
-                <Field
-                  label="Recorded within this interval"
-                  value={`${intervalRec.report.entriesBetween} entries`}
-                  valueNode={
-                    <span>
-                      {intervalRec.report.fileCommits ?? 0} file commit{(intervalRec.report.fileCommits ?? 0) === 1 ? "" : "s"} ({intervalRec.report.uniqueDigests ?? 0} unique) · {intervalRec.report.anchors ?? 0} Ethereum anchor{(intervalRec.report.anchors ?? 0) === 1 ? "" : "s"}
-                      {intervalRec.report.truncated ? <> <span style={{ color: "#6b7280" }}>(large interval, counts truncated)</span></> : null}
-                    </span>
-                  }
-                />
-              )}
-              {intervalRec.closed && intervalRec.report && !intervalRec.report.sameEpoch && (
-                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
-                  This interval crosses a TEE epoch restart. The Ethereum time bounds above still hold; counter distance does not exist across epochs.
-                </div>
-              )}
-              {strayPositions > 0 && (
-                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
-                  {strayPositions} other recurrence{strayPositions === 1 ? "" : "s"} of these bytes exist{strayPositions === 1 ? "s" : ""} (see Causal Positions). Unverified recurrences never close an interval.
-                </div>
-              )}
-              {!intervalRec.closed && !cachedFile && (
-                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
-                  Closing requires the interval key file. Drop it in the checker below to unlock.
-                </div>
-              )}
             </Card>
           )}
 
@@ -806,44 +651,8 @@ export default function ProofPage() {
               to this proof's digest), keeping the file-as-key rule: viewing a
               proof page alone doesn't let you mint positions for bytes you
               don't hold. */}
-          {!isEth && cachedFile && !intervalRec && (
+          {!isEth && cachedFile && (
             <BitGraphAgainButton proof={proof} digestParam={digestParam} />
-          )}
-          {/* Close Interval replaces BitGraph Again on interval digests (Again
-              would be a close by another name). Same file-as-key gate: the
-              button exists only when validated key bytes are in hand, and the
-              close itself is server-verified from those bytes. */}
-          {intervalRec && !intervalRec.closed && cachedFile && (
-            <CloseIntervalButton bytes={cachedFile.data} digestParam={digestParam} />
-          )}
-          {/* The interval key, exportable wherever this browser holds it. Same
-              stack and style as the other actions; the warning note mirrors the
-              proof-only export note below. */}
-          {intervalRec && cachedFile && (
-            <>
-              <button
-                onClick={() => {
-                  const buf = new Uint8Array(cachedFile.data);
-                  const blob = new Blob([buf as unknown as BlobPart], { type: "text/plain" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a"); a.href = url; a.download = cachedFile.name || "interval-key.txt"; a.click();
-                  URL.revokeObjectURL(url);
-                }}
-                className="bg-btn-outline"
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-                  width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-                  color: "#0065A4", background: "#f4f6f9",
-                  border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer",
-                }}
-              >
-                <BtnIcon name="key" />
-                <span>Download Interval Key</span>
-              </button>
-              <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center" }}>
-                BitGraph never holds a copy. Without this file the interval cannot be closed.
-              </div>
-            </>
           )}
           <button
             onClick={exportZip}
@@ -885,13 +694,13 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 /* ── Card ── */
 
-function Card({ title, accent, children }: { title: React.ReactNode; accent?: string; children: React.ReactNode }) {
+function Card({ title, children }: { title: React.ReactNode; accent?: string; children: React.ReactNode }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
       <div style={{
         fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
-        color: accent || "#0065A4", padding: "18px 24px",
-        background: accent === "#7c3aed" ? "rgba(124,58,237,0.05)" : "rgba(0,101,164,0.04)",
+        color: "#0065A4", padding: "18px 24px",
+        background: "rgba(0,101,164,0.04)",
         borderBottom: "1px solid #e2e5e9",
       }}>
         {title}
@@ -984,59 +793,6 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
       {state === "error" && (
         <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
           Could not record a new position. Try again in a moment.
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ── Close Interval — the possession-verified close. POSTs the key bytes (the
-   cached artifact already validated against this digest); the server re-hashes,
-   requires an open interval on that digest, commits, stamps the registry, and
-   discards the bytes. Then reload onto the close position, which renders the
-   interval report. ── */
-
-function CloseIntervalButton({ bytes, digestParam }: { bytes: ArrayBuffer; digestParam: string }) {
-  const [state, setState] = useState<"idle" | "working" | "error">("idle");
-  const [errMsg, setErrMsg] = useState("");
-
-  async function run() {
-    if (state === "working") return;
-    setState("working");
-    try {
-      const { closeInterval } = await import("@/lib/interval");
-      const { proof: p } = await closeInterval(bytes);
-      const counter = p.commit?.counter;
-      const epoch = p.commit?.epochId ? toSafeB64(String(p.commit.epochId)) : "";
-      window.location.href = `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}`;
-    } catch (e) {
-      console.error("[bitgraph] close interval failed:", e);
-      setErrMsg((e as Error).message || "");
-      setState("error");
-    }
-  }
-
-  return (
-    <>
-      <button
-        onClick={run}
-        disabled={state === "working"}
-        className="bg-btn-outline"
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-          width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-          color: state === "working" ? "#9ca3af" : "#0065A4",
-          background: "#f4f6f9",
-          border: `1px solid ${state === "working" ? "#d0d5dd" : "#0065A4"}`,
-          borderRadius: 0, cursor: state === "working" ? "default" : "pointer",
-        }}
-      >
-        <BtnIcon name="brackets" color={state === "working" ? "#9ca3af" : "#0065A4"} />
-        <span>{state === "working" ? "Closing…" : "Close Interval"}</span>
-      </button>
-      {state === "error" && (
-        <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
-          {errMsg || "Could not close the interval. Try again in a moment."}
         </div>
       )}
     </>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type Entry = {
   counter: number;
-  type: "proof" | "anchor" | "interval" | "interval-open" | "interval-close";
+  type: "proof" | "anchor" | "interval";
   digest: string;
   hashShort: string;
   blockNumber: number | null;
@@ -187,15 +187,11 @@ export function Explorer() {
 
         {!loading && !error && entries.map((e) => {
           const isAnchor = e.type === "anchor";
-          // Violet marks every interval flavor: legacy system checkpoints
-          // ("interval") and user interval markers, whose label names the
-          // position's role (interval open / interval close).
-          const isInterval = e.type === "interval" || e.type === "interval-open" || e.type === "interval-close";
-          const tagLabel = isAnchor ? "anchor"
-            : e.type === "interval-open" ? "interval open"
-            : e.type === "interval-close" ? "interval close"
-            : e.type === "interval" ? "interval"
-            : "file";
+          const isInterval = e.type === "interval";
+          // Interval recurrences are the same bytes as an anchor 25 anchors
+          // back, re-committed at a new position: distinct label + violet so
+          // they read differently from anchors (gray) and files (blue).
+          const tagLabel = isAnchor ? "anchor" : isInterval ? "interval" : "file";
           const tagColor = isAnchor ? "#9ca3af" : isInterval ? "#7c3aed" : "#0065A4";
           const tagWeight = isAnchor ? 400 : 600;
           // ?counter= pins the drill-in to THIS row's causal position; the

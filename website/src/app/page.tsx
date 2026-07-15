@@ -443,7 +443,6 @@ export default function BitGraphPage() {
                 hint=""
               />
             </div>
-            <CreateIntervalButton />
             <Explorer />
           </>
         )}
@@ -674,68 +673,6 @@ export default function BitGraphPage() {
    under the proof digest, so the proof page can render the image. The bytes are
    written first so the image appears immediately; C2PA parsing is best-effort
    (loads a ~6 MB WASM toolkit lazily) and never blocks caching the file. ── */
-/* ── Create an Interval — generates a unique marker file locally, saves the
-   key (IndexedDB + a forced download), and records the marker's first causal
-   position: the interval OPENS. The marker bytes never leave this device at
-   open; only the digest is sent, like every other commit. Closing later
-   requires the key file, so the download is the durable copy: we never hold
-   one. ── */
-function CreateIntervalButton() {
-  const [state, setState] = useState<"idle" | "working" | "error">("idle");
-
-  async function run() {
-    if (state === "working") return;
-    setState("working");
-    try {
-      const { generateIntervalMarker, downloadIntervalKey } = await import("@/lib/interval");
-      const marker = await generateIntervalMarker();
-      const file = new File([marker.bytes as unknown as BlobPart], marker.fileName, { type: "text/plain" });
-      // Key first, commit second: if the commit fails the user just has a
-      // spare unused key file; the reverse order could open an interval whose
-      // key was never saved anywhere.
-      await cacheArtifactToIDB(file, marker.digestB64).catch((e) => console.error("[bitgraph] interval cache error:", e));
-      downloadIntervalKey(marker.bytes, marker.fileName);
-      const resp = await fetch("/api/interval/open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ digestB64: marker.digestB64 }),
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error((data as { error?: string }).error || `Open failed: ${resp.status}`);
-      const commit = (data as { proof?: { commit?: { counter?: string; epochId?: string } } }).proof?.commit;
-      const sel = commit?.counter ? `?counter=${encodeURIComponent(commit.counter)}${commit.epochId ? `&epoch=${encodeURIComponent(toUrlSafeB64(commit.epochId))}` : ""}` : "";
-      window.location.href = `/proof/${encodeURIComponent(toUrlSafeB64(marker.digestB64))}${sel}`;
-    } catch (e) {
-      console.error("[bitgraph] create interval failed:", e);
-      setState("error");
-    }
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <button
-        onClick={run}
-        disabled={state === "working"}
-        className="bg-btn-outline"
-        style={{
-          height: 76, fontSize: 16, fontWeight: 500, borderRadius: 0,
-          color: state === "working" ? "#9ca3af" : "#0065A4",
-          background: "#f4f6f9",
-          border: `1px solid ${state === "working" ? "#d0d5dd" : "#0065A4"}`,
-          cursor: state === "working" ? "default" : "pointer",
-        }}
-      >
-        {state === "working" ? "Opening interval…" : "Create an Interval"}
-      </button>
-      {state === "error" && (
-        <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
-          Could not open the interval. Try again in a moment.
-        </div>
-      )}
-    </div>
-  );
-}
-
 async function cacheArtifactToIDB(file: File, proofDigest: string) {
   const buf = await file.arrayBuffer();
   const writeRecord = async (c2pa: C2PAReadResult | null, c2paChecked: boolean) => {
