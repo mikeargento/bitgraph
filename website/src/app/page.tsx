@@ -443,7 +443,15 @@ export default function BitGraphPage() {
                 hint=""
               />
             </div>
-            <Explorer />
+            <div>
+              {/* Ledger stream + range stats entry point, one unit */}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+                <a href="/stats" style={{ fontSize: 13, fontWeight: 600, color: "#0065A4", textDecoration: "none" }}>
+                  Stats →
+                </a>
+              </div>
+              <Explorer />
+            </div>
           </>
         )}
 
