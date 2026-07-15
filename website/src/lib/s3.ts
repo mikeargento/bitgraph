@@ -182,6 +182,163 @@ export async function storeProofByDigest(proof: Record<string, unknown>, priorLe
   }
 }
 
+/* ── Intervals ─────────────────────────────────────────────────────────────
+ *
+ * A user interval is the same uniquely generated marker file recorded at two
+ * causal positions: the first recording opens it, a possession-verified
+ * re-recording closes it. The proofs themselves are ordinary BitGraphs; this
+ * registry is product state (which digest is an interval, where it opened,
+ * where it verifiably closed), NOT part of any signed proof.
+ *
+ * Key: intervals/{urlSafeDigest}.json
+ */
+
+export interface IntervalPosition {
+  epochId: string;   // standard base64
+  counter: string;
+  at: string;        // ISO write time (server clock, advisory)
+}
+
+export interface IntervalReport {
+  sameEpoch: boolean;
+  /** close.counter - open.counter; null across epochs (counters reset). */
+  counterDistance: number | null;
+  /** Ledger objects strictly between the two commits (file commits + anchors). */
+  entriesBetween: number | null;
+  fileCommits: number | null;
+  anchors: number | null;
+  /** Counter gaps = slot reservations (a slot reserves a counter, no object). */
+  slots: number | null;
+  uniqueDigests: number | null;
+  truncated?: boolean;
+}
+
+export interface IntervalRecord {
+  kind: "bitgraph-interval/1";
+  digestB64: string;
+  opened: IntervalPosition;
+  closed: IntervalPosition | null;
+  report: IntervalReport | null;
+}
+
+function intervalKey(digestB64: string): string {
+  return `intervals/${toSafe(digestB64)}.json`;
+}
+
+export async function getIntervalRecord(digestB64: string): Promise<IntervalRecord | null> {
+  const text = await getObjectText(intervalKey(digestB64));
+  if (!text) return null;
+  try { return JSON.parse(text) as IntervalRecord; } catch { return null; }
+}
+
+/**
+ * Register a digest as an interval, atomically: IfNoneMatch:"*" makes the
+ * first writer win (same claim pattern as anchor dedup), so a digest can never
+ * be registered twice. Returns false when the record already existed.
+ */
+export async function claimIntervalRecord(record: IntervalRecord): Promise<boolean> {
+  try {
+    const s3 = getClient();
+    await s3.send(new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: intervalKey(record.digestB64),
+      Body: JSON.stringify(record, null, 2),
+      ContentType: "application/json",
+      IfNoneMatch: "*",
+    }));
+    return true;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "PreconditionFailed" || (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
+    console.error("[s3] claimIntervalRecord failed:", name, (err as Error).message);
+    throw err;
+  }
+}
+
+/** Overwrite the interval record (bucket versioning keeps prior versions). */
+export async function putIntervalRecord(record: IntervalRecord): Promise<void> {
+  const s3 = getClient();
+  await s3.send(new PutObjectCommand({
+    Bucket: getBucket(),
+    Key: intervalKey(record.digestB64),
+    Body: JSON.stringify(record, null, 2),
+    ContentType: "application/json",
+  }));
+}
+
+/**
+ * What happened strictly between the open and close commits. Counted from S3
+ * key names only (proofs/{epoch}/{counter}-{hash}.json), no object GETs.
+ * Anchors are identified via the anchors/{epoch}/ counter index. Counter gaps
+ * are slot reservations: every proof spans TWO counters (slot N, commit N+1),
+ * so raw counter distance always overstates activity.
+ */
+export async function computeIntervalReport(opened: IntervalPosition, closed: IntervalPosition): Promise<IntervalReport> {
+  const sameEpoch = opened.epochId === closed.epochId;
+  if (!sameEpoch) {
+    return { sameEpoch, counterDistance: null, entriesBetween: null, fileCommits: null, anchors: null, slots: null, uniqueDigests: null };
+  }
+  const openC = parseInt(opened.counter, 10);
+  const closeC = parseInt(closed.counter, 10);
+  const report: IntervalReport = {
+    sameEpoch,
+    counterDistance: closeC - openC,
+    entriesBetween: 0, fileCommits: 0, anchors: 0, slots: 0, uniqueDigests: 0,
+  };
+  const span = closeC - openC - 1;
+  if (span <= 0) return report;
+
+  const s3 = getClient();
+  const bucket = getBucket();
+  const safeEpoch = toSafe(opened.epochId);
+  const MAX_KEYS = 5000;
+
+  // Keys in (openC, closeC) under a prefix; returns [counter, filename] pairs.
+  const listBetween = async (prefix: string): Promise<Array<[number, string]>> => {
+    const out: Array<[number, string]> = [];
+    let token: string | undefined;
+    do {
+      const res = await s3.send(new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+        StartAfter: `${prefix}${String(openC + 1).padStart(12, "0")}`,
+        ContinuationToken: token,
+        MaxKeys: 1000,
+      }));
+      for (const obj of res.Contents || []) {
+        const filename = (obj.Key || "").split("/").pop() || "";
+        const c = parseInt(filename.split("-")[0], 10);
+        if (isNaN(c)) continue;
+        if (c >= closeC) return out;
+        if (c > openC) out.push([c, filename]);
+        if (out.length >= MAX_KEYS) { report.truncated = true; return out; }
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+    return out;
+  };
+
+  const [proofEntries, anchorEntries] = await Promise.all([
+    listBetween(`proofs/${safeEpoch}/`),
+    listBetween(`anchors/${safeEpoch}/`),
+  ]);
+  const anchorCounters = new Set(anchorEntries.map(([c]) => c));
+  const digests = new Set<string>();
+  for (const [c, filename] of proofEntries) {
+    if (!anchorCounters.has(c)) {
+      // filename: {counter}-{hash}.json — the hash part identifies the digest.
+      const hash = filename.replace(/\.json$/, "").split("-").slice(1).join("-");
+      if (hash) digests.add(hash);
+    }
+  }
+  report.entriesBetween = proofEntries.length;
+  report.anchors = anchorCounters.size;
+  report.fileCommits = proofEntries.filter(([c]) => !anchorCounters.has(c)).length;
+  report.uniqueDigests = digests.size;
+  report.slots = report.truncated ? null : Math.max(0, span - proofEntries.length);
+  return report;
+}
+
 export interface DigestProofEntry {
   proof: Record<string, unknown>;
   /** S3 write time of the position-index entry (ms), null for the legacy key. */

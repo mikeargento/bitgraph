@@ -30,6 +30,34 @@ function formatWindow(lower: string | null, upper: string | null): string | null
   return null;
 }
 
+// The interval view served by /api/proofs/digest: where the marker opened,
+// where (if anywhere) it verifiably closed, and the close-time activity report.
+type IntervalView = {
+  opened: { counter: string; epoch: string; at: string };
+  closed: { counter: string; epoch: string; at: string } | null;
+  report: {
+    sameEpoch: boolean;
+    counterDistance: number | null;
+    entriesBetween: number | null;
+    fileCommits: number | null;
+    anchors: number | null;
+    slots: number | null;
+    uniqueDigests: number | null;
+    truncated?: boolean;
+  } | null;
+};
+
+// Humanize a duration in seconds: "24s", "3m 12s", "2h 5m", "4d 7h".
+function formatDuration(totalSec: number): string {
+  const s = Math.max(0, Math.round(totalSec));
+  if (s < 120) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 120) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
 // "sha256" -> "SHA-256", "sha-512" -> "SHA-512". Hyphenates the SHA family to
 // the conventional spelling; anything else is just upper-cased.
 function formatHashAlg(alg: string): string {
@@ -71,6 +99,9 @@ export default function ProofPage() {
   // picks which one this page describes. lowerTime/upperTime are the ETH anchor
   // window bounds (block times) that bracket each recording.
   const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; lowerTime: string | null; upperTime: string | null }>>([]);
+  // User interval registered for this digest (marker recorded to open, key-
+  // verified re-recording to close). Epochs arrive url-safe from the API.
+  const [intervalRec, setIntervalRec] = useState<IntervalView | null>(null);
 
   // Nav visible on proof pages
 
@@ -107,6 +138,7 @@ export default function ProofPage() {
           if (data.causalWindow) setCausalWindow(data.causalWindow);
           if (data.anchorBlock) setAnchorBlock(data.anchorBlock);
           if (Array.isArray(data.positions)) setPositions(data.positions);
+          if (data.interval) setIntervalRec(data.interval as IntervalView);
           // Load the cached file from IndexedDB. The home page writes it in
           // the background after BitGraphing — bytes first, then a C2PA upgrade
           // once the ~6 MB toolkit has parsed — and that write can land AFTER
@@ -274,6 +306,34 @@ export default function ProofPage() {
       : <>between <Em>{b1.toLocaleString()}</Em> and <Em>{b2.toLocaleString()}</Em></>;
   }
 
+  // ── User interval derivations ──
+  // Match this digest's causal positions against the registry record to find
+  // each end's ETH anchor window; elapsed time is a RANGE (close window minus
+  // open window), since each end is only located to one anchor interval.
+  // Anchor windows come from Ethereum blocks, so elapsed survives TEE epoch
+  // restarts; counter distance (in the report) does not.
+  const findPos = (end: { counter: string; epoch: string } | null | undefined) =>
+    end ? positions.find((p) =>
+      String(parseInt(String(p.counter), 10)) === String(parseInt(end.counter, 10)) &&
+      (!p.epoch || p.epoch === end.epoch)) ?? null : null;
+  const openPos = findPos(intervalRec?.opened);
+  const closePos = findPos(intervalRec?.closed);
+  let elapsedLine: string | null = null;
+  if (openPos?.lowerTime && openPos?.upperTime && closePos?.lowerTime && closePos?.upperTime) {
+    const minS = (new Date(closePos.lowerTime).getTime() - new Date(openPos.upperTime).getTime()) / 1000;
+    const maxS = (new Date(closePos.upperTime).getTime() - new Date(openPos.lowerTime).getTime()) / 1000;
+    elapsedLine = `between ${formatDuration(minS)} and ${formatDuration(maxS)}`;
+  }
+  // Recurrences of the marker bytes that are neither the open nor the verified
+  // close: anyone holding (or re-committing) the digest can add positions, but
+  // only the key-verified close flips the interval's state.
+  const strayPositions = intervalRec ? positions.filter((p) => p !== openPos && p !== closePos).length : 0;
+  const positionUrl = (end: { counter: string; epoch: string }) =>
+    `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(end.counter)}&epoch=${encodeURIComponent(end.epoch)}`;
+  const isCurrentPos = (end: { counter: string; epoch: string } | null) =>
+    !!end && String(parseInt(end.counter, 10)) === String(parseInt(String(commit.counter), 10)) &&
+    (!commit.epochId || toSafeB64(String(commit.epochId)) === end.epoch);
+
   async function exportZip() {
     try {
     const files: Record<string, Uint8Array> = {
@@ -383,6 +443,106 @@ export default function ProofPage() {
             )}>
               {recordedLine && <Field label="Recorded" value={recordedLine} valueNode={recordedNode} />}
               <Field label="Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
+            </Card>
+          )}
+
+          {/* User interval — the same uniquely generated marker at two causal
+              positions. Open: one position, waiting for the key-holder. Closed:
+              a possession-verified second position, with the span's report.
+              Everything here is presentation over ordinary proofs; the signed
+              facts live in the cards below. */}
+          {intervalRec && (
+            <Card title={(
+              <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 8 }}>
+                <span>Interval</span>
+                <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", color: intervalRec.closed ? "#10b981" : "#7c3aed", flexShrink: 0 }}>
+                  {intervalRec.closed ? "CLOSED" : "OPEN"}
+                </span>
+              </span>
+            )}>
+              <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
+                {intervalRec.closed
+                  ? "This marker was recorded at two causal positions by whoever holds its key file. The span between them is this interval."
+                  : "This BitGraph is an interval marker. It closes only when its key file is recorded again, and only the key-holder can do that."}
+              </div>
+              <Field
+                label="Opened"
+                value={`#${Number(intervalRec.opened.counter).toLocaleString()}`}
+                valueNode={
+                  <span>
+                    at position <span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>#{Number(intervalRec.opened.counter).toLocaleString()}</span>
+                    {openPos?.lowerTime && openPos?.upperTime ? <>, {formatWindow(openPos.lowerTime, openPos.upperTime)}</> : null}
+                    {!isCurrentPos(intervalRec.opened) && <> · <a href={positionUrl(intervalRec.opened)} style={{ color: "var(--c-accent)", textDecoration: "none", fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>View</a></>}
+                  </span>
+                }
+              />
+              {intervalRec.closed && (
+                <Field
+                  label="Closed"
+                  value={`#${Number(intervalRec.closed.counter).toLocaleString()}`}
+                  valueNode={
+                    <span>
+                      at position <span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>#{Number(intervalRec.closed.counter).toLocaleString()}</span>
+                      {closePos?.lowerTime && closePos?.upperTime ? <>, {formatWindow(closePos.lowerTime, closePos.upperTime)}</> : null}
+                      {" "}<span style={{ color: "#10b981", fontWeight: 700 }}>(key-verified)</span>
+                      {!isCurrentPos(intervalRec.closed) && <> · <a href={positionUrl(intervalRec.closed)} style={{ color: "var(--c-accent)", textDecoration: "none", fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>View</a></>}
+                    </span>
+                  }
+                />
+              )}
+              {intervalRec.closed && elapsedLine && <Field label="Elapsed" value={elapsedLine} valueNode={<span>{elapsedLine} <span style={{ color: "#6b7280" }}>(each end is located to one Ethereum anchor window, so the elapsed time is a range)</span></span>} />}
+              {intervalRec.closed && intervalRec.report?.sameEpoch && intervalRec.report.counterDistance != null && (
+                <Field label="Counter distance" value={String(intervalRec.report.counterDistance)} valueNode={
+                  <span><span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>{intervalRec.report.counterDistance.toLocaleString()}</span> positions</span>
+                } />
+              )}
+              {intervalRec.closed && intervalRec.report?.sameEpoch && intervalRec.report.entriesBetween != null && (
+                <Field
+                  label="Recorded within this interval"
+                  value={`${intervalRec.report.entriesBetween} entries`}
+                  valueNode={
+                    <span>
+                      {intervalRec.report.fileCommits ?? 0} file commit{(intervalRec.report.fileCommits ?? 0) === 1 ? "" : "s"} ({intervalRec.report.uniqueDigests ?? 0} unique) · {intervalRec.report.anchors ?? 0} Ethereum anchor{(intervalRec.report.anchors ?? 0) === 1 ? "" : "s"}
+                      {intervalRec.report.slots != null ? <> · {intervalRec.report.slots} slot reservation{intervalRec.report.slots === 1 ? "" : "s"}</> : null}
+                      {intervalRec.report.truncated ? <> <span style={{ color: "#6b7280" }}>(large interval, counts truncated)</span></> : null}
+                    </span>
+                  }
+                />
+              )}
+              {intervalRec.closed && intervalRec.report && !intervalRec.report.sameEpoch && (
+                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
+                  This interval crosses a TEE epoch restart. The Ethereum time bounds above still hold; counter distance does not exist across epochs.
+                </div>
+              )}
+              {strayPositions > 0 && (
+                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
+                  {strayPositions} other recurrence{strayPositions === 1 ? "" : "s"} of these bytes exist{strayPositions === 1 ? "s" : ""} (see Causal Positions). Unverified recurrences never close an interval.
+                </div>
+              )}
+              {!intervalRec.closed && !cachedFile && (
+                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
+                  Hold the key? Drop the interval key file into the checker below to unlock Close Interval. The key never leaves this page unverified: it is hashed locally first.
+                </div>
+              )}
+              {cachedFile && (
+                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+                  <button
+                    onClick={() => {
+                      const buf = new Uint8Array(cachedFile.data);
+                      const blob = new Blob([buf as unknown as BlobPart], { type: "text/plain" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a"); a.href = url; a.download = cachedFile.name || "interval-key.txt"; a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    style={{ padding: "8px 16px", fontSize: 13, fontWeight: 600, color: "#0065A4", background: "#f4f6f9", border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer" }}
+                  >
+                    Download key file
+                  </button>
+                  <div style={{ fontSize: 12.5, color: "#6b7280", marginTop: 8, lineHeight: 1.5 }}>
+                    The key exists only in this browser and in your downloads. BitGraph never holds a copy; without the key the interval cannot be closed.
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
@@ -651,8 +811,15 @@ export default function ProofPage() {
               to this proof's digest), keeping the file-as-key rule: viewing a
               proof page alone doesn't let you mint positions for bytes you
               don't hold. */}
-          {!isEth && cachedFile && (
+          {!isEth && cachedFile && !intervalRec && (
             <BitGraphAgainButton proof={proof} digestParam={digestParam} />
+          )}
+          {/* Close Interval replaces BitGraph Again on interval digests (Again
+              would be a close by another name). Same file-as-key gate: the
+              button exists only when validated key bytes are in hand, and the
+              close itself is server-verified from those bytes. */}
+          {intervalRec && !intervalRec.closed && cachedFile && (
+            <CloseIntervalButton bytes={cachedFile.data} digestParam={digestParam} />
           )}
           <button
             onClick={exportZip}
@@ -793,6 +960,59 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
       {state === "error" && (
         <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
           Could not record a new position. Try again in a moment.
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── Close Interval — the possession-verified close. POSTs the key bytes (the
+   cached artifact already validated against this digest); the server re-hashes,
+   requires an open interval on that digest, commits, stamps the registry, and
+   discards the bytes. Then reload onto the close position, which renders the
+   interval report. ── */
+
+function CloseIntervalButton({ bytes, digestParam }: { bytes: ArrayBuffer; digestParam: string }) {
+  const [state, setState] = useState<"idle" | "working" | "error">("idle");
+  const [errMsg, setErrMsg] = useState("");
+
+  async function run() {
+    if (state === "working") return;
+    setState("working");
+    try {
+      const { closeInterval } = await import("@/lib/interval");
+      const { proof: p } = await closeInterval(bytes);
+      const counter = p.commit?.counter;
+      const epoch = p.commit?.epochId ? toSafeB64(String(p.commit.epochId)) : "";
+      window.location.href = `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}`;
+    } catch (e) {
+      console.error("[bitgraph] close interval failed:", e);
+      setErrMsg((e as Error).message || "");
+      setState("error");
+    }
+  }
+
+  return (
+    <>
+      <button
+        onClick={run}
+        disabled={state === "working"}
+        className="bg-btn-outline"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+          width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+          color: state === "working" ? "#9ca3af" : "#0065A4",
+          background: "#f4f6f9",
+          border: `1px solid ${state === "working" ? "#d0d5dd" : "#0065A4"}`,
+          borderRadius: 0, cursor: state === "working" ? "default" : "pointer",
+        }}
+      >
+        <BtnIcon name="certificate" color={state === "working" ? "#9ca3af" : "#0065A4"} />
+        <span>{state === "working" ? "Closing…" : "Close Interval"}</span>
+      </button>
+      {state === "error" && (
+        <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
+          {errMsg || "Could not close the interval. Try again in a moment."}
         </div>
       )}
     </>
