@@ -47,15 +47,17 @@ type IntervalView = {
   } | null;
 };
 
-// Humanize a duration in seconds: "24s", "3m 12s", "2h 5m", "4d 7h".
+// Humanize a duration in seconds: "24s", "1m 24s", "2h 5m", "4d 7h". Units
+// roll over as soon as they are reached; zero remainders are dropped.
 function formatDuration(totalSec: number): string {
   const s = Math.max(0, Math.round(totalSec));
-  if (s < 120) return `${s}s`;
+  if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
-  if (m < 120) return `${m}m ${s % 60}s`;
+  if (m < 60) return s % 60 ? `${m}m ${s % 60}s` : `${m}m`;
   const h = Math.floor(m / 60);
-  if (h < 48) return `${h}h ${m % 60}m`;
-  return `${Math.floor(h / 24)}d ${h % 24}h`;
+  if (h < 24) return m % 60 ? `${h}h ${m % 60}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
 }
 
 // "sha256" -> "SHA-256", "sha-512" -> "SHA-512". Hyphenates the SHA family to
@@ -477,11 +479,6 @@ export default function ProofPage() {
                 : isCurrentPos(intervalRec.closed) ? "Interval Close"
                 : "Interval"}
             >
-              <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
-                {intervalRec.closed
-                  ? "This marker was recorded at two causal positions by whoever holds its key file. The span between them is this interval."
-                  : "This BitGraph is an interval marker. It closes only when its key file is recorded again, and only the key-holder can do that."}
-              </div>
               <Field
                 label="Opened"
                 value={`#${Number(intervalRec.opened.counter).toLocaleString()}`}
@@ -507,7 +504,7 @@ export default function ProofPage() {
                   }
                 />
               )}
-              {intervalRec.closed && elapsedLine && <Field label="Elapsed" value={elapsedLine} valueNode={<span>{elapsedNode} <span style={{ color: "#6b7280" }}>(each end is located to one Ethereum anchor window, so the elapsed time is a range)</span></span>} />}
+              {intervalRec.closed && elapsedLine && <Field label="Elapsed" value={elapsedLine} valueNode={elapsedNode} />}
               {intervalRec.closed && intervalRec.report?.sameEpoch && intervalRec.report.counterDistance != null && (
                 <Field label="Counter distance" value={String(intervalRec.report.counterDistance)} valueNode={
                   <span><span style={{ color: "#0065A4", fontWeight: 600, fontFamily: mono }}>{intervalRec.report.counterDistance.toLocaleString()}</span> positions</span>
@@ -538,7 +535,7 @@ export default function ProofPage() {
               )}
               {!intervalRec.closed && !cachedFile && (
                 <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
-                  Hold the key? Drop the interval key file into the checker below to unlock Close Interval. The key never leaves this page unverified: it is hashed locally first.
+                  Closing requires the interval key file. Drop it in the checker below to unlock.
                 </div>
               )}
               {cachedFile && (
@@ -556,7 +553,7 @@ export default function ProofPage() {
                     Download key file
                   </button>
                   <div style={{ fontSize: 12.5, color: "#6b7280", marginTop: 8, lineHeight: 1.5 }}>
-                    The key exists only in this browser and in your downloads. BitGraph never holds a copy; without the key the interval cannot be closed.
+                    BitGraph never holds a copy. Without this file the interval cannot be closed.
                   </div>
                 </div>
               )}
