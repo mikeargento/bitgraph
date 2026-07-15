@@ -151,10 +151,12 @@ async function anchorTime(epoch: string, counter: number): Promise<string | null
   } catch { return null; }
 }
 
-/** Resolve a wall-clock lower bound to a counter via the anchors-by-time
- *  index (keys are ISO-with-dashes + block number, lexicographically sorted).
- *  Returns null when the time predates the current epoch (caller clamps to 1). */
-async function counterAtTime(epoch: string, t: Date): Promise<number | null> {
+/** Resolve a wall-clock instant to a counter via the anchors-by-time index
+ *  (keys are ISO-with-dashes + block number, lexicographically sorted): the
+ *  first anchor at or after the instant. "future" = no anchor exists yet at
+ *  that time (caller uses head); "preEpoch" = the resolved anchor belongs to
+ *  an earlier epoch (caller clamps to 1). */
+async function counterAtTime(epoch: string, t: Date): Promise<number | "future" | "preEpoch"> {
   const ts = t.toISOString().replace(/[:.]/g, "-");
   const l = await s3.send(new ListObjectsV2Command({
     Bucket: bucket,
@@ -163,16 +165,16 @@ async function counterAtTime(epoch: string, t: Date): Promise<number | null> {
     MaxKeys: 1,
   }));
   const key = l.Contents?.[0]?.Key;
-  if (!key) return null;
+  if (!key) return "future";
   try {
     const g = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     const body = await g.Body?.transformToString();
-    if (!body) return null;
+    if (!body) return "future";
     const a = JSON.parse(body) as { commit?: { counter?: string; epochId?: string } };
-    if (!a.commit?.counter || !a.commit?.epochId) return null;
-    if (toSafe(a.commit.epochId) !== epoch) return null; // predates this epoch
+    if (!a.commit?.counter || !a.commit?.epochId) return "future";
+    if (toSafe(a.commit.epochId) !== epoch) return "preEpoch";
     return parseInt(a.commit.counter, 10);
-  } catch { return null; }
+  } catch { return "future"; }
 }
 
 export async function GET(req: NextRequest) {
@@ -182,12 +184,16 @@ export async function GET(req: NextRequest) {
     if (!epoch) return NextResponse.json({ error: "no epoch" }, { status: 404 });
     const head = await getHead(epoch, now);
 
-    // Range selection: ?hours=N (ending now) or ?from=&to= counters.
-    // Defaults to the whole epoch.
+    // Range selection: ?hours=N (ending now), ?fromTime=&toTime= (ISO, anchor
+    // granularity), or ?from=&to= counters. Defaults to the whole epoch.
     const q = req.nextUrl.searchParams;
     let from = 1;
     let to = head;
     let clamped = false;
+    const resolveTime = async (iso: string): Promise<number | "future" | "preEpoch" | null> => {
+      const t = new Date(iso);
+      return isNaN(t.getTime()) ? null : counterAtTime(epoch, t);
+    };
     const hoursParam = q.get("hours");
     if (hoursParam) {
       const hours = parseFloat(hoursParam);
@@ -195,8 +201,21 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "bad hours" }, { status: 400 });
       }
       const c = await counterAtTime(epoch, new Date(now - hours * 3600_000));
-      if (c === null) clamped = true; // window predates the epoch: whole epoch
-      else from = Math.min(c, head);
+      if (c === "preEpoch") clamped = true;       // window predates the epoch: whole epoch
+      else if (c !== "future") from = Math.min(c, head);
+      // "future" cannot happen for a past instant unless anchoring stalled;
+      // fall through to the whole epoch in that case too.
+    } else if (q.get("fromTime") || q.get("toTime")) {
+      const [f, t] = await Promise.all([
+        q.get("fromTime") ? resolveTime(q.get("fromTime")!) : Promise.resolve("preEpoch" as const),
+        q.get("toTime") ? resolveTime(q.get("toTime")!) : Promise.resolve("future" as const),
+      ]);
+      if (f === null || t === null) return NextResponse.json({ error: "bad time" }, { status: 400 });
+      if (f === "preEpoch") clamped = true;
+      else if (f !== "future") from = Math.min(f, head);
+      if (t === "preEpoch") to = from;             // whole window predates the epoch: empty-ish
+      else if (t !== "future") to = Math.min(Math.max(t, from), head);
+      if (f === "future") { from = head; to = head; } // window entirely ahead of the ledger
     } else if (q.get("from") || q.get("to")) {
       const f = parseInt(q.get("from") || "1", 10);
       const t = parseInt(q.get("to") || String(head), 10);

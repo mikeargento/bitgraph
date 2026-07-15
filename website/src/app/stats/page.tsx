@@ -82,6 +82,8 @@ export default function StatsPage() {
   const [active, setActive] = useState<string>("Last 24 hours");
   const [fromIn, setFromIn] = useState("");
   const [toIn, setToIn] = useState("");
+  const [fromT, setFromT] = useState("");
+  const [toT, setToT] = useState("");
 
   const load = useCallback(async (qs: string, label: string) => {
     setLoading(true);
@@ -110,6 +112,21 @@ export default function StatsPage() {
     load(`?from=${f}&to=${t}`, "custom");
   };
 
+  // datetime-local values are local wall-clock; the API takes ISO instants.
+  const applyTimes = (e: React.FormEvent) => {
+    e.preventDefault();
+    const f = fromT ? new Date(fromT) : null;
+    const t = toT ? new Date(toT) : null;
+    if (!f && !t) return;
+    if (f && isNaN(f.getTime())) return;
+    if (t && isNaN(t.getTime())) return;
+    if (f && t && t < f) return;
+    const qs = new URLSearchParams();
+    if (f) qs.set("fromTime", f.toISOString());
+    if (t) qs.set("toTime", t.toISOString());
+    load(`?${qs.toString()}`, "custom-time");
+  };
+
   const s = stats;
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
@@ -118,6 +135,7 @@ export default function StatsPage() {
         .stats-chip { height: 40px; padding: 0 16px; font-size: 13.5px; font-weight: 600; border-radius: 0; cursor: pointer; border: 1px solid #0065A4; background: #fff; color: #0065A4; }
         .stats-chip[data-on="true"] { background: #0065A4; color: #fff; }
         .stats-input { height: 40px; width: 110px; padding: 0 10px; border: 1px solid #d0d5dd; border-radius: 0; font-size: 14px; background: #fff; color: #111827; outline: none; font-family: ${mono}; }
+        .stats-dt { width: 205px; font-family: inherit; }
         .stats-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
       `}</style>
@@ -135,10 +153,17 @@ export default function StatsPage() {
             </button>
           ))}
         </div>
+        <form onSubmit={applyTimes} className="stats-controls">
+          <input className="stats-input stats-dt" type="datetime-local" value={fromT} onChange={(e) => setFromT(e.target.value)} aria-label="Range start date and time" />
+          <span style={{ fontSize: 13, color: "#6b7280" }}>to</span>
+          <input className="stats-input stats-dt" type="datetime-local" value={toT} onChange={(e) => setToT(e.target.value)} aria-label="Range end date and time" />
+          <button type="submit" className="stats-chip" data-on={active === "custom-time"}>Apply</button>
+        </form>
         <form onSubmit={applyCustom} className="stats-controls">
           <input className="stats-input" inputMode="numeric" placeholder="from #" value={fromIn} onChange={(e) => setFromIn(e.target.value)} aria-label="Range start counter" />
+          <span style={{ fontSize: 13, color: "#6b7280" }}>to</span>
           <input className="stats-input" inputMode="numeric" placeholder="to #" value={toIn} onChange={(e) => setToIn(e.target.value)} aria-label="Range end counter" />
-          <button type="submit" className="stats-chip" data-on={active === "custom"}>Apply range</button>
+          <button type="submit" className="stats-chip" data-on={active === "custom"}>Apply</button>
         </form>
 
         {loading && <div style={{ padding: 60, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Reading the ledger…</div>}
