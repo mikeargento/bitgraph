@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
+import { timeTz, stampTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 // QR code removed — replaced with Ethereum Seal card
 
@@ -22,11 +23,11 @@ function formatWindow(lower: string | null, upper: string | null): string | null
   if (lower && upper) {
     const t1 = new Date(lower), t2 = new Date(upper);
     return t1.toDateString() === t2.toDateString()
-      ? `between ${t1.toLocaleTimeString()} and ${t2.toLocaleTimeString()} on ${t2.toLocaleDateString()}`
-      : `between ${t1.toLocaleString()} and ${t2.toLocaleString()}`;
+      ? `between ${t1.toLocaleTimeString()} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`
+      : `between ${t1.toLocaleString()} and ${stampTz(t2)}`;
   }
-  if (lower) { const t = new Date(lower); return `after ${t.toLocaleTimeString()} on ${t.toLocaleDateString()}`; }
-  if (upper) { const t = new Date(upper); return `before ${t.toLocaleTimeString()} on ${t.toLocaleDateString()}`; }
+  if (lower) { const t = new Date(lower); return `after ${timeTz(t)} on ${t.toLocaleDateString()}`; }
+  if (upper) { const t = new Date(upper); return `before ${timeTz(t)} on ${t.toLocaleDateString()}`; }
   return null;
 }
 
@@ -230,7 +231,7 @@ export default function ProofPage() {
     const bt = anchorBlock?.blockTime;
     const blockPart = `Ethereum Block #${Number(ethBlockNum).toLocaleString()}`;
     if (bt) {
-      const timeStr = new Date(bt).toLocaleTimeString();
+      const timeStr = timeTz(new Date(bt));
       const dateStr = new Date(bt).toLocaleDateString();
       recordedLine = `${blockPart} at ${timeStr} on ${dateStr}`;
       recordedNode = (
@@ -245,16 +246,16 @@ export default function ProofPage() {
   } else if (!isEth && lowerTime && upperTime) {
     const t1 = new Date(lowerTime), t2 = new Date(upperTime);
     if (t1.toDateString() === t2.toDateString()) {
-      recordedLine = `between ${t1.toLocaleTimeString()} and ${t2.toLocaleTimeString()} on ${t2.toLocaleDateString()}`;
-      recordedNode = <>between <Em>{t1.toLocaleTimeString()}</Em> and <Em>{t2.toLocaleTimeString()}</Em> on <Em>{t2.toLocaleDateString()}</Em></>;
+      recordedLine = `between ${t1.toLocaleTimeString()} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`;
+      recordedNode = <>between <Em>{t1.toLocaleTimeString()}</Em> and <Em>{timeTz(t2)}</Em> on <Em>{t2.toLocaleDateString()}</Em></>;
     } else {
-      recordedLine = `between ${t1.toLocaleString()} and ${t2.toLocaleString()}`;
-      recordedNode = <>between <Em>{t1.toLocaleString()}</Em> and <Em>{t2.toLocaleString()}</Em></>;
+      recordedLine = `between ${t1.toLocaleString()} and ${stampTz(t2)}`;
+      recordedNode = <>between <Em>{t1.toLocaleString()}</Em> and <Em>{stampTz(t2)}</Em></>;
     }
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
-    recordedLine = `after ${t1.toLocaleTimeString()} on ${t1.toLocaleDateString()}`;
-    recordedNode = <>after <Em>{t1.toLocaleTimeString()}</Em> on <Em>{t1.toLocaleDateString()}</Em></>;
+    recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}`;
+    recordedNode = <>after <Em>{timeTz(t1)}</Em> on <Em>{t1.toLocaleDateString()}</Em></>;
   }
 
   // Interval window, derived from the causal positions the page already loads
@@ -270,8 +271,8 @@ export default function ProofPage() {
   if (originalPos?.lowerTime && originalPos?.upperTime) {
     const b1 = new Date(originalPos.lowerTime), b2 = new Date(originalPos.upperTime);
     intervalBeganNode = b1.toDateString() === b2.toDateString()
-      ? <>between <Em>{b1.toLocaleTimeString()}</Em> and <Em>{b2.toLocaleTimeString()}</Em> on <Em>{b2.toLocaleDateString()}</Em></>
-      : <>between <Em>{b1.toLocaleString()}</Em> and <Em>{b2.toLocaleString()}</Em></>;
+      ? <>between <Em>{b1.toLocaleTimeString()}</Em> and <Em>{timeTz(b2)}</Em> on <Em>{b2.toLocaleDateString()}</Em></>
+      : <>between <Em>{b1.toLocaleString()}</Em> and <Em>{stampTz(b2)}</Em></>;
   }
 
   async function exportZip() {
@@ -506,7 +507,7 @@ export default function ProofPage() {
                 highlight
               />
               {causalWindow.anchorBefore.blockTime && (
-                <Field label="Block Time" value={new Date(causalWindow.anchorBefore.blockTime).toLocaleString()} />
+                <Field label="Block Time" value={stampTz(new Date(causalWindow.anchorBefore.blockTime))} />
               )}
               {causalWindow.anchorBefore.etherscanUrl && (
                 <Field label="Etherscan" value={causalWindow.anchorBefore.etherscanUrl} link />
@@ -550,7 +551,7 @@ export default function ProofPage() {
                 highlight
               />
               {causalWindow.anchorAfter.blockTime && (
-                <Field label="Block Time" value={new Date(causalWindow.anchorAfter.blockTime).toLocaleString()} />
+                <Field label="Block Time" value={stampTz(new Date(causalWindow.anchorAfter.blockTime))} />
               )}
               {causalWindow.anchorAfter.etherscanUrl && (
                 <Field label="Etherscan" value={causalWindow.anchorAfter.etherscanUrl} link />
@@ -1373,7 +1374,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
                   )}
                   {result.timestamp && (
                     <div style={{ fontSize: 12, color: "#374151", marginBottom: 4 }}>
-                      <span style={{ color: "#6b7280" }}>Timestamp: </span>{new Date(result.timestamp).toLocaleString()}
+                      <span style={{ color: "#6b7280" }}>Timestamp: </span>{stampTz(new Date(result.timestamp))}
                     </div>
                   )}
                   {result.certChainLength && (

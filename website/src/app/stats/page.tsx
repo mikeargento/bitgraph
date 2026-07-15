@@ -37,7 +37,7 @@ const fmt = (n: number) => n.toLocaleString();
 function fmtTime(iso: string | null): string {
   if (!iso) return "—";
   const t = new Date(iso);
-  return `${t.toLocaleTimeString()} on ${t.toLocaleDateString()}`;
+  return `${t.toLocaleTimeString(undefined, { timeZoneName: "short" })} on ${t.toLocaleDateString()}`;
 }
 
 const Em = ({ children }: { children: React.ReactNode }) => (

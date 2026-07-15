@@ -482,7 +482,7 @@ export default function MakerPage() {
                     <span>·</span>
                     <span>{makeProofs[0].environment?.enforcement === "measured-tee" ? "Hardware Enclave" : "Software"}</span>
                     <span>·</span>
-                    <span>{makeProofs[0].commit.time ? new Date(makeProofs[0].commit.time).toLocaleString() : ""}</span>
+                    <span>{makeProofs[0].commit.time ? new Date(makeProofs[0].commit.time).toLocaleString(undefined, { timeZoneName: "short" }) : ""}</span>
                   </div>
                 </div>
 
@@ -591,7 +591,7 @@ export default function MakerPage() {
                     <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--c-text-tertiary)", flexWrap: "wrap" }}>
                       {verifyProof.commit.counter && <span>Counter #{verifyProof.commit.counter}</span>}
                       <span>{verifyProof.environment?.enforcement === "measured-tee" ? "Hardware Enclave" : "Software"}</span>
-                      {verifyProof.commit.time && <span>{new Date(verifyProof.commit.time).toLocaleString()}</span>}
+                      {verifyProof.commit.time && <span>{new Date(verifyProof.commit.time).toLocaleString(undefined, { timeZoneName: "short" })}</span>}
                       {verifyProof.attribution?.name && <span>By: {verifyProof.attribution.name}</span>}
                     </div>
                   </div>
@@ -771,7 +771,7 @@ function LedgerRow({ entry, isLast, viewMode }: { entry: ProofEntry; isLast: boo
       }}>
         <span style={{ ...cellStyle, fontWeight: 600, color: "var(--accent, #0A84FF)", fontFamily: monoFont }}>{counter}</span>
         <span style={{ ...cellStyle, fontFamily: monoFont, color: "var(--c-text-secondary)" }}>
-          {entry.time ? new Date(entry.time).toLocaleString() : "—"}
+          {entry.time ? new Date(entry.time).toLocaleString(undefined, { timeZoneName: "short" }) : "—"}
         </span>
       </div>
     );
@@ -818,7 +818,7 @@ function LedgerRow({ entry, isLast, viewMode }: { entry: ProofEntry; isLast: boo
           </button>
         </span>
         <span style={{ ...cellStyle, color: "var(--c-text-secondary)", fontSize: 13 }} title={epochId}>{trunc(epochId, 12)}</span>
-        <span style={{ ...cellStyle, color: "var(--c-text-secondary)", fontSize: 13 }} title={entry.time ? new Date(entry.time).toLocaleString() : ""}>
+        <span style={{ ...cellStyle, color: "var(--c-text-secondary)", fontSize: 13 }} title={entry.time ? new Date(entry.time).toLocaleString(undefined, { timeZoneName: "short" }) : ""}>
           {entry.time ? relativeTime(entry.time) : "—"}
         </span>
         <span style={{ ...cellStyle, fontFamily: monoFont, fontSize: 12, color: "var(--c-text-tertiary)" }} title={signerPub}>{trunc(signerPub, 12)}</span>
@@ -865,7 +865,7 @@ function LedgerRow({ entry, isLast, viewMode }: { entry: ProofEntry; isLast: boo
                 {/* Commit */}
                 {commit && (
                   <LedgerDetailSection title="Commit">
-                    {commit.time != null && <LedgerDetailField label="Time" value={new Date(commit.time).toLocaleString()} />}
+                    {commit.time != null && <LedgerDetailField label="Time" value={new Date(commit.time).toLocaleString(undefined, { timeZoneName: "short" })} />}
                     <LedgerDetailField label="Counter" value={`#${counter}`} />
                     {commit.epochId && <LedgerDetailField label="Epoch" value={commit.epochId} mono />}
                     {commit.prevB64 && <LedgerDetailField label="Prev Hash" value={commit.prevB64} mono />}
