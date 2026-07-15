@@ -213,7 +213,7 @@ export default function StatsPage() {
             )}
 
             {(s.rhythm.peak || s.rhythm.quiet) && (
-              <Card title="Rhythm">
+              <Card title="File Rhythm">
                 {s.rhythm.peak && (
                   <Row label="Busiest anchor window">
                     <Num>{fmt(s.rhythm.peak.commits)}</Num> file{s.rhythm.peak.commits === 1 ? "" : "s"} between <Em>{fmtTime(s.rhythm.peak.fromTime)}</Em> and <Em>{fmtTime(s.rhythm.peak.toTime)}</Em>
