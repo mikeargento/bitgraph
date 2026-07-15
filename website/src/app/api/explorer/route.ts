@@ -62,7 +62,7 @@ async function getHead(epoch: string, now: number): Promise<number> {
 
 type Entry = {
   counter: number;
-  type: "proof" | "anchor" | "interval";
+  type: "proof" | "anchor" | "interval" | "interval-open" | "interval-close";
   digest: string;
   hashShort: string;
   blockNumber: number | null;
@@ -125,6 +125,50 @@ async function listRecent(epoch: string, top: number, limit: number): Promise<En
     .sort((a, b) => b.counter - a.counter);
 }
 
+/* ── User interval labels ──────────────────────────────────────────────────
+ * Marker positions are relabeled from the intervals/ registry, the
+ * authoritative source: the deployed enclave does not echo commit metadata
+ * into proofs, and a client-supplied tag would be spoofable anyway. Costs one
+ * tiny GET per unique file digest per page, softened by an in-instance TTL
+ * cache. Labels are per-ROLE (open/close position), which never changes once
+ * assigned, so short caching can only delay a label, never falsify one. */
+
+type IntervalEnd = { epochId: string; counter: string };
+type IntervalEnds = { opened: IntervalEnd; closed: IntervalEnd | null } | null;
+const intervalCache = new Map<string, { rec: IntervalEnds; at: number }>();
+const INTERVAL_TTL = 30_000;
+
+async function getIntervalEnds(safeDigest: string, now: number): Promise<IntervalEnds> {
+  const hit = intervalCache.get(safeDigest);
+  if (hit && now - hit.at < INTERVAL_TTL) return hit.rec;
+  let rec: IntervalEnds = null;
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: `intervals/${safeDigest}.json` }));
+    const body = await r.Body?.transformToString();
+    if (body) {
+      const j = JSON.parse(body) as { opened: IntervalEnd; closed?: IntervalEnd | null };
+      rec = { opened: j.opened, closed: j.closed ?? null };
+    }
+  } catch { /* NoSuchKey — not an interval */ }
+  intervalCache.set(safeDigest, { rec, at: now });
+  return rec;
+}
+
+async function labelIntervals(entries: Entry[], epoch: string, now: number): Promise<void> {
+  const digests = [...new Set(entries.filter((e) => e.type === "proof" && e.digest).map((e) => e.digest))];
+  if (digests.length === 0) return;
+  const recs = new Map(await Promise.all(digests.map(async (d) => [d, await getIntervalEnds(d, now)] as const)));
+  for (const e of entries) {
+    if (e.type !== "proof") continue;
+    const rec = recs.get(e.digest);
+    if (!rec) continue;
+    const matches = (end: IntervalEnd | null) =>
+      !!end && toSafe(end.epochId) === epoch && parseInt(end.counter, 10) === e.counter;
+    if (matches(rec.opened)) e.type = "interval-open";
+    else if (matches(rec.closed)) e.type = "interval-close";
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const now = Date.now();
@@ -141,6 +185,7 @@ export async function GET(req: NextRequest) {
     }
 
     const entries = top < 1 ? [] : await listRecent(epoch, top, PAGE);
+    await labelIntervals(entries, epoch, now);
     const nextBefore = entries.length ? entries[entries.length - 1].counter : null;
 
     return NextResponse.json(

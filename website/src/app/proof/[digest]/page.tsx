@@ -68,7 +68,7 @@ function formatHashAlg(alg: string): string {
 
 // Leading icon for the page's action buttons, so they read as controls rather
 // than as bordered panels. Stroke style matches the title check mark.
-function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus"; color?: string; size?: number }) {
+function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus" | "brackets"; color?: string; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, style: { flexShrink: 0 } };
   if (name === "code") return <svg {...common}><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>;
   // Attestation = a signed credential: a document with a ribboned seal (the
@@ -76,6 +76,9 @@ function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certi
   if (name === "certificate") return <svg {...common}><path d="M15 15m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5l2 1.5v-4.5" /><path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -1 1.73" /><path d="M6 9l12 0" /><path d="M6 12l3 0" /><path d="M6 15l2 0" /></svg>;
   if (name === "link") return <svg {...common}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>;
   if (name === "plus") return <svg {...common}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
+  // Interval = brackets around a span of the chain; the Close action seals the
+  // right bracket, so the glyph is the bracket pair itself.
+  if (name === "brackets") return <svg {...common}><path d="M9 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h3" /><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3" /></svg>;
   return <svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
 }
 
@@ -230,9 +233,16 @@ export default function ProofPage() {
   // anchor, carries no user file.
   const isInterval = attr?.name === "Interval";
   // Type badge in the lead card header, mirroring the explorer's labels/colors:
-  // file (blue), anchor (gray), interval (violet).
-  const typeLabel = isInterval ? "interval" : isEth ? "anchor" : "file";
-  const typeColor = isInterval ? "#7c3aed" : isEth ? "#9ca3af" : "#0065A4";
+  // file (blue), anchor (gray), interval (violet). A user-interval marker names
+  // its ROLE at this position (open/close), driven by the registry record.
+  const matchesEnd = (end: { counter: string; epoch: string } | null | undefined) =>
+    !!end && String(parseInt(end.counter, 10)) === String(parseInt(String(commit.counter), 10)) &&
+    (!commit.epochId || toSafeB64(String(commit.epochId)) === end.epoch);
+  const userIntervalRole = intervalRec
+    ? (matchesEnd(intervalRec.opened) ? "interval open" : matchesEnd(intervalRec.closed) ? "interval close" : "interval")
+    : null;
+  const typeLabel = userIntervalRole ?? (isInterval ? "interval" : isEth ? "anchor" : "file");
+  const typeColor = userIntervalRole || isInterval ? "#7c3aed" : isEth ? "#9ca3af" : "#0065A4";
   const typeWeight = isEth ? 400 : 600;
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
@@ -330,9 +340,7 @@ export default function ProofPage() {
   const strayPositions = intervalRec ? positions.filter((p) => p !== openPos && p !== closePos).length : 0;
   const positionUrl = (end: { counter: string; epoch: string }) =>
     `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(end.counter)}&epoch=${encodeURIComponent(end.epoch)}`;
-  const isCurrentPos = (end: { counter: string; epoch: string } | null) =>
-    !!end && String(parseInt(end.counter, 10)) === String(parseInt(String(commit.counter), 10)) &&
-    (!commit.epochId || toSafeB64(String(commit.epochId)) === end.epoch);
+  const isCurrentPos = matchesEnd;
 
   async function exportZip() {
     try {
@@ -452,14 +460,12 @@ export default function ProofPage() {
               Everything here is presentation over ordinary proofs; the signed
               facts live in the cards below. */}
           {intervalRec && (
-            <Card title={(
-              <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 8 }}>
-                <span>Interval</span>
-                <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", color: intervalRec.closed ? "#10b981" : "#7c3aed", flexShrink: 0 }}>
-                  {intervalRec.closed ? "CLOSED" : "OPEN"}
-                </span>
-              </span>
-            )}>
+            <Card
+              accent="#7c3aed"
+              title={isCurrentPos(intervalRec.opened) ? "Interval Open"
+                : isCurrentPos(intervalRec.closed) ? "Interval Close"
+                : "Interval"}
+            >
               <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
                 {intervalRec.closed
                   ? "This marker was recorded at two causal positions by whoever holds its key file. The span between them is this interval."
@@ -861,13 +867,13 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 /* ── Card ── */
 
-function Card({ title, children }: { title: React.ReactNode; accent?: string; children: React.ReactNode }) {
+function Card({ title, accent, children }: { title: React.ReactNode; accent?: string; children: React.ReactNode }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
       <div style={{
         fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
-        color: "#0065A4", padding: "18px 24px",
-        background: "rgba(0,101,164,0.04)",
+        color: accent || "#0065A4", padding: "18px 24px",
+        background: accent === "#7c3aed" ? "rgba(124,58,237,0.05)" : "rgba(0,101,164,0.04)",
         borderBottom: "1px solid #e2e5e9",
       }}>
         {title}
@@ -1007,7 +1013,7 @@ function CloseIntervalButton({ bytes, digestParam }: { bytes: ArrayBuffer; diges
           borderRadius: 0, cursor: state === "working" ? "default" : "pointer",
         }}
       >
-        <BtnIcon name="certificate" color={state === "working" ? "#9ca3af" : "#0065A4"} />
+        <BtnIcon name="brackets" color={state === "working" ? "#9ca3af" : "#0065A4"} />
         <span>{state === "working" ? "Closing…" : "Close Interval"}</span>
       </button>
       {state === "error" && (
