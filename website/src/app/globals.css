@@ -434,6 +434,14 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .bitgraph-file-card[data-clickable="true"]:hover { background: #f3f5f7; }
   .bitgraph-file-row:hover .bitgraph-open-pill { background: #0065A4; color: #fff; }
 }
+/* Narrow screens can't fit counter + tag + filename + Open on one line; the
+   filename wraps to its own line above the rest. !important beats the inline
+   right-alignment used on desktop. */
+@media (max-width: 640px) {
+  .bitgraph-result-row { flex-wrap: wrap; row-gap: 4px; }
+  .bitgraph-result-row .bg-row-name { flex-basis: 100% !important; order: -1; text-align: left !important; font-weight: 600 !important; }
+  .bitgraph-result-row .bitgraph-open-pill { margin-left: auto; }
+}
 
 /* ── Nav responsive ── */
 @media (max-width: 768px) {

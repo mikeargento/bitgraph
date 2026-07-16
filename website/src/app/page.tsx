@@ -588,14 +588,14 @@ export default function BitGraphPage() {
                   : item.status === "proving" ? "BitGraphing…"
                   : item.status === "error" ? "Error"
                   : null;
-                // Every BitGraphed file reads the same: a filename header with
-                // its recording count (top-left name, top-right count), then
-                // one row per recording (no filename repeat), whether the count
-                // is 1 or many. Files with NO BitGraph yet (pending/proving/
-                // error) have no count to show, so they keep the classic
-                // one-line row with the filename on the right.
+                // A file with ONE recording (the common case) is a single
+                // explorer-style row: counter left, outcome tag, filename
+                // right, Open. Only a file with SEVERAL recordings gets the
+                // filename header + one indented row per recording; repeating
+                // the two-tier layout for a count of 1 doubled every card's
+                // height to say nothing.
                 const proofCount = item.proofs.length || (item.proof ? 1 : 0);
-                const showHeader = proofCount > 0;
+                const showHeader = proofCount > 1;
                 // One gesture, two outcomes, told by color: a file that was
                 // already in the ledger is a CHECK (trust green, "on record");
                 // one recorded just now is a RECORD (brand blue, "recorded").
@@ -626,7 +626,7 @@ export default function BitGraphPage() {
                     tabIndex={clickable ? 0 : undefined}
                     onClick={clickable ? () => openProof(p) : undefined}
                     onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(p); } } : undefined}
-                    className={clickable ? "bitgraph-file-row" : undefined}
+                    className={`bitgraph-result-row${clickable ? " bitgraph-file-row" : ""}`}
                     style={{
                       display: "flex", alignItems: "center", gap: 12,
                       padding: showHeader ? "12px 16px 12px 28px" : "14px 16px",
@@ -639,19 +639,32 @@ export default function BitGraphPage() {
                       cursor: clickable ? "pointer" : "default",
                     }}
                   >
-                    {/* Left — "BitGraph #N" (or the pending state for rows not
-                        yet BitGraphed). */}
+                    {/* Left — the position number (or the pending state for rows
+                        not yet BitGraphed). No "BitGraph" prefix: everything on
+                        this card is one, the # carries it. */}
                     <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#9ca3af" }}>
                       {counter != null
-                        ? <>BitGraph <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span></>
+                        ? <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
                         : pendingLabel}
                     </span>
+                    {/* Outcome tag rides the row itself when there's no header
+                        to carry it (single-recording files). */}
+                    {!showHeader && outcome && (
+                      <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: outcome.color, whiteSpace: "nowrap" }}>
+                        {outcome.word}
+                      </span>
+                    )}
                     {/* Filename — right-aligned next to Open; the header already
-                        names the file for BitGraphed rows, so it's only shown
-                        inline on pending/proving/error rows that have no header. */}
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: "#111827", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {showHeader ? "" : item.file.name}
-                    </span>
+                        names the file for multi-recording files, so it's only
+                        shown inline on headerless (single-recording or pending)
+                        rows. */}
+                    {showHeader ? (
+                      <span style={{ flex: 1 }} />
+                    ) : (
+                      <span className="bg-row-name" style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: "#111827", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.file.name}
+                      </span>
+                    )}
                     {clickable && (
                       <span className="bitgraph-open-pill">
                         Open
