@@ -491,7 +491,7 @@ export default function BitGraphPage() {
                 A camera for bits.
               </div>
               <div style={{ marginTop: 4, fontSize: 13.5, lineHeight: 1.6, color: "#6b7280" }}>
-                Each BitGraph is a portable cryptographic recording of an exact bit pattern at a specific causal position.
+                Each BitGraph records an exact bit pattern by binding it to a unique, preallocated slot in the causal sequence.
               </div>
             </div>
             <div className="file-drop-container" style={{ animation: "slideIn 0.3s ease-out" }}>
