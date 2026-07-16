@@ -83,7 +83,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
    with rounded tops anchored to a recessive baseline; full-height hover
    targets wider than the marks feed one tooltip slot. Endpoints carry the
    authoritative Ethereum block times; the fill is server write time. ── */
-function Histogram({ t, series, color, hoverColor, height, unit, showEdgeLabels }: {
+type Arc = { digest: string; count: number; firstT: string | null; lastT: string | null; durLabel: string | null };
+
+function Histogram({ t, series, color, hoverColor, height, unit, showEdgeLabels, onBrush, quiet, arcs }: {
   t: Timeline;
   series: number[];
   color: string;
@@ -91,12 +93,24 @@ function Histogram({ t, series, color, hoverColor, height, unit, showEdgeLabels 
   height: number;
   unit: string;
   showEdgeLabels: boolean;
+  /** Drag-select a window on the chart to zoom the whole page's range. */
+  onBrush?: (fromIso: string, toIso: string) => void;
+  /** The longest no-files stretch, rendered as a faint band. */
+  quiet?: { fromTime: string | null; toTime: string | null } | null;
+  /** Recurring digests drawn as arcs connecting their first and last recordings. */
+  arcs?: Arc[];
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  const [arcHover, setArcHover] = useState<number | null>(null);
+  const [brush, setBrush] = useState<{ a: number; b: number } | null>(null);
+  const brushRef = useRef<{ a: number; b: number } | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const W = 800;
   const LABEL_H = showEdgeLabels ? 20 : 0;
-  const TOP = 16;
-  const BASE = height - LABEL_H;
+  const ARC_H = arcs && arcs.length ? 18 : 0;
+  const TOP = 16 + ARC_H;
+  const BASE = height + ARC_H - LABEL_H;
+  const totalH = height + ARC_H;
   const bins = series;
   const max = Math.max(1, ...bins);
   const bw = W / bins.length;
@@ -104,6 +118,45 @@ function Histogram({ t, series, color, hoverColor, height, unit, showEdgeLabels 
   const end = new Date(t.endTime).getTime();
   const binMs = (end - start) / bins.length;
   const multiDay = new Date(start).toDateString() !== new Date(end).toDateString();
+  const fracOf = (iso: string | null) => {
+    if (!iso || end <= start) return null;
+    return Math.min(1, Math.max(0, (new Date(iso).getTime() - start) / (end - start)));
+  };
+
+  // Brush: mouse-drag selects a window; releasing zooms the page to it.
+  // Pointer events, mouse only — touch keeps scrolling, and mobile users have
+  // the pickers. A sub-bin drag snaps out to the containing bin's edges.
+  const fracFromEvent = (e: React.PointerEvent) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return 0;
+    return Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+  };
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!onBrush || e.pointerType !== "mouse" || e.button !== 0) return;
+    const f = fracFromEvent(e);
+    brushRef.current = { a: f, b: f };
+    setBrush(brushRef.current);
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!brushRef.current) return;
+    brushRef.current = { a: brushRef.current.a, b: fracFromEvent(e) };
+    setBrush(brushRef.current);
+  };
+  const onPointerUp = () => {
+    const br = brushRef.current;
+    brushRef.current = null;
+    setBrush(null);
+    if (!br || !onBrush || end <= start) return;
+    let lo = Math.min(br.a, br.b);
+    let hi = Math.max(br.a, br.b);
+    if (hi - lo < 1 / bins.length) {
+      const bin = Math.min(bins.length - 1, Math.floor(((lo + hi) / 2) * bins.length));
+      lo = bin / bins.length;
+      hi = (bin + 1) / bins.length;
+    }
+    onBrush(new Date(start + lo * (end - start)).toISOString(), new Date(start + hi * (end - start)).toISOString());
+  };
 
   const barPath = (i: number) => {
     const count = bins[i];
@@ -148,7 +201,24 @@ function Histogram({ t, series, color, hoverColor, height, unit, showEdgeLabels 
           {binLabel(hover)}
         </div>
       )}
-      <svg viewBox={`0 0 ${W} ${height}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label={`${unit}s per time bin`}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${totalH}`}
+        style={{ width: "100%", height: "auto", display: "block", cursor: onBrush ? "crosshair" : undefined }}
+        role="img"
+        aria-label={`${unit}s per time bin`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={() => { if (!brushRef.current) setHover(null); }}
+      >
+        {/* Quiet band — the longest stretch with no files, behind the bars. */}
+        {quiet && (() => {
+          const q1 = fracOf(quiet.fromTime);
+          const q2 = fracOf(quiet.toTime);
+          if (q1 == null || q2 == null || q2 <= q1) return null;
+          return <rect x={q1 * W} y={TOP - 4} width={(q2 - q1) * W} height={BASE - TOP + 4} fill="#9ca3af" opacity="0.09" />;
+        })()}
         <line x1="0" y1={BASE} x2={W} y2={BASE} stroke="#e2e5e9" strokeWidth="1" />
         {bins.map((count, i) => {
           const p = barPath(i);
@@ -166,10 +236,53 @@ function Histogram({ t, series, color, hoverColor, height, unit, showEdgeLabels 
             onMouseLeave={() => setHover(null)}
           />
         ))}
+        {/* Recurrence arcs — same bytes at two-plus positions, drawn in the
+            band above the bars connecting first to last recording. A span too
+            narrow to arc at this zoom renders as a small ring: zooming in
+            (brushing) resolves it into a real arc. Violet = recurrence,
+            matching the explorer's same-bits color. */}
+        {arcs?.map((a, i) => {
+          const f1 = fracOf(a.firstT);
+          const f2 = fracOf(a.lastT);
+          if (f1 == null || f2 == null) return null;
+          const x1 = f1 * W, x2 = f2 * W;
+          const url = `/proof/${encodeURIComponent(a.digest)}`;
+          const label = `${a.count} recordings${a.durLabel ? ` over ${a.durLabel}` : ""} · ${a.digest.slice(0, 12)}…`;
+          const vio = arcHover === i ? "#5b21b6" : "#7c3aed";
+          const yBase = TOP - 6;
+          if (x2 - x1 < 8) {
+            const cx = (x1 + x2) / 2;
+            return (
+              <a key={a.digest} href={url} target="_blank" rel="noopener">
+                <circle cx={cx} cy={yBase - 4} r={4} fill="none" stroke={vio} strokeWidth="2"
+                  onMouseEnter={() => setArcHover(i)} onMouseLeave={() => setArcHover(null)} />
+                <circle cx={cx} cy={yBase - 4} r={10} fill="transparent"
+                  onMouseEnter={() => setArcHover(i)} onMouseLeave={() => setArcHover(null)}>
+                  <title>{label}</title>
+                </circle>
+              </a>
+            );
+          }
+          const d = `M ${x1} ${yBase} Q ${(x1 + x2) / 2} ${yBase - 14} ${x2} ${yBase}`;
+          return (
+            <a key={a.digest} href={url} target="_blank" rel="noopener">
+              <path d={d} fill="none" stroke={vio} strokeWidth="1.5" />
+              <path d={d} fill="none" stroke="transparent" strokeWidth="10"
+                onMouseEnter={() => setArcHover(i)} onMouseLeave={() => setArcHover(null)}>
+                <title>{label}</title>
+              </path>
+            </a>
+          );
+        })}
+        {brush && (() => {
+          const lo = Math.min(brush.a, brush.b) * W;
+          const hi = Math.max(brush.a, brush.b) * W;
+          return <rect x={lo} y={0} width={Math.max(1, hi - lo)} height={BASE} fill={BLUE} opacity="0.12" stroke={BLUE} strokeOpacity="0.4" />;
+        })()}
         {showEdgeLabels && (
           <>
-            <text x="0" y={height - 5} fontSize="11" fill="#9ca3af">{edgeLabel(t.startTime)}</text>
-            <text x={W} y={height - 5} fontSize="11" fill="#9ca3af" textAnchor="end">{edgeLabel(t.endTime)}</text>
+            <text x="0" y={totalH - 5} fontSize="11" fill="#9ca3af">{edgeLabel(t.startTime)}</text>
+            <text x={W} y={totalH - 5} fontSize="11" fill="#9ca3af" textAnchor="end">{edgeLabel(t.endTime)}</text>
           </>
         )}
       </svg>
@@ -189,39 +302,12 @@ function SeriesLabel({ color, name, detail }: { color: string; name: string; det
   );
 }
 
-/* ── Recurrence track — the same bytes at several causal positions, as dots
-   on a hairline across the viewed range. Positioned by time when the write
-   time is known, by counter fraction otherwise. ── */
-function RecurrenceTrack({ positions, range, timeline }: {
-  positions: Array<{ counter: number; t: string | null }>;
-  range: { from: number; to: number };
-  timeline: Timeline | null;
-}) {
-  const start = timeline ? new Date(timeline.startTime).getTime() : null;
-  const end = timeline ? new Date(timeline.endTime).getTime() : null;
-  const frac = (p: { counter: number; t: string | null }) => {
-    if (start != null && end != null && end > start && p.t) {
-      return Math.min(1, Math.max(0, (new Date(p.t).getTime() - start) / (end - start)));
-    }
-    const span = Math.max(1, range.to - range.from);
-    return Math.min(1, Math.max(0, (p.counter - range.from) / span));
-  };
-  return (
-    <div style={{ position: "relative", height: 16, margin: "10px 0 2px" }} aria-hidden>
-      <div style={{ position: "absolute", left: 0, right: 0, top: 7, height: 1, background: "#e2e5e9" }} />
-      {positions.map((p) => (
-        <span
-          key={p.counter}
-          title={`#${fmt(p.counter)}`}
-          style={{
-            position: "absolute", top: 4, width: 8, height: 8, borderRadius: 999,
-            background: BLUE, border: "2px solid #fff", boxSizing: "content-box",
-            left: `calc(${frac(p) * 100}% - 6px)`,
-          }}
-        />
-      ))}
-    </div>
-  );
+/** How long a recurrence's recordings span, from first to last write time. */
+function recurrenceDuration(positions: Array<{ counter: number; t: string | null }>): string | null {
+  const times = positions.map((p) => (p.t ? new Date(p.t).getTime() : null)).filter((x): x is number => x != null);
+  if (times.length < 2) return null;
+  const sec = (Math.max(...times) - Math.min(...times)) / 1000;
+  return sec > 0 ? formatDuration(sec) : null;
 }
 
 type Preset = { label: string; hours?: number };
@@ -385,14 +471,43 @@ export default function StatsPage() {
                       name="Files"
                       detail={filesMax > 0 ? `peak ${fmt(filesMax)} per bin` : "none in this range"}
                     />
-                    <Histogram t={s.timeline} series={s.timeline.fileBins} color={BLUE} hoverColor={BLUE_DARK} height={120} unit="file" showEdgeLabels={false} />
+                    <Histogram
+                      t={s.timeline}
+                      series={s.timeline.fileBins}
+                      color={BLUE}
+                      hoverColor={BLUE_DARK}
+                      height={120}
+                      unit="file"
+                      showEdgeLabels={false}
+                      onBrush={(f, t2) => load(`?fromTime=${encodeURIComponent(f)}&toTime=${encodeURIComponent(t2)}`, "custom-time")}
+                      quiet={s.rhythm.quiet}
+                      arcs={s.recurrences.map((r) => ({
+                        digest: r.digest,
+                        count: r.count,
+                        firstT: r.positions[0]?.t ?? null,
+                        lastT: r.positions[r.positions.length - 1]?.t ?? null,
+                        durLabel: recurrenceDuration(r.positions),
+                      }))}
+                    />
                     <div style={{ height: 14 }} />
                     <SeriesLabel
                       color={GRAY_BAR}
                       name="Ethereum anchors"
                       detail={anchorsMax > 0 ? `peak ${fmt(anchorsMax)} per bin — the TEE's pulse` : "none in this range"}
                     />
-                    <Histogram t={s.timeline} series={s.timeline.anchorBins} color={GRAY_BAR} hoverColor={GRAY_BAR_DARK} height={78} unit="anchor" showEdgeLabels />
+                    <Histogram
+                      t={s.timeline}
+                      series={s.timeline.anchorBins}
+                      color={GRAY_BAR}
+                      hoverColor={GRAY_BAR_DARK}
+                      height={78}
+                      unit="anchor"
+                      showEdgeLabels
+                      onBrush={(f, t2) => load(`?fromTime=${encodeURIComponent(f)}&toTime=${encodeURIComponent(t2)}`, "custom-time")}
+                    />
+                    <div style={{ fontSize: 11.5, color: "#9ca3af", textAlign: "right", marginTop: 4 }}>
+                      drag across a chart to zoom
+                    </div>
                   </div>
                 )}
                 {s.rhythm.peak && (
@@ -413,19 +528,20 @@ export default function StatsPage() {
                 <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
                   The same bytes recorded at more than one causal position in this range.
                 </div>
-                {s.recurrences.map((r) => (
-                  <div key={r.digest} style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {s.recurrences.map((r) => {
+                  const dur = recurrenceDuration(r.positions);
+                  return (
+                    <div key={r.digest} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
                       <a href={`/proof/${encodeURIComponent(r.digest)}`} target="_blank" rel="noopener" style={{ flex: 1, minWidth: 0, fontFamily: mono, fontSize: 12.5, color: "var(--c-accent)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {r.digest}
                       </a>
                       <span style={{ flexShrink: 0, fontSize: 13, color: "#1f2937" }}>
-                        <Num>{r.count}</Num> positions, <Num>#{fmt(r.firstCounter)}</Num> to <Num>#{fmt(r.lastCounter)}</Num>
+                        <Num>{r.count}</Num> recording{r.count === 1 ? "" : "s"}, <Num>#{fmt(r.firstCounter)}</Num> to <Num>#{fmt(r.lastCounter)}</Num>
+                        {dur ? <span style={{ color: "#6b7280" }}> · over {dur}</span> : null}
                       </span>
                     </div>
-                    <RecurrenceTrack positions={r.positions} range={s.range} timeline={s.timeline} />
-                  </div>
-                ))}
+                  );
+                })}
                 {s.totals.recurringDigests > s.recurrences.length && (
                   <Row label="More">{fmt(s.totals.recurringDigests - s.recurrences.length)} additional recurring digests in this range</Row>
                 )}
