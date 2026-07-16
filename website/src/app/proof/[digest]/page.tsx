@@ -198,11 +198,6 @@ export default function ProofPage() {
   // user submission. It gets its own card (not "Submitter's Note") and, like an
   // anchor, carries no user file.
   const isInterval = attr?.name === "Interval";
-  // Type badge in the lead card header, mirroring the explorer's labels/colors:
-  // file (blue), anchor (gray), interval (violet).
-  const typeLabel = isInterval ? "interval" : isEth ? "anchor" : "file";
-  const typeColor = isInterval ? "#7c3aed" : isEth ? "#9ca3af" : "#0065A4";
-  const typeWeight = isEth ? 400 : 600;
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
 
@@ -246,16 +241,19 @@ export default function ProofPage() {
   } else if (!isEth && lowerTime && upperTime) {
     const t1 = new Date(lowerTime), t2 = new Date(upperTime);
     if (t1.toDateString() === t2.toDateString()) {
+      // Each time-with-zone is an unbreakable unit, so on narrow screens the
+      // phrase wraps at the connector words instead of splitting "PM" from
+      // "EDT" mid-time.
       recordedLine = `between ${timeTz(t1)} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`;
-      recordedNode = <>between <Em>{timeTz(t1)}</Em> and <Em>{timeTz(t2)}</Em> on <Em>{t2.toLocaleDateString()}</Em></>;
+      recordedNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t2.toLocaleDateString()}</span></Em></>;
     } else {
       recordedLine = `between ${stampTz(t1)} and ${stampTz(t2)}`;
-      recordedNode = <>between <Em>{stampTz(t1)}</Em> and <Em>{stampTz(t2)}</Em></>;
+      recordedNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t2)}</span></Em></>;
     }
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
     recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}`;
-    recordedNode = <>after <Em>{timeTz(t1)}</Em> on <Em>{t1.toLocaleDateString()}</Em></>;
+    recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t1.toLocaleDateString()}</span></Em></>;
   }
 
   // Interval window, derived from the causal positions the page already loads
@@ -370,16 +368,11 @@ export default function ProofPage() {
               not bracketed; it IS the bracket). */}
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
             <Card title={(
-              <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 8 }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  </span>
-                  <span>Verified BitGraph</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
-                <span style={{ fontSize: 12, fontWeight: typeWeight, letterSpacing: "0.02em", color: typeColor, flexShrink: 0 }}>
-                  {typeLabel}
-                </span>
+                <span>Verified BitGraph</span>
               </span>
             )}>
               {recordedLine && <Field label="Recorded" value={recordedLine} valueNode={recordedNode} />}
