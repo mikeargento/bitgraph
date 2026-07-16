@@ -483,17 +483,6 @@ export default function BitGraphPage() {
         {/* ── Drop zone + What is BitGraph button ── */}
         {step === "drop" && (
           <>
-            {/* What it is, what it means, take one: identity and meaning sit
-                ABOVE the camera so a first-time visitor reads before acting.
-                Kept compact so the Roll stays on a laptop's first screen. */}
-            <div style={{ textAlign: "left", marginBottom: -6, animation: "slideIn 0.3s ease-out" }}>
-              <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", lineHeight: 1.3 }}>
-                A camera for bits.
-              </div>
-              <div style={{ marginTop: 4, fontSize: 13.5, lineHeight: 1.6, color: "#6b7280" }}>
-                Each BitGraph records an exact bit pattern by binding it to a unique, preallocated slot in the causal sequence.
-              </div>
-            </div>
             <div className="file-drop-container" style={{ animation: "slideIn 0.3s ease-out" }}>
               <FileDrop
                 multiple
