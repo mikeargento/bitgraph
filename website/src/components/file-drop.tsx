@@ -242,7 +242,21 @@ export function FileDrop({
               whiteSpace: "nowrap",
             }}
           >
-            Choose files to record or check BitGraphs
+            Take a BitGraph
+          </div>
+          {/* One gesture, two outcomes: the results present new bytes as
+              recorded and known bytes as checked, so the headline never asks
+              the user to choose. */}
+          <div
+            className="mt-2 text-center"
+            style={{
+              color: "#6b7280",
+              fontSize: "min(13px, 3vw)",
+              lineHeight: 1.5,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Drop a file, or click to choose
           </div>
           {hint && (
             <div

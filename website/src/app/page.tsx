@@ -588,14 +588,22 @@ export default function BitGraphPage() {
                 // one-line row with the filename on the right.
                 const proofCount = item.proofs.length || (item.proof ? 1 : 0);
                 const showHeader = proofCount > 0;
+                // One gesture, two outcomes, told by color: a file that was
+                // already in the ledger is a CHECK (trust green, "on record");
+                // one recorded just now is a RECORD (brand blue, "recorded").
+                const outcome =
+                  item.status === "found" ? { color: "#10b981", word: "on record" }
+                  : item.status === "proved" ? { color: "#0065A4", word: "recorded" }
+                  : null;
                 return (
-                  <div key={item.file.name + i} style={{ border: "1px solid #d0d5dd", background: "#fff", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
+                  <div key={item.file.name + i} style={{ border: "1px solid #d0d5dd", background: "#fff", boxShadow: outcome ? `inset 3px 0 0 0 ${outcome.color}` : undefined, animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
                   {showHeader && (
                     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px 6px" }}>
                       <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {item.file.name}
                       </span>
                       <span style={{ flexShrink: 0, fontSize: 12.5, color: "#9ca3af" }}>
+                        {outcome && <><span style={{ color: outcome.color, fontWeight: 700 }}>{outcome.word}</span>{" · "}</>}
                         {proofCount} BitGraph{proofCount === 1 ? "" : "s"}
                       </span>
                     </div>
