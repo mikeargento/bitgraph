@@ -256,7 +256,7 @@ export function FileDrop({
               whiteSpace: "nowrap",
             }}
           >
-            Drop a file, or click to choose
+            Drop files, or click to choose
           </div>
           {hint && (
             <div

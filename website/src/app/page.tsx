@@ -226,11 +226,54 @@ export default function BitGraphPage() {
     }
   }
 
+  /* ── Success chime — synthesized, no audio asset: a short low note rising
+     to a longer high one, the "approved" contour. The context is created and
+     resumed inside the click handler (primeAudio) because browsers only
+     allow audio to start from a user gesture; the chime itself then plays
+     after the async work completes. ── */
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  function primeAudio() {
+    try {
+      const AC = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new AC();
+      if (audioCtxRef.current.state === "suspended") void audioCtxRef.current.resume();
+    } catch { /* sound is a nicety, never block the flow */ }
+  }
+
+  function playRecordedChime() {
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx || ctx.state !== "running") return;
+      const t0 = ctx.currentTime;
+      const master = ctx.createGain();
+      master.gain.value = 0.22;
+      master.connect(ctx.destination);
+      const note = (freq: number, start: number, dur: number, peak: number) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0, t0 + start);
+        g.gain.linearRampToValueAtTime(peak, t0 + start + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + start + dur);
+        osc.connect(g);
+        g.connect(master);
+        osc.start(t0 + start);
+        osc.stop(t0 + start + dur + 0.05);
+      };
+      note(659.25, 0, 0.18, 0.9); // E5
+      note(987.77, 0.11, 0.5, 1); // B5
+    } catch { /* ditto */ }
+  }
+
   /* ── Prove unproven files ── */
 
   async function proveRemaining() {
     const toProve = items.filter(i => i.status === "new");
     if (!toProve.length) return;
+    primeAudio();
 
     setStep("proving");
     setProveProgress({ current: 0, total: toProve.length });
@@ -265,6 +308,8 @@ export default function BitGraphPage() {
           await tick();
         }
       }
+      // The shutter sound: recordings landed, say so.
+      playRecordedChime();
     } catch {
       setItems(prev => prev.map(i => i.status === "proving" ? { ...i, status: "error" as const } : i));
     }
@@ -515,8 +560,10 @@ export default function BitGraphPage() {
           </>
         )}
 
-        {/* ── Scanning ── */}
-        {step === "scanning" && (
+        {/* ── Scanning — reading gets a real progress bar (per-file work),
+            checking is one indeterminate round trip, so it gets the same
+            spinner the zip export uses. ── */}
+        {step === "scanning" && (scanPhase === "reading" ? (
           <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
             <div style={{
               fontSize: "min(22px, 4.5vw)",
@@ -527,22 +574,31 @@ export default function BitGraphPage() {
               lineHeight: 1.2,
               animation: "pulse 1s ease-in-out infinite",
             }}>
-              {scanPhase === "reading"
-                ? `${scanProgress.current} of ${scanProgress.total} read`
-                : "Checking for BitGraphs…"}
+              {scanProgress.current} of {scanProgress.total} read
             </div>
             <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden", margin: "20px auto 0" }}>
-              <div style={{
-                width: scanPhase === "reading" ? `${(scanProgress.current / scanProgress.total) * 100}%` : "100%",
-                height: "100%", background: "#0065A4", transition: "width 0.2s", boxShadow: "none",
-                animation: scanPhase === "checking" ? "pulse 1s ease-in-out infinite" : undefined,
-              }} />
+              <div style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%`, height: "100%", background: "#0065A4", transition: "width 0.2s", boxShadow: "none" }} />
             </div>
           </div>
-        )}
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
+            <div role="status" aria-label="Checking for BitGraphs" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <div style={{ fontSize: 14, color: "#6b7280" }}>Checking for BitGraphs…</div>
+          </div>
+        ))}
 
-        {/* ── Proving ── */}
-        {step === "proving" && (
+        {/* ── Proving — a single chunk (up to 50 files) is one round trip
+            with nothing to count, so it gets the indeterminate spinner;
+            "0 of 50 BitGraphed" sat at zero the whole time. The count + bar
+            appear once chunks actually complete (drops over 50 files). ── */}
+        {step === "proving" && (proveProgress.current === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
+            <div role="status" aria-label="BitGraphing" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <div style={{ fontSize: 14, color: "#6b7280" }}>
+              BitGraphing {proveProgress.total} file{proveProgress.total === 1 ? "" : "s"}…
+            </div>
+          </div>
+        ) : (
           <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
             <div style={{
               fontSize: "min(22px, 4.5vw)",
@@ -559,7 +615,7 @@ export default function BitGraphPage() {
               <div style={{ width: `${proveProgress.total > 0 ? (proveAnimCount / proveProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
             </div>
           </div>
-        )}
+        ))}
 
         {/* ── Exporting ── */}
         {step === "exporting" && (
