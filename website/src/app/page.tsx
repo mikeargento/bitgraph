@@ -607,7 +607,7 @@ export default function BitGraphPage() {
                   : item.status === "proved" ? { color: "#0065A4", word: "recorded" }
                   : null;
                 return (
-                  <div key={item.file.name + i} style={{ border: "1px solid #d0d5dd", borderLeft: outcome ? `3px solid ${outcome.color}` : undefined, background: "#fff", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
+                  <div key={item.file.name + i} className="bitgraph-file-card" data-clickable={proofCount > 0} style={{ border: "1px solid #d0d5dd", borderLeft: outcome ? `3px solid ${outcome.color}` : undefined, animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
                   {showHeader && (
                     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px 6px" }}>
                       <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

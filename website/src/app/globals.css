@@ -422,13 +422,16 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    devices don't stick in the hover state after a tap. Desktop still
    gets the engagement signal; mobile cleanly leaves the button alone. ── */
 .bg-btn-outline { transition: background 0.15s; }
-.bitgraph-file-row { transition: background 0.15s; }
+/* The card is the hover unit — one file, one object — so the WHOLE box greys,
+   header and outcome rail included (the rail is a border, unaffected by bg).
+   Background lives here (not inline) so :hover can override it. */
+.bitgraph-file-card { background: #fff; transition: background 0.15s; }
 /* Base styles live here (not inline) so the hover rule below can override the
    background/color — an inline background would win over the stylesheet. */
 .bitgraph-open-pill { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; color:#0065A4; font-size:13px; font-weight:600; letter-spacing:-0.01em; border:1px solid #0065A4; border-radius:0; padding:4px 12px; background:#fff; transition:background .15s, color .15s; }
 @media (hover: hover) {
   .bg-btn-outline:hover { background: #e8eef5 !important; }
-  .bitgraph-file-row:hover { background: #f3f5f7; }
+  .bitgraph-file-card[data-clickable="true"]:hover { background: #f3f5f7; }
   .bitgraph-file-row:hover .bitgraph-open-pill { background: #0065A4; color: #fff; }
 }
 
