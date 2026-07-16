@@ -23,8 +23,8 @@ function formatWindow(lower: string | null, upper: string | null): string | null
   if (lower && upper) {
     const t1 = new Date(lower), t2 = new Date(upper);
     return t1.toDateString() === t2.toDateString()
-      ? `between ${t1.toLocaleTimeString()} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`
-      : `between ${t1.toLocaleString()} and ${stampTz(t2)}`;
+      ? `between ${timeTz(t1)} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`
+      : `between ${stampTz(t1)} and ${stampTz(t2)}`;
   }
   if (lower) { const t = new Date(lower); return `after ${timeTz(t)} on ${t.toLocaleDateString()}`; }
   if (upper) { const t = new Date(upper); return `before ${timeTz(t)} on ${t.toLocaleDateString()}`; }
@@ -246,11 +246,11 @@ export default function ProofPage() {
   } else if (!isEth && lowerTime && upperTime) {
     const t1 = new Date(lowerTime), t2 = new Date(upperTime);
     if (t1.toDateString() === t2.toDateString()) {
-      recordedLine = `between ${t1.toLocaleTimeString()} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`;
-      recordedNode = <>between <Em>{t1.toLocaleTimeString()}</Em> and <Em>{timeTz(t2)}</Em> on <Em>{t2.toLocaleDateString()}</Em></>;
+      recordedLine = `between ${timeTz(t1)} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`;
+      recordedNode = <>between <Em>{timeTz(t1)}</Em> and <Em>{timeTz(t2)}</Em> on <Em>{t2.toLocaleDateString()}</Em></>;
     } else {
-      recordedLine = `between ${t1.toLocaleString()} and ${stampTz(t2)}`;
-      recordedNode = <>between <Em>{t1.toLocaleString()}</Em> and <Em>{stampTz(t2)}</Em></>;
+      recordedLine = `between ${stampTz(t1)} and ${stampTz(t2)}`;
+      recordedNode = <>between <Em>{stampTz(t1)}</Em> and <Em>{stampTz(t2)}</Em></>;
     }
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
@@ -271,8 +271,8 @@ export default function ProofPage() {
   if (originalPos?.lowerTime && originalPos?.upperTime) {
     const b1 = new Date(originalPos.lowerTime), b2 = new Date(originalPos.upperTime);
     intervalBeganNode = b1.toDateString() === b2.toDateString()
-      ? <>between <Em>{b1.toLocaleTimeString()}</Em> and <Em>{timeTz(b2)}</Em> on <Em>{b2.toLocaleDateString()}</Em></>
-      : <>between <Em>{b1.toLocaleString()}</Em> and <Em>{stampTz(b2)}</Em></>;
+      ? <>between <Em>{timeTz(b1)}</Em> and <Em>{timeTz(b2)}</Em> on <Em>{b2.toLocaleDateString()}</Em></>
+      : <>between <Em>{stampTz(b1)}</Em> and <Em>{stampTz(b2)}</Em></>;
   }
 
   async function exportZip() {
