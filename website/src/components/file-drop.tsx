@@ -242,20 +242,7 @@ export function FileDrop({
               whiteSpace: "nowrap",
             }}
           >
-            Take or check a BitGraph
-          </div>
-          {/* The gesture teaches itself: new bytes get taken, known bytes get
-              checked — the ledger decides, so the copy never asks the user to. */}
-          <div
-            className="mt-2 text-center"
-            style={{
-              color: "#6b7280",
-              fontSize: "min(13px, 3vw)",
-              lineHeight: 1.5,
-              whiteSpace: "nowrap",
-            }}
-          >
-            Drop a file, or click to choose
+            Choose files to record or check BitGraphs
           </div>
           {hint && (
             <div
