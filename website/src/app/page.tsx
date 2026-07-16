@@ -118,50 +118,92 @@ export default function BitGraphPage() {
   async function handleFiles(files: File[]) {
     setStep("scanning");
     setScanProgress({ current: 0, total: files.length });
-    const results: FileItem[] = [];
 
-    for (let i = 0; i < files.length; i++) {
-      setScanProgress({ current: i + 1, total: files.length });
-      const f = files[i];
-      try {
-        // Only read as text if the file could plausibly be a proof JSON.
-        // Reading a multi-MB photo as text allocates a UTF-16 copy of its bytes
-        // and crashes iOS Safari after ~15 files.
-        const couldBeProof =
-          f.size <= 1_000_000 &&
-          (f.type === "application/json" || /\.(json|proof)$/i.test(f.name));
-        const proofJson = couldBeProof ? isBitGraphProof(await f.text()) : null;
-        if (proofJson) {
-          const result = await verifyProofSignature(proofJson);
-          results.push({ file: f, digestB64: proofJson.artifact.digestB64, proof: proofJson, proofs: [proofJson], valid: result.valid, status: "found", fromProofJson: true });
-          continue;
-        }
-
-        // Regular file: hash and look up. The lookup returns EVERY proof
-        // recorded for these bytes (earliest causal position first) — the same
-        // bits can occupy several positions when BitGraphed more than once.
-        const d = await hashFile(f);
-        const resp = await fetch(`/api/proofs/${encodeURIComponent(toUrlSafeB64(d))}`);
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data.proofs?.length > 0) {
-            const all = (data.proofs as Array<{ proof: BitGraphProof }>).map((x) => x.proof);
-            const result = await verifyProofSignature(all[0]);
-            results.push({ file: f, digestB64: d, proof: all[0], proofs: all, valid: result.valid, status: "found" });
+    // Phase 1 — local work: detect dropped proof.json files, hash everything.
+    // A small worker pool: parallel enough to keep crypto.subtle busy, small
+    // enough that only a few file buffers are in flight at once (iOS Safari
+    // reclaims each buffer between tasks; reading a multi-MB photo as TEXT
+    // allocates a UTF-16 copy and crashes it after ~15 files, hence the
+    // couldBeProof gate).
+    type Scanned = { f: File; digest: string; proofJson: BitGraphProof | null; valid: boolean | null };
+    const scanned: Scanned[] = new Array(files.length);
+    let hashed = 0;
+    let nextFile = 0;
+    const hashWorker = async () => {
+      while (nextFile < files.length) {
+        const i = nextFile++;
+        const f = files[i];
+        try {
+          const couldBeProof =
+            f.size <= 1_000_000 &&
+            (f.type === "application/json" || /\.(json|proof)$/i.test(f.name));
+          const proofJson = couldBeProof ? isBitGraphProof(await f.text()) : null;
+          if (proofJson) {
+            const result = await verifyProofSignature(proofJson);
+            scanned[i] = { f, digest: proofJson.artifact.digestB64, proofJson, valid: result.valid };
           } else {
-            results.push({ file: f, digestB64: d, proof: null, proofs: [], valid: null, status: "new" });
+            scanned[i] = { f, digest: await hashFile(f), proofJson: null, valid: null };
           }
-        } else {
-          results.push({ file: f, digestB64: d, proof: null, proofs: [], valid: null, status: "new" });
+        } catch {
+          scanned[i] = { f, digest: await hashFile(f).catch(() => ""), proofJson: null, valid: null };
         }
-      } catch {
-        const d = await hashFile(f).catch(() => "");
-        results.push({ file: f, digestB64: d, proof: null, proofs: [], valid: null, status: "new" });
+        hashed++;
+        setScanProgress({ current: hashed, total: files.length });
+        // Yield so the UI paints and Safari can reclaim the buffer.
+        await new Promise((r) => setTimeout(r, 0));
       }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, files.length) }, hashWorker));
 
-      // Yield so iOS Safari can reclaim the previous file's buffer before the next iteration.
-      if (i < files.length - 1) await new Promise((r) => setTimeout(r, 0));
+    // Phase 2 — ONE round trip for every ledger lookup (the old one-request-
+    // per-file loop was the whole wait). Falls back to the per-digest
+    // endpoint, parallelized, if the batch endpoint is unavailable.
+    const lookupKeys = [...new Set(
+      scanned.filter((s) => !s.proofJson && s.digest).map((s) => toUrlSafeB64(s.digest)),
+    )];
+    const lookup: Record<string, { proofs?: Array<{ proof: BitGraphProof }> }> = {};
+    if (lookupKeys.length) {
+      try {
+        const r = await fetch("/api/proofs/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ digests: lookupKeys }),
+        });
+        if (!r.ok) throw new Error();
+        Object.assign(lookup, (await r.json()).results || {});
+      } catch {
+        let nextKey = 0;
+        const fetchWorker = async () => {
+          while (nextKey < lookupKeys.length) {
+            const k = lookupKeys[nextKey++];
+            try {
+              const resp = await fetch(`/api/proofs/${encodeURIComponent(k)}`);
+              lookup[k] = resp.ok ? await resp.json() : { proofs: [] };
+            } catch {
+              lookup[k] = { proofs: [] };
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(6, lookupKeys.length) }, fetchWorker));
+      }
     }
+
+    // Phase 3 — assemble in drop order. The lookup returns EVERY proof
+    // recorded for the bytes (earliest causal position first): the same bits
+    // can occupy several positions when BitGraphed more than once. Signature
+    // checks are WebCrypto, cheap to run together.
+    const results: FileItem[] = await Promise.all(scanned.map(async (s) => {
+      const { f, digest, proofJson, valid } = s;
+      if (proofJson) {
+        return { file: f, digestB64: digest, proof: proofJson, proofs: [proofJson], valid, status: "found" as const, fromProofJson: true };
+      }
+      const all = (digest && lookup[toUrlSafeB64(digest)]?.proofs || []).map((x) => x.proof);
+      if (all.length > 0) {
+        const result = await verifyProofSignature(all[0]);
+        return { file: f, digestB64: digest, proof: all[0], proofs: all, valid: result.valid, status: "found" as const };
+      }
+      return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const };
+    }));
 
     setItems(results);
     setStep("results");
@@ -572,12 +614,13 @@ export default function BitGraphPage() {
                 </span>
               </div>
               {items.map((item, i) => {
-                // One row per BitGraph: bytes recorded at several causal
-                // positions list each recording individually, like the
-                // explorer, newest first. A file with no proof yet renders one
-                // pending row.
+                // One row per BitGraph. Chronological, ORIGINAL first: a
+                // file's card reads as its provenance story (first existed at
+                // #N, recorded again at #M), so the earliest causal position
+                // leads and carries the "original" mark. A file with no proof
+                // yet renders one pending row.
                 const rowProofs: Array<BitGraphProof | null> =
-                  item.proofs.length ? [...item.proofs].reverse() : item.proof ? [item.proof] : [null];
+                  item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
                 const openProof = (p: BitGraphProof) => {
                   // Open immediately (synchronous) so mobile browsers don't block the popup.
                   // Use the proof's digest (from TEE) for the URL, not the browser-computed
@@ -650,11 +693,19 @@ export default function BitGraphPage() {
                         ? <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
                         : pendingLabel}
                     </span>
-                    {/* Outcome tag and filename on the FIRST row only; the
-                        rows below it are the same file at other positions. */}
-                    {k === 0 && outcome && (
-                      <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 700, color: outcome.color, whiteSpace: "nowrap" }}>
-                        {outcome.word}
+                    {/* Every recording row carries the outcome word; when the
+                        same bytes hold several positions, a grey count places
+                        the row in the sequence and the earliest is marked as
+                        the original recording. Filename stays on the first
+                        row only. */}
+                    {outcome && (
+                      <span style={{ flexShrink: 0, fontSize: 12, whiteSpace: "nowrap" }}>
+                        <span style={{ fontWeight: 700, color: outcome.color }}>{outcome.word}</span>
+                        {rowProofs.length > 1 && (
+                          <span style={{ fontWeight: 400, color: "#6b7280" }}>
+                            {` · ${k + 1} of ${rowProofs.length}${k === 0 ? " · original" : ""}`}
+                          </span>
+                        )}
                       </span>
                     )}
                     {k === 0 ? (
