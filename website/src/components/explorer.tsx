@@ -192,7 +192,7 @@ export function Explorer() {
           // back, re-committed at a new position: distinct label + violet so
           // they read differently from anchors (gray) and files (blue).
           const tagLabel = isAnchor ? "anchor" : isInterval ? "interval" : "file";
-          const tagColor = isAnchor ? "#9ca3af" : isInterval ? "#7c3aed" : "#0065A4";
+          const tagColor = isAnchor ? "#6b7280" : isInterval ? "#7c3aed" : "#0065A4";
           const tagWeight = isAnchor ? 400 : 600;
           // ?counter= pins the drill-in to THIS row's causal position; the
           // same bytes can occupy several (BitGraphed more than once).
@@ -204,7 +204,7 @@ export function Explorer() {
               <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
                 {tagLabel}
               </span>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#9ca3af", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#6b7280", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
                 {e.hashShort}…
               </span>
               <span className="xp-open">

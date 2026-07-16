@@ -610,7 +610,7 @@ export default function BitGraphPage() {
                       <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {item.file.name}
                       </span>
-                      <span style={{ flexShrink: 0, fontSize: 12.5, color: "#9ca3af" }}>
+                      <span style={{ flexShrink: 0, fontSize: 12.5, color: "#6b7280" }}>
                         {outcome && <><span style={{ color: outcome.color, fontWeight: 700 }}>{outcome.word}</span>{" · "}</>}
                         {proofCount} BitGraph{proofCount === 1 ? "" : "s"}
                       </span>
@@ -642,7 +642,7 @@ export default function BitGraphPage() {
                     {/* Left — the position number (or the pending state for rows
                         not yet BitGraphed). No "BitGraph" prefix: everything on
                         this card is one, the # carries it. */}
-                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#9ca3af" }}>
+                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#6b7280" }}>
                       {counter != null
                         ? <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
                         : pendingLabel}
