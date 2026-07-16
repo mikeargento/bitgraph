@@ -248,23 +248,34 @@ export default function BitGraphPage() {
       if (!ctx || ctx.state !== "running") return;
       const t0 = ctx.currentTime;
       const master = ctx.createGain();
-      master.gain.value = 0.22;
+      master.gain.value = 0.25;
       master.connect(ctx.destination);
-      const note = (freq: number, start: number, dur: number, peak: number) => {
-        const osc = ctx.createOscillator();
-        const g = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = freq;
-        g.gain.setValueAtTime(0, t0 + start);
-        g.gain.linearRampToValueAtTime(peak, t0 + start + 0.012);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + start + dur);
-        osc.connect(g);
-        g.connect(master);
-        osc.start(t0 + start);
-        osc.stop(t0 + start + dur + 0.05);
+      // A bell voice, not a beep: each note is a fundamental plus quieter
+      // upper partials (octave + twelfth), the partials decaying faster than
+      // the fundamental the way struck metal does. Fast 8ms attack.
+      const bell = (freq: number, start: number, dur: number, peak: number) => {
+        const partials: Array<[number, number, number]> = [
+          [1, 1, 1],        // fundamental, full length
+          [2, 0.32, 0.6],   // octave, brighter but shorter
+          [3, 0.12, 0.4],   // twelfth, a glint
+        ];
+        for (const [mult, gain, durScale] of partials) {
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.value = freq * mult;
+          const d = dur * durScale;
+          g.gain.setValueAtTime(0, t0 + start);
+          g.gain.linearRampToValueAtTime(peak * gain, t0 + start + 0.008);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + start + d);
+          osc.connect(g);
+          g.connect(master);
+          osc.start(t0 + start);
+          osc.stop(t0 + start + d + 0.05);
+        }
       };
-      note(659.25, 0, 0.18, 0.9); // E5
-      note(987.77, 0.11, 0.5, 1); // B5
+      bell(659.25, 0, 0.22, 0.7);  // E5 — the short "d-"
+      bell(987.77, 0.1, 0.7, 1);   // B5 — the ringing "-ing"
     } catch { /* ditto */ }
   }
 
