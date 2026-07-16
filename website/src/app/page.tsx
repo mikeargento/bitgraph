@@ -40,6 +40,10 @@ export default function BitGraphPage() {
   const [step, setStep] = useState<Step>("drop");
   const [items, setItems] = useState<FileItem[]>([]);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
+  // The scan is two honest phases: hashing files locally ("reading"), then
+  // one batch round trip to the ledger ("checking"). The label tracks them;
+  // "N of N checked" sitting under a full bar while the lookup ran was a lie.
+  const [scanPhase, setScanPhase] = useState<"reading" | "checking">("reading");
   const [proveProgress, setProveProgress] = useState({ current: 0, total: 0 });
   const [proveAnimCount, setProveAnimCount] = useState(0);
   const proveAnimRef = useRef(0);
@@ -117,6 +121,7 @@ export default function BitGraphPage() {
 
   async function handleFiles(files: File[]) {
     setStep("scanning");
+    setScanPhase("reading");
     setScanProgress({ current: 0, total: files.length });
 
     // Phase 1 — local work: detect dropped proof.json files, hash everything.
@@ -162,6 +167,7 @@ export default function BitGraphPage() {
       scanned.filter((s) => !s.proofJson && s.digest).map((s) => toUrlSafeB64(s.digest)),
     )];
     const lookup: Record<string, { proofs?: Array<{ proof: BitGraphProof }> }> = {};
+    setScanPhase("checking");
     if (lookupKeys.length) {
       try {
         const r = await fetch("/api/proofs/batch", {
@@ -521,10 +527,16 @@ export default function BitGraphPage() {
               lineHeight: 1.2,
               animation: "pulse 1s ease-in-out infinite",
             }}>
-              {scanProgress.current} of {scanProgress.total} checked
+              {scanPhase === "reading"
+                ? `${scanProgress.current} of ${scanProgress.total} read`
+                : "Checking for BitGraphs…"}
             </div>
             <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden", margin: "20px auto 0" }}>
-              <div style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%`, height: "100%", background: "#0065A4", transition: "width 0.2s", boxShadow: "none" }} />
+              <div style={{
+                width: scanPhase === "reading" ? `${(scanProgress.current / scanProgress.total) * 100}%` : "100%",
+                height: "100%", background: "#0065A4", transition: "width 0.2s", boxShadow: "none",
+                animation: scanPhase === "checking" ? "pulse 1s ease-in-out infinite" : undefined,
+              }} />
             </div>
           </div>
         )}
