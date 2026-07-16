@@ -250,7 +250,7 @@ export function FileDrop({
           <div
             className="mt-2 text-center"
             style={{
-              color: "#0065A4",
+              color: "#111827",
               fontSize: "min(13px, 3vw)",
               lineHeight: 1.5,
               whiteSpace: "nowrap",
