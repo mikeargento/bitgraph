@@ -99,6 +99,57 @@ function toEntry(p: Record<string, unknown>): Entry | null {
   };
 }
 
+/** Files-only feed: the `limit` highest-counter NON-anchor proofs at or below
+ *  `top`. Anchor commits are enumerated in the anchors/{epoch}/{counter}.json
+ *  index (verified 1:1 with anchor proofs' commit counters), so a LIST of that
+ *  prefix identifies them without GETting each proof; only the difference is
+ *  fetched. Scans at most SCAN_BUDGET counters per request and returns
+ *  `floor`, the lowest counter scanned, as the resume cursor: on an
+ *  anchor-only stretch a page may carry zero entries while paging continues. */
+const SCAN_BUDGET = 4000;
+async function listRecentFiles(epoch: string, top: number, limit: number): Promise<{ entries: Entry[]; floor: number }> {
+  const proofsPrefix = `proofs/${epoch}/`;
+  const anchorsPrefix = `anchors/${epoch}/`;
+  const found: Entry[] = [];
+  let cursor = top;
+  let scanned = 0;
+  while (cursor >= 1 && scanned < SCAN_BUDGET && found.length < limit) {
+    const start = Math.max(0, cursor - Math.min(1000, cursor));
+    const inWindow = (n: number) => !isNaN(n) && n > start && n <= cursor;
+    const [pr, ar] = await Promise.all([
+      s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: proofsPrefix, StartAfter: `${proofsPrefix}${pad(start)}`, MaxKeys: 1000 })),
+      s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: anchorsPrefix, StartAfter: `${anchorsPrefix}${pad(start)}`, MaxKeys: 1000 })),
+    ]);
+    const anchorCounters = new Set(
+      (ar.Contents || [])
+        .map((o) => parseInt((o.Key!.split("/").pop() || "").replace(".json", ""), 10))
+        .filter(inWindow),
+    );
+    const fileKeys = (pr.Contents || [])
+      .map((o) => ({ key: o.Key!, counter: parseInt((o.Key!.split("/").pop() || "").split("-")[0], 10) }))
+      .filter((x) => inWindow(x.counter) && !anchorCounters.has(x.counter))
+      .sort((a, b) => b.counter - a.counter);
+    const objs = await Promise.all(fileKeys.map(async ({ key }) => {
+      try {
+        const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        const body = await r.Body?.transformToString();
+        return body ? (JSON.parse(body) as Record<string, unknown>) : null;
+      } catch { return null; }
+    }));
+    for (const o of objs) {
+      const e = o ? toEntry(o) : null;
+      // Belt and suspenders: the anchors/ index is authoritative for skipping,
+      // but if an index write ever went missing the proof itself still says
+      // what it is.
+      if (e && e.type === "proof") found.push(e);
+    }
+    scanned += cursor - start;
+    cursor = start;
+  }
+  found.sort((a, b) => b.counter - a.counter);
+  return { entries: found.slice(0, limit), floor: cursor + 1 };
+}
+
 /** The `limit` highest-counter proofs at or below `top`. One LIST + `limit` GETs.
  *  Counters step by ~2 (slot + commit per event), so the LIST window is widened. */
 async function listRecent(epoch: string, top: number, limit: number): Promise<Entry[]> {
@@ -129,6 +180,7 @@ export async function GET(req: NextRequest) {
   try {
     const now = Date.now();
     const beforeParam = req.nextUrl.searchParams.get("before");
+    const filesOnly = req.nextUrl.searchParams.get("files") === "1";
     const epoch = await getCurrentEpoch(now);
     if (!epoch) return NextResponse.json({ error: "no epoch" }, { status: 404 });
 
@@ -140,8 +192,18 @@ export async function GET(req: NextRequest) {
       top = Math.min(b - 1, head);
     }
 
-    const entries = top < 1 ? [] : await listRecent(epoch, top, PAGE);
-    const nextBefore = entries.length ? entries[entries.length - 1].counter : null;
+    let entries: Entry[];
+    let nextBefore: number | null;
+    if (filesOnly) {
+      // The cursor is the scan floor, not the last entry: an anchor-only
+      // stretch legitimately yields an empty page that still advances.
+      const r = top < 1 ? { entries: [], floor: 1 } : await listRecentFiles(epoch, top, PAGE);
+      entries = r.entries;
+      nextBefore = r.floor > 1 ? r.floor : null;
+    } else {
+      entries = top < 1 ? [] : await listRecent(epoch, top, PAGE);
+      nextBefore = entries.length ? entries[entries.length - 1].counter : null;
+    }
 
     return NextResponse.json(
       { epoch, head, entries, nextBefore, hasMore: nextBefore != null && nextBefore > 1 },

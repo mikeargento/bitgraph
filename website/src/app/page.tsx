@@ -411,8 +411,8 @@ export default function BitGraphPage() {
       <style>{`
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 57px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
-        .bitgraph-wrap .file-drop-container { height: 450px; }
-        @media (max-width: 640px) { .bitgraph-wrap .file-drop-container { height: 280px; } }
+        .bitgraph-wrap .file-drop-container { height: 380px; }
+        @media (max-width: 640px) { .bitgraph-wrap .file-drop-container { height: 250px; } }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
         @keyframes countPop { 0% { transform: scale(0.5); opacity: 0 } 50% { transform: scale(1.15) } 100% { transform: scale(1); opacity: 1 } }
         @keyframes slideIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
@@ -435,6 +435,17 @@ export default function BitGraphPage() {
         {/* ── Drop zone + What is BitGraph button ── */}
         {step === "drop" && (
           <>
+            {/* What it is, what it means, take one: identity and meaning sit
+                ABOVE the camera so a first-time visitor reads before acting.
+                Kept compact so the Roll stays on a laptop's first screen. */}
+            <div style={{ textAlign: "left", marginBottom: -6, animation: "slideIn 0.3s ease-out" }}>
+              <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", lineHeight: 1.3 }}>
+                A camera for bits.
+              </div>
+              <div style={{ marginTop: 4, fontSize: 13.5, lineHeight: 1.6, color: "#6b7280" }}>
+                Each BitGraph is a portable cryptographic recording of an exact bit pattern at a specific causal position.
+              </div>
+            </div>
             <div className="file-drop-container" style={{ animation: "slideIn 0.3s ease-out" }}>
               <FileDrop
                 multiple
@@ -443,19 +454,15 @@ export default function BitGraphPage() {
                 hint=""
               />
             </div>
-            {/* One line of explanation, a caption under the camera. Single
-                weight and color throughout; mixed emphasis read as uneven.
-                The wrap's 24px gap doubles around a sibling, so pull the
-                caption toward the drop zone it belongs to. */}
-            <div style={{ textAlign: "center", marginTop: -8, fontSize: 13.5, lineHeight: 1.6, color: "#6b7280", animation: "slideIn 0.3s ease-out" }}>
-              A camera for bits. Each BitGraph is a portable cryptographic recording of an exact bit pattern at a specific causal position.
-            </div>
-            {/* The roll, right under the camera. */}
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", marginBottom: 10 }}>
-                BitGraph Roll
-              </div>
-              <Explorer />
+            {/* The roll, right under the camera. Explorer renders the heading
+                row so the anchors toggle can sit beside the title. A touch
+                more air than the wrap's 24px gap so the sections breathe. */}
+            <div style={{ marginTop: 14 }}>
+              <Explorer title={
+                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827" }}>
+                  BitGraph Roll
+                </div>
+              } />
             </div>
           </>
         )}

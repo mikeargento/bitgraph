@@ -13,7 +13,7 @@ type Entry = {
 
 const fmt = (n: number) => n.toLocaleString();
 
-export function Explorer() {
+export function Explorer({ title }: { title?: React.ReactNode }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   // Counters that arrived via the live poll (not the initial load), so only
   // those rows get the arrival flash. Grows slowly; the animation runs once.
@@ -28,8 +28,17 @@ export function Explorer() {
   const [searching, setSearching] = useState(false);
   const [searchErr, setSearchErr] = useState("");
 
+  // Anchors are the clock ticking, not the photos: hidden by default so the
+  // roll reads as files. The toggle refetches; ?files=1 lets the server skip
+  // anchor objects via the anchors/{epoch}/ index instead of GETting each.
+  const [showAnchors, setShowAnchors] = useState(false);
+
   const busyRef = useRef(false);
   const topRef = useRef(0);
+
+  const feedUrl = useCallback((before?: number | null) =>
+    `/api/explorer?${showAnchors ? "" : "files=1"}${before != null ? `${showAnchors ? "" : "&"}before=${before}` : ""}`,
+  [showAnchors]);
 
   // Jump to a BitGraph by number (#614589 / 614,589) or by hash. One round-trip
   // to /api/search, which only returns a link once the proof is retrievable, so
@@ -54,17 +63,25 @@ export function Explorer() {
     }
   }, [query, searching]);
 
-  // Initial load. A cold request can be slow while the endpoint discovers the
-  // epoch head, so retry a few times with a per-attempt timeout rather than
-  // hanging forever on one stalled fetch.
+  // Initial load, re-run when the anchors toggle flips the feed mode. A cold
+  // request can be slow while the endpoint discovers the epoch head, so retry
+  // a few times with a per-attempt timeout rather than hanging forever on one
+  // stalled fetch.
   useEffect(() => {
     let cancelled = false;
+    setEntries([]);
+    setFreshIds(new Set());
+    setNextBefore(null);
+    setHasMore(true);
+    setLoading(true);
+    setError(false);
+    topRef.current = 0;
     (async () => {
       for (let attempt = 0; attempt < 5 && !cancelled; attempt++) {
         try {
           const ctrl = new AbortController();
           const to = setTimeout(() => ctrl.abort(), 15000);
-          const r = await fetch("/api/explorer", { signal: ctrl.signal });
+          const r = await fetch(feedUrl(), { signal: ctrl.signal });
           clearTimeout(to);
           if (!r.ok) throw new Error();
           const j = await r.json();
@@ -82,13 +99,13 @@ export function Explorer() {
       if (!cancelled) { setError(true); setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [feedUrl]);
 
   // Live poll: every ~12s (anchor cadence), pull the head page and prepend new entries.
   useEffect(() => {
     const id = setInterval(async () => {
       try {
-        const r = await fetch("/api/explorer");
+        const r = await fetch(feedUrl());
         if (!r.ok) return;
         const j = await r.json();
         const fresh: Entry[] = (j.entries || []).filter((e: Entry) => e.counter > topRef.current);
@@ -104,14 +121,14 @@ export function Explorer() {
       } catch { /* transient, ignore */ }
     }, 12000);
     return () => clearInterval(id);
-  }, []);
+  }, [feedUrl]);
 
   const loadMore = useCallback(async () => {
     if (busyRef.current || nextBefore == null || !hasMore) return;
     busyRef.current = true;
     setLoadingMore(true);
     try {
-      const r = await fetch(`/api/explorer?before=${nextBefore}`);
+      const r = await fetch(feedUrl(nextBefore));
       if (!r.ok) throw new Error();
       const j = await r.json();
       setEntries((prev) => {
@@ -122,7 +139,7 @@ export function Explorer() {
       setHasMore(!!j.hasMore);
     } catch { /* keep what we have */ }
     finally { busyRef.current = false; setLoadingMore(false); }
-  }, [nextBefore, hasMore]);
+  }, [nextBefore, hasMore, feedUrl]);
 
   // Infinite scroll.
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -158,6 +175,24 @@ export function Explorer() {
         }
       `}</style>
 
+      {/* Heading row: the page's title with the anchors toggle beside it, so
+          the control reads as a property of the Roll itself. Anchors hidden
+          by default: the roll shows the photos, not the clock. */}
+      {title != null && (
+        <div style={{ display: "flex", alignItems: "baseline", gap: 28, marginBottom: 12 }}>
+          {title}
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#6b7280", cursor: "pointer", userSelect: "none" }}>
+            <input
+              type="checkbox"
+              checked={showAnchors}
+              onChange={(ev) => setShowAnchors(ev.target.checked)}
+              style={{ accentColor: "#0065A4", width: 13, height: 13 }}
+            />
+            Show anchors
+          </label>
+        </div>
+      )}
+
       {/* Search — jump to any BitGraph by its number or hash */}
       <form onSubmit={onSearch} style={{ display: "flex", gap: 8, marginBottom: searchErr ? 6 : 12 }}>
         <input
@@ -173,7 +208,7 @@ export function Explorer() {
         <button
           type="submit"
           disabled={searching || !query.trim()}
-          style={{ height: 44, padding: "0 20px", border: "none", borderRadius: 0, background: "#0065A4", color: "#fff", fontSize: 14, fontWeight: 600, cursor: searching || !query.trim() ? "default" : "pointer", opacity: searching || !query.trim() ? 0.55 : 1, flexShrink: 0, letterSpacing: "-0.01em" }}
+          style={{ height: 44, padding: "0 20px", border: "none", borderRadius: 0, background: "#0065A4", color: "#fff", fontSize: 14, fontWeight: 600, cursor: searching || !query.trim() ? "default" : "pointer", opacity: searching ? 0.55 : 1, flexShrink: 0, letterSpacing: "-0.01em" }}
         >
           {searching ? "…" : "Search"}
         </button>
@@ -185,7 +220,7 @@ export function Explorer() {
         {loading && <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Reading the ledger…</div>}
         {error && !loading && <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Ledger unavailable right now.</div>}
 
-        {!loading && !error && entries.map((e) => {
+        {!loading && !error && (showAnchors ? entries : entries.filter((e) => e.type === "proof")).map((e) => {
           const isAnchor = e.type === "anchor";
           const isInterval = e.type === "interval";
           // Interval recurrences are the same bytes as an anchor 25 anchors
