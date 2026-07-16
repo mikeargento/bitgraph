@@ -198,9 +198,8 @@ export function Explorer() {
           // same bytes can occupy several (BitGraphed more than once).
           return (
             <a key={e.counter} href={`/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}`} target="_blank" rel="noopener" className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
-              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: "#374151" }}>
-                BitGraph
-                <span style={{ marginLeft: 7, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>#{fmt(e.counter)}</span>
+              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>
+                #{fmt(e.counter)}
               </span>
               <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
                 {tagLabel}
