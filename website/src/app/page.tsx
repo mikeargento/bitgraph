@@ -443,6 +443,13 @@ export default function BitGraphPage() {
                 hint=""
               />
             </div>
+            {/* One line of explanation, a caption under the camera. Single
+                weight and color throughout; mixed emphasis read as uneven.
+                The wrap's 24px gap doubles around a sibling, so pull the
+                caption toward the drop zone it belongs to. */}
+            <div style={{ textAlign: "center", marginTop: -8, fontSize: 13.5, lineHeight: 1.6, color: "#6b7280", animation: "slideIn 0.3s ease-out" }}>
+              A camera for bits. Each BitGraph is a portable cryptographic recording of an exact bit pattern at a specific causal position.
+            </div>
             {/* The roll, right under the camera. */}
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", marginBottom: 10 }}>
