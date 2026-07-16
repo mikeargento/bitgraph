@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FileDrop } from "@/components/file-drop";
+import { Explorer } from "@/components/explorer";
 // Footer is in root layout
 import {
   hashFile,
@@ -442,19 +443,13 @@ export default function BitGraphPage() {
                 hint=""
               />
             </div>
-            {/* The roll lives on its own page — the camera stays a camera. */}
-            <a
-              href="/roll"
-              className="bg-btn-outline"
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                height: 76, fontSize: 16, fontWeight: 500, textDecoration: "none",
-                color: "#0065A4", background: "#f4f6f9",
-                border: "1px solid #0065A4", borderRadius: 0,
-              }}
-            >
-              View BitGraph Roll
-            </a>
+            {/* The roll, right under the camera. */}
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", marginBottom: 10 }}>
+                BitGraph Roll
+              </div>
+              <Explorer />
+            </div>
           </>
         )}
 
@@ -550,7 +545,9 @@ export default function BitGraphPage() {
                   block. Within a card, recordings share hairline separators;
                   the gap between cards is the file boundary. */}
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "18px 24px", background: "rgba(0,101,164,0.04)", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", gap: 8 }}>
+              {/* 16px horizontal padding matches the file cards below, so the
+                  banner text and card headers share one left edge. */}
+              <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "18px 16px", background: "rgba(0,101,164,0.04)", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", gap: 8 }}>
                 {allDone && (
                   <span key={`badge-${items.length}`} aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 17, height: 17, borderRadius: 999, background: "#0065A4", flexShrink: 0, animation: "countPop 0.4s ease-out both" }}>
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" style={{ strokeDasharray: 26, animation: "checkDraw 0.35s ease-out 0.18s both" }} /></svg>
