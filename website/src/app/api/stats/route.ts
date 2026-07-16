@@ -200,17 +200,13 @@ export async function GET(req: NextRequest) {
     const currentEpoch = epochList[0]?.epoch ?? null;
     if (!currentEpoch) return NextResponse.json({ error: "no epoch" }, { status: 404 });
 
-    // ?epoch= selects a past (sealed) epoch; time-based ranges only make
-    // sense against the live one, so past epochs take counters or the whole
-    // epoch. The param must name a real epoch — no free-form prefixes.
+    // Stats are CURRENT-EPOCH ONLY by owner decision (2026-07-15): sealed
+    // epochs are not browsable here, the same disclosure line that keeps
+    // public epoch export disabled. Past epochs contribute only to the
+    // all-time totals.
     const q = req.nextUrl.searchParams;
-    const epochParam = q.get("epoch");
-    if (epochParam && !epochList.some((e) => e.epoch === epochParam)) {
-      return NextResponse.json({ error: "unknown epoch" }, { status: 404 });
-    }
-    const epoch = epochParam || currentEpoch;
-    const isCurrent = epoch === currentEpoch;
-    const head = await getHead(epoch, now, isCurrent);
+    const epoch = currentEpoch;
+    const head = await getHead(epoch, now, true);
 
     // Range flags: `clamped` = the requested start predates this epoch (range
     // starts at its birth instead); `empty` = no anchors exist in the
@@ -224,9 +220,6 @@ export async function GET(req: NextRequest) {
       return isNaN(t.getTime()) ? null : counterAtTime(epoch, t);
     };
     const hoursParam = q.get("hours");
-    if (!isCurrent && (hoursParam || q.get("fromTime") || q.get("toTime"))) {
-      return NextResponse.json({ error: "time ranges apply to the current epoch only" }, { status: 400 });
-    }
     if (hoursParam) {
       const hours = parseFloat(hoursParam);
       if (!isFinite(hours) || hours <= 0 || hours > 24 * 365) {
@@ -406,25 +399,20 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Epoch inventory + all-time totals: sealed heads cache forever, so this
+    // All-time totals only — per-epoch inventory is deliberately NOT exposed
+    // (sealed epochs are not browsable). Sealed heads cache forever, so this
     // is a handful of cached lookups after the first request.
     const heads = await Promise.all(epochList.map((e) => getHead(e.epoch, now, e.epoch === currentEpoch)));
-    const epochs = epochList.map((e, i) => ({
-      epoch: e.epoch,
-      born: e.born ? new Date(e.born).toISOString() : null,
-      head: heads[i],
-      current: e.epoch === currentEpoch,
-    }));
-    const allTime = { epochs: epochs.length, positions: heads.reduce((a, b) => a + b, 0) };
+    const allTime = { epochs: epochList.length, positions: heads.reduce((a, b) => a + b, 0) };
 
     // A range whose upper bound sits below the live head is settled ledger
     // history; cache those, but only when the payload is intact (boundary
     // block times resolved — never bake an RPC outage into the CDN) and only
-    // moderately, because the body also bundles live inventory fields (head,
-    // epochs, allTime) that go stale when the TEE mints a new epoch.
-    const settled = (!isCurrent || to < head - 4) && !empty && !!(span?.fromTime && span?.toTime);
+    // moderately, because the body also bundles live fields (head, allTime)
+    // that move on.
+    const settled = to < head - 4 && !empty && !!(span?.fromTime && span?.toTime);
     return NextResponse.json({
-      epoch, head, isCurrent, epochs, allTime,
+      epoch, head, allTime,
       range: { from, to, clamped, empty, coveredTo: truncated ? coveredTo : null },
       span,
       totals: {

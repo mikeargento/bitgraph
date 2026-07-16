@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { timeTz, stampTz } from "@/lib/format-time";
+import { timeTz } from "@/lib/format-time";
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
 const BLUE = "#0065A4";
@@ -14,8 +14,6 @@ type Timeline = { startTime: string; endTime: string; fileBins: number[]; anchor
 type Stats = {
   epoch: string;
   head: number;
-  isCurrent: boolean;
-  epochs: Array<{ epoch: string; born: string | null; head: number; current: boolean }>;
   allTime: { epochs: number; positions: number };
   range: { from: number; to: number; clamped: boolean; empty: boolean; coveredTo: number | null };
   span: { fromTime: string | null; toTime: string | null; durationSec: number | null } | null;
@@ -234,8 +232,6 @@ const PRESETS: Preset[] = [
   { label: "Entire epoch" },
 ];
 
-const shortEpoch = (e: string) => `${e.slice(0, 8)}…`;
-
 export default function StatsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -282,9 +278,7 @@ export default function StatsPage() {
     const f = parseInt(fromIn, 10);
     const t = parseInt(toIn, 10);
     if (isNaN(f) || isNaN(t) || f < 1 || t < f) return;
-    // Counter ranges apply within whichever epoch is being viewed.
-    const ep = stats && !stats.isCurrent ? `&epoch=${encodeURIComponent(stats.epoch)}` : "";
-    load(`?from=${f}&to=${t}${ep}`, "custom");
+    load(`?from=${f}&to=${t}`, "custom");
   };
 
   // datetime-local values are local wall-clock; the API takes ISO instants.
@@ -315,8 +309,6 @@ export default function StatsPage() {
         .stats-input { height: 40px; width: 110px; padding: 0 10px; border: 1px solid #d0d5dd; border-radius: 0; font-size: 14px; background: #fff; color: #111827; outline: none; font-family: ${mono}; }
         .stats-dt { width: 205px; font-family: inherit; }
         .stats-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-        .stats-epoch-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 24px; border: none; border-bottom: 1px solid #e2e5e9; background: #fff; text-align: left; cursor: pointer; font-size: 14px; color: #1f2937; }
-        @media (hover:hover) { .stats-epoch-row:hover { background: #f3f5f7; } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
       `}</style>
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", display: "flex", flexDirection: "column", gap: 24, animation: "fadeIn .3s ease-out" }}>
@@ -326,7 +318,7 @@ export default function StatsPage() {
             <button
               key={p.label}
               className="stats-chip"
-              data-on={active === p.label && (s?.isCurrent ?? true)}
+              data-on={active === p.label}
               onClick={() => load(p.hours ? `?hours=${p.hours}` : "?from=1", p.label)}
             >
               {p.label}
@@ -345,18 +337,6 @@ export default function StatsPage() {
           <input className="stats-input" inputMode="numeric" placeholder="to #" value={toIn} onChange={(e) => setToIn(e.target.value)} aria-label="Range end counter" />
           <button type="submit" className="stats-chip" data-on={active === "custom"}>Apply</button>
         </form>
-
-        {s && !s.isCurrent && !loading && !error && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", background: "#f4f1fe", border: "1px solid #d9cdf8", fontSize: 13.5, color: "#374151" }}>
-            <span>Viewing a past epoch: <span style={{ fontFamily: mono, fontSize: 12.5 }}>{shortEpoch(s.epoch)}</span></span>
-            <button
-              onClick={() => load("?from=1", "Entire epoch")}
-              style={{ marginLeft: "auto", flexShrink: 0, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, color: BLUE, background: "#fff", border: `1px solid ${BLUE}`, borderRadius: 0, cursor: "pointer" }}
-            >
-              Back to current
-            </button>
-          </div>
-        )}
 
         {loading && <div style={{ padding: 60, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Reading the ledger…</div>}
         {error && !loading && <div style={{ padding: 60, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Stats unavailable right now.</div>}
@@ -391,6 +371,9 @@ export default function StatsPage() {
               {s.ratePerMin != null && s.totals.fileCommits > 0 && (
                 <Row label="Recording rate"><Num>{s.ratePerMin}</Num> files per minute</Row>
               )}
+              <Row label="All time">
+                <Num>{fmt(s.allTime.epochs)}</Num> epoch{s.allTime.epochs === 1 ? "" : "s"} · <Num>{fmt(s.allTime.positions)}</Num> causal positions
+              </Row>
             </Card>
 
             {(s.timeline || s.rhythm.peak || s.rhythm.quiet) && (
@@ -449,32 +432,6 @@ export default function StatsPage() {
               </Card>
             )}
 
-            <Card title="Epochs">
-              <Row label="All time">
-                <Num>{fmt(s.allTime.epochs)}</Num> epoch{s.allTime.epochs === 1 ? "" : "s"} · <Num>{fmt(s.allTime.positions)}</Num> causal positions
-              </Row>
-              {s.epochs.map((e) => (
-                <button
-                  key={e.epoch}
-                  className="stats-epoch-row"
-                  onClick={() => load(e.current ? "?from=1" : `?epoch=${encodeURIComponent(e.epoch)}`, "Entire epoch")}
-                  title={e.epoch}
-                >
-                  <span style={{ fontFamily: mono, fontSize: 12.5, color: "#6b7280", flexShrink: 0 }}>{shortEpoch(e.epoch)}</span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>
-                    {e.born ? `born ${stampTz(new Date(e.born))}` : "birth unknown"}
-                  </span>
-                  <span style={{ flexShrink: 0, fontSize: 13 }}>
-                    <Num>{fmt(e.head)}</Num> positions
-                  </span>
-                  {e.current
-                    ? <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.04em", color: "#10b981" }}>LIVE</span>
-                    : e.epoch === s.epoch
-                    ? <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.04em", color: "#7c3aed" }}>VIEWING</span>
-                    : <span aria-hidden style={{ flexShrink: 0, fontSize: 13, color: BLUE, fontWeight: 600 }}>›</span>}
-                </button>
-              ))}
-            </Card>
           </>
         )}
       </div>
