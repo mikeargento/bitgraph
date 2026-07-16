@@ -279,6 +279,50 @@ export default function BitGraphPage() {
     } catch { /* ditto */ }
   }
 
+  // The alternative voice: a camera shutter. Two filtered noise ticks
+  // (mirror up, mirror down) over a low mechanical thump — the sound of
+  // taking a BitGraph rather than approving a purchase.
+  function playShutter() {
+    try {
+      const ctx = audioCtxRef.current;
+      if (!ctx || ctx.state !== "running") return;
+      const t0 = ctx.currentTime;
+      const master = ctx.createGain();
+      master.gain.value = 0.5;
+      master.connect(ctx.destination);
+      const tick = (start: number, dur: number, freq: number, peak: number) => {
+        const len = Math.ceil(ctx.sampleRate * dur);
+        const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 2;
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const bp = ctx.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.value = freq;
+        bp.Q.value = 1.2;
+        const g = ctx.createGain();
+        g.gain.value = peak;
+        src.connect(bp); bp.connect(g); g.connect(master);
+        src.start(t0 + start);
+      };
+      const thump = (start: number) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(160, t0 + start);
+        osc.frequency.exponentialRampToValueAtTime(55, t0 + start + 0.09);
+        g.gain.setValueAtTime(0.5, t0 + start);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + start + 0.1);
+        osc.connect(g); g.connect(master);
+        osc.start(t0 + start); osc.stop(t0 + start + 0.12);
+      };
+      tick(0, 0.03, 3200, 1);      // shutter open — sharp high click
+      thump(0.004);                 // body of the mechanism
+      tick(0.065, 0.045, 2200, 0.8); // shutter close — duller, a hair later
+    } catch { /* sound is a nicety */ }
+  }
+
   /* ── Prove unproven files ── */
 
   async function proveRemaining() {
@@ -319,8 +363,9 @@ export default function BitGraphPage() {
           await tick();
         }
       }
-      // The shutter sound: recordings landed, say so.
-      playRecordedChime();
+      // Recordings landed, say so. Shutter vs bell A/B: shutter is live,
+      // playRecordedChime is the purchase-style alternative.
+      playShutter();
     } catch {
       setItems(prev => prev.map(i => i.status === "proving" ? { ...i, status: "error" as const } : i));
     }
