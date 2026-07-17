@@ -455,5 +455,5 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 /* deployed Wed Apr  1 22:47:15 EDT 2026 */
 
 /* ── The camera: one drop-zone size on every page (home + proof) ── */
-.bitgraph-camera { height: 250px; }
-@media (max-width: 640px) { .bitgraph-camera { height: 200px; } }
+.bitgraph-camera { height: 300px; }
+@media (max-width: 640px) { .bitgraph-camera { height: 240px; } }

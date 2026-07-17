@@ -1159,11 +1159,8 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
             }}
           >
             <BtnIcon name="certificate" />
-            <span>Verify with OpenAI &#8599;</span>
+            <span>Verify with OpenAI</span>
           </a>
-          <div style={{ fontSize: 12.5, color: "#6b7280", lineHeight: 1.5, marginTop: 8, textAlign: "center" }}>
-            Upload this same file to OpenAI&apos;s verifier to confirm the credential with its issuer, independently of this site.
-          </div>
         </div>
       )}
     </Card>
