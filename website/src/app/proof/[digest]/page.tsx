@@ -74,6 +74,32 @@ export default function ProofPage() {
   // window bounds (block times) that bracket each recording.
   const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; lowerTime: string | null; upperTime: string | null }>>([]);
 
+  // A capture "flash" plays once when you land here straight off a fresh
+  // recording (the drop flow / BitGraph Again append ?fresh=1). On mount the
+  // flag is read and stripped from the URL immediately (so a reload or shared
+  // link never replays it: the flash means "you just took this", not "this
+  // exists"), but the animation is armed to fire when the proof CONTENT
+  // reveals, not on mount, so a slow load can't swallow it.
+  const [flashArmed, setFlashArmed] = useState(false);
+  const [justCreated, setJustCreated] = useState(false);
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("fresh") === "1") {
+      setFlashArmed(true);
+      sp.delete("fresh");
+      const qs = sp.toString();
+      window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, []);
+  useEffect(() => {
+    if (flashArmed && !loading && proof) {
+      setFlashArmed(false);
+      setJustCreated(true);
+      const t = setTimeout(() => setJustCreated(false), 1600);
+      return () => clearTimeout(t);
+    }
+  }, [flashArmed, loading, proof]);
+
   // Nav visible on proof pages
 
   useEffect(() => {
@@ -342,6 +368,18 @@ export default function ProofPage() {
     <Shell>
       <style>{`
         @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
+        /* Face-ID-style success: a green ring sweeps closed, then the checkmark
+           draws itself, the whole badge springs in and fades away. Plays once
+           on a freshly-recorded BitGraph. */
+        @keyframes fidScrim { 0%{opacity:0} 15%{opacity:1} 78%{opacity:1} 100%{opacity:0} }
+        @keyframes fidPop { 0%{transform:translate(-50%,-50%) scale(.6);opacity:0} 45%{opacity:1} 62%{transform:translate(-50%,-50%) scale(1.07)} 100%{transform:translate(-50%,-50%) scale(1);opacity:1} }
+        @keyframes fidFade { to { opacity:0 } }
+        @keyframes fidDraw { to { stroke-dashoffset:0 } }
+        .fid-scrim { position:fixed; inset:0; z-index:9998; pointer-events:none; background:rgba(245,245,245,.72); animation:fidScrim 1.5s ease-out forwards; }
+        .fid-badge { position:fixed; top:44%; left:50%; z-index:9999; pointer-events:none; width:104px; height:104px; animation:fidPop .5s cubic-bezier(.2,.8,.3,1) forwards, fidFade .35s ease-out 1.15s forwards; }
+        .fid-ring { fill:none; stroke:#10b981; stroke-width:6; stroke-linecap:round; stroke-dasharray:295; stroke-dashoffset:295; animation:fidDraw .5s ease-out .05s forwards; }
+        .fid-check { fill:none; stroke:#10b981; stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:fidDraw .3s ease-out .46s forwards; }
+        @media (prefers-reduced-motion: reduce) { .fid-badge, .fid-scrim, .fid-ring, .fid-check { animation-duration:.01ms !important; animation-delay:0s !important; } }
         .proof-fields > div:last-child { border-bottom: none !important; }
         /* Causal Positions rows: a stacked entry that reads the same at every
            width. Line 1 is the counter (left) and the View/Viewing action
@@ -357,6 +395,16 @@ export default function ProofPage() {
         @media print {
         }
       `}</style>
+
+      {justCreated && (
+        <>
+          <div className="fid-scrim" aria-hidden />
+          <svg className="fid-badge" viewBox="0 0 104 104" aria-hidden role="img">
+            <circle className="fid-ring" cx="52" cy="52" r="47" />
+            <path className="fid-check" d="M32 54 L46 68 L73 39" />
+          </svg>
+        </>
+      )}
 
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
 
@@ -761,7 +809,8 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
       const p = await commitDigest(proof.artifact.digestB64);
       const counter = p.commit?.counter;
       const epoch = p.commit?.epochId ? toSafeB64(String(p.commit.epochId)) : "";
-      window.location.href = `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}`;
+      // &fresh=1 → capture flash on the new position (a just-made recording).
+      window.location.href = `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1`;
     } catch (e) {
       console.error("[bitgraph] BitGraph again failed:", e);
       setState("error");

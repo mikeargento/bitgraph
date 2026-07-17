@@ -233,11 +233,13 @@ export default function BitGraphPage() {
     // which are new vs on record). A dropped proof.json stays here too: its
     // check flow lives on this page.
     const solo = results.length === 1 ? results[0] : null;
-    const openProofPage = (p: BitGraphProof, file: File) => {
+    // fresh=true plays the capture flash on the proof page (a just-recorded
+    // BitGraph), never on a lookup of something already on record.
+    const openProofPage = (p: BitGraphProof, file: File, fresh = false) => {
       const proofDigest = p.artifact.digestB64;
       const c = p.commit?.counter;
       const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
-      const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
+      const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}${fresh ? "&fresh=1" : ""}` : (fresh ? "?fresh=1" : "");
       // Fire-and-forget: bytes land in IndexedDB while the client-side push
       // happens now; the proof page polls the cache, so navigation never waits
       // on the ~6 MB C2PA toolkit.
@@ -258,7 +260,7 @@ export default function BitGraphPage() {
         try {
           const p = await commitDigest(solo.digestB64);
           void announceRecorded([p]);
-          openProofPage(p, solo.file);
+          openProofPage(p, solo.file, true);
           return;
         } catch {
           // Recording failed: fall back to the results card so the user can
@@ -329,7 +331,8 @@ export default function BitGraphPage() {
           const proofDigest = p.artifact.digestB64;
           const c = p.commit?.counter;
           const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
-          const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
+          // &fresh=1 → capture flash on arrival (this is a just-made recording).
+          const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
           void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
           router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
           return;
