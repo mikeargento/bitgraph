@@ -22,9 +22,13 @@ export async function POST(req: NextRequest) {
       }
     }));
 
+    // Forward the caller's API key so keyed clients (e.g. bitgraph-mcp) keep
+    // their rate-limit exemption at the TEE while still committing through
+    // this proxy, which is what maintains the per-position by-digest index.
+    const auth = req.headers.get("authorization");
     const teeRes = await fetch(`${TEE_URL}/commit`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(auth ? { Authorization: auth } : {}) },
       body: JSON.stringify(body),
     });
 

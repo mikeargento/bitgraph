@@ -1,0 +1,41 @@
+{
+  "name": "@mikeargento/bitgraph-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for BitGraph. Take a BitGraph of a file, check whether bytes are on record, and fetch proofs from any MCP client.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "bin": {
+    "bitgraph-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test 'dist/__tests__/*.test.js'"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}

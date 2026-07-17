@@ -20,8 +20,8 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && tsc",
-    "typecheck": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && tsc --noEmit",
+    "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run build --workspace=packages/mcp && tsc",
+    "typecheck": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run typecheck --workspace=packages/mcp && tsc --noEmit",
     "test:core": "npm run build && node --test dist/__tests__/canonical.test.js dist/__tests__/constructor.test.js dist/__tests__/verifier.test.js dist/__tests__/proof-integrity.test.js dist/__tests__/audit-ingest.test.js dist/__tests__/audit-tiers.test.js dist/__tests__/audit-reconstruct.test.js dist/__tests__/audit-anomalies.test.js dist/__tests__/audit-anchors.test.js dist/__tests__/audit-witness.test.js dist/__tests__/audit-temporal.test.js dist/__tests__/audit-attestation.test.js dist/__tests__/audit-report.test.js dist/__tests__/audit-cli.test.js dist/__tests__/audit-property.test.js dist/__tests__/audit-real-fixtures.test.js dist/__tests__/audit-dependencies.test.js dist/__tests__/audit-bench-smoke.test.js dist/__tests__/audit-roundtrip.test.js dist/__tests__/audit-real-live.test.js dist/__tests__/chain-hash-anchor.test.js dist/__tests__/audit-boundary.test.js dist/__tests__/audit-witness-real.test.js",
     "test": "npm run test:core"
   },
@@ -37,6 +37,7 @@
   },
   "workspaces": [
     "packages/verify",
-    "packages/audit"
+    "packages/audit",
+    "packages/mcp"
   ]
 }
