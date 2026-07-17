@@ -427,7 +427,20 @@ export default function ProofPage() {
                 <span>Verified BitGraph</span>
               </span>
             )}>
-              {recordedLine && <Field label="Recorded" value={recordedLine} valueNode={recordedNode} />}
+              {recordedLine && (
+                /* The recorded moment is the card's headline fact, so it gets a
+                   roomy block instead of a cramped label+value: a small eyebrow,
+                   then the time/date at a larger size with generous line spacing
+                   so it reads as a receipt, not a data row. */
+                <div style={{ padding: "20px 24px 22px", borderBottom: "1px solid #e2e5e9" }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#6b7280", marginBottom: 10 }}>
+                    Recorded
+                  </div>
+                  <div style={{ fontSize: 17, lineHeight: 1.75, color: "#374151" }}>
+                    {recordedNode ?? recordedLine}
+                  </div>
+                </div>
+              )}
               <Field label="Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
             </Card>
           )}
