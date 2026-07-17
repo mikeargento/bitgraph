@@ -616,16 +616,9 @@ export default function ProofPage() {
               witnessed AFTER this anchor. Shown above "BitGraphed Before" so the
               pair reads as a window: after this block, before that one. */}
           {!isEth && causalWindow?.anchorBefore && (
-            <Card title="BitGraphed After">
-              <Field
-                label="Ethereum Block"
-                value={
-                  causalWindow.anchorBefore.blockNumber !== null
-                    ? causalWindow.anchorBefore.blockNumber.toLocaleString()
-                    : "—"
-                }
-                highlight
-              />
+            <CollapsibleCard title={causalWindow.anchorBefore.blockNumber !== null
+              ? `After Ethereum Block #${causalWindow.anchorBefore.blockNumber.toLocaleString()}`
+              : "After Ethereum Block"}>
               {causalWindow.anchorBefore.blockTime && (
                 <Field label="Block Time" value={stampTz(new Date(causalWindow.anchorBefore.blockTime))} />
               )}
@@ -650,7 +643,7 @@ export default function ProofPage() {
                   </a>
                 </div>
               )}
-            </Card>
+            </CollapsibleCard>
           )}
 
           {isEth && attr?.title ? (
@@ -659,16 +652,9 @@ export default function ProofPage() {
               <Field label="Etherscan" value={attr.title} link />
             </Card>
           ) : causalWindow?.anchorAfter ? (
-            <Card title="BitGraphed Before">
-              <Field
-                label="Ethereum Block"
-                value={
-                  causalWindow.anchorAfter.blockNumber !== null
-                    ? causalWindow.anchorAfter.blockNumber.toLocaleString()
-                    : "—"
-                }
-                highlight
-              />
+            <CollapsibleCard title={causalWindow.anchorAfter.blockNumber !== null
+              ? `Before Ethereum Block #${causalWindow.anchorAfter.blockNumber.toLocaleString()}`
+              : "Before Ethereum Block"}>
               {causalWindow.anchorAfter.blockTime && (
                 <Field label="Block Time" value={stampTz(new Date(causalWindow.anchorAfter.blockTime))} />
               )}
@@ -693,13 +679,13 @@ export default function ProofPage() {
                   </a>
                 </div>
               )}
-            </Card>
+            </CollapsibleCard>
           ) : (
-            <Card title="BitGraphed Before">
+            <CollapsibleCard title="Before Ethereum Block">
               <div style={{ padding: "18px 24px", fontSize: 14, color: "#6b7280" }}>
                 Awaiting next Ethereum block…
               </div>
-            </Card>
+            </CollapsibleCard>
           )}
 
           {/* Submitter's Note — self-supplied, only for non-ETH proofs that carry
@@ -827,6 +813,33 @@ function Card({ title, children }: { title: React.ReactNode; accent?: string; ch
       <div className="proof-fields" style={{ padding: "4px 0" }}>
         {children}
       </div>
+    </div>
+  );
+}
+
+/* ── Collapsible card — same face as Card, but the header is a disclosure
+   toggle. Used for the two ETH anchor sections: their titles already state
+   the essential fact (after/before block #N), so the details are optional. ── */
+
+function CollapsibleCard({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
+          fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4",
+          padding: "18px 24px", background: "rgba(0,101,164,0.04)",
+          border: "none", borderBottom: open ? "1px solid #e2e5e9" : "none",
+          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+        }}
+      >
+        <span>{title}</span>
+        <span aria-hidden style={{ fontSize: 18, lineHeight: 1, fontWeight: 600, transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", flexShrink: 0 }}>&#8250;</span>
+      </button>
+      {open && <div className="proof-fields" style={{ padding: "4px 0", animation: "fadeIn .2s ease-out" }}>{children}</div>}
     </div>
   );
 }
