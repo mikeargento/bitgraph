@@ -223,6 +223,26 @@ export default function BitGraphPage() {
       return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const };
     }));
 
+    // One file in, one page out: a single already-recorded artifact skips the
+    // results interstitial and lands straight on its proof page, which lists
+    // every causal position it occupies. Batches keep the list; unrecorded
+    // files keep the explicit record button (dropping must never mint).
+    // A dropped proof.json stays here too: its check flow lives on this page.
+    const solo = results.length === 1 ? results[0] : null;
+    if (solo && solo.status === "found" && !solo.fromProofJson && solo.proof) {
+      const p = solo.proof;
+      const proofDigest = p.artifact.digestB64;
+      const c = p.commit?.counter;
+      const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
+      const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
+      // Fire-and-forget: the bytes land in IndexedDB in the background while
+      // the client-side push happens now; the proof page polls the cache, so
+      // navigation never waits on the ~6 MB C2PA toolkit.
+      void cacheArtifactToIDB(solo.file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+      router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
+      return;
+    }
+
     setItems(results);
     setStep("results");
 
@@ -664,7 +684,7 @@ export default function BitGraphPage() {
                 // yet renders one pending row.
                 const rowProofs: Array<BitGraphProof | null> =
                   item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
-                const openProof = async (p: BitGraphProof) => {
+                const openProof = (p: BitGraphProof) => {
                   // Same-tab navigation (the camera strip on the proof page keeps the
                   // flow going). Use the proof's digest (from TEE) for the URL, not the
                   // browser-computed hash; ?counter=&epoch= pins THIS row's causal
@@ -673,14 +693,16 @@ export default function BitGraphPage() {
                   const c = p.commit?.counter;
                   const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
                   const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
-                  // Cache the artifact bytes (and any embedded C2PA manifest) BEFORE
-                  // navigating so the proof page finds the image on mount. For a dropped
-                  // proof.json the file in hand is the JSON, not the artifact, so only
-                  // cache a real file: a regular dropped artifact, or one the visitor
-                  // matched via the inline check below.
+                  // Cache the artifact bytes (and any embedded C2PA manifest) in the
+                  // background; the client-side push keeps this JS context alive and
+                  // the proof page polls IndexedDB, so navigation never waits on the
+                  // ~6 MB C2PA toolkit. For a dropped proof.json the file in hand is
+                  // the JSON, not the artifact, so only cache a real file: a regular
+                  // dropped artifact, or one the visitor matched via the inline check
+                  // below.
                   const artifactFile = item.fromProofJson ? item.matchedFile : item.file;
                   if (artifactFile) {
-                    await cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+                    void cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
                   }
                   router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
                 };
