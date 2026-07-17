@@ -223,24 +223,51 @@ export default function BitGraphPage() {
       return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const };
     }));
 
-    // One file in, one page out: a single already-recorded artifact skips the
-    // results interstitial and lands straight on its proof page, which lists
-    // every causal position it occupies. Batches keep the list; unrecorded
-    // files keep the explicit record button (dropping must never mint).
-    // A dropped proof.json stays here too: its check flow lives on this page.
+    // One file in, one page out. A single artifact drop always lands on its
+    // proof page, with no button in between: the drop IS the shutter.
+    //   - already recorded  → open its existing proof (a lookup).
+    //   - not yet recorded  → record it now, then open the new proof.
+    // The outcome (lookup vs record) is decided only by whether the bytes
+    // already existed. Batches KEEP the explicit Record button (recording N
+    // new files at once is a batch commitment, and the list is where you see
+    // which are new vs on record). A dropped proof.json stays here too: its
+    // check flow lives on this page.
     const solo = results.length === 1 ? results[0] : null;
-    if (solo && solo.status === "found" && !solo.fromProofJson && solo.proof) {
-      const p = solo.proof;
+    const openProofPage = (p: BitGraphProof, file: File) => {
       const proofDigest = p.artifact.digestB64;
       const c = p.commit?.counter;
       const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
       const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
-      // Fire-and-forget: the bytes land in IndexedDB in the background while
-      // the client-side push happens now; the proof page polls the cache, so
-      // navigation never waits on the ~6 MB C2PA toolkit.
-      void cacheArtifactToIDB(solo.file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+      // Fire-and-forget: bytes land in IndexedDB while the client-side push
+      // happens now; the proof page polls the cache, so navigation never waits
+      // on the ~6 MB C2PA toolkit.
+      void cacheArtifactToIDB(file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
       router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
-      return;
+    };
+    if (solo && !solo.fromProofJson) {
+      if (solo.status === "found" && solo.proof) {
+        openProofPage(solo.proof, solo.file);
+        return;
+      }
+      if (solo.status === "new" && solo.digestB64) {
+        // Auto-record the lone new file, then open its fresh proof. Show the
+        // proving spinner while the TEE signs (a second or two).
+        setItems(results);
+        setStep("proving");
+        setProveProgress({ current: 0, total: 1 });
+        try {
+          const p = await commitDigest(solo.digestB64);
+          void announceRecorded([p]);
+          openProofPage(p, solo.file);
+          return;
+        } catch {
+          // Recording failed: fall back to the results card so the user can
+          // retry via the explicit button instead of a dead end.
+          setItems(prev => prev.map(i => i.digestB64 === solo.digestB64 ? { ...i, status: "new" as const } : i));
+          setStep("results");
+          return;
+        }
+      }
     }
 
     setItems(results);
