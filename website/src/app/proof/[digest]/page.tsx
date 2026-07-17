@@ -1145,14 +1145,25 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
       {c2pa.creator && <Field label="Creator" value={c2pa.creator} />}
       {c2pa.signatureIssuer && <Field label="Signed by" value={c2pa.signatureIssuer} />}
       {isOpenAI && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
-          <span style={{ fontSize: 14, color: "#374151", fontWeight: 700 }}>Check It Yourself</span>
-          <a href="https://openai.com/research/verify/" target="_blank" rel="noopener" style={{ fontSize: 14, color: "var(--c-accent)", fontWeight: 600, textDecoration: "none", lineHeight: 1.5 }}>
-            Verify with OpenAI &#8599;
+        <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+          <a
+            href="https://openai.com/research/verify/"
+            target="_blank" rel="noopener"
+            className="bg-btn-outline"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+              width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+              color: "#0065A4", background: "#f4f6f9",
+              border: "1px solid #0065A4", borderRadius: 0,
+              textDecoration: "none", cursor: "pointer",
+            }}
+          >
+            <BtnIcon name="certificate" />
+            <span>Verify with OpenAI &#8599;</span>
           </a>
-          <span style={{ fontSize: 12.5, color: "#6b7280", lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12.5, color: "#6b7280", lineHeight: 1.5, marginTop: 8, textAlign: "center" }}>
             Upload this same file to OpenAI&apos;s verifier to confirm the credential with its issuer, independently of this site.
-          </span>
+          </div>
         </div>
       )}
     </Card>

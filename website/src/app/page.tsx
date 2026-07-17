@@ -295,6 +295,18 @@ export default function BitGraphPage() {
         ));
         setProveProgress({ current: 1, total: 1 });
         void announceRecorded([p]);
+        // One file in, one page out, on the record path too: a lone fresh
+        // recording goes straight to its new proof page (only when it was the
+        // whole drop; in a mixed batch the results list is the context).
+        if (items.length === 1) {
+          const proofDigest = p.artifact.digestB64;
+          const c = p.commit?.counter;
+          const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
+          const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
+          void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+          router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
+          return;
+        }
       } else {
         // Chunked batches so we can show real progress + stay under Vercel's
         // 60s function timeout. 50 per chunk ≈ 1s of TEE work per request at
@@ -582,35 +594,28 @@ export default function BitGraphPage() {
           </div>
         ))}
 
-        {/* ── Proving — a single chunk (up to 50 files) is one round trip
-            with nothing to count, so it gets the indeterminate spinner;
-            "0 of 50 BitGraphed" sat at zero the whole time. The count + bar
-            appear once chunks actually complete (drops over 50 files). ── */}
-        {step === "proving" && (proveProgress.current === 0 ? (
+        {/* ── Proving — spinner always; a single chunk (up to 50 files) is one
+            round trip with nothing honest to count, so it stays plain. Multi-
+            chunk drops tick every ~1.5s, so they get a live count + percent +
+            bar under the spinner: a 500-file batch must never read as stuck. ── */}
+        {step === "proving" && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
             <div role="status" aria-label="BitGraphing" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
             <div style={{ fontSize: 14, color: "#6b7280" }}>
               BitGraphing {proveProgress.total} file{proveProgress.total === 1 ? "" : "s"}…
             </div>
+            {proveProgress.total > 50 && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
+                  {proveAnimCount} of {proveProgress.total} BitGraphed · {proveProgress.total > 0 ? Math.round((proveAnimCount / proveProgress.total) * 100) : 0}%
+                </div>
+                <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
+                  <div style={{ width: `${proveProgress.total > 0 ? (proveAnimCount / proveProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
+                </div>
+              </>
+            )}
           </div>
-        ) : (
-          <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
-            <div style={{
-              fontSize: "min(22px, 4.5vw)",
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              color: "#111827",
-              whiteSpace: "nowrap",
-              lineHeight: 1.2,
-              animation: "pulse 1s ease-in-out infinite",
-            }}>
-              {proveAnimCount} of {proveProgress.total} BitGraphed
-            </div>
-            <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden", margin: "20px auto 0" }}>
-              <div style={{ width: `${proveProgress.total > 0 ? (proveAnimCount / proveProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
-            </div>
-          </div>
-        ))}
+        )}
 
         {/* ── Exporting ── */}
         {step === "exporting" && (
