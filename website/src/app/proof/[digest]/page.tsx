@@ -1106,6 +1106,14 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
   const sourceText = c2pa.digitalSourceType ? SOURCE_TYPE_LABELS[c2pa.digitalSourceType] : undefined;
   const generator = formatGenerator(c2pa);
   const signed = c2pa.signatureValid === true;
+  // OpenAI-origin credentials get a link to OpenAI's own verifier
+  // (upload-only; it has no URL parameters, and BitGraph never holds the
+  // bytes). The visitor uploads the same file there themselves, which is
+  // exactly what makes the check independent of this site.
+  const isOpenAI = /openai|chatgpt|gpt-image|dall.?e/i.test(
+    [c2pa.claimGenerator, ...(c2pa.claimGeneratorInfo?.map((g) => g.name) || []), c2pa.signatureIssuer]
+      .filter(Boolean).join(" "),
+  );
 
   return (
     /* Trust status sits in the header. A CA-validated signature gets the same
@@ -1136,6 +1144,17 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
       {generator && <Field label="Made with" value={generator} />}
       {c2pa.creator && <Field label="Creator" value={c2pa.creator} />}
       {c2pa.signatureIssuer && <Field label="Signed by" value={c2pa.signatureIssuer} />}
+      {isOpenAI && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+          <span style={{ fontSize: 14, color: "#374151", fontWeight: 700 }}>Check It Yourself</span>
+          <a href="https://openai.com/research/verify/" target="_blank" rel="noopener" style={{ fontSize: 14, color: "var(--c-accent)", fontWeight: 600, textDecoration: "none", lineHeight: 1.5 }}>
+            Verify with OpenAI &#8599;
+          </a>
+          <span style={{ fontSize: 12.5, color: "#6b7280", lineHeight: 1.5 }}>
+            Upload this same file to OpenAI&apos;s verifier to confirm the credential with its issuer, independently of this site.
+          </span>
+        </div>
+      )}
     </Card>
   );
 }
