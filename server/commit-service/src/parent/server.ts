@@ -23,6 +23,7 @@ import { verify } from "bitgraph";
 import type { BitGraphProof, VerificationPolicy, AgencyEnvelope, PolicyBinding } from "bitgraph";
 import { VsockClient, type EnclaveClient } from "./vsock-client.js";
 import { requestTimestamp } from "./tsa-client.js";
+import { getClientIp, tryConsumeDigests, rateLimitConfig } from "./rate-limit.js";
 
 const PORT = Number(
   process.argv.find((a) => a.startsWith("--port="))?.split("=")[1]
@@ -137,6 +138,14 @@ function checkApiKey(req: IncomingMessage): boolean {
   return API_KEYS.has(token);
 }
 
+/** True only when the request presents a valid configured key (never in dev mode). */
+function hasValidApiKey(req: IncomingMessage): boolean {
+  if (API_KEYS.size === 0) return false;
+  const auth = req.headers["authorization"] ?? "";
+  if (!auth.startsWith("Bearer ")) return false;
+  return API_KEYS.has(auth.slice(7).trim());
+}
+
 // ---------------------------------------------------------------------------
 // Enclave client
 // ---------------------------------------------------------------------------
@@ -225,6 +234,14 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
   }
 
   const raw = await readBody(req);
+
+  // Digests are ~50 bytes each; even a full per-client batch fits in well
+  // under 1 MB. Anything larger is not a legitimate commit request.
+  if (raw.length > 1024 * 1024) {
+    sendError(res, 413, "Request body too large. Max 1 MB.");
+    return;
+  }
+
   let body: {
     digests: Array<{ digestB64: string; hashAlg: "sha256" }>;
     metadata?: Record<string, unknown>;
@@ -251,6 +268,25 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
   for (const d of body.digests) {
     if (typeof d.digestB64 !== "string" || d.hashAlg !== "sha256") {
       sendError(res, 400, "each digest must have { digestB64: string, hashAlg: 'sha256' }");
+      return;
+    }
+  }
+
+  // Rate limit by digest count (proofs minted), not by request. Requests
+  // bearing a valid API key are exempt.
+  if (!hasValidApiKey(req)) {
+    const clientIp = getClientIp(req);
+    const rl = tryConsumeDigests(clientIp, body.digests.length);
+    if (!rl.ok) {
+      console.warn(`[parent] rate limit: rejected ${body.digests.length} digest(s) from ${clientIp} (${rl.reason})`);
+      const json = JSON.stringify({ error: `Rate limit exceeded: ${rl.reason}` });
+      res.writeHead(429, {
+        ...CORS_HEADERS,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(json),
+        ...(rl.retryAfterSec > 0 ? { "Retry-After": String(rl.retryAfterSec) } : {}),
+      });
+      res.end(json);
       return;
     }
   }
@@ -505,6 +541,9 @@ server.listen(PORT, async () => {
   console.log(`  GET  /key`);
   console.log(`  POST /verify         (Content-Type: application/json)`);
   console.log(`  GET  /health`);
+
+  const rl = rateLimitConfig();
+  console.log(`[parent] /commit rate limit: ${rl.perIpCapacity} digests/IP burst, +${rl.perIpRefillPerMin}/min refill, ${rl.globalPerDay}/day global`);
 
   // Initialize enclave with previous epoch's last proof for lineage
   try {
