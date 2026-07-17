@@ -246,20 +246,9 @@ export function FileDrop({
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           </div>
-          {/* One gesture, two outcomes: the results present new bytes as
-              recorded and known bytes as checked, so the headline never asks
-              the user to choose. */}
-          <div
-            className="mt-2 text-center"
-            style={{
-              color: "#111827",
-              fontSize: "min(13px, 3vw)",
-              lineHeight: 1.5,
-              whiteSpace: "nowrap",
-            }}
-          >
-            Drop files, or click to choose
-          </div>
+          {/* One gesture, two outcomes: the arrow and the clickable box carry
+              the mechanics, so no "drop or click" boilerplate; the only line
+              under the headline is the one that says something (the hint). */}
           {hint && (
             <div
               className="mt-2 text-center"

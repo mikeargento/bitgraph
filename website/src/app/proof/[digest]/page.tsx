@@ -284,6 +284,13 @@ export default function ProofPage() {
   // between the block and its time (one line on desktop, time drops to line 2
   // on mobile) instead of wrapping mid-time/mid-date via wordBreak.
   let recordedNode: React.ReactNode = null;
+  // Lead-card variants: the date moves up into the card TITLE ("BitGraph
+  // Recorded on 7/17/2026") so the line below is pure wall-clock time.
+  // recordedLine/recordedNode keep the date for other consumers (the interval
+  // "Window ended" field must stand alone). Cross-day windows keep full
+  // stamps and an undated title.
+  let recordedDate: string | null = null;
+  let leadNode: React.ReactNode = null;
   // The actual time/date values are emphasized in brand blue (the connector
   // words stay default gray), so the receipt's key temporal fact reads as the
   // focal point, consistent with how counters/block numbers are highlighted.
@@ -313,6 +320,8 @@ export default function ProofPage() {
       // "EDT" mid-time.
       recordedLine = `between ${timeTz(t1)} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`;
       recordedNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t2.toLocaleDateString()}</span></Em></>;
+      recordedDate = t2.toLocaleDateString();
+      leadNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em></>;
     } else {
       recordedLine = `between ${stampTz(t1)} and ${stampTz(t2)}`;
       recordedNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t2)}</span></Em></>;
@@ -320,6 +329,7 @@ export default function ProofPage() {
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
     recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}`;
+    recordedDate = t1.toLocaleDateString();
     if (ethWait) {
       // The window is still open: show it as "between X and <waiting>", with a
       // countdown paced to the 12s anchor cadence. When the sealing anchor
@@ -332,8 +342,10 @@ export default function ProofPage() {
           </span>
         </>
       );
+      leadNode = recordedNode;
     } else {
       recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t1.toLocaleDateString()}</span></Em></>;
+      leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
     }
   }
 
@@ -479,17 +491,15 @@ export default function ProofPage() {
                 <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
-                <span>{isEth ? "Verified BitGraph" : "BitGraph Recorded"}</span>
+                <span>{isEth ? "Verified BitGraph" : `BitGraph Recorded${recordedDate ? ` on ${recordedDate}` : ""}`}</span>
               </span>
             )}>
               {recordedLine && (
-                /* The recorded moment is the card's headline fact (the title
-                   already says "Recorded"), so it gets a roomy receipt-style
-                   block: the time/date at a larger size with generous line
-                   spacing, no cramped label+value row. */
+                /* The date lives in the title, so this line is pure wall-clock
+                   time in a roomy receipt-style block, no cramped label row. */
                 <div style={{ padding: "20px 24px 22px", borderBottom: "1px solid #e2e5e9" }}>
                   <div style={{ fontSize: 14, lineHeight: 1.75, color: "#374151" }}>
-                    {recordedNode ?? recordedLine}
+                    {leadNode ?? recordedNode ?? recordedLine}
                   </div>
                 </div>
               )}
