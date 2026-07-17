@@ -70,11 +70,13 @@ type Entry = {
   isNew?: true;
 };
 
-// File rows carry "new!" while their ledger write is under this old. Computed
-// here from S3 LastModified (already in the LIST responses, no extra calls) so
-// only a boolean crosses the API, never a per-entry timestamp. Files only:
-// anchors and intervals are the clock, not the photos.
-const NEW_MS = 24 * 60 * 60 * 1000;
+// File rows arrive stamped "new!" while their ledger write is under this old;
+// the client drops the tag on its own 30s timer, so this window only has to
+// cover write-to-first-render. Computed from S3 LastModified (already in the
+// LIST responses, no extra calls) so only a boolean crosses the API, never a
+// per-entry timestamp. Files only: anchors and intervals are the clock, not
+// the photos.
+const NEW_MS = 30_000;
 
 function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | null {
   const commit = (p.commit as Record<string, unknown>) || {};

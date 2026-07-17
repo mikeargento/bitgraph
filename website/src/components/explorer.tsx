@@ -19,6 +19,21 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   // Counters that arrived via the live poll (not the initial load), so only
   // those rows get the arrival flash. Grows slowly; the animation runs once.
   const [freshIds, setFreshIds] = useState<Set<number>>(() => new Set());
+  // Counters currently wearing "new!". The server stamps isNew on file rows
+  // whose ledger write is seconds old; each tag then lives ~30s from when this
+  // client first renders it, so "new" means "just landed", not "recent".
+  const [newIds, setNewIds] = useState<Set<number>>(() => new Set());
+  const NEW_TAG_MS = 30_000;
+  const noteNew = useCallback((es: Entry[]) => {
+    const tagged = es.filter((e) => e.isNew && e.type === "proof").map((e) => e.counter);
+    if (!tagged.length) return;
+    setNewIds((prev) => new Set([...prev, ...tagged]));
+    setTimeout(() => setNewIds((prev) => {
+      const next = new Set(prev);
+      for (const c of tagged) next.delete(c);
+      return next;
+    }), NEW_TAG_MS);
+  }, []);
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -72,6 +87,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
     let cancelled = false;
     setEntries([]);
     setFreshIds(new Set());
+    setNewIds(new Set());
     setNextBefore(null);
     setHasMore(true);
     setLoading(true);
@@ -88,6 +104,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           const j = await r.json();
           if (cancelled) return;
           setEntries(j.entries || []);
+          noteNew(j.entries || []);
           setNextBefore(j.nextBefore ?? null);
           setHasMore(!!j.hasMore);
           topRef.current = j.entries?.[0]?.counter ?? 0;
@@ -113,6 +130,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
         if (fresh.length) {
           topRef.current = fresh[0].counter;
           setEntries((prev) => [...fresh, ...prev]);
+          noteNew(fresh);
           setFreshIds((prev) => {
             const next = new Set(prev);
             for (const e of fresh) next.add(e.counter);
@@ -240,9 +258,9 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
               <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
                 {tagLabel}
               </span>
-              {/* Server-stamped while the ledger write is recent; file rows only,
-                  same green as the live-arrival flash. */}
-              {e.isNew && (
+              {/* Just-landed rows only; expires ~30s after first render, same
+                  green as the live-arrival flash. */}
+              {newIds.has(e.counter) && (
                 <span style={{ flexShrink: 0, fontSize: 12, color: "#10b981", fontWeight: 700, whiteSpace: "nowrap" }}>
                   new!
                 </span>
