@@ -453,3 +453,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .nav-mobile { display: none !important; }
 }
 /* deployed Wed Apr  1 22:47:15 EDT 2026 */
+
+/* ── The camera: one drop-zone size on every page (home + proof) ── */
+.bitgraph-camera { height: 250px; }
+@media (max-width: 640px) { .bitgraph-camera { height: 200px; } }

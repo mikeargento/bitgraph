@@ -492,8 +492,6 @@ export default function BitGraphPage() {
       <style>{`
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 57px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
-        .bitgraph-wrap .file-drop-container { height: 380px; }
-        @media (max-width: 640px) { .bitgraph-wrap .file-drop-container { height: 250px; } }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
         @keyframes countPop { 0% { transform: scale(0.5); opacity: 0 } 50% { transform: scale(1.15) } 100% { transform: scale(1); opacity: 1 } }
         @keyframes slideIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
@@ -516,7 +514,7 @@ export default function BitGraphPage() {
         {/* ── Drop zone + What is BitGraph button ── */}
         {step === "drop" && (
           <>
-            <div className="file-drop-container" style={{ animation: "slideIn 0.3s ease-out" }}>
+            <div className="bitgraph-camera" style={{ animation: "slideIn 0.3s ease-out" }}>
               <FileDrop
                 multiple
                 onFile={(f) => handleFiles([f])}
@@ -611,7 +609,7 @@ export default function BitGraphPage() {
               {/* Choose new files — the same drop box as the home page, so you can
                   drag, paste, or click to start a fresh set. Dropping here re-runs
                   the scan and replaces the list. Sits on top. */}
-              <div className="file-drop-container" style={{ animation: "slideIn 0.3s ease-out" }}>
+              <div className="bitgraph-camera" style={{ animation: "slideIn 0.3s ease-out" }}>
                 <FileDrop
                   multiple
                   onFile={(f) => handleFiles([f])}
