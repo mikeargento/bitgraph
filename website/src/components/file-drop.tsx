@@ -22,6 +22,8 @@ interface FileDropProps {
   browseLabel?: string;
   /** Label for the capture link */
   captureLabel?: string;
+  /** Slim empty state for pages where the camera rides above other content */
+  compact?: boolean;
 }
 
 export function FileDrop({
@@ -39,6 +41,7 @@ export function FileDrop({
   showCapture,
   browseLabel = "browse",
   captureLabel = "take photo",
+  compact,
 }: FileDropProps) {
   const [dragover, setDragover] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -226,9 +229,9 @@ export function FileDrop({
           </button>
         </div>
       ) : (
-        <div className="flex flex-col items-center py-16 px-4 sm:px-6 w-full">
-          <div className="mb-5">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.5">
+        <div className={`flex flex-col items-center ${compact ? "py-5" : "py-16"} px-4 sm:px-6 w-full`}>
+          <div className={compact ? "mb-2" : "mb-5"}>
+            <svg width={compact ? 28 : 48} height={compact ? 28 : 48} viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.5">
               <path d="M21 15 V21 H3 V15" />
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
@@ -238,7 +241,7 @@ export function FileDrop({
             className="font-semibold tracking-tight text-center"
             style={{
               color: "#111827",
-              fontSize: "min(20px, 4vw)",
+              fontSize: compact ? "min(16px, 3.6vw)" : "min(20px, 4vw)",
               whiteSpace: "nowrap",
             }}
           >
@@ -248,10 +251,10 @@ export function FileDrop({
               recorded and known bytes as checked, so the headline never asks
               the user to choose. */}
           <div
-            className="mt-2 text-center"
+            className={`${compact ? "mt-1" : "mt-2"} text-center`}
             style={{
               color: "#111827",
-              fontSize: "min(13px, 3vw)",
+              fontSize: compact ? "min(12px, 2.8vw)" : "min(13px, 3vw)",
               lineHeight: 1.5,
               whiteSpace: "nowrap",
             }}

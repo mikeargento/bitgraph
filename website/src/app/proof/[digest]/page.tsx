@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
+import { ProofDrop } from "@/components/proof-drop";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
 import { zipSync, strToU8 } from "fflate";
@@ -359,6 +360,9 @@ export default function ProofPage() {
 
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
 
+        {/* The camera stays ready above the proof: drop the next file here. */}
+        <ProofDrop />
+
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
 
           {/* Lead card. No separate hero on any page: the card header is the
@@ -509,7 +513,6 @@ export default function ProofPage() {
                 <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
                   <a
                     href={`/proof/${encodeURIComponent((causalWindow.anchorBefore.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
-                    target="_blank" rel="noopener"
                     className="bg-btn-outline"
                     style={{
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
@@ -553,7 +556,6 @@ export default function ProofPage() {
                 <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
                   <a
                     href={`/proof/${encodeURIComponent((causalWindow.anchorAfter.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
-                    target="_blank" rel="noopener"
                     className="bg-btn-outline"
                     style={{
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 9,

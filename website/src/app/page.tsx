@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { FileDrop } from "@/components/file-drop";
 import { Explorer } from "@/components/explorer";
 // Footer is in root layout
@@ -14,6 +15,7 @@ import {
   type BitGraphProof,
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
+import { takePendingDrop } from "@/lib/pending-drop";
 import { Zip, ZipPassThrough } from "fflate";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
@@ -38,6 +40,7 @@ interface FileItem {
 
 
 export default function BitGraphPage() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("drop");
   const [items, setItems] = useState<FileItem[]>([]);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
@@ -79,6 +82,14 @@ export default function BitGraphPage() {
   // Cleanup rAF on unmount only
   useEffect(() => {
     return () => { cancelAnimationFrame(rafRef.current); };
+  }, []);
+
+  // Files dropped on a proof page's camera strip arrive via the pending-drop
+  // slot: pick them up on mount and run the normal drop flow.
+  useEffect(() => {
+    const pending = takePendingDrop();
+    if (pending?.length) void handleFiles(pending);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Smooth-tick the displayed proving counter toward each chunk's real value.
@@ -655,23 +666,25 @@ export default function BitGraphPage() {
                 // yet renders one pending row.
                 const rowProofs: Array<BitGraphProof | null> =
                   item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
-                const openProof = (p: BitGraphProof) => {
-                  // Open immediately (synchronous) so mobile browsers don't block the popup.
-                  // Use the proof's digest (from TEE) for the URL, not the browser-computed
-                  // hash; ?counter=&epoch= pins THIS row's causal position.
+                const openProof = async (p: BitGraphProof) => {
+                  // Same-tab navigation (the camera strip on the proof page keeps the
+                  // flow going). Use the proof's digest (from TEE) for the URL, not the
+                  // browser-computed hash; ?counter=&epoch= pins THIS row's causal
+                  // position.
                   const proofDigest = p.artifact.digestB64;
                   const c = p.commit?.counter;
                   const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
                   const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
-                  window.open(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`, "_blank");
-                  // Cache the artifact bytes (and any embedded C2PA manifest) so the proof
-                  // page can render the image. For a dropped proof.json the file in hand is
-                  // the JSON, not the artifact, so only cache a real file: a regular dropped
-                  // artifact, or one the visitor matched via the inline check below.
+                  // Cache the artifact bytes (and any embedded C2PA manifest) BEFORE
+                  // navigating so the proof page finds the image on mount. For a dropped
+                  // proof.json the file in hand is the JSON, not the artifact, so only
+                  // cache a real file: a regular dropped artifact, or one the visitor
+                  // matched via the inline check below.
                   const artifactFile = item.fromProofJson ? item.matchedFile : item.file;
                   if (artifactFile) {
-                    cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+                    await cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
                   }
+                  router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
                 };
                 // Rows without a counter yet show their state in the left slot.
                 const pendingLabel =

@@ -70,7 +70,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
       const j = await r.json();
       // ?counter= selects the exact causal position when the same bytes were
       // BitGraphed more than once (a hash search omits it: earliest wins).
-      if (j.found && j.digest) window.open(`/proof/${encodeURIComponent(j.digest)}${j.counter ? `?counter=${encodeURIComponent(j.counter)}` : ""}`, "_blank", "noopener");
+      if (j.found && j.digest) window.location.assign(`/proof/${encodeURIComponent(j.digest)}${j.counter ? `?counter=${encodeURIComponent(j.counter)}` : ""}`);
       else setSearchErr("No BitGraph found for that number or hash.");
     } catch {
       setSearchErr("Search failed, try again.");
@@ -276,7 +276,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           // ?counter= pins the drill-in to THIS row's causal position; the
           // same bytes can occupy several (BitGraphed more than once).
           return (
-            <a key={e.counter} href={`/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}`} target="_blank" rel="noopener" className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
+            <a key={e.counter} href={`/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}`} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>
                 #{fmt(e.counter)}
               </span>
