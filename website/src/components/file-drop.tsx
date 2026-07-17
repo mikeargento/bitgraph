@@ -227,15 +227,10 @@ export function FileDrop({
         </div>
       ) : (
         <div className="flex flex-col items-center py-8 px-4 sm:px-6 w-full">
-          <div className="mb-5">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.5">
-              <path d="M21 15 V21 H3 V15" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-          </div>
+          {/* Headline first: name the gesture, then the arrow points down into
+              the tray where the file goes. */}
           <div
-            className="font-semibold tracking-tight text-center"
+            className="mb-4 font-semibold tracking-tight text-center"
             style={{
               color: "#111827",
               fontSize: "min(20px, 4vw)",
@@ -243,6 +238,13 @@ export function FileDrop({
             }}
           >
             Take a BitGraph
+          </div>
+          <div>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.5">
+              <path d="M21 15 V21 H3 V15" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
           </div>
           {/* One gesture, two outcomes: the results present new bytes as
               recorded and known bytes as checked, so the headline never asks
