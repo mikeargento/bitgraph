@@ -251,7 +251,7 @@ export function FileDrop({
               under the headline is the one that says something (the hint). */}
           {hint && (
             <div
-              className="mt-2 text-center"
+              className="mt-4 text-center"
               style={{
                 color: "#111827",
                 fontSize: "min(13px, 3vw)",
