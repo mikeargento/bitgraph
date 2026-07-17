@@ -555,6 +555,9 @@ export default function BitGraphPage() {
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 57px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
+        /* Waiting states (read/check/prove/export) center on the page like
+           everything else, instead of hugging the top under fixed padding. */
+        .bitgraph-wait { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: calc(100dvh - 260px); padding: 24px; animation: slideIn 0.3s ease-out; }
         @keyframes countPop { 0% { transform: scale(0.5); opacity: 0 } 50% { transform: scale(1.15) } 100% { transform: scale(1); opacity: 1 } }
         @keyframes slideIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes popIn { from { opacity: 0 } to { opacity: 1 } }
@@ -601,7 +604,7 @@ export default function BitGraphPage() {
             checking is one indeterminate round trip, so it gets the same
             spinner the zip export uses. ── */}
         {step === "scanning" && (scanPhase === "reading" ? (
-          <div style={{ textAlign: "center", padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
+          <div className="bitgraph-wait" style={{ textAlign: "center" }}>
             <div style={{
               fontSize: "min(22px, 4.5vw)",
               fontWeight: 800,
@@ -613,12 +616,12 @@ export default function BitGraphPage() {
             }}>
               {scanProgress.current} of {scanProgress.total} read
             </div>
-            <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden", margin: "20px auto 0" }}>
+            <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
               <div style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%`, height: "100%", background: "#0065A4", transition: "width 0.2s", boxShadow: "none" }} />
             </div>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
+          <div className="bitgraph-wait">
             <div role="status" aria-label="Checking for BitGraphs" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
             <div style={{ fontSize: 14, color: "#6b7280" }}>Checking for BitGraphs…</div>
           </div>
@@ -629,7 +632,7 @@ export default function BitGraphPage() {
             chunk drops tick every ~1.5s, so they get a live count + percent +
             bar under the spinner: a 500-file batch must never read as stuck. ── */}
         {step === "proving" && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
+          <div className="bitgraph-wait">
             <div role="status" aria-label="BitGraphing" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
             <div style={{ fontSize: 14, color: "#6b7280" }}>
               BitGraphing {proveProgress.total} file{proveProgress.total === 1 ? "" : "s"}…
@@ -649,7 +652,7 @@ export default function BitGraphPage() {
 
         {/* ── Exporting ── */}
         {step === "exporting" && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "80px 24px", animation: "slideIn 0.3s ease-out" }}>
+          <div className="bitgraph-wait">
             {/* Packaging the .zip is quick and the step count (files + anchors +
                 zip) doesn't map to the file count, so show a plain spinner. */}
             <div role="status" aria-label="Packaging" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />

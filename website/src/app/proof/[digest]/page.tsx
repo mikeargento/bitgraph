@@ -100,6 +100,44 @@ export default function ProofPage() {
     }
   }, [flashArmed, loading, proof]);
 
+  // A fresh recording arrives with only its lower bound: the sealing anchor
+  // hasn't been mined yet. Instead of a static "after X" line, poll the same
+  // endpoint until the upper anchor lands, then fill the window in place, no
+  // refresh. The visible countdown mirrors the 12s anchor cadence; if anchors
+  // are running slow (idle TEE) the number stops after a few laps and only the
+  // quiet waiting line stays. The poll gives up after 5 minutes and the line
+  // falls back to the honest static "after X on DATE".
+  const [ethWait, setEthWait] = useState<{ secs: number; laps: number } | null>(null);
+  useEffect(() => {
+    const attrName = (proof?.attribution as { name?: string } | undefined)?.name || "";
+    const needUpper = !!proof && !attrName.startsWith("Ethereum") && attrName !== "Interval" &&
+      !!causalWindow?.anchorBefore?.blockTime && !causalWindow?.anchorAfter?.blockTime;
+    if (!needUpper) { setEthWait(null); return; }
+    let cancelled = false;
+    setEthWait({ secs: 12, laps: 0 });
+    const tick = setInterval(() => {
+      setEthWait((w) => (w ? (w.secs > 1 ? { secs: w.secs - 1, laps: w.laps } : { secs: 12, laps: w.laps + 1 }) : w));
+    }, 1000);
+    const poll = setInterval(async () => {
+      try {
+        const qs = new URLSearchParams(window.location.search);
+        const sel = new URLSearchParams();
+        if (qs.get("counter")) sel.set("counter", qs.get("counter")!);
+        if (qs.get("epoch")) sel.set("epoch", qs.get("epoch")!);
+        const selStr = sel.toString();
+        const r = await fetch(`/api/proofs/digest/${digestParam}${selStr ? `?${selStr}` : ""}`);
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!cancelled && data.causalWindow?.anchorAfter?.blockTime) {
+          setCausalWindow(data.causalWindow);
+          if (Array.isArray(data.positions)) setPositions(data.positions);
+        }
+      } catch { /* transient; next poll retries */ }
+    }, 4000);
+    const stop = setTimeout(() => { clearInterval(tick); clearInterval(poll); if (!cancelled) setEthWait(null); }, 5 * 60_000);
+    return () => { cancelled = true; clearInterval(tick); clearInterval(poll); clearTimeout(stop); };
+  }, [proof, causalWindow?.anchorBefore?.blockTime, causalWindow?.anchorAfter?.blockTime, digestParam]);
+
   // Nav visible on proof pages
 
   useEffect(() => {
@@ -280,7 +318,21 @@ export default function ProofPage() {
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
     recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}`;
-    recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t1.toLocaleDateString()}</span></Em></>;
+    if (ethWait) {
+      // The window is still open: show it as "between X and <waiting>", with a
+      // countdown paced to the 12s anchor cadence. When the sealing anchor
+      // lands, the poll above swaps in the real end time without a refresh.
+      recordedNode = (
+        <>
+          between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and{" "}
+          <span style={{ color: "#6b7280", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
+            waiting on Ethereum{ethWait.laps < 4 ? <span style={{ fontVariantNumeric: "tabular-nums" }}> · {ethWait.secs}s</span> : "…"}
+          </span>
+        </>
+      );
+    } else {
+      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t1.toLocaleDateString()}</span></Em></>;
+    }
   }
 
   // Interval window, derived from the causal positions the page already loads
@@ -368,6 +420,7 @@ export default function ProofPage() {
     <Shell>
       <style>{`
         @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes ethWaitPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
         /* Face-ID-style success: a green ring sweeps closed, then the checkmark
            draws itself, the whole badge springs in and fades away. Plays once
            on a freshly-recorded BitGraph. */
@@ -424,18 +477,15 @@ export default function ProofPage() {
                 <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
-                <span>Verified BitGraph</span>
+                <span>{isEth ? "Verified BitGraph" : "BitGraph Recorded"}</span>
               </span>
             )}>
               {recordedLine && (
-                /* The recorded moment is the card's headline fact, so it gets a
-                   roomy block instead of a cramped label+value: a small eyebrow,
-                   then the time/date at a larger size with generous line spacing
-                   so it reads as a receipt, not a data row. */
+                /* The recorded moment is the card's headline fact (the title
+                   already says "Recorded"), so it gets a roomy receipt-style
+                   block: the time/date at a larger size with generous line
+                   spacing, no cramped label+value row. */
                 <div style={{ padding: "20px 24px 22px", borderBottom: "1px solid #e2e5e9" }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "#6b7280", marginBottom: 10 }}>
-                    Recorded
-                  </div>
                   <div style={{ fontSize: 17, lineHeight: 1.75, color: "#374151" }}>
                     {recordedNode ?? recordedLine}
                   </div>
