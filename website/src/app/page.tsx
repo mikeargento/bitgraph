@@ -44,6 +44,9 @@ export default function BitGraphPage() {
   const [step, setStep] = useState<Step>("drop");
   const [items, setItems] = useState<FileItem[]>([]);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
+  // Ledger-check progress (digests looked up). Only meaningful when the check
+  // is chunked (large drops); a single-request check has nothing to count.
+  const [checkProgress, setCheckProgress] = useState({ current: 0, total: 0 });
   // The scan is two honest phases: hashing files locally ("reading"), then
   // one batch round trip to the ledger ("checking"). The label tracks them;
   // "N of N checked" sitting under a full bar while the lookup ran was a lie.
@@ -172,23 +175,49 @@ export default function BitGraphPage() {
     };
     await Promise.all(Array.from({ length: Math.min(4, files.length) }, hashWorker));
 
-    // Phase 2 — ONE round trip for every ledger lookup (the old one-request-
-    // per-file loop was the whole wait). Falls back to the per-digest
-    // endpoint, parallelized, if the batch endpoint is unavailable.
+    // Phase 2 — batched ledger lookup. Small drops are ONE round trip (the
+    // old one-request-per-file loop was the whole wait); large drops are
+    // chunked 50 digests per request, same rhythm as recording, so the wait
+    // shows REAL progress instead of an uncounted spinner. Falls back to the
+    // per-digest endpoint, parallelized, if the batch endpoint is unavailable.
     const lookupKeys = [...new Set(
       scanned.filter((s) => !s.proofJson && s.digest).map((s) => toUrlSafeB64(s.digest)),
     )];
     const lookup: Record<string, { proofs?: Array<{ proof: BitGraphProof }> }> = {};
+    setCheckProgress({ current: 0, total: 0 });
     setScanPhase("checking");
     if (lookupKeys.length) {
       try {
-        const r = await fetch("/api/proofs/batch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ digests: lookupKeys }),
-        });
-        if (!r.ok) throw new Error();
-        Object.assign(lookup, (await r.json()).results || {});
+        if (lookupKeys.length > 50) {
+          setCheckProgress({ current: 0, total: lookupKeys.length });
+          const chunks: string[][] = [];
+          for (let i = 0; i < lookupKeys.length; i += 50) chunks.push(lookupKeys.slice(i, i + 50));
+          let done = 0;
+          let nextChunk = 0;
+          const chunkWorker = async () => {
+            while (nextChunk < chunks.length) {
+              const mine = chunks[nextChunk++];
+              const r = await fetch("/api/proofs/batch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ digests: mine }),
+              });
+              if (!r.ok) throw new Error();
+              Object.assign(lookup, (await r.json()).results || {});
+              done += mine.length;
+              setCheckProgress({ current: done, total: lookupKeys.length });
+            }
+          };
+          await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, chunkWorker));
+        } else {
+          const r = await fetch("/api/proofs/batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ digests: lookupKeys }),
+          });
+          if (!r.ok) throw new Error();
+          Object.assign(lookup, (await r.json()).results || {});
+        }
       } catch {
         let nextKey = 0;
         const fetchWorker = async () => {
@@ -555,9 +584,12 @@ export default function BitGraphPage() {
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 57px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
-        /* Waiting states (read/check/prove/export) center on the page like
-           everything else, instead of hugging the top under fixed padding. */
-        .bitgraph-wait { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; min-height: calc(100dvh - 260px); padding: 24px; animation: slideIn 0.3s ease-out; }
+        /* Waiting states (read/check/prove/export) all pin their center to the
+           SAME viewport point the success checkmark uses (fixed, 44% down,
+           horizontally centered), so every wait and the capture moment share
+           one anchor. Fade only: a translate animation would fight the
+           centering transform. */
+        .bitgraph-wait { position: fixed; top: 44%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 16px; width: max-content; max-width: 92vw; animation: popIn 0.3s ease-out; }
         @keyframes countPop { 0% { transform: scale(0.5); opacity: 0 } 50% { transform: scale(1.15) } 100% { transform: scale(1); opacity: 1 } }
         @keyframes slideIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes popIn { from { opacity: 0 } to { opacity: 1 } }
@@ -614,9 +646,9 @@ export default function BitGraphPage() {
               lineHeight: 1.2,
               animation: "pulse 1s ease-in-out infinite",
             }}>
-              {scanProgress.current} of {scanProgress.total} read
+              {scanProgress.current} of {scanProgress.total} read · {scanProgress.total > 0 ? Math.round((scanProgress.current / scanProgress.total) * 100) : 0}%
             </div>
-            <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
+            <div style={{ width: "min(240px, 70vw)", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
               <div style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%`, height: "100%", background: "#0065A4", transition: "width 0.2s", boxShadow: "none" }} />
             </div>
           </div>
@@ -624,6 +656,16 @@ export default function BitGraphPage() {
           <div className="bitgraph-wait">
             <div role="status" aria-label="Checking for BitGraphs" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
             <div style={{ fontSize: 14, color: "#6b7280" }}>Checking for BitGraphs…</div>
+            {checkProgress.total > 50 && (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
+                  {checkProgress.current} of {checkProgress.total} checked · {checkProgress.total > 0 ? Math.round((checkProgress.current / checkProgress.total) * 100) : 0}%
+                </div>
+                <div style={{ width: "min(240px, 70vw)", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
+                  <div style={{ width: `${checkProgress.total > 0 ? (checkProgress.current / checkProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
+                </div>
+              </>
+            )}
           </div>
         ))}
 
@@ -642,7 +684,7 @@ export default function BitGraphPage() {
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
                   {proveAnimCount} of {proveProgress.total} BitGraphed · {proveProgress.total > 0 ? Math.round((proveAnimCount / proveProgress.total) * 100) : 0}%
                 </div>
-                <div style={{ width: "40%", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
+                <div style={{ width: "min(240px, 70vw)", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
                   <div style={{ width: `${proveProgress.total > 0 ? (proveAnimCount / proveProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
                 </div>
               </>

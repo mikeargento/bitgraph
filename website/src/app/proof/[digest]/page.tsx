@@ -245,7 +245,9 @@ export default function ProofPage() {
     return () => { cancelled = true; };
   }, [digestParam]);
 
-  if (loading) return <Shell><div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh", fontSize: 20, fontWeight: 600, color: "var(--c-text-tertiary)" }}>Loading BitGraph...</div></Shell>;
+  // Same fixed anchor as the success checkmark (44% down, centered), so every
+  // waiting state on the site shares one center point.
+  if (loading) return <Shell><div style={{ position: "fixed", top: "44%", left: "50%", transform: "translate(-50%, -50%)", fontSize: 20, fontWeight: 600, color: "var(--c-text-tertiary)", whiteSpace: "nowrap" }}>Loading BitGraph...</div></Shell>;
   if (error || !proof) return (
     <Shell>
       <div style={{ padding: "80px 20px", textAlign: "center" }}>
@@ -486,7 +488,7 @@ export default function ProofPage() {
                    block: the time/date at a larger size with generous line
                    spacing, no cramped label+value row. */
                 <div style={{ padding: "20px 24px 22px", borderBottom: "1px solid #e2e5e9" }}>
-                  <div style={{ fontSize: 17, lineHeight: 1.75, color: "#374151" }}>
+                  <div style={{ fontSize: 14, lineHeight: 1.75, color: "#374151" }}>
                     {recordedNode ?? recordedLine}
                   </div>
                 </div>
