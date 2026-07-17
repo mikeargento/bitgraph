@@ -521,7 +521,7 @@ export default function BitGraphPage() {
                 multiple
                 onFile={(f) => handleFiles([f])}
                 onFiles={handleFiles}
-                hint=""
+                hint="Files already BitGraphed are looked up"
               />
             </div>
             {/* The roll, right under the camera. Explorer renders the heading
