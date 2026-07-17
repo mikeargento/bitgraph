@@ -430,8 +430,8 @@ export default function ProofPage() {
         @keyframes fidDraw { to { stroke-dashoffset:0 } }
         .fid-scrim { position:fixed; inset:0; z-index:9998; pointer-events:none; background:rgba(245,245,245,.72); animation:fidScrim 1.5s ease-out forwards; }
         .fid-badge { position:fixed; top:44%; left:50%; z-index:9999; pointer-events:none; width:104px; height:104px; animation:fidPop .5s cubic-bezier(.2,.8,.3,1) forwards, fidFade .35s ease-out 1.15s forwards; }
-        .fid-ring { fill:none; stroke:#10b981; stroke-width:6; stroke-linecap:round; stroke-dasharray:295; stroke-dashoffset:295; animation:fidDraw .5s ease-out .05s forwards; }
-        .fid-check { fill:none; stroke:#10b981; stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:fidDraw .3s ease-out .46s forwards; }
+        .fid-ring { fill:none; stroke:#0065A4; stroke-width:6; stroke-linecap:round; stroke-dasharray:295; stroke-dashoffset:295; animation:fidDraw .5s ease-out .05s forwards; }
+        .fid-check { fill:none; stroke:#0065A4; stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:fidDraw .3s ease-out .46s forwards; }
         @media (prefers-reduced-motion: reduce) { .fid-badge, .fid-scrim, .fid-ring, .fid-check { animation-duration:.01ms !important; animation-delay:0s !important; } }
         .proof-fields > div:last-child { border-bottom: none !important; }
         /* Causal Positions rows: a stacked entry that reads the same at every
