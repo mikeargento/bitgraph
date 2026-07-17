@@ -597,8 +597,10 @@ export default function ProofPage() {
           </Card>
 
           {/* 5. Environment — where it was signed */}
-          <Card title="Environment">
-            <Field label="Enforcement" value={isTee ? "Hardware Enclave (AWS Nitro)" : "Software"} />
+          {/* The title states the signing environment outright (the old vague
+              "Environment" + Enforcement field pair), and the evidence — PCR0,
+              attestation format, the verify action — is optional depth. */}
+          <CollapsibleCard title={isTee ? "Signed in a Hardware Enclave (AWS Nitro)" : "Signed in Software"}>
             {proof.environment?.measurement && <Field label="PCR0 Measurement" value={proof.environment.measurement} mono />}
             {proof.environment?.attestation?.format && <Field label="Attestation Format" value={proof.environment.attestation.format} />}
             {proof.environment?.attestation?.reportB64 && proof.environment?.measurement && (
@@ -606,7 +608,7 @@ export default function ProofPage() {
                 <AttestationButton reportB64={proof.environment.attestation.reportB64} measurement={proof.environment.measurement} proof={proof} />
               </div>
             )}
-          </Card>
+          </CollapsibleCard>
 
           {/* Ethereum Seal */}
           {/* Ethereum info — single card for both anchor proofs and user proofs */}
