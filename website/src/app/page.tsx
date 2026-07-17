@@ -10,6 +10,7 @@ import {
   commitBatch,
   isBitGraphProof,
   verifyProofSignature,
+  proofHashB64,
   type BitGraphProof,
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
@@ -228,6 +229,25 @@ export default function BitGraphPage() {
 
   /* ── Prove unproven files ── */
 
+  // Hand each fresh recording straight to the Roll: the commit response
+  // already knows the counter, so the dropper's own Roll shouldn't wait for
+  // the next poll to show a mint it just watched happen. Fire-and-forget.
+  async function announceRecorded(proofs: BitGraphProof[]) {
+    try {
+      const entries = await Promise.all(proofs.filter(Boolean).map(async (p) => ({
+        counter: parseInt(String(p.commit?.counter ?? "0"), 10),
+        type: "proof" as const,
+        digest: toUrlSafeB64(p.artifact.digestB64),
+        hashShort: toUrlSafeB64(await proofHashB64(p)).slice(0, 10),
+        blockNumber: null,
+        etherscanUrl: null,
+        isNew: true as const,
+      })));
+      const valid = entries.filter((e) => e.counter > 0);
+      if (valid.length) window.dispatchEvent(new CustomEvent("bitgraph:recorded", { detail: valid }));
+    } catch { /* display-only, never block the prove flow */ }
+  }
+
   async function proveRemaining() {
     const toProve = items.filter(i => i.status === "new");
     if (!toProve.length) return;
@@ -243,6 +263,7 @@ export default function BitGraphPage() {
           i.digestB64 === toProve[0].digestB64 ? { ...i, proof: p, proofs: [p], valid: true, status: "proved" as const } : i
         ));
         setProveProgress({ current: 1, total: 1 });
+        void announceRecorded([p]);
       } else {
         // Chunked batches so we can show real progress + stay under Vercel's
         // 60s function timeout. 50 per chunk ≈ 1s of TEE work per request at
@@ -262,6 +283,7 @@ export default function BitGraphPage() {
             return p ? { ...i, proof: p, proofs: [p], valid: true, status: "proved" as const } : i;
           }));
           setProveProgress({ current: Math.min(offset + CHUNK_SIZE, toProve.length), total: toProve.length });
+          void announceRecorded(proofs);
           await tick();
         }
       }

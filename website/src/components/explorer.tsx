@@ -119,6 +119,31 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
     return () => { cancelled = true; };
   }, [feedUrl]);
 
+  // Instant arrivals: the drop flow on this page dispatches each successful
+  // recording the moment its commit returns, so the dropper's Roll never
+  // waits out the poll. Same flash + "new!" treatment as polled arrivals;
+  // topRef advances so the next poll doesn't re-add these counters.
+  useEffect(() => {
+    const onRecorded = (ev: Event) => {
+      const detail = ((ev as CustomEvent<Entry[]>).detail || []).filter((e) => e.counter > 0);
+      if (!detail.length) return;
+      setEntries((prev) => {
+        const seen = new Set(prev.map((p) => p.counter));
+        const add = detail.filter((e) => !seen.has(e.counter)).sort((a, b) => b.counter - a.counter);
+        return add.length ? [...add, ...prev] : prev;
+      });
+      topRef.current = Math.max(topRef.current, ...detail.map((e) => e.counter));
+      setFreshIds((prev) => {
+        const next = new Set(prev);
+        for (const e of detail) next.add(e.counter);
+        return next;
+      });
+      noteNew(detail);
+    };
+    window.addEventListener("bitgraph:recorded", onRecorded);
+    return () => window.removeEventListener("bitgraph:recorded", onRecorded);
+  }, [noteNew]);
+
   // Live poll: every ~12s (anchor cadence), pull the head page and prepend new entries.
   useEffect(() => {
     const id = setInterval(async () => {
