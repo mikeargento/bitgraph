@@ -18,6 +18,8 @@ Configuration is by environment variable. `BITGRAPH_API_URL` overrides the endpo
 
 Proofs are the bitgraph/1 schema and can be verified offline, without this server or any service, using `@mikeargento/bitgraph-verify`.
 
+BitGraph itself lives at [bitgraph.ing](https://bitgraph.ing). The protocol, this package's source, and the rest of the documentation are in the main repository: [github.com/mikeargento/bitgraph](https://github.com/mikeargento/bitgraph).
+
 ## License
 
 MIT. Copyright (c) 2024-2026 Mike Argento. The BitGraph protocol is patent pending; this client is licensed for use, the protocol implementation it talks to is not.
