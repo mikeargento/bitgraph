@@ -67,9 +67,16 @@ type Entry = {
   hashShort: string;
   blockNumber: number | null;
   etherscanUrl: string | null;
+  isNew?: true;
 };
 
-function toEntry(p: Record<string, unknown>): Entry | null {
+// File rows carry "new!" while their ledger write is under this old. Computed
+// here from S3 LastModified (already in the LIST responses, no extra calls) so
+// only a boolean crosses the API, never a per-entry timestamp. Files only:
+// anchors and intervals are the clock, not the photos.
+const NEW_MS = 24 * 60 * 60 * 1000;
+
+function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | null {
   const commit = (p.commit as Record<string, unknown>) || {};
   const artifact = (p.artifact as Record<string, unknown>) || {};
   const attribution = (p.attribution as Record<string, unknown>) || {};
@@ -89,6 +96,7 @@ function toEntry(p: Record<string, unknown>): Entry | null {
     const m = (etherscanUrl || "").match(/\/block\/(\d+)/);
     blockNumber = m ? parseInt(m[1], 10) : (meta?.originalBlockNumber ?? null);
   }
+  const isNew = !isAnchor && !isInterval && !!lastModifiedMs && Date.now() - lastModifiedMs < NEW_MS;
   return {
     counter,
     type: isAnchor ? "anchor" : isInterval ? "interval" : "proof",
@@ -96,6 +104,7 @@ function toEntry(p: Record<string, unknown>): Entry | null {
     hashShort: toSafe(proofHash).slice(0, 10),
     blockNumber,
     etherscanUrl,
+    ...(isNew ? { isNew: true as const } : {}),
   };
 }
 
@@ -126,18 +135,18 @@ async function listRecentFiles(epoch: string, top: number, limit: number): Promi
         .filter(inWindow),
     );
     const fileKeys = (pr.Contents || [])
-      .map((o) => ({ key: o.Key!, counter: parseInt((o.Key!.split("/").pop() || "").split("-")[0], 10) }))
+      .map((o) => ({ key: o.Key!, counter: parseInt((o.Key!.split("/").pop() || "").split("-")[0], 10), lm: o.LastModified?.getTime() }))
       .filter((x) => inWindow(x.counter) && !anchorCounters.has(x.counter))
       .sort((a, b) => b.counter - a.counter);
-    const objs = await Promise.all(fileKeys.map(async ({ key }) => {
+    const objs = await Promise.all(fileKeys.map(async ({ key, lm }) => {
       try {
         const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
         const body = await r.Body?.transformToString();
-        return body ? (JSON.parse(body) as Record<string, unknown>) : null;
+        return body ? { json: JSON.parse(body) as Record<string, unknown>, lm } : null;
       } catch { return null; }
     }));
     for (const o of objs) {
-      const e = o ? toEntry(o) : null;
+      const e = o ? toEntry(o.json, o.lm) : null;
       // Belt and suspenders: the anchors/ index is authoritative for skipping,
       // but if an index write ever went missing the proof itself still says
       // what it is.
@@ -159,19 +168,19 @@ async function listRecent(epoch: string, top: number, limit: number): Promise<En
     Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(start)}`, MaxKeys: limit * 2 + 24,
   }));
   const keys = (res.Contents || [])
-    .map((o) => ({ key: o.Key!, counter: parseInt((o.Key!.split("/").pop() || "").split("-")[0], 10) }))
+    .map((o) => ({ key: o.Key!, counter: parseInt((o.Key!.split("/").pop() || "").split("-")[0], 10), lm: o.LastModified?.getTime() }))
     .filter((x) => x.key && !isNaN(x.counter) && x.counter <= top)
     .sort((a, b) => b.counter - a.counter)
     .slice(0, limit);
-  const objs = await Promise.all(keys.map(async ({ key }) => {
+  const objs = await Promise.all(keys.map(async ({ key, lm }) => {
     try {
       const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
       const body = await r.Body?.transformToString();
-      return body ? (JSON.parse(body) as Record<string, unknown>) : null;
+      return body ? { json: JSON.parse(body) as Record<string, unknown>, lm } : null;
     } catch { return null; }
   }));
   return objs
-    .map((o) => (o ? toEntry(o) : null))
+    .map((o) => (o ? toEntry(o.json, o.lm) : null))
     .filter((e): e is Entry => e !== null)
     .sort((a, b) => b.counter - a.counter);
 }

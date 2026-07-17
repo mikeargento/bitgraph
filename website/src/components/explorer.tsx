@@ -9,6 +9,7 @@ type Entry = {
   hashShort: string;
   blockNumber: number | null;
   etherscanUrl: string | null;
+  isNew?: true;
 };
 
 const fmt = (n: number) => n.toLocaleString();
@@ -239,6 +240,13 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
               <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
                 {tagLabel}
               </span>
+              {/* Server-stamped while the ledger write is recent; file rows only,
+                  same green as the live-arrival flash. */}
+              {e.isNew && (
+                <span style={{ flexShrink: 0, fontSize: 12, color: "#10b981", fontWeight: 700, whiteSpace: "nowrap" }}>
+                  new!
+                </span>
+              )}
               <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#6b7280", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
                 {e.hashShort}…
               </span>
