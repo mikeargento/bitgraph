@@ -376,7 +376,7 @@ export default function ProofPage() {
     const stackFmt = sameDay ? timeTz : stampTz;
     const stackSize = sameDay ? 17 : 14;
     const stackConn = (label: string, first: boolean) => (
-      <div style={{ fontSize: 13, color: "#9ca3af", marginTop: first ? 12 : 10 }}>{label}</div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginTop: first ? 12 : 10 }}>{label}</div>
     );
     const stackVal = (t: string) => (
       <div style={{ fontSize: stackSize, color: "#0065A4", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
