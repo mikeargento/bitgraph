@@ -524,21 +524,30 @@ export default function ProofPage() {
                 <span>BitGraph Recorded</span>
               </span>
             )}>
-              {recordedDate && (
-                /* The date on its own line, written long so nothing wraps and
-                   no locale reads it upside down. */
-                <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 14, fontWeight: 600, color: "#0065A4" }}>
-                  {recordedDate}
+              {(recordedDate || recordedLine) && (
+                /* One centered statement: the date as a confident headline with
+                   the wall-clock window tight beneath it (no divider between
+                   them, they are one fact). When the anchor window straddles
+                   midnight recordedDate is null and each bound carries its own
+                   full date instead, so no single day is claimed over a span
+                   that crosses into the next. */
+                <div style={{ padding: "24px 24px 22px", borderBottom: "1px solid #e2e5e9", textAlign: "center" }}>
+                  {recordedDate && (
+                    /* Written long ("July 1, 2026") so no locale reads it upside
+                       down; clamp() so it stays confident on desktop and fits
+                       phones without wrapping. */
+                    <div style={{ fontSize: "clamp(22px, 6vw, 26px)", fontWeight: 700, color: "#111827", lineHeight: 1.15, letterSpacing: "-0.01em" }}>
+                      {recordedDate}
+                    </div>
+                  )}
+                  {recordedLine && (
+                    <div style={{ fontSize: 15, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 9 : 0 }}>
+                      {leadNode ?? recordedNode ?? recordedLine}
+                    </div>
+                  )}
                 </div>
               )}
-              {recordedLine && (
-                <div style={{ padding: "16px 24px 18px", borderBottom: "1px solid #e2e5e9" }}>
-                  <div style={{ fontSize: 14, lineHeight: 1.75, color: "#374151" }}>
-                    {leadNode ?? recordedNode ?? recordedLine}
-                  </div>
-                </div>
-              )}
-              <Field label="This BitGraph's Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
+              <Field label="This BitGraph's Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono center />
             </Card>
           )}
 
@@ -863,6 +872,7 @@ function Card({ title, children }: { title: React.ReactNode; accent?: string; ch
         color: "#0065A4", padding: "18px 24px",
         background: "rgba(0,101,164,0.04)",
         borderBottom: "1px solid #e2e5e9",
+        textAlign: "center",
       }}>
         {title}
       </div>
@@ -910,7 +920,7 @@ function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactN
 
 /* ── Field with copy ── */
 
-function Field({ label, value, valueNode, mono: isMono, highlight, link }: { label: string; value: string; valueNode?: React.ReactNode; mono?: boolean; highlight?: boolean; link?: boolean }) {
+function Field({ label, value, valueNode, mono: isMono, highlight, link, center }: { label: string; value: string; valueNode?: React.ReactNode; mono?: boolean; highlight?: boolean; link?: boolean; center?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   return (
@@ -919,6 +929,7 @@ function Field({ label, value, valueNode, mono: isMono, highlight, link }: { lab
       style={{
         display: "flex", flexDirection: "column", gap: 5,
         padding: "14px 24px", borderBottom: "1px solid #e2e5e9", cursor: "pointer",
+        textAlign: center ? "center" : undefined,
       }}
     >
       <span style={{ fontSize: 14, color: "#374151", fontWeight: 700 }}>{label}</span>
@@ -932,8 +943,14 @@ function Field({ label, value, valueNode, mono: isMono, highlight, link }: { lab
           fontFamily: isMono ? mono : "inherit",
           color: copied ? "#0065A4" : highlight ? "var(--c-accent)" : "#1f2937",
           fontWeight: highlight ? 700 : 400,
-          wordBreak: valueNode ? "normal" : "break-all",
-          transition: "color .2s", lineHeight: 1.5,
+          transition: "color .2s", lineHeight: 1.6,
+          // Mono values (hashes, keys, nonces) are long fixed-length strings:
+          // keep them on one line and let the row scroll horizontally on narrow
+          // screens instead of shredding them across ragged wrapped lines.
+          // Still tap-to-copy, so nobody needs to scroll to grab the value.
+          ...(isMono
+            ? { whiteSpace: "nowrap", overflowX: "auto", WebkitOverflowScrolling: "touch" }
+            : { wordBreak: valueNode ? "normal" : "break-all" }),
         }}>
           {copied ? "Copied!" : (valueNode ?? value)}
         </span>
