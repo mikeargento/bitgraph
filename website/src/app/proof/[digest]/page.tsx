@@ -531,12 +531,12 @@ export default function ProofPage() {
                    null and the full dated stamps stand in on the one line. */
                 <div style={{ padding: "0 24px 26px", textAlign: "center" }}>
                   {recordedDate && (
-                    <div style={{ fontSize: 15, lineHeight: 1.5, color: "#6b7280" }}>
+                    <div style={{ fontSize: 14, lineHeight: 1.5, color: "#6b7280" }}>
                       <Em><span style={{ whiteSpace: "nowrap" }}>{recordedDate}</span></Em>
                     </div>
                   )}
                   {(recordedDate ? leadNode : (recordedNode ?? recordedLine)) && (
-                    <div style={{ fontSize: 15, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 5 : 0 }}>
+                    <div style={{ fontSize: 14, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 5 : 0 }}>
                       {recordedDate ? leadNode : (recordedNode ?? recordedLine)}
                     </div>
                   )}
