@@ -694,26 +694,14 @@ export default function ProofPage() {
               it. These values are typed in by whoever made the proof and are NOT
               verified by BitGraph, so the card says so and never labels the name
               as "Creator". */}
-          {isInterval ? (
+          {isInterval && (
             <Card title="Interval BitGraph">
               {intervalBlockNum && <Field label="Ethereum block" value={`https://etherscan.io/block/${intervalBlockNum}`} link />}
               {attr?.message && <Field label="Block hash" value={attr.message} mono />}
               {intervalBegan && <Field label="Window began" value={intervalBegan} valueNode={intervalBeganNode} />}
               {recordedLine && <Field label="Window ended" value={recordedLine} valueNode={recordedNode} />}
             </Card>
-          ) : attr && !isEth ? (
-            /* Self-attributed content is the least-verified thing on the page,
-               so it collapses like the other optional cards. The title slot is
-               a link ONLY when it actually holds a URL; agents routinely put
-               prose there, which used to render as a link to nowhere. */
-            <CollapsibleCard title="Submitter's Note">
-              {attr.name && <Field label="Submitted by" value={attr.name} />}
-              {attr.message && <Field label="Note" value={attr.message} mono />}
-              {attr.title && (/^https?:\/\//i.test(attr.title.trim())
-                ? <Field label="Link" value={attr.title} link />
-                : <Field label="Title" value={attr.title} />)}
-            </CollapsibleCard>
-          ) : null}
+          )}
 
           {/* Advisory timestamp — the Ethereum window above is the authoritative
               time mechanism. A TSA time, if present, is advisory only, so it is
@@ -741,9 +729,22 @@ export default function ProofPage() {
             ? <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
             : (matchConfirmed ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
 
-          {/* Content Credentials (C2PA) — sits right under the image it describes,
-              just above the export button. */}
+          {/* Content Credentials (C2PA) — sits right under the image it describes. */}
           {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
+
+          {/* Submitter's Note — LAST card, like an appendix: it was appended to
+              the recording by whoever made it. The title slot is a link ONLY
+              when it actually holds a URL; agents routinely put prose there,
+              which used to render as a link to nowhere. */}
+          {attr && !isEth && !isInterval && (
+            <CollapsibleCard title="Submitter's Note">
+              {attr.name && <Field label="Submitted by" value={attr.name} />}
+              {attr.message && <Field label="Note" value={attr.message} mono />}
+              {attr.title && (/^https?:\/\//i.test(attr.title.trim())
+                ? <Field label="Link" value={attr.title} link />
+                : <Field label="Title" value={attr.title} />)}
+            </CollapsibleCard>
+          )}
         </div>
 
         {/* Export — the closing action. A receipt is read first and saved last,
@@ -1247,7 +1248,6 @@ function formatGenerator(c2pa: C2PAReadResult): string | undefined {
 function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
   const sourceText = c2pa.digitalSourceType ? SOURCE_TYPE_LABELS[c2pa.digitalSourceType] : undefined;
   const generator = formatGenerator(c2pa);
-  const signed = c2pa.signatureValid === true;
   // OpenAI-origin credentials get a link to OpenAI's own verifier
   // (upload-only; it has no URL parameters, and BitGraph never holds the
   // bytes). The visitor uploads the same file there themselves, which is
@@ -1258,30 +1258,11 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
   );
 
   return (
-    /* Trust status sits in the header. A CA-validated signature gets the same
-       green check badge as the "Verified BitGraph" header (the "Signed by …"
-       field below names the issuer, so the word "Signed" is redundant). A
-       self-declared manifest keeps an explicit gray label, since that caveat is
-       not conveyable by a glyph and a green check must never imply CA validation
-       the manifest does not have. It never asserts the file is authentic. */
-    <Card title={
-      signed ? (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-          </span>
-          <span>Content Credentials (C2PA)</span>
-        </span>
-      ) : (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <span>Content Credentials (C2PA)</span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, letterSpacing: "normal", color: "#6b7280" }}>
-            <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>○</span>
-            Self-declared
-          </span>
-        </div>
-      )
-    }>
+    /* Collapsible like the other optional cards, plain title, no badge: the
+       fields inside (Signed by, Source, Made with) say what the manifest
+       claims; a header glyph must never imply validation. It never asserts
+       the file is authentic. */
+    <CollapsibleCard title="Content Credentials (C2PA)">
       {sourceText && <Field label="Source" value={sourceText} highlight />}
       {generator && <Field label="Made with" value={generator} />}
       {c2pa.creator && <Field label="Creator" value={c2pa.creator} />}
@@ -1305,7 +1286,7 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
           </a>
         </div>
       )}
-    </Card>
+    </CollapsibleCard>
   );
 }
 
