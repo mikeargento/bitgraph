@@ -509,19 +509,19 @@ export default function ProofPage() {
 
           {/* 1. Slot — reserved first, before anything else */}
           {slot && (
-            <Card title="Causal Slot">
+            <CollapsibleCard title="Causal Slot">
               <Field label="Slot Counter" value={`#${slot.counter}`} highlight />
               {slot.nonceB64 ? <Field label="Nonce" value={String(slot.nonceB64)} mono /> : null}
               {slot.signatureB64 ? <Field label="Slot Signature" value={String(slot.signatureB64)} mono /> : null}
               {slot.epochId ? <Field label="Epoch ID" value={String(slot.epochId)} mono /> : null}
-            </Card>
+            </CollapsibleCard>
           )}
 
           {/* 2. Artifact — the thing BitGraphed, then hashed. For a user proof it
               is the file (digest = hash of the bytes). For an Ethereum anchor the
               artifact IS the block hash, so show it explicitly and label the
               digest as the SHA-256 of that block hash. */}
-          <Card title="Artifact">
+          <CollapsibleCard title="Artifact">
             {isEth && attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
             <Field
               label={isEth && attr?.message
@@ -530,7 +530,7 @@ export default function ProofPage() {
               value={proof.artifact.digestB64}
               mono
             />
-          </Card>
+          </CollapsibleCard>
 
           {/* 3. Commit — the artifact digest bound to its own position, one past
               the reserved slot. commit.counter is a DISTINCT position from the
@@ -541,21 +541,21 @@ export default function ProofPage() {
               value), so those are not echoed here; the Slot Hash remains as the
               cryptographic link binding this commit to that slot. With no slot
               card, they surface here so nothing is hidden. */}
-          <Card title="Commit">
+          <CollapsibleCard title="Commit">
             <Field label="Artifact Counter" value={`#${commit.counter}`} highlight />
             {!slot && commit.epochId && <Field label="Epoch ID" value={String(commit.epochId)} mono />}
             {commit.prevB64 && <Field label="Previous Hash" value={commit.prevB64} mono />}
             {!slot && commit.nonceB64 && <Field label="Nonce" value={commit.nonceB64} mono />}
             {!slot && commit.slotCounter != null && <Field label="Slot Counter" value={`#${commit.slotCounter}`} />}
             {commit.slotHashB64 && <Field label="Slot Hash" value={commit.slotHashB64} mono />}
-          </Card>
+          </CollapsibleCard>
 
           {/* 3b. Causal Positions — shown only when these exact bytes were
               BitGraphed more than once. Each recording is a distinct causal
               position; the bits are identical, the positions are not. Rows link
               between positions with ?counter=&epoch= on the same digest URL. */}
           {positions.length > 1 && (
-            <Card title="Causal Positions">
+            <CollapsibleCard title={`Causal Positions (${positions.length})`}>
               <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
                 These exact bits were BitGraphed {positions.length} times. Each recording occupies its own causal position.
               </div>
@@ -587,14 +587,14 @@ export default function ProofPage() {
                   </div>
                 );
               })}
-            </Card>
+            </CollapsibleCard>
           )}
 
           {/* 4. Signer — who signed it */}
-          <Card title="Signer">
+          <CollapsibleCard title="Signer">
             <Field label="Public Key" value={proof.signer.publicKeyB64} mono />
             <Field label="Signature" value={proof.signer.signatureB64} mono />
-          </Card>
+          </CollapsibleCard>
 
           {/* 5. Environment — where it was signed */}
           {/* The title states the signing environment outright (the old vague
@@ -649,10 +649,10 @@ export default function ProofPage() {
           )}
 
           {isEth && attr?.title ? (
-            <Card title="Ethereum Block">
+            <CollapsibleCard title="Ethereum Block">
               <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
               <Field label="Etherscan" value={attr.title} link />
-            </Card>
+            </CollapsibleCard>
           ) : causalWindow?.anchorAfter ? (
             <CollapsibleCard title={causalWindow.anchorAfter.blockNumber !== null
               ? `Before Ethereum Block #${causalWindow.anchorAfter.blockNumber.toLocaleString()}`
@@ -695,23 +695,23 @@ export default function ProofPage() {
               verified by BitGraph, so the card says so and never labels the name
               as "Creator". */}
           {isInterval && (
-            <Card title="Interval BitGraph">
+            <CollapsibleCard title="Interval BitGraph">
               {intervalBlockNum && <Field label="Ethereum block" value={`https://etherscan.io/block/${intervalBlockNum}`} link />}
               {attr?.message && <Field label="Block hash" value={attr.message} mono />}
               {intervalBegan && <Field label="Window began" value={intervalBegan} valueNode={intervalBeganNode} />}
               {recordedLine && <Field label="Window ended" value={recordedLine} valueNode={recordedNode} />}
-            </Card>
+            </CollapsibleCard>
           )}
 
           {/* Advisory timestamp — the Ethereum window above is the authoritative
               time mechanism. A TSA time, if present, is advisory only, so it is
               labeled as such and sits last. */}
           {ts && (
-            <Card title="Advisory Timestamp">
+            <CollapsibleCard title="Advisory Timestamp">
               {ts.authority ? <Field label="Authority" value={String(ts.authority)} /> : null}
               {ts.time ? <Field label="TSA Time" value={String(ts.time)} /> : null}
               {ts.digestAlg ? <Field label="Digest Algorithm" value={String(ts.digestAlg)} /> : null}
-            </Card>
+            </CollapsibleCard>
           )}
 
           {/* Your file — moved to the bottom, just above the export action: the
