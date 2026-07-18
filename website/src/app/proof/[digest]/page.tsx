@@ -671,7 +671,7 @@ export default function ProofPage() {
               not up in the receipt. */}
           <CollapsibleCard title="Signature">
             {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
-              <Field label="Proof Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
+              <Field label="This BitGraph's Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
             )}
             <Field label="Signature" value={proof.signer.signatureB64} mono />
             <Field label="Public Key" value={proof.signer.publicKeyB64} mono />
