@@ -572,7 +572,7 @@ export default function ProofPage() {
                   rather than as its own step in the construction sequence. In
                   the no-file state above it is also the value a dropped file is
                   checked against. */}
-              <Field label="File Hash" value={proof.artifact.digestB64} mono />
+              <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
             </CollapsibleCard>
           )}
 
@@ -933,7 +933,7 @@ function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactN
 
 /* ── Field with copy ── */
 
-function Field({ label, value, valueNode, mono: isMono, highlight, link, center }: { label: string; value: string; valueNode?: React.ReactNode; mono?: boolean; highlight?: boolean; link?: boolean; center?: boolean }) {
+function Field({ label, value, valueNode, mono: isMono, highlight, link, center, topBorder }: { label: string; value: string; valueNode?: React.ReactNode; mono?: boolean; highlight?: boolean; link?: boolean; center?: boolean; topBorder?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   return (
@@ -943,6 +943,9 @@ function Field({ label, value, valueNode, mono: isMono, highlight, link, center 
         display: "flex", flexDirection: "column", gap: 5,
         padding: "14px 24px", borderBottom: "1px solid #e2e5e9", cursor: "pointer",
         textAlign: center ? "center" : undefined,
+        // Divider above the row, for when it follows non-field content (e.g. the
+        // File Hash under the file image/dropzone, which has no bottom border).
+        ...(topBorder ? { borderTop: "1px solid #e2e5e9" } : {}),
       }}
     >
       <span style={{ fontSize: 14, color: "#374151", fontWeight: 700 }}>{label}</span>
