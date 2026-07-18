@@ -82,14 +82,9 @@ export default function ProofPage() {
   // reveals, not on mount, so a slow load can't swallow it.
   const [flashArmed, setFlashArmed] = useState(false);
   const [justCreated, setJustCreated] = useState(false);
-  // Sticky: true for the whole visit when the page was reached straight off a
-  // fresh recording. The lead card arrives open in that case (the live
-  // sealing countdown is the payoff); every other arrival gets it collapsed.
-  const [arrivedFresh, setArrivedFresh] = useState(false);
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("fresh") === "1") {
-      setArrivedFresh(true);
       setFlashArmed(true);
       sp.delete("fresh");
       const qs = sp.toString();
@@ -509,7 +504,7 @@ export default function ProofPage() {
               sealing countdown. The header stays the check-marked trust
               statement on every page (an anchor is a verified BitGraph too). */}
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
-            <CollapsibleCard defaultOpen={arrivedFresh} title={(
+            <CollapsibleCard title={(
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
