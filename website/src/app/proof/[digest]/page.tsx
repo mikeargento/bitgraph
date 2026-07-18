@@ -367,28 +367,39 @@ export default function ProofPage() {
 
   // Stacked variant of the time window for the lead receipt: each timestamp on
   // its own centered line, bigger, with the "between"/"and" connectors small and
-  // gray, so the two times read as a vertical bracket. Only the two-sided window
-  // stacks; transient one-sided states fall back to the inline node in the card.
+  // gray, so the window reads as a vertical bracket. Covers the two-sided window
+  // AND the one-sided states (still-open "waiting on Ethereum", or after-only),
+  // so the time value is the same 17px in every state. Ethereum-anchor lines
+  // fall back to the inline node in the card.
   let leadStack: React.ReactNode = null;
-  if (!isEth && lowerTime && upperTime) {
-    const s1 = new Date(lowerTime), s2 = new Date(upperTime);
-    const sameDay = s1.toDateString() === s2.toDateString();
-    const stackFmt = sameDay ? timeTz : stampTz;
-    const stackSize = sameDay ? 17 : 14;
+  if (!isEth && lowerTime) {
     const stackConn = (label: string, first: boolean) => (
       <div style={{ fontSize: 13, color: "#6b7280", marginTop: first ? 12 : 10 }}>{label}</div>
     );
-    const stackVal = (t: string) => (
-      <div style={{ fontSize: stackSize, color: "#0065A4", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
+    const stackVal = (t: string, size = 17) => (
+      <div style={{ fontSize: size, color: "#0065A4", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
     );
-    leadStack = (
-      <>
-        {stackConn("between", true)}
-        {stackVal(stackFmt(s1))}
-        {stackConn("and", false)}
-        {stackVal(stackFmt(s2))}
-      </>
-    );
+    if (upperTime) {
+      const s1 = new Date(lowerTime), s2 = new Date(upperTime);
+      const sameDay = s1.toDateString() === s2.toDateString();
+      const fmt = sameDay ? timeTz : stampTz;
+      const size = sameDay ? 17 : 14;
+      leadStack = <>{stackConn("between", true)}{stackVal(fmt(s1), size)}{stackConn("and", false)}{stackVal(fmt(s2), size)}</>;
+    } else if (ethWait) {
+      const s1 = new Date(lowerTime);
+      leadStack = (
+        <>
+          {stackConn("between", true)}
+          {stackVal(timeTz(s1))}
+          {stackConn("and", false)}
+          <div style={{ fontSize: 15, color: "#6b7280", marginTop: 3, whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
+            waiting on Ethereum{ethWait.laps < 4 ? <span style={{ fontVariantNumeric: "tabular-nums" }}> · {ethWait.secs}s</span> : "…"}
+          </div>
+        </>
+      );
+    } else {
+      leadStack = <>{stackConn("after", true)}{stackVal(timeTz(new Date(lowerTime)))}</>;
+    }
   }
 
   // Interval window, derived from the causal positions the page already loads
