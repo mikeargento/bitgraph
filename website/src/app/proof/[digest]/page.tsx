@@ -82,9 +82,14 @@ export default function ProofPage() {
   // reveals, not on mount, so a slow load can't swallow it.
   const [flashArmed, setFlashArmed] = useState(false);
   const [justCreated, setJustCreated] = useState(false);
+  // Sticky: true for the whole visit when the page was reached straight off a
+  // fresh recording. The lead card arrives open in that case (the live
+  // sealing countdown is the payoff); every other arrival gets it collapsed.
+  const [arrivedFresh, setArrivedFresh] = useState(false);
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("fresh") === "1") {
+      setArrivedFresh(true);
       setFlashArmed(true);
       sp.delete("fresh");
       const qs = sp.toString();
@@ -488,17 +493,23 @@ export default function ProofPage() {
               <span aria-hidden>✓</span> This file matches this BitGraph
             </div>
           )}
-          {!isEth && !isInterval && isDisplayableImage(cachedFile, cachedFile?.c2pa) && (
-            <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
-          )}
+          {/* The content slot: the BitGraphed file (collapsed, like every
+              card) when the bytes are in hand; the bring-your-file checker
+              when they are not. One slot, one of two states. */}
+          {!isEth && !isInterval && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
+            ? (
+              <CollapsibleCard title="BitGraphed File">
+                <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
+              </CollapsibleCard>
+            )
+            : (matchConfirmed ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
 
-          {/* Lead card. No separate hero on any page: the card header is the
-              check-marked "Verified BitGraph" trust statement on every page,
-              since an anchor is a verified BitGraph too. Ethereum anchors add a
-              caption naming the block and omit the Recorded window (an anchor is
-              not bracketed; it IS the bracket). */}
+          {/* Lead card. Collapsed like everything else EXCEPT when arriving
+              straight off a fresh recording, where it opens to show the live
+              sealing countdown. The header stays the check-marked trust
+              statement on every page (an anchor is a verified BitGraph too). */}
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
-            <Card title={(
+            <CollapsibleCard defaultOpen={arrivedFresh} title={(
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -516,7 +527,7 @@ export default function ProofPage() {
                 </div>
               )}
               <Field label="This BitGraph's Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
-            </Card>
+            </CollapsibleCard>
           )}
 
           {/* 1. Slot — reserved first, before anything else */}
@@ -726,14 +737,6 @@ export default function ProofPage() {
             </CollapsibleCard>
           )}
 
-          {/* Bring-your-file checker — bottom, with the actions: it is an ask,
-              not content, and keeping it away from the camera strip avoids two
-              adjacent drop targets. Hidden once a match is confirmed, and when
-              the image itself is on display at the top of the page. */}
-          {!isEth && !isInterval && !isDisplayableImage(cachedFile, cachedFile?.c2pa) && !matchConfirmed && (
-            <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />
-          )}
-
           {/* Content Credentials (C2PA) — the manifest embedded in the bytes. */}
           {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
 
@@ -832,8 +835,8 @@ function Card({ title, children }: { title: React.ReactNode; accent?: string; ch
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
 
-function CollapsibleCard({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
+function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(!!defaultOpen);
   return (
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
       <button
@@ -1106,9 +1109,12 @@ function BringYourFile({
 function PhotoCard({
   cachedFile,
   c2pa,
+  bare,
 }: {
   cachedFile: { name: string; data: ArrayBuffer } | null;
   c2pa?: C2PAReadResult | null;
+  /** Skip the card chrome (used inside the BitGraphed File collapsible). */
+  bare?: boolean;
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
@@ -1195,7 +1201,7 @@ function PhotoCard({
     <div
       style={{
         background: "#ffffff",
-        border: "1px solid #d0d5dd",
+        border: bare ? "none" : "1px solid #d0d5dd",
         borderRadius: 0,
         padding: 24,
         display: "flex",
