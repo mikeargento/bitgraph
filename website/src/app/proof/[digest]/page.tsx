@@ -567,6 +567,12 @@ export default function ProofPage() {
                   <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />
                 </div>
               )}
+              {/* The fingerprint lives with the file: this SHA-256 IS the file's
+                  pre-existing identity, so it sits with the file it belongs to
+                  rather than as its own step in the construction sequence. In
+                  the no-file state above it is also the value a dropped file is
+                  checked against. */}
+              <Field label="File Hash" value={proof.artifact.digestB64} mono />
             </CollapsibleCard>
           )}
 
@@ -590,20 +596,22 @@ export default function ProofPage() {
             </CollapsibleCard>
           )}
 
-          {/* 2. Artifact — the thing BitGraphed, then hashed. For a user proof it
-              is the file (digest = hash of the bytes). For an Ethereum anchor the
-              artifact IS the block hash, so show it explicitly and label the
-              digest as the SHA-256 of that block hash. */}
-          <CollapsibleCard title={!isEth && !isInterval ? "File Hash" : "Artifact Hash"}>
-            {isEth && attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
-            <Field
-              label={isEth && attr?.message
-                ? `${formatHashAlg(proof.artifact.hashAlg)} of Block Hash`
-                : `${formatHashAlg(proof.artifact.hashAlg)} Digest`}
-              value={proof.artifact.digestB64}
-              mono
-            />
-          </CollapsibleCard>
+          {/* 2. Artifact hash — only for Ethereum anchors and interval proofs,
+              whose artifact IS a block hash rather than a file. User-file proofs
+              carry their File Hash inside the BitGraphed File card above, with
+              the file it identifies, so there is no separate box here. */}
+          {(isEth || isInterval) && (
+            <CollapsibleCard title="Artifact Hash">
+              {isEth && attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
+              <Field
+                label={isEth && attr?.message
+                  ? `${formatHashAlg(proof.artifact.hashAlg)} of Block Hash`
+                  : `${formatHashAlg(proof.artifact.hashAlg)} Digest`}
+                value={proof.artifact.digestB64}
+                mono
+              />
+            </CollapsibleCard>
+          )}
 
           {/* 3. Commit — the artifact digest bound to its own position, one past
               the reserved slot. commit.counter is a DISTINCT position from the
