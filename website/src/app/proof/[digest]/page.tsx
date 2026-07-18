@@ -547,7 +547,6 @@ export default function ProofPage() {
                   )}
                 </div>
               )}
-              <Field label="This BitGraph's Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono center />
             </Card>
           )}
 
@@ -664,8 +663,16 @@ export default function ProofPage() {
             </CollapsibleCard>
           )}
 
-          {/* 4. Signer — who signed it */}
+          {/* 4. Signer — the proof's own fingerprint (the proofHash) first, then
+              the enclave's Ed25519 signature over it. The proofHash is computed
+              last, from the fully assembled signed body, and is the value the
+              attestation in the Environment card below binds to
+              (user_data == proofHash), so it belongs here at the signing step,
+              not up in the receipt. */}
           <CollapsibleCard title="Signature">
+            {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
+              <Field label="Proof Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
+            )}
             <Field label="Signature" value={proof.signer.signatureB64} mono />
             <Field label="Public Key" value={proof.signer.publicKeyB64} mono />
           </CollapsibleCard>

@@ -248,8 +248,8 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
         <input
           value={query}
           onChange={(e) => { setQuery(e.target.value); if (searchErr) setSearchErr(""); }}
-          placeholder="BitGraph number or hash"
-          aria-label="Search BitGraphs by number or hash"
+          placeholder="BitGraph number or file hash"
+          aria-label="Search BitGraphs by number or file hash"
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
