@@ -68,14 +68,15 @@ type Entry = {
   blockNumber: number | null;
   etherscanUrl: string | null;
   isNew?: true;
+  // Wall-clock write time (S3 LastModified, epoch ms) — the recording moment,
+  // shown on each roll row. The precise ETH window lives on the proof page.
+  at?: number;
 };
 
 // File rows arrive stamped "new!" while their ledger write is under this old;
-// the client drops the tag on its own 30s timer, so this window only has to
-// cover write-to-first-render. Computed from S3 LastModified (already in the
-// LIST responses, no extra calls) so only a boolean crosses the API, never a
-// per-entry timestamp. Files only: anchors and intervals are the clock, not
-// the photos.
+// the client drops the tag on its own 30s timer. Both this and the row's `at`
+// time come from S3 LastModified, already in the LIST responses (no extra
+// calls). Files only for "new!": anchors and intervals are the clock.
 const NEW_MS = 30_000;
 
 function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | null {
@@ -107,6 +108,7 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
     blockNumber,
     etherscanUrl,
     ...(isNew ? { isNew: true as const } : {}),
+    ...(lastModifiedMs ? { at: lastModifiedMs } : {}),
   };
 }
 

@@ -10,7 +10,13 @@ type Entry = {
   blockNumber: number | null;
   etherscanUrl: string | null;
   isNew?: true;
+  at?: number;
 };
+
+// Compact recorded time for a roll row, e.g. "Jul 17, 9:22 PM". More useful
+// than the truncated hash it replaces (nobody reads a proof by 10 hash chars).
+const fmtWhen = (ms?: number) =>
+  ms ? new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 
 const fmt = (n: number) => n.toLocaleString();
 
@@ -290,8 +296,8 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
                   new!
                 </span>
               )}
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#6b7280", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}>
-                {e.hashShort}…
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                {fmtWhen(e.at)}
               </span>
               <span className="xp-open">
                 Open

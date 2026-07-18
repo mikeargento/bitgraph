@@ -331,6 +331,7 @@ export default function BitGraphPage() {
         blockNumber: null,
         etherscanUrl: null,
         isNew: true as const,
+        at: Date.now(),
       })));
       const valid = entries.filter((e) => e.counter > 0);
       if (valid.length) window.dispatchEvent(new CustomEvent("bitgraph:recorded", { detail: valid }));
