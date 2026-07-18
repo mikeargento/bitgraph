@@ -517,9 +517,9 @@ export default function ProofPage() {
                has no Close button — just the check badge and "BitGraph
                Recorded" on the left. */
             <Card title={(
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
                 <span>BitGraph Recorded</span>
               </span>
@@ -527,7 +527,7 @@ export default function ProofPage() {
               {recordedDate && (
                 /* The date on its own line, written long so nothing wraps and
                    no locale reads it upside down. */
-                <div style={{ padding: "18px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 17, fontWeight: 600, color: "#0065A4" }}>
+                <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 14, fontWeight: 600, color: "#0065A4" }}>
                   {recordedDate}
                 </div>
               )}
@@ -656,9 +656,9 @@ export default function ProofPage() {
           )}
 
           {/* 4. Signer — who signed it */}
-          <CollapsibleCard title="Signer">
-            <Field label="Public Key" value={proof.signer.publicKeyB64} mono />
+          <CollapsibleCard title="Signature">
             <Field label="Signature" value={proof.signer.signatureB64} mono />
+            <Field label="Public Key" value={proof.signer.publicKeyB64} mono />
           </CollapsibleCard>
 
           {/* 5. Environment — where it was signed */}
