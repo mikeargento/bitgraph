@@ -243,7 +243,9 @@ export function FileDrop({
             className="font-semibold tracking-tight text-center"
             style={{
               color: "#111827",
-              fontSize: "min(20px, 4vw)",
+              // Match the proof-page receipt headline ("BitGraph Recorded")
+              // exactly so the two adjacent card titles are the same size.
+              fontSize: "clamp(20px, 6vw, 24px)",
               whiteSpace: "nowrap",
             }}
           >
