@@ -502,7 +502,9 @@ export default function ProofPage() {
                 <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
-                <span>{isEth ? "Verified BitGraph" : `BitGraph Recorded${recordedDate ? ` on ${recordedDate}` : ""}`}</span>
+                <span>{isEth
+                  ? `Ethereum Anchor${ethBlockNum ? ` · Block #${Number(ethBlockNum).toLocaleString()}` : ""}`
+                  : `BitGraph Recorded${recordedDate ? ` on ${recordedDate}` : ""}`}</span>
               </span>
             )}>
               {recordedLine && (
