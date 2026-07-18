@@ -529,14 +529,14 @@ export default function ProofPage() {
                    so on narrow phones the window wraps at its connector, never
                    mid-value. When the window crosses midnight recordedDate is
                    null and the full dated stamps stand in on the one line. */
-                <div style={{ padding: "0 24px 26px", textAlign: "center" }}>
+                <div style={{ padding: "0 24px 34px", textAlign: "center" }}>
                   {recordedDate && (
                     <div style={{ fontSize: 14, lineHeight: 1.5, color: "#6b7280" }}>
                       <Em><span style={{ whiteSpace: "nowrap" }}>{recordedDate}</span></Em>
                     </div>
                   )}
                   {(recordedDate ? leadNode : (recordedNode ?? recordedLine)) && (
-                    <div style={{ fontSize: 14, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 5 : 0 }}>
+                    <div style={{ fontSize: 14, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 9 : 0 }}>
                       {recordedDate ? leadNode : (recordedNode ?? recordedLine)}
                     </div>
                   )}
@@ -880,7 +880,7 @@ function Card({ title, children }: { title: React.ReactNode; accent?: string; ch
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
       <div style={{
         fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
-        color: "#0065A4", padding: "26px 24px 12px",
+        color: "#0065A4", padding: "34px 24px 18px",
         textAlign: "center",
       }}>
         {title}
