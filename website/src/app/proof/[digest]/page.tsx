@@ -365,6 +365,32 @@ export default function ProofPage() {
     }
   }
 
+  // Stacked variant of the time window for the lead receipt: each timestamp on
+  // its own centered line, bigger, with the "between"/"and" connectors small and
+  // gray, so the two times read as a vertical bracket. Only the two-sided window
+  // stacks; transient one-sided states fall back to the inline node in the card.
+  let leadStack: React.ReactNode = null;
+  if (!isEth && lowerTime && upperTime) {
+    const s1 = new Date(lowerTime), s2 = new Date(upperTime);
+    const sameDay = s1.toDateString() === s2.toDateString();
+    const stackFmt = sameDay ? timeTz : stampTz;
+    const stackSize = sameDay ? 17 : 14;
+    const stackConn = (label: string, first: boolean) => (
+      <div style={{ fontSize: 13, color: "#9ca3af", marginTop: first ? 12 : 10 }}>{label}</div>
+    );
+    const stackVal = (t: string) => (
+      <div style={{ fontSize: stackSize, color: "#0065A4", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
+    );
+    leadStack = (
+      <>
+        {stackConn("between", true)}
+        {stackVal(stackFmt(s1))}
+        {stackConn("and", false)}
+        {stackVal(stackFmt(s2))}
+      </>
+    );
+  }
+
   // Interval window, derived from the causal positions the page already loads
   // (metadata.interval does not survive the TEE, so nothing here relies on it):
   // the earliest recording is the original anchor = when the window BEGAN, and
@@ -531,14 +557,16 @@ export default function ProofPage() {
                    null and the full dated stamps stand in on the one line. */
                 <div style={{ padding: "0 24px 34px", textAlign: "center" }}>
                   {recordedDate && (
-                    <div style={{ fontSize: 14, lineHeight: 1.5, color: "#6b7280" }}>
-                      <Em><span style={{ whiteSpace: "nowrap" }}>{recordedDate}</span></Em>
+                    <div style={{ fontSize: 17, lineHeight: 1.3, color: "#0065A4", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {recordedDate}
                     </div>
                   )}
-                  {(recordedDate ? leadNode : (recordedNode ?? recordedLine)) && (
-                    <div style={{ fontSize: 14, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 9 : 0 }}>
-                      {recordedDate ? leadNode : (recordedNode ?? recordedLine)}
-                    </div>
+                  {leadStack ?? (
+                    (recordedDate ? leadNode : (recordedNode ?? recordedLine)) ? (
+                      <div style={{ fontSize: 14, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 9 : 0 }}>
+                        {recordedDate ? leadNode : (recordedNode ?? recordedLine)}
+                      </div>
+                    ) : null
                   )}
                 </div>
               )}
