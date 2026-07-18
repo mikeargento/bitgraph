@@ -439,7 +439,7 @@ export default function ProofPage() {
            button: row tints on hover, the Open/Close button inverts to solid
            blue. .bg-collapse-btn mirrors .xp-open exactly. */
         .bg-collapse-head { transition: background .12s; }
-        .bg-collapse-btn { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; color:#0065A4; font-size:13px; font-weight:600; letter-spacing:-0.01em; border:1px solid #0065A4; border-radius:0; padding:4px 12px; background:#fff; transition:background .15s, color .15s; }
+        .bg-collapse-btn { display:inline-flex; align-items:center; gap:8px; flex-shrink:0; color:#0065A4; font-size:13px; font-weight:600; letter-spacing:-0.01em; border:1px solid #0065A4; border-radius:0; padding:4px 12px; background:#fff; transition:background .15s, color .15s; }
         @media (hover:hover) {
           .bg-collapse-head:hover { background:#f3f5f7 !important; }
           .bg-collapse-head:hover .bg-collapse-btn { background:#0065A4; color:#fff; }
