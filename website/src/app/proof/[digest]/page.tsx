@@ -707,9 +707,6 @@ export default function ProofPage() {
                a link ONLY when it actually holds a URL; agents routinely put
                prose there, which used to render as a link to nowhere. */
             <CollapsibleCard title="Submitter's Note">
-              <div style={{ padding: "12px 24px 4px", fontSize: 12.5, color: "#6b7280", lineHeight: 1.5 }}>
-                Self-attributed, not verified by BitGraph.
-              </div>
               {attr.name && <Field label="Submitted by" value={attr.name} />}
               {attr.message && <Field label="Note" value={attr.message} mono />}
               {attr.title && (/^https?:\/\//i.test(attr.title.trim())
