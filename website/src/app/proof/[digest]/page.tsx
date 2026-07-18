@@ -480,6 +480,18 @@ export default function ProofPage() {
 
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
 
+          {/* The content itself sits first, right under the camera: the page
+              certifies the photograph, so you see the subject before its
+              paperwork. The match banner rides with it after an active check. */}
+          {!isEth && !isInterval && matchConfirmed && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
+              <span aria-hidden>✓</span> This file matches this BitGraph
+            </div>
+          )}
+          {!isEth && !isInterval && isDisplayableImage(cachedFile, cachedFile?.c2pa) && (
+            <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
+          )}
+
           {/* Lead card. No separate hero on any page: the card header is the
               check-marked "Verified BitGraph" trust statement on every page,
               since an anchor is a verified BitGraph too. Ethereum anchors add a
@@ -714,22 +726,15 @@ export default function ProofPage() {
             </CollapsibleCard>
           )}
 
-          {/* Your file — moved to the bottom, just above the export action: the
-              page reads as the BitGraph first, then "do you have the file?", then
-              export. Green banner only after the visitor actively checks a file. */}
-          {!isEth && !isInterval && matchConfirmed && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
-              <span aria-hidden>✓</span> This file matches this BitGraph
-            </div>
+          {/* Bring-your-file checker — bottom, with the actions: it is an ask,
+              not content, and keeping it away from the camera strip avoids two
+              adjacent drop targets. Hidden once a match is confirmed, and when
+              the image itself is on display at the top of the page. */}
+          {!isEth && !isInterval && !isDisplayableImage(cachedFile, cachedFile?.c2pa) && !matchConfirmed && (
+            <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />
           )}
-          {/* Show the artifact image when one is available; otherwise keep the
-              bring-your-file checker visible so checking is always an option —
-              until the visitor confirms a match, then drop the box. */}
-          {!isEth && !isInterval && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
-            ? <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} />
-            : (matchConfirmed ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
 
-          {/* Content Credentials (C2PA) — sits right under the image it describes. */}
+          {/* Content Credentials (C2PA) — the manifest embedded in the bytes. */}
           {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
 
           {/* Submitter's Note — LAST card, like an appendix: it was appended to
