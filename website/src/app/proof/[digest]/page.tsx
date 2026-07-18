@@ -289,7 +289,11 @@ export default function ProofPage() {
   // recordedLine/recordedNode keep the date for other consumers (the interval
   // "Window ended" field must stand alone). Cross-day windows keep full
   // stamps and an undated title.
+  // The date now lives on its own line inside the lead card (not the title,
+  // which wrapped on mobile), written long ("October 24, 2025") so there is no
+  // M/D vs D/M ambiguity across locales.
   let recordedDate: string | null = null;
+  const longDate = (d: Date) => d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
   let leadNode: React.ReactNode = null;
   // The actual time/date values are emphasized in brand blue (the connector
   // words stay default gray), so the receipt's key temporal fact reads as the
@@ -297,11 +301,15 @@ export default function ProofPage() {
   const emStyle: React.CSSProperties = { color: "#0065A4", fontWeight: 600 };
   const Em = ({ children }: { children: React.ReactNode }) => <span style={emStyle}>{children}</span>;
   if (isEth && ethBlockNum) {
+    // An anchor is just a BitGraph (of an Ethereum block hash), so it reads
+    // like the others: "BitGraph Recorded on {date}" with the block + time on
+    // the line below. The date lives in the title.
     const bt = anchorBlock?.blockTime;
     const blockPart = `Ethereum Block #${Number(ethBlockNum).toLocaleString()}`;
     if (bt) {
-      const timeStr = timeTz(new Date(bt));
-      const dateStr = new Date(bt).toLocaleDateString();
+      const d = new Date(bt);
+      const timeStr = timeTz(d);
+      const dateStr = d.toLocaleDateString();
       recordedLine = `${blockPart} at ${timeStr} on ${dateStr}`;
       recordedNode = (
         <>
@@ -309,8 +317,16 @@ export default function ProofPage() {
           <span style={{ whiteSpace: "nowrap" }}>at <Em>{timeStr}</Em> on <Em>{dateStr}</Em></span>
         </>
       );
+      recordedDate = longDate(d);
+      leadNode = (
+        <>
+          <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>{" "}
+          <span style={{ whiteSpace: "nowrap" }}>at <Em>{timeStr}</Em></span>
+        </>
+      );
     } else {
       recordedLine = blockPart;
+      leadNode = <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>;
     }
   } else if (!isEth && lowerTime && upperTime) {
     const t1 = new Date(lowerTime), t2 = new Date(upperTime);
@@ -320,7 +336,7 @@ export default function ProofPage() {
       // "EDT" mid-time.
       recordedLine = `between ${timeTz(t1)} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`;
       recordedNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t2.toLocaleDateString()}</span></Em></>;
-      recordedDate = t2.toLocaleDateString();
+      recordedDate = longDate(t2);
       leadNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em></>;
     } else {
       recordedLine = `between ${stampTz(t1)} and ${stampTz(t2)}`;
@@ -329,7 +345,7 @@ export default function ProofPage() {
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
     recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}`;
-    recordedDate = t1.toLocaleDateString();
+    recordedDate = longDate(t1);
     if (ethWait) {
       // The window is still open: show it as "between X and <waiting>", with a
       // countdown paced to the 12s anchor cadence. When the sealing anchor
@@ -502,15 +518,18 @@ export default function ProofPage() {
                 <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
-                <span>{isEth
-                  ? `Ethereum Anchor${ethBlockNum ? ` · Block #${Number(ethBlockNum).toLocaleString()}` : ""}`
-                  : `BitGraph Recorded${recordedDate ? ` on ${recordedDate}` : ""}`}</span>
+                <span>BitGraph Recorded</span>
               </span>
             )}>
+              {recordedDate && (
+                /* The date on its own line, written long so nothing wraps and
+                   no locale reads it upside down. */
+                <div style={{ padding: "18px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 17, fontWeight: 600, color: "#0065A4" }}>
+                  {recordedDate}
+                </div>
+              )}
               {recordedLine && (
-                /* The date lives in the title, so this line is pure wall-clock
-                   time in a roomy receipt-style block, no cramped label row. */
-                <div style={{ padding: "20px 24px 22px", borderBottom: "1px solid #e2e5e9" }}>
+                <div style={{ padding: "16px 24px 18px", borderBottom: "1px solid #e2e5e9" }}>
                   <div style={{ fontSize: 14, lineHeight: 1.75, color: "#374151" }}>
                     {leadNode ?? recordedNode ?? recordedLine}
                   </div>
@@ -537,6 +556,16 @@ export default function ProofPage() {
                   <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />
                 </div>
               )}
+            </CollapsibleCard>
+          )}
+
+          {/* An anchor's artifact IS the Ethereum block hash, so its block card
+              sits in the same content slot the BitGraphed File uses on file
+              proofs, titled to match. */}
+          {isEth && attr?.title && (
+            <CollapsibleCard title="BitGraphed Ethereum Block">
+              <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
+              <Field label="Etherscan" value={attr.title} link />
             </CollapsibleCard>
           )}
 
@@ -633,7 +662,7 @@ export default function ProofPage() {
           {/* The title states the signing environment outright (the old vague
               "Environment" + Enforcement field pair), and the evidence — PCR0,
               attestation format, the verify action — is optional depth. */}
-          <CollapsibleCard title={isTee ? "Signed in a Hardware Enclave (AWS Nitro)" : "Signed in Software"}>
+          <CollapsibleCard title={isTee ? "Signed in a Hardware Enclave" : "Signed in Software"}>
             {proof.environment?.measurement && <Field label="PCR0 Measurement" value={proof.environment.measurement} mono />}
             {proof.environment?.attestation?.format && <Field label="Attestation Format" value={proof.environment.attestation.format} />}
             {proof.environment?.attestation?.reportB64 && proof.environment?.measurement && (
@@ -651,9 +680,10 @@ export default function ProofPage() {
               witnessed AFTER this anchor. Shown above "BitGraphed Before" so the
               pair reads as a window: after this block, before that one. */}
           {!isEth && causalWindow?.anchorBefore && (
-            <CollapsibleCard title={causalWindow.anchorBefore.blockNumber !== null
-              ? `After Ethereum Block #${causalWindow.anchorBefore.blockNumber.toLocaleString()}`
-              : "After Ethereum Block"}>
+            <CollapsibleCard title="After Ethereum Block">
+              {causalWindow.anchorBefore.blockNumber !== null && (
+                <Field label="Block" value={`#${causalWindow.anchorBefore.blockNumber.toLocaleString()}`} highlight />
+              )}
               {causalWindow.anchorBefore.blockTime && (
                 <Field label="Block Time" value={stampTz(new Date(causalWindow.anchorBefore.blockTime))} />
               )}
@@ -681,15 +711,14 @@ export default function ProofPage() {
             </CollapsibleCard>
           )}
 
-          {isEth && attr?.title ? (
-            <CollapsibleCard title="Ethereum Block">
-              <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
-              <Field label="Etherscan" value={attr.title} link />
-            </CollapsibleCard>
-          ) : causalWindow?.anchorAfter ? (
-            <CollapsibleCard title={causalWindow.anchorAfter.blockNumber !== null
-              ? `Before Ethereum Block #${causalWindow.anchorAfter.blockNumber.toLocaleString()}`
-              : "Before Ethereum Block"}>
+          {/* The anchor's own block card moved to the content slot above; here
+              only the file proof's sealing "Before" anchor renders — an anchor
+              is the bracket, so it has no before/after window of its own. */}
+          {!isEth && causalWindow?.anchorAfter ? (
+            <CollapsibleCard title="Before Ethereum Block">
+              {causalWindow.anchorAfter.blockNumber !== null && (
+                <Field label="Block" value={`#${causalWindow.anchorAfter.blockNumber.toLocaleString()}`} highlight />
+              )}
               {causalWindow.anchorAfter.blockTime && (
                 <Field label="Block Time" value={stampTz(new Date(causalWindow.anchorAfter.blockTime))} />
               )}
@@ -715,13 +744,13 @@ export default function ProofPage() {
                 </div>
               )}
             </CollapsibleCard>
-          ) : (
+          ) : !isEth && !isInterval ? (
             <CollapsibleCard title="Before Ethereum Block">
               <div style={{ padding: "18px 24px", fontSize: 14, color: "#6b7280" }}>
                 Awaiting next Ethereum block…
               </div>
             </CollapsibleCard>
-          )}
+          ) : null}
 
           {/* Submitter's Note — self-supplied, only for non-ETH proofs that carry
               it. These values are typed in by whoever made the proof and are NOT
