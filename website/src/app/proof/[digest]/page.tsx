@@ -905,7 +905,9 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function Card({ title, children }: { title: React.ReactNode; accent?: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
+    // The lead receipt carries a faint website-blue wash so it reads as the
+    // primary card, distinct from the white collapsible cards below.
+    <div style={{ background: "rgba(0,101,164,0.04)", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
       <div style={{
         fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
         color: "#0065A4", padding: "34px 24px 24px",
