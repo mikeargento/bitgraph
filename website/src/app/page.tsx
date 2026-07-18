@@ -715,7 +715,7 @@ export default function BitGraphPage() {
                   multiple
                   onFile={(f) => handleFiles([f])}
                   onFiles={handleFiles}
-                  hint=""
+                  hint="Files already BitGraphed are looked up"
                 />
               </div>
 
