@@ -510,41 +510,31 @@ export default function ProofPage() {
               paperwork. The match banner rides with it after an active check. */}
           {/* Lead card first, and OPEN by default: it is the receipt, the one
               card that answers "what is this page" (recorded on this date,
-              between these times). Everything else stays collapsed. The header
-              is the check-marked trust line on every page. */}
+              between these times). Everything else stays collapsed. The status
+              is the headline, the date and window the supporting line. */}
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
-            /* The receipt: a plain (non-collapsible) card, always open, so it
-               has no Close button — just the check badge and "BitGraph
-               Recorded" on the left. */
+            /* The receipt: a plain (non-collapsible) card, always open. The
+               status is the headline; the date and window are the supporting
+               line beneath. clamp() shrinks the headline to fit narrow phones
+               rather than overflow. */
             <Card title={(
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                </span>
-                <span>BitGraph Recorded</span>
+              <span style={{ display: "inline-block", fontSize: "clamp(21px, 6.4vw, 27px)", fontWeight: 700, color: "#111827", letterSpacing: "-0.01em", lineHeight: 1.15, textWrap: "balance" }}>
+                BitGraph Recorded
               </span>
             )}>
               {(recordedDate || recordedLine) && (
-                /* One centered statement: the date as a confident headline with
-                   the wall-clock window tight beneath it (no divider between
-                   them, they are one fact). When the anchor window straddles
-                   midnight recordedDate is null and each bound carries its own
-                   full date instead, so no single day is claimed over a span
-                   that crosses into the next. */
+                /* Supporting line under the headline: the date and wall-clock
+                   window on one line, values accented in blue and the connectors
+                   gray. Each date and time is an unbreakable unit, so on narrow
+                   phones the line wraps at the commas and connectors, never
+                   mid-value. When the window crosses midnight recordedDate is
+                   null and the full dated stamps stand in. */
                 <div style={{ padding: "0 24px 26px", textAlign: "center" }}>
-                  {recordedDate && (
-                    /* Written long ("July 1, 2026") so no locale reads it upside
-                       down; clamp() so it stays confident on desktop and fits
-                       phones without wrapping. */
-                    <div style={{ fontSize: "clamp(22px, 6vw, 26px)", fontWeight: 700, color: "#111827", lineHeight: 1.15, letterSpacing: "-0.01em" }}>
-                      {recordedDate}
-                    </div>
-                  )}
-                  {recordedLine && (
-                    <div style={{ fontSize: 15, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 9 : 0 }}>
-                      {leadNode ?? recordedNode ?? recordedLine}
-                    </div>
-                  )}
+                  <div style={{ fontSize: 15, lineHeight: 1.6, color: "#6b7280" }}>
+                    {recordedDate
+                      ? <><Em><span style={{ whiteSpace: "nowrap" }}>{recordedDate}</span></Em>, {leadNode}</>
+                      : (recordedNode ?? recordedLine)}
+                  </div>
                 </div>
               )}
             </Card>
