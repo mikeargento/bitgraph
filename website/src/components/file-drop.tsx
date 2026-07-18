@@ -22,6 +22,8 @@ interface FileDropProps {
   browseLabel?: string;
   /** Label for the capture link */
   captureLabel?: string;
+  /** Drop-zone headline (proof pages say "Take another BitGraph") */
+  headline?: string;
 }
 
 export function FileDrop({
@@ -39,6 +41,7 @@ export function FileDrop({
   showCapture,
   browseLabel = "browse",
   captureLabel = "take photo",
+  headline = "Take a BitGraph",
 }: FileDropProps) {
   const [dragover, setDragover] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -237,7 +240,7 @@ export function FileDrop({
               whiteSpace: "nowrap",
             }}
           >
-            Take a BitGraph
+            {headline}
           </div>
           <div>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.5">

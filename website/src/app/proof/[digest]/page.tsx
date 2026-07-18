@@ -606,7 +606,7 @@ export default function ProofPage() {
               value), so those are not echoed here; the Slot Hash remains as the
               cryptographic link binding this commit to that slot. With no slot
               card, they surface here so nothing is hidden. */}
-          <CollapsibleCard title="Commit">
+          <CollapsibleCard title="Artifact Commit">
             <Field label="Artifact Counter" value={`#${commit.counter}`} highlight />
             {!slot && commit.epochId && <Field label="Epoch ID" value={String(commit.epochId)} mono />}
             {commit.prevB64 && <Field label="Previous Hash" value={commit.prevB64} mono />}
@@ -665,7 +665,7 @@ export default function ProofPage() {
           {/* The title states the signing environment outright (the old vague
               "Environment" + Enforcement field pair), and the evidence — PCR0,
               attestation format, the verify action — is optional depth. */}
-          <CollapsibleCard title={isTee ? "Signed in a Hardware Enclave" : "Signed in Software"}>
+          <CollapsibleCard title={isTee ? "Hardware Enclave" : "Software"}>
             {proof.environment?.measurement && <Field label="PCR0 Measurement" value={proof.environment.measurement} mono />}
             {proof.environment?.attestation?.format && <Field label="Attestation Format" value={proof.environment.attestation.format} />}
             {proof.environment?.attestation?.reportB64 && proof.environment?.measurement && (

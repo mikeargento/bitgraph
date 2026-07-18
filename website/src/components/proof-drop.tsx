@@ -19,7 +19,7 @@ export function ProofDrop() {
     // .bitgraph-camera (globals.css) is the one drop-zone size shared with the
     // home page, so the camera reads as the same object on every page.
     <div className="bitgraph-camera" style={{ marginBottom: 28 }}>
-      <FileDrop multiple onFiles={onFiles} hint="Files already BitGraphed are looked up" />
+      <FileDrop multiple onFiles={onFiles} headline="Take another BitGraph" hint="Files already BitGraphed are looked up" />
     </div>
   );
 }
