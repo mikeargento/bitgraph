@@ -435,6 +435,14 @@ export default function ProofPage() {
       <style>{`
         @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
         @keyframes ethWaitPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+        /* Collapsible card header — explorer-row affordance: row tints on hover,
+           chevron button inverts to solid blue. */
+        .bg-collapse-head { transition: background .12s; }
+        .bg-collapse-chevron { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:34px; height:30px; color:#0065A4; font-size:18px; font-weight:600; line-height:1; border:1px solid #0065A4; border-radius:0; background:#fff; transition:background .15s, color .15s; }
+        @media (hover:hover) {
+          .bg-collapse-head:hover { background:#f3f5f7 !important; }
+          .bg-collapse-head:hover .bg-collapse-chevron { background:#0065A4; color:#fff; }
+        }
         /* Face-ID-style success: a green ring sweeps closed, then the checkmark
            draws itself, the whole badge springs in and fades away. Plays once
            on a freshly-recorded BitGraph. */
@@ -483,26 +491,10 @@ export default function ProofPage() {
           {/* The content itself sits first, right under the camera: the page
               certifies the photograph, so you see the subject before its
               paperwork. The match banner rides with it after an active check. */}
-          {!isEth && !isInterval && matchConfirmed && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
-              <span aria-hidden>✓</span> This file matches this BitGraph
-            </div>
-          )}
-          {/* The content slot: the BitGraphed file (collapsed, like every
-              card) when the bytes are in hand; the bring-your-file checker
-              when they are not. One slot, one of two states. */}
-          {!isEth && !isInterval && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
-            ? (
-              <CollapsibleCard title="BitGraphed File">
-                <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
-              </CollapsibleCard>
-            )
-            : (matchConfirmed ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
-
-          {/* Lead card. Collapsed like everything else EXCEPT when arriving
-              straight off a fresh recording, where it opens to show the live
-              sealing countdown. The header stays the check-marked trust
-              statement on every page (an anchor is a verified BitGraph too). */}
+          {/* Lead card first: the recording is the headline statement, the
+              file sits under it. Collapsed like every card; the header is the
+              check-marked trust line on every page (an anchor is a verified
+              BitGraph too). */}
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
             <CollapsibleCard title={(
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -524,6 +516,22 @@ export default function ProofPage() {
               <Field label="This BitGraph's Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
             </CollapsibleCard>
           )}
+
+          {/* The content slot, under the recording: the BitGraphed file
+              (collapsed) when the bytes are in hand; the bring-your-file
+              checker when they are not. The match banner rides with it. */}
+          {!isEth && !isInterval && matchConfirmed && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 18px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
+              <span aria-hidden>✓</span> This file matches this BitGraph
+            </div>
+          )}
+          {!isEth && !isInterval && (isDisplayableImage(cachedFile, cachedFile?.c2pa)
+            ? (
+              <CollapsibleCard title="BitGraphed File">
+                <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
+              </CollapsibleCard>
+            )
+            : (matchConfirmed ? null : <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />))}
 
           {/* 1. Slot — reserved first, before anything else */}
           {slot && (
@@ -834,19 +842,26 @@ function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactN
   const [open, setOpen] = useState(!!defaultOpen);
   return (
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
+      {/* The header is a full-row toggle with the same hover + outlined-button
+          affordance as the explorer rows: the row tints on hover and the
+          chevron button inverts to solid blue, so a collapsed card reads as
+          clearly clickable. */}
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        className="bg-collapse-head"
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
           fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4",
-          padding: "18px 24px", background: "rgba(0,101,164,0.04)",
+          padding: "18px 24px", background: open ? "rgba(0,101,164,0.04)" : "#fff",
           border: "none", borderBottom: open ? "1px solid #e2e5e9" : "none",
           cursor: "pointer", textAlign: "left", fontFamily: "inherit",
         }}
       >
         <span>{title}</span>
-        <span aria-hidden style={{ fontSize: 18, lineHeight: 1, fontWeight: 600, transform: open ? "rotate(90deg)" : "none", transition: "transform .15s", flexShrink: 0 }}>&#8250;</span>
+        <span className="bg-collapse-chevron" aria-hidden>
+          <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }}>&#8250;</span>
+        </span>
       </button>
       {open && <div className="proof-fields" style={{ padding: "4px 0", animation: "fadeIn .2s ease-out" }}>{children}</div>}
     </div>
