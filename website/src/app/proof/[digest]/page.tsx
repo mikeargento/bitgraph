@@ -521,7 +521,7 @@ export default function ProofPage() {
               is the file (digest = hash of the bytes). For an Ethereum anchor the
               artifact IS the block hash, so show it explicitly and label the
               digest as the SHA-256 of that block hash. */}
-          <CollapsibleCard title="Artifact">
+          <CollapsibleCard title="Artifact Hash">
             {isEth && attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
             <Field
               label={isEth && attr?.message
