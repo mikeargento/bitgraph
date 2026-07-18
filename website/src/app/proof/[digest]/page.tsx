@@ -515,7 +515,7 @@ export default function ProofPage() {
                   </div>
                 </div>
               )}
-              <Field label="Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
+              <Field label="This BitGraph's Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
             </Card>
           )}
 
@@ -708,10 +708,10 @@ export default function ProofPage() {
               as "Creator". */}
           {isInterval && (
             <CollapsibleCard title="Interval BitGraph">
-              {intervalBlockNum && <Field label="Ethereum block" value={`https://etherscan.io/block/${intervalBlockNum}`} link />}
-              {attr?.message && <Field label="Block hash" value={attr.message} mono />}
-              {intervalBegan && <Field label="Window began" value={intervalBegan} valueNode={intervalBeganNode} />}
-              {recordedLine && <Field label="Window ended" value={recordedLine} valueNode={recordedNode} />}
+              {intervalBlockNum && <Field label="Ethereum Block" value={`https://etherscan.io/block/${intervalBlockNum}`} link />}
+              {attr?.message && <Field label="Block Hash" value={attr.message} mono />}
+              {intervalBegan && <Field label="Window Began" value={intervalBegan} valueNode={intervalBeganNode} />}
+              {recordedLine && <Field label="Window Ended" value={recordedLine} valueNode={recordedNode} />}
             </CollapsibleCard>
           )}
 
