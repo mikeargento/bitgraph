@@ -523,18 +523,23 @@ export default function ProofPage() {
               </span>
             )}>
               {(recordedDate || recordedLine) && (
-                /* Supporting line under the headline: the date and wall-clock
-                   window on one line, values accented in blue and the connectors
-                   gray. Each date and time is an unbreakable unit, so on narrow
-                   phones the line wraps at the commas and connectors, never
+                /* Supporting lines under the headline: the date on its own line,
+                   the wall-clock window on the next, values accented in blue and
+                   the connectors gray. Each date and time is an unbreakable unit,
+                   so on narrow phones the window wraps at its connector, never
                    mid-value. When the window crosses midnight recordedDate is
-                   null and the full dated stamps stand in. */
+                   null and the full dated stamps stand in on the one line. */
                 <div style={{ padding: "0 24px 26px", textAlign: "center" }}>
-                  <div style={{ fontSize: 15, lineHeight: 1.6, color: "#6b7280" }}>
-                    {recordedDate
-                      ? <><Em><span style={{ whiteSpace: "nowrap" }}>{recordedDate}</span></Em>, {leadNode}</>
-                      : (recordedNode ?? recordedLine)}
-                  </div>
+                  {recordedDate && (
+                    <div style={{ fontSize: 15, lineHeight: 1.5, color: "#6b7280" }}>
+                      <Em><span style={{ whiteSpace: "nowrap" }}>{recordedDate}</span></Em>
+                    </div>
+                  )}
+                  {(recordedDate ? leadNode : (recordedNode ?? recordedLine)) && (
+                    <div style={{ fontSize: 15, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 5 : 0 }}>
+                      {recordedDate ? leadNode : (recordedNode ?? recordedLine)}
+                    </div>
+                  )}
                 </div>
               )}
             </Card>
@@ -692,12 +697,13 @@ export default function ProofPage() {
           {/* Ethereum Seal */}
           {/* Ethereum info — single card for both anchor proofs and user proofs */}
 
-          {/* BitGraphed After — the previous same-epoch anchor (lower time
-              bound). Renders anchorBefore, the earlier block: the proof was
-              witnessed AFTER this anchor. Shown above "BitGraphed Before" so the
-              pair reads as a window: after this block, before that one. */}
+          {/* "Recorded after this block" — the previous same-epoch anchor (lower
+              time bound). Renders anchorBefore, the earlier block: the BitGraph
+              was recorded AFTER this block. Shown above "Recorded before this
+              block" so the pair reads as a bracket: after this block, before
+              that one. */}
           {!isEth && causalWindow?.anchorBefore && (
-            <CollapsibleCard title="After Ethereum Block">
+            <CollapsibleCard title="Recorded after this block">
               {causalWindow.anchorBefore.blockNumber !== null && (
                 <Field label="Block" value={`#${causalWindow.anchorBefore.blockNumber.toLocaleString()}`} highlight />
               )}
@@ -732,7 +738,7 @@ export default function ProofPage() {
               only the file proof's sealing "Before" anchor renders — an anchor
               is the bracket, so it has no before/after window of its own. */}
           {!isEth && causalWindow?.anchorAfter ? (
-            <CollapsibleCard title="Before Ethereum Block">
+            <CollapsibleCard title="Recorded before this block">
               {causalWindow.anchorAfter.blockNumber !== null && (
                 <Field label="Block" value={`#${causalWindow.anchorAfter.blockNumber.toLocaleString()}`} highlight />
               )}
@@ -762,7 +768,7 @@ export default function ProofPage() {
               )}
             </CollapsibleCard>
           ) : !isEth && !isInterval ? (
-            <CollapsibleCard title="Before Ethereum Block">
+            <CollapsibleCard title="Recorded before the next block">
               <div style={{ padding: "18px 24px", fontSize: 14, color: "#6b7280" }}>
                 Awaiting next Ethereum block…
               </div>
