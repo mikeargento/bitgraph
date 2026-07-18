@@ -513,10 +513,13 @@ export default function ProofPage() {
               between these times). Everything else stays collapsed. The header
               is the check-marked trust line on every page. */}
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
-            <CollapsibleCard defaultOpen title={(
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            /* The receipt: a plain (non-collapsible) card, always open, so it
+               has no Close button — just the check badge and "BitGraph
+               Recorded" on the left. */
+            <Card title={(
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </span>
                 <span>BitGraph Recorded</span>
               </span>
@@ -536,7 +539,7 @@ export default function ProofPage() {
                 </div>
               )}
               <Field label="This BitGraph's Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
-            </CollapsibleCard>
+            </Card>
           )}
 
           {/* The content slot, one collapsible "BitGraphed File" card under the
@@ -583,7 +586,7 @@ export default function ProofPage() {
               is the file (digest = hash of the bytes). For an Ethereum anchor the
               artifact IS the block hash, so show it explicitly and label the
               digest as the SHA-256 of that block hash. */}
-          <CollapsibleCard title="Artifact Hash">
+          <CollapsibleCard title={!isEth && !isInterval ? "File Hash" : "Artifact Hash"}>
             {isEth && attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
             <Field
               label={isEth && attr?.message
