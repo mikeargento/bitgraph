@@ -531,7 +531,7 @@ export default function ProofPage() {
                    midnight recordedDate is null and each bound carries its own
                    full date instead, so no single day is claimed over a span
                    that crosses into the next. */
-                <div style={{ padding: "24px 24px 22px", borderBottom: "1px solid #e2e5e9", textAlign: "center" }}>
+                <div style={{ padding: "0 24px 26px", textAlign: "center" }}>
                   {recordedDate && (
                     /* Written long ("July 1, 2026") so no locale reads it upside
                        down; clamp() so it stays confident on desktop and fits
@@ -876,14 +876,12 @@ function Card({ title, children }: { title: React.ReactNode; accent?: string; ch
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
       <div style={{
         fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
-        color: "#0065A4", padding: "18px 24px",
-        background: "rgba(0,101,164,0.04)",
-        borderBottom: "1px solid #e2e5e9",
+        color: "#0065A4", padding: "26px 24px 12px",
         textAlign: "center",
       }}>
         {title}
       </div>
-      <div className="proof-fields" style={{ padding: "4px 0" }}>
+      <div className="proof-fields" style={{ padding: 0 }}>
         {children}
       </div>
     </div>
