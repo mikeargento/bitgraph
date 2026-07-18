@@ -508,12 +508,12 @@ export default function ProofPage() {
           {/* The content itself sits first, right under the camera: the page
               certifies the photograph, so you see the subject before its
               paperwork. The match banner rides with it after an active check. */}
-          {/* Lead card first: the recording is the headline statement, the
-              file sits under it. Collapsed like every card; the header is the
-              check-marked trust line on every page (an anchor is a verified
-              BitGraph too). */}
+          {/* Lead card first, and OPEN by default: it is the receipt, the one
+              card that answers "what is this page" (recorded on this date,
+              between these times). Everything else stays collapsed. The header
+              is the check-marked trust line on every page. */}
           {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
-            <CollapsibleCard title={(
+            <CollapsibleCard defaultOpen title={(
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 19, height: 19, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
