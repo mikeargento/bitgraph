@@ -544,7 +544,7 @@ export default function ProofPage() {
                line beneath. clamp() shrinks the headline to fit narrow phones
                rather than overflow. */
             <Card title={(
-              <span style={{ display: "inline-block", fontSize: "clamp(21px, 6.4vw, 27px)", fontWeight: 700, color: "#111827", letterSpacing: "-0.01em", lineHeight: 1.15, textWrap: "balance" }}>
+              <span style={{ display: "inline-block", fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, color: "#111827", letterSpacing: "-0.01em", lineHeight: 1.15, textWrap: "balance" }}>
                 BitGraph Recorded
               </span>
             )}>
@@ -908,7 +908,7 @@ function Card({ title, children }: { title: React.ReactNode; accent?: string; ch
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
       <div style={{
         fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
-        color: "#0065A4", padding: "34px 24px 18px",
+        color: "#0065A4", padding: "34px 24px 24px",
         textAlign: "center",
       }}>
         {title}
