@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
-import { ProofDrop } from "@/components/proof-drop";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
 import { zipSync, strToU8 } from "fflate";
@@ -555,9 +554,6 @@ export default function ProofPage() {
       )}
 
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
-
-        {/* The camera stays ready above the proof: drop the next file here. */}
-        <ProofDrop />
 
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
 

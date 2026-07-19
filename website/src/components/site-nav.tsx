@@ -24,7 +24,7 @@ export function SiteNav() {
             }
           }}
           style={{
-            fontSize: 24, fontWeight: 900, color: "#111827",
+            fontSize: 28, fontWeight: 900, color: "#111827",
             textDecoration: "none", letterSpacing: "-0.02em",
             WebkitTextStroke: "0.4px #111827",
           }}
