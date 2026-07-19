@@ -571,13 +571,13 @@ export default function ProofPage() {
                  red "BitGraphing" with a pulsing REC dot while the sealing anchor
                  is still pending, flipping to green "BitGraphed" with a check the
                  moment it lands (the ethWait poll re-renders this live). */
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, color: sealed ? "#059669" : "#dc2626", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: "clamp(24px, 7vw, 30px)", fontWeight: 700, color: sealed ? "#059669" : "#dc2626", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
                 {sealed ? (
-                  <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, background: "#059669", flexShrink: 0 }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999, background: "#059669", flexShrink: 0 }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                   </span>
                 ) : (
-                  <span aria-hidden style={{ display: "inline-flex", width: 20, height: 20, borderRadius: 999, background: "#dc2626", flexShrink: 0, animation: "ethWaitPulse 1.4s ease-in-out infinite" }} />
+                  <span aria-hidden style={{ display: "inline-flex", width: 26, height: 26, borderRadius: 999, background: "#dc2626", flexShrink: 0, animation: "ethWaitPulse 1.4s ease-in-out infinite" }} />
                 )}
                 {sealed ? "BitGraphed" : "BitGraphing"}
               </span>
