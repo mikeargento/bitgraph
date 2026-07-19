@@ -371,51 +371,37 @@ export default function ProofPage() {
     }
   }
 
-  // Stacked variant of the time window for the lead receipt: each timestamp on
-  // its own centered line, bigger, with the "between"/"and" connectors small and
-  // gray, so the window reads as a vertical bracket. Covers the two-sided window
-  // AND the one-sided states (still-open "waiting on Ethereum", or after-only),
-  // so the time value is the same 17px in every state. Ethereum-anchor lines
-  // fall back to the inline node in the card.
+  // The recording window renders as ONE horizontal line ("between VALUE and
+  // VALUE"), sized with a clamp so it stays a single line at every width and the
+  // card stays short. Connectors are gray labels; the values are the brand font
+  // in black, kept as unbreakable units. A cross-midnight window carries full
+  // date stamps, long enough to wrap at its connectors — fine for that rare case.
   let leadStack: React.ReactNode = null;
-  // The first connector's top margin separates the stack from the date line
-  // above it. When the window crosses midnight there is no date line (the dates
-  // ride on the timestamps), so the connector sits directly under the title and
-  // the full 22px reads as a gap; tighten it to 8px in that case.
-  const stackConn = (label: string, first: boolean) => (
-    <div style={{ fontSize: 13, color: "#111827", marginTop: first ? (recordedDate ? 22 : 8) : 10 }}>{label}</div>
-  );
-  const stackVal = (t: string, size = 17) => (
-    <div style={{ fontSize: size, color: "#111827", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
+  const conn = (label: string) => <span style={{ color: "#6b7280", fontWeight: 400 }}>{label}</span>;
+  const val = (t: string) => <span style={{ color: "#111827", fontWeight: 600, whiteSpace: "nowrap" }}>{t}</span>;
+  const winLine = (children: React.ReactNode) => (
+    <div style={{ fontSize: "clamp(11px, 3.15vw, 16px)", lineHeight: 1.7, color: "#6b7280", marginTop: recordedDate ? 14 : 4 }}>{children}</div>
   );
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
-    // An anchor's receipt reads with the same vertical bracket as a file's time
-    // window, so the two "BitGraph Recorded" cards share one shape and height:
-    // the block number and its Ethereum timestamp stack where "between/and"
-    // would sit, rather than collapsing to a single cramped inline line.
     const d = new Date(anchorBlock.blockTime);
-    leadStack = <>{stackConn("Ethereum block", true)}{stackVal(`#${Number(ethBlockNum).toLocaleString()}`)}{stackConn("at", false)}{stackVal(timeTz(d))}</>;
+    leadStack = winLine(<>{conn("Ethereum block ")}{val(`#${Number(ethBlockNum).toLocaleString()}`)}{conn(" at ")}{val(timeTz(d))}</>);
   } else if (!isEth && lowerTime) {
     if (upperTime) {
       const s1 = new Date(lowerTime), s2 = new Date(upperTime);
-      const sameDay = s1.toDateString() === s2.toDateString();
-      const fmt = sameDay ? timeTz : stampTz;
-      const size = sameDay ? 17 : 14;
-      leadStack = <>{stackConn("between", true)}{stackVal(fmt(s1), size)}{stackConn("and", false)}{stackVal(fmt(s2), size)}</>;
+      const fmt = s1.toDateString() === s2.toDateString() ? timeTz : stampTz;
+      leadStack = winLine(<>{conn("between ")}{val(fmt(s1))}{conn(" and ")}{val(fmt(s2))}</>);
     } else if (ethWait) {
       const s1 = new Date(lowerTime);
-      leadStack = (
+      leadStack = winLine(
         <>
-          {stackConn("between", true)}
-          {stackVal(timeTz(s1))}
-          {stackConn("and", false)}
-          <div style={{ fontSize: 15, color: "#6b7280", marginTop: 3, whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
+          {conn("between ")}{val(timeTz(s1))}{conn(" and ")}
+          <span style={{ color: "#6b7280", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
             waiting on Ethereum{ethWait.laps < 4 ? <span style={{ fontVariantNumeric: "tabular-nums" }}> · {ethWait.secs}s</span> : "…"}
-          </div>
+          </span>
         </>
       );
     } else {
-      leadStack = <>{stackConn("after", true)}{stackVal(timeTz(new Date(lowerTime)))}</>;
+      leadStack = winLine(<>{conn("after ")}{val(timeTz(new Date(lowerTime)))}</>);
     }
   }
 
