@@ -209,8 +209,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
         @keyframes xpBlink { 0%,100%{opacity:1} 50%{opacity:.25} }
         @keyframes xpIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
         @keyframes xpArrive { 0%{opacity:0;transform:translateY(-8px);background:#ecfdf5} 50%{opacity:1;transform:none;background:#ecfdf5} 100%{opacity:1;transform:none;background:transparent} }
-        .xp-row { display:flex; align-items:center; gap:12px; padding:14px 16px; border-top:1px solid #eef0f1; text-decoration:none; animation:xpIn .25s ease-out; transition:background .12s; }
-        .xp-row:first-child { border-top:none; }
+        .xp-row { display:flex; align-items:center; gap:12px; padding:14px 16px; background:#fff; border:1px solid #d0d5dd; text-decoration:none; animation:xpIn .25s ease-out; transition:background .12s; }
         /* Live arrivals only: a stronger slide plus a brief trust-green flash
            that ends fully transparent, so nothing tinted is left behind. */
         .xp-row-fresh { animation: xpArrive 1.4s ease-out; }
@@ -265,8 +264,10 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
       </form>
       {searchErr && <div style={{ marginBottom: 12, fontSize: 13, color: "#dc2626" }}>{searchErr}</div>}
 
-      {/* Stream — generic ledger rows; type and specifics live on the drill-in */}
-      <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
+      {/* Stream — generic ledger rows; type and specifics live on the drill-in.
+          Each row is its own bordered card with a gap between, so the Roll reads
+          as separate items rather than one dense table. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {loading && <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Reading the ledger…</div>}
         {error && !loading && <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Ledger unavailable right now.</div>}
 
