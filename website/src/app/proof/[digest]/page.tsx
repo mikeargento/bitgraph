@@ -380,8 +380,12 @@ export default function ProofPage() {
   // so the time value is the same 17px in every state. Ethereum-anchor lines
   // fall back to the inline node in the card.
   let leadStack: React.ReactNode = null;
+  // The first connector's top margin separates the stack from the date line
+  // above it. When the window crosses midnight there is no date line (the dates
+  // ride on the timestamps), so the connector sits directly under the title and
+  // the full 22px reads as a gap; tighten it to 8px in that case.
   const stackConn = (label: string, first: boolean) => (
-    <div style={{ fontSize: 13, color: "#6b7280", marginTop: first ? 22 : 10 }}>{label}</div>
+    <div style={{ fontSize: 13, color: "#6b7280", marginTop: first ? (recordedDate ? 22 : 8) : 10 }}>{label}</div>
   );
   const stackVal = (t: string, size = 17) => (
     <div style={{ fontSize: size, color: "#0065A4", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
