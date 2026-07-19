@@ -304,7 +304,7 @@ export default function ProofPage() {
   // The actual time/date values are emphasized in brand blue (the connector
   // words stay default gray), so the receipt's key temporal fact reads as the
   // focal point, consistent with how counters/block numbers are highlighted.
-  const emStyle: React.CSSProperties = { color: "#0065A4", fontWeight: 600 };
+  const emStyle: React.CSSProperties = { color: "#111827", fontWeight: 600 };
   const Em = ({ children }: { children: React.ReactNode }) => <span style={emStyle}>{children}</span>;
   if (isEth && ethBlockNum) {
     // An anchor is just a BitGraph (of an Ethereum block hash), so it reads
@@ -383,10 +383,10 @@ export default function ProofPage() {
   // ride on the timestamps), so the connector sits directly under the title and
   // the full 22px reads as a gap; tighten it to 8px in that case.
   const stackConn = (label: string, first: boolean) => (
-    <div style={{ fontSize: 13, color: "#6b7280", marginTop: first ? (recordedDate ? 22 : 8) : 10 }}>{label}</div>
+    <div style={{ fontSize: 13, color: "#111827", marginTop: first ? (recordedDate ? 22 : 8) : 10 }}>{label}</div>
   );
   const stackVal = (t: string, size = 17) => (
-    <div style={{ fontSize: size, color: "#0065A4", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
+    <div style={{ fontSize: size, color: "#111827", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
   );
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
     // An anchor's receipt reads with the same vertical bracket as a file's time
