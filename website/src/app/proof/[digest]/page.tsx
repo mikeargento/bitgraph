@@ -71,7 +71,6 @@ export default function ProofPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
-  const [matchConfirmed, setMatchConfirmed] = useState(false);
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
   const [anchorBlock, setAnchorBlock] = useState<{ blockNumber: number | null; blockTime: string | null; etherscanUrl: string | null } | null>(null);
@@ -607,13 +606,11 @@ export default function ProofPage() {
             <CollapsibleCard title="BitGraphed File">
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
-              ) : matchConfirmed ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "20px 24px", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
-                  <span aria-hidden>✓</span> This file matches this BitGraph
-                </div>
+              ) : cachedFile ? (
+                <FilePreview cachedFile={cachedFile} />
               ) : (
                 <div style={{ padding: 16 }}>
-                  <BringYourFile proof={proof} onMatch={(rec) => { setCachedFile(rec); setMatchConfirmed(true); }} />
+                  <BringYourFile proof={proof} onMatch={(rec) => setCachedFile(rec)} />
                 </div>
               )}
               {/* The fingerprint lives with the file: this SHA-256 IS the file's
@@ -1233,6 +1230,87 @@ function BringYourFile({
           <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ── General file preview — inside the BitGraphed File card, for the matched
+   file the visitor holds locally (never fetched from the server). Images go to
+   PhotoCard; this covers PDFs (native viewer in an iframe), text-like files
+   (decoded UTF-8 in a scroll box, rendered as escaped text so HTML/SVG shows as
+   source, never executes), and a plain "matches" note for binary types with no
+   safe inline preview. ── */
+
+// "%PDF-" magic bytes.
+function sniffPdf(buffer: ArrayBuffer): boolean {
+  const b = new Uint8Array(buffer.slice(0, 5));
+  return b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46 && b[4] === 0x2d;
+}
+
+// Heuristic: sample the head; a null byte or a run of control characters (other
+// than tab/newline/carriage-return) means binary, not previewable text.
+function looksLikeText(bytes: Uint8Array): boolean {
+  const n = Math.min(bytes.length, 4096);
+  if (n === 0) return true;
+  let bad = 0;
+  for (let i = 0; i < n; i++) {
+    const c = bytes[i];
+    if (c === 0) return false;
+    if (c < 9 || (c > 13 && c < 32)) bad++;
+  }
+  return bad / n < 0.05;
+}
+
+function FilePreview({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffer } }) {
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [text, setText] = useState<string | null>(null);
+  const [truncated, setTruncated] = useState(false);
+  const isPdf = /\.pdf$/i.test(cachedFile.name) || sniffPdf(cachedFile.data);
+
+  useEffect(() => {
+    setPdfUrl(null); setText(null); setTruncated(false);
+    if (isPdf) {
+      const url = URL.createObjectURL(new Blob([new Uint8Array(cachedFile.data)], { type: "application/pdf" }));
+      setPdfUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    const bytes = new Uint8Array(cachedFile.data);
+    if (looksLikeText(bytes)) {
+      // Cap the decoded slice so a huge log/JSON does not lock up the tab.
+      const CAP = 200 * 1024;
+      setText(new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, CAP)));
+      setTruncated(bytes.length > CAP);
+    }
+  }, [cachedFile, isPdf]);
+
+  if (isPdf) {
+    return (
+      <div style={{ padding: 16 }}>
+        {pdfUrl && (
+          <iframe title={cachedFile.name} src={pdfUrl} style={{ width: "100%", height: 520, border: "1px solid #d0d5dd", background: "#fff" }} />
+        )}
+      </div>
+    );
+  }
+
+  if (text != null) {
+    return (
+      <div style={{ padding: 16 }}>
+        <pre style={{
+          margin: 0, maxHeight: 520, overflow: "auto",
+          background: "#fafbfd", border: "1px solid #d0d5dd", borderRadius: 0,
+          padding: "12px 14px", fontSize: 12.5, lineHeight: 1.55,
+          whiteSpace: "pre-wrap", wordBreak: "break-word", color: "#111827",
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        }}>{text}{truncated ? "\n\n… (preview truncated)" : ""}</pre>
+      </div>
+    );
+  }
+
+  // Binary type with no safe inline preview: confirm the match and stop.
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "20px 24px", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
+      <span aria-hidden>✓</span> This file matches this BitGraph
     </div>
   );
 }
