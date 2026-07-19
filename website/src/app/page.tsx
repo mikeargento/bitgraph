@@ -745,8 +745,11 @@ export default function BitGraphPage() {
                   single proof. */}
               {/* clamp scales the count down on narrow screens so a 4-5 digit
                   count ("12,345 of 12,345 BitGraphs Recorded") stays on one line,
-                  while desktop keeps the 24px that matches the receipt headline. */}
-              <div style={{ fontSize: "clamp(16px, 4.5vw, 24px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "0.92em 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  while desktop keeps the 24px that matches the receipt headline.
+                  alignSelf:center + the column's stretch default let the card hug
+                  its text and center, so the headline fills the card the same at
+                  every width instead of stranding in a full-width band on desktop. */}
+              <div style={{ fontSize: "clamp(16px, 4.5vw, 24px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "0.92em 28px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center", alignSelf: "center" }}>
                 <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
                   {animCount} of {items.length} BitGraphs Recorded
                 </span>
