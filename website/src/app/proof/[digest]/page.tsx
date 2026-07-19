@@ -382,7 +382,7 @@ export default function ProofPage() {
   let leadStack: React.ReactNode = null;
   if (!isEth && lowerTime) {
     const stackConn = (label: string, first: boolean) => (
-      <div style={{ fontSize: 13, color: "#6b7280", marginTop: first ? 12 : 10 }}>{label}</div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginTop: first ? 22 : 10 }}>{label}</div>
     );
     const stackVal = (t: string, size = 17) => (
       <div style={{ fontSize: size, color: "#0065A4", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
@@ -576,7 +576,7 @@ export default function ProofPage() {
                    null and the full dated stamps stand in on the one line. */
                 <div style={{ padding: "0 24px 34px", textAlign: "center" }}>
                   {recordedDate && (
-                    <div style={{ fontSize: 17, lineHeight: 1.3, color: "#0065A4", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: "clamp(20px, 6vw, 24px)", lineHeight: 1.15, color: "#111827", fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
                       {recordedDate}
                     </div>
                   )}
@@ -927,7 +927,7 @@ function Card({ title, children }: { title: React.ReactNode; accent?: string; ch
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
       <div style={{
         fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
-        color: "#0065A4", padding: "34px 24px 24px",
+        color: "#0065A4", padding: "34px 24px 8px",
         textAlign: "center",
       }}>
         {title}
