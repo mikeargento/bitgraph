@@ -283,10 +283,6 @@ export default function ProofPage() {
   // (upper bound) — see the naming note on the BitGraphed After/Before cards.
   const lowerTime = causalWindow?.anchorBefore?.blockTime;
   const upperTime = causalWindow?.anchorAfter?.blockTime;
-  // Sealed once the backward Ethereum anchor lands (or the proof is itself an
-  // anchor / interval, inherently past): the anti-backdating seal is in. Until
-  // then it is still "BitGraphing" — committed, but not yet sealed on Ethereum.
-  const sealed = isEth || isInterval || !!upperTime;
   let recordedLine: string | null = null;
   // Optional pre-formatted node so the Ethereum-anchor line breaks cleanly
   // between the block and its time (one line on desktop, time drops to line 2
@@ -565,19 +561,16 @@ export default function ProofPage() {
                absent from exported/older proofs (bitgraph/1 on-the-wire schema),
                so gating on it silently dropped the receipt for those. */
             <Card title={(
-              /* Status mark + word track the seal state, matched in color:
-                 red "BitGraphing" with a pulsing REC dot while the sealing anchor
-                 is still pending, flipping to brand blue "BitGraphed" with a check
-                 the moment it lands (the ethWait poll re-renders this live). */
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: "clamp(24px, 7vw, 30px)", fontWeight: 700, color: sealed ? "#0065A4" : "#dc2626", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
-                {sealed ? (
-                  <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  </span>
-                ) : (
-                  <span aria-hidden style={{ display: "inline-flex", width: 26, height: 26, borderRadius: 999, background: "#dc2626", flexShrink: 0, animation: "ethWaitPulse 1.4s ease-in-out infinite" }} />
-                )}
-                {sealed ? "BitGraphed" : "BitGraphing"}
+              /* The recording is instant: the moment the file is committed the
+                 receipt reads "BitGraphed" with a check. Whether the sealing
+                 Ethereum anchor has landed yet is carried by the window line
+                 below ("waiting on Ethereum…"), not by withholding the check, so
+                 creating a BitGraph never looks slow. */
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: "clamp(24px, 7vw, 30px)", fontWeight: 700, color: "#0065A4", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
+                <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </span>
+                BitGraphed
               </span>
             )}>
               {(recordedDate || recordedLine) && (
