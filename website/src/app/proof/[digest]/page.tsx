@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
-import { timeTz, stampTz } from "@/lib/format-time";
+import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 // QR code removed — replaced with Ethereum Seal card
 
@@ -388,8 +388,12 @@ export default function ProofPage() {
   } else if (!isEth && lowerTime) {
     if (upperTime) {
       const s1 = new Date(lowerTime), s2 = new Date(upperTime);
-      const fmt = s1.toDateString() === s2.toDateString() ? timeTz : stampTz;
-      leadStack = winLine(<>{conn("between ")}{val(fmt(s1))}{conn(" and ")}{val(fmt(s2))}</>);
+      const sameDay = s1.toDateString() === s2.toDateString();
+      // One shared zone per phrase: the opening time drops the zone, the closing
+      // time carries it ("between 12:00:59 AM and 12:01:11 AM EDT").
+      const fmtOpen = sameDay ? timeNoTz : stampNoTz;
+      const fmtClose = sameDay ? timeTz : stampTz;
+      leadStack = winLine(<>{conn("between ")}{val(fmtOpen(s1))}{conn(" and ")}{val(fmtClose(s2))}</>);
     } else if (ethWait) {
       const s1 = new Date(lowerTime);
       leadStack = winLine(

@@ -13,3 +13,10 @@ export const timeTz = (d: Date) => d.toLocaleTimeString(undefined, TZ);
 
 /** "7/15/2026, 12:02:47 PM EDT" */
 export const stampTz = (d: Date) => d.toLocaleString(undefined, TZ);
+
+/** "12:02:47 PM" — no zone, for the OPENING time in a two-time phrase (the
+ *  closing time carries the one shared zone). */
+export const timeNoTz = (d: Date) => d.toLocaleTimeString();
+
+/** "7/15/2026, 12:02:47 PM" — no zone, opening stamp of a two-stamp phrase. */
+export const stampNoTz = (d: Date) => d.toLocaleString();
