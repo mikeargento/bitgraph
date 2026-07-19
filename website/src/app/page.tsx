@@ -128,6 +128,11 @@ export default function BitGraphPage() {
 
   const found = items.filter(i => i.status === "found" || i.status === "proved");
   const unproven = items.filter(i => i.status === "new");
+  // Only files that actually have a BitGraph get a row (plus errors, so a
+  // failure is never silent). A not-yet-recorded file is not a BitGraph, so it
+  // is represented by the count banner and the "BitGraph N remaining" button,
+  // never a blank pending row.
+  const shown = items.filter(i => i.status === "found" || i.status === "proved" || i.status === "error");
   const allDone = items.length > 0 && items.every(i => i.status === "found" || i.status === "proved");
   // Exactly what the .zip bundles (each file + its proof.json + the ETH anchors).
   const zipCount = items.filter(i => i.proof).length;
@@ -711,8 +716,19 @@ export default function BitGraphPage() {
                 />
               </div>
 
+              {/* Status headline first: how many of the dropped files are on
+                  record. Sized to match the proof page's receipt so a multi-file
+                  result carries the same authority as a single proof; font capped
+                  at 18px so it is no bigger on desktop than mobile and still fits
+                  a 4-5 digit count on one line. */}
+              <div style={{ fontSize: "clamp(16px, 4.5vw, 18px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "0.92em 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
+                  {animCount} of {items.length} BitGraphs Recorded
+                </span>
+              </div>
+
               {/* Actions — the BitGraph-remaining CTA (while files are unproven),
-                  then Download. The count is the header of the list card below. */}
+                  then Download. Sits under the count headline, above the list. */}
               <div className="bitgraph-actions">
                 {unproven.length > 0 && (
                   <button onClick={proveRemaining} style={{ ...btnFill, background: "var(--c-accent)", color: "#ffffff" }}>
@@ -732,34 +748,18 @@ export default function BitGraphPage() {
                 )}
               </div>
 
-              {/* File list: a count banner, then one card per file separated by
-                  a gap so each file's set of BitGraphs reads as a distinct
-                  block. Within a card, recordings share hairline separators;
-                  the gap between cards is the file boundary. 10px matches the
-                  explorer/Roll row gap, so every openable-card surface spaces
-                  its cards identically. */}
+              {/* File list: one card per file separated by a gap so each file's
+                  set of BitGraphs reads as a distinct block. Within a card,
+                  recordings share hairline separators; the gap between cards is
+                  the file boundary. 10px matches the explorer/Roll row gap, so
+                  every openable-card surface spaces its cards identically. */}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {/* 16px horizontal padding matches the file cards below, so the
-                  banner text and card headers share one left edge. */}
-              {/* The count reads as a headline, sized and weighted to match the
-                  proof page's "BitGraph Recorded" receipt (white card, big text),
-                  so a multi-file result carries the same visual authority as a
-                  single proof. */}
-              {/* Font capped low (18px) so it is NOT bigger on desktop than on
-                  mobile: clamp(16,4.5vw,18) lands ~17px on a phone and ~18px on a
-                  wide screen, essentially the same size at every width, and still
-                  fits a 4-5 digit count on one line. */}
-              <div style={{ fontSize: "clamp(16px, 4.5vw, 18px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "0.92em 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
-                  {animCount} of {items.length} BitGraphs Recorded
-                </span>
-              </div>
-              {items.map((item, i) => {
+              {shown.map((item, i) => {
                 // One row per BitGraph. Chronological, ORIGINAL first: a
                 // file's card reads as its provenance story (first existed at
                 // #N, recorded again at #M), so the earliest causal position
-                // leads and carries the "original" mark. A file with no proof
-                // yet renders one pending row.
+                // leads and carries the "original" mark. Pending files are not
+                // listed here; an errored file shows a single row.
                 const rowProofs: Array<BitGraphProof | null> =
                   item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
                 const openProof = (p: BitGraphProof) => {
@@ -838,14 +838,22 @@ export default function BitGraphPage() {
                         ? <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
                         : pendingLabel}
                     </span>
-                    {/* Every recording row carries the outcome word; when the
-                        same bytes hold several positions, a grey count places
-                        the row in the sequence and the earliest is marked as
-                        the original recording. Filename stays on the first
-                        row only. */}
+                    {/* A file already in the ledger reads "on record" (it was
+                        recorded before, so it is sealed). A just-recorded file
+                        has no wall-clock time to show and is not yet anchored, so
+                        its honest "when" is the sealing state: a pulsing "waiting
+                        on Ethereum…" that resolves to the anchored window on the
+                        proof page. When the same bytes hold several positions, a
+                        grey count places the row in the sequence. */}
                     {outcome && (
                       <span style={{ flexShrink: 0, fontSize: 12, whiteSpace: "nowrap" }}>
-                        <span style={{ fontWeight: 700, color: outcome.color }}>{outcome.word}</span>
+                        {item.status === "proved" ? (
+                          <span style={{ fontWeight: 400, color: "#6b7280", animation: "pulse 1.6s ease-in-out infinite" }}>
+                            waiting on Ethereum…
+                          </span>
+                        ) : (
+                          <span style={{ fontWeight: 700, color: outcome.color }}>{outcome.word}</span>
+                        )}
                         {rowProofs.length > 1 && (
                           <span style={{ fontWeight: 400, color: "#6b7280" }}>
                             {` · ${k + 1} of ${rowProofs.length}${k === 0 ? " · original" : ""}`}
