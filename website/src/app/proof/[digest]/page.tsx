@@ -570,17 +570,17 @@ export default function ProofPage() {
                    mid-value. When the window crosses midnight recordedDate is
                    null and the full dated stamps stand in on the one line. */
                 <div style={{ padding: "0 24px 34px", textAlign: "center" }}>
-                  {recordedDate && (
-                    <div style={{ fontSize: "clamp(20px, 6vw, 24px)", lineHeight: 1.15, color: "#0065A4", fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
-                      {recordedDate}
-                    </div>
-                  )}
                   {leadStack ?? (
                     (recordedDate ? leadNode : (recordedNode ?? recordedLine)) ? (
                       <div style={{ fontSize: 14, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 9 : 0 }}>
                         {recordedDate ? leadNode : (recordedNode ?? recordedLine)}
                       </div>
                     ) : null
+                  )}
+                  {recordedDate && (
+                    <div style={{ fontSize: "clamp(20px, 6vw, 24px)", lineHeight: 1.15, color: "#0065A4", fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap", marginTop: 14 }}>
+                      {recordedDate}
+                    </div>
                   )}
                 </div>
               )}
