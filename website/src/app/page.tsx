@@ -304,16 +304,11 @@ export default function BitGraphPage() {
     setItems(results);
     setStep("results");
 
-    // Animate the count
-    const total = results.filter(r => r.status === "found").length;
-    if (total > 0) {
-      let c = 0;
-      const interval = setInterval(() => {
-        c++;
-        setAnimCount(c);
-        if (c >= total) clearInterval(interval);
-      }, Math.min(150, 600 / total));
-    }
+    // Show the count directly, no per-tick animation. The old setInterval
+    // ticked the number up one at a time, and each tick re-rendered the whole
+    // results list; for a large drop (1000+) that looked hung near the end and
+    // took far too long. The final number just appears.
+    setAnimCount(results.filter(r => r.status === "found").length);
   }
 
   /* ── Prove unproven files ── */
@@ -397,13 +392,10 @@ export default function BitGraphPage() {
     setStep("results");
     startAnchorCountdown();
 
-    const newTotal = items.filter(i => i.status === "found").length + toProve.length;
-    let c = items.filter(i => i.status === "found").length;
-    const interval = setInterval(() => {
-      c++;
-      setAnimCount(c);
-      if (c >= newTotal) clearInterval(interval);
-    }, Math.min(150, 600 / toProve.length));
+    // Show the final count directly (see the note in handleFiles): the per-tick
+    // animation re-rendered the whole list each increment and dragged on large
+    // drops.
+    setAnimCount(items.filter(i => i.status === "found").length + toProve.length);
   }
 
   /* ── Export zip with ETH anchors ── */
@@ -754,7 +746,7 @@ export default function BitGraphPage() {
               {/* clamp scales the count down on narrow screens so a 4-5 digit
                   count ("12,345 of 12,345 BitGraphs Recorded") stays on one line,
                   while desktop keeps the 24px that matches the receipt headline. */}
-              <div style={{ fontSize: "clamp(16px, 4.5vw, 24px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "22px 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ fontSize: "clamp(16px, 4.5vw, 24px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "0.92em 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
                   {animCount} of {items.length} BitGraphs Recorded
                 </span>
@@ -858,13 +850,11 @@ export default function BitGraphPage() {
                         )}
                       </span>
                     )}
-                    {k === 0 ? (
-                      <span className="bg-row-name" style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: "#111827", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {item.file.name}
-                      </span>
-                    ) : (
-                      <span style={{ flex: 1 }} />
-                    )}
+                    {/* Spacer pushes Open to the right edge. The filename is
+                        intentionally not shown: each row is one BitGraph, named
+                        by its # position, and dropping the name keeps the row on
+                        one line at every width. */}
+                    <span style={{ flex: 1 }} />
                     {clickable && (
                       <span className="bitgraph-open-pill">
                         Open
