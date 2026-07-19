@@ -582,7 +582,7 @@ export default function ProofPage() {
                     ) : null
                   )}
                   {recordedDate && (
-                    <div style={{ fontSize: "clamp(20px, 6vw, 24px)", lineHeight: 1.15, color: "#0065A4", fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap", marginTop: 14 }}>
+                    <div style={{ fontSize: "clamp(20px, 6vw, 24px)", lineHeight: 1.15, color: "#111827", fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap", marginTop: 14 }}>
                       {recordedDate}
                     </div>
                   )}
