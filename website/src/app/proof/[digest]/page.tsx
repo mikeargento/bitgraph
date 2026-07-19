@@ -380,13 +380,20 @@ export default function ProofPage() {
   // so the time value is the same 17px in every state. Ethereum-anchor lines
   // fall back to the inline node in the card.
   let leadStack: React.ReactNode = null;
-  if (!isEth && lowerTime) {
-    const stackConn = (label: string, first: boolean) => (
-      <div style={{ fontSize: 13, color: "#6b7280", marginTop: first ? 22 : 10 }}>{label}</div>
-    );
-    const stackVal = (t: string, size = 17) => (
-      <div style={{ fontSize: size, color: "#0065A4", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
-    );
+  const stackConn = (label: string, first: boolean) => (
+    <div style={{ fontSize: 13, color: "#6b7280", marginTop: first ? 22 : 10 }}>{label}</div>
+  );
+  const stackVal = (t: string, size = 17) => (
+    <div style={{ fontSize: size, color: "#0065A4", fontWeight: 600, marginTop: 3, whiteSpace: "nowrap" }}>{t}</div>
+  );
+  if (isEth && ethBlockNum && anchorBlock?.blockTime) {
+    // An anchor's receipt reads with the same vertical bracket as a file's time
+    // window, so the two "BitGraph Recorded" cards share one shape and height:
+    // the block number and its Ethereum timestamp stack where "between/and"
+    // would sit, rather than collapsing to a single cramped inline line.
+    const d = new Date(anchorBlock.blockTime);
+    leadStack = <>{stackConn("Ethereum block", true)}{stackVal(`#${Number(ethBlockNum).toLocaleString()}`)}{stackConn("at", false)}{stackVal(timeTz(d))}</>;
+  } else if (!isEth && lowerTime) {
     if (upperTime) {
       const s1 = new Date(lowerTime), s2 = new Date(upperTime);
       const sameDay = s1.toDateString() === s2.toDateString();
