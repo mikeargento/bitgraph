@@ -552,6 +552,9 @@ export default function ProofPage() {
 
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
 
+        {/* The camera stays ready above the proof: drop the next file here. */}
+        <ProofDrop />
+
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24 }}>
 
           {/* The content itself sits first: the page
@@ -908,10 +911,6 @@ export default function ProofPage() {
             </div>
           )}
         </div>
-
-        {/* The camera, waiting at the end: you read the proof, save it, then go
-            again. Compact so the receipt above stays the hero of the page. */}
-        <ProofDrop />
 
       </div>
     </Shell>
