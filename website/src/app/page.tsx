@@ -751,12 +751,7 @@ export default function BitGraphPage() {
                   proof page's "BitGraph Recorded" receipt (white card, big text),
                   so a multi-file result carries the same visual authority as a
                   single proof. */}
-              <div style={{ fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "22px 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", gap: 10 }}>
-                {allDone && (
-                  <span key={`badge-${items.length}`} aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 999, background: "#0065A4", flexShrink: 0, animation: "countPop 0.4s ease-out both" }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" style={{ strokeDasharray: 26, animation: "checkDraw 0.35s ease-out 0.18s both" }} /></svg>
-                  </span>
-                )}
+              <div style={{ fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "22px 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center" }}>
                 <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
                   {animCount} of {items.length} {allDone ? "BitGraphed" : "found"}
                 </span>
