@@ -31,6 +31,10 @@ interface FileItem {
   proofs: BitGraphProof[];
   valid: boolean | null;
   status: "found" | "new" | "proving" | "proved" | "error";
+  // Seal time (ISO) once the anchor after this recording lands: a freshly
+  // recorded row shows "waiting on Ethereum…" until this is filled in, then the
+  // recorded time. Only set for just-recorded ("proved") rows.
+  recordedTime?: string | null;
   // True when this item came from a dropped proof.json rather than an artifact.
   // The `file` in hand is then the JSON, not the thing the proof is about, so we
   // offer an inline check to confirm the visitor holds the matching artifact.
@@ -86,6 +90,47 @@ export default function BitGraphPage() {
   useEffect(() => {
     return () => { cancelAnimationFrame(rafRef.current); };
   }, []);
+
+  // Resolve the "waiting on Ethereum…" state on just-recorded rows so they do
+  // not hang. A fresh recording is committed but not yet anchored; its honest
+  // "when" is the sealing anchor. The whole batch is sealed by the first anchor
+  // after its highest counter, so we poll that one position and, once its upper
+  // anchor lands, stamp every recorded row with the seal time (they share it).
+  // Gives up after 5 minutes (an idle TEE anchors slowly); the row then simply
+  // stays "waiting on Ethereum…" and the proof page shows the exact window.
+  useEffect(() => {
+    if (step !== "results") return;
+    const pending = items.filter(
+      (it) => it.status === "proved" && !it.recordedTime && it.proof?.commit?.counter != null
+    );
+    if (pending.length === 0) return;
+    const target = pending.reduce((a, b) =>
+      Number(a.proof!.commit!.counter) >= Number(b.proof!.commit!.counter) ? a : b
+    );
+    const digest = toUrlSafeB64(target.proof!.artifact.digestB64);
+    const counter = String(target.proof!.commit!.counter);
+    const epoch = target.proof!.commit!.epochId ? toUrlSafeB64(target.proof!.commit!.epochId) : "";
+    let cancelled = false;
+    const poll = setInterval(async () => {
+      try {
+        const qs = new URLSearchParams({ counter });
+        if (epoch) qs.set("epoch", epoch);
+        const r = await fetch(`/api/proofs/digest/${digest}?${qs.toString()}`);
+        if (!r.ok) return;
+        const data = await r.json();
+        const sealedAt = data?.causalWindow?.anchorAfter?.blockTime;
+        if (!cancelled && sealedAt) {
+          setItems((prev) =>
+            prev.map((it) =>
+              it.status === "proved" && !it.recordedTime ? { ...it, recordedTime: sealedAt } : it
+            )
+          );
+        }
+      } catch { /* transient; the next tick retries */ }
+    }, 5000);
+    const stop = setTimeout(() => clearInterval(poll), 5 * 60_000);
+    return () => { cancelled = true; clearInterval(poll); clearTimeout(stop); };
+  }, [step, items]);
 
   // Files dropped on a proof page's camera strip arrive via the pending-drop
   // slot: pick them up on mount and run the normal drop flow.
@@ -763,10 +808,10 @@ export default function BitGraphPage() {
                 const rowProofs: Array<BitGraphProof | null> =
                   item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
                 const openProof = (p: BitGraphProof) => {
-                  // Same-tab navigation (the camera strip on the proof page keeps the
-                  // flow going). Use the proof's digest (from TEE) for the URL, not the
-                  // browser-computed hash; ?counter=&epoch= pins THIS row's causal
-                  // position.
+                  // Same-tab navigation: the recordings also live in the explorer/
+                  // Roll, so leaving this page loses nothing. Use the proof's digest
+                  // (from TEE) for the URL, not the browser-computed hash;
+                  // ?counter=&epoch= pins THIS row's causal position.
                   const proofDigest = p.artifact.digestB64;
                   const c = p.commit?.counter;
                   const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
@@ -775,9 +820,7 @@ export default function BitGraphPage() {
                   // background; the client-side push keeps this JS context alive and
                   // the proof page polls IndexedDB, so navigation never waits on the
                   // ~6 MB C2PA toolkit. For a dropped proof.json the file in hand is
-                  // the JSON, not the artifact, so only cache a real file: a regular
-                  // dropped artifact, or one the visitor matched via the inline check
-                  // below.
+                  // the JSON, not the artifact, so only cache a real file.
                   const artifactFile = item.fromProofJson ? item.matchedFile : item.file;
                   if (artifactFile) {
                     void cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
@@ -848,9 +891,15 @@ export default function BitGraphPage() {
                     {outcome && (
                       <span style={{ flexShrink: 0, fontSize: 12, whiteSpace: "nowrap" }}>
                         {item.status === "proved" ? (
-                          <span style={{ fontWeight: 400, color: "#6b7280", animation: "pulse 1.6s ease-in-out infinite" }}>
-                            waiting on Ethereum…
-                          </span>
+                          item.recordedTime ? (
+                            <span style={{ fontWeight: 400, color: "#6b7280" }}>
+                              {new Date(item.recordedTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                            </span>
+                          ) : (
+                            <span style={{ fontWeight: 400, color: "#6b7280", animation: "pulse 1.6s ease-in-out infinite" }}>
+                              waiting on Ethereum…
+                            </span>
+                          )
                         ) : (
                           <span style={{ fontWeight: 700, color: outcome.color }}>{outcome.word}</span>
                         )}
