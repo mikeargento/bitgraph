@@ -389,16 +389,17 @@ export default function ProofPage() {
     if (upperTime) {
       const s1 = new Date(lowerTime), s2 = new Date(upperTime);
       const sameDay = s1.toDateString() === s2.toDateString();
-      // One shared zone per phrase: the opening time drops the zone, the closing
-      // time carries it ("between 12:00:59 AM and 12:01:11 AM EDT").
+      // A "→" separates the window ("12:00:59 AM → 12:01:11 AM EDT"): forward in
+      // time, one causal direction. One shared zone per phrase, so the opening
+      // time drops the zone and the closing time carries it.
       const fmtOpen = sameDay ? timeNoTz : stampNoTz;
       const fmtClose = sameDay ? timeTz : stampTz;
-      leadStack = winLine(<>{conn("between ")}{val(fmtOpen(s1))}{conn(" and ")}{val(fmtClose(s2))}</>);
+      leadStack = winLine(<>{val(fmtOpen(s1))}{conn(" → ")}{val(fmtClose(s2))}</>);
     } else if (ethWait) {
       const s1 = new Date(lowerTime);
       leadStack = winLine(
         <>
-          {conn("between ")}{val(timeTz(s1))}{conn(" and ")}
+          {val(timeTz(s1))}{conn(" → ")}
           <span style={{ color: "#6b7280", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
             waiting on Ethereum{ethWait.laps < 4 ? <span style={{ fontVariantNumeric: "tabular-nums" }}> · {ethWait.secs}s</span> : "…"}
           </span>
