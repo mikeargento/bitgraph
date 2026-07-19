@@ -599,26 +599,25 @@ export default function ProofPage() {
           )}
 
           {/* The content slot, one collapsible "BitGraphed File" card under the
-              recording. Its body is the image when the bytes are in hand, a
-              matched note once a non-image file has been checked, or the dotted
-              bring-your-file dropzone when no file is present. */}
+              recording. Its body is the image when the bytes are in hand, the
+              dotted bring-your-file dropzone when no file is present, or nothing
+              (just the hash below) for a matched non-image file. */}
           {!isEth && !isInterval && (
             <CollapsibleCard title="BitGraphed File">
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
-              ) : cachedFile ? (
-                <FilePreview cachedFile={cachedFile} />
-              ) : (
+              ) : !cachedFile ? (
                 <div style={{ padding: 16 }}>
                   <BringYourFile proof={proof} onMatch={(rec) => setCachedFile(rec)} />
                 </div>
-              )}
+              ) : null}
               {/* The fingerprint lives with the file: this SHA-256 IS the file's
-                  pre-existing identity, so it sits with the file it belongs to
-                  rather than as its own step in the construction sequence. In
-                  the no-file state above it is also the value a dropped file is
+                  pre-existing identity. For a non-image file it is the whole
+                  content of the card — no preview, just the hash. The top border
+                  only shows when there is content above it (image or dropzone).
+                  In the no-file state it is also the value a dropped file is
                   checked against. */}
-              <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
+              <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder={isDisplayableImage(cachedFile, cachedFile?.c2pa) || !cachedFile} />
             </CollapsibleCard>
           )}
 
@@ -1230,93 +1229,6 @@ function BringYourFile({
           <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
         </>
       )}
-    </div>
-  );
-}
-
-/* ── General file preview — inside the BitGraphed File card, for the matched
-   file the visitor holds locally (never fetched from the server). Images go to
-   PhotoCard; this covers PDFs (native viewer in an iframe), text-like files
-   (decoded UTF-8 in a scroll box, rendered as escaped text so HTML/SVG shows as
-   source, never executes), and a plain "matches" note for binary types with no
-   safe inline preview. ── */
-
-// "%PDF-" magic bytes.
-function sniffPdf(buffer: ArrayBuffer): boolean {
-  const b = new Uint8Array(buffer.slice(0, 5));
-  return b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46 && b[4] === 0x2d;
-}
-
-// Heuristic: sample the head; a null byte or a run of control characters (other
-// than tab/newline/carriage-return) means binary, not previewable text.
-function looksLikeText(bytes: Uint8Array): boolean {
-  const n = Math.min(bytes.length, 4096);
-  if (n === 0) return true;
-  let bad = 0;
-  for (let i = 0; i < n; i++) {
-    const c = bytes[i];
-    if (c === 0) return false;
-    if (c < 9 || (c > 13 && c < 32)) bad++;
-  }
-  return bad / n < 0.05;
-}
-
-function FilePreview({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffer } }) {
-  const [text, setText] = useState<string | null>(null);
-  const [truncated, setTruncated] = useState(false);
-  const isPdf = /\.pdf$/i.test(cachedFile.name) || sniffPdf(cachedFile.data);
-
-  useEffect(() => {
-    setText(null); setTruncated(false);
-    if (isPdf) return;
-    const bytes = new Uint8Array(cachedFile.data);
-    if (looksLikeText(bytes)) {
-      // Cap the decoded slice so a huge log/JSON does not lock up the tab.
-      const CAP = 200 * 1024;
-      setText(new TextDecoder("utf-8", { fatal: false }).decode(bytes.subarray(0, CAP)));
-      setTruncated(bytes.length > CAP);
-    }
-  }, [cachedFile, isPdf]);
-
-  if (isPdf) {
-    // Open PDFs in the browser's own viewer in a new tab instead of embedding.
-    // An inline PDF iframe scrolled/pushed the rest of the page around (it took
-    // the receipt out of view); a click-to-open link keeps the proof page stable
-    // and still shows the full document. Blob URL is minted per click.
-    return (
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12, alignItems: "flex-start" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
-          <span aria-hidden>✓</span> This file matches this BitGraph
-        </div>
-        <button
-          type="button"
-          onClick={() => window.open(URL.createObjectURL(new Blob([new Uint8Array(cachedFile.data)], { type: "application/pdf" })), "_blank", "noopener")}
-          style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 18px", fontSize: 14, fontWeight: 600, color: "#0065A4", background: "#f4f6f9", border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer" }}
-        >
-          Open PDF ↗
-        </button>
-      </div>
-    );
-  }
-
-  if (text != null) {
-    return (
-      <div style={{ padding: 16 }}>
-        <pre style={{
-          margin: 0, maxHeight: 520, overflow: "auto",
-          background: "#fafbfd", border: "1px solid #d0d5dd", borderRadius: 0,
-          padding: "12px 14px", fontSize: 12.5, lineHeight: 1.55,
-          whiteSpace: "pre-wrap", wordBreak: "break-word", color: "#111827",
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-        }}>{text}{truncated ? "\n\n… (preview truncated)" : ""}</pre>
-      </div>
-    );
-  }
-
-  // Binary type with no safe inline preview: confirm the match and stop.
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "20px 24px", color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
-      <span aria-hidden>✓</span> This file matches this BitGraph
     </div>
   );
 }
