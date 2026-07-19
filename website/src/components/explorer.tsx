@@ -50,7 +50,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   // Anchors are the clock ticking, not the photos: hidden by default so the
   // roll reads as files. The toggle refetches; ?files=1 lets the server skip
   // anchor objects via the anchors/{epoch}/ index instead of GETting each.
-  const [showAnchors, setShowAnchors] = useState(false);
+  const [showAnchors, setShowAnchors] = useState(true);
 
   const busyRef = useRef(false);
   const topRef = useRef(0);
