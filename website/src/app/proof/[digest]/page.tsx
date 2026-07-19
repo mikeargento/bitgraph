@@ -56,13 +56,6 @@ export default function ProofPage() {
   const params = useParams();
   const digestParam = params.digest as string;
 
-  // Guarantee a proof always opens at the top. Client-side navigations (landing
-  // from the explorer/home, or digest -> digest) can otherwise carry the
-  // previous page's scroll position over; full-load links (between causal
-  // positions) and direct URLs already reset via the browser.
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [digestParam]);
   const [proof, setProof] = useState<BitGraphProof | null>(null);
   const [causalWindow, setCausalWindow] = useState<{
     anchorBefore: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null } | null;

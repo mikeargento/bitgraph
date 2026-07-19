@@ -41,6 +41,7 @@ export const metadata: Metadata = {
 };
 
 import { SiteNav } from "@/components/site-nav";
+import { ScrollToTop } from "@/components/scroll-to-top";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
       </head>
       <body style={{ fontFamily: "acumin-pro, -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif", margin: 0 }}>
+        <ScrollToTop />
         <SiteNav />
         <main>{children}</main>
       </body>
