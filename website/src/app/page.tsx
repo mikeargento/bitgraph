@@ -751,7 +751,10 @@ export default function BitGraphPage() {
                   proof page's "BitGraph Recorded" receipt (white card, big text),
                   so a multi-file result carries the same visual authority as a
                   single proof. */}
-              <div style={{ fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "22px 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {/* clamp scales the count down on narrow screens so a 4-5 digit
+                  count ("12,345 of 12,345 BitGraphs Recorded") stays on one line,
+                  while desktop keeps the 24px that matches the receipt headline. */}
+              <div style={{ fontSize: "clamp(16px, 4.5vw, 24px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "22px 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
                   {animCount} of {items.length} BitGraphs Recorded
                 </span>
