@@ -46,9 +46,6 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
 
-  const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [searchErr, setSearchErr] = useState("");
 
   // Anchors are the clock ticking, not the photos: hidden by default so the
   // roll reads as files. The toggle refetches; ?files=1 lets the server skip
@@ -61,29 +58,6 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   const feedUrl = useCallback((before?: number | null) =>
     `/api/explorer?${showAnchors ? "" : "files=1"}${before != null ? `${showAnchors ? "" : "&"}before=${before}` : ""}`,
   [showAnchors]);
-
-  // Jump to a BitGraph by number (#614589 / 614,589) or by hash. One round-trip
-  // to /api/search, which only returns a link once the proof is retrievable, so
-  // it can never bounce to "Proof not found".
-  const onSearch = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = query.trim();
-    if (!q || searching) return;
-    setSearchErr("");
-    setSearching(true);
-    try {
-      const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      const j = await r.json();
-      // ?counter= selects the exact causal position when the same bytes were
-      // BitGraphed more than once (a hash search omits it: earliest wins).
-      if (j.found && j.digest) window.location.assign(`/proof/${encodeURIComponent(j.digest)}${j.counter ? `?counter=${encodeURIComponent(j.counter)}` : ""}`);
-      else setSearchErr("No BitGraph found for that number or hash.");
-    } catch {
-      setSearchErr("Search failed, try again.");
-    } finally {
-      setSearching(false);
-    }
-  }, [query, searching]);
 
   // Initial load, re-run when the anchors toggle flips the feed mode. A cold
   // request can be slow while the endpoint discovers the epoch head, so retry
@@ -224,13 +198,13 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
         }
       `}</style>
 
-      {/* Heading row: the page's title with the anchors toggle beside it, so
-          the control reads as a property of the Roll itself. Anchors hidden
-          by default: the roll shows the photos, not the clock. */}
+      {/* Heading row: the title stays left, the anchors toggle sits at the far
+          right, so the control reads as a property of the Roll itself. Anchors
+          hidden by default: the roll shows the photos, not the clock. */}
       {title != null && (
-        <div style={{ display: "flex", alignItems: "baseline", gap: 28, marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
           {title}
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#6b7280", cursor: "pointer", userSelect: "none" }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#6b7280", cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
             <input
               type="checkbox"
               checked={showAnchors}
@@ -241,28 +215,6 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           </label>
         </div>
       )}
-
-      {/* Search — jump to any BitGraph by its number or hash */}
-      <form onSubmit={onSearch} style={{ display: "flex", gap: 8, marginBottom: searchErr ? 6 : 12 }}>
-        <input
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); if (searchErr) setSearchErr(""); }}
-          placeholder="BitGraph number or file hash"
-          aria-label="Search BitGraphs by number or file hash"
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-          style={{ flex: 1, minWidth: 0, height: 44, padding: "0 14px", border: "1px solid #d0d5dd", borderRadius: 0, fontSize: 14, background: "#fff", color: "#111827", outline: "none" }}
-        />
-        <button
-          type="submit"
-          disabled={searching || !query.trim()}
-          style={{ height: 44, padding: "0 20px", border: "none", borderRadius: 0, background: "#0065A4", color: "#fff", fontSize: 14, fontWeight: 600, cursor: searching || !query.trim() ? "default" : "pointer", opacity: searching ? 0.55 : 1, flexShrink: 0, letterSpacing: "-0.01em" }}
-        >
-          {searching ? "…" : "Search"}
-        </button>
-      </form>
-      {searchErr && <div style={{ marginBottom: 12, fontSize: 13, color: "#dc2626" }}>{searchErr}</div>}
 
       {/* Stream — generic ledger rows; type and specifics live on the drill-in.
           Each row is its own bordered card with a gap between, so the Roll reads
