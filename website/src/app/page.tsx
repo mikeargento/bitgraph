@@ -753,7 +753,7 @@ export default function BitGraphPage() {
                   single proof. */}
               <div style={{ fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "22px 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center" }}>
                 <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
-                  {animCount} of {items.length} {allDone ? "BitGraphed" : "found"}
+                  {animCount} of {items.length} BitGraphed
                 </span>
               </div>
               {items.map((item, i) => {
