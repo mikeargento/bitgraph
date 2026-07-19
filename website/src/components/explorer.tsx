@@ -204,14 +204,17 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
       {title != null && (
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
           {title}
+          {/* Framed as "Hide anchors" (checked by default): the raw ledger feed
+              is mostly Ethereum anchors, so hiding them is the normal state and
+              the toggle's job is to keep the Roll showing photos, not the clock. */}
           <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#6b7280", cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
             <input
               type="checkbox"
-              checked={showAnchors}
-              onChange={(ev) => setShowAnchors(ev.target.checked)}
+              checked={!showAnchors}
+              onChange={(ev) => setShowAnchors(!ev.target.checked)}
               style={{ accentColor: "#0065A4", width: 13, height: 13 }}
             />
-            Show anchors
+            Hide anchors
           </label>
         </div>
       )}
