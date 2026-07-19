@@ -572,7 +572,7 @@ export default function ProofPage() {
                absent from exported/older proofs (bitgraph/1 on-the-wire schema),
                so gating on it silently dropped the receipt for those. */
             <Card title={(
-              <span style={{ display: "inline-block", fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, color: "#111827", letterSpacing: "-0.01em", lineHeight: 1.15, textWrap: "balance" }}>
+              <span style={{ display: "inline-block", fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, color: "#0065A4", letterSpacing: "-0.01em", lineHeight: 1.15, textWrap: "balance" }}>
                 BitGraph Recorded
               </span>
             )}>
@@ -585,7 +585,7 @@ export default function ProofPage() {
                    null and the full dated stamps stand in on the one line. */
                 <div style={{ padding: "0 24px 34px", textAlign: "center" }}>
                   {recordedDate && (
-                    <div style={{ fontSize: "clamp(20px, 6vw, 24px)", lineHeight: 1.15, color: "#111827", fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: "clamp(20px, 6vw, 24px)", lineHeight: 1.15, color: "#0065A4", fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
                       {recordedDate}
                     </div>
                   )}
