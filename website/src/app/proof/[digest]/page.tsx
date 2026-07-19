@@ -563,7 +563,12 @@ export default function ProofPage() {
                absent from exported/older proofs (bitgraph/1 on-the-wire schema),
                so gating on it silently dropped the receipt for those. */
             <Card title={(
-              <span style={{ display: "inline-block", fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, color: "#0065A4", letterSpacing: "-0.01em", lineHeight: 1.15, textWrap: "balance" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, color: "#0065A4", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
+                {/* Blue circle check: this proof is on the ledger. Matches the
+                    blue status title so the receipt keeps one accent color. */}
+                <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </span>
                 BitGraph Recorded
               </span>
             )}>
