@@ -109,21 +109,19 @@ export default function ProofPage() {
   // A fresh recording arrives with only its lower bound: the sealing anchor
   // hasn't been mined yet. Instead of a static "after X" line, poll the same
   // endpoint until the upper anchor lands, then fill the window in place, no
-  // refresh. The visible countdown mirrors the 12s anchor cadence; if anchors
-  // are running slow (idle TEE) the number stops after a few laps and only the
-  // quiet waiting line stays. The poll gives up after 5 minutes and the line
-  // falls back to the honest static "after X on DATE".
-  const [ethWait, setEthWait] = useState<{ secs: number; laps: number } | null>(null);
+  // refresh. We show a quiet pulsing "waiting on Ethereum…" rather than a
+  // seconds countdown: the client has no ETA for the next anchor (the cadence
+  // is ~12s only when the TEE is live, up to an hour when idle), so any number
+  // would be counting toward nothing real. The poll gives up after 5 minutes
+  // and the line falls back to the honest static "after X on DATE".
+  const [ethWait, setEthWait] = useState(false);
   useEffect(() => {
     const attrName = (proof?.attribution as { name?: string } | undefined)?.name || "";
     const needUpper = !!proof && !attrName.startsWith("Ethereum") && attrName !== "Interval" &&
       !!causalWindow?.anchorBefore?.blockTime && !causalWindow?.anchorAfter?.blockTime;
-    if (!needUpper) { setEthWait(null); return; }
+    if (!needUpper) { setEthWait(false); return; }
     let cancelled = false;
-    setEthWait({ secs: 12, laps: 0 });
-    const tick = setInterval(() => {
-      setEthWait((w) => (w ? (w.secs > 1 ? { secs: w.secs - 1, laps: w.laps } : { secs: 12, laps: w.laps + 1 }) : w));
-    }, 1000);
+    setEthWait(true);
     const poll = setInterval(async () => {
       try {
         const qs = new URLSearchParams(window.location.search);
@@ -140,8 +138,8 @@ export default function ProofPage() {
         }
       } catch { /* transient; next poll retries */ }
     }, 4000);
-    const stop = setTimeout(() => { clearInterval(tick); clearInterval(poll); if (!cancelled) setEthWait(null); }, 5 * 60_000);
-    return () => { cancelled = true; clearInterval(tick); clearInterval(poll); clearTimeout(stop); };
+    const stop = setTimeout(() => { clearInterval(poll); if (!cancelled) setEthWait(false); }, 5 * 60_000);
+    return () => { cancelled = true; clearInterval(poll); clearTimeout(stop); };
   }, [proof, causalWindow?.anchorBefore?.blockTime, causalWindow?.anchorAfter?.blockTime, digestParam]);
 
   // Nav visible on proof pages
@@ -357,14 +355,14 @@ export default function ProofPage() {
     recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}`;
     recordedDate = longDate(t1);
     if (ethWait) {
-      // The window is still open: show it as "between X and <waiting>", with a
-      // countdown paced to the 12s anchor cadence. When the sealing anchor
-      // lands, the poll above swaps in the real end time without a refresh.
+      // The window is still open: show it as "between X and <waiting>". When the
+      // sealing anchor lands, the poll above swaps in the real end time without a
+      // refresh. No seconds count: the next anchor has no client-known ETA.
       recordedNode = (
         <>
           between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and{" "}
           <span style={{ color: "#6b7280", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
-            waiting on Ethereum{ethWait.laps < 4 ? <span style={{ fontVariantNumeric: "tabular-nums" }}> · {ethWait.secs}s</span> : "…"}
+            waiting on Ethereum…
           </span>
         </>
       );
@@ -405,7 +403,7 @@ export default function ProofPage() {
         <>
           {val(timeTz(s1))}{conn(" → ")}
           <span style={{ color: "#6b7280", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
-            waiting on Ethereum{ethWait.laps < 4 ? <span style={{ fontVariantNumeric: "tabular-nums" }}> · {ethWait.secs}s</span> : "…"}
+            waiting on Ethereum…
           </span>
         </>
       );
