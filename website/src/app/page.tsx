@@ -798,11 +798,11 @@ export default function BitGraphPage() {
                 // another position". (A filename-header + indented-rows tier
                 // was tried and looked like a different species of card.)
                 const proofCount = item.proofs.length || (item.proof ? 1 : 0);
-                // One gesture, two outcomes, told by color: a file that was
-                // already in the ledger is a CHECK (trust green, "on record");
-                // one recorded just now is a RECORD (brand blue, "recorded").
+                // One gesture, two outcomes, told by the word (both rails brand
+                // blue): a file already in the ledger is a CHECK ("on record");
+                // one recorded just now is a RECORD ("recorded").
                 const outcome =
-                  item.status === "found" ? { color: "#10b981", word: "on record" }
+                  item.status === "found" ? { color: "#0065A4", word: "on record" }
                   : item.status === "proved" ? { color: "#0065A4", word: "recorded" }
                   : null;
                 return (

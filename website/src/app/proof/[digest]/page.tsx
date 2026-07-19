@@ -507,7 +507,7 @@ export default function ProofPage() {
           .bg-collapse-head:hover { background:#f3f5f7 !important; }
           .bg-collapse-head:hover .bg-collapse-btn { background:#0065A4; color:#fff; }
         }
-        /* Face-ID-style success: a green ring sweeps closed, then the checkmark
+        /* Face-ID-style success: a brand-blue ring sweeps closed, then the checkmark
            draws itself, the whole badge springs in and fades away. Plays once
            on a freshly-recorded BitGraph. */
         @keyframes fidScrim { 0%{opacity:0} 15%{opacity:1} 78%{opacity:1} 100%{opacity:0} }
@@ -567,11 +567,11 @@ export default function ProofPage() {
             <Card title={(
               /* Status mark + word track the seal state, matched in color:
                  red "BitGraphing" with a pulsing REC dot while the sealing anchor
-                 is still pending, flipping to green "BitGraphed" with a check the
-                 moment it lands (the ethWait poll re-renders this live). */
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: "clamp(24px, 7vw, 30px)", fontWeight: 700, color: sealed ? "#059669" : "#dc2626", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
+                 is still pending, flipping to brand blue "BitGraphed" with a check
+                 the moment it lands (the ethWait poll re-renders this live). */
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: "clamp(24px, 7vw, 30px)", fontWeight: 700, color: sealed ? "#0065A4" : "#dc2626", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
                 {sealed ? (
-                  <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999, background: "#059669", flexShrink: 0 }}>
+                  <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                   </span>
                 ) : (
@@ -1629,10 +1629,10 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               {/* Overall status */}
               <div style={{
                 padding: "14px 18px", marginBottom: 16, borderRadius: 0,
-                background: result.valid ? "#f0fdf4" : "#fef2f2",
-                border: `1px solid ${result.valid ? "#bbf7d0" : "#fecaca"}`,
+                background: result.valid ? "#f0f6ff" : "#fef2f2",
+                border: `1px solid ${result.valid ? "#bfdbfe" : "#fecaca"}`,
               }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: result.valid ? "#22c55e" : "#dc2626" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: result.valid ? "#0065A4" : "#dc2626" }}>
                   {result.valid ? "Attestation Verified" : "Verification Failed"}
                 </div>
                 <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
@@ -1646,7 +1646,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               <div style={{ marginBottom: 18 }}>
                 {result.checks.map((c, i) => (
                   <div key={i} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: i < result.checks.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                    <span style={{ fontSize: 16, color: c.pass ? "#22c55e" : "#dc2626", flexShrink: 0 }}>{c.pass ? "✓" : "✗"}</span>
+                    <span style={{ fontSize: 16, color: c.pass ? "#0065A4" : "#dc2626", flexShrink: 0 }}>{c.pass ? "✓" : "✗"}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{c.name}</div>
                       <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, wordBreak: "break-all" }}>{c.detail}</div>

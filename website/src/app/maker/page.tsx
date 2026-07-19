@@ -426,7 +426,7 @@ export default function MakerPage() {
                       <div style={{
                         width: `${(makeProgress.current / makeProgress.total) * 100}%`,
                         height: "100%", borderRadius: 2,
-                        background: "#34d399", transition: "width 0.2s ease",
+                        background: "#0065A4", transition: "width 0.2s ease",
                       }} />
                     </div>
                     <div style={{ fontSize: 12, color: "var(--c-text-tertiary)", fontFamily: "monospace" }}>
@@ -811,7 +811,7 @@ function LedgerRow({ entry, isLast, viewMode }: { entry: ProofEntry; isLast: boo
             onMouseLeave={(e) => { e.currentTarget.style.opacity = "0"; }}
           >
             {copiedDigest ? (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
             ) : (
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
             )}
@@ -1000,7 +1000,7 @@ function LedgerDetailField({ label, value, mono }: { label: string; value: strin
     }}>
       <span style={{ color: "var(--c-text-tertiary)", fontSize: 12 }}>{label}</span>
       <span style={{
-        color: mono ? "#34d399" : "var(--c-text)",
+        color: mono ? "#0065A4" : "var(--c-text)",
         fontFamily: mono ? "var(--font-mono), 'SF Mono', SFMono-Regular, monospace" : "inherit",
         fontSize: mono ? 12 : 13,
         textAlign: "right" as const, maxWidth: "60%",

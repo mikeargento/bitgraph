@@ -182,9 +182,9 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
       <style>{`
         @keyframes xpBlink { 0%,100%{opacity:1} 50%{opacity:.25} }
         @keyframes xpIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
-        @keyframes xpArrive { 0%{opacity:0;transform:translateY(-8px);background:#ecfdf5} 50%{opacity:1;transform:none;background:#ecfdf5} 100%{opacity:1;transform:none;background:transparent} }
+        @keyframes xpArrive { 0%{opacity:0;transform:translateY(-8px);background:#f0f6ff} 50%{opacity:1;transform:none;background:#f0f6ff} 100%{opacity:1;transform:none;background:transparent} }
         .xp-row { display:flex; align-items:center; gap:12px; padding:14px 16px; background:#fff; border:1px solid #d0d5dd; text-decoration:none; animation:xpIn .25s ease-out; transition:background .12s; }
-        /* Live arrivals only: a stronger slide plus a brief trust-green flash
+        /* Live arrivals only: a stronger slide plus a brief brand-blue flash
            that ends fully transparent, so nothing tinted is left behind. */
         .xp-row-fresh { animation: xpArrive 1.4s ease-out; }
         /* Interval rows: a violet wash plus a violet left rail so they read as
@@ -248,8 +248,8 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
               {/* Just-landed rows only; expires ~30s after first render, same
                   green as the live-arrival flash. */}
               {newIds.has(e.counter) && (
-                <span style={{ flexShrink: 0, fontSize: 12, color: "#10b981", fontWeight: 700, whiteSpace: "nowrap" }}>
-                  new!
+                <span style={{ flexShrink: 0, fontSize: 12, color: "#0065A4", fontWeight: 700, whiteSpace: "nowrap" }}>
+                  (New)
                 </span>
               )}
               <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
