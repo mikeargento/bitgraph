@@ -735,8 +735,10 @@ export default function BitGraphPage() {
               {/* File list: a count banner, then one card per file separated by
                   a gap so each file's set of BitGraphs reads as a distinct
                   block. Within a card, recordings share hairline separators;
-                  the gap between cards is the file boundary. */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  the gap between cards is the file boundary. 10px matches the
+                  explorer/Roll row gap, so every openable-card surface spaces
+                  its cards identically. */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {/* 16px horizontal padding matches the file cards below, so the
                   banner text and card headers share one left edge. */}
               {/* The count reads as a headline, sized and weighted to match the
