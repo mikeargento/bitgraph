@@ -1262,18 +1262,13 @@ function looksLikeText(bytes: Uint8Array): boolean {
 }
 
 function FilePreview({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffer } }) {
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
   const isPdf = /\.pdf$/i.test(cachedFile.name) || sniffPdf(cachedFile.data);
 
   useEffect(() => {
-    setPdfUrl(null); setText(null); setTruncated(false);
-    if (isPdf) {
-      const url = URL.createObjectURL(new Blob([new Uint8Array(cachedFile.data)], { type: "application/pdf" }));
-      setPdfUrl(url);
-      return () => URL.revokeObjectURL(url);
-    }
+    setText(null); setTruncated(false);
+    if (isPdf) return;
     const bytes = new Uint8Array(cachedFile.data);
     if (looksLikeText(bytes)) {
       // Cap the decoded slice so a huge log/JSON does not lock up the tab.
@@ -1284,11 +1279,22 @@ function FilePreview({ cachedFile }: { cachedFile: { name: string; data: ArrayBu
   }, [cachedFile, isPdf]);
 
   if (isPdf) {
+    // Open PDFs in the browser's own viewer in a new tab instead of embedding.
+    // An inline PDF iframe scrolled/pushed the rest of the page around (it took
+    // the receipt out of view); a click-to-open link keeps the proof page stable
+    // and still shows the full document. Blob URL is minted per click.
     return (
-      <div style={{ padding: 16 }}>
-        {pdfUrl && (
-          <iframe title={cachedFile.name} src={pdfUrl} style={{ width: "100%", height: 520, border: "1px solid #d0d5dd", background: "#fff" }} />
-        )}
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#16a34a", fontSize: 14, fontWeight: 700 }}>
+          <span aria-hidden>✓</span> This file matches this BitGraph
+        </div>
+        <button
+          type="button"
+          onClick={() => window.open(URL.createObjectURL(new Blob([new Uint8Array(cachedFile.data)], { type: "application/pdf" })), "_blank", "noopener")}
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 44, padding: "0 18px", fontSize: 14, fontWeight: 600, color: "#0065A4", background: "#f4f6f9", border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer" }}
+        >
+          Open PDF ↗
+        </button>
       </div>
     );
   }
