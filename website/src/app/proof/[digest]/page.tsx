@@ -563,11 +563,14 @@ export default function ProofPage() {
               card that answers "what is this page" (recorded on this date,
               between these times). Everything else stays collapsed. The status
               is the headline, the date and window the supporting line. */}
-          {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
+          {((proof as BitGraphProof & { proofHash?: string }).proofHash || recordedDate || recordedLine) && (
             /* The receipt: a plain (non-collapsible) card, always open. The
                status is the headline; the date and window are the supporting
                line beneath. clamp() shrinks the headline to fit narrow phones
-               rather than overflow. */
+               rather than overflow. Gated on the recording info it shows, NOT on
+               proofHash: proofHash is added by the ledger at write time and is
+               absent from exported/older proofs (bitgraph/1 on-the-wire schema),
+               so gating on it silently dropped the receipt for those. */
             <Card title={(
               <span style={{ display: "inline-block", fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, color: "#111827", letterSpacing: "-0.01em", lineHeight: 1.15, textWrap: "balance" }}>
                 BitGraph Recorded
