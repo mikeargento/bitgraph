@@ -285,6 +285,10 @@ export default function ProofPage() {
   // (upper bound) — see the naming note on the BitGraphed After/Before cards.
   const lowerTime = causalWindow?.anchorBefore?.blockTime;
   const upperTime = causalWindow?.anchorAfter?.blockTime;
+  // Sealed once the backward Ethereum anchor lands (or the proof is itself an
+  // anchor / interval, inherently past): the anti-backdating seal is in. Until
+  // then it is still "BitGraphing" — committed, but not yet sealed on Ethereum.
+  const sealed = isEth || isInterval || !!upperTime;
   let recordedLine: string | null = null;
   // Optional pre-formatted node so the Ethereum-anchor line breaks cleanly
   // between the block and its time (one line on desktop, time drops to line 2
@@ -563,13 +567,19 @@ export default function ProofPage() {
                absent from exported/older proofs (bitgraph/1 on-the-wire schema),
                so gating on it silently dropped the receipt for those. */
             <Card title={(
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, color: "#0065A4", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
-                {/* Blue circle check: this proof is on the ledger. Matches the
-                    blue status title so the receipt keeps one accent color. */}
-                <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                </span>
-                BitGraph Recorded
+              /* Status mark + word track the seal state, matched in color:
+                 red "BitGraphing" with a pulsing REC dot while the sealing anchor
+                 is still pending, flipping to green "BitGraphed" with a check the
+                 moment it lands (the ethWait poll re-renders this live). */
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 9, fontSize: "clamp(20px, 6vw, 24px)", fontWeight: 700, color: sealed ? "#059669" : "#dc2626", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
+                {sealed ? (
+                  <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, background: "#059669", flexShrink: 0 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  </span>
+                ) : (
+                  <span aria-hidden style={{ display: "inline-flex", width: 20, height: 20, borderRadius: 999, background: "#dc2626", flexShrink: 0, animation: "ethWaitPulse 1.4s ease-in-out infinite" }} />
+                )}
+                {sealed ? "BitGraphed" : "BitGraphing"}
               </span>
             )}>
               {(recordedDate || recordedLine) && (
