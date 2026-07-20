@@ -369,7 +369,7 @@ export default function ProofPage() {
   // date stamps, long enough to wrap at its connectors — fine for that rare case.
   let leadStack: React.ReactNode = null;
   const conn = (label: string) => <span style={{ color: "#6b7280", fontWeight: 400 }}>{label}</span>;
-  const val = (t: string) => <span style={{ color: "#111827", fontWeight: 600, whiteSpace: "nowrap" }}>{t}</span>;
+  const val = (t: string) => <span style={{ color: "#111827", fontWeight: 400, whiteSpace: "nowrap" }}>{t}</span>;
   const winLine = (children: React.ReactNode) => (
     <div style={{ fontSize: 14, lineHeight: 1.5, color: "#6b7280", textAlign: "right" }}>{children}</div>
   );
@@ -391,18 +391,16 @@ export default function ProofPage() {
       leadStack = winLine(<>{val(fmtOpen(s1))}{conn(" → ")}{val(fmtClose(s2))}</>);
     } else if (ethWait) {
       const s1 = new Date(lowerTime);
-      // Not sealed yet. Instead of "waiting on Ethereum…" (wider than a real
-      // timestamp, so it stretched the window and wrapped on mobile), flash a
-      // placeholder in the exact shape of the eventual close time: same digits
-      // blanked to "_", same AM/PM and zone. In the mono font it is character-
-      // for-character the same width as the real time, so nothing moves or wraps
-      // when the anchor lands and fills it in.
-      const placeholder = timeTz(s1).replace(/\d/g, "_");
+      // Not sealed yet: the close time is unknown. Show the open time and a
+      // pulsing ellipsis for the pending close ("11:04:35 PM → …") rather than a
+      // full-width timestamp placeholder — short enough that date + time stay on
+      // one line while waiting (no wrap). When the anchor lands the close fills
+      // in; on mobile it then drops to its own line, a one-time reflow at seal.
       leadStack = winLine(
         <>
           {val(timeTz(s1))}{conn(" → ")}
-          <span style={{ color: "#9ca3af", fontWeight: 600, whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
-            {placeholder}
+          <span style={{ color: "#9ca3af", fontWeight: 400, whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
+            …
           </span>
         </>
       );
@@ -562,7 +560,7 @@ export default function ProofPage() {
               shows, not on proofHash (which is absent from exported/older
               proofs). */}
           {(recordedDate || recordedLine || leadStack) && (
-            <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, padding: "18px 24px", display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 16px" }}>
+            <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, minHeight: 68, padding: "14px 24px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 16px" }}>
               {recordedDate && (
                 <div style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
                   {recordedDate}
