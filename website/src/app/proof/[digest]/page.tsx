@@ -371,7 +371,7 @@ export default function ProofPage() {
   const conn = (label: string) => <span style={{ color: "#6b7280", fontWeight: 400 }}>{label}</span>;
   const val = (t: string) => <span style={{ color: "#111827", fontWeight: 600, whiteSpace: "nowrap" }}>{t}</span>;
   const winLine = (children: React.ReactNode) => (
-    <div style={{ fontSize: "clamp(11px, 3.15vw, 16px)", lineHeight: 1.7, color: "#6b7280", marginTop: recordedDate ? 14 : 4 }}>{children}</div>
+    <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#6b7280", textAlign: "right" }}>{children}</div>
   );
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
     const d = new Date(anchorBlock.blockTime);
@@ -541,54 +541,34 @@ export default function ProofPage() {
           {/* The content itself sits first: the page
               certifies the photograph, so you see the subject before its
               paperwork. The match banner rides with it after an active check. */}
-          {/* Lead card first, and OPEN by default: it is the receipt, the one
-              card that answers "what is this page" (recorded on this date,
-              between these times). Everything else stays collapsed. The status
-              is the headline, the date and window the supporting line. */}
-          {((proof as BitGraphProof & { proofHash?: string }).proofHash || recordedDate || recordedLine) && (
-            /* The receipt: a plain (non-collapsible) card, always open. The
-               status is the headline; the date and window are the supporting
-               line beneath. clamp() shrinks the headline to fit narrow phones
-               rather than overflow. Gated on the recording info it shows, NOT on
-               proofHash: proofHash is added by the ledger at write time and is
-               absent from exported/older proofs (bitgraph/1 on-the-wire schema),
-               so gating on it silently dropped the receipt for those. */
-            <Card title={(
-              /* The recording is instant: the moment the file is committed the
-                 receipt reads "BitGraphed" with a check. Whether the sealing
-                 Ethereum anchor has landed yet is carried by the window line
-                 below ("waiting on Ethereum…"), not by withholding the check, so
-                 creating a BitGraph never looks slow. */
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: "clamp(24px, 7vw, 30px)", fontWeight: 700, color: "#0065A4", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
-                <span aria-hidden style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 999, background: "#0065A4", flexShrink: 0 }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                </span>
-                BitGraphed
-              </span>
-            )}>
-              {(recordedDate || recordedLine) && (
-                /* Supporting lines under the headline: the date on its own line,
-                   the wall-clock window on the next, values accented in blue and
-                   the connectors gray. Each date and time is an unbreakable unit,
-                   so on narrow phones the window wraps at its connector, never
-                   mid-value. When the window crosses midnight recordedDate is
-                   null and the full dated stamps stand in on the one line. */
-                <div style={{ padding: "0 24px 34px", textAlign: "center" }}>
-                  {leadStack ?? (
-                    (recordedDate ? leadNode : (recordedNode ?? recordedLine)) ? (
-                      <div style={{ fontSize: 14, lineHeight: 1.6, color: "#6b7280", marginTop: recordedDate ? 9 : 0 }}>
-                        {recordedDate ? leadNode : (recordedNode ?? recordedLine)}
-                      </div>
-                    ) : null
-                  )}
-                  {recordedDate && (
-                    <div style={{ fontSize: "clamp(20px, 6vw, 24px)", lineHeight: 1.15, color: "#111827", fontWeight: 700, letterSpacing: "-0.01em", whiteSpace: "nowrap", marginTop: 14 }}>
-                      {recordedDate}
-                    </div>
-                  )}
+          {/* The receipt: a plain (non-collapsible) card, always open, that
+              answers "what is this page" in one line — date on the left, the
+              precise wall-clock window on the right. "BitGraphed" is dropped as a
+              label (you are already looking at the proof); the window carries
+              whether the sealing Ethereum anchor has landed yet ("waiting on
+              Ethereum…"). Each value is an unbreakable unit, so on narrow phones
+              the window wraps at its connector (never mid-value) and the whole
+              right column can drop below the date. Gated on the recording info it
+              shows, not on proofHash (which is absent from exported/older
+              proofs). */}
+          {(recordedDate || recordedLine || leadStack) && (
+            <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, padding: "18px 24px", display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 16px" }}>
+              {recordedDate && (
+                <div style={{ flexShrink: 0, fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
+                  {recordedDate}
                 </div>
               )}
-            </Card>
+              {(leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine))) && (
+                /* Time in the mono/data font at the same 12px as the file-hash
+                   value, so timestamps read as precise data next to the date
+                   title. Pushed right (marginLeft:auto), and on a phone where the
+                   date + time can't share a line it wraps to its own line, still
+                   right-aligned. flexShrink:0 makes it wrap rather than squeeze. */
+                <div style={{ marginLeft: "auto", flexShrink: 0, fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#6b7280", textAlign: "right" }}>
+                  {leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* The content slot, one collapsible "BitGraphed File" card under the
@@ -918,22 +898,6 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 /* ── Card ── */
 
-function Card({ title, children }: { title: React.ReactNode; accent?: string; children: React.ReactNode }) {
-  return (
-    <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
-      <div style={{
-        fontSize: 14, fontWeight: 700, letterSpacing: "0.04em",
-        color: "#0065A4", padding: "34px 24px 8px",
-        textAlign: "center",
-      }}>
-        {title}
-      </div>
-      <div className="proof-fields" style={{ padding: 0 }}>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 /* ── Collapsible card — same face as Card, but the header is a disclosure
    toggle. Used for the two ETH anchor sections: their titles already state
