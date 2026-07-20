@@ -632,7 +632,7 @@ export default function ProofPage() {
               sits in the same content slot the BitGraphed File uses on file
               proofs, titled to match. */}
           {isEth && attr?.title && (
-            <CollapsibleCard title="BitGraphed Ethereum Block">
+            <CollapsibleCard title="BitGraphed Ethereum Block" plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
               <Field label="Etherscan" value={attr.title} link />
