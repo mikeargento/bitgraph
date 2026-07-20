@@ -586,19 +586,19 @@ export default function BitGraphPage() {
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
-        /* Drop step centers the camera on the TRUE viewport middle. The nav is
-           sticky (56px of flow at the top), so centering in the leftover space
-           below it would land the box half-a-header too low. Subtracting the
-           header height TWICE makes the flex region symmetric about 50dvh (an
-           equal gap below the nav and at the bottom), so the box sits dead
-           center. The results view (bitgraph-results) overrides to top-aligned. */
-        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 114px); }
+        /* Drop step: the hero sits in the upper third, not dead center — dead
+           center left a cavern of empty space between the nav and the tagline.
+           Subtracting ~240px from the centering region (vs ~114 for true
+           center) lifts the whole hero up ~60px on every width, so the tagline
+           reads as a header rather than a caption glued above the box. The
+           results view (bitgraph-results) overrides to top-aligned. */
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 240px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
         /* Drop step is a two-part hero: the concept line ("A camera for bits.")
            states WHAT this is, the camera below is the tool. Centered as one
            group; the tagline sits close to the box so they read as a unit. */
-        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: 34px; }
+        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: 56px; }
         .bitgraph-tagline { text-align: center; font-size: clamp(30px, 6.6vw, 50px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: #0065A4; }
         /* Waiting states (read/check/prove/export) all pin their center to the
@@ -638,8 +638,7 @@ export default function BitGraphPage() {
                 multiple
                 onFile={(f) => handleFiles([f])}
                 onFiles={handleFiles}
-                hint="Files already BitGraphed are looked up"
-                headlineSize="clamp(21px, 4vw, 28px)"
+                hint="Already BitGraphed files are recognized automatically."
               />
             </div>
           </div>

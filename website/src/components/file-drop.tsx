@@ -16,6 +16,13 @@ interface FileDropProps {
   disabled?: boolean;
   accept?: string;
   hint?: string;
+  /** Smaller, quieter line rendered beneath the hint */
+  subhint?: string;
+  /** When set, the empty state shows a blue CTA button with this label
+      (instead of the icon + headline). The whole box still accepts drops. */
+  buttonLabel?: string;
+  /** When true, the empty state is JUST a big clickable shutter circle. */
+  shutter?: boolean;
   /** Render a "take photo" link that opens the camera on mobile */
   showCapture?: boolean;
   /** Label for the browse link */
@@ -40,6 +47,9 @@ export function FileDrop({
   disabled,
   accept,
   hint,
+  subhint,
+  buttonLabel,
+  shutter,
   showCapture,
   browseLabel = "browse",
   captureLabel = "take photo",
@@ -115,16 +125,19 @@ export function FileDrop({
       }}
       onDragLeave={() => setDragover(false)}
       onDrop={handleDrop}
-      role={!hasFiles ? "button" : undefined}
-      tabIndex={!hasFiles && !disabled ? 0 : -1}
-      aria-label={!hasFiles ? "Drop, paste, or click to select a file" : undefined}
+      role={!hasFiles && !shutter ? "button" : undefined}
+      tabIndex={!hasFiles && !disabled && !shutter ? 0 : -1}
+      aria-label={!hasFiles && !shutter ? "Drop, paste, or click to select a file" : undefined}
       onKeyDown={(e) => {
-        if (!hasFiles && !disabled && (e.key === "Enter" || e.key === " ")) {
+        if (!hasFiles && !disabled && !shutter && (e.key === "Enter" || e.key === " ")) {
           e.preventDefault();
           inputRef.current?.click();
         }
       }}
-      className={`
+      className={
+        shutter
+          ? `relative flex flex-col items-center justify-center outline-none ${disabled ? "opacity-50" : ""}`
+          : `
         h-full relative border-2 rounded-none transition-all duration-200 cursor-pointer flex items-center outline-none
         ${disabled ? "opacity-50 cursor-not-allowed" : ""}
         ${dragover
@@ -133,7 +146,8 @@ export function FileDrop({
           ? "border-[#c3c8cf] bg-white"
           : "border-[#c3c8cf] bg-white hover:border-[#0065A4] hover:bg-[#fafbfd] focus-visible:border-[#0065A4] focus-visible:ring-2 focus-visible:ring-[#0065A4]/20"
         }
-      `}
+      `
+      }
     >
       {/* File input covers the entire drop zone when no files are selected */}
       <input
@@ -144,7 +158,7 @@ export function FileDrop({
         multiple={multiple}
         onChange={handleInputChange}
         disabled={disabled}
-        style={!hasFiles ? {
+        style={!hasFiles && !shutter ? {
           position: "absolute", inset: 0, width: "100%", height: "100%",
           opacity: 0, cursor: "pointer", zIndex: 1, fontSize: 0,
         } : {
@@ -231,30 +245,77 @@ export function FileDrop({
             Remove
           </button>
         </div>
+      ) : shutter ? (
+        /* Shutter variant: a big clickable circle (the camera shutter) with the
+           action name under it. No box chrome. Clicking the shutter opens the
+           picker; drag-and-drop and paste still work on the element. */
+        <div className="flex flex-col items-center">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+            disabled={disabled}
+            aria-label={headline}
+            className="fd-shutter"
+          >
+            <span className="fd-shutter-core">
+              <span className="fd-shutter-label">{headline}</span>
+            </span>
+          </button>
+          {hint && (
+            <div className="mt-4 text-center" style={{ color: "#6b7280", fontSize: "min(12.5px, 2.9vw)", lineHeight: 1.5, whiteSpace: "pre-line" }}>{hint}</div>
+          )}
+        </div>
+      ) : buttonLabel ? (
+        /* Button variant: a single blue CTA. It sits above the invisible
+           full-box input overlay (z-index) and opens the picker on click; the
+           surrounding box still accepts drops. */
+        <div className="flex flex-col items-center py-8 px-4 sm:px-6 w-full">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+            disabled={disabled}
+            className="relative z-[2] cursor-pointer rounded-none border-none bg-[#0065A4] text-white transition-colors hover:bg-[#005089]"
+            style={{ padding: "14px 26px", fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em", fontFamily: "inherit" }}
+          >
+            {buttonLabel}
+          </button>
+          {hint && (
+            <div className="mt-4 text-center" style={{ color: "#111827", fontSize: "min(13px, 3vw)", lineHeight: 1.5, whiteSpace: "pre-line" }}>{hint}</div>
+          )}
+          {subhint && (
+            <div className="mt-1.5 text-center" style={{ color: "#6b7280", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5, whiteSpace: "pre-line" }}>{subhint}</div>
+          )}
+        </div>
       ) : (
         <div className="flex flex-col items-center py-8 px-4 sm:px-6 w-full">
-          {/* Icon on top, the standard drop-zone convention: the tray icon
-              leads, then the gesture name, then the hint. */}
+          {/* Icon: a document with a plus — "select a file". Square corners, no
+              round caps, strokeWidth matching the site's other stroke icons.
+              Not a download/upload arrow: the file never leaves the device. */}
           <div className="mb-4">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.5">
-              <path d="M21 15 V21 H3 V15" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
+            <svg className="fd-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.5">
+              <path d="M5 2 H14 L19 7 V22 H5 Z" />
+              <path d="M14 2 V7 H19" />
+              <line x1="12" y1="12" x2="12" y2="18" />
+              <line x1="9" y1="15" x2="15" y2="15" />
             </svg>
           </div>
           <div
-            className="font-medium tracking-tight text-center"
+            className="fd-headline tracking-tight text-center"
             style={{
               color: "#111827",
-              fontSize: headlineSize,
+              // Size/weight are overridable per-breakpoint via CSS custom
+              // properties (the home hero bumps both on desktop); fall back to
+              // the prop size and medium weight elsewhere.
+              fontSize: `var(--fd-headline, ${headlineSize})`,
+              fontWeight: "var(--fd-weight, 500)",
               whiteSpace: "nowrap",
             }}
           >
             {headline}
           </div>
-          {/* One gesture, two outcomes: the arrow and the clickable box carry
-              the mechanics, so no "drop or click" boilerplate; the only line
-              under the headline is the one that says something (the hint). */}
+          {/* Supporting copy under the action: the privacy line first (the
+              file stays local), then a smaller, quieter line about automatic
+              recognition of files already on record. */}
           {hint && (
             <div
               className="mt-4 text-center"
@@ -266,6 +327,19 @@ export function FileDrop({
               }}
             >
               {hint}
+            </div>
+          )}
+          {subhint && (
+            <div
+              className="mt-1.5 text-center"
+              style={{
+                color: "#6b7280",
+                fontSize: "min(12px, 2.8vw)",
+                lineHeight: 1.5,
+                whiteSpace: "pre-line",
+              }}
+            >
+              {subhint}
             </div>
           )}
           {showCapture && !hint && (
