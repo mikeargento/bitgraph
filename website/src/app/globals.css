@@ -445,7 +445,8 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 /* deployed Wed Apr  1 22:47:15 EDT 2026 */
 
-/* ── The camera: an exact square, centered in the viewport. Width fills the
-   column on mobile, caps at 440px on desktop, and is bounded by 70vh so it
-   never overflows a short screen; aspect-ratio keeps height == width. ── */
-.bitgraph-camera { width: min(440px, 100%, 70vh); aspect-ratio: 1 / 1; align-self: center; }
+/* ── The camera: centered in the viewport. On mobile it's an exact square
+   (fills the column, aspect-ratio keeps height == width). On desktop it spans
+   the full container width as a wide box. ── */
+.bitgraph-camera { aspect-ratio: 1 / 1; }
+@media (min-width: 641px) { .bitgraph-camera { aspect-ratio: auto; height: 360px; } }
