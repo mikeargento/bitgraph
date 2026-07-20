@@ -937,17 +937,20 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ── Loading skeleton — the proof page's loaded shape is a predictable stack of
-   collapsed card headers (title + Open pill), so the wait renders that exact
-   layout as shimmering placeholders. The cards sit where the real ones will,
-   so data arriving swaps content in with no jump; the shimmer reads as alive
-   where a static "Loading…" line read as stuck. ── */
+/* ── Loading skeleton — the proof page's loaded shape is the always-open
+   "BitGraph Recorded" card followed by a stack of collapsed card headers, so
+   the wait renders that exact layout as shimmering placeholders. The cards sit
+   where the real ones will, so data arriving swaps content in with minimal
+   jump; the shimmer reads as alive where a static "Loading…" line read as
+   stuck. ── */
 function ProofSkeleton() {
-  // Varied title widths so the rows look like real labels, not identical bars.
-  // Eight cards to match a standard file proof (BitGraphed File, Causal Slot,
-  // Artifact Commit, Signature, Hardware Enclave, Recorded after, Recorded
-  // before, Raw JSON) so content swaps in with minimal vertical jump.
-  const titleWidths = [118, 92, 150, 104, 132, 96, 140, 88];
+  // The primary card's body varies by file type (a photo is tall, any other
+  // file is just when + hash), and we can't know which before the fetch, so the
+  // skeleton renders only the guaranteed-present parts — a "when" line and a
+  // hash line, no image box. A photo simply pushes the hash down as it loads
+  // (reads as content arriving), and a plain file matches with no jump.
+  // Varied title widths so the collapsed rows below look like real labels.
+  const titleWidths = [92, 150, 104, 132, 96, 140, 88];
   const bar: React.CSSProperties = { borderRadius: 3 };
   return (
     <Shell>
@@ -958,6 +961,23 @@ function ProofSkeleton() {
       `}</style>
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }} aria-hidden>
+          {/* Primary "BitGraph Recorded" card: an open card with a plain header
+              (no Open pill), then a "when" block and a hash block. */}
+          <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
+              <div className="bg-skel" style={{ ...bar, width: 128, height: 15 }} />
+            </div>
+            {/* "when": a date line over a time line. */}
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="bg-skel" style={{ ...bar, width: 132, height: 15 }} />
+              <div className="bg-skel" style={{ ...bar, width: 212, height: 13 }} />
+            </div>
+            {/* File Hash: a label over its value. */}
+            <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="bg-skel" style={{ ...bar, width: 68, height: 14 }} />
+              <div className="bg-skel" style={{ ...bar, width: "64%", height: 13 }} />
+            </div>
+          </div>
           {titleWidths.map((w, i) => (
             <div key={i} style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
               {/* Same header geometry as CollapsibleCard: 14px 16px, title left,
