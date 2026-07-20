@@ -222,6 +222,9 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           .xp-row-interval:hover { background:#ece5fd; }
           .xp-row:hover .xp-open { background:#0065A4; color:#fff; }
         }
+        @keyframes xpSkel { 0%{background-position:100% 0} 100%{background-position:0 0} }
+        .xp-skel { background:linear-gradient(90deg,#edeff1 25%,#e0e3e7 37%,#edeff1 63%); background-size:400% 100%; animation:xpSkel 1.4s ease-in-out infinite; border-radius:3px; }
+        @media (prefers-reduced-motion: reduce){ .xp-skel{ animation:none; } }
       `}</style>
 
       {/* Heading row: the title stays left, the anchors toggle sits at the far
@@ -272,7 +275,23 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           Each row is its own bordered card with a gap between, so the Roll reads
           as separate items rather than one dense table. */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {loading && <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Reading the ledger…</div>}
+        {loading && (
+          <>
+            <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Reading the ledger…</span>
+            {/* A skeleton of ledger rows — same row chrome (# left, tag, date
+                right, Open pill) as the real stream, so it lands in place with
+                no jump when the entries arrive. */}
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={`skel-${i}`} className="xp-row" style={{ pointerEvents: "none" }} aria-hidden>
+                <span className="xp-skel" style={{ width: 60, height: 14, flexShrink: 0 }} />
+                <span className="xp-skel" style={{ width: 34, height: 12, flexShrink: 0 }} />
+                <span style={{ flex: 1 }} />
+                <span className="xp-skel" style={{ width: 84, height: 12, flexShrink: 0 }} />
+                <span className="xp-skel" style={{ width: 58, height: 28, flexShrink: 0 }} />
+              </div>
+            ))}
+          </>
+        )}
         {error && !loading && <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Ledger unavailable right now.</div>}
 
         {!loading && !error && (showAnchors ? entries : entries.filter((e) => e.type === "proof")).map((e) => {

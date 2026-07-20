@@ -927,7 +927,10 @@ function Shell({ children }: { children: React.ReactNode }) {
    where a static "Loading…" line read as stuck. ── */
 function ProofSkeleton() {
   // Varied title widths so the rows look like real labels, not identical bars.
-  const titleWidths = [118, 92, 150, 104, 96, 134, 88];
+  // Eight cards to match a standard file proof (BitGraphed File, Causal Slot,
+  // Artifact Commit, Signature, Hardware Enclave, Recorded after, Recorded
+  // before, Raw JSON) so content swaps in with minimal vertical jump.
+  const titleWidths = [118, 92, 150, 104, 132, 96, 140, 88];
   const bar: React.CSSProperties = { borderRadius: 3 };
   return (
     <Shell>
