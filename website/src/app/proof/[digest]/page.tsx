@@ -242,9 +242,11 @@ export default function ProofPage() {
     return () => { cancelled = true; };
   }, [digestParam]);
 
-  // Same fixed anchor as the success checkmark (44% down, centered), so every
-  // waiting state on the site shares one center point.
-  if (loading) return <Shell><div style={{ position: "fixed", top: "44%", left: "50%", transform: "translate(-50%, -50%)", fontSize: 20, fontWeight: 600, color: "var(--c-text-tertiary)", whiteSpace: "nowrap" }}>Loading BitGraph…</div></Shell>;
+  // While the proof loads from S3, show the page's real shape: a stack of
+  // collapsed card headers rendered as shimmering placeholders. It lands the
+  // cards where they'll actually be (no jump when data arrives) and reads as
+  // alive, unlike a static "Loading…" line.
+  if (loading) return <ProofSkeleton />;
   if (error || !proof) return (
     <Shell>
       <div style={{ padding: "80px 20px", textAlign: "center" }}>
@@ -915,6 +917,44 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
       {children}
     </div>
+  );
+}
+
+/* ── Loading skeleton — the proof page's loaded shape is a predictable stack of
+   collapsed card headers (title + Open pill), so the wait renders that exact
+   layout as shimmering placeholders. The cards sit where the real ones will,
+   so data arriving swaps content in with no jump; the shimmer reads as alive
+   where a static "Loading…" line read as stuck. ── */
+function ProofSkeleton() {
+  // Varied title widths so the rows look like real labels, not identical bars.
+  const titleWidths = [118, 92, 150, 104, 96, 134, 88];
+  const bar: React.CSSProperties = { borderRadius: 3 };
+  return (
+    <Shell>
+      <style>{`
+        @keyframes bgSkel { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }
+        .bg-skel { background: linear-gradient(90deg, #edeff1 25%, #e0e3e7 37%, #edeff1 63%); background-size: 400% 100%; animation: bgSkel 1.4s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .bg-skel { animation: none; } }
+      `}</style>
+      <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }} aria-hidden>
+          {titleWidths.map((w, i) => (
+            <div key={i} style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
+              {/* Same header geometry as CollapsibleCard: 14px 16px, title left,
+                  Open-pill-sized block right. */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 16px" }}>
+                <div className="bg-skel" style={{ ...bar, width: w, height: 15 }} />
+                <div className="bg-skel" style={{ width: 66, height: 28, borderRadius: 0, flexShrink: 0 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* The Export button placeholder, matching the real page's closing action
+            (76px tall, one grid gap below the cards). */}
+        <div className="bg-skel" style={{ height: 76, borderRadius: 0, marginTop: 10 }} aria-hidden />
+        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Loading BitGraph…</span>
+      </div>
+    </Shell>
   );
 }
 

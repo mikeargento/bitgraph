@@ -598,7 +598,7 @@ export default function BitGraphPage() {
         /* Drop step is a two-part hero: the concept line ("A camera for bits.")
            states WHAT this is, the camera below is the tool. Centered as one
            group; the tagline sits close to the box so they read as a unit. */
-        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: 24px; }
+        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: 34px; }
         .bitgraph-tagline { text-align: center; font-size: clamp(30px, 6.6vw, 50px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: #0065A4; }
         /* Waiting states (read/check/prove/export) all pin their center to the
@@ -639,7 +639,7 @@ export default function BitGraphPage() {
                 onFile={(f) => handleFiles([f])}
                 onFiles={handleFiles}
                 hint="Files already BitGraphed are looked up"
-                headlineSize="clamp(30px, 6.6vw, 50px)"
+                headlineSize="clamp(21px, 4vw, 28px)"
               />
             </div>
           </div>
