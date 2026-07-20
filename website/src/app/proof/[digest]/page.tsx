@@ -409,6 +409,26 @@ export default function ProofPage() {
     }
   }
 
+  // The recording's "when": date (bold, left) + time window (right). Shown
+  // inside the content card (above the image / hash) on file proofs, and as its
+  // own small card on anchor/interval proofs (which have no file card). On a
+  // phone the window wraps to its own right-aligned line.
+  const whenNode = leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine));
+  const whenRow = (recordedDate || whenNode) ? (
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 16px", padding: "14px 24px" }}>
+      {recordedDate && (
+        <div style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
+          {recordedDate}
+        </div>
+      )}
+      {whenNode && (
+        <div style={{ marginLeft: "auto", flexShrink: 0, fontSize: 14, lineHeight: 1.5, color: "#6b7280", textAlign: "right" }}>
+          {whenNode}
+        </div>
+      )}
+    </div>
+  ) : null;
+
   // Interval window, derived from the causal positions the page already loads
   // (metadata.interval does not survive the TEE, so nothing here relies on it):
   // the earliest recording is the original anchor = when the window BEGAN, and
@@ -559,33 +579,22 @@ export default function ProofPage() {
               right column can drop below the date. Gated on the recording info it
               shows, not on proofHash (which is absent from exported/older
               proofs). */}
-          {(recordedDate || recordedLine || leadStack) && (
-            <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, minHeight: 68, padding: "14px 24px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 16px" }}>
-              {recordedDate && (
-                <div style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
-                  {recordedDate}
-                </div>
-              )}
-              {(leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine))) && (
-                /* Time in the title font (Acumin) at the 14px card-title size, so
-                   it reads as part of the same family as the date title and the
-                   collapsible card titles. Acumin is ~13% narrower than the mono
-                   it replaced. Pushed right (marginLeft:auto); on a phone where
-                   date + time can't share a line it wraps to its own right-aligned
-                   line. flexShrink:0 makes it wrap rather than squeeze. */
-                <div style={{ marginLeft: "auto", flexShrink: 0, fontSize: 14, lineHeight: 1.5, color: "#6b7280", textAlign: "right" }}>
-                  {leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine))}
-                </div>
-              )}
+          {/* Anchor/interval proofs have no BitGraphed File card, so the "when"
+              is its own small card here. File proofs show it inside the file
+              card instead (below), above the image. */}
+          {(isEth || isInterval) && whenRow && (
+            <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
+              {whenRow}
             </div>
           )}
 
-          {/* The content slot, one collapsible "BitGraphed File" card under the
-              recording. Its body is the image when the bytes are in hand, the
-              dotted bring-your-file dropzone when no file is present, or nothing
-              (just the hash below) for a matched non-image file. */}
+          {/* The content slot: a "BitGraphed File" card, open by default so the
+              recording reads at a glance. The "when" leads the body, then the
+              image when the bytes are in hand (or the bring-your-file dropzone),
+              then the file hash. */}
           {!isEth && !isInterval && (
-            <CollapsibleCard title="BitGraphed File">
+            <CollapsibleCard title="BitGraphed File" defaultOpen>
+              {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
               ) : !cachedFile ? (
