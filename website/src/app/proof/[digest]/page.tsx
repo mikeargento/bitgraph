@@ -242,6 +242,17 @@ export default function ProofPage() {
     // Live fetch — the source of truth, and the background reconcile when we
     // seeded. A reconcile failure never clobbers a good seeded render.
     (async () => {
+      // If a warm fetch is still in flight (warmed on hover/idle, then a quick
+      // click before it resolved), await THAT request instead of firing a
+      // duplicate — the page paints the moment it lands, and its data is current
+      // enough that no separate reconcile is needed.
+      if (!seeded && warmHit && "promise" in warmHit) {
+        try {
+          const data = await warmHit.promise;
+          if (cancelled) return;
+          if (applyData(data)) { setLoading(false); return; }
+        } catch { /* fall through to a fresh fetch */ }
+      }
       try {
         // 15s timeout guards against a stuck API route (e.g. a slow Ethereum
         // RPC inside the causal-window lookup). Without this the page can hang
