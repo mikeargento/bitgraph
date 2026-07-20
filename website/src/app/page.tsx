@@ -729,26 +729,6 @@ export default function BitGraphPage() {
                 </span>
               </div>
 
-              {/* Take another — a compact box under the count, the way back to
-                  the drop screen without the full-size camera. Resets in place;
-                  recordings persist in the explorer/Roll, so nothing is lost. */}
-              <button
-                onClick={() => { setItems([]); setStep("drop"); window.scrollTo(0, 0); }}
-                style={{
-                  width: "100%", height: 76, padding: "0 16px", background: "#ffffff",
-                  border: "1px solid #d0d5dd", cursor: "pointer", color: "#0065A4",
-                  fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 15 V21 H3 V15" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                Take another BitGraph
-              </button>
-
               {/* Actions — the BitGraph-remaining CTA (while files are unproven),
                   then Download. Sits under the count headline, above the list. */}
               <div className="bitgraph-actions">

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
 import { zipSync, strToU8 } from "fflate";
@@ -900,25 +899,6 @@ export default function ProofPage() {
               BitGraph only: the original file is not on this device
             </div>
           )}
-          {/* Take another — a NEW file, back to the drop screen. Distinct from
-              "BitGraph Again" above, which re-records THESE same bytes. Same box
-              as the results page, so the action reads the same across the app. */}
-          <Link
-            href="/"
-            style={{
-              width: "100%", height: 76, background: "#ffffff",
-              border: "1px solid #d0d5dd", cursor: "pointer", color: "#0065A4",
-              fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em", textDecoration: "none",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M21 15 V21 H3 V15" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Take another BitGraph
-          </Link>
         </div>
 
       </div>
