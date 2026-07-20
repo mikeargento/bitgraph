@@ -637,9 +637,64 @@ export default function ProofPage() {
             </CollapsibleCard>
           )}
 
+          {/* Recordings — shown only when these exact bytes were BitGraphed more
+              than once. File-level context (every position the same bytes
+              occupy), so it sits right under the file, ahead of the single-proof
+              construction cards. Each row: BitGraph #, the date it was recorded
+              in the role line, and its time window in the mono/data font (same
+              treatment as the BitGraphed File card), plus a link to that position. */}
+          {positions.length > 1 && (
+            <CollapsibleCard title={`Recordings (${positions.length})`}>
+              <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
+                These exact bits were BitGraphed {positions.length} times. Each recording sits at its own position, with its own verifiable time window.
+              </div>
+              {[...positions].reverse().map((pos) => {
+                const isEarliest = pos === positions[0];
+                const isCurrent =
+                  String(pos.counter) === String(commit.counter) &&
+                  (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
+                const num = pos.counter != null ? Number(pos.counter).toLocaleString() : "?";
+                const t1 = pos.lowerTime ? new Date(pos.lowerTime) : null;
+                const t2 = pos.upperTime ? new Date(pos.upperTime) : null;
+                const sameDay = !!(t1 && t2 && t1.toDateString() === t2.toDateString());
+                let rowDate: string | null = null;
+                if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
+                else if (t2) rowDate = longDate(t2);
+                else if (t1) rowDate = longDate(t1);
+                const roleText = isEarliest ? "Earliest recorded position" : "Recorded again";
+                const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
+                const timesNode = t1 && t2
+                  ? (sameDay
+                      ? <>{conn("between ")}{val(timeNoTz(t1))}{conn(" and ")}{val(timeTz(t2))}</>
+                      : <>{conn("between ")}{val(stampTz(t1))}{conn(" and ")}{val(stampTz(t2))}</>)
+                  : (t1 ? <>{conn("after ")}{val(timeTz(t1))}</> : null);
+                return (
+                  <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid #e2e5e9" }}>
+                    <div className="causal-top">
+                      <span className="causal-label" style={{ color: "var(--c-accent)" }}>BitGraph <span style={{ fontFamily: mono }}>#{num}</span></span>
+                      {isCurrent ? (
+                        <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>
+                      ) : (
+                        <a
+                          className="causal-action"
+                          href={`/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}`}
+                          style={{ color: "var(--c-accent)", textDecoration: "none" }}
+                        >
+                          View &rarr;
+                        </a>
+                      )}
+                    </div>
+                    <div className="causal-role">{roleLine}</div>
+                    {timesNode && <div className="causal-window" style={{ fontFamily: mono }}>{timesNode}</div>}
+                  </div>
+                );
+              })}
+            </CollapsibleCard>
+          )}
+
           {/* 1. Slot — reserved first, before anything else */}
           {slot && (
-            <CollapsibleCard title="Causal Slot">
+            <CollapsibleCard title="Reserved Slot">
               <Field label="Slot Counter" value={`#${slot.counter}`} highlight />
               {slot.nonceB64 ? <Field label="Nonce" value={String(slot.nonceB64)} mono /> : null}
               {slot.signatureB64 ? <Field label="Slot Signature" value={String(slot.signatureB64)} mono /> : null}
@@ -681,46 +736,6 @@ export default function ProofPage() {
             {!slot && commit.slotCounter != null && <Field label="Slot Counter" value={`#${commit.slotCounter}`} />}
             {commit.slotHashB64 && <Field label="Slot Hash" value={commit.slotHashB64} mono />}
           </CollapsibleCard>
-
-          {/* 3b. Causal Positions — shown only when these exact bytes were
-              BitGraphed more than once. Each recording is a distinct causal
-              position; the bits are identical, the positions are not. Rows link
-              between positions with ?counter=&epoch= on the same digest URL. */}
-          {positions.length > 1 && (
-            <CollapsibleCard title={`Causal Positions (${positions.length})`}>
-              <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
-                These exact bits were BitGraphed {positions.length} times. Each recording occupies its own causal position.
-              </div>
-              {[...positions].reverse().map((pos) => {
-                const isEarliest = pos === positions[0];
-                const isCurrent =
-                  String(pos.counter) === String(commit.counter) &&
-                  (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
-                const label = `BitGraph #${pos.counter != null ? Number(pos.counter).toLocaleString() : "?"}`;
-                const window = formatWindow(pos.lowerTime, pos.upperTime);
-                return (
-                  <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid #e2e5e9" }}>
-                    <div className="causal-top">
-                      <span className="causal-label" style={{ color: "var(--c-accent)", fontFamily: mono }}>{label}</span>
-                      {isCurrent ? (
-                        <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>
-                      ) : (
-                        <a
-                          className="causal-action"
-                          href={`/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}`}
-                          style={{ color: "var(--c-accent)", textDecoration: "none" }}
-                        >
-                          View &rarr;
-                        </a>
-                      )}
-                    </div>
-                    <div className="causal-role">{isEarliest ? "Earliest recorded position" : "Recorded again"}</div>
-                    {window && <div className="causal-window">{window}</div>}
-                  </div>
-                );
-              })}
-            </CollapsibleCard>
-          )}
 
           {/* 4. Signer — the proof's own fingerprint (the proofHash) first, then
               the enclave's Ed25519 signature over it. The proofHash is computed

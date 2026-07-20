@@ -604,13 +604,14 @@ export default function BitGraphPage() {
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
-        /* Drop step: the hero sits in the upper third, not dead center — dead
-           center left a cavern of empty space between the nav and the tagline.
-           Subtracting ~240px from the centering region (vs ~114 for true
-           center) lifts the whole hero up ~60px on every width, so the tagline
-           reads as a header rather than a caption glued above the box. The
-           results view (bitgraph-results) overrides to top-aligned. */
-        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 240px); }
+        /* Drop step: the hero (tagline + box + "see an example") is centered in
+           the space below the sticky nav. Subtracting ~72px (roughly the nav's
+           height) makes the centering region the visible area under the nav, so
+           the group sits balanced — equal air above and below — on both mobile
+           and desktop. (An earlier bigger subtraction lifted it too high once
+           the example link was added below the box.) The results view
+           (bitgraph-results) overrides to top-aligned. */
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 72px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
         /* Drop step is a two-part hero: the concept line ("A camera for bits.")
