@@ -578,21 +578,25 @@ export default function ProofPage() {
               right column can drop below the date. Gated on the recording info it
               shows, not on proofHash (which is absent from exported/older
               proofs). */}
-          {/* Anchor/interval proofs have no BitGraphed File card, so the "when"
-              is its own small card here. File proofs show it inside the file
-              card instead (below), above the image. */}
-          {(isEth || isInterval) && whenRow && (
+          {/* Interval proofs have no content card, so the "when" is its own
+              small card here. File proofs show it inside the BitGraphed File
+              card, and Ethereum anchors inside the BitGraphed Ethereum Block
+              card (both below), above the content — so the time always leads the
+              first card rather than floating in a card of its own. The only
+              anchor that still needs a standalone when-card is the rare Ethereum
+              anchor with no etherscan title (no block card to hold it). */}
+          {(isInterval || (isEth && !attr?.title)) && whenRow && (
             <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
               {whenRow}
             </div>
           )}
 
-          {/* The content slot: a "BitGraphed File" card, open by default so the
-              recording reads at a glance. The "when" leads the body, then the
-              image when the bytes are in hand (or the bring-your-file dropzone),
-              then the file hash. */}
+          {/* The content slot: a "BitGraphed File" card, collapsed by default
+              like every other card so the page opens as a clean stack of
+              titles. The "when" leads the body, then the image when the bytes
+              are in hand (or the bring-your-file dropzone), then the file hash. */}
           {!isEth && !isInterval && (
-            <CollapsibleCard title="BitGraphed File" defaultOpen>
+            <CollapsibleCard title="BitGraphed File">
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
@@ -625,6 +629,7 @@ export default function ProofPage() {
               proofs, titled to match. */}
           {isEth && attr?.title && (
             <CollapsibleCard title="BitGraphed Ethereum Block">
+              {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
               <Field label="Etherscan" value={attr.title} link />
             </CollapsibleCard>
@@ -1054,14 +1059,22 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
   const json = JSON.stringify(proof, null, 2);
   return (
     <CollapsibleCard title="Raw JSON">
-      <div style={{ padding: "14px 24px" }}>
-        <button
-          onClick={() => { navigator.clipboard.writeText(json); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-          style={{ marginBottom: 12, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "var(--c-accent)", background: "#fff", border: "1px solid var(--c-accent)", borderRadius: 0, cursor: "pointer" }}
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
+      {/* No copy button: click anywhere on the JSON to copy it, the same
+          tap-to-copy affordance every Field uses. A brief "Copied!" chip
+          confirms it without hiding the content. */}
+      <div style={{ padding: "14px 24px", position: "relative" }}>
+        {copied && (
+          <span style={{
+            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", zIndex: 50,
+            padding: "8px 18px", fontSize: 13, fontWeight: 700, color: "#fff",
+            background: "#0065A4", borderRadius: 0, pointerEvents: "none",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.18)",
+          }}>
+            Copied!
+          </span>
+        )}
         <pre
+          onClick={() => { navigator.clipboard.writeText(json); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
           style={{
             fontSize: 12,
             lineHeight: 1.6,
@@ -1073,8 +1086,7 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
             whiteSpace: "pre-wrap",
             wordBreak: "break-all",
             fontFamily: mono,
-            maxHeight: 400,
-            overflow: "auto",
+            cursor: "pointer",
           }}
         >
           {json}
