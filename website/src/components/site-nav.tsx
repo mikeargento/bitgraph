@@ -32,6 +32,14 @@ export function SiteNav() {
           BitGraph
         </Link>
         <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+          {/* Roll — the ledger, now on its own /roll page (no longer embedded
+              under the home camera), so the nav is its way in. */}
+          <Link href="/roll" style={{
+            fontSize: 14, fontWeight: 600, color: "#111827",
+            textDecoration: "none",
+          }}>
+            Roll
+          </Link>
           <Link href="/docs" style={{
             fontSize: 14, fontWeight: 600, color: "#111827",
             textDecoration: "none",

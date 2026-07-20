@@ -371,7 +371,7 @@ export default function ProofPage() {
   const conn = (label: string) => <span style={{ color: "#6b7280", fontWeight: 400 }}>{label}</span>;
   const val = (t: string) => <span style={{ color: "#111827", fontWeight: 600, whiteSpace: "nowrap" }}>{t}</span>;
   const winLine = (children: React.ReactNode) => (
-    <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#6b7280", textAlign: "right" }}>{children}</div>
+    <div style={{ fontSize: 14, lineHeight: 1.5, color: "#6b7280", textAlign: "right" }}>{children}</div>
   );
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
     // The block number lives in the "BitGraphed Ethereum Block" card below, so
@@ -564,17 +564,18 @@ export default function ProofPage() {
           {(recordedDate || recordedLine || leadStack) && (
             <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, padding: "18px 24px", display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "6px 16px" }}>
               {recordedDate && (
-                <div style={{ flexShrink: 0, fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
+                <div style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
                   {recordedDate}
                 </div>
               )}
               {(leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine))) && (
-                /* Time in the mono/data font at the same 12px as the file-hash
-                   value, so timestamps read as precise data next to the date
-                   title. Pushed right (marginLeft:auto), and on a phone where the
-                   date + time can't share a line it wraps to its own line, still
-                   right-aligned. flexShrink:0 makes it wrap rather than squeeze. */
-                <div style={{ marginLeft: "auto", flexShrink: 0, fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#6b7280", textAlign: "right" }}>
+                /* Time in the title font (Acumin) at the 14px card-title size, so
+                   it reads as part of the same family as the date title and the
+                   collapsible card titles. Acumin is ~13% narrower than the mono
+                   it replaced. Pushed right (marginLeft:auto); on a phone where
+                   date + time can't share a line it wraps to its own right-aligned
+                   line. flexShrink:0 makes it wrap rather than squeeze. */
+                <div style={{ marginLeft: "auto", flexShrink: 0, fontSize: 14, lineHeight: 1.5, color: "#6b7280", textAlign: "right" }}>
                   {leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine))}
                 </div>
               )}

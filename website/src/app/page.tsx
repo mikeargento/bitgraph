@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { FileDrop } from "@/components/file-drop";
-import { Explorer } from "@/components/explorer";
 // Footer is in root layout
 import {
   hashFile,
@@ -579,7 +578,9 @@ export default function BitGraphPage() {
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
-        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 57px); }
+        /* Drop step centers the camera in the viewport (center center); the
+           results view (bitgraph-results) overrides back to top-aligned. */
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 57px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
         /* Waiting states (read/check/prove/export) all pin their center to the
@@ -607,27 +608,18 @@ export default function BitGraphPage() {
       <div className={`bitgraph-wrap${step !== "drop" ? " bitgraph-results" : ""}`}>
 
         {/* ── Drop zone + What is BitGraph button ── */}
+        {/* Drop step: just the camera, centered in the viewport (the wrap
+            centers this step). The Roll lives on its own /roll page, linked
+            from the nav. */}
         {step === "drop" && (
-          <>
-            <div className="bitgraph-camera" style={{ animation: "slideIn 0.3s ease-out" }}>
-              <FileDrop
-                multiple
-                onFile={(f) => handleFiles([f])}
-                onFiles={handleFiles}
-                hint="Files already BitGraphed are looked up"
-              />
-            </div>
-            {/* The roll, right under the camera. Explorer renders the heading
-                row so the anchors toggle can sit beside the title. A touch
-                more air than the wrap's 24px gap so the sections breathe. */}
-            <div style={{ marginTop: 14 }}>
-              <Explorer title={
-                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827" }}>
-                  BitGraph Roll
-                </div>
-              } />
-            </div>
-          </>
+          <div className="bitgraph-camera" style={{ animation: "slideIn 0.3s ease-out" }}>
+            <FileDrop
+              multiple
+              onFile={(f) => handleFiles([f])}
+              onFiles={handleFiles}
+              hint="Files already BitGraphed are looked up"
+            />
+          </div>
         )}
 
         {/* ── Scanning — reading gets a real progress bar (per-file work),
@@ -787,17 +779,13 @@ export default function BitGraphPage() {
                   : item.status === "error" ? "Error"
                   : null;
                 // Every recording is the same explorer-style row: the # position
-                // on the left, Open on the right, nothing between. A file with
-                // SEVERAL recordings just stacks more rows in the one card,
-                // sharing its border and rail, each row its own # position.
+                // on the left, Open on the right. A file with SEVERAL recordings
+                // (the same bytes BitGraphed again) stacks its rows in the one
+                // card, each labelled "(k of N)" with the earliest marked as the
+                // original, so the group reads as one file's provenance.
                 const proofCount = item.proofs.length || (item.proof ? 1 : 0);
-                // Recorded rows (found or just proved) carry a brand-blue left
-                // rail; errors and pending rows do not. The row itself shows only
-                // its # position and Open, so every recorded row reads the same.
-                const railColor =
-                  item.status === "found" || item.status === "proved" ? "#0065A4" : null;
                 return (
-                  <div key={item.file.name + i} className="bitgraph-file-card" data-clickable={proofCount > 0} style={{ border: "1px solid #d0d5dd", borderLeft: railColor ? `3px solid ${railColor}` : undefined, animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
+                  <div key={item.file.name + i} className="bitgraph-file-card" data-clickable={proofCount > 0} style={{ border: "1px solid #d0d5dd", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
                   {rowProofs.map((p, k) => {
                     const clickable = !!p;
                     const counter = p?.commit?.counter;
@@ -829,11 +817,16 @@ export default function BitGraphPage() {
                         ? <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
                         : pendingLabel}
                     </span>
-                    {/* Nothing between the # and Open: every row reads the same,
-                        named by its # position. Outcome words, times, and the
-                        already-on-record vs just-recorded distinction all live on
-                        the proof page (and the count banner summarizes the batch).
-                        The spacer pushes Open to the right edge. */}
+                    {/* When the same bytes were BitGraphed more than once, place
+                        each row in the sequence "(k of N)" and mark the earliest
+                        (k === 0) as the original. Single recordings show nothing
+                        here, so an ordinary row stays just "# … Open". */}
+                    {rowProofs.length > 1 && (
+                      <span style={{ flexShrink: 0, fontSize: 12.5, color: "#6b7280", whiteSpace: "nowrap" }}>
+                        ({k + 1} of {rowProofs.length}{k === 0 ? " · original" : ""})
+                      </span>
+                    )}
+                    {/* Spacer pushes Open to the right edge. */}
                     <span style={{ flex: 1 }} />
                     {clickable && (
                       <span className="bitgraph-open-pill">
