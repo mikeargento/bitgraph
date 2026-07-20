@@ -574,6 +574,14 @@ export default function BitGraphPage() {
   const card: React.CSSProperties = { border: "1px solid #d0d5dd", padding: "24px 20px", background: "#fff", borderRadius: 0, marginBottom: 16 };
   const btnFill: React.CSSProperties = { height: 76, fontSize: 16, fontWeight: 600, border: "none", borderRadius: 0, background: "#0065A4", color: "#ffffff", cursor: "pointer", letterSpacing: "-0.01em" };
   const btnOut: React.CSSProperties = { height: 76, fontSize: 16, fontWeight: 500, borderRadius: 0, cursor: "pointer", border: "1px solid #0065A4", background: "#f4f6f9", color: "#0065A4" };
+  /* ── One shared look for every wait state (read / check / prove / package):
+     the same spinner, the same label, and a determinate bar whenever there is a
+     live count to show. Keeps the whole drop→record flow cohesive: one gerund
+     label "{Verb} {n} of {total}", one Unicode ellipsis, no stray percentages. ── */
+  const waitSpinner: React.CSSProperties = { width: 32, height: 32, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" };
+  const waitLabel: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+  const waitTrack: React.CSSProperties = { width: "min(260px, 72vw)", height: 2, borderRadius: 1, background: "#e2e5e9", overflow: "hidden" };
+  const waitFill = (pct: number): React.CSSProperties => ({ width: `${pct}%`, height: "100%", background: "#0065A4", transition: "width 0.15s" });
 
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
@@ -622,76 +630,59 @@ export default function BitGraphPage() {
           </div>
         )}
 
-        {/* ── Scanning — reading gets a real progress bar (per-file work),
-            checking is one indeterminate round trip, so it gets the same
-            spinner the zip export uses. ── */}
+        {/* ── Scanning: read the files, then check the ledger. Both use the
+            shared wait look; the bar appears only when there is a live count
+            (always while reading, and for large ledger checks). ── */}
         {step === "scanning" && (scanPhase === "reading" ? (
-          <div className="bitgraph-wait" style={{ textAlign: "center" }}>
-            <div style={{
-              fontSize: "min(22px, 4.5vw)",
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-              color: "#111827",
-              whiteSpace: "nowrap",
-              lineHeight: 1.2,
-              animation: "pulse 1s ease-in-out infinite",
-            }}>
-              {scanProgress.current} of {scanProgress.total} read
-            </div>
-            <div style={{ width: "min(240px, 70vw)", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
-              <div style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%`, height: "100%", background: "#0065A4", transition: "width 0.2s", boxShadow: "none" }} />
+          <div className="bitgraph-wait">
+            <div role="status" aria-label="Reading files" style={waitSpinner} />
+            <div style={waitLabel}>Reading {scanProgress.current} of {scanProgress.total}</div>
+            <div style={waitTrack}>
+              <div style={waitFill(scanProgress.total ? (scanProgress.current / scanProgress.total) * 100 : 0)} />
             </div>
           </div>
         ) : (
           <div className="bitgraph-wait">
-            {/* Determinate progress (the count + bar) is the signal; no spinner
-                (it would imply an unknown wait when we know exactly where we are)
-                and no percentage (it just restates the count). The label pulses
-                for liveness, which also covers the small-drop case with no bar. */}
-            <div role="status" style={{ fontSize: 14, color: "#6b7280", animation: "pulse 1s ease-in-out infinite" }}>Checking for BitGraphs…</div>
-            {checkProgress.total > 50 && (
+            <div role="status" aria-label="Checking the ledger" style={waitSpinner} />
+            {checkProgress.total > 50 ? (
               <>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
-                  {checkProgress.current} of {checkProgress.total} checked
-                </div>
-                <div style={{ width: "min(240px, 70vw)", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
-                  <div style={{ width: `${checkProgress.total > 0 ? (checkProgress.current / checkProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
+                <div style={waitLabel}>Checking {checkProgress.current} of {checkProgress.total}</div>
+                <div style={waitTrack}>
+                  <div style={waitFill(checkProgress.total ? (checkProgress.current / checkProgress.total) * 100 : 0)} />
                 </div>
               </>
+            ) : (
+              <div style={waitLabel}>Checking…</div>
             )}
           </div>
         ))}
 
-        {/* ── Proving — spinner always; a single chunk (up to 50 files) is one
-            round trip with nothing honest to count, so it stays plain. Multi-
-            chunk drops tick every ~1.5s, so they get a live count + percent +
-            bar under the spinner: a 500-file batch must never read as stuck. ── */}
+        {/* ── Proving: a single chunk (up to 50 files) is one round trip with
+            nothing to count, so it just spins; multi-chunk drops tick every
+            ~1.5s and get the live count + bar so a big batch never reads as
+            stuck. Same look as reading/checking. ── */}
         {step === "proving" && (
           <div className="bitgraph-wait">
-            <div role="status" aria-label="BitGraphing" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            <div style={{ fontSize: 14, color: "#6b7280" }}>
-              BitGraphing {proveProgress.total} file{proveProgress.total === 1 ? "" : "s"}…
-            </div>
-            {proveProgress.total > 50 && (
+            <div role="status" aria-label="BitGraphing" style={waitSpinner} />
+            {proveProgress.total > 50 ? (
               <>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
-                  {proveAnimCount} of {proveProgress.total} BitGraphed · {proveProgress.total > 0 ? Math.round((proveAnimCount / proveProgress.total) * 100) : 0}%
-                </div>
-                <div style={{ width: "min(240px, 70vw)", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
-                  <div style={{ width: `${proveProgress.total > 0 ? (proveAnimCount / proveProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
+                <div style={waitLabel}>BitGraphing {proveAnimCount} of {proveProgress.total}</div>
+                <div style={waitTrack}>
+                  <div style={waitFill(proveProgress.total ? (proveAnimCount / proveProgress.total) * 100 : 0)} />
                 </div>
               </>
+            ) : (
+              <div style={waitLabel}>BitGraphing…</div>
             )}
           </div>
         )}
 
-        {/* ── Exporting ── */}
+        {/* ── Exporting: the .zip step count doesn't map to the file count, so
+            it just spins. Same look as the others. ── */}
         {step === "exporting" && (
           <div className="bitgraph-wait">
-            {/* Packaging the .zip is quick and the step count (files + anchors +
-                zip) doesn't map to the file count, so show a plain spinner. */}
-            <div role="status" aria-label="Packaging" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            <div style={{ fontSize: 14, color: "#6b7280" }}>Packaging…</div>
+            <div role="status" aria-label="Packaging" style={waitSpinner} />
+            <div style={waitLabel}>Packaging…</div>
           </div>
         )}
 
@@ -721,7 +712,7 @@ export default function BitGraphPage() {
                       ...(anchorCountdown > 0 ? { ...btnOut, opacity: 0.5, cursor: "default" } : allDone ? btnFill : btnOut),
                     }}
                   >
-                    {anchorCountdown > 0 ? <span style={{ fontSize: 14 }}>{`BitGraphing the next Ethereum block hash... ${anchorCountdown}s`}</span> : zipCount > 1 ? `Download all ${zipCount} (.zip)` : "Download .zip"}
+                    {anchorCountdown > 0 ? <span style={{ fontSize: 14 }}>{`Waiting for the next Ethereum block… ${anchorCountdown}s`}</span> : zipCount > 1 ? `Download all ${zipCount} (.zip)` : "Download .zip"}
                   </button>
                 )}
               </div>
@@ -729,7 +720,7 @@ export default function BitGraphPage() {
               {/* Count as a receipt-style line (same idea as the proof receipt):
                   the label on the left, the "X of N" count on the right. Same 76px
                   height as the Download button above it. */}
-              <div style={{ height: 76, padding: "0 24px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+              <div style={{ height: 76, padding: "0 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827" }}>
                   BitGraph{items.length === 1 ? "" : "s"} Recorded
                 </span>

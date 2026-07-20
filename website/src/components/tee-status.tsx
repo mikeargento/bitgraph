@@ -55,7 +55,7 @@ export function TeeStatus() {
     health.status === "online"
       ? "Enclave Online"
       : health.status === "checking"
-        ? "Checking..."
+        ? "Checking…"
         : "Enclave Offline";
 
   return (
@@ -131,7 +131,7 @@ export function TeeStatus() {
         <span className="text-[10px] text-text-tertiary">
           {health.checkedAt
             ? `Checked ${health.checkedAt.toLocaleTimeString()}`
-            : "Checking..."}
+            : "Checking…"}
         </span>
         <button
           onClick={checkHealth}

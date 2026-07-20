@@ -245,14 +245,15 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
         </div>
       )}
 
-      {/* Search — jump straight to a BitGraph by its # or hash. Submitting
+      {/* Search — jump straight to a BitGraph by its # (searching by hash means
+          dropping the file itself, so it is not offered here). Submitting
           resolves + verifies via /api/search, then navigates to the proof. */}
       <form onSubmit={runSearch} style={{ display: "flex", gap: 8, marginBottom: searchError ? 6 : 12 }}>
         <input
           value={query}
           onChange={(e) => { setQuery(e.target.value); setSearchError(null); }}
-          placeholder="Search by BitGraph number or hash"
-          aria-label="Search by BitGraph number or hash"
+          placeholder="Search by BitGraph number"
+          aria-label="Search by BitGraph number"
           style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 14, color: "#111827", background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, outline: "none" }}
         />
         <button

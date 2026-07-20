@@ -244,7 +244,7 @@ export default function ProofPage() {
 
   // Same fixed anchor as the success checkmark (44% down, centered), so every
   // waiting state on the site shares one center point.
-  if (loading) return <Shell><div style={{ position: "fixed", top: "44%", left: "50%", transform: "translate(-50%, -50%)", fontSize: 20, fontWeight: 600, color: "var(--c-text-tertiary)", whiteSpace: "nowrap" }}>Loading BitGraph...</div></Shell>;
+  if (loading) return <Shell><div style={{ position: "fixed", top: "44%", left: "50%", transform: "translate(-50%, -50%)", fontSize: 20, fontWeight: 600, color: "var(--c-text-tertiary)", whiteSpace: "nowrap" }}>Loading BitGraph…</div></Shell>;
   if (error || !proof) return (
     <Shell>
       <div style={{ padding: "80px 20px", textAlign: "center" }}>
@@ -351,7 +351,7 @@ export default function ProofPage() {
         <>
           between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and{" "}
           <span style={{ color: "#6b7280", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
-            waiting on Ethereum…
+            waiting for the next block…
           </span>
         </>
       );
@@ -418,7 +418,7 @@ export default function ProofPage() {
     /* Written like a card field: the date is the heading, the time window the
        value beneath it in the monospace/data font, matching the hashes and
        counters elsewhere on the page. */
-    <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 24px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 16px" }}>
       {recordedDate && (
         <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
           {recordedDate}
@@ -541,7 +541,7 @@ export default function ProofPage() {
            (right); below it the role reads as a bold heading, then the ETH
            anchor window as secondary detail. Stacking avoids the ragged inline
            wrap the single-line layout produced on narrow screens. */
-        .causal-row { padding: 14px 24px; }
+        .causal-row { padding: 14px 16px; }
         .causal-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .causal-label { font-size: 14px; font-weight: 700; white-space: nowrap; }
         .causal-action { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
@@ -572,8 +572,8 @@ export default function ProofPage() {
               answers "what is this page" in one line — date on the left, the
               precise wall-clock window on the right. "BitGraphed" is dropped as a
               label (you are already looking at the proof); the window carries
-              whether the sealing Ethereum anchor has landed yet ("waiting on
-              Ethereum…"). Each value is an unbreakable unit, so on narrow phones
+              whether the sealing Ethereum anchor has landed yet ("waiting for
+              the next block…"). Each value is an unbreakable unit, so on narrow phones
               the window wraps at its connector (never mid-value) and the whole
               right column can drop below the date. Gated on the recording info it
               shows, not on proofHash (which is absent from exported/older
@@ -686,7 +686,7 @@ export default function ProofPage() {
               between positions with ?counter=&epoch= on the same digest URL. */}
           {positions.length > 1 && (
             <CollapsibleCard title={`Causal Positions (${positions.length})`}>
-              <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
+              <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
                 These exact bits were BitGraphed {positions.length} times. Each recording occupies its own causal position.
               </div>
               {[...positions].reverse().map((pos) => {
@@ -742,7 +742,7 @@ export default function ProofPage() {
             {proof.environment?.measurement && <Field label="PCR0 Measurement" value={proof.environment.measurement} mono />}
             {proof.environment?.attestation?.format && <Field label="Attestation Format" value={proof.environment.attestation.format} />}
             {proof.environment?.attestation?.reportB64 && proof.environment?.measurement && (
-              <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+              <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
                 <AttestationButton reportB64={proof.environment.attestation.reportB64} measurement={proof.environment.measurement} proof={proof} />
               </div>
             )}
@@ -768,7 +768,7 @@ export default function ProofPage() {
                 <Field label="Etherscan" value={causalWindow.anchorBefore.etherscanUrl} link />
               )}
               {causalWindow.anchorBefore.digestB64 && (
-                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+                <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
                   <a
                     href={`/proof/${encodeURIComponent((causalWindow.anchorBefore.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
                     className="bg-btn-outline"
@@ -803,7 +803,7 @@ export default function ProofPage() {
                 <Field label="Etherscan" value={causalWindow.anchorAfter.etherscanUrl} link />
               )}
               {causalWindow.anchorAfter.digestB64 && (
-                <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+                <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
                   <a
                     href={`/proof/${encodeURIComponent((causalWindow.anchorAfter.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
                     className="bg-btn-outline"
@@ -823,8 +823,8 @@ export default function ProofPage() {
             </CollapsibleCard>
           ) : !isEth && !isInterval ? (
             <CollapsibleCard title="Recorded before the next block">
-              <div style={{ padding: "18px 24px", fontSize: 14, color: "#6b7280" }}>
-                Awaiting next Ethereum block…
+              <div style={{ padding: "14px 16px", fontSize: 14, color: "#6b7280" }}>
+                Waiting for the next Ethereum block…
               </div>
             </CollapsibleCard>
           ) : null}
@@ -940,7 +940,7 @@ function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactN
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
           fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4",
-          padding: "18px 24px", background: open ? "rgba(0,101,164,0.04)" : "#fff",
+          padding: "14px 16px", background: open ? "rgba(0,101,164,0.04)" : "#fff",
           border: "none", borderBottom: open ? "1px solid #e2e5e9" : "none",
           cursor: "pointer", textAlign: "left", fontFamily: "inherit",
         }}
@@ -966,7 +966,7 @@ function Field({ label, value, valueNode, mono: isMono, highlight, link, center,
       onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
       style={{
         display: "flex", flexDirection: "column", gap: 5,
-        padding: "14px 24px", borderBottom: "1px solid #e2e5e9", cursor: "pointer",
+        padding: "14px 16px", borderBottom: "1px solid #e2e5e9", cursor: "pointer",
         textAlign: center ? "center" : undefined,
         // Divider above the row, for when it follows non-field content (e.g. the
         // File Hash under the file image/dropzone, which has no bottom border).
@@ -1062,13 +1062,13 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
       {/* No copy button: click anywhere on the JSON to copy it, the same
           tap-to-copy affordance every Field uses. A brief "Copied!" chip
           confirms it without hiding the content. */}
-      <div style={{ padding: "14px 24px", position: "relative" }}>
+      <div style={{ padding: "14px 16px", position: "relative" }}>
         {copied && (
           <span style={{
-            position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", zIndex: 50,
-            padding: "8px 18px", fontSize: 13, fontWeight: 700, color: "#fff",
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 50,
+            padding: "10px 22px", fontSize: 14, fontWeight: 700, color: "#fff",
             background: "#0065A4", borderRadius: 0, pointerEvents: "none",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.18)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
           }}>
             Copied!
           </span>
@@ -1352,7 +1352,7 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
       {c2pa.creator && <Field label="Creator" value={c2pa.creator} />}
       {c2pa.signatureIssuer && <Field label="Signed by" value={c2pa.signatureIssuer} />}
       {isOpenAI && (
-        <div style={{ padding: "14px 24px", borderBottom: "1px solid #e2e5e9" }}>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
           <a
             href="https://openai.com/research/verify/"
             target="_blank" rel="noopener"
@@ -1557,7 +1557,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
         <div style={{ flex: 1, overflow: "auto", padding: "18px 20px" }}>
           {running && (
             <div style={{ padding: "40px 20px", textAlign: "center", color: "#6b7280", fontSize: 14 }}>
-              Verifying signature, certificate chain, and PCR0...
+              Verifying signature, certificate chain, and PCR0…
             </div>
           )}
 
