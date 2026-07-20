@@ -1,6 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { warm, ROLL_FEED_KEY } from "@/lib/warm";
+
+// Warm the Roll feed the moment the user signals intent to open it, so the page
+// paints filled-in instead of spinning. Fires on hover / focus / touch — only
+// when there's real intent, never on every page load — and is a no-op once a
+// fresh copy is in flight or cached. Next already prefetches the route CODE on
+// hover; this brings the DATA, the actual latency.
+const warmRoll = () => warm(ROLL_FEED_KEY);
 
 export function SiteNav() {
   return (
@@ -34,10 +42,16 @@ export function SiteNav() {
         <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
           {/* Roll — the ledger, now on its own /roll page (no longer embedded
               under the home camera), so the nav is its way in. */}
-          <Link href="/roll" style={{
-            fontSize: 14, fontWeight: 600, color: "#111827",
-            textDecoration: "none",
-          }}>
+          <Link
+            href="/roll"
+            onMouseEnter={warmRoll}
+            onFocus={warmRoll}
+            onTouchStart={warmRoll}
+            style={{
+              fontSize: 14, fontWeight: 600, color: "#111827",
+              textDecoration: "none",
+            }}
+          >
             Roll
           </Link>
           <Link href="/docs" style={{

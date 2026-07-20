@@ -15,6 +15,7 @@ import {
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
 import { takePendingDrop } from "@/lib/pending-drop";
+import { warm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
 import { Zip, ZipPassThrough } from "fflate";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
@@ -92,6 +93,19 @@ export default function BitGraphPage() {
     const pending = takePendingDrop();
     if (pending?.length) void handleFiles(pending);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Warm the "See an example" proof during idle so a click lands on a
+  // fully-rendered page. It's a fixed, known proof, so we fetch its real
+  // response ahead of time and the proof page seeds from it (then reconciles),
+  // rather than freezing a snapshot. Idle-gated so it never competes with the
+  // home render; a no-op if the browser lacks requestIdleCallback intent.
+  useEffect(() => {
+    const key = proofFeedKey(EXAMPLE_PROOF.digest, EXAMPLE_PROOF.counter, EXAMPLE_PROOF.epoch);
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    if (ric) { const id = ric(() => warm(key), { timeout: 2000 }); return () => (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id); }
+    const t = setTimeout(() => warm(key), 600);
+    return () => clearTimeout(t);
   }, []);
 
   // Smooth-tick the displayed proving counter toward each chunk's real value.

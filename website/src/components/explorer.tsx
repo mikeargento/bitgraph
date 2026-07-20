@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { takeWarm, ROLL_FEED_KEY } from "@/lib/warm";
 
 type Entry = {
   counter: number;
@@ -13,6 +14,8 @@ type Entry = {
   at?: number;
 };
 
+type FeedResp = { entries?: Entry[]; nextBefore?: number | null; hasMore?: boolean };
+
 // Compact recorded time for a roll row, e.g. "Jul 17, 9:22 PM". More useful
 // than the truncated hash it replaces (nobody reads a proof by 10 hash chars).
 const fmtWhen = (ms?: number) =>
@@ -21,7 +24,11 @@ const fmtWhen = (ms?: number) =>
 const fmt = (n: number) => n.toLocaleString();
 
 export function Explorer({ title }: { title?: React.ReactNode }) {
-  const [entries, setEntries] = useState<Entry[]>([]);
+  // Seed first paint from a warm Roll feed if the nav warmed one on hover/focus.
+  // Only the default view (anchors shown, no cursor) is warmed, so this seeds
+  // just the initial render; the effect below reconciles against a live fetch.
+  const seeded = (() => { const w = takeWarm<FeedResp>(ROLL_FEED_KEY); return w && "data" in w ? w.data : null; })();
+  const [entries, setEntries] = useState<Entry[]>(() => seeded?.entries ?? []);
   // Counters that arrived via the live poll (not the initial load), so only
   // those rows get the arrival flash. Grows slowly; the animation runs once.
   const [freshIds, setFreshIds] = useState<Set<number>>(() => new Set());
@@ -40,9 +47,9 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
       return next;
     }), NEW_TAG_MS);
   }, []);
-  const [nextBefore, setNextBefore] = useState<number | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const [nextBefore, setNextBefore] = useState<number | null>(() => seeded?.nextBefore ?? null);
+  const [hasMore, setHasMore] = useState(() => seeded ? !!seeded.hasMore : true);
+  const [loading, setLoading] = useState(() => !seeded);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
 
@@ -79,7 +86,12 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   }, [query, searching]);
 
   const busyRef = useRef(false);
-  const topRef = useRef(0);
+  const topRef = useRef(seeded?.entries?.[0]?.counter ?? 0);
+  // The initial-load effect re-runs when the anchors toggle flips the feed mode;
+  // only the very first run should preserve warm-seeded rows (a toggle is a real
+  // reset). The reconcile fetch re-runs noteNew on the fresh rows, so any "new!"
+  // tags settle a moment after the seeded paint.
+  const firstRunRef = useRef(true);
 
   const feedUrl = useCallback((before?: number | null) =>
     `/api/explorer?${showAnchors ? "" : "files=1"}${before != null ? `${showAnchors ? "" : "&"}before=${before}` : ""}`,
@@ -91,15 +103,42 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   // stalled fetch.
   useEffect(() => {
     let cancelled = false;
-    setEntries([]);
-    setFreshIds(new Set());
-    setNewIds(new Set());
-    setNextBefore(null);
-    setHasMore(true);
-    setLoading(true);
-    setError(false);
-    topRef.current = 0;
+    const isFirst = firstRunRef.current;
+    firstRunRef.current = false;
+    // On the first run with warm-seeded rows, keep them on screen and just
+    // reconcile below (no blank flash). Otherwise (a toggle, or no warm data),
+    // reset to the loading state as before.
+    if (isFirst && seeded) {
+      setError(false);
+    } else {
+      setEntries([]);
+      setFreshIds(new Set());
+      setNewIds(new Set());
+      setNextBefore(null);
+      setHasMore(true);
+      setLoading(true);
+      setError(false);
+      topRef.current = 0;
+    }
     (async () => {
+      // Fast path: if a warm fetch is still in flight (hover then a quick
+      // click), await it instead of firing a duplicate request.
+      if (isFirst && !seeded) {
+        const w = takeWarm<FeedResp>(feedUrl());
+        if (w && "promise" in w) {
+          try {
+            const j = await w.promise;
+            if (cancelled) return;
+            setEntries(j.entries || []);
+            noteNew(j.entries || []);
+            setNextBefore(j.nextBefore ?? null);
+            setHasMore(!!j.hasMore);
+            topRef.current = j.entries?.[0]?.counter ?? 0;
+            setLoading(false);
+            return;
+          } catch { /* fall through to the normal retry loop */ }
+        }
+      }
       for (let attempt = 0; attempt < 5 && !cancelled; attempt++) {
         try {
           const ctrl = new AbortController();

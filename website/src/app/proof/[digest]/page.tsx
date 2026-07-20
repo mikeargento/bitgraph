@@ -8,6 +8,7 @@ import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
+import { takeWarm, proofFeedKey } from "@/lib/warm";
 // QR code removed — replaced with Ethereum Seal card
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
@@ -139,105 +140,125 @@ export default function ProofPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let imagePollStarted = false;
+
+    // The IndexedDB image poll. The home page writes the artifact bytes under
+    // this digest in the background after BitGraphing — bytes first, then a C2PA
+    // upgrade once the ~6 MB toolkit has parsed — and that write can land AFTER
+    // this page mounts. So poll briefly instead of reading once: pick up the
+    // bytes as soon as they appear (image preview), then keep polling until C2PA
+    // has been checked (card), bounded to a few seconds. Independent of the proof
+    // payload, so it starts as soon as we have a proof — seeded or freshly
+    // fetched. Guarded so a warm seed + a reconcile don't start it twice.
+    const startImagePoll = () => {
+      if (imagePollStarted) return;
+      imagePollStarted = true;
+      let digestB64 = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
+      while (digestB64.length % 4 !== 0) digestB64 += "=";
+      const readCached = async () => {
+        try {
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            const req = indexedDB.open("bitgraph-files", 1);
+            req.onupgradeneeded = () => req.result.createObjectStore("files");
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          });
+          const tx = db.transaction("files", "readonly");
+          const file = await new Promise<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | undefined>((resolve) => {
+            const req = tx.objectStore("files").get(digestB64);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve(undefined);
+          });
+          db.close();
+          return file;
+        } catch { return undefined; }
+      };
+      // Self-heal: drop a cached record whose bytes don't match this proof.
+      // Older home-page builds cached the dropped proof.json itself under the
+      // digest key; those bytes aren't the artifact and would otherwise hide
+      // both the image and the bring-your-file box.
+      const dropCached = async () => {
+        try {
+          const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            const req = indexedDB.open("bitgraph-files", 1);
+            req.onupgradeneeded = () => req.result.createObjectStore("files");
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          });
+          const tx = db.transaction("files", "readwrite");
+          tx.objectStore("files").delete(digestB64);
+          await new Promise((r) => { tx.oncomplete = r; tx.onerror = r; });
+          db.close();
+        } catch { /* best effort */ }
+      };
+      // Non-blocking poll so it never delays first paint.
+      void (async () => {
+        let validated = false;
+        for (let attempt = 0; attempt < 20 && !cancelled; attempt++) {
+          const file = await readCached();
+          if (file && !cancelled) {
+            // Trust a cached file only if its bytes actually hash to this
+            // proof's digest. A non-matching record (e.g. a stale cached
+            // proof.json) is dropped so the bring-your-file box can show.
+            if (!validated) {
+              let matches = false;
+              try { matches = (await hashBytes(new Uint8Array(file.data))) === digestB64; } catch { matches = false; }
+              if (!matches) { void dropCached(); break; }
+              validated = true;
+            }
+            setCachedFile(file);
+            if (file.c2paChecked) break; // bytes + C2PA both settled
+          }
+          await new Promise((r) => setTimeout(r, 350));
+        }
+      })();
+    };
+
+    // Apply a proof API response to state (and kick the image poll). Returns
+    // false for a response with no proof, so callers can fall back to an error.
+    const applyData = (data: { proofs?: Array<{ proof?: BitGraphProof }>; causalWindow?: typeof causalWindow; anchorBlock?: typeof anchorBlock; positions?: typeof positions } | null): boolean => {
+      if (cancelled || !data?.proofs?.[0]?.proof) return false;
+      setProof(data.proofs[0].proof);
+      if (data.causalWindow) setCausalWindow(data.causalWindow);
+      if (data.anchorBlock) setAnchorBlock(data.anchorBlock);
+      if (Array.isArray(data.positions)) setPositions(data.positions);
+      startImagePoll();
+      return true;
+    };
+
+    // Pass ?counter=&epoch= through so a specific causal position can be
+    // selected when the same bytes were BitGraphed more than once. window.location
+    // is read directly (not useSearchParams) so the page needs no Suspense
+    // boundary; links between positions do full loads. proofFeedKey builds the
+    // exact URL the warmer used, so a warm copy keys straight to this fetch.
+    const qs = new URLSearchParams(window.location.search);
+    const key = proofFeedKey(digestParam, qs.get("counter"), qs.get("epoch"));
+
+    // Instant first paint: if the home page warmed this proof, render it now.
+    const warmHit = takeWarm<Parameters<typeof applyData>[0]>(key);
+    const seeded = !!(warmHit && "data" in warmHit && applyData(warmHit.data));
+    if (seeded) setLoading(false);
+
+    // Live fetch — the source of truth, and the background reconcile when we
+    // seeded. A reconcile failure never clobbers a good seeded render.
     (async () => {
       try {
-        // 15s timeout guards against a stuck API route (e.g. a slow
-        // Ethereum RPC inside the causal-window lookup). Without this the
-        // page can hang indefinitely on "Loading proof..." if anything
-        // downstream stalls.
+        // 15s timeout guards against a stuck API route (e.g. a slow Ethereum
+        // RPC inside the causal-window lookup). Without this the page can hang
+        // indefinitely on the skeleton if anything downstream stalls.
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
         let resp: Response;
         try {
-          // Pass ?counter=&epoch= through so a specific causal position can be
-          // selected when the same bytes were BitGraphed more than once.
-          // window.location is read directly (not useSearchParams) so the page
-          // needs no Suspense boundary; links between positions do full loads.
-          const qs = new URLSearchParams(window.location.search);
-          const sel = new URLSearchParams();
-          if (qs.get("counter")) sel.set("counter", qs.get("counter")!);
-          if (qs.get("epoch")) sel.set("epoch", qs.get("epoch")!);
-          const selStr = sel.toString();
-          const selQ = selStr ? `?${selStr}` : "";
-          resp = await fetch(`/api/proofs/digest/${digestParam}${selQ}`, { signal: controller.signal });
+          resp = await fetch(key, { signal: controller.signal });
         } finally {
           clearTimeout(timeoutId);
         }
-        if (!resp.ok) { setError("BitGraph not found"); setLoading(false); return; }
+        if (!resp.ok) { if (!seeded) setError("BitGraph not found"); return; }
         const data = await resp.json();
-        if (data.proofs?.[0]?.proof) {
-          setProof(data.proofs[0].proof as BitGraphProof);
-          if (data.causalWindow) setCausalWindow(data.causalWindow);
-          if (data.anchorBlock) setAnchorBlock(data.anchorBlock);
-          if (Array.isArray(data.positions)) setPositions(data.positions);
-          // Load the cached file from IndexedDB. The home page writes it in
-          // the background after BitGraphing — bytes first, then a C2PA upgrade
-          // once the ~6 MB toolkit has parsed — and that write can land AFTER
-          // this page mounts. So poll briefly instead of reading once: pick up
-          // the bytes as soon as they appear (image preview), then keep polling
-          // until C2PA has been checked (card), bounded to a few seconds.
-          let digestB64 = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
-          while (digestB64.length % 4 !== 0) digestB64 += "=";
-          const readCached = async () => {
-            try {
-              const db = await new Promise<IDBDatabase>((resolve, reject) => {
-                const req = indexedDB.open("bitgraph-files", 1);
-                req.onupgradeneeded = () => req.result.createObjectStore("files");
-                req.onsuccess = () => resolve(req.result);
-                req.onerror = () => reject(req.error);
-              });
-              const tx = db.transaction("files", "readonly");
-              const file = await new Promise<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | undefined>((resolve) => {
-                const req = tx.objectStore("files").get(digestB64);
-                req.onsuccess = () => resolve(req.result);
-                req.onerror = () => resolve(undefined);
-              });
-              db.close();
-              return file;
-            } catch { return undefined; }
-          };
-          // Self-heal: drop a cached record whose bytes don't match this proof.
-          // Older home-page builds cached the dropped proof.json itself under the
-          // digest key; those bytes aren't the artifact and would otherwise hide
-          // both the image and the bring-your-file box.
-          const dropCached = async () => {
-            try {
-              const db = await new Promise<IDBDatabase>((resolve, reject) => {
-                const req = indexedDB.open("bitgraph-files", 1);
-                req.onupgradeneeded = () => req.result.createObjectStore("files");
-                req.onsuccess = () => resolve(req.result);
-                req.onerror = () => reject(req.error);
-              });
-              const tx = db.transaction("files", "readwrite");
-              tx.objectStore("files").delete(digestB64);
-              await new Promise((r) => { tx.oncomplete = r; tx.onerror = r; });
-              db.close();
-            } catch { /* best effort */ }
-          };
-          // Non-blocking poll so it never delays first paint.
-          void (async () => {
-            let validated = false;
-            for (let attempt = 0; attempt < 20 && !cancelled; attempt++) {
-              const file = await readCached();
-              if (file && !cancelled) {
-                // Trust a cached file only if its bytes actually hash to this
-                // proof's digest. A non-matching record (e.g. a stale cached
-                // proof.json) is dropped so the bring-your-file box can show.
-                if (!validated) {
-                  let matches = false;
-                  try { matches = (await hashBytes(new Uint8Array(file.data))) === digestB64; } catch { matches = false; }
-                  if (!matches) { void dropCached(); break; }
-                  validated = true;
-                }
-                setCachedFile(file);
-                if (file.c2paChecked) break; // bytes + C2PA both settled
-              }
-              await new Promise((r) => setTimeout(r, 350));
-            }
-          })();
-        } else setError("BitGraph not found");
-      } catch { setError("Failed to load BitGraph"); }
-      setLoading(false);
+        if (!applyData(data) && !seeded) setError("BitGraph not found");
+      } catch { if (!seeded) setError("Failed to load BitGraph"); }
+      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [digestParam]);
