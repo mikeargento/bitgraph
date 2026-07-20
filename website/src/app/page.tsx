@@ -586,9 +586,13 @@ export default function BitGraphPage() {
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
-        /* Drop step centers the camera in the viewport (center center); the
-           results view (bitgraph-results) overrides back to top-aligned. */
-        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 57px); }
+        /* Drop step centers the camera on the TRUE viewport middle. The nav is
+           sticky (56px of flow at the top), so centering in the leftover space
+           below it would land the box half-a-header too low. Subtracting the
+           header height TWICE makes the flex region symmetric about 50dvh (an
+           equal gap below the nav and at the bottom), so the box sits dead
+           center. The results view (bitgraph-results) overrides to top-aligned. */
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 114px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
         /* Waiting states (read/check/prove/export) all pin their center to the

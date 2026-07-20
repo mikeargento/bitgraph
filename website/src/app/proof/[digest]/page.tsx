@@ -383,22 +383,22 @@ export default function ProofPage() {
     if (upperTime) {
       const s1 = new Date(lowerTime), s2 = new Date(upperTime);
       const sameDay = s1.toDateString() === s2.toDateString();
-      // A "→" separates the window ("12:00:59 AM → 12:01:11 AM EDT"): forward in
-      // time, one causal direction. One shared zone per phrase, so the opening
-      // time drops the zone and the closing time carries it.
+      // "between X and Y" bounds the window ("between 12:00:59 AM and 12:01:11 AM
+      // EDT"). One shared zone per phrase, so the opening time drops the zone and
+      // the closing time carries it.
       const fmtOpen = sameDay ? timeNoTz : stampNoTz;
       const fmtClose = sameDay ? timeTz : stampTz;
-      leadStack = winLine(<>{val(fmtOpen(s1))}{conn(" → ")}{val(fmtClose(s2))}</>);
+      leadStack = winLine(<>{conn("between ")}{val(fmtOpen(s1))}{conn(" and ")}{val(fmtClose(s2))}</>);
     } else if (ethWait) {
       const s1 = new Date(lowerTime);
       // Not sealed yet: the close time is unknown. Show the open time and a
-      // pulsing ellipsis for the pending close ("11:04:35 PM → …") rather than a
-      // full-width timestamp placeholder — short enough that date + time stay on
-      // one line while waiting (no wrap). When the anchor lands the close fills
-      // in; on mobile it then drops to its own line, a one-time reflow at seal.
+      // pulsing ellipsis for the pending close ("between 11:04:35 PM and …")
+      // rather than a full-width timestamp placeholder — short enough that date
+      // + time stay on one line while waiting (no wrap). When the anchor lands
+      // the close fills in; on mobile it then drops to its own line at seal.
       leadStack = winLine(
         <>
-          {val(timeTz(s1))}{conn(" → ")}
+          {conn("between ")}{val(timeTz(s1))}{conn(" and ")}
           <span style={{ color: "#9ca3af", fontWeight: 400, whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
             …
           </span>
