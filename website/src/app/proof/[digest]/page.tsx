@@ -371,7 +371,7 @@ export default function ProofPage() {
   const conn = (label: string) => <span style={{ color: "#6b7280", fontWeight: 400 }}>{label}</span>;
   const val = (t: string) => <span style={{ color: "#111827", fontWeight: 400, whiteSpace: "nowrap" }}>{t}</span>;
   const winLine = (children: React.ReactNode) => (
-    <div style={{ fontSize: 14, lineHeight: 1.5, color: "#6b7280", textAlign: "right" }}>{children}</div>
+    <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#6b7280" }}>{children}</div>
   );
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
     // The block number lives in the "BitGraphed Ethereum Block" card below, so
@@ -415,17 +415,16 @@ export default function ProofPage() {
   // phone the window wraps to its own right-aligned line.
   const whenNode = leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine));
   const whenRow = (recordedDate || whenNode) ? (
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 16px", padding: "14px 24px" }}>
+    /* Written like a card field: the date is the heading, the time window the
+       value beneath it in the monospace/data font, matching the hashes and
+       counters elsewhere on the page. */
+    <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 24px" }}>
       {recordedDate && (
-        <div style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
           {recordedDate}
         </div>
       )}
-      {whenNode && (
-        <div style={{ marginLeft: "auto", flexShrink: 0, fontSize: 14, lineHeight: 1.5, color: "#6b7280", textAlign: "right" }}>
-          {whenNode}
-        </div>
-      )}
+      {whenNode}
     </div>
   ) : null;
 
@@ -609,6 +608,15 @@ export default function ProofPage() {
                   In the no-file state it is also the value a dropped file is
                   checked against. */}
               <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder={isDisplayableImage(cachedFile, cachedFile?.c2pa) || !cachedFile} />
+              {/* BitGraph again — record these same bytes at a NEW causal
+                  position. It lives with the file it acts on (only offered when
+                  the artifact is in hand, cachedFile set), so it sits below the
+                  hash inside this card. */}
+              {cachedFile && (
+                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9" }}>
+                  <BitGraphAgainButton proof={proof} digestParam={digestParam} />
+                </div>
+              )}
             </CollapsibleCard>
           )}
 
@@ -856,6 +864,10 @@ export default function ProofPage() {
                 : <Field label="Title" value={attr.title} />)}
             </CollapsibleCard>
           )}
+
+          {/* Raw JSON — a collapsible card like the others (was a button that
+              opened a modal), so the whole proof reads as one stack of cards. */}
+          <JsonSection proof={proof} />
         </div>
 
         {/* Export — the closing action. A receipt is read first and saved last,
@@ -863,19 +875,6 @@ export default function ProofPage() {
             `gap` so the spacing from the last card equals the spacing between
             cards. */}
         <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
-          {/* Raw JSON sits with Export: both are "do something with the data"
-              actions. Outline (inspect) above filled (download). */}
-          <JsonSection proof={proof} />
-          {/* BitGraph again — record these same bytes at a NEW causal position.
-              Identical bits, distinct recording: the TEE consumes a fresh slot
-              and the counter advances. Only offered when the artifact is in
-              hand on this device (cachedFile is set only after its bytes hash
-              to this proof's digest), keeping the file-as-key rule: viewing a
-              proof page alone doesn't let you mint positions for bytes you
-              don't hold. */}
-          {!isEth && cachedFile && (
-            <BitGraphAgainButton proof={proof} digestParam={digestParam} />
-          )}
           <button
             onClick={exportZip}
             style={{
@@ -1051,79 +1050,37 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
 }
 
 function JsonSection({ proof }: { proof: BitGraphProof }) {
-  const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const json = JSON.stringify(proof, null, 2);
-
   return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="bg-btn-outline"
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-          width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-          color: "#0065A4", background: "#f4f6f9",
-          border: "1px solid #0065A4", borderRadius: 0,
-          cursor: "pointer",
-        }}
-      >
-        <BtnIcon name="code" />
-        <span>View Raw JSON</span>
-      </button>
-      {open && (
-        <div
-          style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
-          onClick={() => setOpen(false)}
+    <CollapsibleCard title="Raw JSON">
+      <div style={{ padding: "14px 24px" }}>
+        <button
+          onClick={() => { navigator.clipboard.writeText(json); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+          style={{ marginBottom: 12, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "var(--c-accent)", background: "#fff", border: "1px solid var(--c-accent)", borderRadius: 0, cursor: "pointer" }}
         >
-          <div
-            style={{ width: "100%", maxWidth: 720, maxHeight: "85vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: 0, border: "1px solid #d0d5dd", overflow: "hidden" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 20px", borderBottom: "1px solid #e5e7eb" }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "var(--c-accent)" }}>Raw JSON</span>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigator.clipboard.writeText(json);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 1500);
-                  }}
-                  style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "var(--c-accent)", background: "#fff", border: "1px solid var(--c-accent)", borderRadius: 0, cursor: "pointer" }}
-                >
-                  {copied ? "Copied" : "Copy"}
-                </button>
-                <button
-                  onClick={() => setOpen(false)}
-                  style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "#fff", background: "var(--c-accent)", border: "none", borderRadius: 0, cursor: "pointer" }}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-            <div style={{ flex: 1, overflow: "auto", padding: "18px 20px" }}>
-              <pre
-                style={{
-                  fontSize: 12,
-                  lineHeight: 1.6,
-                  color: "#374151",
-                  padding: 14,
-                  margin: 0,
-                  background: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-all",
-                  fontFamily: mono,
-                }}
-              >
-                {json}
-              </pre>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+          {copied ? "Copied" : "Copy"}
+        </button>
+        <pre
+          style={{
+            fontSize: 12,
+            lineHeight: 1.6,
+            color: "#374151",
+            padding: 14,
+            margin: 0,
+            background: "#f9fafb",
+            border: "1px solid #e5e7eb",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-all",
+            fontFamily: mono,
+            maxHeight: 400,
+            overflow: "auto",
+          }}
+        >
+          {json}
+        </pre>
+      </div>
+    </CollapsibleCard>
   );
 }
 
