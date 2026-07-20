@@ -595,6 +595,12 @@ export default function BitGraphPage() {
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 114px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
+        /* Drop step is a two-part hero: the concept line ("A camera for bits.")
+           states WHAT this is, the camera below is the tool. Centered as one
+           group; the tagline sits close to the box so they read as a unit. */
+        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: 24px; }
+        .bitgraph-tagline { text-align: center; font-size: clamp(30px, 6.6vw, 50px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
+        .bitgraph-tagline .accent { color: #0065A4; }
         /* Waiting states (read/check/prove/export) all pin their center to the
            SAME viewport point the success checkmark uses (fixed, 44% down,
            horizontally centered), so every wait and the capture moment share
@@ -619,18 +625,23 @@ export default function BitGraphPage() {
 
       <div className={`bitgraph-wrap${step !== "drop" ? " bitgraph-results" : ""}`}>
 
-        {/* ── Drop zone + What is BitGraph button ── */}
-        {/* Drop step: just the camera, centered in the viewport (the wrap
-            centers this step). The Roll lives on its own /roll page, linked
-            from the nav. */}
+        {/* ── Drop step: the hero. A concept line ("A camera for bits.") over
+            the camera itself. Centered as one group by the wrap. The Roll lives
+            on its own /roll page, linked from the nav. ── */}
         {step === "drop" && (
-          <div className="bitgraph-camera" style={{ animation: "slideIn 0.3s ease-out" }}>
-            <FileDrop
-              multiple
-              onFile={(f) => handleFiles([f])}
-              onFiles={handleFiles}
-              hint="Files already BitGraphed are looked up"
-            />
+          <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
+            <div className="bitgraph-tagline">
+              A camera for <span className="accent">bits</span>.
+            </div>
+            <div className="bitgraph-camera">
+              <FileDrop
+                multiple
+                onFile={(f) => handleFiles([f])}
+                onFiles={handleFiles}
+                hint="Files already BitGraphed are looked up"
+                headlineSize="clamp(30px, 6.6vw, 50px)"
+              />
+            </div>
           </div>
         )}
 

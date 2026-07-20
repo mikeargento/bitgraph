@@ -24,6 +24,8 @@ interface FileDropProps {
   captureLabel?: string;
   /** Drop-zone headline (proof pages say "Take another BitGraph") */
   headline?: string;
+  /** Headline font size (CSS length/clamp). Defaults to the compact card size. */
+  headlineSize?: string;
 }
 
 export function FileDrop({
@@ -42,6 +44,7 @@ export function FileDrop({
   browseLabel = "browse",
   captureLabel = "take photo",
   headline = "Take a BitGraph",
+  headlineSize = "clamp(20px, 6vw, 24px)",
 }: FileDropProps) {
   const [dragover, setDragover] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -240,12 +243,10 @@ export function FileDrop({
             </svg>
           </div>
           <div
-            className="font-semibold tracking-tight text-center"
+            className="font-medium tracking-tight text-center"
             style={{
               color: "#111827",
-              // Match the proof-page receipt headline ("BitGraph Recorded")
-              // exactly so the two adjacent card titles are the same size.
-              fontSize: "clamp(20px, 6vw, 24px)",
+              fontSize: headlineSize,
               whiteSpace: "nowrap",
             }}
           >
