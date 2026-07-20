@@ -593,12 +593,14 @@ export default function ProofPage() {
             </div>
           )}
 
-          {/* The content slot: a "BitGraphed File" card, collapsed by default
-              like every other card so the page opens as a clean stack of
-              titles. The "when" leads the body, then the image when the bytes
-              are in hand (or the bring-your-file dropzone), then the file hash. */}
+          {/* The content slot: the "BitGraph Recorded" card. Unlike the technical
+              cards below it, this one is plain (no toggle) and always open — it
+              holds the file, its "when", and its hash, and its header asserts the
+              recording happened (the confirmation the removed receipt used to
+              carry). The "when" leads the body, then the image when the bytes are
+              in hand (or the bring-your-file dropzone), then the file hash. */}
           {!isEth && !isInterval && (
-            <CollapsibleCard title="BitGraphed File">
+            <CollapsibleCard title="BitGraph Recorded" plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
@@ -983,32 +985,42 @@ function ProofSkeleton() {
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
 
-function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(!!defaultOpen);
+function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean; plain?: boolean }) {
+  // A plain card has no toggle and is always open — used for the primary
+  // "BitGraph Recorded" card, whose contents are the point of the page.
+  const [open, setOpen] = useState(!!defaultOpen || !!plain);
+  const headerStyle: React.CSSProperties = {
+    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
+    fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4",
+    padding: "14px 16px", background: open ? "rgba(0,101,164,0.04)" : "#fff",
+    border: "none", borderBottom: open ? "1px solid #e2e5e9" : "none",
+    textAlign: "left", fontFamily: "inherit",
+  };
   return (
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
-      {/* The header is a full-row toggle with the same hover + outlined-button
-          affordance as the explorer rows: the row tints on hover and the
-          chevron button inverts to solid blue, so a collapsed card reads as
-          clearly clickable. */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="bg-collapse-head"
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
-          fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4",
-          padding: "14px 16px", background: open ? "rgba(0,101,164,0.04)" : "#fff",
-          border: "none", borderBottom: open ? "1px solid #e2e5e9" : "none",
-          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
-        }}
-      >
-        <span>{title}</span>
-        <span className="bg-collapse-btn" aria-hidden>
-          {open ? "Close" : "Open"}
-          <span style={{ fontSize: 17, lineHeight: 1, fontWeight: 600, display: "inline-block", transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }}>&#8250;</span>
-        </span>
-      </button>
+      {plain ? (
+        // Static header: a heading, not a control — no hover affordance, no toggle.
+        <div style={{ ...headerStyle, cursor: "default" }}>
+          <span>{title}</span>
+        </div>
+      ) : (
+        /* The header is a full-row toggle with the same hover + outlined-button
+           affordance as the explorer rows: the row tints on hover and the
+           chevron button inverts to solid blue, so a collapsed card reads as
+           clearly clickable. */
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="bg-collapse-head"
+          style={{ ...headerStyle, cursor: "pointer" }}
+        >
+          <span>{title}</span>
+          <span className="bg-collapse-btn" aria-hidden>
+            {open ? "Close" : "Open"}
+            <span style={{ fontSize: 17, lineHeight: 1, fontWeight: 600, display: "inline-block", transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }}>&#8250;</span>
+          </span>
+        </button>
+      )}
       {open && <div className="proof-fields" style={{ padding: "4px 0", animation: "fadeIn .2s ease-out" }}>{children}</div>}
     </div>
   );
