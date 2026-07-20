@@ -374,8 +374,11 @@ export default function ProofPage() {
     <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#6b7280", textAlign: "right" }}>{children}</div>
   );
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
+    // The block number lives in the "BitGraphed Ethereum Block" card below, so
+    // the receipt carries only the block's date (left, via recordedDate) and its
+    // single timestamp (right) — the same shape as a file-proof receipt.
     const d = new Date(anchorBlock.blockTime);
-    leadStack = winLine(<>{conn("Ethereum block ")}{val(`#${Number(ethBlockNum).toLocaleString()}`)}{conn(" at ")}{val(timeTz(d))}</>);
+    leadStack = winLine(val(timeTz(d)));
   } else if (!isEth && lowerTime) {
     if (upperTime) {
       const s1 = new Date(lowerTime), s2 = new Date(upperTime);
@@ -388,11 +391,18 @@ export default function ProofPage() {
       leadStack = winLine(<>{val(fmtOpen(s1))}{conn(" → ")}{val(fmtClose(s2))}</>);
     } else if (ethWait) {
       const s1 = new Date(lowerTime);
+      // Not sealed yet. Instead of "waiting on Ethereum…" (wider than a real
+      // timestamp, so it stretched the window and wrapped on mobile), flash a
+      // placeholder in the exact shape of the eventual close time: same digits
+      // blanked to "_", same AM/PM and zone. In the mono font it is character-
+      // for-character the same width as the real time, so nothing moves or wraps
+      // when the anchor lands and fills it in.
+      const placeholder = timeTz(s1).replace(/\d/g, "_");
       leadStack = winLine(
         <>
           {val(timeTz(s1))}{conn(" → ")}
-          <span style={{ color: "#6b7280", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
-            waiting on Ethereum…
+          <span style={{ color: "#9ca3af", fontWeight: 600, whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
+            {placeholder}
           </span>
         </>
       );

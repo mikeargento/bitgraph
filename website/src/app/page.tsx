@@ -713,24 +713,8 @@ export default function BitGraphPage() {
                   screen (it force-reloads home). Matches the proof page, which
                   also has no camera. */}
 
-              {/* Status headline first: how many of the dropped files are on
-                  record. Sized to match the proof page's receipt so a multi-file
-                  result carries the same authority as a single proof; font capped
-                  at 18px so it is no bigger on desktop than mobile and still fits
-                  a 4-5 digit count on one line. */}
-              <div style={{ fontSize: "clamp(16px, 4.5vw, 18px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", height: 76, padding: "0 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
-                  {/* "X of N" only while it is still partial; once every dropped
-                      file is recorded the "of N" is redundant, so it reads just
-                      "N BitGraphs Recorded". */}
-                  {animCount >= items.length
-                    ? `${items.length} BitGraph${items.length === 1 ? "" : "s"} Recorded`
-                    : `${animCount} of ${items.length} BitGraphs Recorded`}
-                </span>
-              </div>
-
-              {/* Actions — the BitGraph-remaining CTA (while files are unproven),
-                  then Download. Sits under the count headline, above the list. */}
+              {/* Actions first — the primary thing to do with the batch: the
+                  BitGraph-remaining CTA while files are unproven, then Download. */}
               <div className="bitgraph-actions">
                 {unproven.length > 0 && (
                   <button onClick={proveRemaining} style={{ ...btnFill, background: "var(--c-accent)", color: "#ffffff" }}>
@@ -748,6 +732,18 @@ export default function BitGraphPage() {
                     {anchorCountdown > 0 ? <span style={{ fontSize: 14 }}>{`BitGraphing the next Ethereum block hash... ${anchorCountdown}s`}</span> : zipCount > 1 ? `Download all ${zipCount} (.zip)` : "Download .zip"}
                   </button>
                 )}
+              </div>
+
+              {/* Count as a receipt-style line (same idea as the proof receipt):
+                  the label on the left, the "X of N" count on the right. Same 76px
+                  height as the Download button above it. */}
+              <div style={{ height: 76, padding: "0 24px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827" }}>
+                  BitGraph{items.length === 1 ? "" : "s"} Recorded
+                </span>
+                <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
+                  {animCount} of {items.length}
+                </span>
               </div>
 
               {/* File list: one card per file separated by a gap so each file's
