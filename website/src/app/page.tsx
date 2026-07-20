@@ -720,7 +720,12 @@ export default function BitGraphPage() {
                   a 4-5 digit count on one line. */}
               <div style={{ fontSize: "clamp(16px, 4.5vw, 18px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "0.92em 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
-                  {animCount} of {items.length} BitGraphs Recorded
+                  {/* "X of N" only while it is still partial; once every dropped
+                      file is recorded the "of N" is redundant, so it reads just
+                      "N BitGraphs Recorded". */}
+                  {animCount >= items.length
+                    ? `${items.length} BitGraph${items.length === 1 ? "" : "s"} Recorded`
+                    : `${animCount} of ${items.length} BitGraphs Recorded`}
                 </span>
               </div>
 
@@ -859,6 +864,25 @@ export default function BitGraphPage() {
                 );
               })}
             </div>
+
+              {/* Quiet way to record or check more without re-adding the big
+                  drop box: resets to the drop screen in place. The recordings
+                  persist in the explorer/Roll, so nothing is lost. */}
+              <button
+                onClick={() => { setItems([]); setStep("drop"); window.scrollTo(0, 0); }}
+                style={{
+                  alignSelf: "center", background: "none", border: "none", cursor: "pointer",
+                  color: "#0065A4", fontSize: 14, fontWeight: 600, padding: "4px 8px",
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 15 V21 H3 V15" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Take another BitGraph
+              </button>
 
           </div>
         )}
