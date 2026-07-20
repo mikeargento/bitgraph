@@ -704,17 +704,11 @@ export default function BitGraphPage() {
         {step === "results" && items.length > 0 && (
           <div style={{ animation: "slideIn 0.3s ease-out", display: "flex", flexDirection: "column", gap: 24 }}>
 
-              {/* Choose new files — the same drop box as the home page, so you can
-                  drag, paste, or click to start a fresh set. Dropping here re-runs
-                  the scan and replaces the list. Sits on top. */}
-              <div className="bitgraph-camera" style={{ animation: "slideIn 0.3s ease-out" }}>
-                <FileDrop
-                  multiple
-                  onFile={(f) => handleFiles([f])}
-                  onFiles={handleFiles}
-                  hint="Files already BitGraphed are looked up"
-                />
-              </div>
+              {/* No drop box here: the results page is a terminal "here's what you
+                  did" view, so it leads with the results themselves. To start a
+                  new batch, the "BitGraph" logo in the nav returns to the drop
+                  screen (it force-reloads home). Matches the proof page, which
+                  also has no camera. */}
 
               {/* Status headline first: how many of the dropped files are on
                   record. Sized to match the proof page's receipt so a multi-file
