@@ -31,10 +31,6 @@ interface FileItem {
   proofs: BitGraphProof[];
   valid: boolean | null;
   status: "found" | "new" | "proving" | "proved" | "error";
-  // Seal time (ISO) once the anchor after this recording lands: a freshly
-  // recorded row shows "waiting on Ethereum…" until this is filled in, then the
-  // recorded time. Only set for just-recorded ("proved") rows.
-  recordedTime?: string | null;
   // True when this item came from a dropped proof.json rather than an artifact.
   // The `file` in hand is then the JSON, not the thing the proof is about, so we
   // offer an inline check to confirm the visitor holds the matching artifact.
@@ -90,47 +86,6 @@ export default function BitGraphPage() {
   useEffect(() => {
     return () => { cancelAnimationFrame(rafRef.current); };
   }, []);
-
-  // Resolve the "waiting on Ethereum…" state on just-recorded rows so they do
-  // not hang. A fresh recording is committed but not yet anchored; its honest
-  // "when" is the sealing anchor. The whole batch is sealed by the first anchor
-  // after its highest counter, so we poll that one position and, once its upper
-  // anchor lands, stamp every recorded row with the seal time (they share it).
-  // Gives up after 5 minutes (an idle TEE anchors slowly); the row then simply
-  // stays "waiting on Ethereum…" and the proof page shows the exact window.
-  useEffect(() => {
-    if (step !== "results") return;
-    const pending = items.filter(
-      (it) => it.status === "proved" && !it.recordedTime && it.proof?.commit?.counter != null
-    );
-    if (pending.length === 0) return;
-    const target = pending.reduce((a, b) =>
-      Number(a.proof!.commit!.counter) >= Number(b.proof!.commit!.counter) ? a : b
-    );
-    const digest = toUrlSafeB64(target.proof!.artifact.digestB64);
-    const counter = String(target.proof!.commit!.counter);
-    const epoch = target.proof!.commit!.epochId ? toUrlSafeB64(target.proof!.commit!.epochId) : "";
-    let cancelled = false;
-    const poll = setInterval(async () => {
-      try {
-        const qs = new URLSearchParams({ counter });
-        if (epoch) qs.set("epoch", epoch);
-        const r = await fetch(`/api/proofs/digest/${digest}?${qs.toString()}`);
-        if (!r.ok) return;
-        const data = await r.json();
-        const sealedAt = data?.causalWindow?.anchorAfter?.blockTime;
-        if (!cancelled && sealedAt) {
-          setItems((prev) =>
-            prev.map((it) =>
-              it.status === "proved" && !it.recordedTime ? { ...it, recordedTime: sealedAt } : it
-            )
-          );
-        }
-      } catch { /* transient; the next tick retries */ }
-    }, 5000);
-    const stop = setTimeout(() => clearInterval(poll), 5 * 60_000);
-    return () => { cancelled = true; clearInterval(poll); clearTimeout(stop); };
-  }, [step, items]);
 
   // Files dropped on a proof page's camera strip arrive via the pending-drop
   // slot: pick them up on mount and run the normal drop flow.
@@ -833,23 +788,18 @@ export default function BitGraphPage() {
                   : item.status === "proving" ? "BitGraphing…"
                   : item.status === "error" ? "Error"
                   : null;
-                // Every recording is the same explorer-style row: counter left,
-                // outcome tag, filename right, Open. A file with SEVERAL
-                // recordings just stacks more of them in the one card, sharing
-                // its border and outcome rail; the filename and tag appear on
-                // the first row only, so continuation rows read as "same file,
-                // another position". (A filename-header + indented-rows tier
-                // was tried and looked like a different species of card.)
+                // Every recording is the same explorer-style row: the # position
+                // on the left, Open on the right, nothing between. A file with
+                // SEVERAL recordings just stacks more rows in the one card,
+                // sharing its border and rail, each row its own # position.
                 const proofCount = item.proofs.length || (item.proof ? 1 : 0);
-                // One gesture, two outcomes, told by the word (both rails brand
-                // blue): a file already in the ledger is a CHECK ("on record");
-                // one recorded just now is a RECORD ("recorded").
-                const outcome =
-                  item.status === "found" ? { color: "#0065A4", word: "on record" }
-                  : item.status === "proved" ? { color: "#0065A4", word: "recorded" }
-                  : null;
+                // Recorded rows (found or just proved) carry a brand-blue left
+                // rail; errors and pending rows do not. The row itself shows only
+                // its # position and Open, so every recorded row reads the same.
+                const railColor =
+                  item.status === "found" || item.status === "proved" ? "#0065A4" : null;
                 return (
-                  <div key={item.file.name + i} className="bitgraph-file-card" data-clickable={proofCount > 0} style={{ border: "1px solid #d0d5dd", borderLeft: outcome ? `3px solid ${outcome.color}` : undefined, animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
+                  <div key={item.file.name + i} className="bitgraph-file-card" data-clickable={proofCount > 0} style={{ border: "1px solid #d0d5dd", borderLeft: railColor ? `3px solid ${railColor}` : undefined, animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
                   {rowProofs.map((p, k) => {
                     const clickable = !!p;
                     const counter = p?.commit?.counter;
@@ -881,39 +831,11 @@ export default function BitGraphPage() {
                         ? <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
                         : pendingLabel}
                     </span>
-                    {/* A file already in the ledger reads "on record" (it was
-                        recorded before, so it is sealed). A just-recorded file
-                        has no wall-clock time to show and is not yet anchored, so
-                        its honest "when" is the sealing state: a pulsing "waiting
-                        on Ethereum…" that resolves to the anchored window on the
-                        proof page. When the same bytes hold several positions, a
-                        grey count places the row in the sequence. */}
-                    {outcome && (
-                      <span style={{ flexShrink: 0, fontSize: 12, whiteSpace: "nowrap" }}>
-                        {item.status === "proved" ? (
-                          item.recordedTime ? (
-                            <span style={{ fontWeight: 400, color: "#6b7280" }}>
-                              {new Date(item.recordedTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                            </span>
-                          ) : (
-                            <span style={{ fontWeight: 400, color: "#6b7280", animation: "pulse 1.6s ease-in-out infinite" }}>
-                              waiting on Ethereum…
-                            </span>
-                          )
-                        ) : (
-                          <span style={{ fontWeight: 700, color: outcome.color }}>{outcome.word}</span>
-                        )}
-                        {rowProofs.length > 1 && (
-                          <span style={{ fontWeight: 400, color: "#6b7280" }}>
-                            {` · ${k + 1} of ${rowProofs.length}${k === 0 ? " · original" : ""}`}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                    {/* Spacer pushes Open to the right edge. The filename is
-                        intentionally not shown: each row is one BitGraph, named
-                        by its # position, and dropping the name keeps the row on
-                        one line at every width. */}
+                    {/* Nothing between the # and Open: every row reads the same,
+                        named by its # position. Outcome words, times, and the
+                        already-on-record vs just-recorded distinction all live on
+                        the proof page (and the count banner summarizes the batch).
+                        The spacer pushes Open to the right edge. */}
                     <span style={{ flex: 1 }} />
                     {clickable && (
                       <span className="bitgraph-open-pill">
