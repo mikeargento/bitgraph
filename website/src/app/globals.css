@@ -445,8 +445,12 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 /* deployed Wed Apr  1 22:47:15 EDT 2026 */
 
-/* ── The camera: centered in the viewport. On mobile it's an exact square
-   (fills the column, aspect-ratio keeps height == width). On desktop it spans
-   the full container width as a wide box. ── */
-.bitgraph-camera { aspect-ratio: 1 / 1; }
-@media (min-width: 641px) { .bitgraph-camera { aspect-ratio: auto; height: 360px; } }
+/* ── The camera: a full square on every screen — it is the whole function of
+   the page. It fills the container width when that's the limiting dimension
+   (mobile), otherwise sizes to the viewport height so the square always fits
+   without scrolling. Centered. ── */
+.bitgraph-camera { width: min(100%, calc(100dvh - 130px)); aspect-ratio: 1 / 1; align-self: center; }
+/* Suppress the iOS long-press callout/preview (the dark rounded blob that
+   flashed up on tap once the box grew to a large centered target) and the grey
+   tap-highlight. The tap still opens the native file picker. */
+.bitgraph-camera, .bitgraph-camera * { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }

@@ -51,6 +51,32 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   // roll reads as files. The toggle refetches; ?files=1 lets the server skip
   // anchor objects via the anchors/{epoch}/ index instead of GETting each.
   const [showAnchors, setShowAnchors] = useState(true);
+  // Search: resolve a BitGraph # or a hash to a proof via /api/search, which
+  // verifies the proof is retrievable before handing back a link, then navigate.
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const runSearch = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q || searching) return;
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const data = await r.json();
+      if (data.found && data.digest) {
+        const sel = data.counter ? `?counter=${encodeURIComponent(data.counter)}` : "";
+        window.location.assign(`/proof/${data.digest}${sel}`);
+      } else {
+        setSearchError("No BitGraph found for that number or hash.");
+        setSearching(false);
+      }
+    } catch {
+      setSearchError("Search failed. Try again.");
+      setSearching(false);
+    }
+  }, [query, searching]);
 
   const busyRef = useRef(false);
   const topRef = useRef(0);
@@ -217,6 +243,28 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
             Hide anchors
           </label>
         </div>
+      )}
+
+      {/* Search — jump straight to a BitGraph by its # or hash. Submitting
+          resolves + verifies via /api/search, then navigates to the proof. */}
+      <form onSubmit={runSearch} style={{ display: "flex", gap: 8, marginBottom: searchError ? 6 : 12 }}>
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setSearchError(null); }}
+          placeholder="Search by BitGraph number or hash"
+          aria-label="Search by BitGraph number or hash"
+          style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 14, color: "#111827", background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, outline: "none" }}
+        />
+        <button
+          type="submit"
+          disabled={searching || !query.trim()}
+          style={{ flexShrink: 0, padding: "10px 18px", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#fff", background: "#0065A4", border: "none", borderRadius: 0, cursor: searching || !query.trim() ? "default" : "pointer", opacity: searching || !query.trim() ? 0.55 : 1 }}
+        >
+          {searching ? "Searching…" : "Search"}
+        </button>
+      </form>
+      {searchError && (
+        <div style={{ marginBottom: 12, fontSize: 13, color: "#dc2626" }}>{searchError}</div>
       )}
 
       {/* Stream — generic ledger rows; type and specifics live on the drill-in.
