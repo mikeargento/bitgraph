@@ -644,7 +644,7 @@ export default function BitGraphPage() {
               lineHeight: 1.2,
               animation: "pulse 1s ease-in-out infinite",
             }}>
-              {scanProgress.current} of {scanProgress.total} read · {scanProgress.total > 0 ? Math.round((scanProgress.current / scanProgress.total) * 100) : 0}%
+              {scanProgress.current} of {scanProgress.total} read
             </div>
             <div style={{ width: "min(240px, 70vw)", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
               <div style={{ width: `${(scanProgress.current / scanProgress.total) * 100}%`, height: "100%", background: "#0065A4", transition: "width 0.2s", boxShadow: "none" }} />
@@ -652,12 +652,15 @@ export default function BitGraphPage() {
           </div>
         ) : (
           <div className="bitgraph-wait">
-            <div role="status" aria-label="Checking for BitGraphs" style={{ width: 36, height: 36, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            <div style={{ fontSize: 14, color: "#6b7280" }}>Checking for BitGraphs…</div>
+            {/* Determinate progress (the count + bar) is the signal; no spinner
+                (it would imply an unknown wait when we know exactly where we are)
+                and no percentage (it just restates the count). The label pulses
+                for liveness, which also covers the small-drop case with no bar. */}
+            <div role="status" style={{ fontSize: 14, color: "#6b7280", animation: "pulse 1s ease-in-out infinite" }}>Checking for BitGraphs…</div>
             {checkProgress.total > 50 && (
               <>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
-                  {checkProgress.current} of {checkProgress.total} checked · {checkProgress.total > 0 ? Math.round((checkProgress.current / checkProgress.total) * 100) : 0}%
+                  {checkProgress.current} of {checkProgress.total} checked
                 </div>
                 <div style={{ width: "min(240px, 70vw)", height: 2, borderRadius: 1, background: "var(--c-border-subtle)", overflow: "hidden" }}>
                   <div style={{ width: `${checkProgress.total > 0 ? (checkProgress.current / checkProgress.total) * 100 : 0}%`, height: "100%", background: "#0065A4", transition: "width 0.15s", boxShadow: "none" }} />
