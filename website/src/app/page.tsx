@@ -718,7 +718,7 @@ export default function BitGraphPage() {
                   result carries the same authority as a single proof; font capped
                   at 18px so it is no bigger on desktop than mobile and still fits
                   a 4-5 digit count on one line. */}
-              <div style={{ fontSize: "clamp(16px, 4.5vw, 18px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", padding: "0.92em 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ fontSize: "clamp(16px, 4.5vw, 18px)", fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", height: 76, padding: "0 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span key={`${allDone}-${items.length}`} style={{ animation: "headerReveal 0.4s ease-out both" }}>
                   {/* "X of N" only while it is still partial; once every dropped
                       file is recorded the "of N" is redundant, so it reads just
@@ -735,7 +735,7 @@ export default function BitGraphPage() {
               <button
                 onClick={() => { setItems([]); setStep("drop"); window.scrollTo(0, 0); }}
                 style={{
-                  width: "100%", padding: "0.85em 16px", background: "#ffffff",
+                  width: "100%", height: 76, padding: "0 16px", background: "#ffffff",
                   border: "1px solid #d0d5dd", cursor: "pointer", color: "#0065A4",
                   fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
