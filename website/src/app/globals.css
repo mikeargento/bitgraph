@@ -447,11 +447,12 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* ── The camera: a full-width landscape drop band (not a square). A controlled
    fixed height, shorter than the old proportional box, so the contents sit
-   compactly rather than marooned in a void: ~270px on phones, a slimmer ~310px
-   band on desktop. The interactive contents (file-selection icon + "Take a
+   compactly rather than marooned in a void: ~224px on phones (so the whole hero,
+   value-prop and all, fits one screen without scrolling), ~310px on desktop.
+   The interactive contents (file-selection icon + "Take a
    BitGraph") are bumped up a notch on every width via the --fd-* custom
    properties the FileDrop reads. Centered. ── */
-.bitgraph-camera { width: 100%; height: 270px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; }
+.bitgraph-camera { width: 100%; height: 224px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; }
 .bitgraph-camera .fd-icon { width: 44px; height: 44px; }
 @media (min-width: 769px) {
   .bitgraph-camera { height: 310px; --fd-headline: 26px; }
