@@ -642,10 +642,12 @@ export default function BitGraphPage() {
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 72px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
-        /* Drop step is a two-part hero: the concept line ("A camera for bits.")
-           states WHAT this is, the camera below is the tool. Centered as one
-           group; the tagline sits close to the box so they read as a unit. */
-        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: 56px; }
+        /* Drop step hero: the concept line ("A camera for bits.") states WHAT
+           this is, then the capture paragraph explains it, then the box (the
+           tool). Centered as one group. This gap sits BETWEEN the tagline and
+           that first paragraph, so keep it tight — headline to subhead — and let
+           it scale a little with the viewport. */
+        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(20px, 4vw, 28px); }
         .bitgraph-tagline { text-align: center; font-size: clamp(30px, 6.6vw, 50px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
         /* ── "See a BitGraph" — a quiet link to a real example proof (an
@@ -700,6 +702,12 @@ export default function BitGraphPage() {
               A camera for <span className="accent">bits</span>.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+              {/* The copy flanks the box in the order you use the product: the
+                  capture ("digital film"/"photograph") above the shutter, the
+                  verify ("you can then verify") below it. The box is the hinge. */}
+              <div className="hero-explainer">
+                <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data.</p>
+              </div>
               <div className="bitgraph-camera">
                 <FileDrop
                   multiple
@@ -709,7 +717,6 @@ export default function BitGraphPage() {
                 />
               </div>
               <div className="hero-explainer">
-                <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data.</p>
                 <p>You can then verify, at any time, that those exact bits consumed that frame by checking the file against its BitGraph.</p>
               </div>
               <div className="see-example">
