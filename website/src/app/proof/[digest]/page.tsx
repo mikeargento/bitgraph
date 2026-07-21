@@ -9,6 +9,7 @@ import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-veri
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey } from "@/lib/warm";
+import { takeFreshProof } from "@/lib/fresh-proof";
 // QR code removed — replaced with Ethereum Seal card
 
 const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
@@ -56,6 +57,16 @@ function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certi
 export default function ProofPage() {
   const params = useParams();
   const digestParam = params.digest as string;
+
+  // Whether this load is a just-recorded BitGraph (?fresh=1). Captured at render,
+  // before the flash effect strips the flag from the URL, so the load effect and
+  // the loading state can both tell "you just recorded this" from "you opened a
+  // link" — the former seeds instantly and waits with "Recording…", not the
+  // lookup skeleton.
+  const freshRef = useRef<boolean | null>(null);
+  if (freshRef.current === null) {
+    freshRef.current = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("fresh") === "1";
+  }
 
   const [proof, setProof] = useState<BitGraphProof | null>(null);
   const [causalWindow, setCausalWindow] = useState<{
@@ -234,9 +245,13 @@ export default function ProofPage() {
     const qs = new URLSearchParams(window.location.search);
     const key = proofFeedKey(digestParam, qs.get("counter"), qs.get("epoch"));
 
-    // Instant first paint: if the home page warmed this proof, render it now.
-    const warmHit = takeWarm<Parameters<typeof applyData>[0]>(key);
-    const seeded = !!(warmHit && "data" in warmHit && applyData(warmHit.data));
+    // Instant first paint. A just-recorded BitGraph seeds from the committed
+    // proof the drop flow handed over (no skeleton on create); otherwise a warmed
+    // example/lookup seeds from the prefetch. Either way the fetch below reconciles.
+    const freshHit = freshRef.current ? takeFreshProof<Parameters<typeof applyData>[0]>(digestParam) : null;
+    const warmHit = freshHit ? null : takeWarm<Parameters<typeof applyData>[0]>(key);
+    const seedData = freshHit ?? (warmHit && "data" in warmHit ? warmHit.data : null);
+    const seeded = !!(seedData && applyData(seedData));
     if (seeded) setLoading(false);
 
     // Live fetch — the source of truth, and the background reconcile when we
@@ -265,10 +280,13 @@ export default function ProofPage() {
         } finally {
           clearTimeout(timeoutId);
         }
-        if (!resp.ok) { if (!seeded) setError("BitGraph not found"); return; }
+        if (!resp.ok) { if (!seeded && !cancelled) setError("BitGraph not found"); return; }
         const data = await resp.json();
-        if (!applyData(data) && !seeded) setError("BitGraph not found");
-      } catch { if (!seeded) setError("Failed to load BitGraph"); }
+        // Guard on !cancelled: applyData returns false for a cancelled (unmounted
+        // or strict-mode double-invoked) effect, and without this a cancelled run
+        // would clobber a good render with a spurious "not found".
+        if (!cancelled && !applyData(data) && !seeded) setError("BitGraph not found");
+      } catch { if (!seeded && !cancelled) setError("Failed to load BitGraph"); }
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -278,7 +296,11 @@ export default function ProofPage() {
   // collapsed card headers rendered as shimmering placeholders. It lands the
   // cards where they'll actually be (no jump when data arrives) and reads as
   // alive, unlike a static "Loading…" line.
-  if (loading) return <ProofSkeleton />;
+  // A just-recorded BitGraph normally seeds instantly (no wait at all). If its
+  // data isn't in hand yet, the create moment gets a "Recording…" wait, not the
+  // lookup skeleton — the skeleton reads as "a page is loading", wrong for the
+  // moment you just hit record.
+  if (loading) return freshRef.current ? <FreshRecordingWait /> : <ProofSkeleton />;
   if (error || !proof) return (
     <Shell>
       <div style={{ padding: "80px 20px", textAlign: "center" }}>
@@ -966,6 +988,23 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
       {children}
     </div>
+  );
+}
+
+/* ── Create wait — shown only on a just-recorded BitGraph (?fresh=1) whose data
+   isn't seeded yet. Says "Recording…" (the ledger verb, which the card's
+   "BitGraph Recorded" title then confirms), not a lookup skeleton. Fades in over
+   ~0.45s so the common case — an instant seed that replaces it within a frame —
+   never shows a harsh flash, while a real wait reads as recording in progress. ── */
+function FreshRecordingWait() {
+  return (
+    <Shell>
+      <style>{`@keyframes fpSpin { to { transform: rotate(360deg) } } @keyframes fpIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
+      <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", minHeight: "44vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, animation: "fpIn 0.45s ease-out" }}>
+        <div role="status" aria-label="Recording your BitGraph" style={{ width: 32, height: 32, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "fpSpin 0.8s linear infinite" }} />
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>Recording your BitGraph&hellip;</div>
+      </div>
+    </Shell>
   );
 }
 

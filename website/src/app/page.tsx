@@ -16,6 +16,7 @@ import {
 import { toUrlSafeB64 } from "@/lib/explorer";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { warm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
+import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
@@ -299,6 +300,18 @@ export default function BitGraphPage() {
       // happens now; the proof page polls the cache, so navigation never waits
       // on the ~6 MB C2PA toolkit.
       void cacheArtifactToIDB(file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+      // On a fresh recording, hand the committed proof to the proof page so it
+      // paints the record instantly (image + hash + "Recorded"), no skeleton.
+      // The causal window / anchor stay pending until the background fetch fills
+      // them in — correct, since a new proof's sealing anchor hasn't landed yet.
+      if (fresh) {
+        setFreshProof(toUrlSafeB64(proofDigest), {
+          proofs: [{ proof: p }],
+          positions: c ? [{ counter: c, epoch: epoch || null, lowerTime: null, upperTime: null }] : [],
+          causalWindow: null,
+          anchorBlock: null,
+        });
+      }
       router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
     };
     if (solo && !solo.fromProofJson) {
