@@ -992,10 +992,11 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 /* ── Create wait — shown only on a just-recorded BitGraph (?fresh=1) whose data
-   isn't seeded yet. Says "Recording…" (the ledger verb, which the card's
-   "BitGraph Recorded" title then confirms), not a lookup skeleton. Fades in over
-   ~0.45s so the common case — an instant seed that replaces it within a frame —
-   never shows a harsh flash, while a real wait reads as recording in progress. ── */
+   isn't seeded yet. Says "BitGraphing…", the SAME label as the drop flow's commit
+   spinner, so the two waits in a create read as one continuous moment (not a
+   lookup skeleton). Fades in over ~0.45s so the common case — an instant seed
+   that replaces it within a frame — never shows a harsh flash, while a real wait
+   reads as BitGraphing in progress. ── */
 function FreshRecordingWait() {
   return (
     <Shell>
@@ -1004,8 +1005,8 @@ function FreshRecordingWait() {
           other wait state and the success checkmark use, so the spinner never
           jumps between the drop flow's "BitGraphing…" and this. */}
       <div style={{ position: "fixed", top: "44%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "max-content", maxWidth: "92vw", animation: "fpIn 0.45s ease-out" }}>
-        <div role="status" aria-label="Recording your BitGraph" style={{ width: 32, height: 32, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "fpSpin 0.8s linear infinite" }} />
-        <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>Recording your BitGraph&hellip;</div>
+        <div role="status" aria-label="BitGraphing" style={{ width: 32, height: 32, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "fpSpin 0.8s linear infinite" }} />
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>BitGraphing&hellip;</div>
       </div>
     </Shell>
   );
