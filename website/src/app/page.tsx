@@ -660,13 +660,14 @@ export default function BitGraphPage() {
            BETWEEN the tagline and the box, so give it real breathing room (the
            tagline is on its own now, no subhead bridging it) and let it scale. */
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(32px, 6vw, 52px); }
-        .bitgraph-tagline { text-align: center; font-size: clamp(30px, 6.6vw, 50px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
+        .bitgraph-tagline { text-align: center; font-size: clamp(31px, 7vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
-        /* The "why you need this" hook under the tagline. A subhead: a touch
-           larger than the below-box explainer so it reads as the reason-to-care,
-           balanced lines, secondary-tier color. */
-        .hero-copy { display: flex; flex-direction: column; gap: 16px; }
-        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(18px, 4.5vw, 21px); line-height: 1.35; color: #1f2937; font-weight: 500; letter-spacing: -0.015em; text-wrap: balance; }
+        /* The hero is two paired lines: the tagline (metaphor) and the "why" hook
+           (promise) nested tight beneath it as a subhead, above the box. Keep the
+           hook clearly subordinate to the tagline in size so it supports rather
+           than competes. */
+        .hero-head { display: flex; flex-direction: column; align-items: stretch; gap: clamp(12px, 2.5vw, 16px); }
+        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(16px, 3.6vw, 18px); line-height: 1.4; color: #1f2937; font-weight: 500; letter-spacing: -0.012em; text-wrap: balance; }
         .hero-why p { margin: 0; }
         /* ── "See a BitGraph" — a quiet link to a real example proof (an
            OpenAI-generated image whose C2PA credentials the proof page shows).
@@ -716,13 +717,17 @@ export default function BitGraphPage() {
             on its own /roll page, linked from the nav. ── */}
         {step === "drop" && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
-            <div className="bitgraph-tagline">
-              A camera for <span className="accent">bits</span>.
+            {/* The two poetic lines pair as the hero: the metaphor, then the
+                promise, tight together as a headline + subhead above the box. */}
+            <div className="hero-head">
+              <div className="bitgraph-tagline">
+                A camera for <span className="accent">bits</span>.
+              </div>
+              <div className="hero-why">
+                <p>Give your data a place in space and time.</p>
+              </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
-              {/* The tagline stands alone above the box. Everything else lives
-                  below it: the "why" hook first, then the mechanics ("digital
-                  film"/"photograph", then verify). */}
               <div className="bitgraph-camera">
                 <FileDrop
                   multiple
@@ -732,18 +737,11 @@ export default function BitGraphPage() {
                   subhint="(Your file never leaves your device)"
                 />
               </div>
-              {/* The why hook and the explanation are one block, so they sit
-                  close together; the 40px group gap keeps the box above and the
-                  example link below at arm's length. */}
-              <div className="hero-copy">
-                <div className="hero-why">
-                  <p>Give your data a place in space and time.</p>
-                </div>
-                <div className="hero-explainer">
-                  <p>Digital files can be copied endlessly. On their own, they have no unique place.</p>
-                  <p>BitGraph creates a blank digital frame first. Your file&rsquo;s exact bits then expose that frame without revealing your data. Each frame can be exposed only once.</p>
-                  <p>The exposed frame becomes a portable record. Anyone with the data and its BitGraph can later verify, bit for bit, that it is the data that occupied that frame.</p>
-                </div>
+              {/* Mechanics below the box: how a frame is created, exposed once,
+                  and later verified. */}
+              <div className="hero-explainer">
+                <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data. Each frame can be exposed only once.</p>
+                <p>The exposed frame becomes a portable record. Anyone with the data and its BitGraph can later verify, bit for bit, that those exact bits occupied that frame.</p>
               </div>
               <div className="see-example">
                 <button
