@@ -647,7 +647,7 @@ export default function BitGraphPage() {
            group; the tagline sits close to the box so they read as a unit. */
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: 56px; }
         .bitgraph-tagline { text-align: center; font-size: clamp(30px, 6.6vw, 50px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
-        .bitgraph-tagline .accent { color: #0065A4; }
+        .bitgraph-tagline .accent { color: inherit; }
         /* ── "See a BitGraph" — a quiet link to a real example proof (an
            OpenAI-generated image whose C2PA credentials the proof page shows).
            A door to the output, not an explainer. ── */
