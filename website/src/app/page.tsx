@@ -729,7 +729,7 @@ export default function BitGraphPage() {
                   onFile={(f) => handleFiles([f])}
                   onFiles={handleFiles}
                   hint="Drag and drop, or click to choose."
-                  subhint="Already BitGraphed files are recognized automatically."
+                  subhint="Your file never leaves your device."
                 />
               </div>
               {/* The why hook and the mechanics are one explanation block, so
