@@ -655,7 +655,10 @@ export default function BitGraphPage() {
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
         .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 14.5px; line-height: 1.62; color: #4b5563; letter-spacing: -0.006em; }
-        .hero-explainer p { margin: 0; }
+        /* Balance the line lengths so a centered paragraph breaks into roughly
+           equal ragged lines at any width (mobile and desktop), not long-then-
+           short. Recomputed per viewport by the browser. */
+        .hero-explainer p { margin: 0; text-wrap: balance; }
         .hero-explainer p + p { margin-top: 14px; }
         .see-example { text-align: center; }
         .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; }
