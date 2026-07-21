@@ -732,16 +732,17 @@ export default function BitGraphPage() {
                   subhint="Your file never leaves your device."
                 />
               </div>
-              {/* The why hook and the mechanics are one explanation block, so
-                  they sit close together; the 40px group gap keeps the box above
-                  and the example link below at arm's length. */}
+              {/* The why hook and the explanation are one block, so they sit
+                  close together; the 40px group gap keeps the box above and the
+                  example link below at arm's length. */}
               <div className="hero-copy">
                 <div className="hero-why">
-                  <p>Retain authority over your data with a portable, verifiable record.</p>
+                  <p>Give your data a place in space and time.</p>
                 </div>
                 <div className="hero-explainer">
-                  <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data.</p>
-                  <p>You can then verify, at any time, that those exact bits consumed that frame by checking the file against its BitGraph.</p>
+                  <p>Digital files can be copied endlessly. On their own, they have no unique place.</p>
+                  <p>BitGraph creates a blank digital frame first. Your file&rsquo;s exact bits then expose that frame without revealing your data. Each frame can be exposed only once.</p>
+                  <p>The exposed frame becomes a portable record. Anyone with the data and its BitGraph can later verify, bit for bit, that it is the data that occupied that frame.</p>
                 </div>
               </div>
               <div className="see-example">
