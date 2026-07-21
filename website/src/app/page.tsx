@@ -661,7 +661,7 @@ export default function BitGraphPage() {
         /* Explainer under the box: the one place the film/photograph metaphor is
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
-        .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 12.5px; line-height: 1.55; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
+        .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 11.5px; line-height: 1.55; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
@@ -723,7 +723,8 @@ export default function BitGraphPage() {
                 />
               </div>
               <div className="hero-explainer">
-                <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data. You can then verify, at any time, that those exact bits consumed that frame by checking the file against its BitGraph.</p>
+                <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data.</p>
+                <p>You can then verify, at any time, that those exact bits consumed that frame by checking the file against its BitGraph.</p>
               </div>
               <div className="see-example">
                 <button
