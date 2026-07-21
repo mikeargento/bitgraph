@@ -734,13 +734,13 @@ export default function BitGraphPage() {
                   onFile={(f) => handleFiles([f])}
                   onFiles={handleFiles}
                   hint="Drag and drop, or click to choose."
-                  subhint="(Your file never leaves your device)"
+                  subhint="Your file never leaves your device."
                 />
               </div>
               {/* Mechanics below the box: how a frame is created, exposed once,
                   and later verified. */}
               <div className="hero-explainer">
-                <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data. Each frame can be exposed only once.</p>
+                <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data. <strong style={{ fontWeight: 700, color: "#111827" }}>Each frame can be exposed only once.</strong></p>
                 <p>The exposed frame becomes a portable record. Anyone with the data and its BitGraph can later verify, bit for bit, that those exact bits occupied that frame.</p>
               </div>
               <div className="see-example">
