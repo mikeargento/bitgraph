@@ -650,6 +650,11 @@ export default function BitGraphPage() {
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(20px, 4vw, 28px); }
         .bitgraph-tagline { text-align: center; font-size: clamp(30px, 6.6vw, 50px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
+        /* The "why you need this" hook under the tagline. A subhead: a touch
+           larger than the below-box explainer so it reads as the reason-to-care,
+           balanced lines, secondary-tier color. */
+        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15.5px, 3.6vw, 18px); line-height: 1.5; color: #374151; font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; }
+        .hero-why p { margin: 0; }
         /* ── "See a BitGraph" — a quiet link to a real example proof (an
            OpenAI-generated image whose C2PA credentials the proof page shows).
            A door to the output, not an explainer. ── */
@@ -702,11 +707,11 @@ export default function BitGraphPage() {
               A camera for <span className="accent">bits</span>.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
-              {/* The copy flanks the box in the order you use the product: the
-                  capture ("digital film"/"photograph") above the shutter, the
-                  verify ("you can then verify") below it. The box is the hinge. */}
-              <div className="hero-explainer">
-                <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data.</p>
+              {/* The "why" hook sits under the tagline, above the box; the
+                  mechanics ("digital film"/"photograph", then verify) sit below
+                  the box, together. */}
+              <div className="hero-why">
+                <p>Create a verifiable record of your digital assets.</p>
               </div>
               <div className="bitgraph-camera">
                 <FileDrop
@@ -717,6 +722,7 @@ export default function BitGraphPage() {
                 />
               </div>
               <div className="hero-explainer">
+                <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data.</p>
                 <p>You can then verify, at any time, that those exact bits consumed that frame by checking the file against its BitGraph.</p>
               </div>
               <div className="see-example">
