@@ -718,7 +718,8 @@ export default function BitGraphPage() {
                   multiple
                   onFile={(f) => handleFiles([f])}
                   onFiles={handleFiles}
-                  hint="Already BitGraphed files are recognized automatically."
+                  hint="Drag and drop, or click to choose."
+                  subhint="Already BitGraphed files are recognized automatically."
                 />
               </div>
               <div className="hero-explainer">
