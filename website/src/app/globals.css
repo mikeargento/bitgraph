@@ -452,11 +452,11 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    The interactive contents (file-selection icon + "Take a
    BitGraph") are bumped up a notch on every width via the --fd-* custom
    properties the FileDrop reads. Centered. ── */
-.bitgraph-camera { width: 100%; height: 224px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; }
-.bitgraph-camera .fd-icon { width: 44px; height: 44px; }
+.bitgraph-camera { width: 100%; height: 204px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
+.bitgraph-camera .fd-icon { width: 40px; height: 40px; }
 @media (min-width: 769px) {
-  .bitgraph-camera { height: 310px; --fd-headline: 26px; }
-  .bitgraph-camera .fd-icon { width: 48px; height: 48px; }
+  .bitgraph-camera { height: 288px; --fd-headline: 26px; }
+  .bitgraph-camera .fd-icon { width: 44px; height: 44px; }
 }
 /* Suppress the iOS long-press callout/preview (the dark rounded blob that
    flashed up on tap once the box grew to a large centered target) and the grey

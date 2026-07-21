@@ -666,7 +666,7 @@ export default function BitGraphPage() {
            larger than the below-box explainer so it reads as the reason-to-care,
            balanced lines, secondary-tier color. */
         .hero-copy { display: flex; flex-direction: column; gap: 16px; }
-        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15px, 3.2vw, 16px); line-height: 1.5; color: #1f2937; font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; }
+        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(18px, 4.5vw, 21px); line-height: 1.35; color: #1f2937; font-weight: 500; letter-spacing: -0.015em; text-wrap: balance; }
         .hero-why p { margin: 0; }
         /* ── "See a BitGraph" — a quiet link to a real example proof (an
            OpenAI-generated image whose C2PA credentials the proof page shows).
@@ -674,7 +674,7 @@ export default function BitGraphPage() {
         /* Explainer under the box: the one place the film/photograph metaphor is
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
-        .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 11.5px; line-height: 1.55; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
+        .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 14px; line-height: 1.62; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
@@ -729,7 +729,7 @@ export default function BitGraphPage() {
                   onFile={(f) => handleFiles([f])}
                   onFiles={handleFiles}
                   hint="Drag and drop, or click to choose."
-                  subhint="Your file never leaves your device."
+                  subhint="(Your file never leaves your device)"
                 />
               </div>
               {/* The why hook and the explanation are one block, so they sit

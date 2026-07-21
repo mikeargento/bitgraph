@@ -320,10 +320,11 @@ export function FileDrop({
             <div
               className="mt-4 text-center"
               style={{
-                // Secondary body tier; overridable per-instance (the home box
-                // grays it to match the explainer below). Defaults unchanged.
+                // Color and size are overridable per-instance (the home box grays
+                // both lines and matches them to the explainer's size). Defaults
+                // unchanged for the maker/proof FileDrops.
                 color: "var(--fd-hint, #111827)",
-                fontSize: "min(13px, 3vw)",
+                fontSize: "var(--fd-hint-size, min(13px, 3vw))",
                 lineHeight: 1.5,
                 whiteSpace: "pre-line",
               }}
@@ -335,8 +336,8 @@ export function FileDrop({
             <div
               className="mt-1.5 text-center"
               style={{
-                color: "#6b7280",
-                fontSize: "min(12px, 2.8vw)",
+                color: "var(--fd-subhint, #6b7280)",
+                fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
                 lineHeight: 1.5,
                 whiteSpace: "pre-line",
               }}
