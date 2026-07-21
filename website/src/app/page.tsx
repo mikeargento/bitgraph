@@ -654,7 +654,7 @@ export default function BitGraphPage() {
         /* Explainer under the box: the one place the film/photograph metaphor is
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
-        .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 14.5px; line-height: 1.62; color: #4b5563; letter-spacing: -0.006em; }
+        .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 14.5px; line-height: 1.62; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
