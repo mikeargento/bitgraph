@@ -451,7 +451,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    band on desktop. The interactive contents (file-selection icon + "Take a
    BitGraph") are bumped up a notch on every width via the --fd-* custom
    properties the FileDrop reads. Centered. ── */
-.bitgraph-camera { width: 100%; height: 270px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; }
+.bitgraph-camera { width: 100%; height: 270px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; }
 .bitgraph-camera .fd-icon { width: 44px; height: 44px; }
 @media (min-width: 769px) {
   .bitgraph-camera { height: 310px; --fd-headline: 26px; }

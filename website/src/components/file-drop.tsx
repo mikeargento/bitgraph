@@ -320,7 +320,9 @@ export function FileDrop({
             <div
               className="mt-4 text-center"
               style={{
-                color: "#111827",
+                // Secondary body tier; overridable per-instance (the home box
+                // grays it to match the explainer below). Defaults unchanged.
+                color: "var(--fd-hint, #111827)",
                 fontSize: "min(13px, 3vw)",
                 lineHeight: 1.5,
                 whiteSpace: "pre-line",
