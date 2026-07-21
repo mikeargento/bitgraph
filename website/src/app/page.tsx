@@ -653,7 +653,7 @@ export default function BitGraphPage() {
         /* The "why you need this" hook under the tagline. A subhead: a touch
            larger than the below-box explainer so it reads as the reason-to-care,
            balanced lines, secondary-tier color. */
-        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15.5px, 3.6vw, 18px); line-height: 1.5; color: #374151; font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; }
+        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15px, 3.2vw, 16px); line-height: 1.5; color: #374151; font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; }
         .hero-why p { margin: 0; }
         /* ── "See a BitGraph" — a quiet link to a real example proof (an
            OpenAI-generated image whose C2PA credentials the proof page shows).
