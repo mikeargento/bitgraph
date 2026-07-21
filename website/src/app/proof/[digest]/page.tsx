@@ -1000,7 +1000,10 @@ function FreshRecordingWait() {
   return (
     <Shell>
       <style>{`@keyframes fpSpin { to { transform: rotate(360deg) } } @keyframes fpIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
-      <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", minHeight: "44vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, animation: "fpIn 0.45s ease-out" }}>
+      {/* Pinned to the same fixed viewport point (44% down, centered) that every
+          other wait state and the success checkmark use, so the spinner never
+          jumps between the drop flow's "BitGraphing…" and this. */}
+      <div style={{ position: "fixed", top: "44%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "max-content", maxWidth: "92vw", animation: "fpIn 0.45s ease-out" }}>
         <div role="status" aria-label="Recording your BitGraph" style={{ width: 32, height: 32, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "fpSpin 0.8s linear infinite" }} />
         <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>Recording your BitGraph&hellip;</div>
       </div>

@@ -655,18 +655,18 @@ export default function BitGraphPage() {
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 72px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
-        /* Drop step hero: the concept line ("A camera for bits.") states WHAT
-           this is, then the capture paragraph explains it, then the box (the
-           tool). Centered as one group. This gap sits BETWEEN the tagline and
-           that first paragraph, so keep it tight — headline to subhead — and let
-           it scale a little with the viewport. */
-        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(20px, 4vw, 28px); }
+        /* Drop step hero: the concept line ("A camera for bits.") stands alone,
+           then the box (the tool), then the why/mechanics below it. This gap sits
+           BETWEEN the tagline and the box, so give it real breathing room (the
+           tagline is on its own now, no subhead bridging it) and let it scale. */
+        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(32px, 6vw, 52px); }
         .bitgraph-tagline { text-align: center; font-size: clamp(30px, 6.6vw, 50px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
         /* The "why you need this" hook under the tagline. A subhead: a touch
            larger than the below-box explainer so it reads as the reason-to-care,
            balanced lines, secondary-tier color. */
-        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15px, 3.2vw, 16px); line-height: 1.5; color: #374151; font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; }
+        .hero-copy { display: flex; flex-direction: column; gap: 16px; }
+        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15px, 3.2vw, 16px); line-height: 1.5; color: #1f2937; font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; }
         .hero-why p { margin: 0; }
         /* ── "See a BitGraph" — a quiet link to a real example proof (an
            OpenAI-generated image whose C2PA credentials the proof page shows).
@@ -720,12 +720,9 @@ export default function BitGraphPage() {
               A camera for <span className="accent">bits</span>.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
-              {/* The "why" hook sits under the tagline, above the box; the
-                  mechanics ("digital film"/"photograph", then verify) sit below
-                  the box, together. */}
-              <div className="hero-why">
-                <p>Retain authority over your data with a portable, verifiable record.</p>
-              </div>
+              {/* The tagline stands alone above the box. Everything else lives
+                  below it: the "why" hook first, then the mechanics ("digital
+                  film"/"photograph", then verify). */}
               <div className="bitgraph-camera">
                 <FileDrop
                   multiple
@@ -735,9 +732,17 @@ export default function BitGraphPage() {
                   subhint="Already BitGraphed files are recognized automatically."
                 />
               </div>
-              <div className="hero-explainer">
-                <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data.</p>
-                <p>You can then verify, at any time, that those exact bits consumed that frame by checking the file against its BitGraph.</p>
+              {/* The why hook and the mechanics are one explanation block, so
+                  they sit close together; the 40px group gap keeps the box above
+                  and the example link below at arm's length. */}
+              <div className="hero-copy">
+                <div className="hero-why">
+                  <p>Retain authority over your data with a portable, verifiable record.</p>
+                </div>
+                <div className="hero-explainer">
+                  <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data.</p>
+                  <p>You can then verify, at any time, that those exact bits consumed that frame by checking the file against its BitGraph.</p>
+                </div>
               </div>
               <div className="see-example">
                 <button
