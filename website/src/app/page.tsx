@@ -651,6 +651,12 @@ export default function BitGraphPage() {
         /* ── "See a BitGraph" — a quiet link to a real example proof (an
            OpenAI-generated image whose C2PA credentials the proof page shows).
            A door to the output, not an explainer. ── */
+        /* Explainer under the box: the one place the film/photograph metaphor is
+           spelled out. Readable medium-gray, narrow measure, the quoted terms
+           carry the emphasis (the blue accent stays reserved for "bits"). */
+        .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 14.5px; line-height: 1.62; color: #4b5563; letter-spacing: -0.006em; }
+        .hero-explainer p { margin: 0; }
+        .hero-explainer p + p { margin-top: 14px; }
         .see-example { text-align: center; }
         .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; }
         .see-example-link .arrow { transition: transform .18s ease; }
@@ -698,6 +704,10 @@ export default function BitGraphPage() {
                   onFiles={handleFiles}
                   hint="Already BitGraphed files are recognized automatically."
                 />
+              </div>
+              <div className="hero-explainer">
+                <p>BitGraph uses patent-pending &ldquo;digital film&rdquo; to create an unused frame, then captures a cryptographic &ldquo;photograph&rdquo; of your file&rsquo;s exact bits, without revealing your data.</p>
+                <p>You can then verify, at any time, that those exact bits consumed that frame by checking the file against its BitGraph.</p>
               </div>
               <div className="see-example">
                 <button
