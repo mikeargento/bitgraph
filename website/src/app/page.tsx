@@ -711,7 +711,7 @@ export default function BitGraphPage() {
                   mechanics ("digital film"/"photograph", then verify) sit below
                   the box, together. */}
               <div className="hero-why">
-                <p>Create a verifiable record of your digital assets.</p>
+                <p>Create a verifiable record of your data.</p>
               </div>
               <div className="bitgraph-camera">
                 <FileDrop
