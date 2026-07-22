@@ -255,11 +255,11 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
         /* Interval rows: a violet wash plus a violet left rail so they read as
            a distinct kind of row at a glance, not just a colored label. */
         .xp-row-interval { background:#f4f1fe; box-shadow: inset 3px 0 0 0 #7c3aed; }
-        .xp-open { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; color:#0065A4; font-size:13px; font-weight:600; letter-spacing:-0.01em; border:1px solid #0065A4; border-radius:0; padding:4px 12px; background:#fff; transition:background .15s, color .15s; }
+        .xp-open { color:#0065A4; transition: color .15s; }
         @media (hover:hover){
           .xp-row:hover { background:#f3f5f7; }
           .xp-row-interval:hover { background:#ece5fd; }
-          .xp-row:hover .xp-open { background:#0065A4; color:#fff; }
+          .xp-row:hover .xp-open { color:#004b7a; }
         }
         @keyframes xpSkel { 0%{background-position:100% 0} 100%{background-position:0 0} }
         .xp-skel { background:linear-gradient(90deg,#edeff1 25%,#e0e3e7 37%,#edeff1 63%); background-size:400% 100%; animation:xpSkel 1.4s ease-in-out infinite; border-radius:3px; }
@@ -362,9 +362,8 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
               <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                 {fmtWhen(e.at)}
               </span>
-              <span className="xp-open">
-                Open
-                <span aria-hidden style={{ fontSize: 17, lineHeight: 1, fontWeight: 600 }}>›</span>
+              <span className="xp-open" aria-label="Open" style={{ display: "inline-flex", flexShrink: 0 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
               </span>
             </a>
           );

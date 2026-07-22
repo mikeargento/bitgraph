@@ -570,14 +570,13 @@ export default function ProofPage() {
       <style>{`
         @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
         @keyframes ethWaitPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
-        /* Collapsible card header — same affordance as the explorer's Open
-           button: row tints on hover, the Open/Close button inverts to solid
-           blue. .bg-collapse-btn mirrors .xp-open exactly. */
+        /* Collapsible card header — the disclosure affordance is a single blue
+           chevron that rotates down when open; the row tints on hover. */
         .bg-collapse-head { transition: background .12s; }
-        .bg-collapse-btn { display:inline-flex; align-items:center; gap:8px; flex-shrink:0; color:#0065A4; font-size:13px; font-weight:600; letter-spacing:-0.01em; border:1px solid #0065A4; border-radius:0; padding:4px 12px; background:#fff; transition:background .15s, color .15s; }
+        .bg-collapse-chev { color:#0065A4; transition: color .15s; }
         @media (hover:hover) {
           .bg-collapse-head:hover { background:#f3f5f7 !important; }
-          .bg-collapse-head:hover .bg-collapse-btn { background:#0065A4; color:#fff; }
+          .bg-collapse-head:hover .bg-collapse-chev { color:#004b7a; }
         }
         /* Face-ID-style success: a brand-blue ring sweeps closed, then the checkmark
            draws itself, the whole badge springs in and fades away. Plays once
@@ -654,7 +653,7 @@ export default function ProofPage() {
               carry). The "when" leads the body, then the image when the bytes are
               in hand (or the bring-your-file dropzone), then the file hash. */}
           {!isEth && !isInterval && (
-            <CollapsibleCard title="BitGraph Recorded" plain>
+            <CollapsibleCard title={<VerifiedTitle>BitGraph Recorded</VerifiedTitle>} plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
@@ -686,7 +685,7 @@ export default function ProofPage() {
               sits in the same content slot the BitGraphed File uses on file
               proofs, titled to match. */}
           {isEth && attr?.title && (
-            <CollapsibleCard title="BitGraphed Ethereum Block" plain>
+            <CollapsibleCard title={<VerifiedTitle>BitGraphed Ethereum Block</VerifiedTitle>} plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
               <Field label="Etherscan" value={attr.title} link />
@@ -1076,6 +1075,29 @@ function ProofSkeleton() {
 /* ── Card ── */
 
 
+/* ── Verified badge — a blue-outlined circle (white inside) with a blue check,
+   set beside the primary card title on file proofs and Ethereum anchors as a
+   "this is recorded and verifiable" mark. ── */
+function VerifiedBadge() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0, display: "block" }}>
+      <circle cx="12" cy="12" r="10" fill="#fff" stroke="#0065A4" strokeWidth="1.75" />
+      <path d="M7.5 12.4 L10.4 15.4 L16.5 8.9" fill="none" stroke="#0065A4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* Title + verified badge, for the primary "BitGraph Recorded" / "BitGraphed
+   Ethereum Block" cards. */
+function VerifiedTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
+      {children}
+      <VerifiedBadge />
+    </span>
+  );
+}
+
 /* ── Collapsible card — same face as Card, but the header is a disclosure
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
@@ -1110,9 +1132,8 @@ function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React
           style={{ ...headerStyle, cursor: "pointer" }}
         >
           <span>{title}</span>
-          <span className="bg-collapse-btn" aria-hidden>
-            {open ? "Close" : "Open"}
-            <span style={{ fontSize: 17, lineHeight: 1, fontWeight: 600, display: "inline-block", transform: open ? "rotate(90deg)" : "none", transition: "transform .15s" }}>&#8250;</span>
+          <span className="bg-collapse-chev" aria-hidden style={{ display: "inline-flex", flexShrink: 0, transform: open ? "rotate(90deg)" : "none", transition: "transform .18s" }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
           </span>
         </button>
       )}
