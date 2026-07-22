@@ -75,6 +75,9 @@ export default function ProofPage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Bumped by the image's Content Credentials teaser line to open + scroll the
+  // full C2PA card lower on the page (teaser → detail, one gesture).
+  const [c2paSignal, setC2paSignal] = useState(0);
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
@@ -662,6 +665,28 @@ export default function ProofPage() {
                   <BringYourFile proof={proof} onMatch={(rec) => setCachedFile(rec)} />
                 </div>
               ) : null}
+              {/* Content Credentials teaser — a single muted caption directly
+                  under the image, shown only when the bytes carry a C2PA
+                  manifest. It states what the FILE claims about its own origin
+                  (pass-through, never a BitGraph verdict, no badge) and doubles
+                  as the jump to the full C2PA card below for the details. */}
+              {cachedFile?.c2pa?.present && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setC2paSignal((s) => s + 1);
+                    document.getElementById("c2pa-detail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  style={{
+                    display: "block", width: "100%", padding: "10px 16px 14px", border: "none",
+                    background: "transparent", cursor: "pointer", textAlign: "center",
+                    fontFamily: "inherit", fontSize: 12.5, lineHeight: 1.4, color: "#6b7280",
+                    letterSpacing: "-0.005em",
+                  }}
+                >
+                  {c2paSummaryLine(cachedFile.c2pa)}
+                </button>
+              )}
               {/* The fingerprint lives with the file: this SHA-256 IS the file's
                   pre-existing identity. For a non-image file it is the whole
                   content of the card — no preview, just the hash. The top border
@@ -926,7 +951,7 @@ export default function ProofPage() {
           )}
 
           {/* Content Credentials (C2PA) — the manifest embedded in the bytes. */}
-          {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
+          {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} openSignal={c2paSignal} />}
 
           {/* Submitter's Note — LAST card, like an appendix: it was appended to
               the recording by whoever made it. The title slot is a link ONLY
@@ -1081,10 +1106,13 @@ function ProofSkeleton() {
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
 
-function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean; plain?: boolean }) {
+function CollapsibleCard({ title, children, defaultOpen, plain, id, openSignal }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean; plain?: boolean; id?: string; openSignal?: number }) {
   // A plain card has no toggle and is always open — used for the primary
   // "BitGraph Recorded" card, whose contents are the point of the page.
   const [open, setOpen] = useState(!!defaultOpen || !!plain);
+  // An external signal (from the image's C2PA teaser) can force the card open;
+  // it only opens, never closes, so a bump can't collapse a card the user opened.
+  useEffect(() => { if (openSignal) setOpen(true); }, [openSignal]);
   const headerStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
     fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4",
@@ -1093,7 +1121,7 @@ function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React
     textAlign: "left", fontFamily: "inherit",
   };
   return (
-    <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
+    <div id={id} style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden", scrollMarginTop: 16 }}>
       {plain ? (
         // Static header: a heading, not a control — no hover affordance, no toggle.
         <div style={{ ...headerStyle, cursor: "default" }}>
@@ -1494,7 +1522,29 @@ function formatGenerator(c2pa: C2PAReadResult): string | undefined {
   return version ? `${prettify(namePart)} ${version}` : prettify(namePart);
 }
 
-function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
+// The one-line teaser shown under the image when the bytes carry a C2PA
+// manifest: "{origin} · Content Credentials embedded". The origin clause is
+// derived from the IPTC source type (AI-generated / photo / composite) and the
+// generator name; when the type is unrecognized the origin is dropped rather
+// than guessed. Pass-through of what the file claims, never a BitGraph verdict.
+function c2paSummaryLine(c2pa: C2PAReadResult): string {
+  const gen = formatGenerator(c2pa);
+  let origin: string | null = null;
+  switch (c2pa.digitalSourceType) {
+    case "trainedAlgorithmicMedia":
+      origin = gen ? `AI-generated by ${gen}` : "AI-generated";
+      break;
+    case "compositeWithTrainedAlgorithmicMedia":
+      origin = "Contains AI-generated elements";
+      break;
+    case "digitalCapture":
+      origin = gen ? `Photo · ${gen}` : "Camera photo";
+      break;
+  }
+  return origin ? `${origin} · Content Credentials embedded` : "Content Credentials embedded";
+}
+
+function C2PACard({ c2pa, openSignal }: { c2pa: C2PAReadResult; openSignal?: number }) {
   const sourceText = c2pa.digitalSourceType ? SOURCE_TYPE_LABELS[c2pa.digitalSourceType] : undefined;
   const generator = formatGenerator(c2pa);
   // OpenAI-origin credentials get a link to OpenAI's own verifier
@@ -1511,7 +1561,7 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
        fields inside (Signed by, Source, Made with) say what the manifest
        claims; a header glyph must never imply validation. It never asserts
        the file is authentic. */
-    <CollapsibleCard title="Content Credentials (C2PA)">
+    <CollapsibleCard title="Content Credentials (C2PA)" id="c2pa-detail" openSignal={openSignal}>
       {sourceText && <Field label="Source" value={sourceText} highlight />}
       {generator && <Field label="Made with" value={generator} />}
       {c2pa.creator && <Field label="Creator" value={c2pa.creator} />}
