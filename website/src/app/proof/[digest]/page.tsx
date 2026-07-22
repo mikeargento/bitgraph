@@ -581,6 +581,10 @@ export default function ProofPage() {
           .bg-collapse-head:hover { background:#f3f5f7 !important; }
           .bg-collapse-head:hover .bg-collapse-chev { color:#004b7a; }
         }
+        /* Content Credentials teaser — neutral caption at rest (no verdict), a
+           blue underlined link on hover/focus to reveal it opens the C2PA card. */
+        .c2pa-teaser { transition: color .12s; }
+        .c2pa-teaser:hover, .c2pa-teaser:focus-visible { color:#0065A4 !important; text-decoration:underline; text-underline-offset:2px; }
         /* Face-ID-style success: a brand-blue ring sweeps closed, then the checkmark
            draws itself, the whole badge springs in and fades away. Plays once
            on a freshly-recorded BitGraph. */
@@ -673,6 +677,7 @@ export default function ProofPage() {
               {cachedFile?.c2pa?.present && (
                 <button
                   type="button"
+                  className="c2pa-teaser"
                   onClick={() => {
                     setC2paSignal((s) => s + 1);
                     document.getElementById("c2pa-detail")?.scrollIntoView({ behavior: "smooth", block: "start" });
