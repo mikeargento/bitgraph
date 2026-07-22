@@ -1055,10 +1055,12 @@ function ProofSkeleton() {
           {titleWidths.map((w, i) => (
             <div key={i} style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
               {/* Same header geometry as CollapsibleCard: 14px 16px, title left,
-                  Open-pill-sized block right. */}
+                  collapsed chevron right (matching the real card's toggle). */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 16px" }}>
                 <div className="bg-skel" style={{ ...bar, width: w, height: 15 }} />
-                <div className="bg-skel" style={{ width: 66, height: 28, borderRadius: 0, flexShrink: 0 }} />
+                <span aria-hidden style={{ display: "inline-flex", flexShrink: 0, color: "#c7ccd1" }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
+                </span>
               </div>
             </div>
           ))}
