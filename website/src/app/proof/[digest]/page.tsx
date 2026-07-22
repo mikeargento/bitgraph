@@ -1528,7 +1528,7 @@ function formatGenerator(c2pa: C2PAReadResult): string | undefined {
 }
 
 // The one-line teaser shown under the image when the bytes carry a C2PA
-// manifest: "{origin} · Content Credentials embedded". The origin clause is
+// manifest: "{origin} · Content Credentials (C2PA) embedded". The origin clause is
 // derived from the IPTC source type (AI-generated / photo / composite) and the
 // generator name; when the type is unrecognized the origin is dropped rather
 // than guessed. Pass-through of what the file claims, never a BitGraph verdict.
@@ -1546,7 +1546,7 @@ function c2paSummaryLine(c2pa: C2PAReadResult): string {
       origin = gen ? `Photo · ${gen}` : "Camera photo";
       break;
   }
-  return origin ? `${origin} · Content Credentials embedded` : "Content Credentials embedded";
+  return origin ? `${origin} · Content Credentials (C2PA) embedded` : "Content Credentials (C2PA) embedded";
 }
 
 function C2PACard({ c2pa, openSignal }: { c2pa: C2PAReadResult; openSignal?: number }) {
