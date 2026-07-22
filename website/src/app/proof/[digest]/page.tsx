@@ -653,7 +653,7 @@ export default function ProofPage() {
               carry). The "when" leads the body, then the image when the bytes are
               in hand (or the bring-your-file dropzone), then the file hash. */}
           {!isEth && !isInterval && (
-            <CollapsibleCard title={<VerifiedTitle>BitGraph Recorded</VerifiedTitle>} plain>
+            <CollapsibleCard title="BitGraph Recorded" plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
@@ -685,7 +685,7 @@ export default function ProofPage() {
               sits in the same content slot the BitGraphed File uses on file
               proofs, titled to match. */}
           {isEth && attr?.title && (
-            <CollapsibleCard title={<VerifiedTitle>BitGraphed Ethereum Block</VerifiedTitle>} plain>
+            <CollapsibleCard title="BitGraphed Ethereum Block" plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
               <Field label="Etherscan" value={attr.title} link />
@@ -1074,29 +1074,6 @@ function ProofSkeleton() {
 
 /* ── Card ── */
 
-
-/* ── Verified badge — a blue-outlined circle (white inside) with a blue check,
-   set beside the primary card title on file proofs and Ethereum anchors as a
-   "this is recorded and verifiable" mark. ── */
-function VerifiedBadge() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0, display: "block" }}>
-      <circle cx="12" cy="12" r="10" fill="#fff" stroke="#0065A4" strokeWidth="1.75" />
-      <path d="M7.5 12.4 L10.4 15.4 L16.5 8.9" fill="none" stroke="#0065A4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/* Title + verified badge, for the primary "BitGraph Recorded" / "BitGraphed
-   Ethereum Block" cards. */
-function VerifiedTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-      {children}
-      <VerifiedBadge />
-    </span>
-  );
-}
 
 /* ── Collapsible card — same face as Card, but the header is a disclosure
    toggle. Used for the two ETH anchor sections: their titles already state
