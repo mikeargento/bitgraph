@@ -57,7 +57,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   // Anchors are the clock ticking, not the photos: hidden by default so the
   // roll reads as files. The toggle refetches; ?files=1 lets the server skip
   // anchor objects via the anchors/{epoch}/ index instead of GETting each.
-  const [showAnchors, setShowAnchors] = useState(true);
+  const [showAnchors, setShowAnchors] = useState(false);
   // Search: resolve a BitGraph # or a hash to a proof via /api/search, which
   // verifies the proof is retrievable before handing back a link, then navigate.
   const [query, setQuery] = useState("");
@@ -272,17 +272,16 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
       {title != null && (
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
           {title}
-          {/* Framed as "Hide anchors" (checked by default): the raw ledger feed
-              is mostly Ethereum anchors, so hiding them is the normal state and
-              the toggle's job is to keep the Roll showing photos, not the clock. */}
+          {/* The Roll defaults to files (the recordings) — anchors are the clock
+              ticking, not the photos — so showing them is the opt-in. */}
           <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#6b7280", cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
             <input
               type="checkbox"
-              checked={!showAnchors}
-              onChange={(ev) => setShowAnchors(!ev.target.checked)}
+              checked={showAnchors}
+              onChange={(ev) => setShowAnchors(ev.target.checked)}
               style={{ accentColor: "#0065A4", width: 13, height: 13 }}
             />
-            Hide anchors
+            Show anchors
           </label>
         </div>
       )}
