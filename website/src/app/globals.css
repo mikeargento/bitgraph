@@ -455,7 +455,10 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .bitgraph-camera { width: 100%; height: 230px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
 .bitgraph-camera .fd-icon { width: 44px; height: 44px; }
 @media (min-width: 769px) {
-  .bitgraph-camera { height: 312px; --fd-headline: 26px; }
+  /* Cap the box to the explainer column width so it reads as a frame, not a
+     full-width banner, and lines up with the text above and below it. Centered
+     via align-self. Mobile stays full-width (90% of the wrap). */
+  .bitgraph-camera { height: 312px; max-width: 560px; --fd-headline: 26px; }
   .bitgraph-camera .fd-icon { width: 48px; height: 48px; }
 }
 /* Suppress the iOS long-press callout/preview (the dark rounded blob that

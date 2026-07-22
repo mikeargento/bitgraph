@@ -317,15 +317,17 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           <>
             <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Reading the ledger…</span>
             {/* A skeleton of ledger rows — same row chrome (# left, tag, date
-                right, Open pill) as the real stream, so it lands in place with
-                no jump when the entries arrive. */}
+                right, Open chevron) as the real stream, so it lands in place
+                with no jump when the entries arrive. */}
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={`skel-${i}`} className="xp-row" style={{ pointerEvents: "none" }} aria-hidden>
                 <span className="xp-skel" style={{ width: 60, height: 14, flexShrink: 0 }} />
                 <span className="xp-skel" style={{ width: 34, height: 12, flexShrink: 0 }} />
                 <span style={{ flex: 1 }} />
                 <span className="xp-skel" style={{ width: 84, height: 12, flexShrink: 0 }} />
-                <span className="xp-skel" style={{ width: 58, height: 28, flexShrink: 0 }} />
+                <span aria-hidden style={{ display: "inline-flex", flexShrink: 0, color: "#c7ccd1" }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
+                </span>
               </div>
             ))}
           </>
