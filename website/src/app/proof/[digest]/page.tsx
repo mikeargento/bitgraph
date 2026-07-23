@@ -669,13 +669,13 @@ export default function ProofPage() {
                   In the no-file state it is also the value a dropped file is
                   checked against. */}
               <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder={isDisplayableImage(cachedFile, cachedFile?.c2pa) || !cachedFile} />
-              {/* BitGraph again — record these same bytes at a NEW causal
-                  position. It lives with the file it acts on (only offered when
-                  the artifact is in hand, cachedFile set), so it sits below the
-                  hash inside this card. */}
+              {/* Actions on the file in hand: record these same bytes at a NEW
+                  causal position, and (for photos) put the exact original bytes
+                  back on the device — never the rendered pixels. */}
               {cachedFile && (
-                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9" }}>
+                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9", display: "flex", flexDirection: "column", gap: 12 }}>
                   <BitGraphAgainButton proof={proof} digestParam={digestParam} />
+                  {isDisplayableImage(cachedFile, cachedFile?.c2pa) && <SavePhotoButton file={cachedFile} />}
                 </div>
               )}
             </CollapsibleCard>
@@ -1219,6 +1219,70 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
   );
 }
 
+/* ── Save photo — hand the EXACT recorded bytes back to the device. On phones
+   this goes through the share sheet (navigator.share with the original File),
+   whose "Save Image" stores the file as the asset's unmodified original; on
+   desktop it falls back to a plain download. Never the <img> pixels: saving a
+   rendered blob re-encodes, and re-encoded bytes stop matching the proof. ── */
+
+const IMAGE_MIME: Record<string, string> = {
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
+  webp: "image/webp", avif: "image/avif", bmp: "image/bmp",
+  tif: "image/tiff", tiff: "image/tiff", heic: "image/heic", heif: "image/heif",
+};
+
+function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }) {
+  // Share support is decided on the client after mount (SSR has no navigator);
+  // until then the label stays at the download fallback, which is always true.
+  const [canShare, setCanShare] = useState(false);
+
+  const ext = file.name.toLowerCase().split(".").pop() ?? "";
+  const mime = IMAGE_MIME[ext] ?? "application/octet-stream";
+
+  useEffect(() => {
+    try {
+      const probe = new File([new Uint8Array(8)], file.name, { type: mime });
+      setCanShare(!!navigator.canShare?.({ files: [probe] }));
+    } catch { setCanShare(false); }
+  }, [file.name, mime]);
+
+  async function run() {
+    const f = new File([new Uint8Array(file.data)], file.name, { type: mime });
+    if (canShare) {
+      try {
+        await navigator.share({ files: [f] });
+        return;
+      } catch (e) {
+        // Cancelled share sheet is normal; anything else falls through to a
+        // plain download so the bytes still reach the device.
+        if ((e as DOMException)?.name === "AbortError") return;
+      }
+    }
+    const url = URL.createObjectURL(f);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  return (
+    <button
+      onClick={run}
+      className="bg-btn-outline"
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+        width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+        color: "#0065A4", background: "#f4f6f9",
+        border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer",
+      }}
+    >
+      <BtnIcon name="download" />
+      <span>{canShare ? "Save Photo to Device" : "Download Photo"}</span>
+    </button>
+  );
+}
+
 function JsonSection({ proof }: { proof: BitGraphProof }) {
   const [copied, setCopied] = useState(false);
   const json = JSON.stringify(proof, null, 2);
@@ -1356,6 +1420,10 @@ function PhotoCard({
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
+  // Natural aspect ratio (w/h), measured when the image loads. Drives the
+  // frame: landscape photos run edge-to-edge, portraits keep padding and a
+  // height cap so they don't take over the page.
+  const [ratio, setRatio] = useState<number | null>(null);
 
   // Build an object URL for image preview if the cached file is an image.
   //
@@ -1435,13 +1503,19 @@ function PhotoCard({
 
   const alt = cachedFile?.name || c2pa?.title || "Proof artifact";
 
+  // Frame geometry follows the photo's shape. Landscape fills the card
+  // edge-to-edge (its height is naturally bounded by the ratio); square and
+  // portrait keep breathing room plus a viewport-relative height cap so a tall
+  // photo never dominates the page. Until the ratio is measured (first paint),
+  // use the conservative padded form to avoid a full-bleed flash.
+  const isLandscape = ratio !== null && ratio >= 1.15;
   return (
     <div
       style={{
         background: "#ffffff",
         border: bare ? "none" : "1px solid #d0d5dd",
         borderRadius: 0,
-        padding: 24,
+        padding: isLandscape ? 0 : 20,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1451,13 +1525,17 @@ function PhotoCard({
       <img
         src={imageSrc}
         alt={alt}
+        onLoad={(e) => {
+          const el = e.currentTarget;
+          if (el.naturalWidth && el.naturalHeight) setRatio(el.naturalWidth / el.naturalHeight);
+        }}
         onError={() => { if (previewUrl) setPreviewFailed(true); }}
         style={{
           display: "block",
-          maxWidth: "min(100%, 500px)",
-          maxHeight: 500,
-          width: "auto",
+          maxWidth: "100%",
+          width: isLandscape ? "100%" : "auto",
           height: "auto",
+          maxHeight: isLandscape ? undefined : "min(70vh, 640px)",
           objectFit: "contain",
           borderRadius: 0,
         }}
