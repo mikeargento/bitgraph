@@ -5,17 +5,15 @@ const nextConfig: NextConfig = {
     return [
       { source: "/overview", destination: "/docs/overview", permanent: true },
       { source: "/docs", destination: "/docs/overview", permanent: true },
+      // The explainer's early per-orientation URLs; one responsive page now.
+      { source: "/camera/desktop", destination: "/camera", permanent: false },
+      { source: "/camera/mobile", destination: "/camera", permanent: false },
     ];
   },
   async rewrites() {
-    // Clean URLs for the static "A Camera for Bits" explainer pages in
-    // public/camera/ (unlisted; shared by direct link). /camera itself is a
-    // tiny detector page that forwards to the right orientation.
-    return [
-      { source: "/camera", destination: "/camera/index.html" },
-      { source: "/camera/desktop", destination: "/camera/desktop.html" },
-      { source: "/camera/mobile", destination: "/camera/mobile.html" },
-    ];
+    // Clean URL for the static "A Camera for Bits" explainer page in
+    // public/camera/ (unlisted; shared by direct link).
+    return [{ source: "/camera", destination: "/camera/index.html" }];
   },
 };
 
