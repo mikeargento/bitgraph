@@ -61,12 +61,14 @@
        sentence case, a step up from body copy. */
     .footer-line {
       margin: clamp(56px, 7vw, 84px) auto 0;
-      max-width: 620px;
+      max-width: 720px;
       text-align: center;
-      font-size: 18px; font-weight: 500; line-height: 1.55; letter-spacing: -0.006em;
+      font-size: 18px; font-weight: 500; line-height: 1.6; letter-spacing: -0.006em;
       color: #374151;
       text-wrap: balance;
     }
+    /* One sentence per line where they fit (each still wraps on phones). */
+    .footer-line .line { display: block; }
     .footer-line strong { color: #111827; font-weight: 700; }
 
     /* ── Wide: the original horizontal composition — film row over BitGraph
@@ -565,7 +567,7 @@
       </div>
     </div>
 
-    <p class="footer-line">Anyone can verify, anytime, offline: these exact bits, this frame, this moment. <strong>Because the frame came first, the record cannot be constructed after the fact.</strong></p>
+    <p class="footer-line"><span class="line">Anyone can verify, anytime, offline: these exact bits, this frame, this moment.</span> <span class="line"><strong>Because the frame came first, the record cannot be constructed after the fact.</strong></span></p>
   </div>
 </body>
 </html>
