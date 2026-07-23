@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BitGraph: A Camera for Bits</title>
+  <meta property="og:title" content="BitGraph: A Camera for Bits">
+  <meta property="og:description" content="How a BitGraph is made: the digital frame exists first, and the file exposes it once.">
+  <style>html,body{margin:0;background:#f5f5f5;}</style>
+  <script>
+    // One shareable link: pick the orientation for the device. Narrow or
+    // portrait viewports get the vertical layout, everything else the wide one.
+    // location.replace keeps the back button clean.
+    (function () {
+      var mobile = window.innerWidth < 820 || window.innerHeight > window.innerWidth;
+      location.replace(mobile ? "/camera/mobile.html" : "/camera/desktop.html");
+    })();
+  </script>
+</head>
+<body>
+  <noscript>
+    <p style="font:15px -apple-system,BlinkMacSystemFont,sans-serif;padding:24px;">
+      <a href="/camera/desktop.html">Desktop version</a> &middot;
+      <a href="/camera/mobile.html">Mobile version</a>
+    </p>
+  </noscript>
+</body>
+</html>
