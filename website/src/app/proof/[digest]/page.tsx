@@ -1420,10 +1420,6 @@ function PhotoCard({
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
-  // Natural aspect ratio (w/h), measured when the image loads. Drives the
-  // frame: landscape photos run edge-to-edge, portraits keep padding and a
-  // height cap so they don't take over the page.
-  const [ratio, setRatio] = useState<number | null>(null);
 
   // Build an object URL for image preview if the cached file is an image.
   //
@@ -1503,19 +1499,17 @@ function PhotoCard({
 
   const alt = cachedFile?.name || c2pa?.title || "Proof artifact";
 
-  // Frame geometry follows the photo's shape. Landscape fills the card
-  // edge-to-edge (its height is naturally bounded by the ratio); square and
-  // portrait keep breathing room plus a viewport-relative height cap so a tall
-  // photo never dominates the page. Until the ratio is measured (first paint),
-  // use the conservative padded form to avoid a full-bleed flash.
-  const isLandscape = ratio !== null && ratio >= 1.15;
+  // One frame rule for every orientation: uniform padding, and the photo
+  // fills the padded area up to its caps — a landscape runs to the side
+  // padding, a portrait to the height cap, a square to whichever comes
+  // first. Long and short edges get the same breathing room either way.
   return (
     <div
       style={{
         background: "#ffffff",
         border: bare ? "none" : "1px solid #d0d5dd",
         borderRadius: 0,
-        padding: isLandscape ? 0 : 20,
+        padding: 20,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1525,17 +1519,13 @@ function PhotoCard({
       <img
         src={imageSrc}
         alt={alt}
-        onLoad={(e) => {
-          const el = e.currentTarget;
-          if (el.naturalWidth && el.naturalHeight) setRatio(el.naturalWidth / el.naturalHeight);
-        }}
         onError={() => { if (previewUrl) setPreviewFailed(true); }}
         style={{
           display: "block",
           maxWidth: "100%",
-          width: isLandscape ? "100%" : "auto",
+          maxHeight: "min(70vh, 640px)",
+          width: "auto",
           height: "auto",
-          maxHeight: isLandscape ? undefined : "min(70vh, 640px)",
           objectFit: "contain",
           borderRadius: 0,
         }}
