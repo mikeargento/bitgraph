@@ -25,15 +25,7 @@
     }
     .mono { font-family: "IBM Plex Mono", monospace; }
 
-    .wrap { max-width: 1500px; margin: 0 auto; padding: 40px 28px 72px; }
-
-    h1 {
-      text-align: center;
-      font-size: clamp(30px, 4.6vw, 48px);
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      margin-bottom: clamp(40px, 6vw, 84px);
-    }
+    .wrap { max-width: 1500px; margin: 0 auto; padding: clamp(40px, 5vw, 64px) 28px 72px; }
 
     /* Stage cell: icon over heading over copy. */
     .cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; position: relative; z-index: 1; }
@@ -143,8 +135,6 @@
     </div>
   </div>
   <div class="wrap">
-    <h1>A Camera for Bits.</h1>
-
     <!-- ═══ Wide layout: two rows of six ═══ -->
     <div class="grid" aria-hidden="false">
       <div class="band"><span class="band-label">THE FRAME EXISTS FIRST</span></div>
