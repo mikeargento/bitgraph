@@ -1242,8 +1242,11 @@ function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }
 
   useEffect(() => {
     try {
+      // canShare alone is not phone-only (desktop Safari/Chrome have share
+      // sheets too), so also require a touch-first device.
+      const touch = window.matchMedia("(pointer: coarse)").matches;
       const probe = new File([new Uint8Array(8)], file.name, { type: mime });
-      setCanShare(!!navigator.canShare?.({ files: [probe] }));
+      setCanShare(touch && !!navigator.canShare?.({ files: [probe] }));
     } catch { setCanShare(false); }
   }, [file.name, mime]);
 
