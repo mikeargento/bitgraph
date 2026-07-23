@@ -1272,19 +1272,30 @@ function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }
   }
 
   return (
-    <button
-      onClick={run}
-      className="bg-btn-outline"
-      style={{
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-        width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-        color: "#0065A4", background: "#f4f6f9",
-        border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer",
-      }}
-    >
-      <BtnIcon name="download" />
-      <span>{canShare ? "Save Photo to Device" : "Download Photo"}</span>
-    </button>
+    <>
+      <button
+        onClick={run}
+        className="bg-btn-outline"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+          width: "100%", height: 76, fontSize: 16, fontWeight: 500,
+          color: "#0065A4", background: "#f4f6f9",
+          border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer",
+        }}
+      >
+        <BtnIcon name="download" />
+        <span>{canShare ? "Save Photo to Device" : "Download Photo"}</span>
+      </button>
+      {/* Steer the share-sheet choice: "Save to Files" round-trips the exact
+          bytes (verified), while Photos re-encodes on the way back out through
+          the picker, so a camera-roll copy stops matching. Only with the share
+          sheet; plain downloads have no such fork. */}
+      {canShare && (
+        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "#6b7280", textAlign: "center" }}>
+          &ldquo;Save to Files&rdquo; keeps the exact recorded bytes. Saving to Photos re-encodes them, so a camera-roll copy will not match this BitGraph.
+        </div>
+      )}
+    </>
   );
 }
 
