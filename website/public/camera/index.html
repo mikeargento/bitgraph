@@ -57,15 +57,17 @@
       font-size: 12px; font-weight: 600; letter-spacing: 0.18em; color: #374151; white-space: nowrap;
     }
 
+    /* The closing thesis: a sentence to read, not a label — site sans,
+       sentence case, a step up from body copy. */
     .footer-line {
       margin: clamp(56px, 7vw, 84px) auto 0;
-      max-width: 940px;
+      max-width: 620px;
       text-align: center;
-      font-family: "IBM Plex Mono", monospace;
-      font-size: 12px; font-weight: 600; letter-spacing: 0.22em; line-height: 2;
-      color: #6b7280;
+      font-size: 18px; font-weight: 500; line-height: 1.55; letter-spacing: -0.006em;
+      color: #374151;
       text-wrap: balance;
     }
+    .footer-line strong { color: #111827; font-weight: 700; }
 
     /* ── Wide: the original horizontal composition — film row over BitGraph
        row, six stages across, connectors between, row tags on the left. ── */
@@ -119,7 +121,6 @@
         margin: 0 -12px; padding: 16px 12px 22px;
       }
       .key-stage .band-label { display: block; text-align: center; margin-bottom: 16px; }
-      .footer-line { letter-spacing: 0.14em; }
     }
     @media (min-width: 1100px) {
       .key-stage .band-label { display: none; }
@@ -564,7 +565,7 @@
       </div>
     </div>
 
-    <p class="footer-line">ANYONE CAN VERIFY, ANYTIME, OFFLINE: THESE EXACT BITS, THIS FRAME, THIS MOMENT. BECAUSE THE FRAME CAME FIRST, THE RECORD CANNOT BE FAKED AFTER THE FACT.</p>
+    <p class="footer-line">Anyone can verify, anytime, offline: these exact bits, this frame, this moment. <strong>Because the frame came first, the record cannot be constructed after the fact.</strong></p>
   </div>
 </body>
 </html>
