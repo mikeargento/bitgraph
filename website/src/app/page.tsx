@@ -662,6 +662,11 @@ export default function BitGraphPage() {
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(32px, 6vw, 52px); }
         .bitgraph-tagline { text-align: center; font-size: clamp(31px, 7vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
+        /* The tagline is a quiet door to the /camera explainer: a plain
+           headline at rest, an underline on hover so it never competes with
+           the drop box for attention. */
+        .bitgraph-tagline a { color: inherit; text-decoration: none; }
+        .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 7px; }
         /* The hero is two paired lines: the tagline (metaphor) and the "why" hook
            (promise) nested tight beneath it as a subhead, above the box. Keep the
            hook clearly subordinate to the tagline in size so it supports rather
@@ -721,7 +726,7 @@ export default function BitGraphPage() {
                 promise, tight together as a headline + subhead above the box. */}
             <div className="hero-head">
               <div className="bitgraph-tagline">
-                A camera for <span className="accent">bits</span>.
+                <a href="/camera">A camera for <span className="accent">bits</span>.</a>
               </div>
               <div className="hero-why">
                 <p>Give your data a place in space and time.</p>
