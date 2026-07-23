@@ -1232,8 +1232,9 @@ const IMAGE_MIME: Record<string, string> = {
 };
 
 function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }) {
-  // Share support is decided on the client after mount (SSR has no navigator);
-  // until then the label stays at the download fallback, which is always true.
+  // Share support is decided on the client after mount (SSR has no navigator).
+  // The button exists only where the share sheet does (phones/tablets): on
+  // desktop the export path is the proof bundle, not a loose download.
   const [canShare, setCanShare] = useState(false);
 
   const ext = file.name.toLowerCase().split(".").pop() ?? "";
@@ -1248,24 +1249,22 @@ function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }
 
   async function run() {
     const f = new File([new Uint8Array(file.data)], file.name, { type: mime });
-    if (canShare) {
-      try {
-        await navigator.share({ files: [f] });
-        return;
-      } catch (e) {
-        // Cancelled share sheet is normal; anything else falls through to a
-        // plain download so the bytes still reach the device.
-        if ((e as DOMException)?.name === "AbortError") return;
-      }
+    try {
+      await navigator.share({ files: [f] });
+    } catch (e) {
+      // Cancelled share sheet is normal; anything else falls back to a plain
+      // download so the bytes still reach the device.
+      if ((e as DOMException)?.name === "AbortError") return;
+      const url = URL.createObjectURL(f);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
     }
-    const url = URL.createObjectURL(f);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
+  if (!canShare) return null;
   return (
     <button
       onClick={run}
@@ -1278,7 +1277,7 @@ function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }
       }}
     >
       <BtnIcon name="download" />
-      <span>{canShare ? "Save Photo to Device" : "Download Photo"}</span>
+      <span>Save Photo to Device</span>
     </button>
   );
 }
