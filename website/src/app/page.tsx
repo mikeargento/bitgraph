@@ -652,14 +652,14 @@ export default function BitGraphPage() {
            and desktop. (An earlier bigger subtraction lifted it too high once
            the example link was added below the box.) The results view
            (bitgraph-results) overrides to top-aligned. */
-        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 32px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 72px); }
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 52px 0 32px; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 72px); }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
         /* Drop step hero: the concept line ("A camera for bits.") stands alone,
            then the box (the tool), then the why/mechanics below it. This gap sits
            BETWEEN the tagline and the box, so give it real breathing room (the
            tagline is on its own now, no subhead bridging it) and let it scale. */
-        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(32px, 6vw, 52px); }
+        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(26px, 4.5vw, 40px); }
         .bitgraph-tagline { text-align: center; font-size: clamp(31px, 7vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
         /* The tagline is a quiet door to the /camera explainer: a plain
