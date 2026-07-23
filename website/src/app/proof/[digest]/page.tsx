@@ -1232,9 +1232,12 @@ const IMAGE_MIME: Record<string, string> = {
 };
 
 function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }) {
-  // Share support is decided on the client after mount (SSR has no navigator).
-  // The button exists only where the share sheet does (phones/tablets): on
-  // desktop the export path is the proof bundle, not a loose download.
+  // The byte-faithful save must exist on EVERY browser, because a photo taken
+  // through the page's camera input exists nowhere else. The universal
+  // mechanism is a plain download of the exact recorded bytes; touch devices
+  // with a files-capable share sheet get that sheet instead (AirDrop, Save to
+  // Files, Save Image — noting Photos re-encodes on the way back OUT through
+  // the picker; the Files paths round-trip exactly).
   const [canShare, setCanShare] = useState(false);
 
   const ext = file.name.toLowerCase().split(".").pop() ?? "";
@@ -1242,8 +1245,6 @@ function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }
 
   useEffect(() => {
     try {
-      // canShare alone is not phone-only (desktop Safari/Chrome have share
-      // sheets too), so also require a touch-first device.
       const touch = window.matchMedia("(pointer: coarse)").matches;
       const probe = new File([new Uint8Array(8)], file.name, { type: mime });
       setCanShare(touch && !!navigator.canShare?.({ files: [probe] }));
@@ -1252,22 +1253,24 @@ function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }
 
   async function run() {
     const f = new File([new Uint8Array(file.data)], file.name, { type: mime });
-    try {
-      await navigator.share({ files: [f] });
-    } catch (e) {
-      // Cancelled share sheet is normal; anything else falls back to a plain
-      // download so the bytes still reach the device.
-      if ((e as DOMException)?.name === "AbortError") return;
-      const url = URL.createObjectURL(f);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file.name;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    if (canShare) {
+      try {
+        await navigator.share({ files: [f] });
+        return;
+      } catch (e) {
+        // Cancelled share sheet is normal; anything else falls through to the
+        // download so the bytes still reach the device.
+        if ((e as DOMException)?.name === "AbortError") return;
+      }
     }
+    const url = URL.createObjectURL(f);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
-  if (!canShare) return null;
   return (
     <button
       onClick={run}
@@ -1280,7 +1283,7 @@ function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }
       }}
     >
       <BtnIcon name="download" />
-      <span>Save Photo to Device</span>
+      <span>{canShare ? "Save Photo to Device" : "Download Photo"}</span>
     </button>
   );
 }
