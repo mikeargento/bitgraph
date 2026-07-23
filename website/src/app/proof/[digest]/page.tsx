@@ -669,13 +669,13 @@ export default function ProofPage() {
                   In the no-file state it is also the value a dropped file is
                   checked against. */}
               <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder={isDisplayableImage(cachedFile, cachedFile?.c2pa) || !cachedFile} />
-              {/* Actions on the file in hand: record these same bytes at a NEW
-                  causal position, and (for photos) put the exact original bytes
-                  back on the device — never the rendered pixels. */}
+              {/* BitGraph again — record these same bytes at a NEW causal
+                  position. It lives with the file it acts on (only offered when
+                  the artifact is in hand, cachedFile set), so it sits below the
+                  hash inside this card. */}
               {cachedFile && (
-                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9" }}>
                   <BitGraphAgainButton proof={proof} digestParam={digestParam} />
-                  {isDisplayableImage(cachedFile, cachedFile?.c2pa) && <SavePhotoButton file={cachedFile} />}
                 </div>
               )}
             </CollapsibleCard>
@@ -1213,86 +1213,6 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
       {state === "error" && (
         <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
           Could not record a new position. Try again in a moment.
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ── Save photo — hand the EXACT recorded bytes back to the device. On phones
-   this goes through the share sheet (navigator.share with the original File),
-   whose "Save Image" stores the file as the asset's unmodified original; on
-   desktop it falls back to a plain download. Never the <img> pixels: saving a
-   rendered blob re-encodes, and re-encoded bytes stop matching the proof. ── */
-
-const IMAGE_MIME: Record<string, string> = {
-  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif",
-  webp: "image/webp", avif: "image/avif", bmp: "image/bmp",
-  tif: "image/tiff", tiff: "image/tiff", heic: "image/heic", heif: "image/heif",
-};
-
-function SavePhotoButton({ file }: { file: { name: string; data: ArrayBuffer } }) {
-  // The byte-faithful save must exist on EVERY browser, because a photo taken
-  // through the page's camera input exists nowhere else. The universal
-  // mechanism is a plain download of the exact recorded bytes; touch devices
-  // with a files-capable share sheet get that sheet instead (AirDrop, Save to
-  // Files, Save Image — noting Photos re-encodes on the way back OUT through
-  // the picker; the Files paths round-trip exactly).
-  const [canShare, setCanShare] = useState(false);
-
-  const ext = file.name.toLowerCase().split(".").pop() ?? "";
-  const mime = IMAGE_MIME[ext] ?? "application/octet-stream";
-
-  useEffect(() => {
-    try {
-      const touch = window.matchMedia("(pointer: coarse)").matches;
-      const probe = new File([new Uint8Array(8)], file.name, { type: mime });
-      setCanShare(touch && !!navigator.canShare?.({ files: [probe] }));
-    } catch { setCanShare(false); }
-  }, [file.name, mime]);
-
-  async function run() {
-    const f = new File([new Uint8Array(file.data)], file.name, { type: mime });
-    if (canShare) {
-      try {
-        await navigator.share({ files: [f] });
-        return;
-      } catch (e) {
-        // Cancelled share sheet is normal; anything else falls through to the
-        // download so the bytes still reach the device.
-        if ((e as DOMException)?.name === "AbortError") return;
-      }
-    }
-    const url = URL.createObjectURL(f);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-  }
-
-  return (
-    <>
-      <button
-        onClick={run}
-        className="bg-btn-outline"
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-          width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-          color: "#0065A4", background: "#f4f6f9",
-          border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer",
-        }}
-      >
-        <BtnIcon name="download" />
-        <span>{canShare ? "Save Photo to Device" : "Download Photo"}</span>
-      </button>
-      {/* Steer the share-sheet choice: "Save to Files" round-trips the exact
-          bytes (verified), while Photos re-encodes on the way back out through
-          the picker, so a camera-roll copy stops matching. Only with the share
-          sheet; plain downloads have no such fork. */}
-      {canShare && (
-        <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "#6b7280", textAlign: "center" }}>
-          &ldquo;Save to Files&rdquo; keeps the exact recorded bytes. Saving to Photos re-encodes them, so a camera-roll copy will not match this BitGraph.
         </div>
       )}
     </>
