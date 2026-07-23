@@ -25,7 +25,7 @@
     }
     .mono { font-family: "IBM Plex Mono", monospace; }
 
-    .wrap { max-width: 1500px; margin: 0 auto; padding: 56px 28px 72px; }
+    .wrap { max-width: 1500px; margin: 0 auto; padding: 40px 28px 72px; }
 
     h1 {
       text-align: center;
@@ -130,8 +130,20 @@
   </style>
 </head>
 <body>
+  <!-- Site nav — static replica of src/components/site-nav.tsx so this
+       unlisted page still feels like bitgraph.ing and links back into it. -->
+  <div id="site-nav" style="background:#f5f5f5; position:sticky; top:0; z-index:50;">
+    <div style="width:90%; max-width:800px; margin:0 auto; height:56px; display:flex; align-items:center; justify-content:space-between;">
+      <a href="/" style="font-size:24px; font-weight:900; color:#111827; text-decoration:none; letter-spacing:-0.02em; -webkit-text-stroke:0.4px #111827;">BitGraph</a>
+      <div style="display:flex; gap:24px; align-items:center;">
+        <a href="/roll" style="font-size:14px; font-weight:600; color:#111827; text-decoration:none;">Roll</a>
+        <a href="/docs" style="font-size:14px; font-weight:600; color:#111827; text-decoration:none;">Docs</a>
+        <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener" style="font-size:14px; font-weight:600; color:#111827; text-decoration:none;">GitHub</a>
+      </div>
+    </div>
+  </div>
   <div class="wrap">
-    <h1>BitGraph: A Camera for Bits.</h1>
+    <h1>A Camera for Bits.</h1>
 
     <!-- ═══ Wide layout: two rows of six ═══ -->
     <div class="grid" aria-hidden="false">
