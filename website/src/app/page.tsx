@@ -663,10 +663,10 @@ export default function BitGraphPage() {
         .bitgraph-tagline { text-align: center; font-size: clamp(31px, 7vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
         /* The tagline is a quiet door to the /camera explainer: a plain
-           headline at rest, an underline on hover so it never competes with
-           the drop box for attention. */
-        .bitgraph-tagline a { color: inherit; text-decoration: none; }
-        .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 7px; }
+           headline at rest that sweeps to brand blue on hover, so it never
+           competes with the drop box for attention. */
+        .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
+        .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
         /* The hero is two paired lines: the tagline (metaphor) and the "why" hook
            (promise) nested tight beneath it as a subhead, above the box. Keep the
            hook clearly subordinate to the tagline in size so it supports rather
