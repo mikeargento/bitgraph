@@ -49,7 +49,7 @@ export default function CameraPage() {
         fontSize: "clamp(15px, 3.6vw, 18px)", lineHeight: 1.4, color: "#1f2937",
         fontWeight: 500, letterSpacing: "-0.012em", textWrap: "balance",
       }}>
-        To record, there must be a constraint.
+        An exposure cannot come before its frame.
       </p>
       <CameraExplainer />
       {/* The closing thesis: the claim, then the reason, one sentence per
