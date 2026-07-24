@@ -691,7 +691,7 @@ export default function BitGraphPage() {
            short. Recomputed per viewport by the browser. */
         .hero-explainer p { margin: 0; text-wrap: balance; }
         .see-example { text-align: center; }
-        .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; }
+        .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; text-decoration: none; }
         .see-example-link .arrow { transition: transform .18s ease; }
         @media (hover: hover) { .see-example-link:hover .arrow { transform: translateX(3px); } }
         .see-example-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
@@ -746,28 +746,37 @@ export default function BitGraphPage() {
                   subhint="Your file never leaves your device."
                 />
               </div>
-              {/* Mechanics below the box: how a frame is created, exposed once,
-                  and later verified. */}
+              {/* Pointers live with the instrument: learn how, then see one.
+                  The reading (explainer) sinks to the bottom of the hero. */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+                <div className="see-example">
+                  <a className="see-example-link" href="/camera">
+                    How a BitGraph is made <span className="arrow" aria-hidden="true">&rarr;</span>
+                  </a>
+                </div>
+                <div className="see-example">
+                  <button
+                    type="button"
+                    className="see-example-link"
+                    onClick={handleSeeExample}
+                    onMouseEnter={primeExample}
+                    onFocus={primeExample}
+                    onTouchStart={primeExample}
+                  >
+                    See an example <span className="arrow" aria-hidden="true">&rarr;</span>
+                  </button>
+                  <p className="see-example-note">BitGraph of a photograph</p>
+                  <p className="see-example-sub">Content Credentials (C2PA) embedded</p>
+                </div>
+              </div>
+              {/* Mechanics at the bottom: how a frame is created, exposed once,
+                  and later verified, for the reader who scrolls. */}
               <div className="hero-explainer">
                 <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data.</p>
                 <p>The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
-                {/* The thesis, pulled out of the frame column: one line, so a
-                    centered treatment is right, and it closes the section. */}
+                {/* The thesis: one line, so a centered treatment is right, and
+                    it closes the page. */}
                 <p className="hx-thesis">Each frame can be exposed only once.</p>
-              </div>
-              <div className="see-example">
-                <button
-                  type="button"
-                  className="see-example-link"
-                  onClick={handleSeeExample}
-                  onMouseEnter={primeExample}
-                  onFocus={primeExample}
-                  onTouchStart={primeExample}
-                >
-                  See an example <span className="arrow" aria-hidden="true">&rarr;</span>
-                </button>
-                <p className="see-example-note">BitGraph of a photograph</p>
-                <p className="see-example-sub">Content Credentials (C2PA) embedded</p>
               </div>
             </div>
           </div>
