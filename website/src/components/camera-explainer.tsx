@@ -1,9 +1,9 @@
 /* ── A Camera for Bits — the film/BitGraph explainer diagram ──
-   One source of truth for the six paired stages (film photography above,
-   BitGraph below, the comparison IS the adjacency), rendered on the home
-   page below the camera and on /camera as a standalone shareable page.
-   Ported from the design-tool export; film row keeps its warm browns on
-   purpose (the analog-vs-digital contrast is the piece's device). */
+   The six paired stages (film photography left, BitGraph right, the
+   comparison IS the adjacency), rendered on /camera under its "The frame
+   exists first." headline. Ported from the design-tool export; film row
+   keeps its warm browns on purpose (the analog-vs-digital contrast is the
+   piece's device). */
 
 export function CameraExplainer() {
   return (
