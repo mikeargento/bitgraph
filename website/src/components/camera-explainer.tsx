@@ -15,7 +15,8 @@ export function CameraExplainer() {
         .bgx .film h3 .n { color: #8F5F2F; }
         .bgx .bit h3 .n { color: #0065A4; }
         .bgx .pair { display: grid; grid-template-columns: 1fr 44px 1fr; align-items: start; padding: 26px 0; }
-        .bgx .mid { align-self: center; height: 2px; background: #d0d5dd; margin-top: -40px; }
+        .bgx .mid { align-self: center; margin-top: -40px; text-align: center; color: #c9ced6; font-size: 22px; font-weight: 600; line-height: 1; }
+        .bgx .mid::after { content: "="; }
         .bgx .icon { height: auto; min-height: 96px; display: flex; align-items: center; justify-content: center; }
         .bgx .icon svg { width: 100%; max-width: 240px; height: auto; }
         @media (max-width: 560px) {
@@ -142,7 +143,6 @@ export function CameraExplainer() {
                     <path d="M52 82 L59 69 L64 75 L68 71 L75 82 Z" fill="#8F5F2F"></path>
                     <circle cx="75" cy="66.5" r="2.5" fill="#8F5F2F"></circle>
                     <rect x="92" y="60" width="36" height="26" fill="#FFFFFF" stroke="#8F5F2F" strokeWidth="2" strokeDasharray="5 4"></rect>
-                    <path d="M110 64 L112.6 70.4 L119 73 L112.6 75.6 L110 82 L107.4 75.6 L101 73 L107.4 70.4 Z" fill="#8F5F2F"></path>
                     <rect x="136" y="60" width="36" height="26" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2"></rect>
                   </svg>
                 </div>
@@ -165,7 +165,6 @@ export function CameraExplainer() {
                     <rect x="48" y="60" width="36" height="26" fill="#D9E7F2" stroke="#0065A4" strokeWidth="2"></rect>
                     <text x="66" y="77" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="9.5" fontWeight="600" fill="#0065A4">#8a2f</text>
                     <rect x="92" y="60" width="36" height="26" fill="#FFFFFF" stroke="#0065A4" strokeWidth="2" strokeDasharray="5 4"></rect>
-                    <path d="M110 64 L112.6 70.4 L119 73 L112.6 75.6 L110 82 L107.4 75.6 L101 73 L107.4 70.4 Z" fill="#0065A4"></path>
                     <rect x="136" y="60" width="36" height="26" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2"></rect>
                   </svg>
                 </div>
