@@ -684,6 +684,9 @@ export default function BitGraphPage() {
            margins (playground variant C). One column on the page axis, no
            ragged centered lines. */
         .hero-explainer { max-width: 640px; margin: 0 auto; text-align: left; font-size: 14px; line-height: 1.65; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
+        /* Phones: a step smaller, with side margins so the block sits inset
+           from the box edges the way the 640px cap insets it on desktop. */
+        @media (max-width: 768px) { .hero-explainer { font-size: 13px; padding: 0 14px; } }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
