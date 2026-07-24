@@ -10,11 +10,6 @@ const nextConfig: NextConfig = {
       { source: "/camera/mobile", destination: "/camera", permanent: false },
     ];
   },
-  async rewrites() {
-    // Clean URL for the static "A Camera for Bits" explainer page in
-    // public/camera/ (unlisted; shared by direct link).
-    return [{ source: "/camera", destination: "/camera/index.html" }];
-  },
 };
 
 export default nextConfig;

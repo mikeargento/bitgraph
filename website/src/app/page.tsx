@@ -19,6 +19,7 @@ import { warm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
+import { CameraExplainer } from "@/components/camera-explainer";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -680,16 +681,16 @@ export default function BitGraphPage() {
         /* Explainer under the box: the one place the film/photograph metaphor is
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
-        /* Two centered columns, full column width: side by side they keep the
-           copy from stacking into one tall slab, and centering keeps the whole
-           page on its center axis. Stacks on phones. */
-        .hero-explainer { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 44px; text-align: center; font-size: 14px; line-height: 1.62; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
-        .hx-thesis { grid-column: 1 / -1; text-align: center; font-weight: 700; color: #111827; font-size: 15px; margin: 12px 0 0; }
+        /* The prose mechanics, below the diagram: two paragraphs stacked at
+           full column width (each wraps as it needs), centered on the page
+           axis, closed by the bold thesis line. */
+        .hero-explainer { text-align: center; font-size: 15px; line-height: 1.6; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
+        .hero-explainer p + p { margin-top: 14px; }
+        .hx-thesis { text-align: center; font-weight: 700; color: #111827; font-size: 15px; margin: 18px 0 0; }
         @media (max-width: 768px) { .hero-explainer { grid-template-columns: 1fr; gap: 22px; } }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
-        .hero-explainer p { margin: 0; text-wrap: balance; }
         .see-example { text-align: center; }
         .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; text-decoration: none; }
         .see-example-link .arrow { transition: transform .18s ease; }
@@ -746,37 +747,30 @@ export default function BitGraphPage() {
                   subhint="Your file never leaves your device."
                 />
               </div>
-              {/* Pointers live with the instrument: learn how, then see one.
-                  The reading (explainer) sinks to the bottom of the hero. */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-                <div className="see-example">
-                  <a className="see-example-link" href="/camera">
-                    How a BitGraph is made <span className="arrow" aria-hidden="true">&rarr;</span>
-                  </a>
-                </div>
-                <div className="see-example">
-                  <button
-                    type="button"
-                    className="see-example-link"
-                    onClick={handleSeeExample}
-                    onMouseEnter={primeExample}
-                    onFocus={primeExample}
-                    onTouchStart={primeExample}
-                  >
-                    See an example <span className="arrow" aria-hidden="true">&rarr;</span>
-                  </button>
-                  <p className="see-example-note">BitGraph of a photograph</p>
-                  <p className="see-example-sub">Content Credentials (C2PA) embedded</p>
-                </div>
-              </div>
-              {/* Mechanics at the bottom: how a frame is created, exposed once,
-                  and later verified, for the reader who scrolls. */}
+              {/* The full explainer diagram (shared with /camera) right below
+                  the camera: the fold stays pure, the scroll carries the
+                  argument. */}
+              <CameraExplainer />
+              {/* The mechanics in prose, stacked full width, closed by the
+                  thesis line. */}
               <div className="hero-explainer">
                 <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data.</p>
                 <p>The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
-                {/* The thesis: one line, so a centered treatment is right, and
-                    it closes the page. */}
                 <p className="hx-thesis">Each frame can be exposed only once.</p>
+              </div>
+              <div className="see-example">
+                <button
+                  type="button"
+                  className="see-example-link"
+                  onClick={handleSeeExample}
+                  onMouseEnter={primeExample}
+                  onFocus={primeExample}
+                  onTouchStart={primeExample}
+                >
+                  See an example <span className="arrow" aria-hidden="true">&rarr;</span>
+                </button>
+                <p className="see-example-note">BitGraph of a photograph</p>
+                <p className="see-example-sub">Content Credentials (C2PA) embedded</p>
               </div>
             </div>
           </div>
