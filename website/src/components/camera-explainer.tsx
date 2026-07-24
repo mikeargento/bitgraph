@@ -12,7 +12,6 @@ export function CameraExplainer() {
         .bgx .cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; position: relative; z-index: 1; }
         .bgx .cell h3 { font-size: 18px; font-weight: 700; margin: 0; }
         .bgx .cell p { font-size: 15px; line-height: 1.5; color: #374151; max-width: 100%; text-wrap: balance; margin: 0; }
-        .bgx .cell p strong { color: #111827; }
         .bgx .film h3 .n { color: #8F5F2F; }
         .bgx .bit h3 .n { color: #0065A4; }
         .bgx .pair { display: grid; grid-template-columns: 1fr 44px 1fr; align-items: start; padding: 26px 0; }
@@ -20,6 +19,11 @@ export function CameraExplainer() {
         .bgx .icon { height: auto; min-height: 96px; display: flex; align-items: center; justify-content: center; }
         .bgx .icon svg { width: 100%; max-width: 200px; height: auto; }
         .bgx .key-stage { background: #e8eef4; margin: 0 -16px; padding: 26px 16px; }
+        @media (max-width: 560px) {
+          .bgx .pair { grid-template-columns: 1fr 24px 1fr; }
+          .bgx .cell h3 { font-size: min(18px, calc((45vw - 12px) / 11.2)); white-space: nowrap; }
+          .bgx .cell p { font-size: 13.5px; }
+        }
       `}</style>
       <div className="pairs">
             <div className="key-stage">
@@ -39,7 +43,7 @@ export function CameraExplainer() {
                     </svg>
                   </div>
                   <h3><span className="n">1 · </span>The unused frame</h3>
-                  <p>A blank frame is loaded in the gate. <strong>It exists before any light reaches it.</strong></p>
+                  <p>A blank frame is loaded in the gate. It exists before any light reaches it.</p>
                 </div>
                 <div className="mid"></div>
                 <div className="cell bit">
@@ -55,7 +59,7 @@ export function CameraExplainer() {
                     </svg>
                   </div>
                   <h3><span className="n">1 · </span>The unused frame</h3>
-                  <p>A blank digital frame is created, one of a kind. <strong>It exists before any file is bound to it.</strong></p>
+                  <p>A blank digital frame is created, one of a kind. It exists before any file is bound to it.</p>
                 </div>
               </div>
             </div>

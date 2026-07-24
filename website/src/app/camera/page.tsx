@@ -38,10 +38,19 @@ export default function CameraPage() {
       <h1 style={{
         textAlign: "center", fontSize: "clamp(36px, 9.3vw, 54px)", fontWeight: 800,
         letterSpacing: "-0.035em", lineHeight: 1.02, color: "#111827",
-        margin: "0 0 clamp(28px, 5vw, 44px)",
+        margin: "0 0 clamp(12px, 2.5vw, 16px)",
       }}>
         <a href="/">The frame exists first.</a>
       </h1>
+      {/* Subhead in home's hero-why voice, same type + gap, so the pair
+          mirrors home's tagline + "Give your data a place in space and time." */}
+      <p style={{
+        maxWidth: 600, margin: "0 auto clamp(28px, 5vw, 44px)", textAlign: "center",
+        fontSize: "clamp(15px, 3.6vw, 18px)", lineHeight: 1.4, color: "#1f2937",
+        fontWeight: 500, letterSpacing: "-0.012em", textWrap: "balance",
+      }}>
+        To record, there must be a constraint.
+      </p>
       <CameraExplainer />
       {/* The closing thesis: the claim, then the reason, one sentence per
           line where they fit. */}
