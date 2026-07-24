@@ -459,7 +459,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
      should visually hold the page (the text tapers beneath it). The height
      keeps the proportion stage-like rather than letterbox. Mobile stays
      full-width at 230px. */
-  .bitgraph-camera { height: 380px; --fd-headline: 26px; }
+  .bitgraph-camera { height: 380px; --fd-headline: 26px; --fd-hint-size: 13px; --fd-subhint-size: 13px; }
   .bitgraph-camera .fd-icon { width: 52px; height: 52px; }
 }
 /* Suppress the iOS long-press callout/preview (the dark rounded blob that
