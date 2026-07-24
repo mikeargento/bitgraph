@@ -680,12 +680,10 @@ export default function BitGraphPage() {
         /* Explainer under the box: the one place the film/photograph metaphor is
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
-        /* Two columns under quiet mono kickers (the frame, then the record),
-           everything centered like the /camera page's cells: the columns keep
-           the copy from stacking into one tall slab, and centering keeps the
-           whole page on its center axis. Stacks on phones. */
+        /* Two centered columns, full column width: side by side they keep the
+           copy from stacking into one tall slab, and centering keeps the whole
+           page on its center axis. Stacks on phones. */
         .hero-explainer { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 44px; text-align: center; font-size: 14px; line-height: 1.62; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
-        .hx-kicker { display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.18em; color: #6b7280; margin-bottom: 8px; }
         .hx-thesis { grid-column: 1 / -1; text-align: center; font-weight: 700; color: #111827; font-size: 15px; margin: 12px 0 0; }
         @media (max-width: 768px) { .hero-explainer { grid-template-columns: 1fr; gap: 22px; } }
         /* Balance the line lengths so a centered paragraph breaks into roughly
@@ -751,14 +749,8 @@ export default function BitGraphPage() {
               {/* Mechanics below the box: how a frame is created, exposed once,
                   and later verified. */}
               <div className="hero-explainer">
-                <div>
-                  <span className="hx-kicker">THE FRAME</span>
-                  <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data.</p>
-                </div>
-                <div>
-                  <span className="hx-kicker">THE RECORD</span>
-                  <p>The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
-                </div>
+                <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data.</p>
+                <p>The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
                 {/* The thesis, pulled out of the frame column: one line, so a
                     centered treatment is right, and it closes the section. */}
                 <p className="hx-thesis">Each frame can be exposed only once.</p>
