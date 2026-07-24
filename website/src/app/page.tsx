@@ -683,7 +683,7 @@ export default function BitGraphPage() {
         /* One centered paragraph; text-wrap: balance equalizes the line
            lengths so the centered block reads symmetric, not ragged. */
         .hero-explainer { max-width: 640px; margin: 0 auto; text-align: center; font-size: 14px; line-height: 1.65; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
-        @media (max-width: 768px) { .hero-explainer { font-size: 13px; } }
+        @media (max-width: 768px) { .hero-explainer { font-size: 12.5px; } }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
