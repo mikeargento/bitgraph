@@ -19,7 +19,6 @@ import { warm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
-import { CameraExplainer } from "@/components/camera-explainer";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -681,18 +680,18 @@ export default function BitGraphPage() {
         /* Explainer under the box: the one place the film/photograph metaphor is
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
-        /* The prose mechanics, below the diagram: two paragraphs stacked at
-           full column width (each wraps as it needs), centered on the page
-           axis, closed by the bold thesis line. */
-        .hero-explainer { text-align: center; font-size: 15px; line-height: 1.6; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
-        .hero-explainer p + p { margin-top: 14px; }
-        .hx-thesis { text-align: center; font-weight: 700; color: #111827; font-size: 15px; margin: 18px 0 0; }
-        @media (max-width: 768px) { .hero-explainer { grid-template-columns: 1fr; gap: 22px; } }
+        .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 14px; line-height: 1.62; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
+        /* On phones the explainer sits only ~2px under the subhead and packs
+           into a dense slab; one step smaller keeps it clearly supporting copy
+           (tagline > subhead > explainer > captions). */
+        @media (max-width: 768px) { .hero-explainer { font-size: 13px; } }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
+        .hero-explainer p { margin: 0; text-wrap: balance; }
+        .hero-explainer p + p { margin-top: 14px; }
         .see-example { text-align: center; }
-        .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; text-decoration: none; }
+        .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; }
         .see-example-link .arrow { transition: transform .18s ease; }
         @media (hover: hover) { .see-example-link:hover .arrow { transform: translateX(3px); } }
         .see-example-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
@@ -747,16 +746,11 @@ export default function BitGraphPage() {
                   subhint="Your file never leaves your device."
                 />
               </div>
-              {/* The full explainer diagram (shared with /camera) right below
-                  the camera: the fold stays pure, the scroll carries the
-                  argument. */}
-              <CameraExplainer />
-              {/* The mechanics in prose, stacked full width, closed by the
-                  thesis line. */}
+              {/* Mechanics below the box: how a frame is created, exposed once,
+                  and later verified. */}
               <div className="hero-explainer">
-                <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data.</p>
+                <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data. <strong style={{ fontWeight: 700, color: "#111827" }}>Each frame can be exposed only once.</strong></p>
                 <p>The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
-                <p className="hx-thesis">Each frame can be exposed only once.</p>
               </div>
               <div className="see-example">
                 <button
