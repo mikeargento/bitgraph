@@ -665,7 +665,7 @@ export default function BitGraphPage() {
            BETWEEN the tagline and the box, so give it real breathing room (the
            tagline is on its own now, no subhead bridging it) and let it scale. */
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(26px, 4.5vw, 40px); }
-        .bitgraph-tagline { text-align: center; font-size: clamp(31px, 7vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
+        .bitgraph-tagline { text-align: center; font-size: clamp(36px, 9.3vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
         /* The tagline is a quiet door to the /camera explainer: a plain
            headline at rest that sweeps to brand blue on hover, so it never
@@ -677,7 +677,7 @@ export default function BitGraphPage() {
            hook clearly subordinate to the tagline in size so it supports rather
            than competes. */
         .hero-head { display: flex; flex-direction: column; align-items: stretch; gap: clamp(12px, 2.5vw, 16px); }
-        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(16px, 3.6vw, 18px); line-height: 1.4; color: #1f2937; font-weight: 500; letter-spacing: -0.012em; text-wrap: balance; }
+        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15px, 3.6vw, 18px); line-height: 1.4; color: #1f2937; font-weight: 500; letter-spacing: -0.012em; text-wrap: balance; }
         .hero-why p { margin: 0; }
         /* ── "See a BitGraph" — a quiet link to a real example proof (an
            OpenAI-generated image whose C2PA credentials the proof page shows).

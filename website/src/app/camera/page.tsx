@@ -36,7 +36,7 @@ export default function CameraPage() {
           this line on typical viewports. Home drifts only on very tall windows
           where its hero re-centers. */}
       <h1 style={{
-        textAlign: "center", fontSize: "clamp(31px, 7vw, 54px)", fontWeight: 800,
+        textAlign: "center", fontSize: "clamp(36px, 9.3vw, 54px)", fontWeight: 800,
         letterSpacing: "-0.035em", lineHeight: 1.02, color: "#111827",
         margin: "0 0 clamp(28px, 5vw, 44px)",
       }}>
