@@ -680,18 +680,18 @@ export default function BitGraphPage() {
         /* Explainer under the box: the one place the film/photograph metaphor is
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
-        /* Two left-aligned columns aligned to the box edges (the frame, then
-           the record), each under a quiet mono kicker echoing the /camera
-           page's tags. Centered multi-line paragraphs read as a crammed slab;
-           columns + left alignment read as editorial copy. Stacks on phones. */
-        .hero-explainer { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 44px; text-align: left; font-size: 14px; line-height: 1.62; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
+        /* Two columns under quiet mono kickers (the frame, then the record),
+           everything centered like the /camera page's cells: the columns keep
+           the copy from stacking into one tall slab, and centering keeps the
+           whole page on its center axis. Stacks on phones. */
+        .hero-explainer { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 44px; text-align: center; font-size: 14px; line-height: 1.62; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
         .hx-kicker { display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.18em; color: #6b7280; margin-bottom: 8px; }
         .hx-thesis { grid-column: 1 / -1; text-align: center; font-weight: 700; color: #111827; font-size: 15px; margin: 12px 0 0; }
         @media (max-width: 768px) { .hero-explainer { grid-template-columns: 1fr; gap: 22px; } }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
-        .hero-explainer p { margin: 0; text-wrap: pretty; }
+        .hero-explainer p { margin: 0; text-wrap: balance; }
         .see-example { text-align: center; }
         .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; }
         .see-example-link .arrow { transition: transform .18s ease; }
