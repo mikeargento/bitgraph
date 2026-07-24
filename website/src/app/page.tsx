@@ -694,7 +694,6 @@ export default function BitGraphPage() {
         @media (hover: hover) { .see-example-link:hover .arrow { transform: translateX(3px); } }
         .see-example-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
         .see-example-note { margin: 9px auto 0; font-size: 11.5px; line-height: 1.45; color: #6b7280; letter-spacing: -0.005em; }
-        .see-example-sub { margin: 3px auto 0; font-size: 11.5px; line-height: 1.45; color: #6b7280; letter-spacing: -0.005em; }
         /* Waiting states (read/check/prove/export) all pin their center to the
            SAME viewport point the success checkmark uses (fixed, 44% down,
            horizontally centered), so every wait and the capture moment share
