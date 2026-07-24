@@ -26,6 +26,8 @@ export default function CameraPage() {
         @media (min-width: 769px) { .camera-wrap { padding-top: max(52px, calc(50dvh - 386px)) !important; } }
         .camera-wrap h1 a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .camera-wrap h1 a:hover, .camera-wrap h1 a:focus-visible { color: #0065A4; }
+        .camera-wrap .closer-link { color: #111827; text-decoration: none; transition: color .15s ease; }
+        .camera-wrap .closer-link:hover, .camera-wrap .closer-link:focus-visible { color: #0065A4; }
       `}</style>
       {/* The page's axiom in the same hero voice as home's tagline: home
           states the metaphor, this page states the mechanism. It sits
@@ -52,14 +54,16 @@ export default function CameraPage() {
         An exposure cannot come before its frame.
       </p>
       <CameraExplainer />
-      {/* The closing thesis: the claim, then the reason, one sentence per
-          line where they fit. */}
+      {/* The closing one-two: the trust everyone already grants cameras, then
+          the five-word transfer. The punchline is a quiet door to the
+          whitepaper (same treatment as the tagline links): the reader who
+          just accepted the metaphor is the one who wants the protocol. */}
       <p style={{
         margin: "clamp(56px, 7vw, 84px) auto 0", maxWidth: 720, textAlign: "center",
         fontSize: 15, fontWeight: 500, lineHeight: 1.6, letterSpacing: "-0.006em", color: "#374151", textWrap: "balance",
       }}>
-        <span style={{ display: "block" }}>Anyone can verify, anytime, offline: these exact bits, this frame, this moment.</span>
-        <span style={{ display: "block" }}><strong style={{ color: "#111827", fontWeight: 700 }}>Because the frame came first, the record cannot be constructed after the fact.</strong></span>
+        <span style={{ display: "block" }}>Cameras have been trusted for two hundred years.</span>
+        <span style={{ display: "block" }}><a href="/docs/whitepaper" className="closer-link"><strong style={{ fontWeight: 700 }}>BitGraph just changes the film.</strong></a></span>
       </p>
     </div>
   );
