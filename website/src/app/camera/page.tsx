@@ -24,6 +24,8 @@ export default function CameraPage() {
       <style>{`
         .camera-wrap { padding-top: max(52px, calc(50dvh - 306px)) !important; }
         @media (min-width: 769px) { .camera-wrap { padding-top: max(52px, calc(50dvh - 386px)) !important; } }
+        .camera-wrap h1 a { color: inherit; text-decoration: none; transition: color .15s ease; }
+        .camera-wrap h1 a:hover, .camera-wrap h1 a:focus-visible { color: #0065A4; }
       `}</style>
       {/* The page's axiom in the same hero voice as home's tagline: home
           states the metaphor, this page states the mechanism. It sits
@@ -38,7 +40,7 @@ export default function CameraPage() {
         letterSpacing: "-0.035em", lineHeight: 1.02, color: "#111827",
         margin: "0 0 clamp(28px, 5vw, 44px)",
       }}>
-        The frame exists first.
+        <a href="/">The frame exists first.</a>
       </h1>
       <CameraExplainer />
       {/* The closing thesis: the claim, then the reason, one sentence per
