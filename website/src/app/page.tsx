@@ -733,7 +733,7 @@ export default function BitGraphPage() {
                 <p>Give your data a place in space and time.</p>
               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "clamp(26px, 4.5vw, 40px)" }}>
               <div className="bitgraph-camera">
                 <FileDrop
                   multiple
