@@ -21,7 +21,7 @@ export default function CameraPage() {
           line where they fit. */}
       <p style={{
         margin: "clamp(56px, 7vw, 84px) auto 0", maxWidth: 720, textAlign: "center",
-        fontSize: 18, fontWeight: 500, lineHeight: 1.6, letterSpacing: "-0.006em", color: "#374151", textWrap: "balance",
+        fontSize: 15, fontWeight: 500, lineHeight: 1.6, letterSpacing: "-0.006em", color: "#374151", textWrap: "balance",
       }}>
         <span style={{ display: "block" }}>Anyone can verify, anytime, offline: these exact bits, this frame, this moment.</span>
         <span style={{ display: "block" }}><strong style={{ color: "#111827", fontWeight: 700 }}>Because the frame came first, the record cannot be constructed after the fact.</strong></span>
