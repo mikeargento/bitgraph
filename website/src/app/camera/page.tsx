@@ -15,7 +15,16 @@ export const metadata: Metadata = {
 
 export default function CameraPage() {
   return (
-    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "52px 0 72px" }}>
+    <div className="camera-wrap" style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "52px 0 72px" }}>
+      {/* Home's tagline is vertically CENTERED in its hero, so its offset grows
+          with viewport height; this mirrors that math so the tagline morphs in
+          place into this headline at any window size. The constants encode the
+          home hero's height (~720px desktop, ~560px mobile, incl. nav+padding);
+          re-tune if the home hero's size changes materially. */}
+      <style>{`
+        .camera-wrap { padding-top: max(52px, calc(50dvh - 306px)) !important; }
+        @media (min-width: 769px) { .camera-wrap { padding-top: max(52px, calc(50dvh - 386px)) !important; } }
+      `}</style>
       {/* The page's axiom in the same hero voice as home's tagline: home
           states the metaphor, this page states the mechanism. It sits
           directly above the tinted stage it describes, so the band needs no
