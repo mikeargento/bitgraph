@@ -17,7 +17,7 @@ export function CameraExplainer() {
         .bgx .pair { display: grid; grid-template-columns: 1fr 44px 1fr; align-items: start; padding: 26px 0; }
         .bgx .mid { align-self: center; height: 2px; background: #d0d5dd; margin-top: -40px; }
         .bgx .icon { height: auto; min-height: 96px; display: flex; align-items: center; justify-content: center; }
-        .bgx .icon svg { width: 100%; max-width: 200px; height: auto; }
+        .bgx .icon svg { width: 100%; max-width: 240px; height: auto; }
         @media (max-width: 560px) {
           .bgx .pair { grid-template-columns: 1fr 24px 1fr; }
           .bgx .cell h3 { font-size: min(18px, calc((45vw - 12px) / 11.2)); white-space: nowrap; }
@@ -29,15 +29,14 @@ export function CameraExplainer() {
                 <div className="cell film">
                   <div className="icon">
                     <svg viewBox="0 0 220 130">
-                      <rect x="8" y="33" width="204" height="64" fill="#FFFFFF" stroke="#8F5F2F" strokeWidth="2.5"></rect>
-                      <line x1="16" y1="41" x2="206" y2="41" stroke="#DCCDB8" strokeWidth="5" strokeDasharray="6 11"></line>
-                      <line x1="16" y1="89" x2="206" y2="89" stroke="#DCCDB8" strokeWidth="5" strokeDasharray="6 11"></line>
+                      <line x1="14" y1="39" x2="206" y2="39" stroke="#DCCDB8" strokeWidth="5" strokeDasharray="6 11"></line>
+                      <line x1="14" y1="91" x2="206" y2="91" stroke="#DCCDB8" strokeWidth="5" strokeDasharray="6 11"></line>
                       <rect x="20" y="48" width="52" height="34" fill="#F2E7D8" stroke="#8F5F2F" strokeWidth="2"></rect>
                       <path d="M26 78 L38 60 L46 70 L52 63 L62 78 Z" fill="#8F5F2F"></path>
                       <circle cx="58" cy="56" r="4" fill="#8F5F2F"></circle>
                       <rect x="84" y="48" width="52" height="34" fill="#FFFFFF" stroke="#8F5F2F" strokeWidth="2" strokeDasharray="6 5"></rect>
                       <rect x="148" y="48" width="52" height="34" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2"></rect>
-                      <text x="110" y="118" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" letterSpacing="0.14em" fill="#8F5F2F">BLANK · IN THE GATE</text>
+                      <text x="110" y="118" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" letterSpacing="0.14em" fill="#8F5F2F">UNEXPOSED</text>
                     </svg>
                   </div>
                   <h3><span className="n">1 · </span>The unused frame</h3>
@@ -53,7 +52,7 @@ export function CameraExplainer() {
                       <text x="46" y="70" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" fill="#0065A4">#8a2f</text>
                       <rect x="84" y="48" width="52" height="34" fill="#FFFFFF" stroke="#0065A4" strokeWidth="2" strokeDasharray="6 5"></rect>
                       <rect x="148" y="48" width="52" height="34" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2"></rect>
-                      <text x="110" y="118" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" letterSpacing="0.14em" fill="#0065A4">UNUSED · t₀</text>
+                      <text x="110" y="118" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" letterSpacing="0.14em" fill="#0065A4">UNEXPOSED</text>
                     </svg>
                   </div>
                   <h3><span className="n">1 · </span>The unused frame</h3>
@@ -132,12 +131,19 @@ export function CameraExplainer() {
               <div className="cell film">
                 <div className="icon">
                   <svg viewBox="0 0 220 130">
-                    <rect x="48" y="42" width="124" height="62" rx="10" fill="#FFFFFF" stroke="#8F5F2F" strokeWidth="2.5"></rect>
-                    <rect x="93" y="30" width="34" height="14" rx="4" fill="#F2E7D8" stroke="#8F5F2F" strokeWidth="2.5"></rect>
-                    <circle cx="110" cy="73" r="17" fill="#F2E7D8" stroke="#8F5F2F" strokeWidth="2.5"></circle>
-                    <circle cx="110" cy="73" r="7" fill="#FFFFFF" stroke="#8F5F2F" strokeWidth="2"></circle>
-                    <line x1="2" y1="73" x2="76" y2="73" stroke="#8F5F2F" strokeWidth="2" strokeDasharray="2 7" strokeLinecap="round"></line>
-                    <path d="M78 67.5 L87 73 L78 78.5 Z" fill="#8F5F2F"></path>
+                    <line x1="2" y1="73" x2="12" y2="73" stroke="#8F5F2F" strokeWidth="2" strokeLinecap="round"></line>
+                    <path d="M11 67.5 L20 73 L11 78.5 Z" fill="#8F5F2F"></path>
+                    <rect x="30" y="40" width="160" height="66" rx="10" fill="#FFFFFF" stroke="#8F5F2F" strokeWidth="2.5"></rect>
+                    <rect x="96" y="28" width="28" height="14" rx="4" fill="#F2E7D8" stroke="#8F5F2F" strokeWidth="2.5"></rect>
+                    <ellipse cx="30" cy="73" rx="5" ry="11" fill="#F2E7D8" stroke="#8F5F2F" strokeWidth="2"></ellipse>
+                    <line x1="40" y1="51" x2="180" y2="51" stroke="#DCCDB8" strokeWidth="4" strokeDasharray="5 9"></line>
+                    <line x1="40" y1="95" x2="180" y2="95" stroke="#DCCDB8" strokeWidth="4" strokeDasharray="5 9"></line>
+                    <rect x="48" y="60" width="36" height="26" fill="#F2E7D8" stroke="#8F5F2F" strokeWidth="2"></rect>
+                    <path d="M52 82 L59 69 L64 75 L68 71 L75 82 Z" fill="#8F5F2F"></path>
+                    <circle cx="75" cy="66.5" r="2.5" fill="#8F5F2F"></circle>
+                    <rect x="92" y="60" width="36" height="26" fill="#FFFFFF" stroke="#8F5F2F" strokeWidth="2" strokeDasharray="5 4"></rect>
+                    <path d="M110 64 L112.6 70.4 L119 73 L112.6 75.6 L110 82 L107.4 75.6 L101 73 L107.4 70.4 Z" fill="#8F5F2F"></path>
+                    <rect x="136" y="60" width="36" height="26" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2"></rect>
                   </svg>
                 </div>
                 <h3><span className="n">4 · </span>The dark chamber</h3>
@@ -147,12 +153,20 @@ export function CameraExplainer() {
               <div className="cell bit">
                 <div className="icon">
                   <svg viewBox="0 0 220 130">
-                    <rect x="48" y="52" width="124" height="52" fill="#FFFFFF" stroke="#0065A4" strokeWidth="2.5"></rect>
-                    <path d="M100 44 L100 34 A10 10 0 0 1 120 34 L120 44" fill="none" stroke="#0065A4" strokeWidth="2.5"></path>
-                    <rect x="92" y="44" width="36" height="26" fill="#D9E7F2" stroke="#0065A4" strokeWidth="2.5"></rect>
-                    <circle cx="110" cy="56" r="3.5" fill="#0065A4"></circle>
-                    <line x1="2" y1="78" x2="76" y2="78" stroke="#0065A4" strokeWidth="2" strokeDasharray="2 7" strokeLinecap="round"></line>
-                    <path d="M78 72.5 L87 78 L78 83.5 Z" fill="#0065A4"></path>
+                    <line x1="2" y1="73" x2="12" y2="73" stroke="#0065A4" strokeWidth="2" strokeLinecap="round"></line>
+                    <path d="M11 67.5 L20 73 L11 78.5 Z" fill="#0065A4"></path>
+                    <rect x="30" y="40" width="160" height="66" fill="#FFFFFF" stroke="#0065A4" strokeWidth="2.5"></rect>
+                    <path d="M102 26 L102 18 A8 8 0 0 1 118 18 L118 26" fill="none" stroke="#0065A4" strokeWidth="2.5"></path>
+                    <rect x="95" y="26" width="30" height="18" fill="#D9E7F2" stroke="#0065A4" strokeWidth="2.5"></rect>
+                    <circle cx="110" cy="35" r="2.5" fill="#0065A4"></circle>
+                    <rect x="25" y="62" width="10" height="22" rx="3" fill="#D9E7F2" stroke="#0065A4" strokeWidth="2"></rect>
+                    <line x1="84" y1="73" x2="92" y2="73" stroke="#0065A4" strokeWidth="2"></line>
+                    <line x1="128" y1="73" x2="136" y2="73" stroke="#d0d5dd" strokeWidth="2"></line>
+                    <rect x="48" y="60" width="36" height="26" fill="#D9E7F2" stroke="#0065A4" strokeWidth="2"></rect>
+                    <text x="66" y="77" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="9.5" fontWeight="600" fill="#0065A4">#8a2f</text>
+                    <rect x="92" y="60" width="36" height="26" fill="#FFFFFF" stroke="#0065A4" strokeWidth="2" strokeDasharray="5 4"></rect>
+                    <path d="M110 64 L112.6 70.4 L119 73 L112.6 75.6 L110 82 L107.4 75.6 L101 73 L107.4 70.4 Z" fill="#0065A4"></path>
+                    <rect x="136" y="60" width="36" height="26" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2"></rect>
                   </svg>
                 </div>
                 <h3><span className="n">4 · </span>The sealed box</h3>
@@ -164,17 +178,17 @@ export function CameraExplainer() {
               <div className="cell film">
                 <div className="icon">
                   <svg viewBox="0 0 220 130">
-                    <line x1="95" y1="18" x2="134" y2="18" stroke="#8F5F2F" strokeWidth="2" strokeLinecap="round"></line>
-                    <path d="M133 12.5 L142 18 L133 23.5 Z" fill="#8F5F2F"></path>
-                    <rect x="8" y="33" width="204" height="64" fill="#FFFFFF" stroke="#8F5F2F" strokeWidth="2.5"></rect>
-                    <line x1="16" y1="41" x2="206" y2="41" stroke="#DCCDB8" strokeWidth="5" strokeDasharray="6 11"></line>
-                    <line x1="16" y1="89" x2="206" y2="89" stroke="#DCCDB8" strokeWidth="5" strokeDasharray="6 11"></line>
+                    <line x1="95" y1="21" x2="134" y2="21" stroke="#8F5F2F" strokeWidth="2" strokeLinecap="round"></line>
+                    <path d="M133 15.5 L142 21 L133 26.5 Z" fill="#8F5F2F"></path>
+                    <line x1="14" y1="39" x2="206" y2="39" stroke="#DCCDB8" strokeWidth="5" strokeDasharray="6 11"></line>
+                    <line x1="14" y1="91" x2="206" y2="91" stroke="#DCCDB8" strokeWidth="5" strokeDasharray="6 11"></line>
                     <rect x="20" y="48" width="52" height="34" fill="#F2E7D8" stroke="#8F5F2F" strokeWidth="2"></rect>
                     <path d="M26 78 L38 60 L46 70 L52 63 L62 78 Z" fill="#8F5F2F"></path>
-                    <rect x="84" y="48" width="52" height="34" fill="#F2E7D8" stroke="#8F5F2F" strokeWidth="3"></rect>
+                    <circle cx="58" cy="56" r="4" fill="#8F5F2F"></circle>
+                    <rect x="84" y="48" width="52" height="34" fill="#F2E7D8" stroke="#8F5F2F" strokeWidth="2"></rect>
                     <path d="M90 78 L102 60 L110 70 L116 63 L126 78 Z" fill="#8F5F2F"></path>
                     <circle cx="122" cy="56" r="4" fill="#8F5F2F"></circle>
-                    <rect x="148" y="48" width="52" height="34" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2" strokeDasharray="6 5"></rect>
+                    <rect x="148" y="48" width="52" height="34" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2"></rect>
                     <text x="110" y="118" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" letterSpacing="0.14em" fill="#8F5F2F">EXPOSED</text>
                   </svg>
                 </div>
@@ -188,13 +202,13 @@ export function CameraExplainer() {
                     <line x1="95" y1="33" x2="134" y2="33" stroke="#0065A4" strokeWidth="2" strokeLinecap="round"></line>
                     <path d="M133 27.5 L142 33 L133 38.5 Z" fill="#0065A4"></path>
                     <line x1="72" y1="65" x2="84" y2="65" stroke="#0065A4" strokeWidth="2"></line>
-                    <line x1="136" y1="65" x2="148" y2="65" stroke="#0065A4" strokeWidth="2"></line>
+                    <line x1="136" y1="65" x2="148" y2="65" stroke="#d0d5dd" strokeWidth="2"></line>
                     <rect x="20" y="48" width="52" height="34" fill="#D9E7F2" stroke="#0065A4" strokeWidth="2"></rect>
                     <text x="46" y="70" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" fill="#0065A4">#8a2f</text>
-                    <rect x="84" y="48" width="52" height="34" fill="#D9E7F2" stroke="#0065A4" strokeWidth="3"></rect>
+                    <rect x="84" y="48" width="52" height="34" fill="#D9E7F2" stroke="#0065A4" strokeWidth="2"></rect>
                     <text x="110" y="70" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" fill="#0065A4">#3f9c</text>
-                    <rect x="148" y="48" width="52" height="34" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2" strokeDasharray="6 5"></rect>
-                    <text x="110" y="118" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" letterSpacing="0.14em" fill="#0065A4">EXPOSED · t₁</text>
+                    <rect x="148" y="48" width="52" height="34" fill="#FFFFFF" stroke="#d0d5dd" strokeWidth="2"></rect>
+                    <text x="110" y="118" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="12" fontWeight="600" letterSpacing="0.14em" fill="#0065A4">EXPOSED</text>
                   </svg>
                 </div>
                 <h3><span className="n">5 · </span>The exposed frame</h3>
