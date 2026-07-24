@@ -680,18 +680,14 @@ export default function BitGraphPage() {
         /* Explainer under the box: the one place the film/photograph metaphor is
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
-        /* A reading block: the text left-aligned, the block centered with
-           margins (playground variant C). One column on the page axis, no
-           ragged centered lines. */
-        .hero-explainer { max-width: 640px; margin: 0 auto; text-align: left; font-size: 14px; line-height: 1.65; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
-        /* Phones: a step smaller, with side margins so the block sits inset
-           from the box edges the way the 640px cap insets it on desktop. */
-        @media (max-width: 768px) { .hero-explainer { font-size: 13px; padding: 0 30px; } }
+        /* One centered paragraph; text-wrap: balance equalizes the line
+           lengths so the centered block reads symmetric, not ragged. */
+        .hero-explainer { max-width: 640px; margin: 0 auto; text-align: center; font-size: 14px; line-height: 1.65; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
+        @media (max-width: 768px) { .hero-explainer { font-size: 13px; } }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
-        .hero-explainer p { margin: 0; text-wrap: pretty; }
-        .hero-explainer p + p { margin-top: 12px; }
+        .hero-explainer p { margin: 0; text-wrap: balance; }
         .see-example { text-align: center; }
         .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; }
         .see-example-link .arrow { transition: transform .18s ease; }
@@ -751,8 +747,7 @@ export default function BitGraphPage() {
               {/* Mechanics below the box: how a frame is created, exposed once,
                   and later verified. */}
               <div className="hero-explainer">
-                <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data. <strong style={{ fontWeight: 700, color: "#111827" }}>Each frame can be exposed only once.</strong></p>
-                <p>The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
+                <p>Digital files have no unique place of their own. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits then expose that frame without revealing your data. <strong style={{ fontWeight: 700, color: "#111827" }}>Each frame can be exposed only once.</strong> The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
               </div>
               <div className="see-example">
                 <button
