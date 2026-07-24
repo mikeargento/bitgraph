@@ -758,10 +758,9 @@ export default function BitGraphPage() {
                   onFocus={primeExample}
                   onTouchStart={primeExample}
                 >
-                  See an example <span className="arrow" aria-hidden="true">&rarr;</span>
+                  See an example BitGraph of a photograph <span className="arrow" aria-hidden="true">&rarr;</span>
                 </button>
-                <p className="see-example-note">BitGraph of a photograph</p>
-                <p className="see-example-sub">Content Credentials (C2PA) embedded</p>
+                <p className="see-example-note">Content Credentials (C2PA) embedded</p>
               </div>
             </div>
           </div>
