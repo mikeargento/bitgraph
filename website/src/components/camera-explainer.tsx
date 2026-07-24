@@ -18,7 +18,6 @@ export function CameraExplainer() {
         .bgx .mid { align-self: center; height: 2px; background: #d0d5dd; margin-top: -40px; }
         .bgx .icon { height: auto; min-height: 96px; display: flex; align-items: center; justify-content: center; }
         .bgx .icon svg { width: 100%; max-width: 200px; height: auto; }
-        .bgx .key-stage { background: #e8eef4; margin: 0 -16px; padding: 26px 16px; }
         @media (max-width: 560px) {
           .bgx .pair { grid-template-columns: 1fr 24px 1fr; }
           .bgx .cell h3 { font-size: min(18px, calc((45vw - 12px) / 11.2)); white-space: nowrap; }
@@ -26,8 +25,7 @@ export function CameraExplainer() {
         }
       `}</style>
       <div className="pairs">
-            <div className="key-stage">
-              <div className="pair" style={{ padding: 0 }}>
+            <div className="pair" style={{ paddingTop: 0 }}>
                 <div className="cell film">
                   <div className="icon">
                     <svg viewBox="0 0 220 130">
@@ -61,7 +59,6 @@ export function CameraExplainer() {
                   <h3><span className="n">1 · </span>The unused frame</h3>
                   <p>A blank digital frame is created, one of a kind. It exists before any file is bound to it.</p>
                 </div>
-              </div>
             </div>
 
             <div className="pair">
