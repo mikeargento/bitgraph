@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "BitGraph",
+    default: "BitGraph | A camera for bits",
     template: "%s | BitGraph",
   },
   description:
@@ -27,14 +27,14 @@ export const metadata: Metadata = {
     "cryptographic provenance", "tamper-evident", "C2PA", "proof explorer",
   ],
   openGraph: {
-    title: "BitGraph",
+    title: "BitGraph | A camera for bits",
     description: "Live cryptographic proof chain. Create, verify, and explore BitGraph proofs.",
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary_large_image",
-    title: "BitGraph",
+    title: "BitGraph | A camera for bits",
     description: "Live cryptographic proof chain. Create, verify, and explore BitGraph proofs.",
   },
   robots: { index: true, follow: true },

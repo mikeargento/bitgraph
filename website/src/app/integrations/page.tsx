@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Integrations | BitGraph",
+  title: "Integrations",
   description: "BitGraph works with every AI framework. One proof format, cryptographic receipts for every tool call.",
 };
 

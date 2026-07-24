@@ -6,7 +6,7 @@ import Sections10Through19 from "./sections-10-19";
 import TocDropdown from "./toc-dropdown";
 
 export const metadata: Metadata = {
-  title: "Whitepaper — BitGraph",
+  title: "Whitepaper",
   description:
     "BitGraph whitepaper: Proof as a Reachability Property. Formal model, security game, and architecture for authenticated digital state creation.",
 };

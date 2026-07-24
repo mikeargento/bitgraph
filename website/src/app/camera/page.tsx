@@ -5,7 +5,7 @@ import { CameraExplainer } from "@/components/camera-explainer";
 // the home page below the camera). A real route, so the site nav and footer
 // come from the root layout.
 export const metadata: Metadata = {
-  title: "BitGraph: A Camera for Bits",
+  title: "A Camera for Bits",
   description: "How a BitGraph is made: the digital frame exists first, and the file exposes it once.",
   openGraph: {
     title: "BitGraph: A Camera for Bits",
