@@ -15,15 +15,19 @@ export const metadata: Metadata = {
 
 export default function CameraPage() {
   return (
-    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "clamp(36px, 5vw, 56px) 0 72px" }}>
+    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "52px 0 72px" }}>
       {/* The page's axiom in the same hero voice as home's tagline: home
           states the metaphor, this page states the mechanism. It sits
           directly above the tinted stage it describes, so the band needs no
           label of its own. */}
+      {/* Identical type and top offset to home's tagline (52px wrap padding,
+          same clamp), so clicking "A camera for bits." morphs it in place into
+          this line on typical viewports. Home drifts only on very tall windows
+          where its hero re-centers. */}
       <h1 style={{
-        textAlign: "center", fontSize: "clamp(28px, 5.5vw, 44px)", fontWeight: 800,
+        textAlign: "center", fontSize: "clamp(31px, 7vw, 54px)", fontWeight: 800,
         letterSpacing: "-0.035em", lineHeight: 1.02, color: "#111827",
-        margin: "0 0 clamp(28px, 5vw, 40px)",
+        margin: "0 0 clamp(28px, 5vw, 44px)",
       }}>
         The frame exists first.
       </h1>
