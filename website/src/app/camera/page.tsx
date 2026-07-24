@@ -57,7 +57,7 @@ export default function CameraPage() {
           punchline is the page's last word, not a door. */}
       <p style={{
         margin: "clamp(56px, 7vw, 84px) auto 0", maxWidth: 720, textAlign: "center",
-        fontSize: 15, fontWeight: 500, lineHeight: 1.6, letterSpacing: "-0.006em", color: "#374151", textWrap: "balance",
+        fontSize: "clamp(15px, 3.6vw, 18px)", fontWeight: 500, lineHeight: 1.6, letterSpacing: "-0.012em", color: "#374151", textWrap: "balance",
       }}>
         <span style={{ display: "block" }}>Film is the recording medium for light.</span>
         <span style={{ display: "block" }}><strong style={{ color: "#111827", fontWeight: 700 }}>BitGraph is digital film for data.</strong></span>
