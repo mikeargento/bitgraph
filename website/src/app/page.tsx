@@ -652,8 +652,13 @@ export default function BitGraphPage() {
            and desktop. (An earlier bigger subtraction lifted it too high once
            the example link was added below the box.) The results view
            (bitgraph-results) overrides to top-aligned. */
-        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 52px 0 32px; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: calc(100dvh - 72px); }
-        .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px; padding-bottom: 48px; min-height: 0; }
+        /* The hero's top offset is a FORMULA, not content-centering, and it is
+           the SAME formula /camera uses for its headline: the tagline and "The
+           frame exists first." land in the identical spot on every machine by
+           construction (content-centering drifted with font metrics). */
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: max(52px, calc(50dvh - 306px)) 0 32px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 72px); }
+        @media (min-width: 769px) { .bitgraph-wrap { padding-top: max(52px, calc(50dvh - 386px)); } }
+        .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px !important; padding-bottom: 48px; min-height: 0; }
         .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
         /* Drop step hero: the concept line ("A camera for bits.") stands alone,
            then the box (the tool), then the why/mechanics below it. This gap sits
