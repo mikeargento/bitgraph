@@ -15,16 +15,14 @@ export function CameraExplainer() {
         .bgx .cell p strong { color: #111827; }
         .bgx .film h3 .n { color: #8F5F2F; }
         .bgx .bit h3 .n { color: #0065A4; }
-        .bgx .band-label { font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.18em; color: #374151; white-space: nowrap; display: block; text-align: center; margin-bottom: 18px; }
         .bgx .pair { display: grid; grid-template-columns: 1fr 44px 1fr; align-items: start; padding: 26px 0; }
         .bgx .mid { align-self: center; height: 2px; background: #d0d5dd; margin-top: -40px; }
         .bgx .icon { height: auto; min-height: 96px; display: flex; align-items: center; justify-content: center; }
         .bgx .icon svg { width: 100%; max-width: 200px; height: auto; }
-        .bgx .key-stage { background: #e8eef4; margin: 0 -16px; padding: 18px 16px 26px; }
+        .bgx .key-stage { background: #e8eef4; margin: 0 -16px; padding: 26px 16px; }
       `}</style>
       <div className="pairs">
             <div className="key-stage">
-              <span className="band-label">THE FRAME EXISTS FIRST</span>
               <div className="pair" style={{ padding: 0 }}>
                 <div className="cell film">
                   <div className="icon">
