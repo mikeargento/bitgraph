@@ -681,6 +681,10 @@ export default function BitGraphPage() {
            spelled out. Readable medium-gray, narrow measure, the quoted terms
            carry the emphasis (the blue accent stays reserved for "bits"). */
         .hero-explainer { max-width: 560px; margin: 0 auto; text-align: center; font-size: 14px; line-height: 1.62; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
+        /* On phones the explainer sits only ~2px under the subhead and packs
+           into a dense slab; one step smaller keeps it clearly supporting copy
+           (tagline > subhead > explainer > captions). */
+        @media (max-width: 768px) { .hero-explainer { font-size: 13px; } }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
