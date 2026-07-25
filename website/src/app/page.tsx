@@ -655,7 +655,6 @@ export default function BitGraphPage() {
 
   /* ── Styles ── */
   const card: React.CSSProperties = { border: "1px solid #d0d5dd", padding: "24px 20px", background: "#fff", borderRadius: 0, marginBottom: 16 };
-  const btnFill: React.CSSProperties = { height: 76, fontSize: 16, fontWeight: 600, border: "none", borderRadius: 0, background: "#0065A4", color: "#ffffff", cursor: "pointer", letterSpacing: "-0.01em" };
   /* ── One shared look for every wait state (read / check / prove / package):
      the same spinner, the same label, and a determinate bar whenever there is a
      live count to show. Keeps the whole drop→record flow cohesive: one gerund
@@ -682,7 +681,6 @@ export default function BitGraphPage() {
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: max(52px, calc(50dvh - 306px)) 0 32px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 72px); }
         @media (min-width: 769px) { .bitgraph-wrap { padding-top: max(52px, calc(50dvh - 386px)); } }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px !important; padding-bottom: 48px; min-height: 0; }
-        .bitgraph-actions { display: flex; flex-direction: column; gap: 12px; }
         /* Drop step hero: the concept line ("A camera for bits.") stands alone,
            then the box (the tool), then the why/mechanics below it. This gap sits
            BETWEEN the tagline and the box, so give it real breathing room (the
@@ -859,23 +857,10 @@ export default function BitGraphPage() {
                   screen (it force-reloads home). Matches the proof page, which
                   also has no camera. */}
 
-              {/* One big action at most: the shutter, on top. While files are
-                  unproven the BitGraph-remaining CTA is the page's single heavy
-                  button; once everything is recorded there is no banner at all
-                  — the records are the point. Export lives in the header. */}
-              {unproven.length > 0 && (
-                <div className="bitgraph-actions">
-                  <button onClick={proveRemaining} className="bg-btn-fill" style={{ ...btnFill, background: "var(--c-accent)", color: "#ffffff" }}>
-                    Record {unproven.length} file{unproven.length === 1 ? "" : "s"}
-                  </button>
-                </div>
-              )}
-
-              {/* Count as a receipt-style line (same idea as the proof receipt):
-                  the label left, the "X of N" count right, with the zip export
-                  as a quiet utility beside it (ledger header, not a banner).
-                  While a fresh batch waits for its sealing anchor the slot
-                  shows the countdown instead. */}
+              {/* The whole batch state lives in one receipt card (same anatomy
+                  as the proof page's receipt): count + export in the body, and
+                  when files remain unrecorded, a Record row in the arrow-link
+                  style. No banners anywhere — the drop was the gesture. */}
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
                 {/* Same header-band anatomy as the proof page's receipt card,
                     so a batch reads as a receipt too. */}
@@ -896,6 +881,17 @@ export default function BitGraphPage() {
                     </button>
                   ))}
                 </div>
+                {/* Files not yet on record get their action as a receipt row:
+                    the same arrow-link voice as "See an example …" on the
+                    drop screen. Writing to the ledger stays deliberate — a
+                    line you read and choose, not a banner that shouts. */}
+                {unproven.length > 0 && (
+                  <div style={{ borderTop: "1px solid #eef0f1", padding: "10px 10px 12px" }}>
+                    <button type="button" className="see-example-link" onClick={proveRemaining}>
+                      Record {unproven.length} file{unproven.length === 1 ? "" : "s"} <span className="arrow" aria-hidden="true">&rarr;</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* File list: one card per file separated by a gap so each file's
