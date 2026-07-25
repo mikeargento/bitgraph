@@ -438,7 +438,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .results-header { min-height: 76px; box-sizing: border-box; padding: 14px 16px; background: #ffffff; border: 1px solid #d0d5dd; display: flex; align-items: center; gap: 16px; }
 .results-header > span:first-child { flex: 1; }
 .results-header-util { min-width: 0; }
-@media (max-width: 560px) {
+@media (max-width: 359px) {
   .results-header { flex-wrap: wrap; row-gap: 8px; }
   .results-header-util { flex-basis: 100%; order: 3; text-align: right; }
 }
