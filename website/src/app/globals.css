@@ -438,6 +438,9 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 @media (max-width: 768px) {
   .nav-desktop { display: none !important; }
   .nav-mobile { display: flex !important; }
+  /* iOS Safari auto-zooms on focus of any input under 16px; this floor
+     kills that for every text input, present and future. */
+  input[type="text"], input[type="search"], input:not([type]), textarea { font-size: 16px !important; }
 }
 @media (min-width: 769px) {
   .nav-desktop { display: flex !important; }
