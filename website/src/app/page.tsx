@@ -164,8 +164,6 @@ export default function BitGraphPage() {
   // never a blank pending row.
   const shown = items.filter(i => i.status === "found" || i.status === "proved" || i.status === "error");
   const allDone = items.length > 0 && items.every(i => i.status === "found" || i.status === "proved");
-  // Exactly what the .zip bundles (each file + its proof.json + the ETH anchors).
-  const zipCount = items.filter(i => i.proof).length;
 
   /* ── Drop → Scan ── */
 
@@ -646,7 +644,6 @@ export default function BitGraphPage() {
   /* ── Styles ── */
   const card: React.CSSProperties = { border: "1px solid #d0d5dd", padding: "24px 20px", background: "#fff", borderRadius: 0, marginBottom: 16 };
   const btnFill: React.CSSProperties = { height: 76, fontSize: 16, fontWeight: 600, border: "none", borderRadius: 0, background: "#0065A4", color: "#ffffff", cursor: "pointer", letterSpacing: "-0.01em" };
-  const btnOut: React.CSSProperties = { height: 76, fontSize: 16, fontWeight: 500, borderRadius: 0, cursor: "pointer", border: "1px solid #0065A4", background: "#f4f6f9", color: "#0065A4" };
   /* ── One shared look for every wait state (read / check / prove / package):
      the same spinner, the same label, and a determinate bar whenever there is a
      live count to show. Keeps the whole drop→record flow cohesive: one gerund
@@ -850,36 +847,40 @@ export default function BitGraphPage() {
                   screen (it force-reloads home). Matches the proof page, which
                   also has no camera. */}
 
-              {/* Actions first — the primary thing to do with the batch: the
-                  BitGraph-remaining CTA while files are unproven, then Download. */}
-              <div className="bitgraph-actions">
-                {unproven.length > 0 && (
+              {/* One big action at most: the shutter. While files are unproven
+                  the BitGraph-remaining CTA is the page's single heavy button;
+                  once everything is recorded there is no banner at all — the
+                  records are the point. Export lives in the header line below. */}
+              {unproven.length > 0 && (
+                <div className="bitgraph-actions">
                   <button onClick={proveRemaining} style={{ ...btnFill, background: "var(--c-accent)", color: "#ffffff" }}>
                     BitGraph {unproven.length} remaining
                   </button>
-                )}
-                {found.length > 0 && (
-                  <button
-                    onClick={anchorCountdown > 0 ? undefined : downloadZip}
-                    className={anchorCountdown > 0 || !allDone ? "bg-btn-outline" : undefined}
-                    style={{
-                      ...(anchorCountdown > 0 ? { ...btnOut, opacity: 0.5, cursor: "default" } : allDone ? btnFill : btnOut),
-                    }}
-                  >
-                    {anchorCountdown > 0 ? <span style={{ fontSize: 14 }}>{`Waiting for the next Ethereum block… ${anchorCountdown}s`}</span> : zipCount > 1 ? `Download all ${zipCount} (.zip)` : "Download .zip"}
-                  </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Count as a receipt-style line (same idea as the proof receipt):
-                  the label on the left, the "X of N" count on the right. Same 76px
-                  height as the Download button above it. */}
+                  the label left, the "X of N" count right, with the zip export
+                  as a quiet utility beside it (ledger header, not a banner).
+                  While a fresh batch waits for its sealing anchor the slot
+                  shows the countdown instead. */}
               <div style={{ height: 76, padding: "0 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827" }}>
                   BitGraph{items.length === 1 ? "" : "s"} Recorded
                 </span>
-                <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
-                  {animCount} of {items.length}
+                <span style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
+                  {found.length > 0 && (anchorCountdown > 0 ? (
+                    <span style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      Waiting for the next Ethereum block… {anchorCountdown}s
+                    </span>
+                  ) : (
+                    <button onClick={downloadZip} style={{ background: "none", border: "none", padding: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", letterSpacing: "-0.01em" }}>
+                      Download .zip
+                    </button>
+                  ))}
+                  <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
+                    {animCount} of {items.length}
+                  </span>
                 </span>
               </div>
 
