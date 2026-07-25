@@ -876,22 +876,26 @@ export default function BitGraphPage() {
                   as a quiet utility beside it (ledger header, not a banner).
                   While a fresh batch waits for its sealing anchor the slot
                   shows the countdown instead. */}
-              <div className="results-header">
-                <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", whiteSpace: "nowrap" }}>
+              <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
+                {/* Same header-band anatomy as the proof page's receipt card,
+                    so a batch reads as a receipt too. */}
+                <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "14px 16px", background: "rgba(0,101,164,0.04)", borderBottom: "1px solid #e2e5e9" }}>
                   BitGraph{items.length === 1 ? "" : "s"} Recorded
-                </span>
-                {found.length > 0 && (anchorCountdown > 0 ? (
-                  <span className="results-header-util" style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    Download in {anchorCountdown}s
+                </div>
+                <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                  <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both", whiteSpace: "nowrap" }}>
+                    {animCount} of {items.length}
                   </span>
-                ) : (
-                  <button onClick={downloadZip} className="results-header-util" style={{ background: "none", border: "none", padding: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", letterSpacing: "-0.01em" }}>
-                    Download .zip
-                  </button>
-                ))}
-                <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both", whiteSpace: "nowrap" }}>
-                  {animCount} of {items.length}
-                </span>
+                  {found.length > 0 && (anchorCountdown > 0 ? (
+                    <span style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap" }}>
+                      Download in {anchorCountdown}s
+                    </span>
+                  ) : (
+                    <button onClick={downloadZip} style={{ background: "none", border: "none", padding: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", letterSpacing: "-0.01em" }}>
+                      Download .zip
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* File list: one card per file separated by a gap so each file's
