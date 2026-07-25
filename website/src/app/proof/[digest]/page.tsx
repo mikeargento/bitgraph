@@ -1042,7 +1042,7 @@ function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React
         >
           <span>{title}</span>
           <span className="bg-collapse-chev" aria-hidden style={{ display: "inline-flex", flexShrink: 0, transform: open ? "rotate(90deg)" : "none", transition: "transform .18s" }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
           </span>
         </button>
       )}

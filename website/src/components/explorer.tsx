@@ -326,7 +326,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
                 <span style={{ flex: 1 }} />
                 <span className="xp-skel" style={{ width: 84, height: 12, flexShrink: 0 }} />
                 <span aria-hidden style={{ display: "inline-flex", flexShrink: 0, color: "#c7ccd1" }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
                 </span>
               </div>
             ))}
@@ -364,7 +364,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
                 {fmtWhen(e.at)}
               </span>
               <span className="xp-open" aria-label="Open" style={{ display: "inline-flex", flexShrink: 0 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
               </span>
             </a>
           );
