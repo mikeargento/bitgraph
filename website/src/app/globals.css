@@ -429,7 +429,10 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 @media (hover: hover) {
   .bg-btn-outline:hover { background: #e8eef5 !important; }
   .bitgraph-file-card[data-clickable="true"]:hover { background: #f3f5f7; }
+  /* The shutter answers the hand: one step darker under the cursor. */
+  .bg-btn-fill:hover { background: #00568c !important; }
 }
+.bg-btn-fill:active { background: #004a79 !important; }
 /* ── Results ledger header: title | utility (download / anchor wait) | count.
    On phones the utility drops to its own line so nothing wraps mid-word. ── */
 .results-header { min-height: 76px; box-sizing: border-box; padding: 14px 16px; background: #ffffff; border: 1px solid #d0d5dd; display: flex; align-items: center; gap: 16px; }

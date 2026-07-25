@@ -865,8 +865,8 @@ export default function BitGraphPage() {
                   — the records are the point. Export lives in the header. */}
               {unproven.length > 0 && (
                 <div className="bitgraph-actions">
-                  <button onClick={proveRemaining} style={{ ...btnFill, background: "var(--c-accent)", color: "#ffffff" }}>
-                    BitGraph {unproven.length} remaining
+                  <button onClick={proveRemaining} className="bg-btn-fill" style={{ ...btnFill, background: "var(--c-accent)", color: "#ffffff" }}>
+                    Record {unproven.length} file{unproven.length === 1 ? "" : "s"}
                   </button>
                 </div>
               )}

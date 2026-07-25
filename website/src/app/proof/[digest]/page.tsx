@@ -955,6 +955,7 @@ export default function ProofPage() {
         <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
           <button
             onClick={exportZip}
+            className="bg-btn-fill"
             style={{
               display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
               height: 76, fontSize: 16, fontWeight: 600,
