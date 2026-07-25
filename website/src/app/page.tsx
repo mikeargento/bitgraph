@@ -882,7 +882,7 @@ export default function BitGraphPage() {
                 </span>
                 {found.length > 0 && (anchorCountdown > 0 ? (
                   <span className="results-header-util" style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    Waiting for the next Ethereum block… {anchorCountdown}s
+                    Anchoring to Ethereum… download in {anchorCountdown}s
                   </span>
                 ) : (
                   <button onClick={downloadZip} className="results-header-util" style={{ background: "none", border: "none", padding: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", letterSpacing: "-0.01em" }}>
