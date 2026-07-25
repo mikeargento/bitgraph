@@ -22,6 +22,11 @@ import type { C2PAReadResult } from "@/lib/c2pa-reader";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
+// Compact recorded time for a result row, e.g. "Jul 17, 9:22 PM" — the same
+// format the Roll's rows use, so the two lists read as one system.
+const fmtRowWhen = (ms?: number | null) =>
+  ms ? new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+
 interface FileItem {
   file: File;
   digestB64: string;
@@ -30,6 +35,9 @@ interface FileItem {
   // The same bits can be BitGraphed more than once; `proof` is the earliest
   // (originating) one and drives the row's open/verify behavior.
   proofs: BitGraphProof[];
+  // Ledger write moments per recording (ms), parallel to `proofs`. Null for
+  // legacy/backfilled entries, which predate per-position write times.
+  times?: (number | null)[];
   valid: boolean | null;
   status: "found" | "new" | "proving" | "proved" | "error";
   // True when this item came from a dropped proof.json rather than an artifact.
@@ -271,10 +279,16 @@ export default function BitGraphPage() {
       if (proofJson) {
         return { file: f, digestB64: digest, proof: proofJson, proofs: [proofJson], valid, status: "found" as const, fromProofJson: true };
       }
-      const all = (digest && lookup[toUrlSafeB64(digest)]?.proofs || []).map((x) => x.proof);
+      const rec = digest ? lookup[toUrlSafeB64(digest)] : undefined;
+      const recProofs = rec?.proofs || [];
+      const all = recProofs.map((x) => x.proof);
       if (all.length > 0) {
         const result = await verifyProofSignature(all[0]);
-        return { file: f, digestB64: digest, proof: all[0], proofs: all, valid: result.valid, status: "found" as const };
+        // The ledger write moment rides along per recording so rows can show
+        // a compact "when", same as the Roll. Legacy/backfilled entries have
+        // none and just leave the slot blank.
+        const times = recProofs.map((x) => (x as { writeTime?: number | null }).writeTime ?? null);
+        return { file: f, digestB64: digest, proof: all[0], proofs: all, times, valid: result.valid, status: "found" as const };
       }
       return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const };
     }));
@@ -957,12 +971,15 @@ export default function BitGraphPage() {
                         ({k + 1} of {rowProofs.length}{k === 0 ? " · original" : ""})
                       </span>
                     )}
-                    {/* Spacer pushes Open to the right edge. */}
-                    <span style={{ flex: 1 }} />
+                    {/* Right side matches the Roll's row anatomy: compact
+                        anchor time, then the chevron. Unanchored rows (fresh
+                        recordings) simply leave the time blank. */}
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      {fmtRowWhen(item.times?.[k])}
+                    </span>
                     {clickable && (
-                      <span className="bitgraph-open-pill">
-                        Open
-                        <span aria-hidden="true" style={{ fontSize: 17, lineHeight: 1, fontWeight: 600 }}>›</span>
+                      <span aria-label="Open" style={{ display: "inline-flex", flexShrink: 0, color: "#0065A4" }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
                       </span>
                     )}
                   </div>

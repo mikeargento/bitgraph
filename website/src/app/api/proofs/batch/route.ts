@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bad request" }, { status: 400 });
     }
     const unique = [...new Set(digests as string[])];
-    const results: Record<string, { proofs: Array<{ proof: unknown }> }> = {};
+    const results: Record<string, { proofs: Array<{ proof: unknown; writeTime: number | null }> }> = {};
     let next = 0;
     await Promise.all(
       Array.from({ length: Math.min(CONCURRENCY, unique.length) }, async () => {
@@ -32,7 +32,9 @@ export async function POST(req: NextRequest) {
           const d = unique[next++];
           try {
             const entries = await getProofsByDigest(fromUrlSafeB64(d));
-            results[d] = { proofs: entries.map(({ proof }) => ({ proof })) };
+            // writeTime (ledger write moment, ms) rides along so result rows
+            // can show a compact "when" like the Roll's rows.
+            results[d] = { proofs: entries.map(({ proof, writeTime }) => ({ proof, writeTime: writeTime ?? null })) };
           } catch {
             // Indistinguishable from "not on record" for the caller, which is
             // the same conservative degradation the per-digest route has.

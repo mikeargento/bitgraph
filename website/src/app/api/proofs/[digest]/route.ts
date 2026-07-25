@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ dig
     // The same bits can be BitGraphed more than once (each time occupies a new
     // causal position), so the lookup returns all of them.
     const entries = await getProofsByDigest(standardB64);
-    return NextResponse.json({ proofs: entries.map(({ proof }) => ({ proof })) });
+    return NextResponse.json({ proofs: entries.map(({ proof, writeTime }) => ({ proof, writeTime: writeTime ?? null })) });
   } catch (e) {
     console.error("GET /api/proofs/[digest] error:", e);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
