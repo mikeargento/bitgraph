@@ -47,11 +47,16 @@ interface FileItem {
   matchedFile?: File | null;
 }
 
+// The results list survives leaving for a proof page: client-side navigation
+// keeps the module alive, so browser-back restores the batch exactly as left
+// (File objects intact — no serialization). A hard reload (the logo's
+// documented "start over" gesture) still wipes it.
+let cachedResults: FileItem[] | null = null;
 
 export default function BitGraphPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("drop");
-  const [items, setItems] = useState<FileItem[]>([]);
+  const [step, setStep] = useState<Step>(() => (cachedResults?.length ? "results" : "drop"));
+  const [items, setItems] = useState<FileItem[]>(() => cachedResults ?? []);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
   // Ledger-check progress (digests looked up). Only meaningful when the check
   // is chunked (large drops); a single-request check has nothing to count.
@@ -64,9 +69,16 @@ export default function BitGraphPage() {
   const [proveAnimCount, setProveAnimCount] = useState(0);
   const proveAnimRef = useRef(0);
   const [, setExportProgress] = useState({ current: 0, total: 0 });
-  const [animCount, setAnimCount] = useState(0);
+  const [animCount, setAnimCount] = useState(() =>
+    cachedResults ? cachedResults.filter(i => i.status === "found" || i.status === "proved").length : 0);
   const [anchorCountdown, setAnchorCountdown] = useState(0);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Mirror the live batch into the module cache so browser-back from a proof
+  // page restores this list (see cachedResults above).
+  useEffect(() => {
+    if (step === "results" && items.length > 0) cachedResults = items;
+  }, [step, items]);
 
   // Start 15s countdown when proofs finish (waiting for next ETH anchor)
   const endTimeRef = useRef<number>(0);
@@ -847,10 +859,10 @@ export default function BitGraphPage() {
                   screen (it force-reloads home). Matches the proof page, which
                   also has no camera. */}
 
-              {/* One big action at most: the shutter. While files are unproven
-                  the BitGraph-remaining CTA is the page's single heavy button;
-                  once everything is recorded there is no banner at all — the
-                  records are the point. Export lives in the header line below. */}
+              {/* One big action at most: the shutter, on top. While files are
+                  unproven the BitGraph-remaining CTA is the page's single heavy
+                  button; once everything is recorded there is no banner at all
+                  — the records are the point. Export lives in the header. */}
               {unproven.length > 0 && (
                 <div className="bitgraph-actions">
                   <button onClick={proveRemaining} style={{ ...btnFill, background: "var(--c-accent)", color: "#ffffff" }}>
@@ -864,23 +876,21 @@ export default function BitGraphPage() {
                   as a quiet utility beside it (ledger header, not a banner).
                   While a fresh batch waits for its sealing anchor the slot
                   shows the countdown instead. */}
-              <div style={{ height: 76, padding: "0 16px", background: "#ffffff", border: "1px solid #d0d5dd", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-                <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827" }}>
+              <div className="results-header">
+                <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", whiteSpace: "nowrap" }}>
                   BitGraph{items.length === 1 ? "" : "s"} Recorded
                 </span>
-                <span style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
-                  {found.length > 0 && (anchorCountdown > 0 ? (
-                    <span style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      Waiting for the next Ethereum block… {anchorCountdown}s
-                    </span>
-                  ) : (
-                    <button onClick={downloadZip} style={{ background: "none", border: "none", padding: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", letterSpacing: "-0.01em" }}>
-                      Download .zip
-                    </button>
-                  ))}
-                  <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
-                    {animCount} of {items.length}
+                {found.length > 0 && (anchorCountdown > 0 ? (
+                  <span className="results-header-util" style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    Waiting for the next Ethereum block… {anchorCountdown}s
                   </span>
+                ) : (
+                  <button onClick={downloadZip} className="results-header-util" style={{ background: "none", border: "none", padding: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", letterSpacing: "-0.01em" }}>
+                    Download .zip
+                  </button>
+                ))}
+                <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both", whiteSpace: "nowrap" }}>
+                  {animCount} of {items.length}
                 </span>
               </div>
 
