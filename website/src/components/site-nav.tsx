@@ -56,7 +56,7 @@ export function SiteNav() {
               textDecoration: "none",
             }}
           >
-            Record
+            Take
           </Link>
           {/* Roll — the ledger, now on its own /roll page (no longer embedded
               under the home camera), so the nav is its way in. */}
