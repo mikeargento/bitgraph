@@ -1374,7 +1374,7 @@ function PhotoCard({
         }
       })();
     } else {
-      const blob = new Blob([new Uint8Array(cachedFile.data)]);
+      const blob = new Blob([new Uint8Array(cachedFile.data)], { type: nativeImageMime(cachedFile.name, cachedFile.data) });
       const url = URL.createObjectURL(blob);
       setPreviewUrl(url);
       revoke = () => URL.revokeObjectURL(url);
@@ -1666,6 +1666,31 @@ function sniffNativeImage(buffer: ArrayBuffer): boolean {
   if (b.length >= 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70 &&
       b[8] === 0x61 && b[9] === 0x76 && b[10] === 0x69 && b[11] === 0x66) return true;  // ftyp 'avif'
   return false;
+}
+
+/* ── MIME type for a browser-native image, so its blob URL carries a real
+   Content-Type. Without it an <img> still decodes the blob, but OPENING the
+   blob URL in a new tab shows raw bytes as text (the browser has no type to
+   render by). Prefer the extension, fall back to magic bytes, default JPEG. */
+function nativeImageMime(name: string, data: ArrayBuffer): string {
+  const n = name.toLowerCase();
+  if (/\.png$/.test(n)) return "image/png";
+  if (/\.gif$/.test(n)) return "image/gif";
+  if (/\.webp$/.test(n)) return "image/webp";
+  if (/\.avif$/.test(n)) return "image/avif";
+  if (/\.bmp$/.test(n)) return "image/bmp";
+  if (/\.tiff?$/.test(n)) return "image/tiff";
+  if (/\.jpe?g$/.test(n)) return "image/jpeg";
+  const b = new Uint8Array(data, 0, Math.min(16, data.byteLength));
+  if (b[0] === 0x89 && b[1] === 0x50) return "image/png";
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return "image/gif";
+  if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return "image/webp";
+  if (b.length >= 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70 &&
+      b[8] === 0x61 && b[9] === 0x76 && b[10] === 0x69 && b[11] === 0x66) return "image/avif";
+  if (b[0] === 0x42 && b[1] === 0x4d) return "image/bmp";
+  if ((b[0] === 0x49 && b[1] === 0x49) || (b[0] === 0x4d && b[1] === 0x4d)) return "image/tiff";
+  return "image/jpeg";
 }
 
 /* ── Extract embedded JPEG preview from RAW camera files ── */
