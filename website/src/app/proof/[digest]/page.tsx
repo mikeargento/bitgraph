@@ -714,7 +714,7 @@ export default function ProofPage() {
               mono/data font, plus a link to that position. Ethereum/interval
               proofs keep the old "only when more than one" behaviour. */}
           {((!isEth && !isInterval) ? positions.length >= 1 : positions.length > 1) && (
-            <CollapsibleCard title={`Recordings (${positions.length})`} defaultOpen>
+            <CollapsibleCard title={`Recordings (${positions.length})`}>
               <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
                 {positions.length === 1
                   ? "These exact bits have one recorded position so far, with its own verifiable time window."
