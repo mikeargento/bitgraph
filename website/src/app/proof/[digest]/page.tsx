@@ -670,13 +670,28 @@ export default function ProofPage() {
                   pre-existing identity. In the no-file state it is also the
                   value a dropped file is checked against. */}
               <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
-              {/* BitGraph again — record these same bytes at a NEW causal
-                  position. It lives with the file it acts on (only offered when
-                  the artifact is in hand, cachedFile set), so it sits below the
-                  hash inside this card. */}
+              {/* Below the hash, when the artifact is in hand: record these
+                  same bytes again (secondary), then Export as the closing
+                  action. Export lives here with the file it saves rather than at
+                  the page bottom, so it is reachable without scrolling past the
+                  technical cards. When the file is NOT in hand, Export sits at
+                  the bottom instead (see below). */}
               {cachedFile && (
-                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9" }}>
+                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9", display: "flex", flexDirection: "column", gap: 10 }}>
                   <BitGraphAgainButton proof={proof} digestParam={digestParam} />
+                  <button
+                    onClick={exportZip}
+                    className="bg-btn-fill"
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                      height: 76, fontSize: 16, fontWeight: 600,
+                      color: "#ffffff", background: "#0065A4",
+                      border: "none", borderRadius: 0, cursor: "pointer", letterSpacing: "-0.01em",
+                    }}
+                  >
+                    <BtnIcon name="download" color="#ffffff" />
+                    <span>Export BitGraph + File</span>
+                  </button>
                 </div>
               )}
             </CollapsibleCard>
@@ -948,10 +963,11 @@ export default function ProofPage() {
           <JsonSection proof={proof} />
         </div>
 
-        {/* Export — the closing action. A receipt is read first and saved last,
-            so the primary action sits below the cards. marginTop matches the grid
-            `gap` so the spacing from the last card equals the spacing between
-            cards. */}
+        {/* Export — for proofs where the file is NOT in hand (a cold or shared
+            link, Ethereum/interval anchors). When the artifact IS in hand,
+            Export lives inside the BitGraph Recorded card, below "Again," so
+            this bottom button is suppressed. */}
+        {!cachedFile && (
         <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
           <button
             onClick={exportZip}
@@ -976,6 +992,7 @@ export default function ProofPage() {
             </div>
           )}
         </div>
+        )}
 
       </div>
     </Shell>
