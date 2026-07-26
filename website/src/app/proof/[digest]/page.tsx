@@ -77,6 +77,7 @@ export default function ProofPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
+
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
   const [anchorBlock, setAnchorBlock] = useState<{ blockNumber: number | null; blockTime: string | null; etherscanUrl: string | null } | null>(null);
@@ -658,18 +659,17 @@ export default function ProofPage() {
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
-              ) : !cachedFile ? (
+              ) : cachedFile ? (
+                <FileCard cachedFile={cachedFile} />
+              ) : (
                 <div style={{ padding: 16 }}>
                   <BringYourFile proof={proof} onMatch={(rec) => setCachedFile(rec)} />
                 </div>
-              ) : null}
+              )}
               {/* The fingerprint lives with the file: this SHA-256 IS the file's
-                  pre-existing identity. For a non-image file it is the whole
-                  content of the card — no preview, just the hash. The top border
-                  only shows when there is content above it (image or dropzone).
-                  In the no-file state it is also the value a dropped file is
-                  checked against. */}
-              <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder={isDisplayableImage(cachedFile, cachedFile?.c2pa) || !cachedFile} />
+                  pre-existing identity. In the no-file state it is also the
+                  value a dropped file is checked against. */}
+              <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
               {/* BitGraph again — record these same bytes at a NEW causal
                   position. It lives with the file it acts on (only offered when
                   the artifact is in hand, cachedFile set), so it sits below the
@@ -1397,6 +1397,118 @@ function PhotoCard({
           borderRadius: 0,
         }}
       />
+    </div>
+  );
+}
+
+/* ── Non-image file display — the file is in hand but is not a picture, so
+   show it the way the browser natively can: text gets an inline excerpt,
+   PDFs an embedded view, audio/video their native players, and anything
+   else its identity. Every kind closes with the same name · size row; the
+   kinds a browser can render in a full tab (text, PDF) add an Open link
+   there. Bytes never leave the device — everything runs on object URLs. */
+
+const TEXT_EXT = /\.(txt|md|markdown|json|csv|tsv|log|xml|ya?ml|toml|ini|html?|css|mjs|cjs|jsx?|tsx?|py|rb|go|rs|java|c|h|cpp|hpp|swift|kt|sh|zsh|bash|sql|env|cfg|conf|srt|vtt|tex)$/i;
+const VIDEO_EXT = /\.(mp4|m4v|webm|mov|ogv)$/i;
+const AUDIO_EXT = /\.(mp3|wav|m4a|aac|flac|oga|ogg|opus)$/i;
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+// A cheap "is this text?" sniff for files whose extension says nothing: no
+// NUL bytes and almost everything printable in the first 2 KB.
+function looksLikeText(buffer: ArrayBuffer): boolean {
+  const b = new Uint8Array(buffer, 0, Math.min(2048, buffer.byteLength));
+  if (!b.length) return false;
+  let ok = 0;
+  for (const c of b) {
+    if (c === 0) return false;
+    if (c === 9 || c === 10 || c === 13 || c >= 32) ok++;
+  }
+  return ok / b.length > 0.97;
+}
+
+function fileKind(name: string, data: ArrayBuffer): { kind: "pdf" | "video" | "audio" | "text" | "other"; mime: string } {
+  const n = name.toLowerCase();
+  if (n.endsWith(".pdf")) return { kind: "pdf", mime: "application/pdf" };
+  if (VIDEO_EXT.test(n)) {
+    const mime = n.endsWith(".webm") ? "video/webm" : n.endsWith(".mov") ? "video/quicktime" : n.endsWith(".ogv") ? "video/ogg" : "video/mp4";
+    return { kind: "video", mime };
+  }
+  if (AUDIO_EXT.test(n)) {
+    const mime = n.endsWith(".mp3") ? "audio/mpeg" : n.endsWith(".wav") ? "audio/wav" : n.endsWith(".m4a") || n.endsWith(".aac") ? "audio/mp4" : n.endsWith(".flac") ? "audio/flac" : "audio/ogg";
+    return { kind: "audio", mime };
+  }
+  if (TEXT_EXT.test(n) || looksLikeText(data)) return { kind: "text", mime: "text/plain" };
+  return { kind: "other", mime: "application/octet-stream" };
+}
+
+function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffer } }) {
+  const { kind, mime } = fileKind(cachedFile.name, cachedFile.data);
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (kind === "other") { setUrl(null); return; }
+    const u = URL.createObjectURL(new Blob([new Uint8Array(cachedFile.data)], { type: mime }));
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [cachedFile, kind, mime]);
+
+  // Text excerpt: enough lines to see what the document is, never the whole
+  // thing — Open shows the full file in its own tab.
+  let excerpt: { text: string; truncated: boolean } | null = null;
+  if (kind === "text") {
+    try {
+      const raw = new TextDecoder("utf-8", { fatal: false }).decode(cachedFile.data.slice(0, 6000));
+      const lines = raw.split("\n");
+      const text = lines.slice(0, 24).join("\n").slice(0, 3000);
+      excerpt = { text, truncated: lines.length > 24 || raw.length > text.length || cachedFile.data.byteLength > 6000 };
+    } catch { excerpt = null; }
+  }
+
+  // PDF gets no inline embed: an iframe can render blank or dark on some
+  // browsers / for odd bytes, and a broken-looking preview is the wrong thing
+  // on a proof page. It gets the identity row + Open →, which hands the file to
+  // the browser's own full PDF viewer in a new tab.
+  const openable = kind === "text" || kind === "pdf";
+  const hasPreviewAbove = kind === "text" || kind === "video" || kind === "audio";
+  return (
+    <div style={{ background: "#ffffff" }}>
+      {kind === "text" && excerpt && (
+        <pre style={{ margin: 0, padding: 16, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12.5, lineHeight: 1.6, color: "#374151", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
+          {excerpt.text}{excerpt.truncated ? "\n…" : ""}
+        </pre>
+      )}
+      {kind === "video" && url && (
+        <div style={{ padding: 20, display: "flex", justifyContent: "center" }}>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video src={url} controls style={{ display: "block", maxWidth: "100%", maxHeight: "min(70vh, 640px)", borderRadius: 0 }} />
+        </div>
+      )}
+      {kind === "audio" && url && (
+        <div style={{ padding: "20px 16px" }}>
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <audio src={url} controls style={{ display: "block", width: "100%" }} />
+        </div>
+      )}
+      {/* The identity row every kind closes with. For formats with no inline
+          rendering it is the whole display: the file's name and size, held by
+          the receipt — the hash below is the part that matters. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: hasPreviewAbove ? "1px solid #eef0f1" : "none" }}>
+        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "#6b7280" }}>
+          <span style={{ fontWeight: 600, color: "#111827" }}>{cachedFile.name}</span>
+          {" · "}{fmtBytes(cachedFile.data.byteLength)}
+        </span>
+        {openable && url && (
+          <a href={url} target="_blank" rel="noopener" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+            Open <span aria-hidden>&rarr;</span>
+          </a>
+        )}
+      </div>
     </div>
   );
 }
