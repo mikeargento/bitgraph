@@ -629,13 +629,12 @@ export default function BitGraphPage() {
     if (proof) cacheArtifactToIDB(file, proof.artifact.digestB64).catch((e) => console.error("[bitgraph] cache error:", e));
   }
 
-  // "See a BitGraph" — open the hosted example (a real OpenAI-generated image
-  // with its C2PA credentials). It's a fixed, known proof, so we navigate
-  // STRAIGHT to it — no fetch → hash → lookup drop pipeline first — and the page
-  // paints at once off the warmed data. The photo is fetched and cached to
-  // IndexedDB in the background under the known digest, so the proof page's poll
-  // shows it a beat after the instant paint (and the Content Credentials card
-  // once C2PA parses). Only this curated demo asset is served; user files never.
+  // "See a BitGraph" — open the hosted example (a real photograph). It's a
+  // fixed, known proof, so we navigate STRAIGHT to it — no fetch → hash →
+  // lookup drop pipeline first — and the page paints at once off the warmed
+  // data. The photo is fetched and cached to IndexedDB in the background under
+  // the known digest, so the proof page's poll shows it a beat after the
+  // instant paint. Only this curated demo asset is served; user files never.
   function handleSeeExample() {
     const { digest, counter, epoch } = EXAMPLE_PROOF;
     router.push(`/proof/${digest}?counter=${counter}&epoch=${epoch}`);
