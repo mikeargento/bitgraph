@@ -670,21 +670,18 @@ export default function ProofPage() {
                   pre-existing identity. In the no-file state it is also the
                   value a dropped file is checked against. */}
               <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
-              {/* Below the hash, when the artifact is in hand: record these
-                  same bytes again (secondary), then Export as the closing
-                  action. Export lives here with the file it saves rather than at
-                  the page bottom, so it is reachable without scrolling past the
-                  technical cards. When the file is NOT in hand, Export sits at
-                  the bottom instead (see below). */}
+              {/* Export — the card's closing action, with the file it saves.
+                  "Again" lives in the Recordings card below (it adds a
+                  recording, so it belongs with the list of them). When the file
+                  is NOT in hand, Export sits at the page bottom instead. */}
               {cachedFile && (
-                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9", display: "flex", flexDirection: "column", gap: 10 }}>
-                  <BitGraphAgainButton proof={proof} digestParam={digestParam} />
+                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9" }}>
                   <button
                     onClick={exportZip}
                     className="bg-btn-fill"
                     style={{
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                      height: 76, fontSize: 16, fontWeight: 600,
+                      width: "100%", height: 76, fontSize: 16, fontWeight: 600,
                       color: "#ffffff", background: "#0065A4",
                       border: "none", borderRadius: 0, cursor: "pointer", letterSpacing: "-0.01em",
                     }}
@@ -708,16 +705,20 @@ export default function ProofPage() {
             </CollapsibleCard>
           )}
 
-          {/* Recordings — shown only when these exact bytes were BitGraphed more
-              than once. File-level context (every position the same bytes
-              occupy), so it sits right under the file, ahead of the single-proof
-              construction cards. Each row: BitGraph #, the date it was recorded
-              in the role line, and its time window in the mono/data font (same
-              treatment as the BitGraphed File card), plus a link to that position. */}
-          {positions.length > 1 && (
-            <CollapsibleCard title={`Recordings (${positions.length})`}>
+          {/* Recordings — every causal position these exact bytes occupy. Always
+              present on a file proof (even a single position), so it is also the
+              home of "BitGraph this file Again," the action that adds to this
+              list. File-level context, so it sits right under the file, ahead of
+              the single-proof construction cards. Each row: BitGraph #, the date
+              it was recorded in the role line, and its time window in the
+              mono/data font, plus a link to that position. Ethereum/interval
+              proofs keep the old "only when more than one" behaviour. */}
+          {((!isEth && !isInterval) ? positions.length >= 1 : positions.length > 1) && (
+            <CollapsibleCard title={`Recordings (${positions.length})`} defaultOpen>
               <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
-                These exact bits were BitGraphed {positions.length} times. Each recording sits at its own position, with its own verifiable time window.
+                {positions.length === 1
+                  ? "These exact bits have one recorded position so far, with its own verifiable time window."
+                  : `These exact bits were BitGraphed ${positions.length} times. Each recording sits at its own position, with its own verifiable time window.`}
               </div>
               {[...positions].reverse().map((pos) => {
                 const isEarliest = pos === positions[0];
@@ -732,7 +733,7 @@ export default function ProofPage() {
                 if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
                 else if (t2) rowDate = longDate(t2);
                 else if (t1) rowDate = longDate(t1);
-                const roleText = isEarliest ? "Earliest recorded position" : "Recorded again";
+                const roleText = positions.length === 1 ? "Recorded position" : isEarliest ? "Earliest recorded position" : "Recorded again";
                 const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
                 const timesNode = t1 && t2
                   ? (sameDay
@@ -760,6 +761,15 @@ export default function ProofPage() {
                   </div>
                 );
               })}
+              {/* BitGraph again — record these same bytes at a NEW causal
+                  position. It ADDS to this list, so it lives here rather than in
+                  the file card. Offered on a file proof with the artifact in
+                  hand. */}
+              {!isEth && !isInterval && cachedFile && (
+                <div style={{ padding: "12px 16px 16px" }}>
+                  <BitGraphAgainButton proof={proof} digestParam={digestParam} />
+                </div>
+              )}
             </CollapsibleCard>
           )}
 
@@ -1383,6 +1393,11 @@ function PhotoCard({
 
   const alt = cachedFile?.name || c2pa?.title || "Proof artifact";
 
+  // Open target: the displayable image at full resolution. Only the local
+  // preview blob qualifies — a C2PA thumbnail is low-res, so no "Open full
+  // size" is offered when that is all we have.
+  const openUrl = (!previewFailed && previewUrl) || null;
+
   // One frame rule for every orientation: uniform padding, and the photo
   // fills the padded area up to its caps — a landscape runs to the side
   // padding, a portrait to the height cap, a square to whichever comes
@@ -1393,27 +1408,42 @@ function PhotoCard({
         background: "#ffffff",
         border: bare ? "none" : "1px solid #d0d5dd",
         borderRadius: 0,
-        padding: 20,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={imageSrc}
-        alt={alt}
-        onError={() => { if (previewUrl) setPreviewFailed(true); }}
-        style={{
-          display: "block",
-          maxWidth: "100%",
-          maxHeight: "min(70vh, 640px)",
-          width: "auto",
-          height: "auto",
-          objectFit: "contain",
-          borderRadius: 0,
-        }}
-      />
+      <div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageSrc}
+          alt={alt}
+          onError={() => { if (previewUrl) setPreviewFailed(true); }}
+          style={{
+            display: "block",
+            maxWidth: "100%",
+            maxHeight: "min(70vh, 640px)",
+            width: "auto",
+            height: "auto",
+            objectFit: "contain",
+            borderRadius: 0,
+          }}
+        />
+      </div>
+      {/* Identity row — the same name · size · Open → that FileCard gives every
+          other file. The inline image is capped in size, so Open shows it at
+          full resolution in a new tab. Only when the artifact bytes are in hand
+          (a C2PA-thumbnail-only preview has no full file to name or open). */}
+      {cachedFile && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid #eef0f1" }}>
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "#6b7280" }}>
+            <span style={{ fontWeight: 600, color: "#111827" }}>{cachedFile.name}</span>
+            {" · "}{fmtBytes(cachedFile.data.byteLength)}
+          </span>
+          {openUrl && (
+            <a href={openUrl} target="_blank" rel="noopener" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+              Open <span aria-hidden>&rarr;</span>
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
