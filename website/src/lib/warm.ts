@@ -58,8 +58,8 @@ export function takeWarm<T = unknown>(key: string): { data: T } | { promise: Pro
 // into instantly. The proof itself, its settled causal window, and the image are
 // immutable; only its Recordings list can grow, which the reconcile handles.
 export const EXAMPLE_PROOF = {
-  digest: "4SmntpI0Ap0jMxBGU-5Cfj85zX4tl9xUvEN7LlVBhI4",
-  counter: "178338",
+  digest: "i1cMAsb9w1MQUkn6ctqyIzkNA7H1aKRVyWygAXDRYdg",
+  counter: "178502",
   epoch: "UgCAKjrb4v_EeE4mM5228KLUJWaifyWJ5h8vm5JhXZg",
 };
 
