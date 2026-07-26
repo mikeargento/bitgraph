@@ -40,6 +40,24 @@ export function SiteNav() {
           BitGraph
         </Link>
         <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+          <Link
+            href="/"
+            onClick={(e) => {
+              // Same as the logo: on the home route a same-route Link click
+              // won't reset the results/exporting state, so force a fresh load
+              // back to the drop view.
+              if (typeof window !== "undefined" && window.location.pathname === "/") {
+                e.preventDefault();
+                window.location.assign("/");
+              }
+            }}
+            style={{
+              fontSize: 14, fontWeight: 600, color: "#111827",
+              textDecoration: "none",
+            }}
+          >
+            Record
+          </Link>
           {/* Roll — the ledger, now on its own /roll page (no longer embedded
               under the home camera), so the nav is its way in. */}
           <Link
@@ -60,17 +78,6 @@ export function SiteNav() {
           }}>
             Docs
           </Link>
-          <a
-            href="https://github.com/mikeargento/bitgraph"
-            target="_blank"
-            rel="noopener"
-            style={{
-              fontSize: 14, fontWeight: 600, color: "#111827",
-              textDecoration: "none",
-            }}
-          >
-            GitHub
-          </a>
         </div>
       </div>
     </div>

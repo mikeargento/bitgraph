@@ -83,6 +83,21 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                   {s.label}
                 </Link>
               ))}
+              {/* External repo link — lives at the end of the section list,
+                  not in the top nav. */}
+              <a
+                href="https://github.com/mikeargento/bitgraph"
+                target="_blank"
+                rel="noopener"
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  display: "block", padding: "8px 12px", fontSize: 14,
+                  fontWeight: 400, color: "#4b5563",
+                  textDecoration: "none", borderRadius: 0,
+                }}
+              >
+                GitHub
+              </a>
             </nav>
           </div>
         )}
