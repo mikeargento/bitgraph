@@ -876,7 +876,10 @@ export default function BitGraphPage() {
                       Download in {anchorCountdown}s
                     </span>
                   ) : (
-                    <button onClick={downloadZip} style={{ background: "none", border: "none", padding: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", letterSpacing: "-0.01em" }}>
+                    // The batch's solid button: once "Record N files" has done
+                    // its work, the .zip is what the visit produces, so it
+                    // wears the same fill as the proof page's Export.
+                    <button onClick={downloadZip} className="bg-btn-fill" style={{ background: "#0065A4", border: "none", padding: "10px 16px", fontSize: 14, fontWeight: 600, color: "#ffffff", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", letterSpacing: "-0.01em", borderRadius: 0 }}>
                       Download .zip
                     </button>
                   ))}
