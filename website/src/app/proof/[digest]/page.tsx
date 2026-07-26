@@ -748,11 +748,11 @@ export default function ProofPage() {
                         <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>
                       ) : (
                         <a
-                          className="causal-action"
+                          className="causal-action bg-arrow-link"
                           href={`/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}`}
                           style={{ color: "var(--c-accent)", textDecoration: "none" }}
                         >
-                          View &rarr;
+                          View <span className="arrow" aria-hidden>&rarr;</span>
                         </a>
                       )}
                     </div>
@@ -1438,8 +1438,8 @@ function PhotoCard({
             {" · "}{fmtBytes(cachedFile.data.byteLength)}
           </span>
           {openUrl && (
-            <a href={openUrl} target="_blank" rel="noopener" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-              Open <span aria-hidden>&rarr;</span>
+            <a href={openUrl} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+              Open <span className="arrow" aria-hidden>&rarr;</span>
             </a>
           )}
         </div>
@@ -1551,8 +1551,8 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
           {" · "}{fmtBytes(cachedFile.data.byteLength)}
         </span>
         {openable && url && (
-          <a href={url} target="_blank" rel="noopener" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-            Open <span aria-hidden>&rarr;</span>
+          <a href={url} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+            Open <span className="arrow" aria-hidden>&rarr;</span>
           </a>
         )}
       </div>

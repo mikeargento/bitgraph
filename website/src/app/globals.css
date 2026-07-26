@@ -468,3 +468,9 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    flashed up on tap once the box grew to a large centered target) and the grey
    tap-highlight. The tap still opens the native file picker. */
 .bitgraph-camera, .bitgraph-camera * { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+/* Shared "go somewhere" arrow-link motion — the trailing → nudges right on
+   hover, matching the home page's "See an example →" / "Record N files →".
+   Wrap the arrow in <span class="arrow">→</span> and put .bg-arrow-link on the
+   link. inline-block so the transform applies. */
+.bg-arrow-link .arrow { display: inline-block; transition: transform .18s ease; }
+@media (hover: hover) { .bg-arrow-link:hover .arrow { transform: translateX(3px); } }
