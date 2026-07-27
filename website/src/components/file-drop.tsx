@@ -289,14 +289,17 @@ export function FileDrop({
       ) : (
         <div className="flex flex-col items-center py-8 px-4 sm:px-6 w-full">
           {/* Icon: a document with a plus — "select a file". Square corners, no
-              round caps, strokeWidth matching the site's other stroke icons.
+              round caps. non-scaling-stroke pins the stroke to 2.25 SCREEN px
+              so it matches the chevrons: this svg renders at 44-52px from a
+              24-unit viewBox, so a scaled stroke would draw ~3px and read
+              heavier than every other icon.
               Not a download/upload arrow: the file never leaves the device. */}
           <div className="mb-4">
-            <svg className="fd-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.5">
-              <path d="M5 2 H14 L19 7 V22 H5 Z" />
-              <path d="M14 2 V7 H19" />
-              <line x1="12" y1="12" x2="12" y2="18" />
-              <line x1="9" y1="15" x2="15" y2="15" />
+            <svg className="fd-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="2.25" vectorEffect="non-scaling-stroke">
+              <path d="M5 2 H14 L19 7 V22 H5 Z" vectorEffect="non-scaling-stroke" />
+              <path d="M14 2 V7 H19" vectorEffect="non-scaling-stroke" />
+              <line x1="12" y1="12" x2="12" y2="18" vectorEffect="non-scaling-stroke" />
+              <line x1="9" y1="15" x2="15" y2="15" vectorEffect="non-scaling-stroke" />
             </svg>
           </div>
           <div
