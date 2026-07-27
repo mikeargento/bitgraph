@@ -422,13 +422,16 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    devices don't stick in the hover state after a tap. Desktop still
    gets the engagement signal; mobile cleanly leaves the button alone. ── */
 .bg-btn-outline { transition: background 0.15s; }
-/* The card is the hover unit — one file, one object — so the WHOLE box greys,
-   header and outcome rail included (the rail is a border, unaffected by bg).
-   Background lives here (not inline) so :hover can override it. */
-.bitgraph-file-card { background: #fff; transition: background 0.15s; }
+/* The ROW is the hover unit, because the row is the click target: the same
+   bytes can hold many causal positions, and each row opens a different one.
+   Greying the whole card would light up 19 rows when only the one under the
+   cursor is clickable. Background lives here (not inline) so :hover can
+   override it. */
+.bitgraph-file-card { background: #fff; }
+.bitgraph-file-row { transition: background 0.15s; }
 @media (hover: hover) {
   .bg-btn-outline:hover { background: #e8eef5 !important; }
-  .bitgraph-file-card[data-clickable="true"]:hover { background: #f3f5f7; }
+  .bitgraph-file-row:hover { background: #f3f5f7; }
   /* The shutter answers the hand: one step darker under the cursor. */
   .bg-btn-fill:hover { background: #00568c !important; }
 }
