@@ -48,6 +48,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <head>
         <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
+        {/* Runs during parse, before the browser restores scroll. On a reload
+            the browser re-applies your saved offset as the page grows, and our
+            pages grow after paint (skeleton, then payload, then a full-size
+            photo), so a refresh landed part-way down at whatever height existed
+            at that instant. A React effect is too late to stop it — hydration
+            has already happened. Back/forward still restores: only reloads are
+            taken over, and ScrollToTop hands restoration back once settled. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var n=performance.getEntriesByType('navigation')[0];" +
+              "if(n&&n.type==='reload'&&!location.hash){history.scrollRestoration='manual';}}catch(e){}",
+          }}
+        />
       </head>
       <body style={{ fontFamily: "acumin-pro, -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif", margin: 0 }}>
         <ScrollToTop />
