@@ -686,7 +686,12 @@ export default function BitGraphPage() {
            BETWEEN the tagline and the box, so give it real breathing room (the
            tagline is on its own now, no subhead bridging it) and let it scale. */
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(26px, 4.5vw, 40px); }
-        .bitgraph-tagline { text-align: center; font-size: clamp(36px, 9.3vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
+        /* Weight 600 is a REAL face: the Typekit kit (svq0oqy) carries acumin-pro
+           400/600/700 only. Anything from 500 to 900 snapped to the 700 face, so
+           the old 800 here rendered identically to 700 and could not be dialled
+           down until Semibold was added to the kit on 2026-07-27. Keep 600, and
+           keep /camera's h1 matching: the two morph into each other. */
+        .bitgraph-tagline { text-align: center; font-size: clamp(36px, 9.3vw, 54px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
         /* The tagline is a quiet door to the /camera explainer: a plain
            headline at rest that sweeps to brand blue on hover, so it never
