@@ -46,7 +46,7 @@ export default function CameraPage() {
           the two morph into each other. 600 is a real face as of 2026-07-27;
           before that the kit only carried 400/700 and this rendered as 700. */}
       <h1 style={{
-        textAlign: "center", fontSize: "clamp(36px, 9.3vw, 54px)", fontWeight: 600,
+        textAlign: "center", fontSize: "clamp(30px, 9vw, 54px)", fontWeight: 600,
         letterSpacing: "-0.02em", lineHeight: 1.02, color: "#111827",
         margin: "0 0 clamp(12px, 2.5vw, 16px)",
       }}>
