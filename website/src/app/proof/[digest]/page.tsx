@@ -751,6 +751,12 @@ export default function ProofPage() {
             </>
           )}
 
+          {/* Content Credentials (C2PA) — the manifest embedded in these same
+              bytes, so it continues the file card's thought: the artifact
+              described a second way. It sits ABOVE Recordings, which pivots
+              from describing the file to placing it in the ledger. */}
+          {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
+
           {/* Recordings — every causal position these exact bytes occupy. Always
               present on a file proof (even a single position), so it is also the
               home of "BitGraph this file Again," the action that adds to this
@@ -982,9 +988,6 @@ export default function ProofPage() {
               {ts.digestAlg ? <Field label="Digest Algorithm" value={String(ts.digestAlg)} /> : null}
             </CollapsibleCard>
           )}
-
-          {/* Content Credentials (C2PA) — the manifest embedded in the bytes. */}
-          {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
 
           {/* Submitter's Note — LAST card, like an appendix: it was appended to
               the recording by whoever made it. The title slot is a link ONLY
