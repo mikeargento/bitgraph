@@ -686,7 +686,17 @@ export default function BitGraphPage() {
            BETWEEN the tagline and the box, so give it real breathing room (the
            tagline is on its own now, no subhead bridging it) and let it scale. */
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(26px, 4.5vw, 40px); }
-        .bitgraph-tagline { text-align: center; font-size: clamp(36px, 9.3vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
+        /* Sizing is driven by /camera's LONGER headline, never this one: "The
+           frame exists first." must NEVER wrap, or it goes to two lines while
+           this stays at one and the morph jumps. 9.3vw alone never wraps (the
+           line needs ~9.17x the font size, the column gives 9.68x), so the only
+           hazard was the old 36px floor, which overrode vw scaling below a 387px
+           viewport and pushed 360px phones to two lines. The floor is now 24px,
+           low enough that it cannot bind above a ~262px viewport, so vw governs
+           on every real device and nothing above 387px changed at all.
+           Keep /camera's h1 identical; re-measure at 320 and 360 if this or the
+           weight or tracking ever moves. */
+        .bitgraph-tagline { text-align: center; font-size: clamp(24px, 9.3vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
         /* The tagline is a quiet door to the /camera explainer: a plain
            headline at rest that sweeps to brand blue on hover, so it never
