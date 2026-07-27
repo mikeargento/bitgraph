@@ -222,9 +222,23 @@ export async function GET(req: NextRequest) {
       { epoch, head, entries, nextBefore, hasMore: nextBefore != null && nextBefore > 1 },
       {
         headers: {
+          // The long stale-while-revalidate is the point, not s-maxage. Traffic
+          // here is sparse, so a 10s SWR window meant the edge copy had almost
+          // always expired by the next visitor and nearly every Roll open paid a
+          // cold function invocation plus S3 LISTs. With an hour of SWR the edge
+          // always has something to hand back instantly and refreshes behind the
+          // request, so the page paints immediately and is corrected in place.
+          //
+          // Serving a slightly stale head page is safe: a recording the visitor
+          // just made is prepended locally from the bitgraph:recorded event, not
+          // read back from this feed, and the 12s live poll reconciles the rest.
+          // s-maxage stays short so that poll still sees new rows promptly.
+          //
+          // Cursor pages are effectively immutable (older counters never change),
+          // so they cache hard.
           "Cache-Control": beforeParam
-            ? "public, s-maxage=300, stale-while-revalidate=600"
-            : "public, s-maxage=5, stale-while-revalidate=10",
+            ? "public, s-maxage=3600, stale-while-revalidate=86400"
+            : "public, s-maxage=15, stale-while-revalidate=3600",
         },
       },
     );
