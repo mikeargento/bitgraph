@@ -686,18 +686,7 @@ export default function BitGraphPage() {
            BETWEEN the tagline and the box, so give it real breathing room (the
            tagline is on its own now, no subhead bridging it) and let it scale. */
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(26px, 4.5vw, 40px); }
-        /* Weight 600 is a REAL face: the Typekit kit (svq0oqy) carries acumin-pro
-           400/600/700 only. Anything from 500 to 900 snapped to the 700 face, so
-           the old 800 here rendered identically to 700 and could not be dialled
-           down until Semibold was added to the kit on 2026-07-27. Keep 600, and
-           keep /camera's h1 matching: the two morph into each other. */
-        /* The clamp is sized by /camera's longer headline, not this one: "The
-           frame exists first." must hold ONE line down to a 360px Android, or
-           it wraps to two while this line stays at one and the morph jumps.
-           The old floor of 36px defeated the vw scaling below a 387px viewport,
-           which is exactly where space is tightest, so 360 broke while 393 was
-           fine. 9vw with a 30px floor keeps both on one line at 360/375/393. */
-        .bitgraph-tagline { text-align: center; font-size: clamp(30px, 9vw, 54px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.02; color: #111827; }
+        .bitgraph-tagline { text-align: center; font-size: clamp(36px, 9.3vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
         .bitgraph-tagline .accent { color: inherit; }
         /* The tagline is a quiet door to the /camera explainer: a plain
            headline at rest that sweeps to brand blue on hover, so it never
