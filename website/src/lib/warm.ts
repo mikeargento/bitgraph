@@ -74,6 +74,11 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
   return `/api/proofs/digest/${digestParam}${s ? `?${s}` : ""}`;
 }
 
-/** The Roll feed's initial (anchors-shown, no-cursor) URL — the exact string the
- *  Explorer fetches on first load, so warming it on nav intent seeds the page. */
-export const ROLL_FEED_KEY = "/api/explorer?";
+/** The Roll feed's initial (files-only, no-cursor) URL. This MUST stay byte-
+ *  identical to Explorer's `feedUrl()` with its default state, because warm
+ *  slots are keyed by URL string: the Roll went files-default without this
+ *  constant following, so the nav warmed "/api/explorer?" while the page
+ *  fetched "/api/explorer?files=1" and every hover prefetched a response
+ *  nobody read. If the anchors toggle ever changes its default, change this
+ *  too. */
+export const ROLL_FEED_KEY = "/api/explorer?files=1";

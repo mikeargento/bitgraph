@@ -25,8 +25,8 @@ const fmt = (n: number) => n.toLocaleString();
 
 export function Explorer({ title }: { title?: React.ReactNode }) {
   // Seed first paint from a warm Roll feed if the nav warmed one on hover/focus.
-  // Only the default view (anchors shown, no cursor) is warmed, so this seeds
-  // just the initial render; the effect below reconciles against a live fetch.
+  // Only the default view (files only, no cursor) is warmed, so this seeds just
+  // the initial render; the effect below reconciles against a live fetch.
   const seeded = (() => { const w = takeWarm<FeedResp>(ROLL_FEED_KEY); return w && "data" in w ? w.data : null; })();
   const [entries, setEntries] = useState<Entry[]>(() => seeded?.entries ?? []);
   // Counters that arrived via the live poll (not the initial load), so only
