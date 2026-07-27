@@ -8,7 +8,7 @@ import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
-import { takeWarm, proofFeedKey } from "@/lib/warm";
+import { takeWarm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
@@ -80,6 +80,41 @@ export default function ProofPage() {
   // Export fetches the two ETH anchors and their block-header witnesses before
   // zipping, so it is a real wait, not an instant download. The link reports it.
   const [exporting, setExporting] = useState(false);
+
+  // The curated example is the one artifact BitGraph hosts publicly, so its
+  // proof page can show the photo to anyone — a shared link or a cold device,
+  // with nothing in IndexedDB. Every other proof stays device-only by design:
+  // user files are never uploaded, so a stranger sees the bring-your-file box.
+  const examplePulled = useRef(false);
+  useEffect(() => {
+    // Guard with a ref, not on cachedFile: depending on it would tear this
+    // effect down the moment we set the bytes, cancelling the C2PA parse that
+    // follows and leaving a shared link with a photo but no credentials card.
+    if (digestParam !== EXAMPLE_PROOF.digest || examplePulled.current) return;
+    examplePulled.current = true;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch("/example/preston.jpg");
+        if (!r.ok || cancelled) return;
+        const data = await (await r.blob()).arrayBuffer();
+        // Same guard the IDB path uses: only show bytes that hash to this proof.
+        let digestB64 = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
+        while (digestB64.length % 4 !== 0) digestB64 += "=";
+        if ((await hashBytes(new Uint8Array(data))) !== digestB64) return;
+        if (cancelled) return;
+        setCachedFile({ name: "preston.jpg", data });
+        // Parse the embedded credentials too, or a shared link would show the
+        // photo but not the Content Credentials card that is half its point.
+        try {
+          const { readC2PA } = await import("@/lib/c2pa-reader");
+          const c2pa = await readC2PA(new Blob([new Uint8Array(data)], { type: "image/jpeg" }));
+          if (!cancelled) setCachedFile({ name: "preston.jpg", data, c2pa, c2paChecked: true });
+        } catch { /* the photo still shows without the card */ }
+      } catch { /* falls back to the bring-your-file box */ }
+    })();
+    return () => { cancelled = true; };
+  }, [digestParam]);
 
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
