@@ -20,10 +20,17 @@ export default function CameraPage() {
           with viewport height; this mirrors that math so the tagline morphs in
           place into this headline at any window size. The constants encode the
           home hero's height (~720px desktop, ~560px mobile, incl. nav+padding);
-          re-tune if the home hero's size changes materially. */}
+          re-tune if the home hero's size changes materially.
+
+          The upper bound matters: Safari's "Full Page" screenshot renders with
+          the viewport expanded to the whole document, so an uncapped 50dvh
+          resolved to 644px on iPhone and dumped a blank half-screen above the
+          headline. The caps sit above every real-device value (mobile tops out
+          near 120px at 852px tall, desktop near 220px at a 1212px window), so
+          they never fire while browsing, only when a capture inflates dvh. */}
       <style>{`
-        .camera-wrap { padding-top: max(52px, calc(50dvh - 306px)) !important; }
-        @media (min-width: 769px) { .camera-wrap { padding-top: max(52px, calc(50dvh - 386px)) !important; } }
+        .camera-wrap { padding-top: clamp(52px, calc(50dvh - 306px), 120px) !important; }
+        @media (min-width: 769px) { .camera-wrap { padding-top: clamp(52px, calc(50dvh - 386px), 220px) !important; } }
         .camera-wrap h1 a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .camera-wrap h1 a:hover, .camera-wrap h1 a:focus-visible { color: #0065A4; }
       `}</style>
