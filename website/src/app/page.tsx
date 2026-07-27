@@ -861,12 +861,14 @@ export default function BitGraphPage() {
                   as the proof page's receipt): count + export in the body, and
                   when files remain unrecorded, a Record row in the arrow-link
                   style. No banners anywhere — the drop was the gesture. */}
+              {/* Title sits above the card as a page heading, the same way the
+                  proof page and the Roll title their content. Wrapped so the
+                  column's 24px gap applies below the card, not under the title. */}
+              <div>
+              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 10 }}>
+                BitGraph{items.length === 1 ? "" : "s"} Recorded
+              </div>
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
-                {/* Same header-band anatomy as the proof page's receipt card,
-                    so a batch reads as a receipt too. */}
-                <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4", padding: "14px 16px", background: "rgba(0,101,164,0.04)", borderBottom: "1px solid #e2e5e9" }}>
-                  BitGraph{items.length === 1 ? "" : "s"} Recorded
-                </div>
                 <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                   <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both", whiteSpace: "nowrap" }}>
                     {animCount} of {items.length}
@@ -876,11 +878,12 @@ export default function BitGraphPage() {
                       Download in {anchorCountdown}s
                     </span>
                   ) : (
-                    // The batch's solid button: once "Record N files" has done
-                    // its work, the .zip is what the visit produces, so it
-                    // wears the same fill as the proof page's Export.
-                    <button onClick={downloadZip} className="bg-btn-fill" style={{ background: "#0065A4", border: "none", padding: "10px 16px", fontSize: 14, fontWeight: 600, color: "#ffffff", cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", letterSpacing: "-0.01em", borderRadius: 0 }}>
-                      Download .zip
+                    // Same action-link idiom as every other action in the
+                    // product. Paired with the count on its left, so it hangs
+                    // on the right the way "Open →" does on a file row.
+                    <button onClick={downloadZip} className="bg-action-link" style={{ padding: 0 }}>
+                      <span>Download .zip</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
                   ))}
                 </div>
@@ -889,12 +892,14 @@ export default function BitGraphPage() {
                     drop screen. Writing to the ledger stays deliberate — a
                     line you read and choose, not a banner that shouts. */}
                 {unproven.length > 0 && (
-                  <div style={{ borderTop: "1px solid #eef0f1", padding: "10px 10px 12px" }}>
-                    <button type="button" className="see-example-link" onClick={proveRemaining}>
-                      Record {unproven.length} file{unproven.length === 1 ? "" : "s"} <span className="arrow" aria-hidden="true">&rarr;</span>
+                  <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
+                    <button type="button" className="bg-action-link" onClick={proveRemaining}>
+                      <span>Record {unproven.length} file{unproven.length === 1 ? "" : "s"}</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
                   </div>
                 )}
+              </div>
               </div>
 
               {/* File list: one card per file separated by a gap so each file's

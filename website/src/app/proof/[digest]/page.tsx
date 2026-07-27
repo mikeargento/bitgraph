@@ -577,7 +577,9 @@ export default function ProofPage() {
         .bg-collapse-head { transition: background .12s; }
         .bg-collapse-chev { color:#0065A4; transition: color .15s; }
         @media (hover:hover) {
-          .bg-collapse-head:hover { background:#f3f5f7 !important; }
+          /* Hover previews the open state: same tint the header band carries
+             once the card is open, so hovering shows you where you are going. */
+          .bg-collapse-head:hover { background:rgba(0,101,164,0.07) !important; }
           .bg-collapse-head:hover .bg-collapse-chev { color:#004b7a; }
         }
         /* Face-ID-style success: a brand-blue ring sweeps closed, then the checkmark
@@ -655,6 +657,10 @@ export default function ProofPage() {
               carry). The "when" leads the body, then the image when the bytes are
               in hand (or the bring-your-file dropzone), then the file hash. */}
           {!isEth && !isInterval && (
+            <>
+            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 10 }}>
+              BitGraph Recorded
+            </div>
             <CollapsibleCard title="BitGraph Recorded" plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
@@ -670,18 +676,38 @@ export default function ProofPage() {
                   pre-existing identity. In the no-file state it is also the
                   value a dropped file is checked against. */}
               <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
+              {/* Export — the card's own closing action, in its bottom box.
+                  Same link idiom as every other action on the page; it carries
+                  a touch more type weight because it is the primary one. */}
+              <div style={{ padding: "0 16px" }}>
+                <button onClick={exportZip} className="bg-action-link">
+                  <span>{cachedFile ? "Export BitGraph + File" : "Export BitGraph"}</span>
+                  <span className="arrow" aria-hidden>&rarr;</span>
+                </button>
+                {!cachedFile && (
+                  <div style={{ fontSize: 12.5, color: "#6b7280", paddingBottom: 6 }}>
+                    BitGraph only: the original file is not on this device
+                  </div>
+                )}
+              </div>
             </CollapsibleCard>
+            </>
           )}
 
           {/* An anchor's artifact IS the Ethereum block hash, so its block card
               sits in the same content slot the BitGraphed File uses on file
               proofs, titled to match. */}
           {isEth && attr?.title && (
+            <>
+            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 10 }}>
+              BitGraphed Ethereum Block
+            </div>
             <CollapsibleCard title="BitGraphed Ethereum Block" plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
               <Field label="Etherscan" value={attr.title} link />
             </CollapsibleCard>
+            </>
           )}
 
           {/* Recordings — every causal position these exact bytes occupy. Always
@@ -745,7 +771,7 @@ export default function ProofPage() {
                   the file card. Offered on a file proof with the artifact in
                   hand. */}
               {!isEth && !isInterval && cachedFile && (
-                <div style={{ padding: "12px 16px 16px" }}>
+                <div style={{ padding: "0 16px" }}>
                   <BitGraphAgainButton proof={proof} digestParam={digestParam} />
                 </div>
               )}
@@ -845,20 +871,13 @@ export default function ProofPage() {
                 <Field label="Etherscan" value={causalWindow.anchorBefore.etherscanUrl} link />
               )}
               {causalWindow.anchorBefore.digestB64 && (
-                <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
+                <div style={{ padding: "0 16px", borderBottom: "1px solid #e2e5e9" }}>
                   <a
                     href={`/proof/${encodeURIComponent((causalWindow.anchorBefore.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
-                    className="bg-btn-outline"
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-                      width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-                      color: "#0065A4", background: "#f4f6f9",
-                      border: "1px solid #0065A4", borderRadius: 0,
-                      textDecoration: "none", cursor: "pointer",
-                    }}
+                    className="bg-action-link"
                   >
-                    <BtnIcon name="link" />
-                    <span>View Anchor BitGraph #{causalWindow.anchorBefore.counter} &rarr;</span>
+                    <span>View Anchor BitGraph #{causalWindow.anchorBefore.counter}</span>
+                    <span className="arrow" aria-hidden>&rarr;</span>
                   </a>
                 </div>
               )}
@@ -880,20 +899,13 @@ export default function ProofPage() {
                 <Field label="Etherscan" value={causalWindow.anchorAfter.etherscanUrl} link />
               )}
               {causalWindow.anchorAfter.digestB64 && (
-                <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
+                <div style={{ padding: "0 16px", borderBottom: "1px solid #e2e5e9" }}>
                   <a
                     href={`/proof/${encodeURIComponent((causalWindow.anchorAfter.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
-                    className="bg-btn-outline"
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-                      width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-                      color: "#0065A4", background: "#f4f6f9",
-                      border: "1px solid #0065A4", borderRadius: 0,
-                      textDecoration: "none", cursor: "pointer",
-                    }}
+                    className="bg-action-link"
                   >
-                    <BtnIcon name="link" />
-                    <span>View Anchor BitGraph #{causalWindow.anchorAfter.counter} &rarr;</span>
+                    <span>View Anchor BitGraph #{causalWindow.anchorAfter.counter}</span>
+                    <span className="arrow" aria-hidden>&rarr;</span>
                   </a>
                 </div>
               )}
@@ -952,34 +964,6 @@ export default function ProofPage() {
           <JsonSection proof={proof} />
         </div>
 
-        {/* Export — the closing action, below every card. A receipt is read
-            first and saved last, so the primary action sits at the end of the
-            page rather than inside the file card. */}
-        <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
-          <button
-            onClick={exportZip}
-            className="bg-btn-fill"
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              height: 76, fontSize: 16, fontWeight: 600,
-              color: "#ffffff", background: "#0065A4",
-              border: "none", borderRadius: 0,
-              cursor: "pointer", letterSpacing: "-0.01em",
-            }}
-          >
-            <BtnIcon name="download" color="#ffffff" />
-            <span>{!isEth && cachedFile ? "Export BitGraph + File" : "Export BitGraph"}</span>
-          </button>
-          {/* The original file only ever lives on the device that holds it
-              (never the server). When it is present the "+ File" label says
-              enough; when it is not, this note explains the proof-only export. */}
-          {!isEth && !isInterval && !cachedFile && (
-            <div style={{ fontSize: 12.5, color: "#6b7280", textAlign: "center" }}>
-              BitGraph only: the original file is not on this device
-            </div>
-          )}
-        </div>
-
       </div>
     </Shell>
   );
@@ -1022,18 +1006,13 @@ function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React
   const headerStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
     fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4",
-    padding: "14px 16px", background: open ? "rgba(0,101,164,0.04)" : "#fff",
+    padding: "14px 16px", background: open ? "rgba(0,101,164,0.07)" : "#fff",
     border: "none", borderBottom: open ? "1px solid #e2e5e9" : "none",
     textAlign: "left", fontFamily: "inherit",
   };
   return (
     <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
-      {plain ? (
-        // Static header: a heading, not a control — no hover affordance, no toggle.
-        <div style={{ ...headerStyle, cursor: "default" }}>
-          <span>{title}</span>
-        </div>
-      ) : (
+      {plain ? null : (
         /* The header is a full-row toggle with the same hover + outlined-button
            affordance as the explorer rows: the row tints on hover and the
            chevron button inverts to solid blue, so a collapsed card reads as
@@ -1128,21 +1107,9 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
 
   return (
     <>
-      <button
-        onClick={run}
-        disabled={state === "working"}
-        className="bg-btn-outline"
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-          width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-          color: state === "working" ? "#9ca3af" : "#0065A4",
-          background: "#f4f6f9",
-          border: `1px solid ${state === "working" ? "#d0d5dd" : "#0065A4"}`,
-          borderRadius: 0, cursor: state === "working" ? "default" : "pointer",
-        }}
-      >
-        <BtnIcon name="plus" color={state === "working" ? "#9ca3af" : "#0065A4"} />
-        <span>{state === "working" ? "BitGraphing…" : "BitGraph this file Again"}</span>
+      <button onClick={run} disabled={state === "working"} className="bg-action-link">
+        <span>{state === "working" ? "BitGraphing…" : "BitGraph this file again"}</span>
+        {state !== "working" && <span className="arrow" aria-hidden>&rarr;</span>}
       </button>
       {state === "error" && (
         <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
@@ -1587,21 +1554,10 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
       {c2pa.creator && <Field label="Creator" value={c2pa.creator} />}
       {c2pa.signatureIssuer && <Field label="Signed by" value={c2pa.signatureIssuer} />}
       {isOpenAI && (
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
-          <a
-            href="https://openai.com/research/verify/"
-            target="_blank" rel="noopener"
-            className="bg-btn-outline"
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-              width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-              color: "#0065A4", background: "#f4f6f9",
-              border: "1px solid #0065A4", borderRadius: 0,
-              textDecoration: "none", cursor: "pointer",
-            }}
-          >
-            <BtnIcon name="certificate" />
+        <div style={{ padding: "0 16px", borderBottom: "1px solid #e2e5e9" }}>
+          <a href="https://openai.com/research/verify/" target="_blank" rel="noopener" className="bg-action-link">
             <span>Verify with OpenAI</span>
+            <span className="arrow" aria-hidden>&rarr;</span>
           </a>
         </div>
       )}
@@ -1781,19 +1737,9 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
 
   if (!open) {
     return (
-      <button
-        onClick={() => { setOpen(true); runVerify(); }}
-        className="bg-btn-outline"
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
-          width: "100%", height: 76, fontSize: 16, fontWeight: 500,
-          color: "#0065A4", background: "#f4f6f9",
-          border: "1px solid #0065A4", borderRadius: 0,
-          cursor: "pointer",
-        }}
-      >
-        <BtnIcon name="certificate" />
+      <button onClick={() => { setOpen(true); runVerify(); }} className="bg-action-link">
         <span>Verify Attestation</span>
+        <span className="arrow" aria-hidden>&rarr;</span>
       </button>
     );
   }
@@ -1889,7 +1835,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               )}
 
               {/* Reproducible build */}
-              <div style={{ padding: "14px 18px", background: "rgba(0,101,164,0.04)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: 0, marginBottom: 12 }}>
+              <div style={{ padding: "14px 18px", background: "rgba(0,101,164,0.07)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: 0, marginBottom: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-accent)", marginBottom: 6 }}>What PCR0 proves</div>
                 <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5, marginBottom: 8 }}>
                   PCR0 is the SHA-384 hash of the exact enclave image that signed this BitGraph, shown above. The enclave source is open and the build is bit-for-bit reproducible: you can rebuild it on any linux/amd64 host and re-derive this exact PCR0 yourself, trusting no one. You do not have to take BitGraph at its word for what runs inside the boundary.

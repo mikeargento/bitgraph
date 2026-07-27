@@ -477,3 +477,22 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    link. inline-block so the transform applies. */
 .bg-arrow-link .arrow { display: inline-block; transition: transform .18s ease; }
 @media (hover: hover) { .bg-arrow-link:hover .arrow { transform: translateX(3px); } }
+
+/* ── Action link — every action on a card is this: blue label + arrow, no
+   chrome. Same voice as the home page's "See an example →" and the results
+   page's "Record N files →", so navigating and acting read alike and the
+   interface stays type + hairlines with no button slabs in it.
+   The vertical padding is a deliberate ~44px tap target on touch; it is
+   invisible because the link has no background. Every action is the same
+   size — the primary one is marked by position, not by weight. ── */
+.bg-action-link {
+  appearance: none; border: none; background: none; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  letter-spacing: -0.01em; color: #0065A4; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 14px 0; text-align: left;
+}
+.bg-action-link .arrow { display: inline-block; transition: transform .18s ease; }
+@media (hover: hover) { .bg-action-link:hover .arrow { transform: translateX(3px); } }
+.bg-action-link:disabled { color: #9ca3af; cursor: default; }
+.bg-action-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
