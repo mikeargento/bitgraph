@@ -670,27 +670,6 @@ export default function ProofPage() {
                   pre-existing identity. In the no-file state it is also the
                   value a dropped file is checked against. */}
               <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
-              {/* Export — the card's closing action, with the file it saves.
-                  "Again" lives in the Recordings card below (it adds a
-                  recording, so it belongs with the list of them). When the file
-                  is NOT in hand, Export sits at the page bottom instead. */}
-              {cachedFile && (
-                <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #e2e5e9" }}>
-                  <button
-                    onClick={exportZip}
-                    className="bg-btn-fill"
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                      width: "100%", height: 76, fontSize: 16, fontWeight: 600,
-                      color: "#ffffff", background: "#0065A4",
-                      border: "none", borderRadius: 0, cursor: "pointer", letterSpacing: "-0.01em",
-                    }}
-                  >
-                    <BtnIcon name="download" color="#ffffff" />
-                    <span>Export BitGraph + File</span>
-                  </button>
-                </div>
-              )}
             </CollapsibleCard>
           )}
 
@@ -973,11 +952,9 @@ export default function ProofPage() {
           <JsonSection proof={proof} />
         </div>
 
-        {/* Export — for proofs where the file is NOT in hand (a cold or shared
-            link, Ethereum/interval anchors). When the artifact IS in hand,
-            Export lives inside the BitGraph Recorded card, below "Again," so
-            this bottom button is suppressed. */}
-        {!cachedFile && (
+        {/* Export — the closing action, below every card. A receipt is read
+            first and saved last, so the primary action sits at the end of the
+            page rather than inside the file card. */}
         <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 8 }}>
           <button
             onClick={exportZip}
@@ -1002,7 +979,6 @@ export default function ProofPage() {
             </div>
           )}
         </div>
-        )}
 
       </div>
     </Shell>
