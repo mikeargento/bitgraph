@@ -35,22 +35,26 @@ export function ProofSkeleton() {
         @media (prefers-reduced-motion: reduce) { .bg-skel { animation: none; } }
       `}</style>
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
+        {/* "BitGraph Recorded" now sits ABOVE the card as a page heading, so the
+            skeleton leads with it rather than with a header band. */}
+        <div className="bg-skel" style={{ ...bar, width: 196, height: 21, marginBottom: 10 }} aria-hidden />
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }} aria-hidden>
-          {/* Primary "BitGraph Recorded" card: an open card with a plain header
-              (no toggle), then a "when" block and a hash block. */}
+          {/* Primary card: no header band any more — it opens straight on the
+              "when" block, then the hash, then the Export action link. */}
           <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
-              <div className="bg-skel" style={{ ...bar, width: 128, height: 15 }} />
-            </div>
             {/* "when": a date line over a time line. */}
             <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", display: "flex", flexDirection: "column", gap: 8 }}>
               <div className="bg-skel" style={{ ...bar, width: 132, height: 15 }} />
               <div className="bg-skel" style={{ ...bar, width: 212, height: 13 }} />
             </div>
             {/* File Hash: a label over its value. */}
-            <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", display: "flex", flexDirection: "column", gap: 8 }}>
               <div className="bg-skel" style={{ ...bar, width: 68, height: 14 }} />
               <div className="bg-skel" style={{ ...bar, width: "64%", height: 13 }} />
+            </div>
+            {/* Export — an action link row, not a button. */}
+            <div style={{ padding: "14px 16px" }}>
+              <div className="bg-skel" style={{ ...bar, width: 172, height: 14 }} />
             </div>
           </div>
           {titleWidths.map((w, i) => (
@@ -66,9 +70,6 @@ export function ProofSkeleton() {
             </div>
           ))}
         </div>
-        {/* The Export button placeholder, matching the real page's closing action
-            (76px tall, one grid gap below the cards). */}
-        <div className="bg-skel" style={{ height: 76, borderRadius: 0, marginTop: 10 }} aria-hidden />
         <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Loading BitGraph…</span>
       </div>
     </Shell>

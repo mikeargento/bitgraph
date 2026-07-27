@@ -77,6 +77,9 @@ export default function ProofPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
+  // Export fetches the two ETH anchors and their block-header witnesses before
+  // zipping, so it is a real wait, not an instant download. The link reports it.
+  const [exporting, setExporting] = useState(false);
 
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
@@ -504,6 +507,8 @@ export default function ProofPage() {
   }
 
   async function exportZip() {
+    if (exporting) return;
+    setExporting(true);
     try {
     const files: Record<string, Uint8Array> = {
       "proof.json": strToU8(JSON.stringify(proof, null, 2)),
@@ -565,6 +570,7 @@ export default function ProofPage() {
     const a = document.createElement("a"); a.href = url; a.download = `bitgraph-proof-${commit.counter}.zip`; a.click();
     URL.revokeObjectURL(url);
     } catch (e) { console.error("[bitgraph] export error:", e); alert("Export failed: " + e); }
+    finally { setExporting(false); }
   }
 
   return (
@@ -680,9 +686,9 @@ export default function ProofPage() {
                   Same link idiom as every other action on the page; it carries
                   a touch more type weight because it is the primary one. */}
               <div style={{ padding: "0 16px" }}>
-                <button onClick={exportZip} className="bg-action-link">
-                  <span>{cachedFile ? "Export BitGraph + File" : "Export BitGraph"}</span>
-                  <span className="arrow" aria-hidden>&rarr;</span>
+                <button onClick={exportZip} disabled={exporting} className="bg-action-link">
+                  <span>{exporting ? "Exporting…" : cachedFile ? "Export BitGraph + File" : "Export BitGraph"}</span>
+                  {!exporting && <span className="arrow" aria-hidden>&rarr;</span>}
                 </button>
                 {!cachedFile && (
                   <div style={{ fontSize: 12.5, color: "#6b7280", paddingBottom: 6 }}>
