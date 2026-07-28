@@ -4,11 +4,11 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Uses",
   description:
-    "Where causal ordering carries weight: periodic reporting, clinical records, evidence and custody, issued documents, instrument data, drafts, and photography.",
+    "Where causal ordering carries weight: photography, periodic reporting, clinical records, evidence and custody, issued documents, instrument data, and drafts.",
   openGraph: {
     title: "BitGraph: Uses",
     description:
-      "Where causal ordering carries weight: periodic reporting, clinical records, evidence and custody, issued documents, instrument data, drafts, and photography.",
+      "Where causal ordering carries weight: photography, periodic reporting, clinical records, evidence and custody, issued documents, instrument data, and drafts.",
   },
 };
 
@@ -17,9 +17,10 @@ export const metadata: Metadata = {
    BitGraph changes about it. The `changes` line is deliberately narrow. It
    states the new capability and stops, so no entry drifts into claiming truth,
    authorship or first creation, which the closing section then rules out
-   explicitly. Ordered by institutional buyer first: reporting and custody are
-   where someone already has a budget for this problem. Photography is last
-   because it is the origin story rather than the commercial lead.
+   explicitly. Photography leads (moved from last, 2026-07-29): it is the case
+   the reader can picture without being told, and the live product is a camera,
+   so the page opens on the thing the site already is. The institutional
+   entries follow, in buyer order, because that is where the budget is.
 
    Anchoring is stated once, in the intro. Naming it inside three separate
    case bodies made it read as a dependency of each one.
@@ -31,6 +32,14 @@ export const metadata: Metadata = {
    the sequence should contain (a per-period filing rule, an instrument counter,
    a batch manifest). Do not restore the unconditional phrasing. */
 const cases = [
+  {
+    title: "Photography and photojournalism",
+    who: "Photographers, picture desks, wire agencies",
+    body:
+      "A photograph's file cannot by itself establish where it came from. Metadata is editable, and a crop or a re-encode produces different bytes, so anything bound to the earlier version stops matching.",
+    changes:
+      "A BitGraph stays external to the image. The image's exact bytes are bound to a position reserved before those bytes were known, so a photographer can show that this version, in exactly this form, held that position. It sits alongside Content Credentials rather than replacing them: the manifest describes the image's path, the BitGraph records where that exact version landed.",
+  },
   {
     title: "Periodic reporting and attestations",
     who: "Reserve reports, regulatory filings, compliance statements",
@@ -78,14 +87,6 @@ const cases = [
       "Showing that you had something in a particular form at a particular stage normally means producing your own files and asking to be believed, which is precisely the evidence an opponent will dispute.",
     changes:
       "Recording a draft as it is made gives those exact bytes a position that cannot be created later. Revisions take later positions, so the development history itself becomes the evidence.",
-  },
-  {
-    title: "Photography and photojournalism",
-    who: "Photographers, picture desks, wire agencies",
-    body:
-      "A photograph's file cannot by itself establish where it came from. Metadata is editable, and a crop or a re-encode produces different bytes, so anything bound to the earlier version stops matching.",
-    changes:
-      "A BitGraph stays external to the image. The image's exact bytes are bound to a position reserved before those bytes were known, so a photographer can show that this version, in exactly this form, held that position. It sits alongside Content Credentials rather than replacing them: the manifest describes the image's path, the BitGraph records where that exact version landed.",
   },
 ];
 
