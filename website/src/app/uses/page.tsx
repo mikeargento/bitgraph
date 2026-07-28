@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { InlineExplainer } from "@/components/inline-explainer";
 
 export const metadata: Metadata = {
   title: "Uses",
@@ -137,11 +138,7 @@ export default function UsesPage() {
           is where the mechanism has just been compressed into two sentences and
           a reader either wants the picture or does not. "Applying it" is for
           doing, and its links are reference material. */}
-      <div style={{ marginBottom: 30 }}>
-        <Link href="/camera" className="bg-action-link">
-          How a BitGraph is made <span className="arrow">&rarr;</span>
-        </Link>
-      </div>
+      <InlineExplainer />
 
       {/* The two conditions are the page's spine. The first is a selection
           test, and it is deliberately written to disqualify: a page that says
