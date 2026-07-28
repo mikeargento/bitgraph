@@ -27,13 +27,15 @@ export function InlineExplainer() {
         aria-controls="inline-explainer"
         onClick={() => setOpen((o) => !o)}
       >
-        {/* Names what opens, not a destination. "How a BitGraph is made" was
-            /camera's meta description, which read correctly while this
-            navigated but reads as a page title now that it expands in place.
-            It also used "made", a verb the site does not use: BitGraphs are
-            taken and recorded. What actually opens is the camera analogy, so
-            the label promises that and ties it to the tagline. */}
-        {open ? "Hide the camera" : "See it as a camera"}{" "}
+        {/* Names what opens. Two earlier labels failed differently:
+            "How a BitGraph is made" was /camera's meta description, so it named
+            a destination rather than an action, and used "made", a verb this
+            site does not use (BitGraphs are taken and recorded).
+            "See it as a camera" collided with the product itself: the home page
+            IS the camera, so it read as "open the camera and record something".
+            What actually opens is six film-to-BitGraph equations, so the label
+            says exactly that and cannot be mistaken for a way to record. */}
+        {open ? "Hide the comparison" : "Compare it to film"}{" "}
         {/* The arrow turns to point down when open, so the control reads as an
             expander rather than as a link that failed to navigate. */}
         <span
