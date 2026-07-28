@@ -118,8 +118,8 @@ export default function ApplicationsPage() {
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
         A BitGraph gives a file a position. The slot is reserved from hardware
         entropy before the file&apos;s hash is known, the hash is bound to that slot
-        inside a measured boundary, and the sequence is anchored to Ethereum so
-        positions are fixed in a timeline nobody involved controls.
+        inside a measured boundary, and the sequence is anchored to a public
+        timeline nobody involved controls.
       </p>
       {/* Placed after the mechanism, not before it. As a consequence of what
           was just described it needs no setup; ahead of it, it was a property
