@@ -22,15 +22,22 @@ export const metadata: Metadata = {
    because it is the origin story rather than the commercial lead.
 
    Anchoring is stated once, in the intro. Naming it inside three separate
-   case bodies made it read as a dependency of each one. */
+   case bodies made it read as a dependency of each one.
+
+   Substitution and backdating are detectable from the sequence alone.
+   OMISSION IS NOT: a monotonic counter shared with other traffic says nothing
+   about an entry that was never made. Wherever a case claims a missing item
+   becomes visible, the claim is conditional on an external expectation of what
+   the sequence should contain (a per-period filing rule, an instrument counter,
+   a batch manifest). Do not restore the unconditional phrasing. */
 const cases = [
   {
     title: "Periodic reporting and attestations",
     who: "Reserve reports, regulatory filings, compliance statements",
     body:
-      "For a recurring report, the interesting question is rarely whether today's numbers are correct. It is whether the report existed in exactly this form before the events it is later measured against, and whether any report in the series was quietly replaced or omitted after the fact.",
+      "BitGraph cannot establish whether the numbers in a report are correct. It can establish whether the report existed in exactly this form before the events it is later measured against, and whether a report in the series was replaced after the fact.",
     changes:
-      "Each report consumes the next position in a sequence, and that position is fixed in a public timeline the issuer does not control. A missing period shows up as a gap, and a rewritten report will not match the position it claims.",
+      "Each report takes the next position in a sequence, and that position is fixed in a public timeline the issuer does not control. A rewritten report no longer matches the position the original occupied. Where the workflow requires one recorded entry per reporting period, an omitted report becomes visible too.",
   },
   {
     title: "Evidence and chain of custody",
@@ -38,23 +45,23 @@ const cases = [
     body:
       "Custody disputes are usually about order rather than content: which file existed before which, and whether an item entered the record before or after a claim was made. A file's own timestamp is asserted by whoever holds the file, and system clocks are adjustable.",
     changes:
-      "Ordering does not depend on any clock. A slot exists before the file that fills it, so a proof cannot be constructed backwards into the sequence, and each anchor seals everything committed before it. Time is subjective. The order is not.",
+      "Ordering does not depend on any clock. A position exists before the file that occupies it, so a later file cannot be inserted at an earlier point, and each anchor seals the order of everything committed before it. Time is subjective. The order is not.",
   },
   {
     title: "Issued documents and credentials",
     who: "Registrars, universities, licensing boards, certifying labs",
     body:
-      "An authority's value rests on the artifacts it issues being distinguishable from artifacts that merely look like them. Today that distinction usually depends on calling the issuer back, which does not scale, or on visual security features, which are a manufacturing problem rather than a cryptographic one.",
+      "An authority's value rests on the artifacts it issues being distinguishable from artifacts that merely look like them. Today that distinction usually depends on calling the issuer back, which does not scale, or on visual security features, which are designed to frustrate reproduction rather than to be checked cryptographically.",
     changes:
-      "Every issued document takes a position in the issuer's own sequence at the moment it is issued. A holder presents the document, and anyone can check the position without contacting the issuer. This is the case where the buyer and the authority are the same party.",
+      "Every issued document takes a position in the authority's own sequence at the moment it is issued. A holder presents the document with its proof, and the position can be checked without a fresh lookup against the issuer's records. The organization paying to record the document is the same one whose credibility the record protects.",
   },
   {
     title: "Instrument and field data",
     who: "Laboratories, sensor networks, survey and inspection work",
     body:
-      "Readings are trusted because of the process that produced them, and that trust is hard to carry outside the organization that ran the process. Once data leaves the instrument, a downstream reader cannot tell whether readings were dropped, reordered, or added later.",
+      "Readings are trusted because of the process that produced them, and that trust is hard to carry outside the organization that ran the process. Once data leaves the instrument, a downstream reader cannot tell whether readings were added later, removed, or put in a different order.",
     changes:
-      "Each reading takes its own position, so the record has a shape that someone who was not present can check. An inserted reading has no position, and a removed one leaves a gap.",
+      "Each reading, batch, or acquisition session takes a position in the instrument's sequence. A later insertion cannot occupy an earlier position, so the record has an order that someone who was not present can check. Where the expected readings are defined by an instrument counter, a schedule, or a batch manifest, an omitted reading becomes visible too.",
   },
   {
     title: "Drafts, designs and prior art",
@@ -62,15 +69,15 @@ const cases = [
     body:
       "Showing that you had something in a particular form at a particular stage normally means producing your own files and asking to be believed, which is precisely the evidence an opponent will dispute.",
     changes:
-      "Recording a draft as it is made gives it a position that cannot be created after the fact. The same bytes can be recorded again later at a new position, so a working sequence of revisions becomes the evidence itself.",
+      "Recording a draft as it is made gives those exact bytes a position that cannot be created later. Revisions take later positions, so the development history itself becomes the evidence. The same bytes can be recorded again, but a later recording cannot occupy the earlier position.",
   },
   {
     title: "Photography and photojournalism",
     who: "Photographers, picture desks, wire agencies",
     body:
-      "A photograph's origin cannot be established from the file. Metadata is editable, and a re-encode or a crop produces different bytes, so anything bound to the old bytes stops matching.",
+      "A photograph's file cannot by itself establish where it came from. Metadata is editable, and a crop or a re-encode produces different bytes, so anything bound to the earlier version stops matching.",
     changes:
-      "A BitGraph is external to the file. The exact bytes are bound to a position reserved before those bytes were known, so a photographer can show that this frame, in exactly this form, held that position. It sits alongside Content Credentials rather than replacing them: the manifest says how the image was made, the BitGraph says where it landed.",
+      "A BitGraph stays external to the image. Its exact bytes are bound to a position reserved before those bytes were known, so a photographer can show that this version, in exactly this form, held that position. It sits alongside Content Credentials rather than replacing them: the manifest describes the image's path, the BitGraph records where that exact version landed.",
   },
 ];
 
@@ -81,7 +88,7 @@ const limits = [
   },
   {
     label: "Authorship",
-    text: "A BitGraph attests the boundary that committed the bytes, not the person who made them.",
+    text: "A BitGraph attests the boundary that committed the file's hash, not the person who made the file.",
   },
   {
     label: "First creation",
@@ -197,10 +204,11 @@ export default function ApplicationsPage() {
       </p>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 40px" }}>
         <strong style={{ color: "#111827", fontWeight: 700 }}>There is an authority behind the artifact.</strong>{" "}
-        A BitGraph preserves the exact bits that authority asserted, so what it
-        issued stays distinguishable from what merely resembles it. That is what
-        is protected in every case below: not the truth of the assertion, but the
-        authority&apos;s ability to go on making assertions that hold.
+        A BitGraph preserves a verifiable record of the exact bits that authority
+        asserted, so what it issued stays distinguishable from what merely
+        resembles it. That is what is protected in every case below: not the
+        truth of the assertion, but the authority&apos;s ability to go on making
+        assertions that hold.
       </p>
 
       {cases.map((c) => (
@@ -253,10 +261,10 @@ export default function ApplicationsPage() {
           Applying it
         </h2>
         <p style={{ fontSize: 14, lineHeight: 1.65, color: "#1f2937", margin: "0 0 4px" }}>
-          Recording a file needs no integration. The home page takes a file and
-          returns a proof that is portable from that moment. Everything past
-          that, issuing in volume or recording from inside your own systems, is
-          the integration guide.
+          Recording a file needs no integration. The home page hashes the file
+          locally and returns a portable proof without uploading the file itself.
+          Everything past that, issuing in volume or recording from inside your
+          own systems, is the integration guide.
         </p>
         {/* "Record" was tried in the nav and removed, so this link is the only
             route from here into the product and has to carry that on its own.
