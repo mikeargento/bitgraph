@@ -10,7 +10,7 @@ export default function Sections4Through6() {
       {/* ================================================================ */}
       <section id="sec-invariants">
         <h2 className="text-xl font-semibold mt-12 mb-4">
-          <span className="text-[#636a78] mr-2">4</span>
+          <span className="text-[#4b5563] mr-2">4</span>
           System Invariants
         </h2>
 
@@ -133,7 +133,7 @@ export default function Sections4Through6() {
       {/* ================================================================ */}
       <section id="sec-tota">
         <h2 className="text-xl font-semibold mt-12 mb-4">
-          <span className="text-[#636a78] mr-2">5</span>
+          <span className="text-[#4b5563] mr-2">5</span>
           Trusted Origin Token Architecture
         </h2>
 
@@ -172,7 +172,7 @@ export default function Sections4Through6() {
         {/* 5.1 Functional Properties */}
         <section id="sec-functional-properties">
           <h3 className="text-lg font-semibold mt-8 mb-4">
-            <span className="text-[#636a78] mr-2">5.1</span>
+            <span className="text-[#4b5563] mr-2">5.1</span>
             Functional Properties
           </h3>
 
@@ -217,7 +217,7 @@ export default function Sections4Through6() {
         {/* 5.2 Limits of Token-Based Enforcement */}
         <section id="sec-limits-token">
           <h3 className="text-lg font-semibold mt-8 mb-4">
-            <span className="text-[#636a78] mr-2">5.2</span>
+            <span className="text-[#4b5563] mr-2">5.2</span>
             Limits of Token-Based Enforcement
           </h3>
 
@@ -247,7 +247,7 @@ export default function Sections4Through6() {
       {/* ================================================================ */}
       <section id="sec-bitgraph">
         <h2 className="text-xl font-semibold mt-12 mb-4">
-          <span className="text-[#636a78] mr-2">6</span>
+          <span className="text-[#4b5563] mr-2">6</span>
           BitGraph and Atomic Causality
         </h2>
 
@@ -298,7 +298,7 @@ export default function Sections4Through6() {
         {/* Figure 1: Token-Nonce Duality */}
         <div className="my-8 border border-[#e5e7eb] bg-[#f9fafb] p-6">
           <Figure1 />
-          <p className="text-xs text-[#636a78] mt-4 leading-relaxed">
+          <p className="text-xs text-[#4b5563] mt-4 leading-relaxed">
             <strong className="text-[#1f2937]">Figure 1.</strong>{" "}
             Token&ndash;Nonce duality. TOTA (left) consumes a pre-existing token
             from a finite pool. BitGraph (right) generates a boundary-fresh value
@@ -338,7 +338,7 @@ export default function Sections4Through6() {
         {/* 6.1 Atomic Causality */}
         <section id="sec-atomic-causality">
           <h3 className="text-lg font-semibold mt-8 mb-4">
-            <span className="text-[#636a78] mr-2">6.1</span>
+            <span className="text-[#4b5563] mr-2">6.1</span>
             Atomic Causality
           </h3>
 
@@ -373,7 +373,7 @@ export default function Sections4Through6() {
           {/* Figure 2: Atomic Causality */}
           <div className="my-8 border border-[#e5e7eb] bg-[#f9fafb] p-6">
             <Figure2 />
-            <p className="text-xs text-[#636a78] mt-4 leading-relaxed">
+            <p className="text-xs text-[#4b5563] mt-4 leading-relaxed">
               <strong className="text-[#1f2937]">Figure 2.</strong> Atomic
               Causality versus separated operations. In BitGraph (left),
               authorization, binding, and commit occur as a single indivisible
@@ -388,7 +388,7 @@ export default function Sections4Through6() {
         {/* 6.2 Why This Is Not Attested Execution */}
         <section id="sec-not-attestation">
           <h3 className="text-lg font-semibold mt-8 mb-4">
-            <span className="text-[#636a78] mr-2">6.2</span>
+            <span className="text-[#4b5563] mr-2">6.2</span>
             Why This Is Not Attested Execution
           </h3>
 
@@ -431,7 +431,7 @@ export default function Sections4Through6() {
         {/* 6.3 Token-Equivalence of Boundary-Fresh Generation */}
         <section id="sec-token-equivalence">
           <h3 className="text-lg font-semibold mt-8 mb-4">
-            <span className="text-[#636a78] mr-2">6.3</span>
+            <span className="text-[#4b5563] mr-2">6.3</span>
             Token-Equivalence of Boundary-Fresh Generation
           </h3>
 

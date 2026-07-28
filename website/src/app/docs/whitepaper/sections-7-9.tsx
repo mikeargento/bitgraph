@@ -9,7 +9,7 @@ export default function Sections7to9() {
       {/* ================================================================ */}
       <section id="sec-formal">
         <h2 className="text-xl font-semibold mt-12 mb-4">
-          <span className="text-[#636a78] mr-2">7</span> Formal Model
+          <span className="text-[#4b5563] mr-2">7</span> Formal Model
         </h2>
 
         <p className="text-sm text-[#1f2937] leading-relaxed mb-6">
@@ -22,7 +22,7 @@ export default function Sections7to9() {
         {/* 7.1 */}
         <section id="sec-state-space">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">7.1</span> State Space
+            <span className="text-[#4b5563] mr-2">7.1</span> State Space
             and Transition System
           </h3>
 
@@ -78,7 +78,7 @@ export default function Sections7to9() {
         {/* 7.2 */}
         <section id="sec-core-invariants">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">7.2</span> Core
+            <span className="text-[#4b5563] mr-2">7.2</span> Core
             Invariants
           </h3>
 
@@ -151,7 +151,7 @@ export default function Sections7to9() {
         {/* 7.3 */}
         <section id="sec-closure-algebra">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">7.3</span> Authenticated
+            <span className="text-[#4b5563] mr-2">7.3</span> Authenticated
             State as Constructor Image
           </h3>
 
@@ -209,7 +209,7 @@ export default function Sections7to9() {
         {/* 7.4 */}
         <section id="sec-duality">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">7.4</span> Token–Nonce
+            <span className="text-[#4b5563] mr-2">7.4</span> Token–Nonce
             Duality
           </h3>
 
@@ -312,7 +312,7 @@ export default function Sections7to9() {
       {/* ================================================================ */}
       <section id="sec-security">
         <h2 className="text-xl font-semibold mt-12 mb-4">
-          <span className="text-[#636a78] mr-2">8</span> Adversarial Model
+          <span className="text-[#4b5563] mr-2">8</span> Adversarial Model
           and Security Game
         </h2>
 
@@ -324,7 +324,7 @@ export default function Sections7to9() {
         {/* 8.1 */}
         <section id="sec-threat-model">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">8.1</span> Threat Model
+            <span className="text-[#4b5563] mr-2">8.1</span> Threat Model
           </h3>
 
           <p className="text-sm text-[#1f2937] leading-relaxed mb-3">
@@ -366,7 +366,7 @@ export default function Sections7to9() {
         {/* 8.2 */}
         <section id="sec-forgery-game">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">8.2</span> Security Game:
+            <span className="text-[#4b5563] mr-2">8.2</span> Security Game:
             Origin Forgery
           </h3>
 
@@ -494,7 +494,7 @@ export default function Sections7to9() {
         {/* 8.3 */}
         <section id="sec-falsifiers">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">8.3</span> Falsifiable
+            <span className="text-[#4b5563] mr-2">8.3</span> Falsifiable
             Distinctions
           </h3>
 
@@ -580,13 +580,13 @@ export default function Sections7to9() {
       {/* ================================================================ */}
       <section id="sec-architecture">
         <h2 className="text-xl font-semibold mt-12 mb-4">
-          <span className="text-[#636a78] mr-2">9</span> Architecture
+          <span className="text-[#4b5563] mr-2">9</span> Architecture
         </h2>
 
         {/* 9.1 */}
         <section id="sec-state-transition">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">9.1</span> State
+            <span className="text-[#4b5563] mr-2">9.1</span> State
             Transition Model
           </h3>
 
@@ -618,7 +618,7 @@ export default function Sections7to9() {
           {/* Figure 3: State Transition Model */}
           <div className="my-6 border border-[#e5e7eb] bg-[#f9fafb] p-5">
             <Figure3 />
-            <p className="text-xs text-[#636a78] text-center mt-3">
+            <p className="text-xs text-[#4b5563] text-center mt-3">
               <strong>Figure 3.</strong> State transition model. Authenticated
               durable state is reachable only through the protected commit
               interface inside the atomic execution boundary. No direct path
@@ -630,7 +630,7 @@ export default function Sections7to9() {
         {/* 9.2 */}
         <section id="sec-finalization-protocol">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">9.2</span> Atomic
+            <span className="text-[#4b5563] mr-2">9.2</span> Atomic
             Finalization Protocol
           </h3>
 
@@ -673,7 +673,7 @@ export default function Sections7to9() {
         {/* 9.3 */}
         <section id="sec-verification-model">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">9.3</span> Verification
+            <span className="text-[#4b5563] mr-2">9.3</span> Verification
             Model
           </h3>
 
@@ -705,7 +705,7 @@ export default function Sections7to9() {
         {/* 9.4 */}
         <section id="sec-enforcement-verification">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">9.4</span> Enforcement
+            <span className="text-[#4b5563] mr-2">9.4</span> Enforcement
             and Verification Are Separate Architectural Layers
           </h3>
 
@@ -752,7 +752,7 @@ export default function Sections7to9() {
         {/* 9.5 */}
         <section id="sec-verification-independence">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">9.5</span> Verification
+            <span className="text-[#4b5563] mr-2">9.5</span> Verification
             Independence from Proof Transport
           </h3>
 
@@ -814,7 +814,7 @@ export default function Sections7to9() {
               Verification Independence from Proof Transport
             </div>
             <Figure4 />
-            <p className="text-xs text-[#636a78] text-center mt-4">
+            <p className="text-xs text-[#4b5563] text-center mt-4">
               <strong>Figure 4.</strong> Verification independence from proof
               transport. Artifacts may carry verification material (top path) or
               be verified by reference lookup using the content hash (bottom
@@ -890,7 +890,7 @@ export default function Sections7to9() {
           {/* Figure 5: Verification Structure */}
           <div className="my-6 border border-[#e5e7eb] bg-[#f9fafb] p-5">
             <Figure5 />
-            <p className="text-xs text-[#636a78] text-center mt-4">
+            <p className="text-xs text-[#4b5563] text-center mt-4">
               <strong>Figure 5.</strong> Verification structure (portable proof
               model). In this depiction, an authenticated artifact carries its
               verification material. In the reference-based model (Figure 4),
@@ -903,7 +903,7 @@ export default function Sections7to9() {
         {/* 9.6 */}
         <section id="sec-boundary-compromise">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">9.6</span> Boundary
+            <span className="text-[#4b5563] mr-2">9.6</span> Boundary
             Compromise and Recovery
           </h3>
 
@@ -932,7 +932,7 @@ export default function Sections7to9() {
         {/* 9.7 */}
         <section id="sec-convergent-witnessing">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">9.7</span> Convergent
+            <span className="text-[#4b5563] mr-2">9.7</span> Convergent
             Independent Witnessing
           </h3>
 
@@ -1042,7 +1042,7 @@ export default function Sections7to9() {
         {/* 9.8 */}
         <section id="sec-security-properties">
           <h3 className="text-lg font-semibold mt-8 mb-3">
-            <span className="text-[#636a78] mr-2">9.8</span> Security
+            <span className="text-[#4b5563] mr-2">9.8</span> Security
             Properties
           </h3>
 

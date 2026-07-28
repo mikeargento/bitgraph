@@ -105,7 +105,7 @@ export default function UsesPage() {
       <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
         Uses
       </div>
-      <div style={{ fontSize: 13, fontWeight: 400, color: "#636a78", marginTop: 2, marginBottom: 28 }}>
+      <div style={{ fontSize: 13, fontWeight: 400, color: "#4b5563", marginTop: 2, marginBottom: 28 }}>
         Where the order of records carries weight.
       </div>
 
@@ -177,7 +177,7 @@ export default function UsesPage() {
           </h2>
           <div style={{
             fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase",
-            color: "#636a78", margin: "6px 0 12px",
+            color: "#4b5563", margin: "6px 0 12px",
           }}>
             {c.who}
           </div>
@@ -221,23 +221,21 @@ export default function UsesPage() {
           Everything past that, issuing in volume or recording from inside your
           own systems, is the integration guide.
         </p>
-        {/* "Record" was tried in the nav and removed, so this link is the only
-            route from here into the product and has to carry that on its own.
-            It gets scale and its own line rather than a button: the site has no
-            buttons, so prominence comes from size and space. The two reference
-            links stay at the default size underneath so the ranking is obvious. */}
+        {/* All three at the default size. "Record" is the primary action and is
+            marked by being first, which is the rule globals.css already states
+            for .bg-action-link: every action is the same size, the primary one
+            is marked by position, not by weight. An 18px Record was tried and
+            was the only size-varied action link on the site. */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-          <Link href="/" className="bg-action-link" style={{ fontSize: 18, paddingTop: 18, paddingBottom: 10 }}>
+          <Link href="/" className="bg-action-link">
             Record a file <span className="arrow">&rarr;</span>
           </Link>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", marginTop: 6 }}>
-            <Link href="/docs/integration" className="bg-action-link" style={{ paddingTop: 8, paddingBottom: 8 }}>
-              Integration guide <span className="arrow">&rarr;</span>
-            </Link>
-            <Link href="/docs/trust-model" className="bg-action-link" style={{ paddingTop: 8, paddingBottom: 8 }}>
-              Trust model <span className="arrow">&rarr;</span>
-            </Link>
-          </div>
+          <Link href="/docs/integration" className="bg-action-link">
+            Integration guide <span className="arrow">&rarr;</span>
+          </Link>
+          <Link href="/docs/trust-model" className="bg-action-link">
+            Trust model <span className="arrow">&rarr;</span>
+          </Link>
         </div>
       </div>
     </div>

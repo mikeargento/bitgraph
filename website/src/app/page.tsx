@@ -729,7 +729,7 @@ export default function BitGraphPage() {
         .see-example-link .arrow { transition: transform .18s ease; }
         @media (hover: hover) { .see-example-link:hover .arrow { transform: translateX(3px); } }
         .see-example-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
-        .see-example-note { margin: 9px auto 0; font-size: 11.5px; line-height: 1.45; color: #636a78; letter-spacing: -0.005em; }
+        .see-example-note { margin: 9px auto 0; font-size: 11.5px; line-height: 1.45; color: #4b5563; letter-spacing: -0.005em; }
         /* Waiting states (read/check/prove/export) all pin their center to the
            SAME viewport point the success checkmark uses (fixed, 44% down,
            horizontally centered), so every wait and the capture moment share
@@ -884,7 +884,7 @@ export default function BitGraphPage() {
                     {animCount} of {items.length}
                   </span>
                   {found.length > 0 && (anchorCountdown > 0 ? (
-                    <span style={{ fontSize: 13, color: "#636a78", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: 13, color: "#4b5563", whiteSpace: "nowrap" }}>
                       Download in {anchorCountdown}s
                     </span>
                   ) : (
@@ -986,7 +986,7 @@ export default function BitGraphPage() {
                     {/* Left — the position number (or the pending state for rows
                         not yet BitGraphed). No "BitGraph" prefix: everything on
                         this card is one, the # carries it. */}
-                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#636a78" }}>
+                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#4b5563" }}>
                       {counter != null
                         ? <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
                         : pendingLabel}
@@ -996,14 +996,14 @@ export default function BitGraphPage() {
                         (k === 0) as the original. Single recordings show nothing
                         here, so an ordinary row stays just "# … Open". */}
                     {rowProofs.length > 1 && (
-                      <span style={{ flexShrink: 0, fontSize: 12.5, color: "#636a78", whiteSpace: "nowrap" }}>
+                      <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>
                         ({k + 1} of {rowProofs.length}{k === 0 ? " · original" : ""})
                       </span>
                     )}
                     {/* Right side matches the Roll's row anatomy: compact
                         anchor time, then the chevron. Unanchored rows (fresh
                         recordings) simply leave the time blank. */}
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#636a78", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#4b5563", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                       {fmtRowWhen(item.times?.[k])}
                     </span>
                     {clickable && (
@@ -1107,16 +1107,16 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
     >
       <input ref={inputRef} type="file" style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ""; check(f); }} />
       {state === "checking" ? (
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#636a78" }}>Checking…</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#4b5563" }}>Checking…</div>
       ) : mismatch ? (
         <>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#dc2626" }}>These bytes don&rsquo;t match this proof</div>
-          <div style={{ fontSize: 12.5, color: "#636a78", marginTop: 5 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
+          <div style={{ fontSize: 12.5, color: "#4b5563", marginTop: 5 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
         </>
       ) : (
         <>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>Have the file? Check it matches this proof.</div>
-          <div style={{ fontSize: 12.5, color: "#636a78", marginTop: 5 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
+          <div style={{ fontSize: 12.5, color: "#4b5563", marginTop: 5 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
         </>
       )}
     </div>

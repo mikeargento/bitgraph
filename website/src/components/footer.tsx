@@ -9,7 +9,7 @@ export function Footer() {
       borderTop: "1px solid #e5e7eb",
       textAlign: "center",
     }}>
-      <span style={{ fontSize: 13, color: "#636a78" }}>
+      <span style={{ fontSize: 13, color: "#4b5563" }}>
         BitGraph — Patent Pending
       </span>
     </footer>

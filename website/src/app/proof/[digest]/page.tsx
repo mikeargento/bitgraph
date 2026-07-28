@@ -446,7 +446,7 @@ export default function ProofPage() {
       recordedNode = (
         <>
           between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and{" "}
-          <span style={{ color: "#636a78", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
+          <span style={{ color: "#4b5563", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
             waiting for the next block…
           </span>
         </>
@@ -464,10 +464,10 @@ export default function ProofPage() {
   // in black, kept as unbreakable units. A cross-midnight window carries full
   // date stamps, long enough to wrap at its connectors — fine for that rare case.
   let leadStack: React.ReactNode = null;
-  const conn = (label: string) => <span style={{ color: "#636a78", fontWeight: 400 }}>{label}</span>;
+  const conn = (label: string) => <span style={{ color: "#4b5563", fontWeight: 400 }}>{label}</span>;
   const val = (t: string) => <span style={{ color: "#111827", fontWeight: 400, whiteSpace: "nowrap" }}>{t}</span>;
   const winLine = (children: React.ReactNode) => (
-    <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#636a78" }}>{children}</div>
+    <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#4b5563" }}>{children}</div>
   );
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
     // The block number lives in the "BitGraphed Ethereum Block" card below, so
@@ -646,7 +646,7 @@ export default function ProofPage() {
         .causal-label { font-size: 14px; font-weight: 700; white-space: nowrap; }
         .causal-action { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
         .causal-role { font-size: 13px; font-weight: 700; color: #111827; margin-top: 6px; }
-        .causal-window { font-size: 13px; color: #636a78; line-height: 1.5; margin-top: 2px; }
+        .causal-window { font-size: 13px; color: #4b5563; line-height: 1.5; margin-top: 2px; }
         @media print {
         }
       `}</style>
@@ -726,7 +726,7 @@ export default function ProofPage() {
                   {!exporting && <span className="arrow" aria-hidden>&rarr;</span>}
                 </button>
                 {!cachedFile && (
-                  <div style={{ fontSize: 12.5, color: "#636a78", paddingBottom: 6 }}>
+                  <div style={{ fontSize: 12.5, color: "#4b5563", paddingBottom: 6 }}>
                     BitGraph only: the original file is not on this device
                   </div>
                 )}
@@ -959,7 +959,7 @@ export default function ProofPage() {
             </CollapsibleCard>
           ) : !isEth && !isInterval ? (
             <CollapsibleCard title="Recorded before the next block">
-              <div style={{ padding: "14px 16px", fontSize: 14, color: "#636a78" }}>
+              <div style={{ padding: "14px 16px", fontSize: 14, color: "#4b5563" }}>
                 Waiting for the next Ethereum block…
               </div>
             </CollapsibleCard>
@@ -1271,16 +1271,16 @@ function BringYourFile({
     >
       <input ref={inputRef} type="file" style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ""; check(f); }} />
       {state === "checking" ? (
-        <div style={{ fontSize: 15, fontWeight: 600, color: "#636a78" }}>Checking…</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "#4b5563" }}>Checking…</div>
       ) : mismatch ? (
         <>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>These bytes don&rsquo;t match this BitGraph</div>
-          <div style={{ fontSize: 13, color: "#636a78", marginTop: 6 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
+          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 6 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
         </>
       ) : (
         <>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Have the file? Check it against this BitGraph.</div>
-          <div style={{ fontSize: 13, color: "#636a78", marginTop: 6 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
+          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 6 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
         </>
       )}
     </div>
@@ -1420,7 +1420,7 @@ function PhotoCard({
           (a C2PA-thumbnail-only preview has no full file to name or open). */}
       {cachedFile && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid #eef0f1" }}>
-          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "#636a78" }}>
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "#4b5563" }}>
             <span style={{ fontWeight: 600, color: "#111827" }}>{cachedFile.name}</span>
             {" · "}{fmtBytes(cachedFile.data.byteLength)}
           </span>
@@ -1533,7 +1533,7 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
           rendering it is the whole display: the file's name and size, held by
           the receipt — the hash below is the part that matters. */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: hasPreviewAbove ? "1px solid #eef0f1" : "none" }}>
-        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "#636a78" }}>
+        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "#4b5563" }}>
           <span style={{ fontWeight: 600, color: "#111827" }}>{cachedFile.name}</span>
           {" · "}{fmtBytes(cachedFile.data.byteLength)}
         </span>
@@ -1806,7 +1806,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
         {/* Body */}
         <div style={{ flex: 1, overflow: "auto", padding: "18px 20px" }}>
           {running && (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "#636a78", fontSize: 14 }}>
+            <div style={{ padding: "40px 20px", textAlign: "center", color: "#4b5563", fontSize: 14 }}>
               Verifying signature, certificate chain, and PCR0…
             </div>
           )}
@@ -1822,7 +1822,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
                 <div style={{ fontSize: 14, fontWeight: 700, color: result.valid ? "#0065A4" : "#dc2626" }}>
                   {result.valid ? "Attestation Verified" : "Verification Failed"}
                 </div>
-                <div style={{ fontSize: 12, color: "#636a78", marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: "#4b5563", marginTop: 4 }}>
                   {result.valid
                     ? "All checks passed. This BitGraph was signed inside an AWS Nitro Enclave with the displayed PCR0."
                     : "One or more verification steps failed. See details below."}
@@ -1836,7 +1836,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
                     <span style={{ fontSize: 16, color: c.pass ? "#0065A4" : "#dc2626", flexShrink: 0 }}>{c.pass ? "✓" : "✗"}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: "#636a78", marginTop: 2, wordBreak: "break-all" }}>{c.detail}</div>
+                      <div style={{ fontSize: 12, color: "#4b5563", marginTop: 2, wordBreak: "break-all" }}>{c.detail}</div>
                     </div>
                   </div>
                 ))}
@@ -1845,20 +1845,20 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               {/* Decoded fields */}
               {(result.moduleId || result.timestamp || result.certChainLength) && (
                 <div style={{ marginBottom: 18, padding: "14px 18px", background: "#f9fafb", borderRadius: 0, border: "1px solid #e5e7eb" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#636a78", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Decoded from Attestation Document</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Decoded from Attestation Document</div>
                   {result.moduleId && (
                     <div style={{ fontSize: 12, color: "#374151", marginBottom: 4, wordBreak: "break-all" }}>
-                      <span style={{ color: "#636a78" }}>Module ID: </span>{result.moduleId}
+                      <span style={{ color: "#4b5563" }}>Module ID: </span>{result.moduleId}
                     </div>
                   )}
                   {result.timestamp && (
                     <div style={{ fontSize: 12, color: "#374151", marginBottom: 4 }}>
-                      <span style={{ color: "#636a78" }}>Timestamp: </span>{stampTz(new Date(result.timestamp))}
+                      <span style={{ color: "#4b5563" }}>Timestamp: </span>{stampTz(new Date(result.timestamp))}
                     </div>
                   )}
                   {result.certChainLength && (
                     <div style={{ fontSize: 12, color: "#374151" }}>
-                      <span style={{ color: "#636a78" }}>Certificate Chain: </span>{result.certChainLength} certificates
+                      <span style={{ color: "#4b5563" }}>Certificate Chain: </span>{result.certChainLength} certificates
                     </div>
                   )}
                 </div>
@@ -1867,12 +1867,12 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               {/* Other PCRs */}
               {Object.keys(result.pcrs).length > 1 && (
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#636a78", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Other Active PCRs</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Other Active PCRs</div>
                   {Object.entries(result.pcrs)
                     .filter(([idx]) => idx !== "0")
                     .map(([idx, hex]) => (
-                      <div key={idx} style={{ fontSize: 11, fontFamily: mono, color: "#636a78", marginBottom: 4, wordBreak: "break-all" }}>
-                        <span style={{ color: "#636a78" }}>PCR{idx}: </span>{hex}
+                      <div key={idx} style={{ fontSize: 11, fontFamily: mono, color: "#4b5563", marginBottom: 4, wordBreak: "break-all" }}>
+                        <span style={{ color: "#4b5563" }}>PCR{idx}: </span>{hex}
                       </div>
                     ))}
                 </div>
@@ -1892,7 +1892,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               {/* Raw report */}
               <div style={{ padding: "12px 16px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#636a78", textTransform: "uppercase", letterSpacing: "0.06em" }}>Raw Attestation Report</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.06em" }}>Raw Attestation Report</div>
                   <button
                     onClick={() => { navigator.clipboard.writeText(reportB64); setCopiedReport(true); setTimeout(() => setCopiedReport(false), 1500); }}
                     style={{ fontSize: 11, fontWeight: 600, color: "var(--c-accent)", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
@@ -1900,7 +1900,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
                     {copiedReport ? "Copied!" : "Copy"}
                   </button>
                 </div>
-                <div style={{ fontSize: 10, fontFamily: mono, color: "#636a78", wordBreak: "break-all", maxHeight: 60, overflow: "hidden" }}>
+                <div style={{ fontSize: 10, fontFamily: mono, color: "#4b5563", wordBreak: "break-all", maxHeight: 60, overflow: "hidden" }}>
                   {reportB64.slice(0, 200)}...
                 </div>
               </div>

@@ -99,11 +99,11 @@ export default function TocDropdown() {
               key={s.id}
               onClick={() => scrollTo(s.id)}
               className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 transition-colors flex gap-2 ${
-                s.indent ? "pl-8 text-[#636a78]" : "text-[#1f2937] font-medium"
+                s.indent ? "pl-8 text-[#4b5563]" : "text-[#1f2937] font-medium"
               }`}
             >
               {s.num && (
-                <span className="text-[#636a78] w-8 shrink-0 font-mono text-xs leading-5">
+                <span className="text-[#4b5563] w-8 shrink-0 font-mono text-xs leading-5">
                   {s.num}
                 </span>
               )}
