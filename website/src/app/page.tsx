@@ -170,6 +170,11 @@ export default function BitGraphPage() {
 
   const found = items.filter(i => i.status === "found" || i.status === "proved");
   const unproven = items.filter(i => i.status === "new");
+  // What the export label counts. These mirror downloadZip's own filter, so the
+  // label always names what the zip actually holds: one entry per file, and one
+  // proof.json per causal position that file occupies.
+  const zipFileCount = items.filter(i => i.proof).length;
+  const zipProofCount = items.reduce((n, i) => n + (i.proof ? (i.proofs.length || 1) : 0), 0);
   // Only files that actually have a BitGraph get a row (plus errors, so a
   // failure is never silent). A not-yet-recorded file is not a BitGraph, so it
   // is represented by the count banner and the "BitGraph N remaining" button,
@@ -899,8 +904,17 @@ export default function BitGraphPage() {
                     // Same action-link idiom as every other action in the
                     // product. Paired with the count on its left, so it hangs
                     // on the right the way "Open →" does on a file row.
+                    // Names the CONTENTS, not the container, and is the exact
+                    // plural of the proof page's "Export BitGraph + File". It
+                    // was "Download .zip", which described the plumbing: a zip
+                    // is what every export on the site already is, so saying so
+                    // carried no information and made the two views, the same
+                    // bundle from a batch and from one recording, speak
+                    // differently. Both halves pluralize independently, because
+                    // one file recorded at several causal positions really does
+                    // export several BitGraphs of one file.
                     <button onClick={downloadZip} className="bg-action-link" style={{ padding: 0 }}>
-                      <span>Download .zip</span>
+                      <span>Export BitGraph{zipProofCount === 1 ? "" : "s"} + File{zipFileCount === 1 ? "" : "s"}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
                   ))}
