@@ -50,31 +50,13 @@ html {
   /* overflow-x moved to body — overflow on html breaks position:sticky */
 }
 
-/* Rubber-band overscroll at the top exposes the canvas, which takes its colour
-   from body, so pulling down showed a grey band above the white sticky nav and
-   made the bar look like it was floating. This paints a screen's worth of white
-   immediately above the page origin: it is part of the document, so it slides
-   into view with the overscroll and meets the nav exactly.
-
-   Deliberately not `html { background: #fff }`, which is the usual fix: the
-   canvas colour applies at BOTH ends, so it would turn the overscroll below the
-   footer white as well, which nobody asked for. Absolute rather than fixed,
-   because a fixed element stays put during a rubber band instead of moving with
-   the page. Content above the origin is never scrollable, so this adds no
-   scroll area. */
-body::before {
-  content: "";
-  position: absolute;
-  top: -100vh;
-  left: 0;
-  right: 0;
-  height: 100vh;
-  background: #ffffff;
-  pointer-events: none;
-}
+/* No overscroll block here. One existed while the nav was white, painting a
+   screen of white above the page origin so a rubber band did not expose the
+   canvas above the bar. The nav shares the page background again, so the canvas
+   already matches and nothing needs painting. Re-add it if the nav ever becomes
+   a distinct surface, and match its colour to the bar. */
 
 body {
-  position: relative;
   background: var(--bg);
   color: var(--c-text);
   font-family: var(--font-sans);

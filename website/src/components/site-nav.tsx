@@ -12,17 +12,18 @@ const warmRoll = () => warm(ROLL_FEED_KEY);
 
 export function SiteNav() {
   return (
-    // White bar on the off-white page, so the nav reads as its own band instead
-    // of dissolving into the content. The rule underneath is deliberately the
-    // PAGE background colour, not a border colour: over open page it is the
-    // same value on both sides and therefore invisible, and it only resolves
-    // into a visible hairline where a white card scrolls up beneath the sticky
-    // bar, which is the one moment separation is needed. A darker rule (the
-    // #e5e7eb footer divider, or worse the #d0d5dd card border) would draw a
-    // permanent line across every page and make the bar read as a card.
+    // The nav shares the page background on purpose. A white bar was tried on
+    // 2026-07-27 and reverted: it gave the page a defined top edge, but it also
+    // turned the site's one continuous surface into chrome plus content, which
+    // is the thing that makes this read as a document rather than an app. White
+    // is the cards' value too, so on the Roll and on proof pages the bar and the
+    // content were the same colour anyway. If it is ever revisited, #fafafa is
+    // the middle option: distinct from the page without borrowing the cards'
+    // white. Anything that makes the bar a surface also needs the overscroll
+    // block that used to live in globals.css, or pulling down shows the canvas.
     <div id="site-nav" style={{
-      borderBottom: "1px solid #f5f5f5",
-      background: "#ffffff",
+      borderBottom: "none",
+      background: "#f5f5f5",
       position: "sticky", top: 0, zIndex: 50,
     }}>
       <div style={{
