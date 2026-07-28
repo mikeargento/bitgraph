@@ -106,7 +106,7 @@ export default function UsesPage() {
         Uses
       </div>
       <div style={{ fontSize: 13, fontWeight: 400, color: "#6b7280", marginTop: 2, marginBottom: 28 }}>
-        Where the order of things carries weight.
+        Where the order of records carries weight.
       </div>
 
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
