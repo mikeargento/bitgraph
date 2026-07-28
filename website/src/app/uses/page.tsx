@@ -4,11 +4,11 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Uses",
   description:
-    "Where causal ordering carries weight: periodic reporting, evidence and custody, issued documents, instrument data, drafts, and photography.",
+    "Where causal ordering carries weight: periodic reporting, clinical records, evidence and custody, issued documents, instrument data, drafts, and photography.",
   openGraph: {
     title: "BitGraph: Uses",
     description:
-      "Where causal ordering carries weight: periodic reporting, evidence and custody, issued documents, instrument data, drafts, and photography.",
+      "Where causal ordering carries weight: periodic reporting, clinical records, evidence and custody, issued documents, instrument data, drafts, and photography.",
   },
 };
 
@@ -38,6 +38,14 @@ const cases = [
       "BitGraph cannot establish whether the numbers in a report are correct. It can establish whether the report existed in exactly this form before the events it is later measured against, and whether a report in the series was replaced after the fact.",
     changes:
       "Each report takes the next position in a sequence, and that position is fixed in a public timeline the issuer does not control. A rewritten report no longer matches the position the original occupied. Where the workflow requires one recorded entry per reporting period, an omitted report becomes visible too.",
+  },
+  {
+    title: "Clinical records and chart entries",
+    who: "Hospitals, practices, medical-legal teams",
+    body:
+      "Malpractice and consent disputes often turn on when a note entered the chart rather than on what it says. Record systems do keep audit trails, but they are maintained by the same organization whose care is in question, which is the position a provider is least able to argue from.",
+    changes:
+      "A note takes a position in a sequence when it is written, and that position is fixed in a public timeline the provider does not control. An entry added or revised after an event cannot occupy the earlier position. Only the hash is committed, so nothing in the chart is disclosed in order to record it.",
   },
   {
     title: "Evidence and chain of custody",
@@ -153,7 +161,7 @@ export default function UsesPage() {
       {/* The two conditions are the page's spine. The first is a selection
           test, and it is deliberately written to disqualify: a page that says
           everything qualifies is not saying anything. The second is what makes
-          the six entries instances of one thing rather than a list. Both stop
+          the seven entries instances of one thing rather than a list. Both stop
           short of the truth claim on purpose: the authority's ability to go on
           asserting is preserved, the truth of what it asserts is not. */}
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 14px" }}>
