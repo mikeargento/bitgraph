@@ -129,91 +129,12 @@ export default function ApplicationsPage() {
         the protocol, so material that cannot be disclosed can still be recorded.
       </p>
 
-      {/* One diagram for the whole page, carrying the single counterintuitive
-          idea every case below depends on: the position is created before the
-          thing that fills it.
-
-          Two stacked states, not one row. The idea is temporal, and a single
-          left-to-right row can only offer a spatial axis, which reads as
-          chronology: 44 looks like it merely comes after 43. True, and not the
-          point. Before and after give the diagram a time axis of its own, so
-          the caption stops doing the image's job.
-
-          Static SVG, no script and no animation. Colors are explicit rather
-          than themed because the site is light only. The viewBox stays 420 wide
-          so that at a 342px mobile column the 15px hash type still renders near
-          12px instead of disappearing. */}
-      <figure style={{ margin: "0 0 40px" }}>
-        <svg
-          viewBox="0 0 420 268"
-          role="img"
-          aria-labelledby="seqTitle seqDesc"
-          style={{ width: "100%", maxWidth: 460, height: "auto", display: "block", margin: "0 auto" }}
-        >
-          <title id="seqTitle">The same sequence before and after a file is recorded</title>
-          <desc id="seqDesc">
-            Before: positions 42 and 43 hold a file hash, position 44 exists but
-            is empty and marked reserved, and position 45 is empty. After: a file
-            has arrived and its hash now occupies position 44. Positions 42 and
-            43 are unchanged and 45 is still empty.
-          </desc>
-
-          {/* BEFORE */}
-          <text x="34" y="12" fontSize="13" fontWeight="700" letterSpacing="1.6" fill="#6b7280">BEFORE</text>
-          {/* The strip behind the cells, visible in the gaps, so each row reads
-              as one continuing sequence rather than four separate boxes. */}
-          <line x1="28" y1="50" x2="418" y2="50" stroke="#e5e7eb" strokeWidth="1" />
-          <text x="14" y="55" textAnchor="middle" fontSize="15" fill="#9ca3af">…</text>
-          <rect x="34" y="22" width="84" height="56" fill="#eef5fa" stroke="#0065A4" strokeWidth="1.5" />
-          <text x="76" y="56" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="15" fontWeight="600" fill="#0065A4">8a2f…</text>
-          <rect x="132" y="22" width="84" height="56" fill="#eef5fa" stroke="#0065A4" strokeWidth="1.5" />
-          <text x="174" y="56" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="15" fontWeight="600" fill="#0065A4">3f9c…</text>
-          {/* The reserved position: it exists, and it is empty. The label sits
-              inside the cell so the state is legible without a legend. */}
-          <rect x="230" y="22" width="84" height="56" fill="#ffffff" stroke="#0065A4" strokeWidth="1.5" strokeDasharray="5 4" />
-          <text x="272" y="55" textAnchor="middle" fontSize="12" fontWeight="600" fill="#0065A4">reserved</text>
-          {/* Drawn in the label gray rather than a lighter tint: subordinate to
-              the reserved cell, but a reviewer reading a downscaled render
-              missed it entirely, so it has to survive poor reproduction. */}
-          <rect x="328" y="22" width="84" height="56" fill="#ffffff" stroke="#6b7280" strokeWidth="1.5" strokeDasharray="5 4" />
-          <text x="76" y="96" textAnchor="middle" fontSize="14" fill="#6b7280">42</text>
-          <text x="174" y="96" textAnchor="middle" fontSize="14" fill="#6b7280">43</text>
-          <text x="272" y="96" textAnchor="middle" fontSize="14" fill="#6b7280">44</text>
-          <text x="370" y="96" textAnchor="middle" fontSize="14" fill="#6b7280">45</text>
-
-          {/* The file arrives between the two states */}
-          <path d="M258 112 H278 L286 120 V146 H258 Z" fill="#ffffff" stroke="#0065A4" strokeWidth="1.5" strokeLinejoin="miter" />
-          <path d="M278 112 V120 H286" fill="none" stroke="#0065A4" strokeWidth="1.5" />
-          <path d="M264 129 H280 M264 135 H280" stroke="#0065A4" strokeWidth="1.5" opacity="0.55" />
-          <line x1="272" y1="150" x2="272" y2="168" stroke="#0065A4" strokeWidth="1.5" />
-          <path d="M266 168 H278 L272 177 Z" fill="#0065A4" />
-
-          {/* AFTER */}
-          <text x="34" y="166" fontSize="13" fontWeight="700" letterSpacing="1.6" fill="#6b7280">AFTER</text>
-          <line x1="28" y1="212" x2="418" y2="212" stroke="#e5e7eb" strokeWidth="1" />
-          <text x="14" y="217" textAnchor="middle" fontSize="15" fill="#9ca3af">…</text>
-          <rect x="34" y="184" width="84" height="56" fill="#eef5fa" stroke="#0065A4" strokeWidth="1.5" />
-          <text x="76" y="218" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="15" fontWeight="600" fill="#0065A4">8a2f…</text>
-          <rect x="132" y="184" width="84" height="56" fill="#eef5fa" stroke="#0065A4" strokeWidth="1.5" />
-          <text x="174" y="218" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="15" fontWeight="600" fill="#0065A4">3f9c…</text>
-          {/* 44 now holds the arriving file's hash. Same position, same box, one
-              state later: that equivalence is the whole diagram. */}
-          <rect x="230" y="184" width="84" height="56" fill="#eef5fa" stroke="#0065A4" strokeWidth="1.5" />
-          <text x="272" y="218" textAnchor="middle" fontFamily="ui-monospace, monospace" fontSize="15" fontWeight="600" fill="#0065A4">c1d7…</text>
-          <rect x="328" y="184" width="84" height="56" fill="#ffffff" stroke="#6b7280" strokeWidth="1.5" strokeDasharray="5 4" />
-          <text x="76" y="258" textAnchor="middle" fontSize="14" fill="#6b7280">42</text>
-          <text x="174" y="258" textAnchor="middle" fontSize="14" fill="#6b7280">43</text>
-          <text x="272" y="258" textAnchor="middle" fontSize="14" fill="#6b7280">44</text>
-          <text x="370" y="258" textAnchor="middle" fontSize="14" fill="#6b7280">45</text>
-        </svg>
-        {/* Shorter than it was: the two states now carry the sequencing, so the
-            caption only has to name the constraint. textWrap balance because
-            centered text under a symmetrical diagram broke 452px over 228px. */}
-        <figcaption style={{ fontSize: 13, lineHeight: 1.55, color: "#6b7280", textAlign: "center", maxWidth: 460, margin: "14px auto 0", textWrap: "balance" }}>
-          The position is created empty. A file can only fill one that was
-          already waiting.
-        </figcaption>
-      </figure>
+      {/* No diagram here on purpose. /camera is the explainer page and already
+          shows the frame existing before the exposure, in far more depth. A
+          smaller version on this page duplicated it and did it worse, and a
+          how-it-works illustration is a scope leak on a page that answers where
+          this applies. The two sentences above carry the mechanism; anyone who
+          wants the picture has a page built for it. */}
 
       {/* The two conditions are the page's spine. The first is a selection
           test, and it is deliberately written to disqualify: a page that says
