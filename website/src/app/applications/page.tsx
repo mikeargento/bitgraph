@@ -181,7 +181,10 @@ export default function ApplicationsPage() {
           <text x="370" y="161" textAnchor="middle" fontSize="14" fill="#6b7280">45</text>
           <text x="272" y="181" textAnchor="middle" fontSize="13" fontWeight="600" fill="#0065A4">reserved</text>
         </svg>
-        <figcaption style={{ fontSize: 13, lineHeight: 1.55, color: "#6b7280", textAlign: "center", maxWidth: 460, margin: "14px auto 0" }}>
+        {/* textWrap balance: centered on its own, this broke 452px over 228px,
+            a near half-length second line under a symmetrical diagram. Same
+            property the /camera subhead and closer already use. */}
+        <figcaption style={{ fontSize: 13, lineHeight: 1.55, color: "#6b7280", textAlign: "center", maxWidth: 460, margin: "14px auto 0", textWrap: "balance" }}>
           Position 44 exists before the file that fills it. The file arrives
           second, and can only take a position that was already waiting.
         </figcaption>
