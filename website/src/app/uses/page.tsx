@@ -138,8 +138,16 @@ export default function UsesPage() {
           operative fact, that the slot is reserved before the hash is known.
           /camera remains the place for the analogy. */}
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 40 }}>
+        {/* Says what the public record reveals, not that recording is private.
+            "BitGraphing is completely private" was considered and is false: the
+            Roll publishes every digest, position and time, permanently and
+            on-chain, and anyone holding the file can hash it and find the
+            record. Content is private, the record is public by design, and that
+            is what makes it checkable by a third party. Getting this wrong would
+            mislead exactly the regulated reader this page is written for. */}
         Only the hash of a file is committed. The file itself is never handed to
         the protocol, so material that cannot be disclosed can still be recorded.
+        The record shows that some exact bits took a position, not what they were.
       </p>
 
       {/* The two conditions are the page's spine. The first is a selection
