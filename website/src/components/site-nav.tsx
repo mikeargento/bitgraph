@@ -12,9 +12,17 @@ const warmRoll = () => warm(ROLL_FEED_KEY);
 
 export function SiteNav() {
   return (
+    // White bar on the off-white page, so the nav reads as its own band instead
+    // of dissolving into the content. The rule underneath is deliberately the
+    // PAGE background colour, not a border colour: over open page it is the
+    // same value on both sides and therefore invisible, and it only resolves
+    // into a visible hairline where a white card scrolls up beneath the sticky
+    // bar, which is the one moment separation is needed. A darker rule (the
+    // #e5e7eb footer divider, or worse the #d0d5dd card border) would draw a
+    // permanent line across every page and make the bar read as a card.
     <div id="site-nav" style={{
-      borderBottom: "none",
-      background: "#f5f5f5",
+      borderBottom: "1px solid #f5f5f5",
+      background: "#ffffff",
       position: "sticky", top: 0, zIndex: 50,
     }}>
       <div style={{
