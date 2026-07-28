@@ -112,9 +112,10 @@ export default function UsesPage() {
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
         BitGraph is useful wherever the question is <strong style={{ color: "#111827", fontWeight: 700 }}>which came
         first</strong>, and the answer currently depends on trusting whoever holds the
-        file. A digital file has no inherent place in a sequence. Its metadata is
-        editable, its timestamp is asserted, and a copy is indistinguishable from
-        the original.
+        file. A hash can show that two files are identical. It cannot show which
+        of them existed first. A digital file has no inherent place in a
+        sequence: its metadata is editable, its timestamp is asserted, and a copy
+        is indistinguishable from the original.
       </p>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
         A BitGraph gives a file a position. The slot is reserved from hardware
