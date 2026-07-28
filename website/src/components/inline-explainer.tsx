@@ -34,8 +34,13 @@ export function InlineExplainer() {
             "See it as a camera" collided with the product itself: the home page
             IS the camera, so it read as "open the camera and record something".
             What actually opens is six film-to-BitGraph equations, so the label
-            says exactly that and cannot be mistaken for a way to record. */}
-        {open ? "Hide the comparison" : "Compare it to film"}{" "}
+            says exactly that and cannot be mistaken for a way to record.
+            "A photograph" rather than "film" or "photography": film carries a
+            cinema reading, photography names a practice, and the panel's
+            closing row is literally "= A photograph" beside "= A BitGraph". So
+            the label names the equation the diagram ends on, and echoes the
+            parallel already sitting in the product's name. */}
+        {open ? "Hide the comparison" : "Compare it to a photograph"}{" "}
         {/* The arrow turns to point down when open, so the control reads as an
             expander rather than as a link that failed to navigate. */}
         <span
