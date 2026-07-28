@@ -108,9 +108,16 @@ export default function UsesPage() {
       </div>
 
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
-        BitGraph is useful wherever the question is <strong style={{ color: "#111827", fontWeight: 700 }}>which came
-        first</strong>, and the answer currently depends on trusting whoever holds the
-        file. A hash can show that two files are identical. On its own it cannot
+        {/* No comma before "but". With one, "but" attaches to "BitGraph is
+            useful" and reads as though the problem undercuts BitGraph. Without
+            it, "wherever" scopes both conditions and the contrast lands where
+            it belongs: order matters, and yet the evidence of it sits with the
+            interested party. No bold either: the sentence's own contrast is the
+            emphasis, and a bolded phrase was a leftover from when the opener
+            named a question instead of stating a tension. */}
+        BitGraph is useful wherever order matters but the only evidence of that
+        order belongs to whoever holds the files. A hash can show that two files
+        are identical. On its own it cannot
         show which of them existed first. A digital file has no inherent place in a
         sequence: its metadata is editable, its timestamp is asserted, and a copy
         is indistinguishable from the original.
