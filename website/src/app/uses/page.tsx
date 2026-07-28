@@ -105,7 +105,7 @@ export default function UsesPage() {
       <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
         Uses
       </div>
-      <div style={{ fontSize: 13, fontWeight: 400, color: "#6b7280", marginTop: 2, marginBottom: 28 }}>
+      <div style={{ fontSize: 13, fontWeight: 400, color: "#636a78", marginTop: 2, marginBottom: 28 }}>
         Where the order of records carries weight.
       </div>
 
@@ -148,13 +148,13 @@ export default function UsesPage() {
           short of the truth claim on purpose: the authority's ability to go on
           asserting is preserved, the truth of what it asserts is not. */}
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 14px" }}>
-        Two conditions usually hold where recording a BitGraph is economical.
+        Two conditions usually hold where recording a BitGraph makes sense.
       </p>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 14px" }}>
         <strong style={{ color: "#111827", fontWeight: 700 }}>The trust gap is frequent and expensive.</strong>{" "}
         Someone pays repeatedly, in staff time or in liability, to re-establish
-        something that was settled once already. A gap that opens once a year and
-        costs an email is not worth a protocol.
+        something that was settled once already. A problem that comes up once a
+        year and is settled by one email does not need a protocol.
       </p>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 40px" }}>
         <strong style={{ color: "#111827", fontWeight: 700 }}>There is an authority behind the artifact, or a position to defend.</strong>{" "}
@@ -177,7 +177,7 @@ export default function UsesPage() {
           </h2>
           <div style={{
             fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase",
-            color: "#6b7280", margin: "6px 0 12px",
+            color: "#636a78", margin: "6px 0 12px",
           }}>
             {c.who}
           </div>

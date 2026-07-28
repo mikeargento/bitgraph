@@ -11,7 +11,7 @@ export default function AuditPage() {
   return (
     <div className="prose-doc">
       <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 8 }}>Audit a Bundle</h1>
-      <p style={{ color: "#6b7280", marginBottom: 32 }}>
+      <p style={{ color: "#636a78", marginBottom: 32 }}>
         You have been handed an Audit Bundle: an archive of BitGraph proof files, and optionally the original artifacts, Ethereum anchor witnesses, and a manifest. This is the recipient&apos;s walkthrough. The audit runs entirely on your machine, fully offline, and reports exactly what the supplied evidence supports, nothing more.
       </p>
 

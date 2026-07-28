@@ -87,7 +87,7 @@ export default function ChainCarousel({ epochId, currentCounter }: { epochId: st
           position: "absolute", left: -6, top: "50%", transform: "translateY(-50%)", zIndex: 2,
           width: 32, height: 32, borderRadius: "50%", border: "1px solid #d0d5dd",
           background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, color: "#6b7280", boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          fontSize: 14, color: "#636a78", boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
         }}
       >
         &#8249;
@@ -138,7 +138,7 @@ export default function ChainCarousel({ epochId, currentCounter }: { epochId: st
                 #{p.commit.counter}
               </span>
               <span style={{
-                fontSize: 10, color: isAnchor ? "#16a34a" : "#6b7280",
+                fontSize: 10, color: isAnchor ? "#16a34a" : "#636a78",
                 textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600,
               }}>
                 {label}
@@ -156,7 +156,7 @@ export default function ChainCarousel({ epochId, currentCounter }: { epochId: st
           position: "absolute", right: -6, top: "50%", transform: "translateY(-50%)", zIndex: 2,
           width: 32, height: 32, borderRadius: "50%", border: "1px solid #d0d5dd",
           background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, color: "#6b7280", boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          fontSize: 14, color: "#636a78", boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
         }}
       >
         &#8250;

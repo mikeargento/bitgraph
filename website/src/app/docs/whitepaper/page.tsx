@@ -21,7 +21,7 @@ export default function WhitepaperPage() {
         <p className="text-lg text-[#1f2937] mb-1">
           Proof as a Reachability Property
         </p>
-        <p className="text-xs text-[#6b7280] mb-8">
+        <p className="text-xs text-[#636a78] mb-8">
           Michael James Argento &middot; Patent Pending
         </p>
       </div>

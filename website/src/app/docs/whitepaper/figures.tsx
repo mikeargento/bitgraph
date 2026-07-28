@@ -16,7 +16,7 @@
 const C = {
   ink: "#111827",
   body: "#1f2937",
-  mut: "#6b7280",
+  mut: "#636a78",
   line: "#d0d5dd",
   faint: "#9ca3af",
   white: "#ffffff",

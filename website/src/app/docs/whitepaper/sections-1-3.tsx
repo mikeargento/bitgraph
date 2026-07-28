@@ -59,7 +59,7 @@ export default function Sections1Through3() {
       {/* ================================================================ */}
       <section id="sec-introduction">
         <h2 className="text-xl font-semibold mt-12 mb-4">
-          <span className="text-[#6b7280] mr-2">1</span> Introduction
+          <span className="text-[#636a78] mr-2">1</span> Introduction
         </h2>
 
         <p>
@@ -142,7 +142,7 @@ export default function Sections1Through3() {
       {/* ================================================================ */}
       <section id="sec-the-problem">
         <h2 className="text-xl font-semibold mt-12 mb-4">
-          <span className="text-[#6b7280] mr-2">2</span> The Problem:
+          <span className="text-[#636a78] mr-2">2</span> The Problem:
           Uncontrolled Digital State Creation
         </h2>
 
@@ -212,7 +212,7 @@ export default function Sections1Through3() {
         {/* 2.1 */}
         <section id="sec-concrete-example">
           <h3 className="text-lg font-semibold mt-10 mb-3">
-            <span className="text-[#6b7280] mr-2">2.1</span> A Concrete
+            <span className="text-[#636a78] mr-2">2.1</span> A Concrete
             Example: Why Attestation Is Not Enough
           </h3>
 
@@ -272,7 +272,7 @@ export default function Sections1Through3() {
         {/* 2.2 */}
         <section id="sec-provenance-example">
           <h3 className="text-lg font-semibold mt-10 mb-3">
-            <span className="text-[#6b7280] mr-2">2.2</span> A Second
+            <span className="text-[#636a78] mr-2">2.2</span> A Second
             Example: Provenance Without Enforcement
           </h3>
 
@@ -308,7 +308,7 @@ export default function Sections1Through3() {
         {/* 2.3 */}
         <section id="sec-ledger-example">
           <h3 className="text-lg font-semibold mt-10 mb-3">
-            <span className="text-[#6b7280] mr-2">2.3</span> A Third
+            <span className="text-[#636a78] mr-2">2.3</span> A Third
             Example: Ledger Registration Without Creation Constraint
           </h3>
 
@@ -371,7 +371,7 @@ export default function Sections1Through3() {
       {/* ================================================================ */}
       <section id="sec-definitions">
         <h2 className="text-xl font-semibold mt-12 mb-4">
-          <span className="text-[#6b7280] mr-2">3</span> Definitions and
+          <span className="text-[#636a78] mr-2">3</span> Definitions and
           Terminology
         </h2>
 

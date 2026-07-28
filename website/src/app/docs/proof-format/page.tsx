@@ -160,7 +160,7 @@ export default function ProofFormatPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-sm text-[#6b7280] mb-8">
+      <p className="text-sm text-[#636a78] mb-8">
         The slot has its own Ed25519 signature proving the enclave created it. The commit signature includes <code className="text-xs font-mono">slotHashB64</code>, cryptographically binding the proof to that exact slot.
       </p>
 

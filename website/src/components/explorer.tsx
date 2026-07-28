@@ -274,7 +274,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           {title}
           {/* The Roll defaults to files (the recordings) — anchors are the clock
               ticking, not the photos — so showing them is the opt-in. */}
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#6b7280", cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#636a78", cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
             <input
               type="checkbox"
               checked={showAnchors}
@@ -341,7 +341,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           // back, re-committed at a new position: distinct label + violet so
           // they read differently from anchors (gray) and files (blue).
           const tagLabel = isAnchor ? "anchor" : isInterval ? "interval" : "file";
-          const tagColor = isAnchor ? "#6b7280" : isInterval ? "#7c3aed" : "#0065A4";
+          const tagColor = isAnchor ? "#636a78" : isInterval ? "#7c3aed" : "#0065A4";
           const tagWeight = isAnchor ? 400 : 600;
           // ?counter= pins the drill-in to THIS row's causal position; the
           // same bytes can occupy several (BitGraphed more than once).
@@ -360,7 +360,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
                   (New)
                 </span>
               )}
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#636a78", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                 {fmtWhen(e.at)}
               </span>
               <span className="xp-open" aria-label="Open" style={{ display: "inline-flex", flexShrink: 0 }}>

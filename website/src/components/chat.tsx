@@ -354,7 +354,7 @@ export function Chat({ proofContext, preloadedQuestions, onOpenChange, defaultOp
             border: "none",
             borderRadius: 0,
             padding: "10px 14px",
-            color: input.trim() && !streaming ? "#ffffff" : "#6b7280",
+            color: input.trim() && !streaming ? "#ffffff" : "#636a78",
             fontSize: 16,
             fontWeight: 600,
             cursor: input.trim() && !streaming ? "pointer" : "default",

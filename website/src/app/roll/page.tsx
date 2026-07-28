@@ -16,7 +16,7 @@ export default function RollPage() {
             <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
               BitGraph Roll
             </div>
-            <div style={{ fontSize: 13, fontWeight: 400, color: "#6b7280", marginTop: 2 }}>
+            <div style={{ fontSize: 13, fontWeight: 400, color: "#636a78", marginTop: 2 }}>
               Every recording, newest first.
             </div>
           </div>

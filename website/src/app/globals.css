@@ -34,8 +34,8 @@
   --c-border: #e5e7eb;
   --c-border-subtle: #f0f0f0;
   --c-text: #111827;
-  --c-text-secondary: #6b7280;
-  --c-text-tertiary: #6b7280;
+  --c-text-secondary: #636a78;
+  --c-text-tertiary: #636a78;
   --c-accent: #0065A4;
   --c-accent-dim: #4A90E2;
   --c-syntax-key: #2563eb;
@@ -215,7 +215,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6b7280;
+  color: #636a78;
   border-bottom: 1px solid #e5e7eb;
 }
 .prose-doc td {
@@ -292,7 +292,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6b7280;
+  color: #636a78;
   border-bottom: 1px solid #d0d5dd;
 }
 .overview td {
@@ -313,7 +313,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   padding-top: 2rem;
   border-top: 1px solid #d0d5dd;
   font-size: 0.875rem;
-  color: #6b7280;
+  color: #636a78;
 }
 @media (max-width: 640px) {
   .overview { padding: 40px 20px 80px; }
