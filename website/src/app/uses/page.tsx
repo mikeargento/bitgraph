@@ -148,7 +148,7 @@ export default function UsesPage() {
           short of the truth claim on purpose: the authority's ability to go on
           asserting is preserved, the truth of what it asserts is not. */}
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 14px" }}>
-        Two conditions usually hold where recording is worth the effort.
+        Two conditions usually hold where recording a BitGraph is economical.
       </p>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 14px" }}>
         <strong style={{ color: "#111827", fontWeight: 700 }}>The trust gap is frequent and expensive.</strong>{" "}
