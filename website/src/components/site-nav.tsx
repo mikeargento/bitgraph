@@ -52,15 +52,18 @@ export function SiteNav() {
         >
           BitGraph
         </Link>
-        <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-          {/* Solutions → Roll → Docs reads left to right from "what is this
+        {/* Gap lives in CSS, not inline, so it can tighten on narrow phones.
+            "Applications" is long enough that at 320px the 24px gap left only
+            7px between the wordmark and the first link. */}
+        <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
+          {/* Applications → Roll → Docs reads left to right from "what is this
               for" to "show me the ledger" to "show me the spec", so the nav
               gets progressively more technical. */}
-          <Link href="/solutions" style={{
+          <Link href="/applications" style={{
             fontSize: 14, fontWeight: 600, color: "#111827",
             textDecoration: "none",
           }}>
-            Solutions
+            Applications
           </Link>
           {/* Roll — the ledger, now on its own /roll page (no longer embedded
               under the home camera), so the nav is its way in. */}

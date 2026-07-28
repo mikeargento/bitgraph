@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Solutions",
+  title: "Applications",
   description:
     "Where causal ordering carries weight: periodic reporting, evidence and custody, issued documents, instrument data, drafts, and photography.",
   openGraph: {
-    title: "BitGraph: Solutions",
+    title: "BitGraph: Applications",
     description:
       "Where causal ordering carries weight: periodic reporting, evidence and custody, issued documents, instrument data, drafts, and photography.",
   },
@@ -89,13 +89,13 @@ const limits = [
   },
 ];
 
-export default function SolutionsPage() {
+export default function ApplicationsPage() {
   return (
     <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
       {/* Page heading in the Roll's voice: 20px/800 title over a gray line,
           the site's settled convention for a page that is a list of things. */}
       <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
-        Solutions
+        Applications
       </div>
       <div style={{ fontSize: 13, fontWeight: 400, color: "#6b7280", marginTop: 2, marginBottom: 28 }}>
         Where the order of things carries weight.

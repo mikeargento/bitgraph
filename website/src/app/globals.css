@@ -496,3 +496,10 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 @media (hover: hover) { .bg-action-link:hover .arrow { transform: translateX(3px); } }
 .bg-action-link:disabled { color: #9ca3af; cursor: default; }
 .bg-action-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
+
+/* ── Nav links. The gap is here rather than inline on the element so it can
+   tighten on narrow phones: at 320px, "Applications" plus a 24px gap left only
+   7px of air between the wordmark and the first link. 16px restores roughly
+   23px there and changes nothing at or above 400px. ── */
+.bg-nav-links { gap: 24px; }
+@media (max-width: 400px) { .bg-nav-links { gap: 16px; } }
