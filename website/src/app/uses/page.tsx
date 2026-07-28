@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Applications",
+  title: "Uses",
   description:
     "Where causal ordering carries weight: periodic reporting, evidence and custody, issued documents, instrument data, drafts, and photography.",
   openGraph: {
-    title: "BitGraph: Applications",
+    title: "BitGraph: Uses",
     description:
       "Where causal ordering carries weight: periodic reporting, evidence and custody, issued documents, instrument data, drafts, and photography.",
   },
@@ -96,13 +96,13 @@ const limits = [
   },
 ];
 
-export default function ApplicationsPage() {
+export default function UsesPage() {
   return (
     <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
       {/* Page heading in the Roll's voice: 20px/800 title over a gray line,
           the site's settled convention for a page that is a list of things. */}
       <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
-        Applications
+        Uses
       </div>
       <div style={{ fontSize: 13, fontWeight: 400, color: "#6b7280", marginTop: 2, marginBottom: 28 }}>
         Where the order of things carries weight.
@@ -124,17 +124,24 @@ export default function ApplicationsPage() {
       {/* Placed after the mechanism, not before it. As a consequence of what
           was just described it needs no setup; ahead of it, it was a property
           of a mechanism the reader had not met yet. */}
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 40 }}>
+      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 4 }}>
         Only the hash of a file is committed. The file itself is never handed to
         the protocol, so material that cannot be disclosed can still be recorded.
       </p>
 
-      {/* No diagram here on purpose. /camera is the explainer page and already
-          shows the frame existing before the exposure, in far more depth. A
-          smaller version on this page duplicated it and did it worse, and a
-          how-it-works illustration is a scope leak on a page that answers where
-          this applies. The two sentences above carry the mechanism; anyone who
-          wants the picture has a page built for it. */}
+      {/* This replaces a diagram that used to sit here. /camera is the explainer
+          page and already shows the frame existing before the exposure in far
+          more depth, so a smaller version duplicated it and did it worse, and a
+          how-it-works illustration is a scope leak on a page about where this
+          applies. The link goes here rather than in "Applying it" because this
+          is where the mechanism has just been compressed into two sentences and
+          a reader either wants the picture or does not. "Applying it" is for
+          doing, and its links are reference material. */}
+      <div style={{ marginBottom: 30 }}>
+        <Link href="/camera" className="bg-action-link">
+          How a BitGraph is made <span className="arrow">&rarr;</span>
+        </Link>
+      </div>
 
       {/* The two conditions are the page's spine. The first is a selection
           test, and it is deliberately written to disqualify: a page that says

@@ -53,19 +53,20 @@ export function SiteNav() {
           BitGraph
         </Link>
         {/* Gap lives in CSS, not inline, so it can tighten on narrow phones.
-            "Applications" is long enough that at 320px the 24px gap left only
-            7px between the wordmark and the first link. */}
+            A 12-character label ("Applications", before this settled on "Uses")
+            left only 7px between the wordmark and the first link at 320px. */}
         <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
           {/* Uses → Roll → Docs reads left to right from "what is this for" to
               "show me the ledger" to "show me the spec", so the nav gets
               progressively more technical.
 
-              The label is deliberately shorter than the page it opens, which is
-              titled Applications. At 14px that word is 80px wide against 24px
-              for Roll and 33px for Docs, and on a 320px phone the bar came to
-              266px of the 288 available. It fit, but nothing was left, and the
-              nav is where this site's sparseness reads most. */}
-          <Link href="/applications" style={{
+              "Uses" over "Applications", which was 80px wide at 14px against
+              24px for Roll and 33px for Docs and left the 320px bar at 266px of
+              the 288 available. It fit, but nothing was left, and the nav is
+              where this site's sparseness reads most. The page heading and the
+              route match the label rather than diverging from it. Not "Usage",
+              which on a technical site reads as consumption or quota. */}
+          <Link href="/uses" style={{
             fontSize: 14, fontWeight: 600, color: "#111827",
             textDecoration: "none",
           }}>
