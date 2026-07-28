@@ -206,9 +206,10 @@ export default function ApplicationsPage() {
       {cases.map((c) => (
         <div
           key={c.title}
-          style={{ borderLeft: "2px solid #d0d5dd", paddingLeft: 22, marginBottom: 34 }}
+          className="bg-case"
+          style={{ borderLeft: "2px solid #d0d5dd", paddingLeft: 22 }}
         >
-          <h2 style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.015em", color: "#111827", margin: 0 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: 0 }}>
             {c.title}
           </h2>
           <div style={{

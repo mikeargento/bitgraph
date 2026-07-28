@@ -56,14 +56,20 @@ export function SiteNav() {
             "Applications" is long enough that at 320px the 24px gap left only
             7px between the wordmark and the first link. */}
         <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
-          {/* Applications → Roll → Docs reads left to right from "what is this
-              for" to "show me the ledger" to "show me the spec", so the nav
-              gets progressively more technical. */}
+          {/* Uses → Roll → Docs reads left to right from "what is this for" to
+              "show me the ledger" to "show me the spec", so the nav gets
+              progressively more technical.
+
+              The label is deliberately shorter than the page it opens, which is
+              titled Applications. At 14px that word is 80px wide against 24px
+              for Roll and 33px for Docs, and on a 320px phone the bar came to
+              266px of the 288 available. It fit, but nothing was left, and the
+              nav is where this site's sparseness reads most. */}
           <Link href="/applications" style={{
             fontSize: 14, fontWeight: 600, color: "#111827",
             textDecoration: "none",
           }}>
-            Applications
+            Uses
           </Link>
           {/* Roll — the ledger, now on its own /roll page (no longer embedded
               under the home camera), so the nav is its way in. */}

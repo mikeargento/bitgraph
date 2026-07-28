@@ -503,3 +503,12 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    23px there and changes nothing at or above 400px. ── */
 .bg-nav-links { gap: 24px; }
 @media (max-width: 400px) { .bg-nav-links { gap: 16px; } }
+
+/* ── Applications: separation between the six entries. On a phone the column
+   narrows, every paragraph reflows to more lines, and six identically shaped
+   blocks 34px apart read as one continuous grey river rather than six items.
+   The gap therefore grows as the viewport shrinks, which is the opposite of
+   the usual instinct: it is precisely where the blocks are tallest that they
+   need the most air between them to stay countable. ── */
+.bg-case { margin-bottom: 38px; }
+@media (max-width: 640px) { .bg-case { margin-bottom: 56px; } }
