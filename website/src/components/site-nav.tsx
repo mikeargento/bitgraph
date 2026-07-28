@@ -27,7 +27,12 @@ export function SiteNav() {
     }}>
       <div style={{
         width: "90%", maxWidth: 800, margin: "0 auto", padding: 0,
-        height: 56, display: "flex", alignItems: "center", justifyContent: "space-between",
+        // 44px matches apple.com's global nav and is the iOS minimum touch
+        // target, so it is the floor: Roll/Docs sit exactly at it, not above.
+        // The wordmark stays 24px rather than shrinking with the bar. Apple can
+        // shrink theirs because it is a glyph; here the wordmark IS the logo,
+        // and it is the only brand element in the chrome.
+        height: 44, display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <Link
           href="/"
