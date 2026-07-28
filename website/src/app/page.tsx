@@ -677,8 +677,16 @@ export default function BitGraphPage() {
         /* The hero's top offset is a FORMULA, not content-centering, and it is
            the SAME formula /camera uses for its headline: the tagline and "The
            frame exists first." land in the identical spot on every machine by
-           construction (content-centering drifted with font metrics). */
-        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: max(52px, calc(50dvh - 306px)) 0 32px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 72px); }
+           construction (content-centering drifted with font metrics).
+
+           The 318px constant is tied to the mobile camera height and is not free
+           to move on its own. Because the offset rises at half the rate of the
+           viewport, a constant-height box stays centered at every screen size,
+           and 318 = (44px nav + 339px of hero that is not the box + 254px box)/2
+           is what centers it. It was 306 when the box was 230. Change one, change
+           the other, and change it in camera/page.tsx too or the morph drifts.
+           Derivation and measurements live with .bitgraph-camera in globals.css. */
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: max(52px, calc(50dvh - 318px)) 0 32px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 72px); }
         @media (min-width: 769px) { .bitgraph-wrap { padding-top: max(52px, calc(50dvh - 386px)); } }
         .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px !important; padding-bottom: 48px; min-height: 0; }
         /* Drop step hero: the concept line ("A camera for bits.") stands alone,

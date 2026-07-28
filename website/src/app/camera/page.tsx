@@ -29,7 +29,11 @@ export default function CameraPage() {
           near 120px at 852px tall, desktop near 220px at a 1212px window), so
           they never fire while browsing, only when a capture inflates dvh. */}
       <style>{`
-        .camera-wrap { padding-top: clamp(52px, calc(50dvh - 306px), 120px) !important; }
+        /* 318 must match the same constant in the home page's .bitgraph-wrap.
+           It moved from 306 when the mobile camera box grew from 230 to 254px;
+           the offset is what keeps that box centered, so the two are one number
+           in two files. See .bitgraph-camera in globals.css. */
+        .camera-wrap { padding-top: clamp(52px, calc(50dvh - 318px), 120px) !important; }
         @media (min-width: 769px) { .camera-wrap { padding-top: clamp(52px, calc(50dvh - 386px), 220px) !important; } }
         .camera-wrap h1 a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .camera-wrap h1 a:hover, .camera-wrap h1 a:focus-visible { color: #0065A4; }

@@ -458,18 +458,39 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* ── The camera: a full-width landscape drop band (not a square). A controlled
    fixed height, shorter than the old proportional box, so the contents sit
-   compactly rather than marooned in a void: ~224px on phones (so the whole hero,
-   value-prop and all, fits one screen without scrolling), ~310px on desktop.
+   compactly rather than marooned in a void: 254px on phones, 380px on desktop.
    The interactive contents (file-selection icon + "Take a
    BitGraph") are bumped up a notch on every width via the --fd-* custom
-   properties the FileDrop reads. Centered. ── */
-.bitgraph-camera { width: 100%; height: 230px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
+   properties the FileDrop reads. Centered.
+
+   The mobile height is FLAT, and a viewport-relative height is the wrong tool
+   here, which is not obvious. The hero's top offset is 50dvh minus a constant,
+   so it grows at half the rate of the screen while the screen grows at full
+   rate. That makes the air left underneath grow at half rate too. A CONSTANT box
+   therefore stays vertically centered on every device by construction, and the
+   306px in that offset is exactly the constant that centered a 230px box.
+   Sizing the box off the viewport breaks the property: the box would outgrow the
+   air and crowd the bottom (a 50svh rule measured 292px at 818, leaving 103px
+   above the tagline against 35px below the last line).
+
+   So the pair moves together. Balance holds at every viewport when the offset
+   constant K = (44 + 339 + boxHeight) / 2, where 44px is the nav and 339px is
+   everything in the hero except the box, at 393px wide. 254px box -> K = 318,
+   which is the value in page.tsx AND camera/page.tsx. Both must carry the same
+   number or the tagline / "The frame exists first." morph stops landing.
+
+   Why 254 and not larger: below 741px of viewport the offset hits its 52px
+   floor and balance starts tipping bottom-heavy, and 741 sits just under the
+   745px an iPhone 14/15 shows with the Safari toolbar up. 254 is the largest box
+   that still centers on that phone. Measured there: 54px above, 54px below.
+   Re-measure at 393x745 before moving any of it. ── */
+.bitgraph-camera { width: 100%; height: 254px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
 .bitgraph-camera .fd-icon { width: 44px; height: 44px; }
 @media (min-width: 769px) {
   /* Full column width and generous height: the camera is the instrument and
      should visually hold the page (the text tapers beneath it). The height
      keeps the proportion stage-like rather than letterbox. Mobile stays
-     full-width at 230px. */
+     full-width at 254px. */
   .bitgraph-camera { height: 380px; --fd-headline: 26px; --fd-hint-size: 13px; --fd-subhint-size: 13px; }
   .bitgraph-camera .fd-icon { width: 52px; height: 52px; }
 }
