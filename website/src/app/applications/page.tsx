@@ -69,7 +69,7 @@ const cases = [
     body:
       "Showing that you had something in a particular form at a particular stage normally means producing your own files and asking to be believed, which is precisely the evidence an opponent will dispute.",
     changes:
-      "Recording a draft as it is made gives those exact bytes a position that cannot be created later. Revisions take later positions, so the development history itself becomes the evidence. The same bytes can be recorded again, but a later recording cannot occupy the earlier position.",
+      "Recording a draft as it is made gives those exact bytes a position that cannot be created later. Revisions take later positions, so the development history itself becomes the evidence.",
   },
   {
     title: "Photography and photojournalism",
@@ -77,7 +77,7 @@ const cases = [
     body:
       "A photograph's file cannot by itself establish where it came from. Metadata is editable, and a crop or a re-encode produces different bytes, so anything bound to the earlier version stops matching.",
     changes:
-      "A BitGraph stays external to the image. Its exact bytes are bound to a position reserved before those bytes were known, so a photographer can show that this version, in exactly this form, held that position. It sits alongside Content Credentials rather than replacing them: the manifest describes the image's path, the BitGraph records where that exact version landed.",
+      "A BitGraph stays external to the image. The image's exact bytes are bound to a position reserved before those bytes were known, so a photographer can show that this version, in exactly this form, held that position. It sits alongside Content Credentials rather than replacing them: the manifest describes the image's path, the BitGraph records where that exact version landed.",
   },
 ];
 
@@ -203,12 +203,13 @@ export default function ApplicationsPage() {
         costs an email is not worth a protocol.
       </p>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 40px" }}>
-        <strong style={{ color: "#111827", fontWeight: 700 }}>There is an authority behind the artifact.</strong>{" "}
-        A BitGraph preserves a verifiable record of the exact bits that authority
-        asserted, so what it issued stays distinguishable from what merely
-        resembles it. That is what is protected in every case below: not the
-        truth of the assertion, but the authority&apos;s ability to go on making
-        assertions that hold.
+        <strong style={{ color: "#111827", fontWeight: 700 }}>There is an authority behind the artifact, or a position to defend.</strong>{" "}
+        Where an authority issues something, a BitGraph preserves a verifiable
+        record of the exact bits it asserted, so what it issued stays
+        distinguishable from what merely resembles it. Where nobody is issuing,
+        as with drafts and prior art, the same record protects one party&apos;s
+        position against a later challenge. Neither protects the truth of what
+        was recorded, only the ability to keep standing behind it.
       </p>
 
       {cases.map((c) => (
