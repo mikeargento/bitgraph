@@ -46,7 +46,7 @@ const cases = [
     body:
       "An authority's value rests on the artifacts it issues being distinguishable from artifacts that merely look like them. Today that distinction usually depends on calling the issuer back, which does not scale, or on visual security features, which are a manufacturing problem rather than a cryptographic one.",
     changes:
-      "Every issued document takes a position in the issuer's own sequence at the moment it is issued. A holder presents the document, and anyone can check the position without contacting the issuer. What is being preserved is the authority's ability to issue, which is why the buyer here is the authority itself.",
+      "Every issued document takes a position in the issuer's own sequence at the moment it is issued. A holder presents the document, and anyone can check the position without contacting the issuer. This is the case where the buyer and the authority are the same party.",
   },
   {
     title: "Instrument and field data",
@@ -179,6 +179,29 @@ export default function SolutionsPage() {
           second, and can only take a position that was already waiting.
         </figcaption>
       </figure>
+
+      {/* The two conditions are the page's spine. The first is a selection
+          test, and it is deliberately written to disqualify: a page that says
+          everything qualifies is not saying anything. The second is what makes
+          the six entries instances of one thing rather than a list. Both stop
+          short of the truth claim on purpose: the authority's ability to go on
+          asserting is preserved, the truth of what it asserts is not. */}
+      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 14px" }}>
+        Two conditions usually hold where recording is worth the effort.
+      </p>
+      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 14px" }}>
+        <strong style={{ color: "#111827", fontWeight: 700 }}>The trust gap is frequent and expensive.</strong>{" "}
+        Someone pays repeatedly, in staff time or in liability, to re-establish
+        something that was settled once already. A gap that opens once a year and
+        costs an email is not worth a protocol.
+      </p>
+      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 40px" }}>
+        <strong style={{ color: "#111827", fontWeight: 700 }}>There is an authority behind the artifact.</strong>{" "}
+        A BitGraph preserves the exact bits that authority asserted, so what it
+        issued stays distinguishable from what merely resembles it. That is what
+        is protected in every case below: not the truth of the assertion, but the
+        authority&apos;s ability to go on making assertions that hold.
+      </p>
 
       {cases.map((c) => (
         <div
