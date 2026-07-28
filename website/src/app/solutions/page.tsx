@@ -109,14 +109,17 @@ export default function SolutionsPage() {
         the original.
       </p>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
-        Only the hash of a file is committed. The file itself is never handed to
-        the protocol, so material that cannot be disclosed can still be recorded.
-      </p>
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 40 }}>
         A BitGraph gives a file a position. The slot is reserved from hardware
         entropy before the file&apos;s hash is known, the hash is bound to that slot
         inside a measured boundary, and the sequence is anchored to Ethereum so
         positions are fixed in a timeline nobody involved controls.
+      </p>
+      {/* Placed after the mechanism, not before it. As a consequence of what
+          was just described it needs no setup; ahead of it, it was a property
+          of a mechanism the reader had not met yet. */}
+      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 40 }}>
+        Only the hash of a file is committed. The file itself is never handed to
+        the protocol, so material that cannot be disclosed can still be recorded.
       </p>
 
       {/* One diagram for the whole page, illustrating the single idea every
@@ -158,8 +161,12 @@ export default function SolutionsPage() {
           <line x1="272" y1="44" x2="272" y2="66" stroke="#0065A4" strokeWidth="1.5" />
           <path d="M266 66 H278 L272 75 Z" fill="#0065A4" />
 
-          {/* The next position, which exists but has nothing in it yet */}
-          <rect x="328" y="80" width="84" height="62" fill="#ffffff" stroke="#9ca3af" strokeWidth="1.5" strokeDasharray="5 4" />
+          {/* The next position, which exists but has nothing in it yet. Drawn in
+              the label gray rather than a lighter tint: it is subordinate to the
+              reserved position, but a reviewer reading a downscaled render
+              missed it entirely and read the row as three boxes over four
+              numbers, so it has to survive low-fidelity reproduction. */}
+          <rect x="328" y="80" width="84" height="62" fill="#ffffff" stroke="#6b7280" strokeWidth="1.5" strokeDasharray="5 4" />
 
           <text x="76" y="161" textAnchor="middle" fontSize="14" fill="#6b7280">42</text>
           <text x="174" y="161" textAnchor="middle" fontSize="14" fill="#6b7280">43</text>
@@ -222,9 +229,10 @@ export default function SolutionsPage() {
           Applying it
         </h2>
         <p style={{ fontSize: 14, lineHeight: 1.65, color: "#1f2937", margin: "0 0 4px" }}>
-          Recording a file needs no integration. Drop it on the home page and the
-          proof is portable from that moment. Everything past that, issuing in
-          volume or recording from inside your own systems, is the integration guide.
+          Recording a file needs no integration. The home page takes a file and
+          returns a proof that is portable from that moment. Everything past
+          that, issuing in volume or recording from inside your own systems, is
+          the integration guide.
         </p>
         {/* "Record" was tried in the nav and removed, so this link is the only
             route from here into the product and has to carry that on its own.
