@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { InlineExplainer } from "@/components/inline-explainer";
 
 export const metadata: Metadata = {
   title: "Uses",
@@ -100,13 +99,12 @@ const limits = [
 export default function UsesPage() {
   return (
     <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
-      {/* Page heading in the Roll's voice: 20px/800 title over a gray line,
-          the site's settled convention for a page that is a list of things. */}
-      <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
+      {/* No subtitle under the heading, unlike the Roll. The Roll needs one
+          because it is a bare list with no prose; here the first paragraph
+          scopes the page immediately, and a subtitle only restated it in
+          weaker words before the reader reached it. */}
+      <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 24 }}>
         Uses
-      </div>
-      <div style={{ fontSize: 13, fontWeight: 400, color: "#4b5563", marginTop: 2, marginBottom: 28 }}>
-        Where the order of records carries weight.
       </div>
 
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
@@ -126,20 +124,16 @@ export default function UsesPage() {
       {/* Placed after the mechanism, not before it. As a consequence of what
           was just described it needs no setup; ahead of it, it was a property
           of a mechanism the reader had not met yet. */}
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 4 }}>
+      {/* Nothing pointing at /camera here on purpose. A diagram sat here, then
+          a link, then an inline expander, and all three were the same mistake:
+          this page answers whether BitGraph applies to you, and how it works is
+          another page's question. The two paragraphs above give a buyer the
+          operative fact, that the slot is reserved before the hash is known.
+          /camera remains the place for the analogy. */}
+      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 40 }}>
         Only the hash of a file is committed. The file itself is never handed to
         the protocol, so material that cannot be disclosed can still be recorded.
       </p>
-
-      {/* This replaces a diagram that used to sit here. /camera is the explainer
-          page and already shows the frame existing before the exposure in far
-          more depth, so a smaller version duplicated it and did it worse, and a
-          how-it-works illustration is a scope leak on a page about where this
-          applies. The link goes here rather than in "Applying it" because this
-          is where the mechanism has just been compressed into two sentences and
-          a reader either wants the picture or does not. "Applying it" is for
-          doing, and its links are reference material. */}
-      <InlineExplainer />
 
       {/* The two conditions are the page's spine. The first is a selection
           test, and it is deliberately written to disqualify: a page that says
