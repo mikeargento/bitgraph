@@ -57,10 +57,16 @@ export function takeWarm<T = unknown>(key: string): { data: T } | { promise: Pro
 // bytes at a fixed causal position, so it can be warmed on home idle and clicked
 // into instantly. The proof itself, its settled causal window, and the image are
 // immutable; only its Recordings list can grow, which the reconcile handles.
+// #7,910: Preston with Lightroom C2PA intact, first example from the
+// enclave-v5 epoch (2026-07-29). Chosen over its predecessor (#178,502, prior
+// epoch) because the example's PCR0 must match the measurement published on
+// /docs/self-host-tee, and that epoch's measurement is retired. When the
+// enclave is next rebuilt, re-record an example under the new measurement and
+// update this constant in the same motion as PINS.md and the docs page.
 export const EXAMPLE_PROOF = {
-  digest: "i1cMAsb9w1MQUkn6ctqyIzkNA7H1aKRVyWygAXDRYdg",
-  counter: "178502",
-  epoch: "UgCAKjrb4v_EeE4mM5228KLUJWaifyWJ5h8vm5JhXZg",
+  digest: "mYNezUiNnzhS3V0xqDsGUWCg2ZsKshiftAI016JPBUc",
+  counter: "7910",
+  epoch: "EQmlm7sZsGZeYmKlgVU6k0qd6cj79bsmhzhlzxlMF7o",
 };
 
 /** The exact `/api/proofs/digest/…` URL the proof page fetches for a given
