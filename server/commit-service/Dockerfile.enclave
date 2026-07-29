@@ -66,16 +66,13 @@ RUN npx tsc
 
 # Build commit-service (only enclave + parent, no mock/)
 WORKDIR /build/server/commit-service
-# sharp 0.34.5 and its musl prebuilt (@img/sharp-linuxmusl-x64 +
-# @img/sharp-libvips-linuxmusl-x64) are pinned in package-lock.json. `npm ci`
-# installs the musl-matching prebuilt from the lockfile by integrity hash — no
-# network-floating `npm install sharp` (which fetched whatever was newest and
-# was the single largest source of non-determinism in the old pipeline).
+# sharp was removed from the enclave on 2026-07-29 along with the convertBW
+# transform endpoint it existed for. The enclave now decodes nothing: it
+# receives a digest and never touches artifact bytes, so no image library
+# belongs inside the measured boundary. Its musl prebuilt was also the single
+# largest source of non-determinism in the pre-2026-06-27 pipeline (see
+# reproducible-build/PINS.md). Do not reintroduce it.
 RUN npm ci --ignore-scripts
-# Fail loudly if the musl prebuilt did not get installed (guards against silent
-# platform/lockfile drift that would otherwise break the build downstream).
-RUN test -d node_modules/@img/sharp-linuxmusl-x64 \
-      || (echo "FATAL: @img/sharp-linuxmusl-x64 prebuilt missing after npm ci" && exit 1)
 RUN npx tsc
 
 # Pre-compile the NSM ioctl helper (so it doesn't need gcc at runtime).
@@ -117,11 +114,8 @@ COPY --from=builder /build/server/commit-service/package.json ./package.json
 COPY --from=builder /build/node_modules/@noble/ ./node_modules/@noble/
 COPY --from=builder /build/packages/adapter-nitro/node_modules/cbor2/ ./node_modules/cbor2/
 
-# Copy sharp + platform prebuilds + runtime deps
-COPY --from=builder /build/server/commit-service/node_modules/sharp/ ./node_modules/sharp/
-COPY --from=builder /build/server/commit-service/node_modules/@img/ ./node_modules/@img/
-COPY --from=builder /build/server/commit-service/node_modules/detect-libc/ ./node_modules/detect-libc/
-COPY --from=builder /build/server/commit-service/node_modules/semver/ ./node_modules/semver/
+# No image-processing runtime deps: sharp, @img/*, detect-libc and semver were
+# all here purely for sharp and left with it on 2026-07-29.
 
 # socat bridges vsock:5000 → the Unix domain socket the enclave app listens on.
 # Pinned version (Alpine 3.23.4). See PINS.md.
