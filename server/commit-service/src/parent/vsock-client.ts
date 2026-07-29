@@ -26,8 +26,6 @@ export interface CommitDigestRequest {
   attribution?: { name?: string; title?: string; message?: string };
   /** Optional policy binding — cryptographically sealed into the proof. */
   policy?: PolicyBinding;
-  /** Optional principal identity — cryptographically sealed into the proof. */
-  principal?: { id: string; provider?: string };
 }
 
 /** Pre-allocate a causal slot (nonce-first). */
@@ -42,11 +40,6 @@ export interface KeyRequest {
 
 export interface ChallengeRequest {
   type: "challenge";
-}
-
-export interface ConvertBWRequest {
-  type: "convertBW";
-  imageB64: string;
 }
 
 /**
@@ -72,7 +65,6 @@ export type EnclaveRequest =
   | AllocateSlotRequest
   | KeyRequest
   | ChallengeRequest
-  | ConvertBWRequest
   | InitRequest;
 
 export interface EnclaveResponse {

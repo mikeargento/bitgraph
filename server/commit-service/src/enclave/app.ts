@@ -40,7 +40,22 @@
  *   - TEE attestation (NSM)
  *   - Hardware entropy (NSM GetRandom)
  *   - Public entropy (Ethereum block hashes)
- *   - NO clocks. NO timestamps. NO centralized authority.
+ *   - NO CLOCK PARTICIPATES IN ORDERING, and no centralized authority.
+ *     Wall time is read only for expiry (slot TTL, challenge TTL, agency
+ *     freshness) and never enters a signed body or an ordering decision.
+ *     Slot bodies are built deliberately without a time field.
+ *
+ * Pure pass-through:
+ *   The enclave receives a DIGEST, not bytes, and never transforms an
+ *   artifact. The exact bits the caller hashed are the exact bits the proof
+ *   represents. A transform endpoint (convertBW, grayscale via sharp) existed
+ *   here until 2026-07-29 and was removed: it bound only the OUTPUT digest
+ *   with no attested link to the input, so it demonstrated "a computation
+ *   occurred" only to someone who already trusted the narrative, and it pulled
+ *   a large native image-decoding surface into the measured boundary. A real
+ *   derivation capability would bind inputDigest, outputDigest and a measured
+ *   transform identity in one signed body. Do not reintroduce a transform
+ *   into the base commit path.
  *
  * Signing flow (attestation-correct):
  *   1. Build complete signed body including attestationFormat
@@ -469,7 +484,6 @@ async function handleCommit(req: {
   agency?: AgencyEnvelope;
   attribution?: { name?: string; title?: string; message?: string };
   policy?: PolicyBinding;
-  principal?: { id: string; provider?: string };
 }): Promise<BitGraphProof> {
   // ── Slot consumption — BitGraph causal gate ──
   // The slot MUST exist before any artifact can be committed.
@@ -617,11 +631,16 @@ async function handleCommit(req: {
     signedBody.policy = req.policy;
   }
 
-  // Include principal identity in the signed body (cryptographically sealed).
-  // Makes WHO explicit — the enclave attests the application's identity claim.
-  if (req.principal) {
-    (signedBody as unknown as Record<string, unknown>).principal = req.principal;
-  }
+  // A `principal` field was written into the signed body here until
+  // 2026-07-29. It was removed because it was unverifiable and misleading in
+  // two ways at once. The enclave signed whatever identity string the caller
+  // supplied without checking anything, so it carried exactly the trust level
+  // of `attribution` while looking like verified identity. And it was written
+  // via a cast, so it never appeared in the SignedBody type and no verifier
+  // reconstructed it: any proof carrying it failed signature verification
+  // permanently. Verified identity is what `agency` is for, where a P-256 or
+  // WebAuthn signature is checked before the actor is sealed. Do not add an
+  // unverified identity field to the signed body.
 
   // ── BitGraph signing flow (attestation-correct) ──
   // 1. Add attestation format to signed body BEFORE hashing.
@@ -678,11 +697,6 @@ async function handleCommit(req: {
   // Include attribution (sealed in signed body)
   if (signedBody.attribution) {
     proof.attribution = signedBody.attribution;
-  }
-
-  // Include principal identity (sealed in signed body)
-  if (req.principal) {
-    (proof as unknown as Record<string, unknown>).principal = req.principal;
   }
 
   if (req.metadata !== undefined) {
@@ -873,8 +887,7 @@ async function handleRequest(req: Record<string, unknown>): Promise<unknown> {
       const agency = (req as { agency?: AgencyEnvelope }).agency;
       const attribution = (req as { attribution?: { name?: string; title?: string; message?: string } }).attribution;
       const policy = (req as { policy?: PolicyBinding }).policy;
-      const principal = (req as { principal?: { id: string; provider?: string } }).principal;
-      const proof = await handleCommit({ slotId, digestB64, agency, attribution, policy, principal });
+      const proof = await handleCommit({ slotId, digestB64, agency, attribution, policy });
       return { proof };
     }
     case "commit": {
@@ -901,49 +914,9 @@ async function handleRequest(req: Record<string, unknown>): Promise<unknown> {
       const proof = await handleCommit({ slotId, digestB64, agency, attribution, policy, metadata });
       return { proof };
     }
-    case "convertBW": {
-      // Grayscale conversion — happens entirely inside the enclave.
-      // The proof's artifact digest covers the B&W output, proving
-      // the state change (color → grayscale) occurred within the TEE.
-      //
-      // For convertBW, the enclave auto-allocates a slot internally
-      // because both the transformation and the commitment happen
-      // within the same TEE boundary in a single atomic operation.
-      // The causal slot still exists in the proof for verifier consistency.
-      const imageB64 = (req as { imageB64?: string }).imageB64;
-      if (!imageB64) {
-        return { error: "convertBW requires imageB64 field" };
-      }
-
-      // Auto-allocate a slot (enclave-internal, no external round-trip)
-      const { slotId } = await handleAllocateSlot();
-
-      const sharp = (await import("sharp") as any).default;
-      const inputBuffer = Buffer.from(imageB64, "base64");
-
-      // Convert to grayscale JPEG inside the enclave
-      const bwBuffer = await sharp(inputBuffer)
-        .grayscale()
-        .jpeg({ quality: 90 })
-        .toBuffer();
-
-      // Hash the B&W output — this becomes the proof's artifact digest
-      const digest = sha256(bwBuffer);
-      const digestB64 = Buffer.from(digest).toString("base64");
-
-      // Generate BitGraph proof for this digest
-      const proof = await handleCommit({
-        slotId,
-        digestB64,
-        metadata: { source: "bitgraph-bw-demo", operation: "grayscale" },
-      });
-
-      return {
-        imageB64: Buffer.from(bwBuffer).toString("base64"),
-        proof,
-        digestB64,
-      };
-    }
+    // "convertBW" was removed 2026-07-29. See the pure pass-through note in
+    // the file header. It is not deprecated, it is rejected: a transform in
+    // the base commit path binds an artifact the caller never held.
     default:
       return { error: `Unknown action: ${String(action)}` };
   }

@@ -9,14 +9,26 @@ Last resolved: 2026-06-27 (resolved on the production Nitro host, linux/amd64).
 
 ## Published measurement
 
+> **⚠ STALE AS OF 2026-07-29 — REBUILD PENDING.**
+> The enclave source changed on 2026-07-29 (`convertBW` and `principal`
+> removed, `sharp` dropped from the image). **PCR0 below is the value for the
+> PREVIOUS source and no longer matches what a rebuild produces.** It remains
+> correct for verifying every proof minted before the redeploy.
+>
+> Until the rebuild runs on the production Nitro host, this file, the
+> `/proof/[digest]` page's "you can rebuild it and re-derive this exact PCR0"
+> copy, and any verifier allowlist are all out of date together. Re-derive on
+> `linux/amd64`, replace the value below, record the previous one in the
+> retired list, and update the site copy in the same commit.
+
 ```
 PCR0 = bb9dd158703603ec222fe565495ceaa7edc08f665da5c1cddad91442ac2211731390267036d79deb720d13fb704f648a
 ```
 
 This value was produced by the pinned pipeline below and **verified by two
-independent clean-room builds** (2026-06-27). Rebuild from this source on any
-linux/amd64 host and you will re-derive exactly this PCR0; the production enclave
-at `nitro.occproof.com` reports it as its `measurement`.
+independent clean-room builds** (2026-06-27). It is the measurement reported by
+the production enclave at `nitro.occproof.com` for proofs minted between
+2026-06-27 and the 2026-07-29 rebuild.
 
 The previous value `8530a6399399c4f23d89f5a1faa2e8bf2e09a5959f117070fca08148377f92c902c695fc926c17f67f35f110327dca92`
 (genesis 2026-05-15) was built by a pipeline that did NOT pin its inputs (floating
@@ -50,10 +62,16 @@ PCR2 = 561ec327532d8742b93bb4c93127531e94533c38224a936bb32b38dc01f81f9668bb7ed52
 | Alpine apk: gcc | `15.2.0-r2` | nsm_ioctl helper compiler |
 | Alpine apk: musl-dev | `1.2.5-r23` | |
 | Alpine apk: socat | `1.8.1.3-r0` | vsock bridge in the enclave image |
-| sharp | `0.34.5` | Pinned in `server/commit-service/package-lock.json` with integrity hashes; `npm ci` installs the musl prebuilt deterministically. |
 
-`sharp`'s musl prebuilt comes from `@img/sharp-linuxmusl-x64` +
-`@img/sharp-libvips-linuxmusl-x64`, both already locked in the lockfile.
+**`sharp` was removed from the enclave on 2026-07-29** and is no longer a build
+input. It existed only for the `convertBW` transform endpoint, which was
+rejected on design grounds (a transform in the base commit path binds an
+artifact the caller never held; see the pure pass-through note at the top of
+`src/enclave/app.ts`). Removing it drops `@img/sharp-linuxmusl-x64` and
+`@img/sharp-libvips-linuxmusl-x64` from the image, taking a large native
+image-decoding surface out of the measured boundary — and, per the retired-PCR0
+note above, removing what was historically the least reproducible input to this
+pipeline. Do not reintroduce it.
 
 ## nitro-cli 1.4.4 kernel/init blobs (the AWS-provided trusted input)
 

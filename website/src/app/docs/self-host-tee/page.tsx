@@ -296,7 +296,7 @@ TEE_URL=https://your-tee-domain.com`}</pre>
       <ol>
         <li>Validates the slot exists (BitGraph causal gate — no slot, no proof)</li>
         <li>Increments the chain counter</li>
-        <li>Builds the signed body: artifact, commit, policy, principal</li>
+        <li>Builds the signed body: artifact, commit, measurement, and any actor, attribution or policy</li>
         <li>Signs with Ed25519</li>
         <li>Gets a Nitro attestation report from the NSM device</li>
         <li>Returns the complete BitGraph proof with attestation embedded</li>

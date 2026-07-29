@@ -266,33 +266,6 @@ const proofs = await resp.json();
           />
         </Endpoint>
 
-        {/* POST /convert-bw */}
-        <Endpoint
-          method="POST"
-          path="/convert-bw"
-          description="Demo endpoint: send a base64-encoded image to the enclave for grayscale conversion. The enclave converts the image, hashes the output, and returns the converted image with a BitGraph proof. Public endpoint."
-        >
-          <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2">
-            Request body
-          </h4>
-          <CodeBlock
-            code={`{
-  "imageB64": "<base64-encoded image>"    // max 2 MB
-}`}
-          />
-
-          <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2 mt-6">
-            Response (200)
-          </h4>
-          <CodeBlock
-            code={`{
-  "imageB64": "<base64-encoded grayscale image>",
-  "proof": { ... },                       // complete BitGraphProof
-  "digestB64": "..."                      // SHA-256 of the output image
-}`}
-          />
-        </Endpoint>
-
         {/* GET /key */}
         <Endpoint
           method="GET"
@@ -496,7 +469,7 @@ const proofs = await resp.json();
               </tr>
               <tr className="border-b border-border-subtle">
                 <td className="py-3 pr-4">413</td>
-                <td className="py-3 pr-4">Payload too large (convert-bw: 2 MB max)</td>
+                <td className="py-3 pr-4">Payload too large</td>
                 <td className="py-3"><code className="text-xs font-mono">{`{ "error": "Image too large. Max 2 MB." }`}</code></td>
               </tr>
               <tr>

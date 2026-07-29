@@ -7,7 +7,6 @@
  *   POST /commit         — { digests: [{ digestB64, hashAlg }], metadata?, agency?, policy? }  (requires API key)
  *   POST /allocate-slot  — {} → { slotId, slot }  (public — pre-allocates causal slot)
  *   POST /challenge      — {} → { challenge }  (public — issues enclave nonce for agency signing)
- *   POST /convert-bw     — { imageB64 }  (public demo — grayscale conversion inside TEE)
  *   GET  /key             — { publicKeyB64, measurement, enforcement }
  *   POST /verify          — { proof, policy? }
  *   GET  /health          — { ok: true }
@@ -250,7 +249,6 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     attribution?: { name?: string; title?: string; message?: string };
     policy?: PolicyBinding;
     chainId?: string;
-    principal?: { id: string; provider?: string };
   };
 
   try {
@@ -339,7 +337,6 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
       agency: agencyForDigest,
       attribution: body.attribution,
       policy: body.policy,
-      principal: body.principal,
       metadata: body.metadata,
     });
 
@@ -440,60 +437,6 @@ async function handleHealth(_req: IncomingMessage, res: ServerResponse): Promise
   sendJson(res, 200, { ok: true });
 }
 
-async function handleConvertBW(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  // Public demo endpoint — no API key required
-  const contentType = req.headers["content-type"] ?? "";
-  if (!contentType.includes("application/json")) {
-    sendError(res, 400, "POST /convert-bw requires Content-Type: application/json");
-    return;
-  }
-
-  const raw = await readBody(req);
-
-  // Guard against oversized payloads (2 MB max)
-  if (raw.length > 2 * 1024 * 1024) {
-    sendError(res, 413, "Image too large. Max 2 MB.");
-    return;
-  }
-
-  let body: { imageB64: string };
-  try {
-    body = JSON.parse(raw.toString("utf8"));
-  } catch {
-    sendError(res, 400, "Invalid JSON body");
-    return;
-  }
-
-  if (typeof body.imageB64 !== "string" || body.imageB64.length === 0) {
-    sendError(res, 400, "body.imageB64 must be a non-empty base64 string");
-    return;
-  }
-
-  const enclaveResult = await enclaveClient.send({
-    type: "convertBW",
-    imageB64: body.imageB64,
-  });
-
-  if (!enclaveResult.ok || !enclaveResult.data) {
-    sendError(res, 500, enclaveResult.error ?? "convertBW failed");
-    return;
-  }
-
-  const result = enclaveResult.data as {
-    imageB64: string;
-    proof: BitGraphProof;
-    digestB64: string;
-  };
-
-  // Attach TSA timestamp (best-effort)
-  const tsa = await requestTimestamp(result.digestB64).catch(() => null);
-  if (tsa && result.proof) {
-    result.proof.timestamps = { artifact: tsa };
-  }
-
-  sendJson(res, 200, result);
-}
-
 // ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
@@ -515,8 +458,6 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       await handleAllocateSlot(req, res);
     } else if (method === "POST" && url.pathname === "/challenge") {
       await handleChallenge(req, res);
-    } else if (method === "POST" && url.pathname === "/convert-bw") {
-      await handleConvertBW(req, res);
     } else if (method === "GET" && url.pathname === "/key") {
       await handleKey(req, res);
     } else if (method === "POST" && url.pathname === "/verify") {
@@ -537,7 +478,6 @@ server.listen(PORT, async () => {
   console.log(`  POST /commit         (Content-Type: application/json, Authorization: Bearer <key>)`);
   console.log(`  POST /allocate-slot  (public — pre-allocates causal slot)`);
   console.log(`  POST /challenge      (public — issues enclave nonce for agency signing)`);
-  console.log(`  POST /convert-bw     (Content-Type: application/json — public demo)`);
   console.log(`  GET  /key`);
   console.log(`  POST /verify         (Content-Type: application/json)`);
   console.log(`  GET  /health`);

@@ -13,7 +13,6 @@ import type {
   EnclaveResponse,
   CommitRequest,
   ChallengeRequest,
-  ConvertBWRequest,
 } from "../parent/vsock-client.js";
 
 const CHALLENGE_TTL_MS = 60_000;
@@ -48,7 +47,6 @@ export class MockEnclave implements EnclaveClient {
       switch (request.type) {
         case "commit": return await this.#handleCommit(request);
         case "challenge": return this.#handleChallenge();
-        case "convertBW": return await this.#handleConvertBW(request);
         case "key": return this.#handleKey();
         default:
           return { ok: false, error: `Unknown request type: ${(request as { type: string }).type}` };
@@ -279,40 +277,6 @@ export class MockEnclave implements EnclaveClient {
     }
 
     return { ok: true, data: proofs };
-  }
-
-  async #handleConvertBW(req: ConvertBWRequest): Promise<EnclaveResponse> {
-    const sharp = (await import("sharp") as any).default;
-    const inputBuffer = Buffer.from(req.imageB64, "base64");
-
-    // Convert to grayscale JPEG
-    const bwBuffer = await sharp(inputBuffer)
-      .grayscale()
-      .jpeg({ quality: 90 })
-      .toBuffer();
-
-    // Hash the B&W output
-    const digest = sha256(bwBuffer);
-    const digestB64 = Buffer.from(digest).toString("base64");
-
-    // Generate proof via existing commit handler
-    const commitResult = await this.#handleCommit({
-      type: "commit",
-      digests: [{ digestB64, hashAlg: "sha256" }],
-      metadata: { source: "bitgraph-bw-demo", operation: "grayscale" },
-    });
-
-    if (!commitResult.ok) return commitResult;
-    const proofs = commitResult.data as BitGraphProof[];
-
-    return {
-      ok: true,
-      data: {
-        imageB64: Buffer.from(bwBuffer).toString("base64"),
-        proof: proofs[0],
-        digestB64,
-      },
-    };
   }
 
   #handleKey(): EnclaveResponse {

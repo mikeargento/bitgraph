@@ -18,8 +18,7 @@
     "@bitgraph/adapter-nitro": "file:../../packages/adapter-nitro",
     "@bitgraph/stub": "file:../../packages/stub",
     "cbor2": "^1.0.0",
-    "bitgraph": "file:../../",
-    "sharp": "^0.34.5"
+    "bitgraph": "file:../../"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
