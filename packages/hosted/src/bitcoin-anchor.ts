@@ -17,9 +17,13 @@
 import { sha256 } from "@noble/hashes/sha256";
 
 /**
- * Canonical proof hash — signed body only.
- * MUST match computeProofHash() from bitgraph exactly.
- * Inlined here because Railway can't resolve the monorepo package.
+ * Ledger identity hash — the FROZEN signed-body subset, not the full signed
+ * body. MUST match computeProofHash() in packages/verify/src/proof-hash.ts
+ * field for field; that file is the source of truth and explains why the
+ * subset excludes `actor` and `policy` and why widening it would orphan every
+ * S3 key already written. Inlined here only because Railway cannot resolve
+ * the monorepo package. If the field list there ever changes, change it here
+ * in the same commit.
  */
 function computeProofHash(proof: Record<string, unknown>): string {
   const signer = proof.signer as { publicKeyB64: string } | undefined;

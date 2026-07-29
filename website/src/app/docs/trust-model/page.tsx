@@ -18,6 +18,22 @@ export default function TrustModelPage() {
         </p>
       </div>
 
+      {/* The italic line above is the thesis and is scoped correctly, but on its
+          own it reads as though a verifier enforces single-successor globally.
+          It does not. The boundary enforces it inside an epoch: an epoch link is
+          injected once and then cleared, so one epoch consumes its predecessor
+          exactly once. Two boundaries handed the same predecessor is a fork the
+          protocol DETECTS rather than prevents, and only in a verifier that has
+          observed both branches (verifyEpochLink keeps its single-successor
+          registry in memory, per process). Saying so here costs nothing and
+          keeps the page from claiming more than the code does. */}
+      <p className="text-sm text-[#4b5563] leading-relaxed mb-8">
+        Read precisely: the boundary <em>enforces</em> this within an epoch, and a
+        fork across epochs is <em>detected</em> rather than prevented. Detection
+        requires a verifier that has observed both branches, so an auditor holding
+        the full ledger sees a fork that a verifier checking one proof cannot.
+      </p>
+
       <h2 className="text-xl font-semibold mt-12 mb-4">Assumptions</h2>
       <div className="overflow-x-auto mb-8">
         <table className="w-full text-sm">

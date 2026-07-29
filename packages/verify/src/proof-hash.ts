@@ -5,28 +5,53 @@
  *
  * Canonical, deterministic proof hash computation.
  *
- * The proof hash covers the SIGNED BODY — the fields that are
- * cryptographically signed by the enclave. This matches what the
- * Ed25519 signature covers, making the hash verifiable.
- *
- * Signed body fields:
+ * This is the LEDGER IDENTITY of a proof. It hashes a fixed SUBSET of the
+ * signed body:
  *   - version, artifact, commit
  *   - publicKeyB64 (from signer)
  *   - enforcement, measurement (from environment)
  *   - attribution (if present)
  *   - attestationFormat (if attestation present)
  *
- * This hash (the signed-body hash) is used for:
- *   - S3 ledger key generation
+ * Used for:
+ *   - S3 ledger key generation — proofs/{epoch}/{counter}-{proofHash}.json
  *   - Ethereum anchor binding
  *   - Proof deduplication and canonical identity
  *
- * It is NOT the value referenced by commit.prevB64 or by
- * epochLink.prevProofHashB64. Those reference the CHAIN hash: SHA-256 over
- * the canonicalized WHOLE proof (every field, minus the ledger-added
- * proofHash), computed by computeChainHash below. Matching prevB64 against
- * computeProofHash instead of computeChainHash silently fails to link real
- * chains.
+ * ── THE FIELD LIST ABOVE IS FROZEN. DO NOT ADD TO IT. ──
+ *
+ * It is tempting to "fix" this function by adding `actor` and `policy`, which
+ * ARE in the signed body the enclave signs. Doing so is a silent, permanent
+ * break: this value is baked into every S3 object key already written, and
+ * ledger verify() compares a recomputed value against the stored `proofHash`
+ * field (packages/ledger/src/verify.ts). Widening the subset changes the hash
+ * of every existing agency-bearing or policy-bearing proof, orphaning its key
+ * and failing its hash check forever. The subset is a compatibility contract,
+ * not an approximation of the signature.
+ *
+ * BitGraph has THREE distinct proof hashes. Confusing them is the single
+ * easiest way to break the system, so they are spelled out here:
+ *
+ *   1. computeProofHash (this function) — signed-body SUBSET.
+ *      Ledger identity and S3 key. Frozen. Not a signature-equivalent value.
+ *
+ *   2. SHA-256 of the FULL canonical signed body — what the Ed25519 signature
+ *      actually covers, and what the enclave puts in the Nitro attestation's
+ *      user_data. Reconstructed by verifier.ts (step 3) and, in the browser,
+ *      by buildSignedBody()/proofHashB64() in website/src/lib/bitgraph.ts.
+ *      For a proof with no `actor` and no `policy` this coincides with (1);
+ *      for agency or policy proofs it does NOT. Use this for signature and
+ *      attestation checks. Never use (1).
+ *
+ *   3. computeChainHash (below) — the WHOLE proof, minus ledger-added fields.
+ *      This is what the enclave writes into the next proof's commit.prevB64
+ *      and into epochLink.prevProofHashB64. Matching prevB64 against (1)
+ *      silently fails to link real chains.
+ *
+ * packages/hosted/src/bitcoin-anchor.ts carries a deliberate inline copy of
+ * (1) because Railway cannot resolve the monorepo package. It mirrors this
+ * field list exactly and must continue to; if this list ever does change,
+ * that copy changes with it in the same commit.
  *
  * Algorithm:
  *   1. Extract signed body fields
@@ -44,7 +69,11 @@ import { sha256 } from "@noble/hashes/sha256";
 import type { BitGraphProof } from "./types.js";
 
 /**
- * Compute the canonical hash of a BitGraph proof's signed body.
+ * Compute the ledger identity hash of a BitGraph proof.
+ *
+ * Hashes the frozen signed-body subset described at the top of this file.
+ * This is NOT the value the Ed25519 signature covers and NOT the attestation
+ * user_data; for that, reconstruct the full signed body (verifier.ts step 3).
  *
  * @param proof - The full BitGraphProof object (or equivalent Record)
  * @returns Base64-standard encoded SHA-256 hash

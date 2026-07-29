@@ -157,9 +157,16 @@ function buildSignedBody(proof: BitGraphProof): Record<string, unknown> {
   return signedBody;
 }
 
-/** Canonical proofHash = base64(SHA-256(canonical signed body)). The enclave
- *  places this exact value in the attestation's user_data, binding the
- *  attestation to this specific proof. */
+/** base64(SHA-256(FULL canonical signed body)). The enclave places this exact
+ *  value in the attestation's user_data, binding the attestation to this
+ *  specific proof, and the Ed25519 signature covers the same bytes.
+ *
+ *  Despite the name, this is NOT the ledger's `proofHash` field. That one is
+ *  computeProofHash() in @mikeargento/bitgraph-verify, which hashes a frozen
+ *  SUBSET of the signed body (no `actor`, no `policy`) because it is baked
+ *  into every S3 object key. The two values coincide for ordinary proofs and
+ *  diverge for agency or policy proofs. Use this one for signature and
+ *  attestation checks; never use it as a ledger key. */
 export async function proofHashB64(proof: BitGraphProof): Promise<string> {
   const canonicalBytes = new TextEncoder().encode(JSON.stringify(sortKeys(buildSignedBody(proof))));
   const hash = await crypto.subtle.digest("SHA-256", canonicalBytes as unknown as BufferSource);
