@@ -27,8 +27,10 @@ RUN apk add --no-cache \
 
 WORKDIR /build
 
-# Copy the monorepo root (bitgraph core library)
-COPY package.json package-lock.json tsconfig.json ./
+# Copy the monorepo root (bitgraph core library).
+# tsconfig.build.json is required: the tsc step below builds with it, not with
+# the default config. Omitting it fails with TS5058 rather than falling back.
+COPY package.json package-lock.json tsconfig.json tsconfig.build.json ./
 COPY src/ ./src/
 
 # Copy the verifier workspace (@mikeargento/bitgraph-verify). The core library
