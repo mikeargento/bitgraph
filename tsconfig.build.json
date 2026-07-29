@@ -1,0 +1,21 @@
+// Library build only — no tests.
+//
+// The default tsconfig.json deliberately includes src/__tests__ so that
+// `npm run test:core` can compile and run them. The enclave image must NOT
+// use it, for two reasons:
+//
+//   1. Several tests import @mikeargento/bitgraph-audit, which the enclave
+//      build context does not copy (the enclave has no use for the audit
+//      package). tsc then exits 2 and the EIF build fails. This silently
+//      broke the reproducible build from 2026-07-10, when the audit tests
+//      landed, until 2026-07-29.
+//   2. Dockerfile.enclave copies /build/dist/ into the production image, so
+//      compiling tests put dist/__tests__/*.js inside the measured boundary.
+//      Test code has no business being measured into PCR0.
+//
+// Keep this file in sync with tsconfig.json for everything except `include`.
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/__tests__"]
+}

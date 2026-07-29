@@ -57,7 +57,13 @@ COPY server/commit-service/src/parent/ ./server/commit-service/src/parent/
 RUN npm ci --ignore-scripts
 # Build the verifier workspace first — the core library imports its dist.
 RUN npx tsc -p packages/verify
-RUN npx tsc
+# tsconfig.build.json, NOT the default tsconfig.json. The default includes
+# src/__tests__, several of which import @mikeargento/bitgraph-audit — a package
+# this build context deliberately does not copy, so tsc exits 2 and the EIF
+# build fails. That broke the reproducible build silently from 2026-07-10 until
+# 2026-07-29. It also kept compiled test code out of dist/, which this stage
+# copies into the measured image: tests have no business inside PCR0.
+RUN npx tsc -p tsconfig.build.json
 
 # Build adapter-nitro
 WORKDIR /build/packages/adapter-nitro
