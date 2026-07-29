@@ -3,8 +3,11 @@
 #
 # Reproducible BitGraph enclave EIF build.
 #
-# Produces a bit-for-bit reproducible enclave.eif (and its PCR0) from pinned
-# inputs, so anyone rebuilding from the same source re-derives the same PCR0.
+# Produces a reproducible PCR0 from pinned inputs, so anyone rebuilding from the
+# same source re-derives the same measurement. The .eif FILE is not byte-identical
+# across builds — its header embeds a BuildTime — but PCR0 measures the enclave
+# contents, not that header. Verified twice on 2026-07-29: identical PCR0, two
+# different file hashes.
 # See PINS.md for every pinned digest/version and README.md for the rationale.
 #
 # Requirements: linux/amd64 host with Docker + git. Nitro hardware NOT required

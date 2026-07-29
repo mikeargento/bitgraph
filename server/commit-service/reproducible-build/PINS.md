@@ -5,44 +5,64 @@ re-derive the **identical PCR0**. Change any one of these and the PCR0 changes.
 This file is the authoritative record; the `Dockerfile.enclave`, `build-eif.sh`,
 and `eif-builder.Dockerfile` all reference these exact pins.
 
-Last resolved: 2026-06-27 (resolved on the production Nitro host, linux/amd64).
+Last resolved: 2026-07-29 (resolved on the production Nitro host, linux/amd64).
+Source: tag `enclave-v5` (`f8fa324d`).
 
 ## Published measurement
 
-> **⚠ STALE AS OF 2026-07-29 — REBUILD PENDING.**
-> The enclave source changed on 2026-07-29 (`convertBW` and `principal`
-> removed, `sharp` dropped from the image). **PCR0 below is the value for the
-> PREVIOUS source and no longer matches what a rebuild produces.** It remains
-> correct for verifying every proof minted before the redeploy.
->
-> Until the rebuild runs on the production Nitro host, this file, the
-> `/proof/[digest]` page's "you can rebuild it and re-derive this exact PCR0"
-> copy, and any verifier allowlist are all out of date together. Re-derive on
-> `linux/amd64`, replace the value below, record the previous one in the
-> retired list, and update the site copy in the same commit.
-
 ```
-PCR0 = bb9dd158703603ec222fe565495ceaa7edc08f665da5c1cddad91442ac2211731390267036d79deb720d13fb704f648a
+PCR0 = 6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f
 ```
 
-This value was produced by the pinned pipeline below and **verified by two
-independent clean-room builds** (2026-06-27). It is the measurement reported by
-the production enclave at `nitro.occproof.com` for proofs minted between
-2026-06-27 and the 2026-07-29 rebuild.
+Built and deployed **2026-07-29**, and **verified by two independent builds on
+that date**: the pipeline was run twice from a clean context at `f8fa324d` and
+both produced this identical PCR0. Rebuild from this source on any linux/amd64
+host and you will re-derive exactly this value; the production enclave at
+`nitro.occproof.com` reports it as its `measurement`.
 
-The previous value `8530a6399399c4f23d89f5a1faa2e8bf2e09a5959f117070fca08148377f92c902c695fc926c17f67f35f110327dca92`
-(genesis 2026-05-15) was built by a pipeline that did NOT pin its inputs (floating
-`node:20-alpine`, unpinned apk packages, and a `npm install sharp` that fetched
-the newest build at build time) and cannot be re-derived. It is retired; its EIF
-is kept only for verifying proofs minted under that epoch.
+Note on what "reproducible" means precisely: **PCR0 reproduces, the `.eif` file
+does not.** The two verification builds produced different file hashes
+(`8c3d55d2…` and `bf5943ab…`) because the EIF header embeds a `BuildTime`.
+PCR0 measures the enclave *contents*, not that header, which is why it is
+stable. Any claim of a byte-identical EIF is wrong; the claim is a byte-identical
+measurement.
 
-Companion PCR measurements of the published EIF (informational; PCR1 is AWS's
-kernel, PCR2 is the app):
+Companion measurements of this build:
 
 ```
 PCR1 = 4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493
-PCR2 = 561ec327532d8742b93bb4c93127531e94533c38224a936bb32b38dc01f81f9668bb7ed52835fe0cd4fdfe755d698810
+PCR2 = 329dbfe340ce5e1caa770d73363b21f799ebc4565924983ead75a814fc851e4683e0b5299faa46b3ae22d30eb7810419
 ```
+
+PCR1 is unchanged from every prior build: it measures AWS's signed kernel, which
+the nitro-cli 1.4.4 pin holds fixed. PCR2 (the application) changed, as expected.
+
+### Retired measurements
+
+Each remains correct for verifying proofs minted during its own epochs. A proof
+always carries its own measurement, so nothing below needs to be "current" for
+old proofs to verify.
+
+| PCR0 | Period | Note |
+|------|--------|------|
+| `e2fccbae77ee40aac4830e84f195e05d69eb4547bbd961f4d3459feba10807140424aca42ad03810354982598c86b9cb` | 2026-07-05 → 2026-07-29 | v4-repro, the value production actually ran until this rebuild. **This file did not record it at the time** — see the warning below. |
+| `bb9dd158703603ec222fe565495ceaa7edc08f665da5c1cddad91442ac2211731390267036d79deb720d13fb704f648a` | 2026-06-27 → 2026-07-05 | v2-repro. Verified by two clean-room builds 2026-06-27. |
+| `8530a6399399c4f23d89f5a1faa2e8bf2e09a5959f117070fca08148377f92c902c695fc926c17f67f35f110327dca92` | 2026-05-15 → 2026-06-27 | Genesis. Built by an unpinned pipeline and **cannot be re-derived**; its EIF is retained only to verify proofs from that period. |
+
+> **⚠ THIS FILE DRIFTED ONCE. DO NOT LET IT AGAIN.**
+> Between 2026-07-05 and 2026-07-29 this file published `bb9dd158…` while
+> production actually ran `e2fccbae…` — two rebuilds went by without the
+> published value being updated. `/docs/self-host-tee` was correct throughout,
+> so the two disagreed and this file was the wrong one.
+>
+> The rule: **an enclave rebuild is not finished until this file, the
+> `/docs/self-host-tee` PCR0, and the deployed enclave all agree.** Check the
+> live value with `curl -s https://nitro.occproof.com/key` before believing any
+> document, including this one.
+
+The genesis pipeline did not pin its inputs — floating `node:20-alpine`,
+unpinned apk packages, and an `npm install sharp` that fetched whatever was
+newest at build time — which is why that measurement cannot be re-derived.
 
 ## Container images (pinned by digest)
 
