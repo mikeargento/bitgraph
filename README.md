@@ -78,13 +78,15 @@ The artifact was committed after the TEE-created slot existed and before the lat
 
 Ethereum is not asked to prove the artifact's origin. BitGraph does that. Ethereum provides the backward seal that makes the commitment publicly verifiable.
 
-## Multi-TEE breach detection
+## Compromise and containment
 
-BitGraph's architecture supports running three independent TEEs in parallel as a tripwire, not a consensus system. Three TEEs witness the same input and produce three individual proofs with different nonces, signatures, and attestations. They agree on the meaningful result: same artifact hash, same policy decision, valid measurements, valid signatures, expected ordering behavior.
+BitGraph assumes the boundary can be compromised and bounds the damage instead of claiming it cannot happen.
 
-If one diverges, the system does not need to know which one is compromised. It only needs to know something is wrong. The batch is quarantined, the affected range is marked suspect, the epoch is rotated, and downstream verification accounts for the gap.
+The signing key exists only in enclave memory. Every restart destroys it and begins a new epoch with a fresh key and a fresh counter. Proofs from prior epochs were signed by keys that no longer exist, so a compromise cannot reach backward.
 
-This is not "trust this TEE forever." It is: compromise is assumed, silence is what gets eliminated.
+Forgery requires more than key theft. Every proof carries a hardware attestation whose user_data must equal the hash of that exact proof body, and only the enclave's secure module can produce one. A useful breach must execute inside the running enclave, and it dies at the next restart.
+
+Damage control is precise. Every proof names its epoch permanently, so a suspect window is identified exactly: rotate the epoch, publish the affected epochId as quarantined, and every other epoch is untouched. Verifiers that pin measurements and track epochs account for the gap.
 
 ## The trust model
 
@@ -98,7 +100,6 @@ BitGraph does not depend on blind trust in any single component. Not the operato
 | Counters | Internal logical order |
 | Proof chain | Historical continuity |
 | Ethereum anchor | Public backward seal |
-| Multi-TEE redundancy | Breach visibility |
 | Epoch rotation | Damage containment |
 | Portable verification | Independence from the original server |
 
@@ -137,7 +138,7 @@ BitGraph introduces a different category. A digital artifact can be copied witho
 
 ## The simplest version
 
-A measured TEE creates a random unused slot before the artifact hash arrives. The hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Three TEEs can run in parallel so silent compromise becomes visible. The same mechanism periodically commits an Ethereum block hash, sealing everything before it in a public timeline.
+A measured TEE creates a random unused slot before the artifact hash arrives. The hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, sealing everything before it in a public timeline.
 
 The result is a provenance system that does not say "someone signed this." It says: this exact artifact occupied this origin coordinate.
 
