@@ -23,14 +23,31 @@ const headCache = new Map<string, { head: number; at: number }>();
 const EPOCH_TTL = 60_000;
 const HEAD_TTL = 12_000;
 
-/** Current epoch = the one whose first object was written most recently
- *  (a new epoch is born at counter 1 on every TEE restart). ~1 cheap LIST/epoch. */
+/** Current epoch: ask the enclave (it mints epochs; one call), fall back to a
+ *  PAGINATED newest-born scan of the ledger while the boundary is rotating.
+ *  The old single-page MaxKeys:200 listing was a time bomb under daily epoch
+ *  rotation: past 200 epoch prefixes (~2027-01) the current epoch could sort
+ *  off the page and the Roll would silently pin to a stale epoch. */
 async function getCurrentEpoch(now: number): Promise<string | null> {
   if (epochCache && now - epochCache.at < EPOCH_TTL) return epochCache.epoch;
-  const pe = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "proofs/", Delimiter: "/", MaxKeys: 200 }));
-  const prefixes = (pe.CommonPrefixes || []).map((p) => p.Prefix!).filter(Boolean);
-  // Probe every epoch's first-object timestamp in parallel (newest-born = current).
-  // Sequential here was a meaningful slice of cold-start latency.
+  try {
+    const r = await fetch("https://nitro.occproof.com/key", { signal: AbortSignal.timeout(4000) });
+    if (r.ok) {
+      const k = (await r.json()) as { epochId?: string };
+      if (k.epochId) {
+        const epoch = k.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        epochCache = { epoch, at: now };
+        return epoch;
+      }
+    }
+  } catch { /* rotating or unreachable: fall through */ }
+  const prefixes: string[] = [];
+  let token: string | undefined;
+  do {
+    const pe = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "proofs/", Delimiter: "/", ContinuationToken: token }));
+    for (const cp of pe.CommonPrefixes || []) if (cp.Prefix) prefixes.push(cp.Prefix);
+    token = pe.NextContinuationToken;
+  } while (token);
   const born = await Promise.all(prefixes.map(async (pfx) => {
     const first = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: pfx, MaxKeys: 1 }));
     return { epoch: pfx.replace("proofs/", "").replace(/\/$/, ""), born: first.Contents?.[0]?.LastModified?.getTime() ?? 0 };

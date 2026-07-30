@@ -25,14 +25,46 @@ function toSafe(b64: string): string {
 let epochCache: { epoch: string; at: number } | null = null;
 const EPOCH_TTL = 60_000;
 
-/** Current epoch = the one whose first object was written most recently. */
+/** Current epoch, asked of the authority that mints it.
+ *
+ * The enclave's /key endpoint knows the current epoch in one call, so that is
+ * the primary source (cached briefly). The S3 scan is only a fallback for the
+ * seconds when the boundary is rotating, and it PAGINATES: with daily epoch
+ * rotation the old single-page MaxKeys:200 listing would have silently
+ * returned a stale epoch once the 201st epoch prefix existed (~2027-01), with
+ * the failure day decided by how the new epoch's base64 happened to sort.
+ * The fallback also costs one LIST per epoch ever created, which grows by one
+ * per day under rotation; the /key path costs one HTTP call, always. */
 export async function getCurrentEpoch(): Promise<string | null> {
   const now = Date.now();
   if (epochCache && now - epochCache.at < EPOCH_TTL) return epochCache.epoch;
+
+  // Primary: the enclave itself.
+  try {
+    const r = await fetch("https://nitro.occproof.com/key", { signal: AbortSignal.timeout(4000) });
+    if (r.ok) {
+      const k = (await r.json()) as { epochId?: string };
+      if (k.epochId) {
+        const epoch = toSafe(k.epochId);
+        epochCache = { epoch, at: now };
+        return epoch;
+      }
+    }
+  } catch { /* rotating or unreachable: fall through to the ledger scan */ }
+
+  // Fallback: newest epoch by first-object write time, over ALL epoch
+  // prefixes (paginated — correctness must not depend on epoch count).
   const s3 = getClient();
   const bucket = getBucket();
-  const pe = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "proofs/", Delimiter: "/", MaxKeys: 200 }));
-  const prefixes = (pe.CommonPrefixes || []).map((p) => p.Prefix!).filter(Boolean);
+  const prefixes: string[] = [];
+  let token: string | undefined;
+  do {
+    const pe = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket, Prefix: "proofs/", Delimiter: "/", ContinuationToken: token,
+    }));
+    for (const p of pe.CommonPrefixes || []) if (p.Prefix) prefixes.push(p.Prefix);
+    token = pe.NextContinuationToken;
+  } while (token);
   const born = await Promise.all(prefixes.map(async (pfx) => {
     const first = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: pfx, MaxKeys: 1 }));
     return { epoch: pfx.replace("proofs/", "").replace(/\/$/, ""), born: first.Contents?.[0]?.LastModified?.getTime() ?? 0 };
