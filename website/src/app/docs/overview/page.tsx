@@ -158,7 +158,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        The production deployment makes rotation routine rather than exceptional: the boundary restarts once a day at an unpredictable time, destroying the epoch key and starting a fresh one. A breach that depends on staying resident inside the enclave cannot outlive the day without freshly re-compromising a new enclave.
+        The production deployment makes rotation routine rather than exceptional: the boundary restarts every day at 23:59 UTC, destroying the epoch key and starting a fresh one, so each epoch is exactly one UTC calendar day. A breach that depends on staying resident inside the enclave cannot outlive the day without freshly re-compromising a new enclave. The schedule is deliberately public: rotation times are visible on the ledger regardless, and the protection comes from the key dying, not from anyone guessing when.
       </p>
 
       <h2>The trust model</h2>
