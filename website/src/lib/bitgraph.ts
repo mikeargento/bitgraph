@@ -324,6 +324,14 @@ export async function commitDigest(
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    // Daily epoch rotation, or the new epoch's first anchor has not landed
+    // yet. Retryable: nothing was minted. Typed by name so the record flow
+    // can hold and retry instead of failing the batch.
+    if (resp.status === 503 && (err as { code?: string }).code === "tee-restarting") {
+      const e = new Error(err.error || "The camera is restarting");
+      e.name = "TeeRestartingError";
+      throw e;
+    }
     throw new Error(err.error || `Commit failed: ${resp.status}`);
   }
 
@@ -380,6 +388,14 @@ export async function commitBatch(
 
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }));
+    // Daily epoch rotation, or the new epoch's first anchor has not landed
+    // yet. Retryable: nothing was minted. Typed by name so the record flow
+    // can hold and retry instead of failing the batch.
+    if (resp.status === 503 && (err as { code?: string }).code === "tee-restarting") {
+      const e = new Error(err.error || "The camera is restarting");
+      e.name = "TeeRestartingError";
+      throw e;
+    }
     throw new Error(err.error || `Commit failed: ${resp.status}`);
   }
 

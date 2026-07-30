@@ -66,6 +66,10 @@ export default function BitGraphPage() {
   // "N of N checked" sitting under a full bar while the lookup ran was a lie.
   const [scanPhase, setScanPhase] = useState<"reading" | "checking">("reading");
   const [proveProgress, setProveProgress] = useState({ current: 0, total: 0 });
+  // True while a commit is being held because the boundary is mid-rotation
+  // (daily key renewal) or the fresh epoch's first anchor has not landed.
+  // Files are already hashed; the record flow waits and retries on its own.
+  const [teeRestarting, setTeeRestarting] = useState(false);
   const [proveAnimCount, setProveAnimCount] = useState(0);
   const proveAnimRef = useRef(0);
   const [, setExportProgress] = useState({ current: 0, total: 0 });
@@ -355,7 +359,10 @@ export default function BitGraphPage() {
         setStep("proving");
         setProveProgress({ current: 0, total: 1 });
         try {
-          const p = await commitDigest(solo.digestB64);
+          // Through the rotation wrapper: a solo drop is the product's most
+          // common gesture, and during the daily key renewal it must hold and
+          // resume (the proving view shows the held message), not fail raw.
+          const p = await commitThroughRotation(() => commitDigest(solo.digestB64));
           void announceRecorded([p]);
           openProofPage(p, solo.file, true);
           return;
@@ -401,6 +408,27 @@ export default function BitGraphPage() {
     } catch { /* display-only, never block the prove flow */ }
   }
 
+  // Retry a commit through the daily rotation window. Only the typed
+  // "TeeRestartingError" is retried: on that path nothing was minted (the
+  // proxy refused before forwarding, or the boundary was unreachable), so
+  // retrying cannot double-record. The whole window is restart (~40s) plus
+  // one anchor tick (~12s); 6s x 25 attempts gives 150s of patience before
+  // surfacing a real error.
+  async function commitThroughRotation<T>(fn: () => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const out = await fn();
+        setTeeRestarting(false);
+        return out;
+      } catch (e) {
+        const held = e instanceof Error && e.name === "TeeRestartingError";
+        if (!held || attempt >= 25) { setTeeRestarting(false); throw e; }
+        setTeeRestarting(true);
+        await new Promise((r) => setTimeout(r, 6000));
+      }
+    }
+  }
+
   async function proveRemaining() {
     const toProve = items.filter(i => i.status === "new");
     if (!toProve.length) return;
@@ -411,7 +439,7 @@ export default function BitGraphPage() {
 
     try {
       if (toProve.length === 1) {
-        const p = await commitDigest(toProve[0].digestB64);
+        const p = await commitThroughRotation(() => commitDigest(toProve[0].digestB64));
         setItems(prev => prev.map(i =>
           i.digestB64 === toProve[0].digestB64 ? { ...i, proof: p, proofs: [p], valid: true, status: "proved" as const } : i
         ));
@@ -442,7 +470,7 @@ export default function BitGraphPage() {
         for (let offset = 0; offset < toProve.length; offset += CHUNK_SIZE) {
           const chunk = toProve.slice(offset, offset + CHUNK_SIZE);
           const digests = chunk.map(t => ({ digestB64: t.digestB64, hashAlg: "sha256" as const }));
-          const proofs = await commitBatch(digests);
+          const proofs = await commitThroughRotation(() => commitBatch(digests));
           const chunkMap = new Map(chunk.map((t, i) => [t.digestB64, proofs[i]] as const));
           setItems(prev => prev.map(i => {
             const p = chunkMap.get(i.digestB64);
@@ -857,6 +885,15 @@ export default function BitGraphPage() {
               </>
             ) : (
               <div style={waitLabel}>BitGraphing…</div>
+            )}
+            {/* Shown only while a commit is held for the daily rotation.
+                The files are hashed and safe; nothing is lost by waiting.
+                One line, quiet gray, same voice as the drop hints. */}
+            {teeRestarting && (
+              <div style={{ fontSize: 13, color: "#4b5563", textAlign: "center", maxWidth: 420 }}>
+                The camera is restarting for its daily key renewal. Your file is
+                hashed and held; recording resumes automatically.
+              </div>
             )}
           </div>
         )}
