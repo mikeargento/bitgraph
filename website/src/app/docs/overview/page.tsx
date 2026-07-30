@@ -157,6 +157,10 @@ export default function OverviewPage() {
         Damage control is precise. Every proof names its epoch permanently, so a suspect window is identified exactly: rotate the epoch, publish the affected epochId as quarantined, and every other epoch is untouched. Verifiers that pin measurements and track epochs account for the gap.
       </p>
 
+      <p>
+        The production deployment makes rotation routine rather than exceptional: the boundary restarts once a day at an unpredictable time, destroying the epoch key and starting a fresh one. A breach that depends on staying resident inside the enclave cannot outlive the day without freshly re-compromising a new enclave.
+      </p>
+
       <h2>The trust model</h2>
 
       <p>

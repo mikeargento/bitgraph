@@ -88,6 +88,8 @@ Forgery requires more than key theft. Every proof carries a hardware attestation
 
 Damage control is precise. Every proof names its epoch permanently, so a suspect window is identified exactly: rotate the epoch, publish the affected epochId as quarantined, and every other epoch is untouched. Verifiers that pin measurements and track epochs account for the gap.
 
+The production deployment makes rotation routine rather than exceptional: the boundary restarts once a day at an unpredictable time, destroying the epoch key and starting a fresh one. A breach that depends on staying resident inside the enclave cannot outlive the day without freshly re-compromising a new enclave.
+
 ## The trust model
 
 BitGraph does not depend on blind trust in any single component. Not the operator, the TEE, Ethereum, the clock, a certificate authority, or a live server. Each layer adds an independently verifiable property.
