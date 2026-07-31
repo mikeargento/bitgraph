@@ -133,21 +133,17 @@ export function FileDrop({
     inputRef.current?.click();
   };
 
-  // Why the just-taken photo (or pasted image data) was not recorded. Quiet
-  // grey, same voice as the subhint; states the doctrine and the way out.
+  // Why the just-taken photo (or pasted image data) was not recorded. One
+  // short line in the subhint voice: the fact, then the way out.
   const refusalNote = refusedEphemeral ? (
     <div
       className="mt-3 text-center"
       style={{
         color: "#4b5563", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5,
-        maxWidth: 420, marginLeft: "auto", marginRight: "auto",
         position: "relative", zIndex: 2,
       }}
     >
-      A BitGraph records a file that already exists. That image was created
-      just now in the browser and is saved nowhere, so its exact bits could
-      never be verified again. Save it to your device first, then choose the
-      saved file.
+      This image isn&rsquo;t saved on your device. Save it first, then choose the saved file.
     </div>
   ) : null;
 
