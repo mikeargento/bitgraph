@@ -12,9 +12,16 @@ type Entry = {
   etherscanUrl: string | null;
   isNew?: true;
   at?: number;
+  // URL-safe epochId. Day rolls can span epochs and counters repeat across
+  // them, so identity and proof links use (epoch, counter), not counter alone.
+  ep?: string;
 };
 
-type FeedResp = { entries?: Entry[]; nextBefore?: number | null; hasMore?: boolean };
+type FeedResp = { entries?: Entry[]; nextBefore?: number | null; nextEpoch?: string | null; hasMore?: boolean };
+
+// Row identity that survives epoch boundaries (day rolls). Live-feed rows are
+// all one epoch, where this degrades to the counter as before.
+const rowId = (e: Entry) => `${e.ep ?? ""}:${e.counter}`;
 
 // Compact recorded time for a roll row, e.g. "Jul 17, 9:22 PM". More useful
 // than the truncated hash it replaces (nobody reads a proof by 10 hash chars).
@@ -23,11 +30,12 @@ const fmtWhen = (ms?: number) =>
 
 const fmt = (n: number) => n.toLocaleString();
 
-export function Explorer({ title }: { title?: React.ReactNode }) {
+export function Explorer({ title, day }: { title?: React.ReactNode; day?: string }) {
   // Seed first paint from a warm Roll feed if the nav warmed one on hover/focus.
   // Only the default view (files only, no cursor) is warmed, so this seeds just
   // the initial render; the effect below reconciles against a live fetch.
-  const seeded = (() => { const w = takeWarm<FeedResp>(ROLL_FEED_KEY); return w && "data" in w ? w.data : null; })();
+  // Day rolls (sealed past days) never seed from the live warm slot.
+  const seeded = (() => { if (day) return null; const w = takeWarm<FeedResp>(ROLL_FEED_KEY); return w && "data" in w ? w.data : null; })();
   const [entries, setEntries] = useState<Entry[]>(() => seeded?.entries ?? []);
   // Counters that arrived via the live poll (not the initial load), so only
   // those rows get the arrival flash. Grows slowly; the animation runs once.
@@ -48,6 +56,9 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
     }), NEW_TAG_MS);
   }, []);
   const [nextBefore, setNextBefore] = useState<number | null>(() => seeded?.nextBefore ?? null);
+  // Day-roll cursor scope: counters repeat across epochs, so the resume point
+  // is (epoch, counter). Null outside day mode.
+  const [nextEpoch, setNextEpoch] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(() => seeded ? !!seeded.hasMore : true);
   const [loading, setLoading] = useState(() => !seeded);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -93,9 +104,18 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   // tags settle a moment after the seeded paint.
   const firstRunRef = useRef(true);
 
-  const feedUrl = useCallback((before?: number | null) =>
-    `/api/explorer?${showAnchors ? "" : "files=1"}${before != null ? `${showAnchors ? "" : "&"}before=${before}` : ""}`,
-  [showAnchors]);
+  const feedUrl = useCallback((before?: number | null, bepoch?: string | null) => {
+    // The no-cursor live files URL must stay byte-identical to ROLL_FEED_KEY
+    // (warm slots key by URL string), so the live path keeps its exact shape.
+    if (!day) return `/api/explorer?${showAnchors ? "" : "files=1"}${before != null ? `${showAnchors ? "" : "&"}before=${before}` : ""}`;
+    const p = new URLSearchParams({ day });
+    if (!showAnchors) p.set("files", "1");
+    if (before != null) {
+      p.set("before", String(before));
+      if (bepoch) p.set("bepoch", bepoch);
+    }
+    return `/api/explorer?${p.toString()}`;
+  }, [showAnchors, day]);
 
   // Initial load, re-run when the anchors toggle flips the feed mode. A cold
   // request can be slow while the endpoint discovers the epoch head, so retry
@@ -115,6 +135,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
       setFreshIds(new Set());
       setNewIds(new Set());
       setNextBefore(null);
+      setNextEpoch(null);
       setHasMore(true);
       setLoading(true);
       setError(false);
@@ -132,6 +153,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
             setEntries(j.entries || []);
             noteNew(j.entries || []);
             setNextBefore(j.nextBefore ?? null);
+            setNextEpoch(j.nextEpoch ?? null);
             setHasMore(!!j.hasMore);
             topRef.current = j.entries?.[0]?.counter ?? 0;
             setLoading(false);
@@ -151,6 +173,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           setEntries(j.entries || []);
           noteNew(j.entries || []);
           setNextBefore(j.nextBefore ?? null);
+          setNextEpoch(j.nextEpoch ?? null);
           setHasMore(!!j.hasMore);
           topRef.current = j.entries?.[0]?.counter ?? 0;
           setLoading(false);
@@ -169,6 +192,7 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
   // waits out the poll. Same flash + "new!" treatment as polled arrivals;
   // topRef advances so the next poll doesn't re-add these counters.
   useEffect(() => {
+    if (day) return; // a sealed day's roll cannot receive live arrivals
     const onRecorded = (ev: Event) => {
       const detail = ((ev as CustomEvent<Entry[]>).detail || []).filter((e) => e.counter > 0);
       if (!detail.length) return;
@@ -187,10 +211,12 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
     };
     window.addEventListener("bitgraph:recorded", onRecorded);
     return () => window.removeEventListener("bitgraph:recorded", onRecorded);
-  }, [noteNew]);
+  }, [noteNew, day]);
 
-  // Live poll: every ~12s (anchor cadence), pull the head page and prepend new entries.
+  // Live poll: every ~12s (anchor cadence), pull the head page and prepend new
+  // entries. Day rolls are sealed history: nothing to poll for.
   useEffect(() => {
+    if (day) return;
     const id = setInterval(async () => {
       try {
         const r = await fetch(feedUrl());
@@ -210,25 +236,26 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
       } catch { /* transient, ignore */ }
     }, 12000);
     return () => clearInterval(id);
-  }, [feedUrl]);
+  }, [feedUrl, day]);
 
   const loadMore = useCallback(async () => {
     if (busyRef.current || nextBefore == null || !hasMore) return;
     busyRef.current = true;
     setLoadingMore(true);
     try {
-      const r = await fetch(feedUrl(nextBefore));
+      const r = await fetch(feedUrl(nextBefore, nextEpoch));
       if (!r.ok) throw new Error();
       const j = await r.json();
       setEntries((prev) => {
-        const seen = new Set(prev.map((e) => e.counter));
-        return [...prev, ...(j.entries || []).filter((e: Entry) => !seen.has(e.counter))];
+        const seen = new Set(prev.map(rowId));
+        return [...prev, ...(j.entries || []).filter((e: Entry) => !seen.has(rowId(e)))];
       });
       setNextBefore(j.nextBefore ?? null);
+      setNextEpoch(j.nextEpoch ?? null);
       setHasMore(!!j.hasMore);
     } catch { /* keep what we have */ }
     finally { busyRef.current = false; setLoadingMore(false); }
-  }, [nextBefore, hasMore, feedUrl]);
+  }, [nextBefore, nextEpoch, hasMore, feedUrl]);
 
   // Infinite scroll.
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -343,10 +370,11 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           const tagLabel = isAnchor ? "anchor" : isInterval ? "interval" : "file";
           const tagColor = isAnchor ? "#4b5563" : isInterval ? "#7c3aed" : "#0065A4";
           const tagWeight = isAnchor ? 400 : 600;
-          // ?counter= pins the drill-in to THIS row's causal position; the
-          // same bytes can occupy several (BitGraphed more than once).
+          // ?counter=&epoch= pin the drill-in to THIS row's causal position;
+          // the same bytes can occupy several (BitGraphed more than once), and
+          // counters repeat across epochs.
           return (
-            <a key={e.counter} href={`/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}`} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
+            <a key={rowId(e)} href={`/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}${e.ep ? `&epoch=${encodeURIComponent(e.ep)}` : ""}`} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>
                 #{fmt(e.counter)}
               </span>
@@ -370,9 +398,14 @@ export function Explorer({ title }: { title?: React.ReactNode }) {
           );
         })}
 
+        {!loading && !error && day && entries.filter((e) => showAnchors || e.type === "proof").length === 0 && !hasMore && (
+          <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
+            {showAnchors ? "No recordings on this day." : "No files recorded on this day."}
+          </div>
+        )}
         {!loading && !error && (
           <div ref={sentinel} style={{ padding: 16, textAlign: "center", color: "#9ca3af", fontSize: 12 }}>
-            {loadingMore ? "Loading…" : hasMore ? " " : "Beginning of epoch"}
+            {loadingMore ? "Loading…" : hasMore ? " " : day ? (entries.length ? "End of this day's roll" : " ") : "Beginning of epoch"}
           </div>
         )}
       </div>
