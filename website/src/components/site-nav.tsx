@@ -52,13 +52,6 @@ export function SiteNav() {
           }}
         >
           BitGraph
-          {/* Unregistered-mark symbol, deliberately quiet: ~40% of the
-              wordmark size, weight dropped from 900 so it reads as a legal
-              annotation rather than part of the name, and the wordmark's
-              text-stroke cancelled so the small glyph doesn't clot. The ™
-              glyph is drawn raised within its own em; the vertical nudge
-              aligns its top with the wordmark's cap height. */}
-          <span aria-hidden style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0, WebkitTextStroke: "0px transparent", verticalAlign: "7px", marginLeft: 1 }}>™</span>
         </Link>
         {/* Gap lives in CSS, not inline, so it can tighten on narrow phones.
             A 12-character label ("Applications", before this settled on "Uses")
