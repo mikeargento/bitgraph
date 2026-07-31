@@ -315,35 +315,32 @@ export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNod
         @media (prefers-reduced-motion: reduce){ .xp-skel{ animation:none; } }
       `}</style>
 
-      {/* Heading row: the title stays left, the anchors toggle sits at the far
-          right, so the control reads as a property of the Roll itself. Anchors
-          hidden by default: the roll shows the photos, not the clock. */}
-      {title != null && (
-        // flexWrap: on a phone the controls drop to their own line under the
-        // title instead of squeezing it into a two-line subtitle.
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", gap: "8px 16px", marginBottom: 12 }}>
-          {title}
-          <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-          {/* The Roll defaults to files (the recordings) — anchors are the clock
-              ticking, not the photos — so showing them is the opt-in. */}
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#4b5563", cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
-            <input
-              type="checkbox"
-              checked={showAnchors}
-              onChange={(ev) => setShowAnchors(ev.target.checked)}
-              style={{ accentColor: "#0065A4", width: 13, height: 13 }}
-            />
-            Show anchors
-          </label>
-          {aside}
+      {/* Heading: title + subtitle alone, full width, nothing competing. */}
+      {title != null && <div style={{ marginBottom: 12 }}>{title}</div>}
+
+      {/* THE nav line — one stratum for everything: the day-flip pair on the
+          left (a classic stepper, back before forward), view controls on the
+          right (anchors toggle, then the calendar). Sized to hold one line at
+          375px with nothing wrapping; the All-rolls label collapses to its
+          glyph on phones. Anchors hidden by default: the roll shows the
+          photos, not the clock. */}
+      {(subnav != null || aside != null) && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>{subnav}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#4b5563", cursor: "pointer", userSelect: "none", flexShrink: 0, whiteSpace: "nowrap" }}>
+              <input
+                type="checkbox"
+                checked={showAnchors}
+                onChange={(ev) => setShowAnchors(ev.target.checked)}
+                style={{ accentColor: "#0065A4", width: 13, height: 13 }}
+              />
+              Show anchors
+            </label>
+            {aside}
           </div>
         </div>
       )}
-
-      {/* Full-width slot between the heading and the search — the day-flip
-          bar lives here so prev/next can sit at opposite edges of the roll,
-          like page corners, instead of bunching inside the title block. */}
-      {subnav != null && <div style={{ marginBottom: 12 }}>{subnav}</div>}
 
       {/* Search — jump straight to a BitGraph by its # (searching by hash means
           dropping the file itself, so it is not offered here). Submitting

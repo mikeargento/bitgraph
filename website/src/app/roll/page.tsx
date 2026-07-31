@@ -51,14 +51,21 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }`}</style>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+        /* The nav line is one stratum and must never wrap: on phones the
+           All-rolls label collapses and the calendar glyph carries the link. */
+        @media (max-width: 600px) { .bg-allrolls-label { display: none; } }
+      `}</style>
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
         <Explorer
           day={day ?? undefined}
           // The shelf: the month-grid index of every day's roll, sitting with
           // the anchors toggle so both read as properties of the Roll itself.
+          // On phones the label collapses and the calendar glyph carries it —
+          // the one-stratum nav line must never wrap.
           aside={
-            <a href="/rolls" className="bg-arrow-link" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
+            <a href="/rolls" className="bg-arrow-link" aria-label="All rolls" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
               {/* Square-cornered calendar glyph, same stroke voice as the row
                   chevrons (miter joins, square caps, no fill, no radius). */}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
@@ -67,7 +74,7 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
                 <path d="M8 2.5 V7" />
                 <path d="M16 2.5 V7" />
               </svg>
-              All rolls <span className="arrow" aria-hidden>&rarr;</span>
+              <span className="bg-allrolls-label">All rolls <span className="arrow" aria-hidden>&rarr;</span></span>
             </a>
           }
           title={
@@ -80,35 +87,33 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
               </div>
             </div>
           }
-          // Day navigation — flipping between rolls. Full-width bar so the two
-          // directions sit at opposite edges like page corners (and stay a
-          // thumb apart on a phone). Backward gets a leading ←, forward a
-          // trailing →; "Today's roll" closes the loop from any day page.
+          // The day-flip stepper — back before forward, sitting together on
+          // the nav line's left like ‹ › on a pager. Dated labels everywhere
+          // ("← July 30", not "yesterday") so live and day pages read alike;
+          // "Today's roll" closes the loop from the most recent sealed day.
           subnav={
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
-              {day ? (
-                <>
-                  {prev >= EARLIEST_DAY
-                    ? <a href={`/roll?day=${prev}`} style={linkStyle}><span aria-hidden>&larr;</span> {shortLabel(prev)}</a>
-                    : <span />}
-                  {next && (next >= todayUTC ? (
-                    <a href="/roll" className="bg-arrow-link" style={linkStyle}>
-                      Today&rsquo;s roll <span className="arrow" aria-hidden>&rarr;</span>
-                    </a>
-                  ) : (
-                    <a href={`/roll?day=${next}`} className="bg-arrow-link" style={linkStyle}>
-                      {shortLabel(next)} <span className="arrow" aria-hidden>&rarr;</span>
-                    </a>
-                  ))}
-                </>
-              ) : (
-                prev >= EARLIEST_DAY && (
-                  <a href={`/roll?day=${prev}`} style={linkStyle}>
-                    <span aria-hidden>&larr;</span> Yesterday&rsquo;s roll
+            day ? (
+              <>
+                {prev >= EARLIEST_DAY && (
+                  <a href={`/roll?day=${prev}`} style={linkStyle}><span aria-hidden>&larr;</span> {shortLabel(prev)}</a>
+                )}
+                {next && (next >= todayUTC ? (
+                  <a href="/roll" className="bg-arrow-link" style={linkStyle}>
+                    Today&rsquo;s roll <span className="arrow" aria-hidden>&rarr;</span>
                   </a>
-                )
-              )}
-            </div>
+                ) : (
+                  <a href={`/roll?day=${next}`} className="bg-arrow-link" style={linkStyle}>
+                    {shortLabel(next)} <span className="arrow" aria-hidden>&rarr;</span>
+                  </a>
+                ))}
+              </>
+            ) : (
+              prev >= EARLIEST_DAY && (
+                <a href={`/roll?day=${prev}`} style={linkStyle}>
+                  <span aria-hidden>&larr;</span> {shortLabel(prev)}
+                </a>
+              )
+            )
           }
         />
       </div>

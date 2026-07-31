@@ -55,7 +55,7 @@ export default function RollsPage() {
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
         <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>Rolls</div>
         <div style={{ fontSize: 13, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>
-          One roll per day (UTC) since the ledger began. Today&rsquo;s is still open.
+          One roll per day (UTC). Today&rsquo;s is still open.
         </div>
 
         {months.map((mo) => (
