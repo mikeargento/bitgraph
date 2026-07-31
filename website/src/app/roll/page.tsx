@@ -23,6 +23,11 @@ function shiftDay(day: string, delta: number): string {
 function shortLabel(day: string): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", day: "numeric" });
 }
+// "Sep 29" — the phone-width variant; September-class month names are what
+// would otherwise wrap the one-stratum nav line at 375px.
+function tinyLabel(day: string): string {
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+}
 function longLabel(day: string): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" });
 }
@@ -53,28 +58,24 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
-        /* The nav line is one stratum and must never wrap: on phones the
-           All-rolls label collapses and the calendar glyph carries the link. */
-        @media (max-width: 600px) { .bg-allrolls-label { display: none; } }
+        /* The nav line is one stratum and must never wrap: on phones the day
+           labels shorten ("Sep 29", "Today") so "All rolls" keeps its words. */
+        .bg-day-short { display: none; }
+        @media (max-width: 600px) {
+          .bg-day-long { display: none; }
+          .bg-day-short { display: inline; }
+        }
       `}</style>
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
         <Explorer
           day={day ?? undefined}
           // The shelf: the month-grid index of every day's roll, sitting with
           // the anchors toggle so both read as properties of the Roll itself.
-          // On phones the label collapses and the calendar glyph carries it —
-          // the one-stratum nav line must never wrap.
+          // Text only (calendar glyph tried and ditched); the nav line stays
+          // one unwrapped stratum because day labels shorten on phones.
           aside={
-            <a href="/rolls" className="bg-arrow-link" aria-label="All rolls" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
-              {/* Square-cornered calendar glyph, same stroke voice as the row
-                  chevrons (miter joins, square caps, no fill, no radius). */}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter" aria-hidden>
-                <rect x="3.5" y="5" width="17" height="15.5" />
-                <path d="M3.5 10.5 H20.5" />
-                <path d="M8 2.5 V7" />
-                <path d="M16 2.5 V7" />
-              </svg>
-              <span className="bg-allrolls-label">All rolls <span className="arrow" aria-hidden>&rarr;</span></span>
+            <a href="/rolls" className="bg-arrow-link" style={{ fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
+              All rolls <span className="arrow" aria-hidden>&rarr;</span>
             </a>
           }
           title={
@@ -95,22 +96,32 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
             day ? (
               <>
                 {prev >= EARLIEST_DAY && (
-                  <a href={`/roll?day=${prev}`} style={linkStyle}><span aria-hidden>&larr;</span> {shortLabel(prev)}</a>
+                  <a href={`/roll?day=${prev}`} style={linkStyle}>
+                    <span aria-hidden>&larr;</span>{" "}
+                    <span className="bg-day-long">{shortLabel(prev)}</span>
+                    <span className="bg-day-short">{tinyLabel(prev)}</span>
+                  </a>
                 )}
                 {next && (next >= todayUTC ? (
                   <a href="/roll" className="bg-arrow-link" style={linkStyle}>
-                    Today&rsquo;s roll <span className="arrow" aria-hidden>&rarr;</span>
+                    <span className="bg-day-long">Today&rsquo;s roll</span>
+                    <span className="bg-day-short">Today</span>
+                    {" "}<span className="arrow" aria-hidden>&rarr;</span>
                   </a>
                 ) : (
                   <a href={`/roll?day=${next}`} className="bg-arrow-link" style={linkStyle}>
-                    {shortLabel(next)} <span className="arrow" aria-hidden>&rarr;</span>
+                    <span className="bg-day-long">{shortLabel(next)}</span>
+                    <span className="bg-day-short">{tinyLabel(next)}</span>
+                    {" "}<span className="arrow" aria-hidden>&rarr;</span>
                   </a>
                 ))}
               </>
             ) : (
               prev >= EARLIEST_DAY && (
                 <a href={`/roll?day=${prev}`} style={linkStyle}>
-                  <span aria-hidden>&larr;</span> {shortLabel(prev)}
+                  <span aria-hidden>&larr;</span>{" "}
+                  <span className="bg-day-long">{shortLabel(prev)}</span>
+                  <span className="bg-day-short">{tinyLabel(prev)}</span>
                 </a>
               )
             )
