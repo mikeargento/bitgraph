@@ -30,7 +30,7 @@ const fmtWhen = (ms?: number) =>
 
 const fmt = (n: number) => n.toLocaleString();
 
-export function Explorer({ title, day }: { title?: React.ReactNode; day?: string }) {
+export function Explorer({ title, day, aside }: { title?: React.ReactNode; day?: string; aside?: React.ReactNode }) {
   // Seed first paint from a warm Roll feed if the nav warmed one on hover/focus.
   // Only the default view (files only, no cursor) is warmed, so this seeds just
   // the initial render; the effect below reconciles against a live fetch.
@@ -117,6 +117,32 @@ export function Explorer({ title, day }: { title?: React.ReactNode; day?: string
     return `/api/explorer?${p.toString()}`;
   }, [showAnchors, day]);
 
+  // An anchor-only stretch (day rolls especially: a sparse day inside a big
+  // pre-rotation epoch) legitimately yields empty pages that still carry a
+  // cursor. Absorb them here, bounded, so a page the user sees always has
+  // either rows or a real end — chaining must not depend on the scroll
+  // sentinel's IntersectionObserver, which won't fire in a hidden tab.
+  const fetchChain = useCallback(async (
+    before?: number | null, bepoch?: string | null, signal?: AbortSignal,
+  ): Promise<FeedResp> => {
+    const acc: Entry[] = [];
+    let nb: number | null = before ?? null;
+    let ne: string | null = bepoch ?? null;
+    let hm = true;
+    for (let hop = 0; hop < 12; hop++) {
+      const url = hop === 0 ? feedUrl(before, bepoch) : feedUrl(nb, ne);
+      const r = await fetch(url, signal ? { signal } : undefined);
+      if (!r.ok) throw new Error(`feed ${r.status}`);
+      const j: FeedResp = await r.json();
+      acc.push(...(j.entries || []));
+      nb = j.nextBefore ?? null;
+      ne = j.nextEpoch ?? null;
+      hm = !!j.hasMore;
+      if (acc.length > 0 || !hm || nb == null) break;
+    }
+    return { entries: acc, nextBefore: nb, nextEpoch: ne, hasMore: hm };
+  }, [feedUrl]);
+
   // Initial load, re-run when the anchors toggle flips the feed mode. A cold
   // request can be slow while the endpoint discovers the epoch head, so retry
   // a few times with a per-attempt timeout rather than hanging forever on one
@@ -164,11 +190,9 @@ export function Explorer({ title, day }: { title?: React.ReactNode; day?: string
       for (let attempt = 0; attempt < 5 && !cancelled; attempt++) {
         try {
           const ctrl = new AbortController();
-          const to = setTimeout(() => ctrl.abort(), 15000);
-          const r = await fetch(feedUrl(), { signal: ctrl.signal });
+          const to = setTimeout(() => ctrl.abort(), 20000);
+          const j = await fetchChain(undefined, undefined, ctrl.signal);
           clearTimeout(to);
-          if (!r.ok) throw new Error();
-          const j = await r.json();
           if (cancelled) return;
           setEntries(j.entries || []);
           noteNew(j.entries || []);
@@ -185,7 +209,7 @@ export function Explorer({ title, day }: { title?: React.ReactNode; day?: string
       if (!cancelled) { setError(true); setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [feedUrl]);
+  }, [fetchChain]);
 
   // Instant arrivals: the drop flow on this page dispatches each successful
   // recording the moment its commit returns, so the dropper's Roll never
@@ -243,9 +267,7 @@ export function Explorer({ title, day }: { title?: React.ReactNode; day?: string
     busyRef.current = true;
     setLoadingMore(true);
     try {
-      const r = await fetch(feedUrl(nextBefore, nextEpoch));
-      if (!r.ok) throw new Error();
-      const j = await r.json();
+      const j = await fetchChain(nextBefore, nextEpoch);
       setEntries((prev) => {
         const seen = new Set(prev.map(rowId));
         return [...prev, ...(j.entries || []).filter((e: Entry) => !seen.has(rowId(e)))];
@@ -255,7 +277,7 @@ export function Explorer({ title, day }: { title?: React.ReactNode; day?: string
       setHasMore(!!j.hasMore);
     } catch { /* keep what we have */ }
     finally { busyRef.current = false; setLoadingMore(false); }
-  }, [nextBefore, nextEpoch, hasMore, feedUrl]);
+  }, [nextBefore, nextEpoch, hasMore, fetchChain]);
 
   // Infinite scroll.
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -299,6 +321,8 @@ export function Explorer({ title, day }: { title?: React.ReactNode; day?: string
       {title != null && (
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
           {title}
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
+          {aside}
           {/* The Roll defaults to files (the recordings) — anchors are the clock
               ticking, not the photos — so showing them is the opt-in. */}
           <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#4b5563", cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
@@ -310,6 +334,7 @@ export function Explorer({ title, day }: { title?: React.ReactNode; day?: string
             />
             Show anchors
           </label>
+          </div>
         </div>
       )}
 

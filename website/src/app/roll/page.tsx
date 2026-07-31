@@ -55,6 +55,13 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
         <Explorer
           day={day ?? undefined}
+          // The shelf: the month-grid index of every day's roll, sitting with
+          // the anchors toggle so both read as properties of the Roll itself.
+          aside={
+            <a href="/rolls" className="bg-arrow-link" style={{ fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
+              All rolls <span className="arrow" aria-hidden>&rarr;</span>
+            </a>
+          }
           title={
             <div>
               <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
