@@ -134,12 +134,13 @@ export function FileDrop({
   };
 
   // Why the just-taken photo (or pasted image data) was not recorded. One
-  // short line in the subhint voice: the fact, then the way out.
+  // short line stating the rule, in the site's error red (same as the Roll
+  // search error) since a selection was actively refused.
   const refusalNote = refusedEphemeral ? (
     <div
       className="mt-3 text-center"
       style={{
-        color: "#4b5563", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5,
+        color: "#dc2626", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5,
         position: "relative", zIndex: 2,
       }}
     >
