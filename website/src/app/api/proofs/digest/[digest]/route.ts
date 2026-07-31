@@ -164,11 +164,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // and every subsequent visit, is instant instead of re-running the S3 work.
     // The one thing that can still change is the Recordings list growing (the same
     // bytes BitGraphed again), which stale-while-revalidate refreshes in the
-    // background. A proof still waiting on its upper anchor gets a short TTL so the
-    // pending "waiting on Ethereum" window fills in promptly (the client also polls).
+    // background — so SWR is minutes, not days: a stale list must heal on the
+    // next visit soon after, not whenever a second visitor happens by. The page
+    // also self-corrects the worst case (viewing a position the cached list
+    // doesn't contain) by refetching on a fresh cache key. A proof still waiting
+    // on its upper anchor gets a short TTL so the pending "waiting on Ethereum"
+    // window fills in promptly (the client also polls).
     const settled = !!causalWindow?.anchorAfter?.blockTime;
     const cacheControl = settled
-      ? "public, s-maxage=60, stale-while-revalidate=604800"
+      ? "public, s-maxage=60, stale-while-revalidate=300"
       : "public, s-maxage=5, stale-while-revalidate=30";
     return NextResponse.json({ proofs: [{ proof }], positions, causalWindow, anchorBlock }, { headers: { "Cache-Control": cacheControl } });
   } catch (e) {

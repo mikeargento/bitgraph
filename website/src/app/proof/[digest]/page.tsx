@@ -326,6 +326,24 @@ export default function ProofPage() {
         // or strict-mode double-invoked) effect, and without this a cancelled run
         // would clobber a good render with a spurious "not found".
         if (!cancelled && !applyData(data) && !seeded) setError("BitGraph not found");
+        // Staleness guard. The CDN serves settled responses stale-while-
+        // revalidate, so right after the same bytes are BitGraphed again a
+        // cached copy can predate the very position this page is displaying —
+        // provably stale, because ?counter= is missing from its own Recordings
+        // list. Refetch once on a distinct cache key (the CDN ignores client
+        // no-cache headers, so a different URL is the only reliable bypass).
+        // Deterministic single retry: the origin's list always contains any
+        // position that exists, so the fresh copy passes this check.
+        const viewedCounter = qs.get("counter");
+        const staleList = !cancelled && viewedCounter && Array.isArray(data?.positions) &&
+          !data.positions.some((p: { counter?: string | null }) =>
+            String(p?.counter) === String(parseInt(viewedCounter, 10)));
+        if (staleList) {
+          try {
+            const freshResp = await fetch(`${key}${key.includes("?") ? "&" : "?"}fresh=1`);
+            if (freshResp.ok && !cancelled) applyData(await freshResp.json());
+          } catch { /* keep the stale render; SWR heals it on the next visit */ }
+        }
       } catch { if (!seeded && !cancelled) setError("Failed to load BitGraph"); }
       if (!cancelled) setLoading(false);
     })();
