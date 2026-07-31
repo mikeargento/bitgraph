@@ -143,7 +143,7 @@ export function FileDrop({
         position: "relative", zIndex: 2,
       }}
     >
-      This image isn&rsquo;t saved on your device. Save it first, then choose the saved file.
+      Photos must be chosen from your camera roll or files.
     </div>
   ) : null;
 
