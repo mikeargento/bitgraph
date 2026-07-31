@@ -322,7 +322,6 @@ export function Explorer({ title, day, aside }: { title?: React.ReactNode; day?:
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
           {title}
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
-          {aside}
           {/* The Roll defaults to files (the recordings) — anchors are the clock
               ticking, not the photos — so showing them is the opt-in. */}
           <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#4b5563", cursor: "pointer", userSelect: "none", flexShrink: 0 }}>
@@ -334,6 +333,7 @@ export function Explorer({ title, day, aside }: { title?: React.ReactNode; day?:
             />
             Show anchors
           </label>
+          {aside}
           </div>
         </div>
       )}
