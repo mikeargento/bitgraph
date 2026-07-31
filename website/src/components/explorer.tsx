@@ -30,7 +30,7 @@ const fmtWhen = (ms?: number) =>
 
 const fmt = (n: number) => n.toLocaleString();
 
-export function Explorer({ title, day, aside }: { title?: React.ReactNode; day?: string; aside?: React.ReactNode }) {
+export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNode; day?: string; aside?: React.ReactNode; subnav?: React.ReactNode }) {
   // Seed first paint from a warm Roll feed if the nav warmed one on hover/focus.
   // Only the default view (files only, no cursor) is warmed, so this seeds just
   // the initial render; the effect below reconciles against a live fetch.
@@ -319,7 +319,9 @@ export function Explorer({ title, day, aside }: { title?: React.ReactNode; day?:
           right, so the control reads as a property of the Roll itself. Anchors
           hidden by default: the roll shows the photos, not the clock. */}
       {title != null && (
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
+        // flexWrap: on a phone the controls drop to their own line under the
+        // title instead of squeezing it into a two-line subtitle.
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", justifyContent: "space-between", gap: "8px 16px", marginBottom: 12 }}>
           {title}
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
           {/* The Roll defaults to files (the recordings) — anchors are the clock
@@ -337,6 +339,11 @@ export function Explorer({ title, day, aside }: { title?: React.ReactNode; day?:
           </div>
         </div>
       )}
+
+      {/* Full-width slot between the heading and the search — the day-flip
+          bar lives here so prev/next can sit at opposite edges of the roll,
+          like page corners, instead of bunching inside the title block. */}
+      {subnav != null && <div style={{ marginBottom: 12 }}>{subnav}</div>}
 
       {/* Search — jump straight to a BitGraph by its # (searching by hash means
           dropping the file itself, so it is not offered here). Submitting

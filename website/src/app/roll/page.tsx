@@ -38,7 +38,7 @@ function parseDay(raw: string | undefined, todayUTC: string): string | null {
 
 const linkStyle: React.CSSProperties = {
   fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-  color: "#0065A4", textDecoration: "none",
+  color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap",
 };
 
 export default async function RollPage({ searchParams }: { searchParams: Promise<{ day?: string }> }) {
@@ -78,37 +78,36 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
               <div style={{ fontSize: 13, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>
                 {day ? `The roll for ${longLabel(day)} (UTC).` : "Every recording, newest first."}
               </div>
-              {/* Day navigation — flipping to the previous roll, one link each
-                  way. The live Roll offers only yesterday; a day roll offers
-                  both neighbors, with "Today's roll" closing the loop. */}
-              <div style={{ display: "flex", gap: 20, marginTop: 8 }}>
-                {day ? (
-                  <>
-                    {prev >= EARLIEST_DAY && (
-                      <a href={`/roll?day=${prev}`} style={linkStyle}>
-                        <span aria-hidden>&larr;</span> {shortLabel(prev)}
-                      </a>
-                    )}
-                    {next && (next >= todayUTC ? (
-                      <a href="/roll" className="bg-arrow-link" style={linkStyle}>
-                        Today&rsquo;s roll <span className="arrow" aria-hidden>&rarr;</span>
-                      </a>
-                    ) : (
-                      <a href={`/roll?day=${next}`} className="bg-arrow-link" style={linkStyle}>
-                        {shortLabel(next)} <span className="arrow" aria-hidden>&rarr;</span>
-                      </a>
-                    ))}
-                  </>
-                ) : (
-                  prev >= EARLIEST_DAY && (
-                    // Backward in time gets a leading ←, matching the day
-                    // pages' back links; trailing → is for forward hops only.
-                    <a href={`/roll?day=${prev}`} style={linkStyle}>
-                      <span aria-hidden>&larr;</span> Yesterday&rsquo;s roll
+            </div>
+          }
+          // Day navigation — flipping between rolls. Full-width bar so the two
+          // directions sit at opposite edges like page corners (and stay a
+          // thumb apart on a phone). Backward gets a leading ←, forward a
+          // trailing →; "Today's roll" closes the loop from any day page.
+          subnav={
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+              {day ? (
+                <>
+                  {prev >= EARLIEST_DAY
+                    ? <a href={`/roll?day=${prev}`} style={linkStyle}><span aria-hidden>&larr;</span> {shortLabel(prev)}</a>
+                    : <span />}
+                  {next && (next >= todayUTC ? (
+                    <a href="/roll" className="bg-arrow-link" style={linkStyle}>
+                      Today&rsquo;s roll <span className="arrow" aria-hidden>&rarr;</span>
                     </a>
-                  )
-                )}
-              </div>
+                  ) : (
+                    <a href={`/roll?day=${next}`} className="bg-arrow-link" style={linkStyle}>
+                      {shortLabel(next)} <span className="arrow" aria-hidden>&rarr;</span>
+                    </a>
+                  ))}
+                </>
+              ) : (
+                prev >= EARLIEST_DAY && (
+                  <a href={`/roll?day=${prev}`} style={linkStyle}>
+                    <span aria-hidden>&larr;</span> Yesterday&rsquo;s roll
+                  </a>
+                )
+              )}
             </div>
           }
         />
