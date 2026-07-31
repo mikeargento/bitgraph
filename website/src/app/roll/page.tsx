@@ -101,8 +101,10 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
                   </>
                 ) : (
                   prev >= EARLIEST_DAY && (
-                    <a href={`/roll?day=${prev}`} className="bg-arrow-link" style={linkStyle}>
-                      Yesterday&rsquo;s roll <span className="arrow" aria-hidden>&rarr;</span>
+                    // Backward in time gets a leading ←, matching the day
+                    // pages' back links; trailing → is for forward hops only.
+                    <a href={`/roll?day=${prev}`} style={linkStyle}>
+                      <span aria-hidden>&larr;</span> Yesterday&rsquo;s roll
                     </a>
                   )
                 )}
