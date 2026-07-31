@@ -334,10 +334,19 @@ export default function ProofPage() {
         // no-cache headers, so a different URL is the only reliable bypass).
         // Deterministic single retry: the origin's list always contains any
         // position that exists, so the fresh copy passes this check.
+        // Two provably-stale signals: the position this page displays is absent
+        // from the list, or the referring page told us (?n=) it knew MORE
+        // recordings than the cached response contains — the record-again →
+        // view-older-position flow, where the sibling URL's cached copy
+        // predates the newest recording yet still contains the viewed counter.
         const viewedCounter = qs.get("counter");
-        const staleList = !cancelled && viewedCounter && Array.isArray(data?.positions) &&
-          !data.positions.some((p: { counter?: string | null }) =>
-            String(p?.counter) === String(parseInt(viewedCounter, 10)));
+        const minCount = parseInt(qs.get("n") ?? "0", 10) || 0;
+        const staleList = !cancelled && Array.isArray(data?.positions) && (
+          (viewedCounter &&
+            !data.positions.some((p: { counter?: string | null }) =>
+              String(p?.counter) === String(parseInt(viewedCounter, 10)))) ||
+          data.positions.length < minCount
+        );
         if (staleList) {
           try {
             const freshResp = await fetch(`${key}${key.includes("?") ? "&" : "?"}fresh=1`);
@@ -819,7 +828,13 @@ export default function ProofPage() {
                       ) : (
                         <a
                           className="causal-action bg-arrow-link"
-                          href={`/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}`}
+                          // n= carries THIS page's recording count to the target
+                          // (links between positions are full loads, so nothing
+                          // else survives the hop). The target treats a CDN
+                          // response listing fewer than n positions as provably
+                          // stale and refetches — the case where this page knows
+                          // a recording the cached sibling page predates.
+                          href={`/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}&n=${positions.length}`}
                           style={{ color: "var(--c-accent)", textDecoration: "none" }}
                         >
                           View <span className="arrow" aria-hidden>&rarr;</span>
