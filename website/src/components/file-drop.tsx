@@ -3,6 +3,23 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { formatFileSize } from "@/lib/bitgraph";
 
+/* Creating a BitGraph is always a SELECTION of a file that already exists —
+   no step in the process may create anything (doctrine, 2026-07-31). Two
+   browser paths violate that by constructing bytes that exist nowhere:
+   a photo taken through the OS file sheet's "Take Photo" (a temporary blob
+   WebKit discards when the sheet closes) and raw clipboard-image data pasted
+   with ⌘V (screenshot-to-clipboard, "copy image"). Recording either mints a
+   permanent proof of bits the user can never produce again. The OS sheet's
+   camera option cannot be suppressed while keeping the photo library, so
+   ephemeral blobs are refused at intake instead. Both arrive with a generic
+   constructed name and a seconds-old timestamp; real files and library picks
+   carry their own names or dates, so the two signals together are the
+   discriminator. A real file that happens to match just gets asked to be
+   re-picked, which is harmless. */
+const EPHEMERAL_NAME = /^image\.(png|jpe?g|gif|heic|heif|webp)$/i;
+const isEphemeralBlob = (f: File) =>
+  EPHEMERAL_NAME.test(f.name) && Date.now() - f.lastModified < 120_000;
+
 interface FileDropProps {
   onFile?: (file: File) => void;
   file?: File | null;
@@ -23,12 +40,8 @@ interface FileDropProps {
   buttonLabel?: string;
   /** When true, the empty state is JUST a big clickable shutter circle. */
   shutter?: boolean;
-  /** Render a "take photo" link that opens the camera on mobile */
-  showCapture?: boolean;
   /** Label for the browse link */
   browseLabel?: string;
-  /** Label for the capture link */
-  captureLabel?: string;
   /** Drop-zone headline (proof pages say "Take another BitGraph") */
   headline?: string;
   /** Headline font size (CSS length/clamp). Defaults to the compact card size. */
@@ -50,45 +63,50 @@ export function FileDrop({
   subhint,
   buttonLabel,
   shutter,
-  showCapture,
   browseLabel = "browse",
-  captureLabel = "take photo",
   headline = "Take a BitGraph",
   headlineSize = "clamp(20px, 6vw, 24px)",
 }: FileDropProps) {
   const [dragover, setDragover] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const captureRef = useRef<HTMLInputElement>(null);
+  // Set when an intake refused an ephemeral blob (see selectExisting).
+  const [refusedEphemeral, setRefusedEphemeral] = useState(false);
 
   const hasFiles = multiple ? (files && files.length > 0) : !!file;
+
+  // Every intake (drop, picker, paste) passes through here: ephemeral blobs
+  // are dropped and the refusal notice raised; a clean selection clears it.
+  const selectExisting = useCallback((list: File[]): File[] => {
+    const kept = list.filter((f) => !isEphemeralBlob(f));
+    setRefusedEphemeral(kept.length !== list.length);
+    return kept;
+  }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragover(false);
       if (disabled) return;
-      if (multiple && onFiles) {
-        const dropped = Array.from(e.dataTransfer.files);
-        if (dropped.length) onFiles(dropped);
-      } else if (onFile && e.dataTransfer.files.length) {
-        onFile(e.dataTransfer.files[0]);
-      }
+      const dropped = selectExisting(Array.from(e.dataTransfer.files));
+      if (!dropped.length) return;
+      if (multiple && onFiles) onFiles(dropped);
+      else if (onFile) onFile(dropped[0]);
     },
-    [onFile, onFiles, multiple, disabled]
+    [onFile, onFiles, multiple, disabled, selectExisting]
   );
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!e.target.files?.length) return;
-      if (multiple && onFiles) {
-        onFiles(Array.from(e.target.files));
-      } else if (onFile) {
-        onFile(e.target.files[0]);
+      const picked = selectExisting(Array.from(e.target.files));
+      if (picked.length) {
+        if (multiple && onFiles) onFiles(picked);
+        else if (onFile) onFile(picked[0]);
       }
       // Reset input so the same file(s) can be re-selected
       e.target.value = "";
     },
-    [onFile, onFiles, multiple]
+    [onFile, onFiles, multiple, selectExisting]
   );
 
   // Clipboard paste: ⌘V / Ctrl-V from anywhere on the page picks the file up,
@@ -96,25 +114,42 @@ export function FileDrop({
   useEffect(() => {
     if (hasFiles || disabled) return;
     const handlePaste = (e: ClipboardEvent) => {
-      const pasted = Array.from(e.clipboardData?.files || []);
-      if (pasted.length === 0) return;
+      const pastedAll = Array.from(e.clipboardData?.files || []);
+      if (pastedAll.length === 0) return;
       e.preventDefault();
+      // A pasted Finder/Explorer file is a selection of existing bytes; raw
+      // clipboard-image data is a freshly constructed blob and gets refused.
+      const pasted = selectExisting(pastedAll);
+      if (pasted.length === 0) return;
       if (multiple && onFiles) onFiles(pasted);
       else if (onFile) onFile(pasted[0]);
     };
     document.addEventListener("paste", handlePaste);
     return () => document.removeEventListener("paste", handlePaste);
-  }, [hasFiles, disabled, multiple, onFile, onFiles]);
+  }, [hasFiles, disabled, multiple, onFile, onFiles, selectExisting]);
 
   const triggerBrowse = (e: React.MouseEvent) => {
     e.stopPropagation();
     inputRef.current?.click();
   };
 
-  const triggerCapture = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    captureRef.current?.click();
-  };
+  // Why the just-taken photo (or pasted image data) was not recorded. Quiet
+  // grey, same voice as the subhint; states the doctrine and the way out.
+  const refusalNote = refusedEphemeral ? (
+    <div
+      className="mt-3 text-center"
+      style={{
+        color: "#4b5563", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5,
+        maxWidth: 420, marginLeft: "auto", marginRight: "auto",
+        position: "relative", zIndex: 2,
+      }}
+    >
+      A BitGraph records a file that already exists. That image was created
+      just now in the browser and is saved nowhere, so its exact bits could
+      never be verified again. Save it to your device first, then choose the
+      saved file.
+    </div>
+  ) : null;
 
   return (
     <div
@@ -166,19 +201,6 @@ export function FileDrop({
         }}
       />
 
-      {/* Camera capture input (mobile) */}
-      {showCapture && (
-        <input
-          ref={captureRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="sr-only"
-          onChange={handleInputChange}
-          disabled={disabled}
-        />
-      )}
-
       {/* ── Multi-file mode: file list ── */}
       {multiple && files && files.length > 0 ? (
         <div className="w-full px-4 py-3">
@@ -224,6 +246,7 @@ export function FileDrop({
               </div>
             ))}
           </div>
+          {refusalNote}
         </div>
       ) : /* ── Single-file mode: existing behavior ── */
       file ? (
@@ -264,6 +287,7 @@ export function FileDrop({
           {hint && (
             <div className="mt-4 text-center" style={{ color: "#4b5563", fontSize: "min(12.5px, 2.9vw)", lineHeight: 1.5, whiteSpace: "pre-line" }}>{hint}</div>
           )}
+          {refusalNote}
         </div>
       ) : buttonLabel ? (
         /* Button variant: a single blue CTA. It sits above the invisible
@@ -285,6 +309,7 @@ export function FileDrop({
           {subhint && (
             <div className="mt-1.5 text-center" style={{ color: "#4b5563", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5, whiteSpace: "pre-line" }}>{subhint}</div>
           )}
+          {refusalNote}
         </div>
       ) : (
         <div className="flex flex-col items-center py-8 px-4 sm:px-6 w-full">
@@ -348,21 +373,7 @@ export function FileDrop({
               {subhint}
             </div>
           )}
-          {showCapture && !hint && (
-            <button
-              onClick={triggerCapture}
-              className="mt-6 text-center"
-              style={{
-                color: "#0065A4",
-                fontSize: "min(12px, 2.8vw)",
-                textDecoration: "underline",
-                textUnderlineOffset: "3px",
-              }}
-              disabled={disabled}
-            >
-              {captureLabel}
-            </button>
-          )}
+          {refusalNote}
         </div>
       )}
     </div>
