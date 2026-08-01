@@ -422,4 +422,20 @@ const handler = createMcpHandler(
   }
 );
 
-export { handler as GET, handler as POST, handler as DELETE };
+export { handler as POST, handler as DELETE };
+
+/**
+ * One URL for both audiences. The protocol handler serves GET only to answer
+ * 405 (stateless: no SSE stream to offer), so the only GETs worth routing to
+ * it are ones that explicitly ask for MCP media types; every other GET is a
+ * human pasting the URL into a browser and lands on the instructions page.
+ * Matching on the MCP types rather than text/html survives proxies that
+ * rewrite browser Accept headers (Vercel's edge does).
+ */
+export function GET(request: Request): Response | Promise<Response> {
+  const accept = request.headers.get("accept") ?? "";
+  if (accept.includes("text/event-stream") || accept.includes("application/json")) {
+    return handler(request);
+  }
+  return Response.redirect(new URL("/docs/mcp", request.url), 302);
+}
