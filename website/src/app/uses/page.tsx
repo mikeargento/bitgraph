@@ -108,13 +108,15 @@ const limits = [
 export default function UsesPage() {
   return (
     <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
-      {/* No subtitle under the heading, unlike the Roll. The Roll needs one
-          because it is a bare list with no prose; here the first paragraph
-          scopes the page immediately, and a subtitle only restated it in
-          weaker words before the reader reached it. */}
-      <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 24 }}>
-        Uses
-      </div>
+      {/* The one commercial line in the product, and this is the page it
+          belongs to: /uses is the buyer's room, so the heading speaks in the
+          buyer's register (Mike's line, 2026-07-31). It was proposed for the
+          home page and deliberately kept off it — the home page describes,
+          this page sells. Nav label and tab title stay "Uses": wayfinding,
+          not voice. No subtitle: the first paragraph scopes the page. */}
+      <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 24 }}>
+        Liability is expensive. Proof shouldn&rsquo;t be.
+      </h1>
 
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
         {/* No comma before "but". With one, "but" attaches to "BitGraph is
