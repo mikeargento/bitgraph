@@ -764,7 +764,11 @@ export default function BitGraphPage() {
            15px also lands the 640px column at ~75 chars/line. Not 16px: that
            competes with the drop-zone hint and reads bloggy. */
         .hero-explainer { max-width: 640px; margin: 0 auto; text-align: center; font-size: 15px; line-height: 1.65; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
-        @media (max-width: 768px) { .hero-explainer { font-size: 13.5px; } }
+        /* The one full-bleed text block on the page: without its own inset
+           its balanced lines run closer to the glass than anything else on
+           screen. 12px each side brings it to ~32px effective margin and a
+           ~50-char mobile measure. */
+        @media (max-width: 768px) { .hero-explainer { font-size: 13.5px; padding: 0 12px; } }
         /* Balance the line lengths so a centered paragraph breaks into roughly
            equal ragged lines at any width (mobile and desktop), not long-then-
            short. Recomputed per viewport by the browser. */
