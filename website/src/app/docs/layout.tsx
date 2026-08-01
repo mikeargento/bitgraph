@@ -14,6 +14,7 @@ const sections = [
   { href: "/docs/trust-model", label: "Trust Model" },
   { href: "/docs/self-host-tee", label: "Self-Host TEE" },
   { href: "/docs/integration", label: "Integration Guide" },
+  { href: "/docs/mcp", label: "MCP" },
   { href: "/docs/what-bitgraph-is-not", label: "What BitGraph is Not" },
   { href: "/docs/faq", label: "FAQ" },
 ];

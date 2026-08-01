@@ -11,6 +11,7 @@ export default function IntegrationPage() {
       <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">Integration Guide</h1>
       <p className="text-[#1f2937] mb-10">
         How to commit artifacts, verify proofs, and integrate BitGraph into your application.
+        Connecting an AI agent instead? See <a href="/docs/mcp">MCP</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Quick start: commit via API</h2>
@@ -23,13 +24,14 @@ export default function IntegrationPage() {
 DIGEST=$(openssl dgst -sha256 -binary myfile.pdf | base64)
 
 # 2. Send to BitGraph endpoint
-curl -X POST https://nitro.occproof.com/commit \\
+curl -X POST https://bitgraph.ing/api/commit \\
   -H "Content-Type: application/json" \\
   -d '{
     "digests": [{
       "digestB64": "'$DIGEST'",
       "hashAlg": "sha256"
     }],
+    "chainId": "bitgraph:main",
     "metadata": {
       "source": "my-app"
     }
@@ -44,12 +46,13 @@ const bytes = new Uint8Array(await file.arrayBuffer());
 const hashBuf = await crypto.subtle.digest("SHA-256", bytes);
 const digestB64 = btoa(String.fromCharCode(...new Uint8Array(hashBuf)));
 
-// Commit to enclave (with optional attribution)
-const resp = await fetch("https://nitro.occproof.com/commit", {
+// Commit through the BitGraph endpoint (with optional attribution)
+const resp = await fetch("https://bitgraph.ing/api/commit", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
     digests: [{ digestB64, hashAlg: "sha256" }],
+    chainId: "bitgraph:main",
     attribution: { name: "Jane Doe", title: "Project Photo" },
     metadata: { source: "my-app", fileName: file.name },
   }),
@@ -68,7 +71,7 @@ console.log(proof.attribution);      // signed creator metadata`}</pre>
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>TypeScript</span></div>
-        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`const resp = await fetch("https://nitro.occproof.com/commit", {
+        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`const resp = await fetch("https://bitgraph.ing/api/commit", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
@@ -77,6 +80,7 @@ console.log(proof.attribution);      // signed creator metadata`}</pre>
       { digestB64: digest2, hashAlg: "sha256" },
       { digestB64: digest3, hashAlg: "sha256" },
     ],
+    chainId: "bitgraph:main",
     attribution: { name: "Jane Doe" },
     metadata: { source: "my-app", batchId: "abc123" },
   }),
@@ -126,6 +130,7 @@ curl https://nitro.occproof.com/key
       <h2 className="text-xl font-semibold mt-12 mb-4">Important notes</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
         <li>• <strong className="text-text">Files are never uploaded.</strong> Only the SHA-256 digest crosses the network.</li>
+        <li>• <strong className="text-text">Commit via bitgraph.ing.</strong> The site endpoint records every causal position of a file for later lookup. Committing to the enclave host directly skips that index, and your recordings will not be discoverable by digest.</li>
         <li>• <strong className="text-text">The proof is portable.</strong> Store it alongside the artifact or in a separate system.</li>
         <li>• <strong className="text-text">Verification is offline.</strong> No API calls needed to verify. Just the public key and original bytes.</li>
         <li>• <strong className="text-text">Pin measurements.</strong> For production, always pin allowedMeasurements and require attestation.</li>
