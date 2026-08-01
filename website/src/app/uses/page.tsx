@@ -115,7 +115,7 @@ export default function UsesPage() {
           this page sells. Nav label and tab title stay "Uses": wayfinding,
           not voice. No subtitle: the first paragraph scopes the page. */}
       <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 24 }}>
-        Liability is expensive. Proof isn&rsquo;t.
+        Trust is expensive. Proof isn&rsquo;t.
       </h1>
 
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
