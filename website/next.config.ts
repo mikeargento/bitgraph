@@ -4,10 +4,15 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/overview", destination: "/docs/overview", permanent: true },
-      // "Uses" → "Why" (2026-08-02): the nav label promised a list of
-      // applications while the page opens with the commercial thesis. The old
-      // route stays alive for anything already linking to it.
-      { source: "/uses", destination: "/why", permanent: true },
+      // The buyer's room, renamed twice on 2026-08-02: "Uses" (SaaS taxonomy)
+      // → "Why" (vague, and an interrogative among nouns) → "Subjects" (what
+      // you point the camera at; parallel with Roll and Docs, and the page is
+      // organized by subject). Both old routes stay alive. TEMPORARY (307) on
+      // purpose: /uses shipped as a 308 earlier tonight and browsers cache
+      // those indefinitely, so while the name is still settling these must not
+      // bake in another permanent entry. Make them permanent once it holds.
+      { source: "/uses", destination: "/subjects", permanent: false },
+      { source: "/why", destination: "/subjects", permanent: false },
       { source: "/docs", destination: "/docs/overview", permanent: true },
       // The explainer's early per-orientation URLs; one responsive page now.
       { source: "/camera/desktop", destination: "/camera", permanent: false },

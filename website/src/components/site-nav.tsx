@@ -57,26 +57,33 @@ export function SiteNav() {
             A 12-character label ("Applications", before this settled on "Uses")
             left only 7px between the wordmark and the first link at 320px. */}
         <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
-          {/* Why → Roll → Docs reads left to right from "why does this exist"
-              to "show me the ledger" to "show me the spec", so the nav gets
-              progressively more technical.
+          {/* Subjects → Roll → Docs reads left to right from "what do you point
+              this at" to "show me the ledger" to "show me the spec", so the nav
+              gets progressively more technical.
 
-              "Why" replaced "Uses" (2026-08-02) once the page came to open with
-              the commercial thesis ("Trust is expensive. Proof isn't."): the
-              label promised a list of applications and the page delivered an
-              argument, and "Uses" carried the SaaS-taxonomy register this site
-              strips everywhere else. It is also the narrowest label in the bar,
-              which matters at 320px — that width is what killed "Applications"
-              (80px at 14px, against 24px for Roll and 33px for Docs, leaving
-              the bar at 266px of the 288 available; it fit, but nothing was
-              left, and the nav is where this site's sparseness reads most).
+              Two renames on 2026-08-02. "Uses" carried the SaaS-taxonomy
+              register ("Solutions", "Use cases") this site strips everywhere
+              else, and once the page came to open with the commercial thesis
+              ("Trust is expensive. Proof isn't.") the label promised a list of
+              applications while the page delivered an argument. "Why" fixed the
+              register but was vague and, as an interrogative among two nouns,
+              broke the series; it also hid the page's second half, the domain
+              sections a buyer actually navigates for. "Subjects" is the
+              camera's own word for what you point it at, it is a noun like Roll
+              and Docs, and the page is literally organized by subject.
               Not "Usage", which on a technical site reads as consumption or
-              quota. The route matches the label; /uses 308s to /why. */}
-          <Link href="/why" style={{
+              quota. Not "Recordings"/"Records", which collide with the proof
+              page's own Recordings card.
+              Width is the standing constraint here: "Applications" (80px at
+              14px, against 24px for Roll and 33px for Docs) left the 320px bar
+              at 266px of the 288 available, which is what killed it. Re-measure
+              at 320px before lengthening this label again.
+              The route matches the label; /uses and /why both redirect. */}
+          <Link href="/subjects" style={{
             fontSize: 14, fontWeight: 600, color: "#111827",
             textDecoration: "none",
           }}>
-            Why
+            Subjects
           </Link>
           {/* Roll — the ledger, now on its own /roll page (no longer embedded
               under the home camera), so the nav is its way in. */}
