@@ -1,0 +1,29 @@
+#!/bin/bash
+# Runs as root after the payload lands. The payload is machine-wide, but the
+# thing we are setting up (a folder, a Desktop link, a LaunchAgent) belongs to
+# the person who is actually logged in, so everything below is handed off to
+# them rather than done as root.
+
+set -u
+
+PAYLOAD="/usr/local/lib/bitgraph-folder"
+
+# The console user is the one at the keyboard, which is who the installer is
+# for. $USER and $HOME are root's here and would put the folder in /var/root.
+CONSOLE_USER="$(stat -f%Su /dev/console)"
+[ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ] || {
+  echo "postinstall: no console user, skipping per-user setup" >&2
+  exit 0
+}
+CONSOLE_UID="$(id -u "$CONSOLE_USER")"
+CONSOLE_HOME="$(dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
+[ -n "$CONSOLE_HOME" ] || CONSOLE_HOME="/Users/$CONSOLE_USER"
+
+# launchctl bootstrap has to target the user's GUI domain, and reaching it means
+# running inside their session rather than root's. `launchctl asuser` is what
+# puts us there; sudo alone would not.
+launchctl asuser "$CONSOLE_UID" sudo -u "$CONSOLE_USER" \
+  HOME="$CONSOLE_HOME" \
+  /bin/bash "$PAYLOAD/install.sh" >/dev/null 2>&1
+
+exit 0

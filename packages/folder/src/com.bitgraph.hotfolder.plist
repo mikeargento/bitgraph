@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  BitGraph Folder watcher.
+
+  WatchPaths fires this whenever the watched folder changes, including once at
+  load. ThrottleInterval keeps a burst of Finder events (a multi-file drag) from
+  spawning a run per file; the script takes a lock anyway, so an extra firing is
+  harmless.
+
+  __PLACEHOLDERS__ are filled in by install.sh, which resolves the real paths on
+  the machine it runs on.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.bitgraph.hotfolder</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__SCRIPT__</string>
+  </array>
+
+  <key>WatchPaths</key>
+  <array>
+    <string>__FOLDER__</string>
+  </array>
+
+  <key>ThrottleInterval</key>
+  <integer>3</integer>
+
+  <key>StandardErrorPath</key>
+  <string>__ERRLOG__</string>
+</dict>
+</plist>
