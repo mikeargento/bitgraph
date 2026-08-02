@@ -778,7 +778,6 @@ export default function BitGraphPage() {
         .see-example-link .arrow { transition: transform .18s ease; }
         @media (hover: hover) { .see-example-link:hover .arrow { transform: translateX(3px); } }
         .see-example-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
-        .see-example-note { margin: 9px auto 0; font-size: 11.5px; line-height: 1.45; color: #4b5563; letter-spacing: -0.005em; }
         /* Waiting states (read/check/prove/export) all pin their center to the
            SAME viewport point the success checkmark uses (fixed, 44% down,
            horizontally centered), so every wait and the capture moment share
@@ -844,7 +843,6 @@ export default function BitGraphPage() {
                 >
                   See an example BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
                 </button>
-                <p className="see-example-note">Content Credentials (C2PA) embedded</p>
               </div>
             </div>
           </div>
