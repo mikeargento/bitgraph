@@ -113,8 +113,14 @@ export default function UsesPage() {
           buyer's register (Mike's line, 2026-07-31). It was proposed for the
           home page and deliberately kept off it — the home page describes,
           this page sells. Nav label and tab title stay "Uses": wayfinding,
-          not voice. No subtitle: the first paragraph scopes the page. */}
-      <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 24 }}>
+          not voice. No subtitle: the first paragraph scopes the page.
+          Sized to the DOCS h1 scale (30/36px), not the Roll's 20px: /uses is a
+          prose page like the docs, not a stream page with search chrome, and
+          the line's turn ("Proof isn't") needs air to land while carrying the
+          top of the page alone. Deliberately NOT the home hero's up-to-54px —
+          that scale belongs to "A camera for bits." and is locked to the
+          /camera morph; matching it would set the two pages shouting. */}
+      <h1 style={{ fontSize: "clamp(30px, 7vw, 36px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, color: "#111827", marginBottom: 24 }}>
         Trust is expensive. Proof isn&rsquo;t.
       </h1>
 
