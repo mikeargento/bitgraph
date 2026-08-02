@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/overview", destination: "/docs/overview", permanent: true },
+      // "Uses" → "Why" (2026-08-02): the nav label promised a list of
+      // applications while the page opens with the commercial thesis. The old
+      // route stays alive for anything already linking to it.
+      { source: "/uses", destination: "/why", permanent: true },
       { source: "/docs", destination: "/docs/overview", permanent: true },
       // The explainer's early per-orientation URLs; one responsive page now.
       { source: "/camera/desktop", destination: "/camera", permanent: false },

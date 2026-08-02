@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Uses",
+  title: "Why",
   description:
     "Where causal ordering carries weight: photography, periodic reporting, clinical records, evidence and custody, issued documents, instrument data, and drafts.",
   openGraph: {
-    title: "BitGraph: Uses",
+    title: "BitGraph: Why",
     description:
       "Where causal ordering carries weight: photography, periodic reporting, clinical records, evidence and custody, issued documents, instrument data, and drafts.",
   },
@@ -109,12 +109,17 @@ export default function UsesPage() {
   return (
     <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
       {/* The one commercial line in the product, and this is the page it
-          belongs to: /uses is the buyer's room, so the heading speaks in the
+          belongs to: /why is the buyer's room, so the heading speaks in the
           buyer's register (Mike's line, 2026-07-31). It was proposed for the
-          home page and deliberately kept off it — the home page describes,
-          this page sells. Nav label and tab title stay "Uses": wayfinding,
-          not voice. No subtitle: the first paragraph scopes the page.
-          Caps at the DOCS h1 size (36px), not the Roll's 20px: /uses is a prose
+          home page and deliberately kept off it, and re-proposed and refused
+          again on 2026-08-02: the home page describes, this page sells, and
+          "A camera for bits." is also a door that morphs into /camera's
+          headline, which a demotion to subtitle would break.
+          The nav label and route were "Uses" until 2026-08-02; once this
+          heading became the page's opener, the label promised a list of
+          applications while the page delivered an argument. No subtitle: the
+          first paragraph scopes the page.
+          Caps at the DOCS h1 size (36px), not the Roll's 20px: /why is a prose
           page like the docs, not a stream page with search chrome, and the
           line's turn ("Proof isn't") needs air to land while carrying the top
           of the page alone. Deliberately NOT the home hero's up-to-54px: that

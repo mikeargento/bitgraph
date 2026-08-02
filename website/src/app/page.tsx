@@ -759,7 +759,7 @@ export default function BitGraphPage() {
            carry the emphasis (the blue accent stays reserved for "bits"). */
         /* One centered paragraph; text-wrap: balance equalizes the line
            lengths so the centered block reads symmetric, not ragged. */
-        /* 15px matches the site's reading size (/uses body prose) — this is
+        /* 15px matches the site's reading size (/why body prose) — this is
            the most load-bearing paragraph on the site and was set below it.
            15px also lands the 640px column at ~75 chars/line. Not 16px: that
            competes with the drop-zone hint and reads bloggy. */
