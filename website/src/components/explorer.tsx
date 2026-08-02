@@ -237,15 +237,56 @@ export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNod
     return () => window.removeEventListener("bitgraph:recorded", onRecorded);
   }, [noteNew, day]);
 
-  // Live poll: every ~12s (anchor cadence), pull the head page and prepend new
-  // entries. Day rolls are sealed history: nothing to poll for.
+  // Live poll, two tiers: a tiny head check every ~3s, and a feed fetch only
+  // when the head actually advances. The head endpoint (/api/roll/head) is
+  // never served long-stale (short s-maxage, no SWR), which is what makes
+  // arrivals feel instant; the heavier feed page keeps its hour-long SWR and
+  // is fetched with a ?n={head} cache-buster, so the CDN key changes exactly
+  // when the content does and every open Roll shares one origin fetch per
+  // change. Hidden tabs pause (background timers are throttled anyway and
+  // fetches there are wasted); regaining visibility checks immediately, which
+  // also heals a tab that slept through arrivals. Day rolls are sealed
+  // history: nothing to poll for.
   useEffect(() => {
     if (day) return;
-    const id = setInterval(async () => {
+    let disposed = false;
+    let inFlight = false;
+    let liveEpoch: string | null = null;
+    const bustedFeedUrl = (n: number) => {
+      const u = feedUrl();
+      return `${u}${u.endsWith("?") ? "" : "&"}n=${n}`;
+    };
+    const tick = async () => {
+      if (inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
       try {
-        const r = await fetch(feedUrl());
+        const hr = await fetch("/api/roll/head");
+        if (!hr.ok) return;
+        const h = (await hr.json()) as { epoch?: string; head?: number };
+        if (!h.epoch || !h.head) return;
+        if (liveEpoch !== null && liveEpoch !== h.epoch) {
+          // Daily rotation at 23:59 UTC: the live Roll becomes the new day's
+          // roll. Old-epoch counters are incomparable, so replace instead of
+          // prepending across the boundary.
+          liveEpoch = h.epoch;
+          const r = await fetch(bustedFeedUrl(h.head));
+          if (!r.ok) return;
+          const j: FeedResp = await r.json();
+          if (disposed) return;
+          setEntries(j.entries || []);
+          noteNew(j.entries || []);
+          setNextBefore(j.nextBefore ?? null);
+          setNextEpoch(j.nextEpoch ?? null);
+          setHasMore(!!j.hasMore);
+          topRef.current = j.entries?.[0]?.counter ?? 0;
+          return;
+        }
+        liveEpoch = h.epoch;
+        if (h.head <= topRef.current) return;
+        const r = await fetch(bustedFeedUrl(h.head));
         if (!r.ok) return;
         const j = await r.json();
+        if (disposed) return;
         const fresh: Entry[] = (j.entries || []).filter((e: Entry) => e.counter > topRef.current);
         if (fresh.length) {
           topRef.current = fresh[0].counter;
@@ -258,9 +299,17 @@ export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNod
           });
         }
       } catch { /* transient, ignore */ }
-    }, 12000);
-    return () => clearInterval(id);
-  }, [feedUrl, day]);
+      finally { inFlight = false; }
+    };
+    const id = setInterval(tick, 3000);
+    const onVis = () => { if (document.visibilityState === "visible") void tick(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      disposed = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [feedUrl, day, noteNew]);
 
   const loadMore = useCallback(async () => {
     if (busyRef.current || nextBefore == null || !hasMore) return;
