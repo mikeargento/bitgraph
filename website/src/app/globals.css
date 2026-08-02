@@ -143,12 +143,20 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   margin-bottom: 1.25rem;
   color: #111827;
 }
-.prose-doc a {
-  color: #111827;
-  text-decoration: underline;
-}
-.prose-doc a:hover {
-  color: #374151;
+/* In @layer base so a utility class on the anchor can override it. Tailwind's
+   utilities live in a cascade layer, and an unlayered rule beats a layered one
+   no matter how specific the layered one is, so an unlayered `.prose-doc a`
+   silently defeated every `text-[#0065A4] no-underline` written on a docs page.
+   Layering the default keeps plain prose links grey and underlined while
+   letting deliberate blue action links render as intended. */
+@layer base {
+  .prose-doc a {
+    color: #111827;
+    text-decoration: underline;
+  }
+  .prose-doc a:hover {
+    color: #374151;
+  }
 }
 .prose-doc h2 {
   margin-top: 3rem;

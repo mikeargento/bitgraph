@@ -110,11 +110,9 @@ export default function FolderPage() {
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Other ways to record</h2>
-      <ul className="space-y-2 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">Here.</strong> Drop a file on the home page.</li>
-        <li>• <strong className="text-text"><a href="/docs/mcp" className="text-[#0065A4] font-medium no-underline">MCP</a>.</strong> Connect an AI agent with one URL.</li>
-      </ul>
-      <p className="text-sm text-[#4b5563] mt-4">
+      <p className="mb-2"><Action href="/">Drop a file on the home page</Action></p>
+      <p className="mb-4"><Action href="/docs/mcp">Connect an AI agent over MCP</Action></p>
+      <p className="text-sm text-[#4b5563]">
         All three write to the same ledger and produce the same proofs. A recording made in
         the folder is indistinguishable from one made here, and shows up on the same Roll.
       </p>
