@@ -311,17 +311,20 @@ export function FileDrop({
       ) : (
         <div className="flex flex-col items-center py-8 px-4 sm:px-6 w-full">
           {/* Icon: a document with a plus — "select a file". Square corners, no
-              round caps. non-scaling-stroke pins the stroke to 2.25 SCREEN px
-              so it matches the chevrons: this svg renders at 44-52px from a
-              24-unit viewBox, so a scaled stroke would draw ~3px and read
-              heavier than every other icon.
+              round caps. The stroke must read 2.25 SCREEN px at every render
+              size, matching the chevrons; vector-effect: non-scaling-stroke was
+              tried and browsers disagreed (Chromium honored it and drew thin,
+              others scaled the stroke fat). So the weight is baked into user
+              units instead — geometry scaling is identical in every engine:
+              1.227 here covers the 44px mobile size (2.25 / (44/24)), and
+              .fd-icon's desktop media query overrides to 1.038 for 52px.
               Not a download/upload arrow: the file never leaves the device. */}
           <div className="mb-4">
-            <svg className="fd-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="2.25" vectorEffect="non-scaling-stroke">
-              <path d="M5 2 H14 L19 7 V22 H5 Z" vectorEffect="non-scaling-stroke" />
-              <path d="M14 2 V7 H19" vectorEffect="non-scaling-stroke" />
-              <line x1="12" y1="12" x2="12" y2="18" vectorEffect="non-scaling-stroke" />
-              <line x1="9" y1="15" x2="15" y2="15" vectorEffect="non-scaling-stroke" />
+            <svg className="fd-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.227">
+              <path d="M5 2 H14 L19 7 V22 H5 Z" />
+              <path d="M14 2 V7 H19" />
+              <line x1="12" y1="12" x2="12" y2="18" />
+              <line x1="9" y1="15" x2="15" y2="15" />
             </svg>
           </div>
           <div

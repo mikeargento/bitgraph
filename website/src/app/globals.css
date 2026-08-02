@@ -485,14 +485,17 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    that still centers on that phone. Measured there: 54px above, 54px below.
    Re-measure at 393x745 before moving any of it. ── */
 .bitgraph-camera { width: 100%; height: 254px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
-.bitgraph-camera .fd-icon { width: 44px; height: 44px; }
+/* Stroke weight in user units per render size so it draws 2.25 screen px in
+   every engine (vector-effect support differs across browsers; geometry
+   scaling does not): 2.25 / (44/24) mobile, 2.25 / (52/24) desktop. */
+.bitgraph-camera .fd-icon { width: 44px; height: 44px; stroke-width: 1.227; }
 @media (min-width: 769px) {
   /* Full column width and generous height: the camera is the instrument and
      should visually hold the page (the text tapers beneath it). The height
      keeps the proportion stage-like rather than letterbox. Mobile stays
      full-width at 254px. */
   .bitgraph-camera { height: 380px; --fd-headline: 26px; --fd-hint-size: 13px; --fd-subhint-size: 13px; }
-  .bitgraph-camera .fd-icon { width: 52px; height: 52px; }
+  .bitgraph-camera .fd-icon { width: 52px; height: 52px; stroke-width: 1.038; }
 }
 /* Suppress the iOS long-press callout/preview (the dark rounded blob that
    flashed up on tap once the box grew to a large centered target) and the grey
