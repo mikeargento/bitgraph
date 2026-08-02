@@ -74,7 +74,7 @@ export default function McpPage() {
         <li>• <strong className="text-text">Files are never uploaded.</strong> Only the SHA-256 digest crosses the network, to either endpoint.</li>
         <li>• <strong className="text-text">Recordings are permanent.</strong> The ledger has 10-year retention and no deletes. Agents are instructed to record only files you asked to record.</li>
         <li>• <strong className="text-text">A BitGraph is a selection.</strong> The record tool takes the digest of a file that already exists; it does not create anything.</li>
-        <li>• <strong className="text-text">Same ledger as the camera.</strong> A recording made through MCP is indistinguishable from one made by dropping the file on the site, and shows up on the same Roll.</li>
+        <li>• <strong className="text-text">One ledger.</strong> A recording made through MCP is indistinguishable from one made by dropping the file on the site, and shows up on the same Roll.</li>
       </ul>
     </article>
   );
