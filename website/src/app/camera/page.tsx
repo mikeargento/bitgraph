@@ -63,15 +63,21 @@ export default function CameraPage() {
         An exposure cannot come before its frame.
       </p>
       <CameraExplainer />
-      {/* The closing one-two: what machines do without film, what they do
-          with it, and the four-word resolution. Plain text, no link: the
-          punchline is the page's last word, not a door. */}
+      {/* The closing pair: a definition, then the same claim for data. Both
+          take a flat "is" so the two lines rhyme structurally; "is like" was
+          weighed and refused, a simile hedges the punchline and breaks with
+          the home hero ("A camera for bits.", stated, not compared). "digital
+          film" was dropped for the same reason it read oddly: film's nature is
+          that it is physical, and "digital film" idiomatically means a movie
+          shot digitally. Line one defines the term, so line two inherits it
+          and needs no qualifier. Plain text, no link: the punchline is the
+          page's last word, not a door. */}
       <p style={{
         margin: "clamp(56px, 7vw, 84px) auto 0", maxWidth: 720, textAlign: "center",
         fontSize: "clamp(15px, 3.6vw, 18px)", fontWeight: 500, lineHeight: 1.6, letterSpacing: "-0.012em", color: "#374151", textWrap: "balance",
       }}>
         <span style={{ display: "block" }}>Film is the recording medium for light.</span>
-        <span style={{ display: "block" }}><strong style={{ color: "#111827", fontWeight: 700 }}>BitGraph is digital film for data.</strong></span>
+        <span style={{ display: "block" }}><strong style={{ color: "#111827", fontWeight: 700 }}>BitGraph is film for data.</strong></span>
       </p>
     </div>
   );
