@@ -42,25 +42,39 @@ export default function FolderPage() {
           site. Do not re-pitch it. The download is the same `Label →` as
           everything else, marked as primary by position and size, not weight.
 
-          On a touch device the whole slot is gone, not replaced. A .pkg cannot
-          be installed from a phone, so the action is simply absent there and
-          the More list at the foot of the page carries what a phone visitor can
-          actually do. An earlier version put a "Mac laptops and desktops only"
-          note plus its own link here; both were removed as a second, competing
-          set of actions.
+          On touch the download is replaced by the reason it is missing, and by
+          nothing else. The sentence stays because a phone visitor otherwise
+          never learns this is Mac software; its companion link was removed
+          because the More list at the foot of the page already carries the one
+          thing a phone can do, and two actions competing is worse than one.
 
           Keyed to POINTER, not width: a Mac in a narrow window is still a Mac
           and must keep its download, and a phone in wide landscape still cannot
           install a .pkg. `(hover: none) and (pointer: coarse)` asks the question
           we actually mean, and the site already leans on pointer queries for the
-          arrow nudge. */}
+          arrow nudge.
+
+          The sentence names the form factor AND the platform, because either
+          alone misleads: "Mac" by itself leaves an iPhone owner wondering why
+          their Apple device does not count, and "laptop / desktop only" by
+          itself sends a Windows owner to a machine that cannot open a .pkg.
+          Plain weight, body colour, and NEVER red: red is `--color-error` here
+          and every use of it means a proof did not verify, so the failure
+          colour must not be spent on a platform fact. */}
       <style>{`
+        .bg-dl-touch { display: none; }
         @media (hover: none) and (pointer: coarse) {
           .bg-dl-mac { display: none; }
+          .bg-dl-touch { display: block; }
         }
       `}</style>
-      <p className="mb-14 text-lg bg-dl-mac">
-        <Action href={DOWNLOAD}>Download for macOS</Action>
+      <p className="mb-14 text-lg">
+        <span className="bg-dl-mac">
+          <Action href={DOWNLOAD}>Download for macOS</Action>
+        </span>
+        <span className="bg-dl-touch text-base text-[#1f2937]">
+          Mac laptops and desktops only.
+        </span>
       </p>
 
       {/* Three beats, no lesson. Anyone who wants the protocol can follow a
