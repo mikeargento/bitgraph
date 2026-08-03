@@ -30,14 +30,21 @@ export function FolderProcess() {
         /* The row is the page's one picture, so it gets room on all four sides
            rather than sitting tight against the copy above and below it. */
         .bgq { margin: 3.5rem 0 3.75rem; }
+        /* Every column sized to its own content and packed from the left, so
+           the first glyph starts on the page's text rail. Distributing them
+           across the measure (1fr auto 1fr auto 1fr) centred each glyph in its
+           own third and set the figure in from the rail by ~60px. */
         .bgq .row {
           display: grid;
-          grid-template-columns: 1fr auto 1fr auto 1fr;
+          grid-template-columns: repeat(5, auto);
+          justify-content: start;
           align-items: center;
           gap: 34px;
         }
         .bgq .bgq-term { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-        .bgq .bgq-term svg { width: 100%; max-width: 116px; height: auto; }
+        /* An explicit width, not 100%: the columns size to content now, and a
+           percentage against a content-sized track has nothing to resolve to. */
+        .bgq .bgq-term svg { width: 116px; max-width: 100%; height: auto; }
         .bgq .bgq-term span {
           font-family: IBM Plex Mono, monospace;
           font-size: 11px;
@@ -58,17 +65,24 @@ export function FolderProcess() {
              the glyphs' centre line rather than the whole cell's */
           margin-bottom: 30px;
         }
+        /* Phones keep the equation horizontal, just smaller. It stacked here
+           once; reading the equation down a column turned a statement into
+           three pictures, and cost ~700px of scroll to do it.
+           The whole row shrinks instead and left-aligns with the page rail.
+
+           Sizes are viewport-relative so it holds from 320px up: the three
+           glyphs, two operators and four gaps have to clear the 90% column,
+           which is 338px on a 375px phone and 288px on a 320px one. 23vw is
+           what fits at both. The labels are the real constraint, not the
+           artwork: "THE FOLDER" and "A BITGRAPH" are 82px at the desktop
+           11px/0.14em, so they drop to 10px/0.1em to sit inside the glyph. */
         @media (max-width: 640px) {
           .bgq { margin: 2.75rem 0 3rem; }
-          /* Left rail, like every other element on the page. Each stacked item
-             is a 140px block rather than a centred one, so the operators stay
-             on the glyphs' axis instead of sliding to the page edge. */
-          .bgq .row { grid-template-columns: 1fr; gap: 22px; justify-items: start; }
-          .bgq .bgq-term { width: 140px; }
-          .bgq .bgq-term svg { max-width: 140px; }
-          .bgq .op { margin: 0; width: 140px; }
-          /* the arrow turns to follow the stack */
-          .bgq .op.arrow { transform: rotate(90deg); }
+          .bgq .row { gap: min(10px, 2.6vw); }
+          .bgq .bgq-term { gap: 10px; }
+          .bgq .bgq-term svg { width: 22vw; max-width: 90px; }
+          .bgq .bgq-term span { font-size: 10px; letter-spacing: 0.1em; }
+          .bgq .op { font-size: 17px; margin-bottom: 22px; }
         }
       `}</style>
 
