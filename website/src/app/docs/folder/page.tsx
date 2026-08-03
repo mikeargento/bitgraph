@@ -42,57 +42,25 @@ export default function FolderPage() {
           site. Do not re-pitch it. The download is the same `Label →` as
           everything else, marked as primary by position and size, not weight.
 
-          The touch swap below stays, and is keyed to POINTER, not width. A Mac
-          in a narrow window is still a Mac and must keep its download; a phone
-          with a wide landscape viewport still cannot install a .pkg. `(hover:
-          none) and (pointer: coarse)` asks the question we actually mean, and
-          the site already leans on pointer queries for the arrow nudge. A touch
-          device that is not a Mac cannot run this either way, so the message is
-          right for it. */}
+          On a touch device the whole slot is gone, not replaced. A .pkg cannot
+          be installed from a phone, so the action is simply absent there and
+          the More list at the foot of the page carries what a phone visitor can
+          actually do. An earlier version put a "Mac laptops and desktops only"
+          note plus its own link here; both were removed as a second, competing
+          set of actions.
+
+          Keyed to POINTER, not width: a Mac in a narrow window is still a Mac
+          and must keep its download, and a phone in wide landscape still cannot
+          install a .pkg. `(hover: none) and (pointer: coarse)` asks the question
+          we actually mean, and the site already leans on pointer queries for the
+          arrow nudge. */}
       <style>{`
-        .bg-dl-touch { display: none; }
         @media (hover: none) and (pointer: coarse) {
           .bg-dl-mac { display: none; }
-          .bg-dl-touch { display: block; }
         }
       `}</style>
-      <p className="mb-14 text-lg">
-        <span className="bg-dl-mac">
-          <Action href={DOWNLOAD}>Download for macOS</Action>
-        </span>
-        {/* Not a refusal. State the platform, then hand over the thing that
-            does work on the device in hand, which is the same one-file flow
-            the More list points at from a desktop. */}
-        <span className="bg-dl-touch">
-          {/* A fragment, like "Notarized by Apple." was, and deliberately not
-              the lede's weight: two semibold lines in a row read as two
-              competing headlines, the second one contradicting the first. It
-              also drops the subject, since the h1 is two lines above it and
-              "BitGraph Folder installs on a Mac" says the name three times in
-              four lines. The link, not the sentence, is the anchor here. */}
-          {/* Plainly stated, not emphasised, and NEVER red. Red is spoken for
-              on this site: it is `--color-error`, and every use of it means a
-              proof did not verify ("These bytes don't match this BitGraph"), so
-              the failure colour must not be spent on a platform fact. Bold was
-              tried and dropped too: the sentence is clear enough on its own,
-              and weight here only competes with the lede above it.
-
-              Names the form factor AND the platform, because either alone
-              misleads. "Mac" by itself leaves an iPhone owner wondering why
-              their Apple device does not count; "laptop / desktop only" by
-              itself sends a Windows owner to a machine that cannot open a
-              .pkg. 229px, so it holds one line down to a 320px phone. */}
-          <span className="block text-base text-[#1f2937]">
-            Mac laptops and desktops only.
-          </span>
-          {/* "instead" is the connective: without it the line above and this
-              one read as two unrelated statements rather than a refusal and
-              its remedy. It costs the 320px one-liner (329px against a 288px
-              column) and leaves 9px at 375px, which is worth it. */}
-          <a href="/" className="bg-arrow-link mt-3 inline-block text-lg font-semibold text-[#0065A4] no-underline">
-            Record a file from your phone instead <span className="arrow" aria-hidden="true">&rarr;</span>
-          </a>
-        </span>
+      <p className="mb-14 text-lg bg-dl-mac">
+        <Action href={DOWNLOAD}>Download for macOS</Action>
       </p>
 
       {/* Three beats, no lesson. Anyone who wants the protocol can follow a
@@ -132,10 +100,9 @@ export default function FolderPage() {
       <p className="mb-2"><Action href={SOURCE}>Read the source</Action></p>
       <p className="mb-2"><Action href="/docs/overview">How BitGraph works</Action></p>
       <p className="mb-2"><Action href="/docs/mcp">Connect an AI agent instead</Action></p>
-      {/* Hidden on touch: the block above already offers "/" up there, and two
-          links to one destination under two different names read as two
-          different offers. */}
-      <p className="mb-2 bg-dl-mac"><Action href="/">Record one file without installing anything</Action></p>
+      {/* Shown everywhere. On touch this is the only action on the page, since
+          the download slot at the top is hidden there. */}
+      <p className="mb-2"><Action href="/">Record one file without installing anything</Action></p>
     </article>
   );
 }
