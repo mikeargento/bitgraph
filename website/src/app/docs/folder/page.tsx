@@ -46,14 +46,42 @@ export default function FolderPage() {
           rest of the system, and it keeps the arrow and its hover nudge so it
           still reads as the same family of action, only louder. If a second
           button ever appears, this one stops working. */}
+      {/* The swap is keyed to POINTER, not width. A Mac in a narrow window is
+          still a Mac and must keep its download; a phone with a wide landscape
+          viewport still cannot install a .pkg. `(hover: none) and (pointer:
+          coarse)` asks the question we actually mean, and the site already
+          leans on pointer queries for the arrow nudge. A touch device that is
+          not a Mac cannot run this either way, so the message is right for it. */}
+      <style>{`
+        .bg-dl-touch { display: none; }
+        @media (hover: none) and (pointer: coarse) {
+          .bg-dl-mac { display: none; }
+          .bg-dl-touch { display: block; }
+        }
+      `}</style>
       <p className="mb-14 text-center sm:text-left">
         <a
           href={DOWNLOAD}
-          className="bg-arrow-link inline-block rounded-none bg-[#0065A4] font-semibold text-white no-underline transition-colors hover:bg-[#005089]"
+          className="bg-arrow-link bg-dl-mac inline-block rounded-none bg-[#0065A4] font-semibold text-white no-underline transition-colors hover:bg-[#005089]"
           style={{ padding: "15px 28px", fontSize: 16, letterSpacing: "-0.01em" }}
         >
           Download for macOS <span className="arrow" aria-hidden="true">&rarr;</span>
         </a>
+        {/* Not a refusal. State the platform, then hand over the thing that
+            does work on the device in hand, which is the same one-file flow
+            the More list points at from a desktop. */}
+        <span className="bg-dl-touch">
+          {/* A fragment, like "Notarized by Apple." was, and deliberately not
+              the lede's weight: two semibold lines in a row read as two
+              competing headlines, the second one contradicting the first. It
+              also drops the subject, since the h1 is two lines above it and
+              "BitGraph Folder installs on a Mac" says the name three times in
+              four lines. The link, not the sentence, is the anchor here. */}
+          <span className="block text-[#4b5563]">Installs on a Mac.</span>
+          <a href="/" className="bg-arrow-link mt-3 inline-block text-lg font-semibold text-[#0065A4] no-underline">
+            Record a file from your phone <span className="arrow" aria-hidden="true">&rarr;</span>
+          </a>
+        </span>
       </p>
 
       {/* Three beats, no lesson. Anyone who wants the protocol can follow a
