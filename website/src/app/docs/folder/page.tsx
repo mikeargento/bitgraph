@@ -70,19 +70,19 @@ export default function FolderPage() {
               also drops the subject, since the h1 is two lines above it and
               "BitGraph Folder installs on a Mac" says the name three times in
               four lines. The link, not the sentence, is the anchor here. */}
-          {/* Dark and semibold, NOT red. Red is spoken for on this site: it is
-              `--color-error`, and every use of it means a proof did not verify
-              ("These bytes don't match this BitGraph"). Spending the failure
-              colour on a platform fact would blunt the one signal that has to
-              stay unambiguous. Dark + semibold is this system's loud register
-              and needs no new colour.
+          {/* Plainly stated, not emphasised, and NEVER red. Red is spoken for
+              on this site: it is `--color-error`, and every use of it means a
+              proof did not verify ("These bytes don't match this BitGraph"), so
+              the failure colour must not be spent on a platform fact. Bold was
+              tried and dropped too: the sentence is clear enough on its own,
+              and weight here only competes with the lede above it.
 
               Names the form factor AND the platform, because either alone
               misleads. "Mac" by itself leaves an iPhone owner wondering why
               their Apple device does not count; "laptop / desktop only" by
               itself sends a Windows owner to a machine that cannot open a
               .pkg. 229px, so it holds one line down to a 320px phone. */}
-          <span className="block text-base font-semibold text-[#111827]">
+          <span className="block text-base text-[#1f2937]">
             Mac laptops and desktops only.
           </span>
           <a href="/" className="bg-arrow-link mt-3 inline-block text-lg font-semibold text-[#0065A4] no-underline">
