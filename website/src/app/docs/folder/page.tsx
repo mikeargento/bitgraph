@@ -35,13 +35,14 @@ export default function FolderPage() {
       <p className="mb-2 text-lg">
         <Action href={DOWNLOAD}>Download for macOS</Action>
       </p>
-      {/* One line on a phone: 260px at 14px against a 288px column at 320px.
-          "Signed and" went because notarization implies it, and "so it just
-          opens" because nothing keeping all three beats fits inside 288px, and
-          because "opens" collides with the section below, whose whole point is
-          that you never open anything. */}
+      {/* A stamp, not a sentence. "Signed and" went because the signature is
+          ours and only the notarization is Apple's. "so it just opens" went
+          because it promises a contrast the page cannot supply: naming the
+          alternative plants the Gatekeeper doubt the line exists to remove, so
+          the credential is better left inert for readers who do not need it.
+          "Nothing else to install" is in the README and the release notes. */}
       <p className="text-sm text-[#4b5563] mb-14">
-        Notarized by Apple. Nothing else to install.
+        Notarized by Apple.
       </p>
 
       {/* Three beats, no lesson. Anyone who wants the protocol can follow a
