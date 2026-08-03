@@ -23,12 +23,13 @@ export default function FolderPage() {
   return (
     <article className="prose-doc">
       <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-5">BitGraph Folder</h1>
-      {/* Two beats on two lines. Shrinking this to fit one line put it at
-          ~10.7px on a 320px phone; breaking it at the sentence keeps it at full
-          size and reads as a deliberate pair rather than an accidental wrap. */}
+      {/* One line where there is room, two beats where there is not. Shrinking
+          it to fit a phone put it at ~10.7px, so the break is the better trade
+          below 640px; above that it fits at full size and the break would be
+          an affectation. */}
       <p className="text-lg text-[#1f2937] mb-8" style={{ lineHeight: 1.45 }}>
         A folder on your Desktop.
-        <br />
+        <br className="sm:hidden" />{" "}
         Drop a file, get a BitGraph.
       </p>
 
