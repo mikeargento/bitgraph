@@ -30,7 +30,7 @@ export default function FolderPage() {
       <p className="text-lg text-[#1f2937] mb-8" style={{ lineHeight: 1.45 }}>
         A folder on your Desktop.
         <br className="sm:hidden" />{" "}
-        Drop a file, get a BitGraph.
+        Drop a file. Get a BitGraph.
       </p>
 
       <p className="mb-2 text-lg">
@@ -45,8 +45,8 @@ export default function FolderPage() {
           to do. */}
       <FolderProcess />
       <p className="text-[#1f2937] mb-14">
-        That is the entire interaction. Your file is now BitGraphed, wrapped in a folder with
-        everything that proves it.
+        That is the entire interaction. Your file is now BitGraphed, wrapped in a folder
+        containing everything needed to verify it.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Nothing leaves your Mac</h2>
