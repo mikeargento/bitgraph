@@ -85,8 +85,12 @@ export default function FolderPage() {
           <span className="block text-base text-[#1f2937]">
             Mac laptops and desktops only.
           </span>
+          {/* "instead" is the connective: without it the line above and this
+              one read as two unrelated statements rather than a refusal and
+              its remedy. It costs the 320px one-liner (329px against a 288px
+              column) and leaves 9px at 375px, which is worth it. */}
           <a href="/" className="bg-arrow-link mt-3 inline-block text-lg font-semibold text-[#0065A4] no-underline">
-            Record a file from your phone <span className="arrow" aria-hidden="true">&rarr;</span>
+            Record a file from your phone instead <span className="arrow" aria-hidden="true">&rarr;</span>
           </a>
         </span>
       </p>
