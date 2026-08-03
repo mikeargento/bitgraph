@@ -88,6 +88,13 @@ on record.
 
 Registered and pushed. App id `244638`, version `0.0.0`, state `private`.
 
+The integration's icon is `assets/bitgraph-zapier-icon.png`: the site wordmark
+in Acumin Pro 900 at `#111827`, the nav's own colour and `-0.02em` tracking,
+1024x1024 on a transparent background as Zapier requires. It is uploaded by
+hand in the Platform UI (gear icon beside the app name), not by the CLI. Note
+that `website/public/logo.png` is the retired OCC mark from before the rebrand
+and must not be used anywhere.
+
 ```bash
 npm run login    # writes ~/.zapierrc, not in this repo
 npm run push     # builds, then uploads
