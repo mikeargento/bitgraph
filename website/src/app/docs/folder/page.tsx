@@ -45,8 +45,8 @@ export default function FolderPage() {
           to do. */}
       <FolderProcess />
       <p className="text-[#1f2937] mb-14">
-        That is the entire interaction. Your file is now BitGraphed, wrapped in a folder
-        containing everything needed to verify it.
+        Your file is now BitGraphed, wrapped in a folder containing everything needed to
+        verify it.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Nothing leaves your Mac</h2>
