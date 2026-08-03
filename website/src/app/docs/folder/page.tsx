@@ -35,8 +35,13 @@ export default function FolderPage() {
       <p className="mb-2 text-lg">
         <Action href={DOWNLOAD}>Download for macOS</Action>
       </p>
+      {/* One line on a phone: 260px at 14px against a 288px column at 320px.
+          "Signed and" went because notarization implies it, and "so it just
+          opens" because nothing keeping all three beats fits inside 288px, and
+          because "opens" collides with the section below, whose whole point is
+          that you never open anything. */}
       <p className="text-sm text-[#4b5563] mb-14">
-        Signed and notarized by Apple, so it just opens. Nothing else to install.
+        Notarized by Apple. Nothing else to install.
       </p>
 
       {/* Three beats, no lesson. Anyone who wants the protocol can follow a
@@ -46,6 +51,14 @@ export default function FolderPage() {
       <p className="text-[#1f2937] mb-14">
         Your file is now BitGraphed, wrapped in a folder containing everything needed to
         verify it.
+      </p>
+
+      {/* Three claims, in the order the questions arrive: what the thing is,
+          then what it does not send, then who can read the result. */}
+      <h2 className="text-xl font-semibold mt-12 mb-4">A folder, not an app</h2>
+      <p className="text-[#1f2937] mb-14">
+        The installer puts a BitGraph folder on your Desktop and watches it. You never
+        open anything.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Nothing leaves your Mac</h2>
