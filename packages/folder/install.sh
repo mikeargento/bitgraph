@@ -97,7 +97,7 @@ What happens on a drop
   the file. If those bytes are already on record you get the existing proof
   back; if not, they are recorded at a new causal position.
 
-  The file is then MOVED into an export folder beside it:
+  The file is then MOVED into an export folder of its own:
 
       bitgraph-proof-1858/
           proof.json

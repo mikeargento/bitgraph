@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { FileDrop } from "@/components/file-drop";
 // Footer is in root layout
 import {
@@ -15,7 +16,6 @@ import {
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
 import { takePendingDrop } from "@/lib/pending-drop";
-import { warm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
@@ -117,27 +117,6 @@ export default function BitGraphPage() {
   useEffect(() => {
     const pending = takePendingDrop();
     if (pending?.length) void handleFiles(pending);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Warm the "See an example" proof so a click lands on a fully-rendered page.
-  // It's a fixed, known proof, so we fetch its real response ahead of time and
-  // the proof page seeds from it (then reconciles), rather than freezing a
-  // snapshot. Also prefetch the proof route's CODE (a <button>, unlike a <Link>,
-  // gets no automatic prefetch), so the click pays neither. No-op once a fresh
-  // copy is in flight or cached, so it's safe to call on every hover.
-  const primeExample = () => {
-    warm(proofFeedKey(EXAMPLE_PROOF.digest, EXAMPLE_PROOF.counter, EXAMPLE_PROOF.epoch));
-    router.prefetch(`/proof/${EXAMPLE_PROOF.digest}`);
-  };
-  // Idle warm on mount covers the reader who lands and pauses; hover/focus on the
-  // link (below) covers the visitor who arrives via Roll → home and clicks fast,
-  // before idle fires.
-  useEffect(() => {
-    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-    if (ric) { const id = ric(primeExample, { timeout: 2000 }); return () => (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id); }
-    const t = setTimeout(primeExample, 600);
-    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -667,26 +646,7 @@ export default function BitGraphPage() {
   // to it — no fetch → hash → lookup drop pipeline first — and the page paints
   // at once off the warmed data. The photo is fetched and cached to IndexedDB
   // in the background under the known digest, so the proof page's poll shows it
-  // a beat after the instant paint (and the Content Credentials card once C2PA
-  // parses). Only this curated demo asset is served; user files never.
-  function handleSeeExample() {
-    const { digest, counter, epoch } = EXAMPLE_PROOF;
-    router.push(`/proof/${digest}?counter=${counter}&epoch=${epoch}`);
-    // Standard-b64 (padded, +/) is the IDB key the proof page reads.
-    let digestB64 = digest.replace(/-/g, "+").replace(/_/g, "/");
-    while (digestB64.length % 4) digestB64 += "=";
-    void (async () => {
-      try {
-        const resp = await fetch("/example/preston.jpg");
-        if (!resp.ok) return;
-        const blob = await resp.blob();
-        const file = new File([blob], "preston.jpg", { type: "image/jpeg" });
-        await cacheArtifactToIDB(file, digestB64);
-      } catch { /* the proof page's bring-your-file box covers a miss */ }
-    })();
-  }
-
-  /* ── Styles ── */
+   /* ── Styles ── */
   const card: React.CSSProperties = { border: "1px solid #d0d5dd", padding: "24px 20px", background: "#fff", borderRadius: 0, marginBottom: 16 };
   /* ── One shared look for every wait state (read / check / prove / package):
      the same spinner, the same label, and a determinate bar whenever there is a
@@ -832,17 +792,14 @@ export default function BitGraphPage() {
               <div className="hero-explainer">
                 <p>Digital files have no unique place in space or time. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits are the light that exposes that frame. Your data itself never appears in it. Each frame can be exposed only once. The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
               </div>
+              {/* The example moved to /subjects, where it lands right after the
+                  paragraph that states the claim in the abstract. This slot now
+                  carries the one thing the home page cannot do for you: keep
+                  recording without coming back here. */}
               <div className="see-example">
-                <button
-                  type="button"
-                  className="see-example-link"
-                  onClick={handleSeeExample}
-                  onMouseEnter={primeExample}
-                  onFocus={primeExample}
-                  onTouchStart={primeExample}
-                >
-                  See an example BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
-                </button>
+                <Link href="/docs/folder" className="see-example-link">
+                  Download BitGraph Folder for macOS <span className="arrow" aria-hidden="true">&rarr;</span>
+                </Link>
               </div>
             </div>
           </div>
