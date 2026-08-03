@@ -9,9 +9,9 @@ export const metadata: Metadata = {
 const DOWNLOAD = "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraphFolder.pkg";
 const SOURCE = "https://github.com/mikeargento/bitgraph/tree/main/packages/folder";
 
-/** Actions are blue arrow links. The download below is the site's one exception
- *  and the only button on it. `.bg-arrow-link` plus the arrow in its own span is
- *  what gives the trailing → the site's hover nudge, filled or not. */
+/** Actions are blue arrow links, never buttons, the download included.
+ *  `.bg-arrow-link` plus the arrow in its own span is what gives the trailing →
+ *  the site's hover nudge. */
 function Action({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a href={href} className="bg-arrow-link text-[#0065A4] font-semibold no-underline">
@@ -25,7 +25,7 @@ export default function FolderPage() {
     <article className="prose-doc">
       {/* Centred on phones, left rail from `sm` up. The breakpoint is the
           diagram's own: it stacks below 640px and centres itself, so title,
-          lede, button and diagram all sit on one axis there instead of the
+          lede, action and diagram all sit on one axis there instead of the
           text hugging the left and the picture jumping to the middle. The rail
           comes back at the first h2, where the page stops selling and starts
           being read. */}
@@ -39,19 +39,18 @@ export default function FolderPage() {
         Drop a file. Get a BitGraph.
       </p>
 
-      {/* THE button. The site has none anywhere else: every action is a
-          `Label →` arrow link, so a filled slab spends its whole effect in one
-          place, and this is the only place the site asks you to take something
-          rather than read something. Square corners and brand blue like the
-          rest of the system, and it keeps the arrow and its hover nudge so it
-          still reads as the same family of action, only louder. If a second
-          button ever appears, this one stops working. */}
-      {/* The swap is keyed to POINTER, not width. A Mac in a narrow window is
-          still a Mac and must keep its download; a phone with a wide landscape
-          viewport still cannot install a .pkg. `(hover: none) and (pointer:
-          coarse)` asks the question we actually mean, and the site already
-          leans on pointer queries for the arrow nudge. A touch device that is
-          not a Mac cannot run this either way, so the message is right for it. */}
+      {/* A filled button was tried here on 2026-08-03 and taken back out: the
+          site's actions are arrow links, and the slab read as someone else's
+          site. Do not re-pitch it. The download is the same `Label →` as
+          everything else, marked as primary by position and size, not weight.
+
+          The touch swap below stays, and is keyed to POINTER, not width. A Mac
+          in a narrow window is still a Mac and must keep its download; a phone
+          with a wide landscape viewport still cannot install a .pkg. `(hover:
+          none) and (pointer: coarse)` asks the question we actually mean, and
+          the site already leans on pointer queries for the arrow nudge. A touch
+          device that is not a Mac cannot run this either way, so the message is
+          right for it. */}
       <style>{`
         .bg-dl-touch { display: none; }
         @media (hover: none) and (pointer: coarse) {
@@ -59,14 +58,10 @@ export default function FolderPage() {
           .bg-dl-touch { display: block; }
         }
       `}</style>
-      <p className="mb-14 text-center sm:text-left">
-        <a
-          href={DOWNLOAD}
-          className="bg-arrow-link bg-dl-mac inline-block rounded-none bg-[#0065A4] font-semibold text-white no-underline transition-colors hover:bg-[#005089]"
-          style={{ padding: "15px 28px", fontSize: 16, letterSpacing: "-0.01em" }}
-        >
-          Download for macOS <span className="arrow" aria-hidden="true">&rarr;</span>
-        </a>
+      <p className="mb-14 text-center sm:text-left text-lg">
+        <span className="bg-dl-mac">
+          <Action href={DOWNLOAD}>Download for macOS</Action>
+        </span>
         {/* Not a refusal. State the platform, then hand over the thing that
             does work on the device in hand, which is the same one-file flow
             the More list points at from a desktop. */}
@@ -77,7 +72,13 @@ export default function FolderPage() {
               also drops the subject, since the h1 is two lines above it and
               "BitGraph Folder installs on a Mac" says the name three times in
               four lines. The link, not the sentence, is the anchor here. */}
-          <span className="block text-[#4b5563]">Installs on a Mac.</span>
+          {/* "only" carries the exclusion the visitor needs, that this is not
+              installable on the thing in their hand. "Mac desktop only" was
+              asked for and adjusted: a MacBook is not a desktop, and that
+              phrasing reads as iMac/mini/Studio but not a laptop. Naming the
+              excluded device ("not a phone") is wrong too, since this same
+              message shows on tablets. */}
+          <span className="block text-[#4b5563]">Installs on a Mac only.</span>
           <a href="/" className="bg-arrow-link mt-3 inline-block text-lg font-semibold text-[#0065A4] no-underline">
             Record a file from your phone <span className="arrow" aria-hidden="true">&rarr;</span>
           </a>
