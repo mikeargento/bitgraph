@@ -77,13 +77,13 @@ export default function FolderPage() {
               stay unambiguous. Dark + semibold is this system's loud register
               and needs no new colour.
 
-              Two sentences: the first is what a phone visitor is looking for
-              (why is there no download), the second is where it does work.
-              Together they are 307px, so they wrap on a 320px phone; that is
-              accepted, since splitting them into one line each would put the
-              exclusion and the remedy on separate beats. */}
+              Names the form factor AND the platform, because either alone
+              misleads. "Mac" by itself leaves an iPhone owner wondering why
+              their Apple device does not count; "laptop / desktop only" by
+              itself sends a Windows owner to a machine that cannot open a
+              .pkg. 229px, so it holds one line down to a 320px phone. */}
           <span className="block text-base font-semibold text-[#111827]">
-            Not available for mobile. Installs on a Mac.
+            Mac laptops and desktops only.
           </span>
           <a href="/" className="bg-arrow-link mt-3 inline-block text-lg font-semibold text-[#0065A4] no-underline">
             Record a file from your phone <span className="arrow" aria-hidden="true">&rarr;</span>
