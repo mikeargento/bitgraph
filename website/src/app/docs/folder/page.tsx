@@ -51,13 +51,13 @@ export default function FolderPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Nothing leaves your Mac</h2>
       <p className="text-[#1f2937] mb-14">
-        The file is hashed where it sits, and only that hash is sent.
+        Your file is hashed where it sits. Only the hash is sent.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Your file is the key</h2>
       <p className="text-[#1f2937] mb-14">
-        To retrieve a proof you must already have the file. If the file stays private the
-        proof stays private.
+        You can only retrieve a proof if you already have the file. If the file remains
+        private, the proof remains private.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">More</h2>
