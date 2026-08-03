@@ -5,15 +5,16 @@ import { useEffect } from "react";
 import { warm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
 
 /**
- * "See an example BitGraph" for the Subjects page, which is a server component.
+ * "See an example BitGraph" for the home page, directly under the Folder
+ * download. It lived on /subjects for a day; both actions now sit together so
+ * the home page offers one thing to install and one thing to look at.
  *
- * Only the data warm is carried over from the home page's version. The artifact
- * caching is not needed here: the proof page self-seeds this one example,
- * fetching /example/preston.jpg itself when the digest matches (see
- * app/proof/[digest]/page.tsx), so arriving from anywhere still shows the photo.
+ * The proof page self-seeds this one example, fetching /example/preston.jpg
+ * itself when the digest matches (see app/proof/[digest]/page.tsx), so arriving
+ * from anywhere still shows the photo and no artifact caching is needed here.
  *
- * A <Link> gets route prefetch for free, unlike the home page's <button>, so
- * warming the proof's own response is all that is left to do.
+ * A <Link> gets route prefetch for free, so warming the proof's own response is
+ * all that is left to do.
  */
 export function SeeExample() {
   const { digest, counter, epoch } = EXAMPLE_PROOF;
@@ -37,12 +38,12 @@ export function SeeExample() {
   return (
     <Link
       href={`/proof/${digest}?counter=${counter}&epoch=${epoch}`}
-      className="bg-action-link"
+      className="see-example-link"
       onMouseEnter={prime}
       onFocus={prime}
       onTouchStart={prime}
     >
-      See an example BitGraph <span className="arrow">&rarr;</span>
+      See an example BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
     </Link>
   );
 }

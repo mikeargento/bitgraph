@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SeeExample } from "./see-example";
 
 export const metadata: Metadata = {
   title: "Subjects",
@@ -204,13 +203,6 @@ export default function SubjectsPage() {
         position against a later challenge. Neither protects the truth of what
         was recorded, only the ability to keep standing behind it.
       </p>
-
-      {/* The abstract claim has just landed, so this is where a real one is
-          worth seeing. Closes the two-conditions section the way "The edge of
-          the claim" closes with its own link, rather than interrupting. */}
-      <div style={{ margin: "-26px 0 34px" }}>
-        <SeeExample />
-      </div>
 
       {cases.map((c) => (
         <div

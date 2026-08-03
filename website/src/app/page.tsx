@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FileDrop } from "@/components/file-drop";
+import { SeeExample } from "@/components/see-example";
 // Footer is in root layout
 import {
   hashFile,
@@ -734,6 +735,9 @@ export default function BitGraphPage() {
            short. Recomputed per viewport by the browser. */
         .hero-explainer p { margin: 0; text-wrap: balance; }
         .see-example { text-align: center; }
+        /* Enough space to read as a second offer rather than a second line of
+           the first, without opening a gap the eye has to cross. */
+        .see-example-second { margin-top: 10px; }
         .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; }
         .see-example-link .arrow { transition: transform .18s ease; }
         @media (hover: hover) { .see-example-link:hover .arrow { transform: translateX(3px); } }
@@ -792,14 +796,18 @@ export default function BitGraphPage() {
               <div className="hero-explainer">
                 <p>Digital files have no unique place in space or time. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits are the light that exposes that frame. Your data itself never appears in it. Each frame can be exposed only once. The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
               </div>
-              {/* The example moved to /subjects, where it lands right after the
-                  paragraph that states the claim in the abstract. This slot now
-                  carries the one thing the home page cannot do for you: keep
-                  recording without coming back here. */}
+              {/* Two offers, stacked, in the order of commitment: the thing you
+                  install to keep recording without coming back here, then the
+                  thing you can just look at. The example spent a day on
+                  /subjects and came back; a real BitGraph is worth more beside
+                  the download than buried mid-page in an argument. */}
               <div className="see-example">
                 <Link href="/docs/folder" className="see-example-link">
                   Download BitGraph Folder for macOS <span className="arrow" aria-hidden="true">&rarr;</span>
                 </Link>
+                <div className="see-example-second">
+                  <SeeExample />
+                </div>
               </div>
             </div>
           </div>
