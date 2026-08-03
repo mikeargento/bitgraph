@@ -14,23 +14,37 @@ const PORT = Number(
     ?? 8787
 );
 
-// API key auth (same as parent server)
+// API key auth (same split as the parent server: API_KEYS grants the
+// rate-limit exemption, REQUIRE_API_KEY is the only thing that can refuse a
+// caller. See the long comment in parent/server.ts for why they are separate.)
 const API_KEYS: ReadonlySet<string> = (() => {
   const raw = process.env["API_KEYS"] ?? "";
   const keys = raw.split(",").map((k) => k.trim()).filter((k) => k.length > 0);
   if (keys.length > 0) {
-    console.log(`[mock-server] API key auth enabled (${keys.length} key(s))`);
+    console.log(`[mock-server] ${keys.length} API key(s) configured (rate-limit exemption)`);
   } else {
-    console.log("[mock-server] API key auth disabled (no API_KEYS set — dev mode)");
+    console.log("[mock-server] no API_KEYS set — nobody is rate-limit exempt");
   }
   return new Set(keys);
 })();
 
-function checkApiKey(req: IncomingMessage): boolean {
-  if (API_KEYS.size === 0) return true;
+const REQUIRE_API_KEY: boolean = process.env["REQUIRE_API_KEY"] === "true";
+
+function hasValidApiKey(req: IncomingMessage): boolean {
+  if (API_KEYS.size === 0) return false;
   const auth = req.headers["authorization"] ?? "";
   if (!auth.startsWith("Bearer ")) return false;
   return API_KEYS.has(auth.slice(7).trim());
+}
+
+function checkApiKey(req: IncomingMessage): boolean {
+  if (!REQUIRE_API_KEY) return true;
+  return hasValidApiKey(req);
+}
+
+if (REQUIRE_API_KEY && API_KEYS.size === 0) {
+  console.error("[mock-server] FATAL: REQUIRE_API_KEY=true but API_KEYS is empty — that rejects every caller.");
+  process.exit(1);
 }
 
 const enclave = await MockEnclave.create();

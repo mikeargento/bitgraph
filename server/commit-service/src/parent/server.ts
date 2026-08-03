@@ -23,6 +23,7 @@ import type { BitGraphProof, VerificationPolicy, AgencyEnvelope, PolicyBinding }
 import { VsockClient, type EnclaveClient } from "./vsock-client.js";
 import { requestTimestamp } from "./tsa-client.js";
 import { getClientIp, tryConsumeDigests, rateLimitConfig } from "./rate-limit.js";
+import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js";
 
 const PORT = Number(
   process.argv.find((a) => a.startsWith("--port="))?.split("=")[1]
@@ -118,31 +119,27 @@ async function indexProofs(proofs: BitGraphProof[]): Promise<void> {
 // API key auth
 // ---------------------------------------------------------------------------
 
-const API_KEYS: ReadonlySet<string> = (() => {
-  const raw = process.env["API_KEYS"] ?? "";
-  const keys = raw.split(",").map((k) => k.trim()).filter((k) => k.length > 0);
-  if (keys.length > 0) {
-    console.log(`[parent] API key auth enabled (${keys.length} key(s))`);
-  } else {
-    console.log("[parent] API key auth disabled (no API_KEYS set — dev mode)");
+// Policy lives in auth.ts so it can be tested across configurations. See the
+// header there for why the gate and the exemption must stay separate.
+const AUTH: AuthPolicy = (() => {
+  try {
+    return createAuthPolicy(process.env);
+  } catch (err) {
+    // A boundary that rejects every caller looks identical to an outage from
+    // the outside, so refuse to boot rather than fail one request at a time.
+    console.error(`[parent] FATAL: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
   }
-  return new Set(keys);
 })();
+console.log(`[parent] auth: ${describeAuthPolicy(AUTH)}`);
 
 function checkApiKey(req: IncomingMessage): boolean {
-  if (API_KEYS.size === 0) return true; // dev mode — open access
-  const auth = req.headers["authorization"] ?? "";
-  if (!auth.startsWith("Bearer ")) return false;
-  const token = auth.slice(7).trim();
-  return API_KEYS.has(token);
+  return AUTH.allows(req.headers["authorization"]);
 }
 
-/** True only when the request presents a valid configured key (never in dev mode). */
+/** True only when the request presents a valid configured key. */
 function hasValidApiKey(req: IncomingMessage): boolean {
-  if (API_KEYS.size === 0) return false;
-  const auth = req.headers["authorization"] ?? "";
-  if (!auth.startsWith("Bearer ")) return false;
-  return API_KEYS.has(auth.slice(7).trim());
+  return AUTH.isExempt(req.headers["authorization"]);
 }
 
 // ---------------------------------------------------------------------------
