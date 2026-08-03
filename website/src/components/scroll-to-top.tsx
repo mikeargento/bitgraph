@@ -17,9 +17,18 @@ import { useEffect, useRef } from "react";
    results page's batch-list restore depends on.
 
    A URL carrying a hash is left alone so in-page anchors still work. */
-/* How long to hold the top after a forward navigation. Long enough to outlast
-   an iOS momentum fling, short enough that it can never be felt as a fight. */
-const PIN_MS = 400;
+/* How long to hold the top after a forward navigation.
+
+   Sized to the proof page's growth, not to a guess. Measured on production:
+   the route mounts at ~480ms with a 944px document, reaches 1117px at ~1481ms
+   and settles at 1595px at ~2645ms. Anything that displaces the reader does it
+   while those stages land, so a pin has to outlast the last one. A first
+   attempt at 400ms expired before two of the three and did not fix the phone.
+
+   It is only a ceiling: any real touch, wheel or key releases it immediately,
+   so a reader who wants to scroll is never held for more than one frame. The
+   reload path below independently arrived at the same 3s figure. */
+const PIN_MS = 3000;
 
 export function ScrollToTop() {
   const pathname = usePathname();
