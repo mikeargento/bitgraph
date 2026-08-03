@@ -70,14 +70,21 @@ export default function FolderPage() {
               also drops the subject, since the h1 is two lines above it and
               "BitGraph Folder installs on a Mac" says the name three times in
               four lines. The link, not the sentence, is the anchor here. */}
-          {/* "Desktop" belongs on the software, not on the machine. "Mac
-              desktop only" reads as iMac/mini/Studio and not a laptop, since
-              that is Apple's own split of the lineup and most Macs sold are
-              laptops. Moved onto the category it says the same thing with no
-              hardware claim in it. Naming the excluded device instead ("not a
-              phone") fails too, since this message also shows on tablets.
-              Width is not the constraint here: every candidate fit 320px. */}
-          <span className="block text-[#4b5563]">Desktop software. Installs on a Mac.</span>
+          {/* Dark and semibold, NOT red. Red is spoken for on this site: it is
+              `--color-error`, and every use of it means a proof did not verify
+              ("These bytes don't match this BitGraph"). Spending the failure
+              colour on a platform fact would blunt the one signal that has to
+              stay unambiguous. Dark + semibold is this system's loud register
+              and needs no new colour.
+
+              Two sentences: the first is what a phone visitor is looking for
+              (why is there no download), the second is where it does work.
+              Together they are 307px, so they wrap on a 320px phone; that is
+              accepted, since splitting them into one line each would put the
+              exclusion and the remedy on separate beats. */}
+          <span className="block text-base font-semibold text-[#111827]">
+            Not available for mobile. Installs on a Mac.
+          </span>
           <a href="/" className="bg-arrow-link mt-3 inline-block text-lg font-semibold text-[#0065A4] no-underline">
             Record a file from your phone <span className="arrow" aria-hidden="true">&rarr;</span>
           </a>
@@ -116,7 +123,10 @@ export default function FolderPage() {
       <p className="mb-2"><Action href={SOURCE}>Read the source</Action></p>
       <p className="mb-2"><Action href="/docs/overview">How BitGraph works</Action></p>
       <p className="mb-2"><Action href="/docs/mcp">Connect an AI agent instead</Action></p>
-      <p className="mb-2"><Action href="/">Record one file without installing anything</Action></p>
+      {/* Hidden on touch: the block above already offers "/" up there, and two
+          links to one destination under two different names read as two
+          different offers. */}
+      <p className="mb-2 bg-dl-mac"><Action href="/">Record one file without installing anything</Action></p>
     </article>
   );
 }
