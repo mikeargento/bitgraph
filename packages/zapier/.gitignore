@@ -1,0 +1,15 @@
+# Zapier CLI state. .zapierapprc binds this working copy to a Zapier app id,
+# and the deploy key it is used with lives in ~/.zapierrc. Neither belongs in
+# the repository: a checkout should not be able to push to someone's app.
+.zapierapprc
+.zapier-build
+
+# Local credentials for `zapier test` / `zapier invoke`. The API key and any
+# endpoint override are read from here and must never be committed.
+.env
+.env.*
+
+build/
+dist/
+node_modules/
+*.tsbuildinfo

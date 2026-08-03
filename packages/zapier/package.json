@@ -1,0 +1,36 @@
+{
+  "name": "bitgraph-zapier",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Zapier integration for BitGraph. Create, verify, and retrieve BitGraph proofs as steps in any Zap.",
+  "license": "MIT",
+  "homepage": "https://bitgraph.ing",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikeargento/bitgraph.git",
+    "directory": "packages/zapier"
+  },
+  "main": "dist/src/index.js",
+  "scripts": {
+    "build": "tsc && cp -R test/fixtures dist/test/",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "push": "npm run build && npx --yes zapier-platform-cli@19.1.0 push",
+    "validate": "npm run build && npx --yes zapier-platform-cli@19.1.0 validate",
+    "login": "npx --yes zapier-platform-cli@19.1.0 login"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@mikeargento/bitgraph-verify": "^1.1.2",
+    "zapier-platform-core": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "zapier": {
+    "convertedByCLIVersion": null
+  }
+}
