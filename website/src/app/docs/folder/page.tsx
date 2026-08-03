@@ -68,7 +68,14 @@ export default function FolderPage() {
           .bg-dl-touch { display: block; }
         }
       `}</style>
-      <p className="mb-14 text-lg">
+      {/* The margin is inline, not `mt-*`. `.prose-doc p` in globals.css sets
+          margin-bottom: 1.25rem and is NOT inside @layer base, so it beats
+          every Tailwind margin utility on this page: the whole top of the page
+          was locked to a flat 20px rhythm and the download read as the third
+          line of a paragraph rather than the page's one action. Same bug family
+          as the `.prose-doc a` layering fixed in `eaeab8a0`. Fixing the rule
+          properly would reflow all thirteen docs pages, so this is surgical. */}
+      <p className="text-lg" style={{ marginTop: 40 }}>
         <span className="bg-dl-mac">
           <Action href={DOWNLOAD}>Download for macOS</Action>
         </span>
