@@ -1,0 +1,23 @@
+[
+  { "name": "onRecord", "type": "boolean", "label": "On record" },
+  { "name": "proofUrl", "type": "url", "label": "Proof URL" },
+  { "name": "artifactHash", "type": "text", "label": "Artifact hash (SHA-256, base64)" },
+  { "name": "artifactHashUrlSafe", "type": "text", "label": "Artifact hash (URL-safe base64)" },
+  { "name": "counter", "type": "text", "label": "Counter (causal position in the epoch)" },
+  { "name": "slotCounter", "type": "text", "label": "Slot counter" },
+  { "name": "epochId", "type": "text", "label": "Epoch ID" },
+  { "name": "chainId", "type": "text", "label": "Chain ID" },
+  { "name": "proofHash", "type": "text", "label": "Proof hash" },
+  { "name": "publicKey", "type": "text", "label": "Signing public key" },
+  { "name": "signature", "type": "text", "label": "Signature" },
+  { "name": "enforcement", "type": "text", "label": "Enforcement tier" },
+  { "name": "measurement", "type": "text", "label": "Enclave measurement (PCR0)" },
+  { "name": "attestationFormat", "type": "text", "label": "Attestation format" },
+  { "name": "totalPositions", "type": "number", "label": "Total causal positions for these bytes" },
+  { "name": "bitgraphedAfter", "type": "date", "label": "BitGraphed after (lower Ethereum bound)" },
+  { "name": "bitgraphedBefore", "type": "date", "label": "BitGraphed before (upper Ethereum bound)" },
+  { "name": "bitgraphedAfterBlock", "type": "number", "label": "Lower bound Ethereum block" },
+  { "name": "bitgraphedBeforeBlock", "type": "number", "label": "Upper bound Ethereum block" },
+  { "name": "positions", "type": "array", "label": "Every causal position these bytes occupy" },
+  { "name": "proof", "type": "collection", "label": "Proof (whole object)" }
+]

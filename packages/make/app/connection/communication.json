@@ -1,0 +1,20 @@
+{
+  "url": "https://bitgraph.ing/api/commit",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer {{parameters.apiKey}}"
+  },
+  "body": {
+    "digests": []
+  },
+  "response": {
+    "valid": "{{statusCode === 400 || statusCode === 503 || (statusCode >= 200 && statusCode < 300)}}",
+    "error": {
+      "message": "[{{statusCode}}] {{ifempty(body.error, 'BitGraph did not accept the API key')}}"
+    }
+  },
+  "log": {
+    "sanitize": ["request.headers.Authorization"]
+  }
+}

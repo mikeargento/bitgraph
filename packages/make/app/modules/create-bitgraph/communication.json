@@ -1,0 +1,84 @@
+[
+  {
+    "url": "/api/proofs/digest/{{replace(replace(replace(ifempty(parameters.digest; sha256(parameters.data; \"base64\")); \"/\\+/g\"; \"-\"); \"/\\//g\"; \"_\"); \"/=+$/g\"; \"\")}}",
+    "method": "GET",
+    "response": {
+      "temp": {
+        "digestB64": "{{ifempty(parameters.digest; sha256(parameters.data; \"base64\"))}}",
+        "digestUrlSafe": "{{replace(replace(replace(ifempty(parameters.digest; sha256(parameters.data; \"base64\")); \"/\\+/g\"; \"-\"); \"/\\//g\"; \"_\"); \"/=+$/g\"; \"\")}}",
+        "existing": "{{body.proofs[1].proof}}",
+        "priorPositions": "{{length(body.proofs)}}"
+      },
+      "output": {
+        "recorded": false,
+        "outcome": "on record",
+        "artifactHash": "{{temp.digestB64}}",
+        "artifactHashUrlSafe": "{{temp.digestUrlSafe}}",
+        "proofUrl": "https://bitgraph.ing/proof/{{temp.digestUrlSafe}}",
+        "counter": "{{temp.existing.commit.counter}}",
+        "slotCounter": "{{temp.existing.commit.slotCounter}}",
+        "epochId": "{{temp.existing.commit.epochId}}",
+        "chainId": "{{temp.existing.commit.chainId}}",
+        "proofHash": "{{temp.existing.proofHash}}",
+        "publicKey": "{{temp.existing.signer.publicKeyB64}}",
+        "signature": "{{temp.existing.signer.signatureB64}}",
+        "enforcement": "{{temp.existing.environment.enforcement}}",
+        "measurement": "{{temp.existing.environment.measurement}}",
+        "attestationFormat": "{{temp.existing.environment.attestation.format}}",
+        "totalPositions": "{{temp.priorPositions}}",
+        "bitgraphedAfter": "{{body.causalWindow.anchorBefore.blockTime}}",
+        "bitgraphedBefore": "{{body.causalWindow.anchorAfter.blockTime}}",
+        "proof": "{{temp.existing}}"
+      }
+    }
+  },
+  {
+    "condition": "{{!temp.existing || parameters.recordAgain}}",
+    "url": "/api/commit",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer {{connection.apiKey}}"
+    },
+    "body": {
+      "digests": [
+        {
+          "digestB64": "{{temp.digestB64}}",
+          "hashAlg": "sha256"
+        }
+      ],
+      "chainId": "bitgraph:main",
+      "attribution": {
+        "name": "{{parameters.attributionName}}",
+        "title": "{{parameters.attributionTitle}}",
+        "message": "{{parameters.attributionMessage}}"
+      }
+    },
+    "response": {
+      "valid": "{{length(body) > 0}}",
+      "error": {
+        "message": "BitGraph accepted the request but returned no proof, so nothing can be confirmed as recorded. Run this module again: if the digest was in fact recorded, it will come back as already on record."
+      },
+      "output": {
+        "recorded": true,
+        "outcome": "recorded",
+        "artifactHash": "{{body[1].artifact.digestB64}}",
+        "artifactHashUrlSafe": "{{temp.digestUrlSafe}}",
+        "proofUrl": "https://bitgraph.ing/proof/{{temp.digestUrlSafe}}?counter={{body[1].commit.counter}}",
+        "counter": "{{body[1].commit.counter}}",
+        "slotCounter": "{{body[1].commit.slotCounter}}",
+        "epochId": "{{body[1].commit.epochId}}",
+        "chainId": "{{body[1].commit.chainId}}",
+        "proofHash": "{{body[1].proofHash}}",
+        "publicKey": "{{body[1].signer.publicKeyB64}}",
+        "signature": "{{body[1].signer.signatureB64}}",
+        "enforcement": "{{body[1].environment.enforcement}}",
+        "measurement": "{{body[1].environment.measurement}}",
+        "attestationFormat": "{{body[1].environment.attestation.format}}",
+        "totalPositions": "{{temp.priorPositions + 1}}",
+        "bitgraphedAfter": null,
+        "bitgraphedBefore": null,
+        "proof": "{{body[1]}}"
+      }
+    }
+  }
+]

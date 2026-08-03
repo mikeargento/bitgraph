@@ -1,0 +1,33 @@
+{
+  "url": "/api/proofs/digest/{{replace(replace(replace(ifempty(parameters.digest; sha256(parameters.data; \"base64\")); \"/\\+/g\"; \"-\"); \"/\\//g\"; \"_\"); \"/=+$/g\"; \"\")}}",
+  "method": "GET",
+  "qs": {
+    "counter": "{{parameters.counter}}",
+    "epoch": "{{parameters.epoch}}"
+  },
+  "response": {
+    "output": {
+      "onRecord": "{{length(body.proofs) > 0}}",
+      "artifactHash": "{{body.proofs[1].proof.artifact.digestB64}}",
+      "artifactHashUrlSafe": "{{replace(replace(replace(ifempty(parameters.digest; sha256(parameters.data; \"base64\")); \"/\\+/g\"; \"-\"); \"/\\//g\"; \"_\"); \"/=+$/g\"; \"\")}}",
+      "proofUrl": "https://bitgraph.ing/proof/{{replace(replace(replace(ifempty(parameters.digest; sha256(parameters.data; \"base64\")); \"/\\+/g\"; \"-\"); \"/\\//g\"; \"_\"); \"/=+$/g\"; \"\")}}",
+      "counter": "{{body.proofs[1].proof.commit.counter}}",
+      "slotCounter": "{{body.proofs[1].proof.commit.slotCounter}}",
+      "epochId": "{{body.proofs[1].proof.commit.epochId}}",
+      "chainId": "{{body.proofs[1].proof.commit.chainId}}",
+      "proofHash": "{{body.proofs[1].proof.proofHash}}",
+      "publicKey": "{{body.proofs[1].proof.signer.publicKeyB64}}",
+      "signature": "{{body.proofs[1].proof.signer.signatureB64}}",
+      "enforcement": "{{body.proofs[1].proof.environment.enforcement}}",
+      "measurement": "{{body.proofs[1].proof.environment.measurement}}",
+      "attestationFormat": "{{body.proofs[1].proof.environment.attestation.format}}",
+      "totalPositions": "{{length(body.positions)}}",
+      "bitgraphedAfter": "{{body.causalWindow.anchorBefore.blockTime}}",
+      "bitgraphedBefore": "{{body.causalWindow.anchorAfter.blockTime}}",
+      "bitgraphedAfterBlock": "{{body.causalWindow.anchorBefore.blockNumber}}",
+      "bitgraphedBeforeBlock": "{{body.causalWindow.anchorAfter.blockNumber}}",
+      "positions": "{{body.positions}}",
+      "proof": "{{body.proofs[1].proof}}"
+    }
+  }
+}

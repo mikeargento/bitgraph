@@ -1,0 +1,17 @@
+[
+  { "name": "verified", "type": "boolean", "label": "Verified" },
+  { "name": "status", "type": "text", "label": "Status" },
+  { "name": "reason", "type": "text", "label": "Reason (when not verified)" },
+  { "name": "artifactBinding", "type": "text", "label": "Artifact binding (checked, not-checked, mismatch)" },
+  { "name": "checkedAgainst", "type": "text", "label": "Proof source" },
+  { "name": "onRecord", "type": "boolean", "label": "On record in the ledger" },
+  { "name": "totalPositions", "type": "number", "label": "Total causal positions for these bytes" },
+  { "name": "artifactHash", "type": "text", "label": "Artifact hash (SHA-256, base64)" },
+  { "name": "artifactHashUrlSafe", "type": "text", "label": "Artifact hash (URL-safe base64)" },
+  { "name": "proofUrl", "type": "url", "label": "Proof URL" },
+  { "name": "counter", "type": "text", "label": "Counter (causal position in the epoch)" },
+  { "name": "slotCounter", "type": "text", "label": "Slot counter" },
+  { "name": "epochId", "type": "text", "label": "Epoch ID" },
+  { "name": "chainId", "type": "text", "label": "Chain ID" },
+  { "name": "proof", "type": "collection", "label": "Proof (whole object)" }
+]

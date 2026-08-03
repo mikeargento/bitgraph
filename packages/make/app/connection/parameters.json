@@ -1,0 +1,9 @@
+[
+  {
+    "name": "apiKey",
+    "type": "password",
+    "label": "API Key",
+    "required": true,
+    "help": "Your BitGraph API key. It exempts your recordings from the shared rate limit so your scenarios get their own budget rather than competing with every other Make account for one. Request a key at https://bitgraph.ing"
+  }
+]

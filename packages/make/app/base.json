@@ -1,0 +1,29 @@
+{
+  "baseUrl": "https://bitgraph.ing",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "response": {
+    "error": {
+      "400": {
+        "message": "BitGraph rejected the request: {{body.error}}"
+      },
+      "401": {
+        "message": "BitGraph did not accept the API key. Reconnect the BitGraph connection."
+      },
+      "403": {
+        "message": "BitGraph did not accept the API key. Reconnect the BitGraph connection."
+      },
+      "429": {
+        "message": "BitGraph rate limit reached: {{body.error}}. Nothing was recorded."
+      },
+      "503": {
+        "message": "BitGraph is between epochs and is not accepting recordings for the next minute or so. Nothing was recorded; run this again shortly."
+      },
+      "message": "[{{statusCode}}] {{ifempty(body.error, 'BitGraph request failed')}}"
+    }
+  },
+  "log": {
+    "sanitize": ["request.headers.authorization"]
+  }
+}

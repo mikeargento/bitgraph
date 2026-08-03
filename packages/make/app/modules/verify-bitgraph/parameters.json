@@ -1,0 +1,31 @@
+[
+  {
+    "name": "data",
+    "type": "buffer",
+    "label": "File",
+    "required": false,
+    "help": "The file to verify. It is hashed inside Make and only the hash is sent."
+  },
+  {
+    "name": "digest",
+    "type": "text",
+    "label": "Digest",
+    "required": false,
+    "help": "Instead of a file: its SHA-256 as base64."
+  },
+  {
+    "name": "proof",
+    "type": "collection",
+    "label": "Proof",
+    "required": false,
+    "help": "Optional. A proof object, usually mapped from the Proof output of an earlier BitGraph module. Supply it to verify that exact proof rather than whatever the ledger currently holds. With a proof but no file, the result confirms the proof is genuine but cannot confirm which file it belongs to."
+  },
+  {
+    "name": "allowedMeasurements",
+    "type": "array",
+    "spec": { "type": "text", "label": "PCR0" },
+    "label": "Allowed Enclave Measurements",
+    "required": false,
+    "help": "Advanced. When set, a proof signed by any other enclave build fails verification. Leave empty to accept any measurement the boundary has published."
+  }
+]

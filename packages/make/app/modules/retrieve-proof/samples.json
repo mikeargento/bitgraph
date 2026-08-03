@@ -1,0 +1,19 @@
+{
+  "onRecord": true,
+  "proofUrl": "https://bitgraph.ing/proof/mYNezUiNnzhS3V0xqDsGUWCg2ZsKshiftAI016JPBUc?counter=7910&epoch=EQmlm7sZsGZeYmKlgVU6k0qd6cj79bsmhzhlzxlMF7o",
+  "artifactHash": "mYNezUiNnzhS3V0xqDsGUWCg2ZsKshiftAI016JPBUc=",
+  "artifactHashUrlSafe": "mYNezUiNnzhS3V0xqDsGUWCg2ZsKshiftAI016JPBUc",
+  "counter": "7910",
+  "slotCounter": "7909",
+  "epochId": "EQmlm7sZsGZeYmKlgVU6k0qd6cj79bsmhzhlzxlMF7o=",
+  "chainId": "bitgraph:main",
+  "proofHash": "SMbMMy9xjCjUiJWETtBjTDDp4qDOXwisRE6JDHU1DfU=",
+  "publicKey": "r0RCAh/beCKOpLCtY+yXEG4LixW3xhI1jadMar5n9lE=",
+  "signature": "IUdaOEwAhDIEfkykc0QFAjh1smb6S9fdk2ItP3JOPj3gnLssiGmmY8YgPJvOMFXLFbN0PWkc87HPEOhmVspHCQ==",
+  "enforcement": "measured-tee",
+  "measurement": "6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f",
+  "attestationFormat": "aws-nitro",
+  "totalPositions": 9,
+  "bitgraphedAfter": "2026-07-29T16:54:11.000Z",
+  "bitgraphedBefore": "2026-07-29T16:54:23.000Z"
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "name": "data",
+    "type": "buffer",
+    "label": "File",
+    "required": false,
+    "help": "Look up by the file itself. It is hashed inside Make; only the hash is sent."
+  },
+  {
+    "name": "digest",
+    "type": "text",
+    "label": "Digest",
+    "required": false,
+    "help": "Look up by SHA-256 as base64."
+  },
+  {
+    "name": "counter",
+    "type": "text",
+    "label": "Counter",
+    "required": false,
+    "help": "Optional. Select one specific causal position when the same bytes have been recorded more than once. Without it, the earliest, that is the originating, position is returned."
+  },
+  {
+    "name": "epoch",
+    "type": "text",
+    "label": "Epoch ID",
+    "required": false,
+    "help": "Optional. Qualifies the counter. URL-safe base64."
+  }
+]

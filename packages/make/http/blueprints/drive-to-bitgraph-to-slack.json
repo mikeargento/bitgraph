@@ -1,0 +1,147 @@
+{
+  "name": "Google Drive to BitGraph to Slack",
+  "flow": [
+    {
+      "id": 1,
+      "module": "google-drive:watchFilesInAFolder",
+      "version": 4,
+      "parameters": {
+        "watch": "fileCreatedTime",
+        "limit": 1
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0 },
+        "restore": {},
+        "notes": "Trigger. Replace the folder in the module settings after import."
+      }
+    },
+    {
+      "id": 2,
+      "module": "google-drive:downloadAFile",
+      "version": 4,
+      "parameters": {},
+      "mapper": {
+        "file": "{{1.id}}"
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 0 },
+        "notes": "Produces 2.data, the file's bytes. These stay inside Make."
+      }
+    },
+    {
+      "id": 3,
+      "module": "util:SetVariable2",
+      "version": 1,
+      "parameters": { "scope": "roundtrip" },
+      "mapper": {
+        "name": "digest",
+        "value": "{{replace(replace(replace(sha256(2.data; \"base64\"); \"/\\+/g\"; \"-\"); \"/\\//g\"; \"_\"); \"/=+$/g\"; \"\")}}"
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 0 },
+        "notes": "The URL-safe digest, computed by Make. Only this leaves Make."
+      }
+    },
+    {
+      "id": 4,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": { "handleErrors": false, "useNewZLibDeCompress": true },
+      "mapper": {
+        "url": "https://bitgraph.ing/api/proofs/digest/{{3.value}}",
+        "method": "get",
+        "headers": [],
+        "qs": [],
+        "bodyType": "raw",
+        "parseResponse": true,
+        "timeout": 60,
+        "shareCookies": false,
+        "ca": "",
+        "rejectUnauthorized": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "gzip": true,
+        "useMtls": false
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 0 },
+        "notes": "Is it already on record? Prevents a re-run from recording twice."
+      }
+    },
+    {
+      "id": 5,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": { "handleErrors": true, "useNewZLibDeCompress": true },
+      "filter": {
+        "name": "Only if not already recorded",
+        "conditions": [
+          [
+            {
+              "a": "{{length(4.data.proofs)}}",
+              "b": "0",
+              "o": "number:equal"
+            }
+          ]
+        ]
+      },
+      "mapper": {
+        "url": "https://bitgraph.ing/api/commit",
+        "method": "post",
+        "headers": [
+          { "name": "Content-Type", "value": "application/json" },
+          { "name": "Authorization", "value": "Bearer YOUR_BITGRAPH_API_KEY" }
+        ],
+        "qs": [],
+        "bodyType": "raw",
+        "contentType": "application/json",
+        "data": "{\n  \"digests\": [{ \"digestB64\": \"{{sha256(2.data; \\\"base64\\\")}}\", \"hashAlg\": \"sha256\" }],\n  \"chainId\": \"bitgraph:main\"\n}",
+        "parseResponse": true,
+        "timeout": 120,
+        "shareCookies": false,
+        "ca": "",
+        "rejectUnauthorized": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "gzip": true,
+        "useMtls": false
+      },
+      "metadata": {
+        "designer": { "x": 1200, "y": 0 },
+        "notes": "Records the digest. Replace YOUR_BITGRAPH_API_KEY before running. Attach an error handler with Retry for 503 (daily epoch rotation) and 429."
+      }
+    },
+    {
+      "id": 6,
+      "module": "slack:CreateMessage",
+      "version": 4,
+      "mapper": {
+        "text": "BitGraphed {{1.name}}\nProof #{{5.data[1].commit.counter}}\nhttps://bitgraph.ing/proof/{{3.value}}?counter={{5.data[1].commit.counter}}\nHash: {{5.data[1].artifact.digestB64}}"
+      },
+      "metadata": {
+        "designer": { "x": 1500, "y": 0 },
+        "notes": "Time is deliberately absent here. A fresh proof has no upper Ethereum bound yet; add a Sleep plus a Retrieve Proof call if the message needs the settled window."
+      }
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false
+    },
+    "designer": { "orphans": [] },
+    "notes": [
+      "UNVALIDATED: written against Make's documented blueprint format but never imported into a live Make organization. If the import fails, build the scenario from packages/make/http/README.md instead, which lists the exact module settings and is accurate.",
+      "Set the Google Drive folder, the Slack channel, and the BitGraph API key after import."
+    ]
+  }
+}

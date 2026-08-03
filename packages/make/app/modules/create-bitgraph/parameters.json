@@ -1,0 +1,43 @@
+[
+  {
+    "name": "data",
+    "type": "buffer",
+    "label": "File",
+    "required": false,
+    "help": "The file to BitGraph. Map the file data from an earlier module (Google Drive, Dropbox, HTTP). It is hashed inside Make and only the hash is sent; the file's contents are never uploaded to BitGraph. Leave empty if you are supplying a Digest instead."
+  },
+  {
+    "name": "digest",
+    "type": "text",
+    "label": "Digest",
+    "required": false,
+    "help": "Only if the file was already hashed somewhere else: its SHA-256 as base64. Make's own sha256(data; \"base64\") produces exactly this form. Leave empty when you have mapped a File above."
+  },
+  {
+    "name": "recordAgain",
+    "type": "boolean",
+    "label": "Record Again If Already Recorded",
+    "required": false,
+    "default": false,
+    "help": "Off: a file already in the ledger comes back with its existing proof and nothing new is created, so a scenario that re-runs is safe. On: record the same bytes at a new causal position anyway (BitGraph Again)."
+  },
+  {
+    "name": "attributionName",
+    "type": "text",
+    "label": "Submitter's Name",
+    "required": false,
+    "help": "Optional note stored inside the signed proof. Self-attributed: BitGraph binds the claim cryptographically but does not check it, and it is shown as a submitter's note, never as verified identity."
+  },
+  {
+    "name": "attributionTitle",
+    "type": "text",
+    "label": "Title",
+    "required": false
+  },
+  {
+    "name": "attributionMessage",
+    "type": "text",
+    "label": "Message",
+    "required": false
+  }
+]

@@ -1,0 +1,28 @@
+{
+  "url": "/api/verify",
+  "method": "POST",
+  "body": {
+    "digest": "{{ifempty(parameters.digest; sha256(parameters.data; \"base64\"))}}",
+    "proof": "{{parameters.proof}}",
+    "allowedMeasurements": "{{parameters.allowedMeasurements}}"
+  },
+  "response": {
+    "output": {
+      "verified": "{{body.verified}}",
+      "status": "{{body.status}}",
+      "reason": "{{body.reason}}",
+      "artifactBinding": "{{body.artifactBinding}}",
+      "checkedAgainst": "{{body.checkedAgainst}}",
+      "onRecord": "{{body.onRecord}}",
+      "totalPositions": "{{body.totalPositions}}",
+      "artifactHash": "{{body.artifactHash}}",
+      "artifactHashUrlSafe": "{{body.artifactHashUrlSafe}}",
+      "proofUrl": "{{body.proofUrl}}",
+      "counter": "{{body.counter}}",
+      "slotCounter": "{{body.slotCounter}}",
+      "epochId": "{{body.epochId}}",
+      "chainId": "{{body.chainId}}",
+      "proof": "{{body.proof}}"
+    }
+  }
+}
