@@ -107,9 +107,14 @@ export default function FolderPage() {
       {/* Three claims, in the order the questions arrive: what the thing is,
           then what it does not send, then who can read the result. */}
       <h2 className="text-xl font-semibold mt-12 mb-4">A folder, not an app</h2>
+      {/* The batch line lives here rather than in the lede. Pluralising the
+          lede would have contradicted the diagram below it, which states the
+          singular equation, but the page never said anywhere that the folder
+          takes more than one file at a time. That is the whole advantage over
+          the one-file flow on the home page, and a 500-file drop is tested. */}
       <p className="text-[#1f2937] mb-14">
         The installer puts a BitGraph folder on your Desktop and watches it. You never
-        open anything.
+        open anything. Drop files in one at a time or in batches.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Nothing leaves your Mac</h2>
