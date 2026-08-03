@@ -8,7 +8,7 @@
 #
 # Only the SHA-256 digest leaves the machine. File contents never do.
 #
-# Each handled file is then wrapped by export.mjs into a bitgraph-proof-<N>/
+# Each handled file is then wrapped by export.js into a bitgraph-proof-<N>/
 # folder holding proof.json, an ethereum-anchors/ subfolder with the bracketing
 # anchors and their block header witnesses, and the file itself. This is the
 # same layout the website's proof-page export produces. The dropped file is
@@ -30,31 +30,20 @@ CONFIG="${BITGRAPH_CONFIG:-$HOME/.bitgraph/config}"
 
 FOLDER="${BITGRAPH_FOLDER:-$HOME/BitGraph}"
 API="${BITGRAPH_API:-https://bitgraph.ing}"
-NODE="${BITGRAPH_NODE:-}"
 HOME_DIR="${BITGRAPH_HOME:-$HOME/.bitgraph}"
 STATE="$HOME_DIR/hotfolder.state"
 LOCK="$HOME_DIR/hotfolder.lock"
-EXPORTER="$HOME_DIR/export.mjs"
+EXPORTER="$HOME_DIR/export.js"
 
-# The installer resolves node once, when the user's full PATH is available.
-# launchd runs with a minimal PATH, so falling back to a bare `node` lookup here
-# would work in a terminal and fail silently in the background.
-if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then
-  for candidate in \
-    /opt/homebrew/bin/node \
-    /usr/local/bin/node \
-    /usr/bin/node \
-    "$(command -v node 2>/dev/null || true)"
-  do
-    [ -n "$candidate" ] && [ -x "$candidate" ] && NODE="$candidate" && break
-  done
-fi
+# The exporter runs under JavaScript for Automation, which ships with macOS.
+# Absolute path because launchd hands this script a minimal PATH.
+OSASCRIPT="/usr/bin/osascript"
 
 mkdir -p "$HOME_DIR"
 
 # One run at a time; launchd queues another run if events arrive meanwhile.
 if ! mkdir "$LOCK" 2>/dev/null; then exit 0; fi
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+trap 'rmdir "$LOCK" 2>/dev/null; rm -f "$HOME_DIR/.response.json"' EXIT
 
 touch "$STATE"
 
@@ -66,27 +55,32 @@ notify() { # $1 title-suffix, $2 body
 
 to_urlsafe() { printf '%s' "$1" | tr '+/' '-_' | tr -d '='; }
 
-have_node() { [ -n "$NODE" ] && [ -x "$NODE" ]; }
-
-if ! have_node; then
-  log "node not found; set BITGRAPH_NODE in $CONFIG. Nothing was recorded."
-  notify "Setup needed" "node was not found. See $CONFIG"
+if [ ! -f "$EXPORTER" ]; then
+  log "exporter missing at $EXPORTER. Nothing was recorded."
+  notify "Setup needed" "Reinstall BitGraph Folder"
   exit 1
 fi
 
-# JSON parsing runs through the exporter so this tool needs exactly one runtime.
-parse_json() { "$NODE" "$EXPORTER" --json "$1"; }
+# Responses are handed over as FILES, not pipes. The exporter reads them
+# directly, which has no size ceiling; a response carrying a multi-kilobyte
+# attestation would be at the mercy of shell pipe limits otherwise.
+parse_json() { # $1 batch|commit, $2 response file
+  "$OSASCRIPT" -l JavaScript "$EXPORTER" --json "$1" "$2" 2>/dev/null
+}
 
 # Wrap one handled file into its export folder. The exporter moves the file in,
 # so nothing else here may touch it afterwards. Never fatal: the recording
 # already stands on its own, the export is only the packaging.
 export_drop() { # $1 file, $2 digest, $3 counter, $4 epoch
-  [ -f "$EXPORTER" ] || { log "exporter missing, left $(basename "$1") unwrapped"; return 0; }
-  "$NODE" "$EXPORTER" "$1" "$2" "$3" "$4" >&2 2>&1 || log "export failed: $(basename "$1")"
+  result=$("$OSASCRIPT" -l JavaScript "$EXPORTER" "$1" "$2" "$3" "$4" 2>&1)
+  case "$result" in
+    ok*) ;;
+    *) log "export: $result" ;;
+  esac
 }
 
 # Finish any export still waiting on the anchor that seals it.
-[ -f "$EXPORTER" ] && "$NODE" "$EXPORTER" --complete "$FOLDER" >&2 2>&1 || true
+"$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" >/dev/null 2>&1 || true
 
 for f in "$FOLDER"/*; do
   [ -f "$f" ] || continue
@@ -121,10 +115,11 @@ for f in "$FOLDER"/*; do
   # Already on record? Then this drop is a lookup, not a recording. The parser
   # returns the earliest causal position so the export is built from the
   # originating proof rather than minting a new one.
-  check=$(curl -s --max-time 25 -X POST "$API/api/proofs/batch" \
+  resp_file="$HOME_DIR/.response.json"
+  curl -s --max-time 25 -X POST "$API/api/proofs/batch" \
     -H "Content-Type: application/json" \
-    -d "{\"digests\":[\"$urlsafe\"]}")
-  on_record=$(printf '%s' "$check" | parse_json batch)
+    -d "{\"digests\":[\"$urlsafe\"]}" -o "$resp_file"
+  on_record=$(parse_json batch "$resp_file")
 
   case "$on_record" in
     yes*)
@@ -146,10 +141,10 @@ for f in "$FOLDER"/*; do
   # holds a drop rather than failing it.
   outcome=""
   for _ in 1 2 3; do
-    resp=$(curl -s --max-time 120 -X POST "$API/api/commit" \
+    curl -s --max-time 120 -X POST "$API/api/commit" \
       -H "Content-Type: application/json" \
-      -d "{\"digests\":[{\"digestB64\":\"$digest\",\"hashAlg\":\"sha256\"}],\"chainId\":\"bitgraph:main\"}")
-    outcome=$(printf '%s' "$resp" | parse_json commit)
+      -d "{\"digests\":[{\"digestB64\":\"$digest\",\"hashAlg\":\"sha256\"}],\"chainId\":\"bitgraph:main\"}" -o "$resp_file"
+    outcome=$(parse_json commit "$resp_file")
     case "$outcome" in ok*) break ;; retry) sleep 20 ;; *) break ;; esac
   done
 

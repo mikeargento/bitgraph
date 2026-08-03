@@ -44,7 +44,7 @@ install -m 0755 "$HERE/uninstall.sh" "$STAGE/uninstall.sh"
 install -m 0644 "$HERE/LICENSE"      "$STAGE/LICENSE"
 install -m 0644 "$HERE/README.md"    "$STAGE/README.md"
 install -m 0755 "$HERE/src/hotfolder.sh" "$STAGE/src/hotfolder.sh"
-install -m 0644 "$HERE/src/export.mjs"   "$STAGE/src/export.mjs"
+install -m 0644 "$HERE/src/export.js"    "$STAGE/src/export.js"
 install -m 0644 "$HERE/src/com.bitgraph.hotfolder.plist" "$STAGE/src/com.bitgraph.hotfolder.plist"
 
 SCRIPTS="$ROOT-scripts"

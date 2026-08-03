@@ -33,7 +33,7 @@ if [ -L "$LINK" ] && [ "$(readlink "$LINK")" = "$FOLDER" ]; then
   say "desktop link removed"
 fi
 
-rm -f "$HOME_DIR/hotfolder.sh" "$HOME_DIR/export.mjs" "$HOME_DIR/config" "$HOME_DIR/hotfolder.err"
+rm -f "$HOME_DIR/hotfolder.sh" "$HOME_DIR/export.js" "$HOME_DIR/config" "$HOME_DIR/hotfolder.err"
 rmdir "$HOME_DIR" 2>/dev/null || true
 say "scripts removed"
 

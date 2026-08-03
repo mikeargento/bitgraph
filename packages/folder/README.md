@@ -20,6 +20,13 @@ That folder is the same thing you would get by recording the file on
 [bitgraph.ing](https://bitgraph.ing) and downloading the export from its proof
 page. Identical layout, so the two are interchangeable.
 
+## No dependencies
+
+The exporter runs under JavaScript for Automation, which has shipped with macOS
+since 10.10. There is nothing to install first and nothing that can be missing.
+An earlier version needed Node.js; bundling a runtime would have meant a 229 MB
+download for a folder watcher, so the exporter was rewritten instead.
+
 ## Your files never leave your machine
 
 Only the SHA-256 digest is sent. Not the file, not its name, not its contents.
@@ -31,7 +38,7 @@ deliberately.
 
 ## Install
 
-Requires macOS and [node](https://nodejs.org) 18 or newer.
+Requires macOS. Nothing else: no runtime to install, no dependencies.
 
 ```bash
 git clone https://github.com/mikeargento/bitgraph.git
@@ -156,8 +163,8 @@ anyway and marked pending, and the next folder change completes it. You will see
 | `~/BitGraph` | the watched folder |
 | `~/Desktop/BitGraph` | symlink to it |
 | `~/.bitgraph/hotfolder.sh` | the watcher |
-| `~/.bitgraph/export.mjs` | the exporter |
-| `~/.bitgraph/config` | resolved node path and folder locations |
+| `~/.bitgraph/export.js` | the exporter (JavaScript for Automation) |
+| `~/.bitgraph/config` | folder locations and the installed version |
 | `~/.bitgraph/hotfolder.state` | digests already handled, so drops are not rechecked |
 | `~/.bitgraph/hotfolder.err` | diagnostics |
 | `~/Library/LaunchAgents/com.bitgraph.hotfolder.plist` | the watcher agent |
@@ -170,7 +177,6 @@ Edit `~/.bitgraph/config` and re-run `install.sh`.
 | --- | --- |
 | `BITGRAPH_FOLDER` | `~/BitGraph` |
 | `BITGRAPH_API` | `https://bitgraph.ing` |
-| `BITGRAPH_NODE` | resolved at install time |
 | `BITGRAPH_SEAL_WAIT_MS` | `45000` |
 
 ## Turning it off

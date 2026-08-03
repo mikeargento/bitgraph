@@ -22,8 +22,19 @@ CONSOLE_HOME="$(dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null
 # launchctl bootstrap has to target the user's GUI domain, and reaching it means
 # running inside their session rather than root's. `launchctl asuser` is what
 # puts us there; sudo alone would not.
+# Output is kept and the exit status propagated. Swallowing both would let the
+# installer report success while nothing was set up, which is the worst possible
+# outcome: the person is told it worked and then waits forever for a folder that
+# will never do anything.
+LOG="$CONSOLE_HOME/.bitgraph/install.log"
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
+
 launchctl asuser "$CONSOLE_UID" sudo -u "$CONSOLE_USER" \
   HOME="$CONSOLE_HOME" \
-  /bin/bash "$PAYLOAD/install.sh" >/dev/null 2>&1
+  /bin/bash "$PAYLOAD/install.sh" >"$LOG" 2>&1
+STATUS=$?
 
-exit 0
+chown "$CONSOLE_USER" "$LOG" 2>/dev/null || true
+[ "$STATUS" -ne 0 ] && cat "$LOG" >&2
+
+exit "$STATUS"

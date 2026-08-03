@@ -31,9 +31,9 @@ export default function FolderPage() {
         <Action href={DOWNLOAD}>Download for macOS</Action>
       </p>
       <p className="text-sm text-[#4b5563] mb-10">
-        Signed and notarized by Apple, so it opens without a warning. Needs macOS and{" "}
-        <a href="https://nodejs.org" className="text-[#0065A4] font-medium no-underline">node</a>{" "}
-        18 or newer. <Action href={SOURCE}>Read the source</Action>
+        Signed and notarized by Apple, so it opens without a warning. Needs macOS and
+        nothing else: no runtime to install, no dependencies.{" "}
+        <Action href={SOURCE}>Read the source</Action>
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">What happens when you drop a file</h2>
@@ -67,6 +67,7 @@ export default function FolderPage() {
       <h2 className="text-xl font-semibold mt-12 mb-4">Before you install it</h2>
       <ul className="space-y-2 text-sm text-[#1f2937] mb-10">
         <li>• <strong className="text-text">Recordings are permanent and public.</strong> The ledger has ten-year retention and no deletes. Anyone holding the same bytes can look them up. Put files in this folder only when you mean to record them.</li>
+        <li>• <strong className="text-text">Nothing else to install.</strong> The exporter runs under JavaScript for Automation, which ships with macOS. There is no runtime to add and nothing that can be missing.</li>
         <li>• <strong className="text-text">It runs in the background.</strong> A launchd agent watches the folder and wakes only when it changes. There is no polling and nothing resident in memory.</li>
         <li>• <strong className="text-text">Dropping the same bytes twice does nothing new.</strong> The second drop returns the existing proof. Recording the same file at a second position is a deliberate act, not something a folder does to you by accident.</li>
       </ul>

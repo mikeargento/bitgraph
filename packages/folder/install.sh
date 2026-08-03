@@ -34,37 +34,27 @@ printf '\nBitGraph Folder %s\n\n' "${VERSION:-}"
 
 [ "$(uname -s)" = "Darwin" ] || die "this needs macOS. It uses launchd to watch the folder."
 
-# launchd runs with a minimal PATH, so node is resolved once here, while the
-# installing user's full environment is available, and written into the config.
-NODE="${BITGRAPH_NODE:-}"
-if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then
-  for candidate in \
-    "$(command -v node 2>/dev/null || true)" \
-    /opt/homebrew/bin/node \
-    /usr/local/bin/node \
-    /usr/bin/node
-  do
-    if [ -n "$candidate" ] && [ -x "$candidate" ]; then NODE="$candidate"; break; fi
-  done
-fi
-[ -n "$NODE" ] && [ -x "$NODE" ] || die "node was not found. Install it from https://nodejs.org and run this again."
-
-NODE_MAJOR="$("$NODE" -e 'process.stdout.write(String(process.versions.node.split(".")[0]))')"
-[ "$NODE_MAJOR" -ge 18 ] || die "node 18 or newer is required (found $("$NODE" --version)). fetch is not available before 18."
-
-say "node          $NODE ($("$NODE" --version))"
+# Nothing to detect. The exporter runs under JavaScript for Automation, which
+# has shipped with macOS since 10.10, so there is no runtime to install and
+# nothing that can be missing.
+[ -x /usr/bin/osascript ] || die "/usr/bin/osascript is missing. This is not a stock macOS system."
 
 # --- Install --------------------------------------------------------------
 
 mkdir -p "$FOLDER" "$HOME_DIR" "$HOME/Library/LaunchAgents"
 
 install -m 0755 "$SRC/hotfolder.sh" "$HOME_DIR/hotfolder.sh"
-install -m 0644 "$SRC/export.mjs" "$HOME_DIR/export.mjs"
+install -m 0644 "$SRC/export.js" "$HOME_DIR/export.js"
+
+# Installing over an older version leaves its files behind otherwise. 1.0.x
+# shipped a Node exporter that 1.1.0 replaced; a stale copy is dead weight and
+# is confusing to find later while debugging.
+rm -f "$HOME_DIR/export.mjs"
+rm -rf "$HOME_DIR/exporter"
 
 cat > "$HOME_DIR/config" <<EOF
 # BitGraph Folder configuration. Edit and re-run install.sh to apply.
 BITGRAPH_VERSION="$VERSION"
-BITGRAPH_NODE="$NODE"
 BITGRAPH_FOLDER="$FOLDER"
 BITGRAPH_HOME="$HOME_DIR"
 BITGRAPH_API="$API"
