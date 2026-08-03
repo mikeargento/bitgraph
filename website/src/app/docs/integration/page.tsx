@@ -11,7 +11,8 @@ export default function IntegrationPage() {
       <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">Integration Guide</h1>
       <p className="text-[#1f2937] mb-10">
         How to commit artifacts, verify proofs, and integrate BitGraph into your application.
-        Connecting an AI agent instead? See <a href="/docs/mcp">MCP</a>.
+        Connecting an AI agent instead? See <a href="/docs/mcp">MCP</a>. Building a no-code
+        workflow? See <a href="/docs/automation">Zapier and Make</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Quick start: commit via API</h2>
@@ -112,6 +113,46 @@ if (result.valid) {
   console.error("Verification failed:", result.reason);
 }`}</pre>
       </div>
+
+      <h2 className="text-xl font-semibold mt-12 mb-4">Verify over HTTP</h2>
+      <p className="text-[#1f2937] mb-4">
+        For callers that cannot run a verifier: no-code automation platforms, shell scripts,
+        anything without a JavaScript runtime. It delegates to the same package, so this
+        endpoint and the offline verifier cannot disagree.
+      </p>
+      <div className="code-block">
+        <div className="code-block-header"><span>Shell</span></div>
+        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`DIGEST=$(openssl dgst -sha256 -binary myfile.pdf | base64)
+
+curl -X POST https://bitgraph.ing/api/verify \\
+  -H "Content-Type: application/json" \\
+  -d '{"digest": "'$DIGEST'"}'
+
+# {
+#   "verified": true,
+#   "status": "valid",
+#   "artifactBinding": "checked",
+#   "onRecord": true,
+#   "counter": "7910",
+#   "epochId": "...",
+#   "proof": { ... }
+# }`}</pre>
+      </div>
+      <p className="text-[#1f2937] mb-4">
+        Send <code>proof</code> to check a proof you are carrying rather than whatever the
+        ledger currently holds, and both together to check that the proof describes that exact
+        file. Add <code>allowedMeasurements</code> to reject anything not signed by a specific
+        enclave build. The digest may be hex or base64, either form.
+      </p>
+      <p className="text-sm text-[#4b5563] mb-8">
+        <strong className="text-text">Read <code>artifactBinding</code>, not just <code>verified</code>.</strong>{" "}
+        <code>checked</code> means the digest you sent matches the one inside the proof.
+        <code> not-checked</code> means the proof is sound but nothing tied it to a file, which
+        is what you get from a proof with no digest alongside it. <code>mismatch</code> means
+        the proof is genuine and is for different bytes. A verdict from the service that issued
+        the proof is a convenience; the proof comes back whole so you can redo the check
+        yourself, which is the result that counts.
+      </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Enclave info</h2>
       <div className="code-block">
