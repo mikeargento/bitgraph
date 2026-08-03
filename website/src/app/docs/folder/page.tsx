@@ -70,13 +70,14 @@ export default function FolderPage() {
               also drops the subject, since the h1 is two lines above it and
               "BitGraph Folder installs on a Mac" says the name three times in
               four lines. The link, not the sentence, is the anchor here. */}
-          {/* "only" carries the exclusion the visitor needs, that this is not
-              installable on the thing in their hand. "Mac desktop only" was
-              asked for and adjusted: a MacBook is not a desktop, and that
-              phrasing reads as iMac/mini/Studio but not a laptop. Naming the
-              excluded device ("not a phone") is wrong too, since this same
-              message shows on tablets. */}
-          <span className="block text-[#4b5563]">Installs on a Mac only.</span>
+          {/* "Desktop" belongs on the software, not on the machine. "Mac
+              desktop only" reads as iMac/mini/Studio and not a laptop, since
+              that is Apple's own split of the lineup and most Macs sold are
+              laptops. Moved onto the category it says the same thing with no
+              hardware claim in it. Naming the excluded device instead ("not a
+              phone") fails too, since this message also shows on tablets.
+              Width is not the constraint here: every candidate fit 320px. */}
+          <span className="block text-[#4b5563]">Desktop software. Installs on a Mac.</span>
           <a href="/" className="bg-arrow-link mt-3 inline-block text-lg font-semibold text-[#0065A4] no-underline">
             Record a file from your phone <span className="arrow" aria-hidden="true">&rarr;</span>
           </a>
