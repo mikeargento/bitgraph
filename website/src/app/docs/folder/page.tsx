@@ -23,13 +23,12 @@ export default function FolderPage() {
   return (
     <article className="prose-doc">
       <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-5">BitGraph Folder</h1>
-      {/* One line where there is room, two beats where there is not. Shrinking
-          it to fit a phone put it at ~10.7px, so the break is the better trade
-          below 640px; above that it fits at full size and the break would be
-          an affectation. */}
-      <p className="text-lg text-[#1f2937] mb-8" style={{ lineHeight: 1.45 }}>
-        A folder on your Desktop.
-        <br className="sm:hidden" />{" "}
+      {/* One line at every width: 219px at 18px semibold, against a 338px
+          column on a 375px phone and 288px on a 320px one. The longer lede it
+          replaced needed 415px and had to be broken by hand. "A folder on your
+          Desktop" is cut rather than shrunk, since the h1 and the folder in the
+          diagram both already say it. */}
+      <p className="text-lg font-semibold text-[#1f2937] mb-8" style={{ lineHeight: 1.45 }}>
         Drop a file. Get a BitGraph.
       </p>
 
