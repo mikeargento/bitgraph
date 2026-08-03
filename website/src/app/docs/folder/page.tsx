@@ -23,19 +23,17 @@ function Action({ href, children }: { href: string; children: React.ReactNode })
 export default function FolderPage() {
   return (
     <article className="prose-doc">
-      {/* Centred on phones, left rail from `sm` up. The breakpoint is the
-          diagram's own: it stacks below 640px and centres itself, so title,
-          lede, action and diagram all sit on one axis there instead of the
-          text hugging the left and the picture jumping to the middle. The rail
-          comes back at the first h2, where the page stops selling and starts
-          being read. */}
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-5 text-center sm:text-left">BitGraph Folder</h1>
+      {/* One left rail, every element, every width. Centring the hero on
+          phones was tried on 2026-08-03 and reverted: the page has exactly one
+          axis and the diagram was moved onto it rather than the type off it.
+          Do not re-pitch a centred hero. */}
+      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-5">BitGraph Folder</h1>
       {/* One line at every width: 219px at 18px semibold, against a 338px
           column on a 375px phone and 288px on a 320px one. The longer lede it
           replaced needed 415px and had to be broken by hand. "A folder on your
           Desktop" is cut rather than shrunk, since the h1 and the folder in the
           diagram both already say it. */}
-      <p className="text-lg font-semibold text-[#1f2937] mb-8 text-center sm:text-left" style={{ lineHeight: 1.45 }}>
+      <p className="text-lg font-semibold text-[#1f2937] mb-8" style={{ lineHeight: 1.45 }}>
         Drop a file. Get a BitGraph.
       </p>
 
@@ -58,7 +56,7 @@ export default function FolderPage() {
           .bg-dl-touch { display: block; }
         }
       `}</style>
-      <p className="mb-14 text-center sm:text-left text-lg">
+      <p className="mb-14 text-lg">
         <span className="bg-dl-mac">
           <Action href={DOWNLOAD}>Download for macOS</Action>
         </span>

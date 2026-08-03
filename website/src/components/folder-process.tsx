@@ -60,9 +60,13 @@ export function FolderProcess() {
         }
         @media (max-width: 640px) {
           .bgq { margin: 2.75rem 0 3rem; }
-          .bgq .row { grid-template-columns: 1fr; gap: 22px; justify-items: center; }
+          /* Left rail, like every other element on the page. Each stacked item
+             is a 140px block rather than a centred one, so the operators stay
+             on the glyphs' axis instead of sliding to the page edge. */
+          .bgq .row { grid-template-columns: 1fr; gap: 22px; justify-items: start; }
+          .bgq .bgq-term { width: 140px; }
           .bgq .bgq-term svg { max-width: 140px; }
-          .bgq .op { margin: 0; }
+          .bgq .op { margin: 0; width: 140px; }
           /* the arrow turns to follow the stack */
           .bgq .op.arrow { transform: rotate(90deg); }
         }
