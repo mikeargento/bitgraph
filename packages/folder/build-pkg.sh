@@ -42,6 +42,10 @@ mkdir -p "$STAGE/src"
 install -m 0755 "$HERE/install.sh"   "$STAGE/install.sh"
 install -m 0755 "$HERE/uninstall.sh" "$STAGE/uninstall.sh"
 install -m 0644 "$HERE/LICENSE"      "$STAGE/LICENSE"
+# install.sh reads this to report the version and to write BITGRAPH_VERSION into
+# the user's config. It was never staged, so every installed copy said
+# "BitGraph Folder unknown" and recorded unknown as its version.
+install -m 0644 "$HERE/VERSION"      "$STAGE/VERSION"
 install -m 0644 "$HERE/README.md"    "$STAGE/README.md"
 install -m 0755 "$HERE/src/hotfolder.sh" "$STAGE/src/hotfolder.sh"
 install -m 0644 "$HERE/src/export.js"    "$STAGE/src/export.js"
