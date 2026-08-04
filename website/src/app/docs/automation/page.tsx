@@ -13,8 +13,9 @@ export const metadata: Metadata = {
  * works is Make's own HTTP module calling this API rather than a Make app, so
  * their mark would claim a partnership that does not exist. Both are also the
  * trust-badge idiom this site rejects, and two marks side by side become the
- * banned card grid. `website/public/logos/` is 26 dead partner SVGs from the
- * agent-control era; the site has done the logo wall once already.
+ * banned card grid. The site has done the logo wall once already:
+ * `website/public/logos/` held 26 dead partner SVGs from the agent-control
+ * era until they were deleted on 2026-08-03.
  *
  * An availability rail lived here for a few hours the same day, reading
  * "MAKE - Works today" / "ZAPIER - Works by invite". It was cut once the
