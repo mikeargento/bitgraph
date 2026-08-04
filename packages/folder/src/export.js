@@ -451,7 +451,25 @@ function parseCommit(body) {
 // must not phone anywhere either. That is also why the type is a system stack
 // rather than the site's Acumin Pro, which would need Typekit.
 
-var IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'avif', 'bmp', 'tiff', 'tif'];
+// svg goes here rather than with the text types: a browser renders it as a
+// picture in an <img>, which is what it is.
+var IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'avif', 'bmp', 'tiff', 'tif', 'svg'];
+
+// Anything the browser will display as text on its own. No thumbnail has to be
+// generated for these either: an <iframe> shows the top of the file, which for
+// a note or a CSV is a better identifier than the extension in grey capitals.
+// Always sandboxed, so a recorded .html or .svg cannot run script in the page
+// that embeds it.
+var TEXT_EXT = ['txt', 'md', 'markdown', 'csv', 'tsv', 'json', 'log', 'xml', 'yml', 'yaml', 'html', 'htm', 'rtf'];
+
+// A <video> paints its first frame once metadata loads, which is a real
+// thumbnail for free. preload=metadata so a folder of films does not pull whole
+// files in just to draw the sheet.
+var VIDEO_EXT = ['mp4', 'm4v', 'mov', 'webm', 'ogv'];
+
+// Audio has no frame to show, so the cell keeps a label; the export's own page
+// gets a player, where listening is the point.
+var AUDIO_EXT = ['mp3', 'm4a', 'aac', 'wav', 'aiff', 'aif', 'flac', 'oga', 'ogg'];
 
 // Viewer controls off, so an embedded PDF reads as the document rather than as
 // an application. Ampersands are escaped because this goes in an attribute.
@@ -518,7 +536,7 @@ function artifactIn(dir) {
   for (var i = 0; i < names.length; i++) {
     var n = names[i];
     // index.html is written BY this script, so it must never be mistaken for
-    // the thing that was recorded.
+    // the thing that was recorded. Held aside rather than discarded: see below.
     if (n === 'proof.json' || n === ANCHOR_DIR || n === PENDING || n === 'index.html') continue;
     if (n.charAt(0) === '.' || n.indexOf('Icon') === 0) continue;
     return n;
@@ -666,13 +684,26 @@ function rowTime(info, mtime) {
     var b = new Date(w.before * 1000);
     var a = new Date(w.after * 1000);
     var sameDay = dateOf(b) === dateOf(a);
-    return dateOf(b) + ' &middot; between ' + clockOf(b) + ' and ' +
-      (sameDay ? '' : dateOf(a) + ' ') + clockOf(a);
+
+    // Compact enough to survive one line in a grid cell. The full form,
+    // "Aug 3, 2026 . between 11:49:35pm and 11:49:47pm", is 46 characters and
+    // clipped at about 298px of text, which cut off the closing bound: the
+    // half that makes this a window rather than an instant. So the year goes
+    // (the export's own page states it in full) and the opening meridiem goes
+    // when both bounds share one, which is the normal way to set a range.
+    // Nothing that carries meaning is dropped.
+    var sameHalf = (b.getHours() < 12) === (a.getHours() < 12);
+    var open = sameDay && sameHalf ? clockOf(b).replace(/(am|pm)$/, '') : clockOf(b);
+
+    return MONTHS[b.getMonth()] + ' ' + b.getDate() + ' &middot; between ' + open + ' and ' +
+      (sameDay ? '' : MONTHS[a.getMonth()] + ' ' + a.getDate() + ' ') + clockOf(a);
   }
   if (w.before) {
-    // Sealed by an anchor that has not landed yet; the lower bound is real.
+    // The upper anchor has not landed yet, so there is only a lower bound.
+    // Same compaction as the settled case: no year, since the export's own
+    // page carries it in full.
     var lo = new Date(w.before * 1000);
-    return dateOf(lo) + ' &middot; after ' + clockOf(lo) + ', upper bound pending';
+    return MONTHS[lo.getMonth()] + ' ' + lo.getDate() + ' &middot; after ' + clockOf(lo) + ', sealing';
   }
   var n = parseInt(mtime, 10);
   if (!isFinite(n) || n <= 0) return '';
@@ -712,10 +743,16 @@ function indexRow(folder, name, mtime) {
     ? '<a class="t" href="' + page + '"><img src="' + rel + '" alt="" loading="lazy"></a>'
     : isPdf
       ? '<a class="t pdf" href="' + page + '"><embed src="' + rel + PDF_VIEW + '" type="application/pdf"></a>'
-      // An empty box when there is no artifact to name, not a dash. The house
-      // rule is no em dashes anywhere, and this one was also the character
-      // that exposed the encoding bug above.
-      : '<a class="t none" href="' + page + '">' + esc(file ? (extOf(file) || 'FILE').toUpperCase() : '') + '</a>';
+      : file && VIDEO_EXT.indexOf(extOf(file)) !== -1
+        ? '<a class="t" href="' + page + '"><video src="' + rel +
+          '" preload="metadata" muted playsinline tabindex="-1"></video></a>'
+      : file && TEXT_EXT.indexOf(extOf(file)) !== -1
+        ? '<a class="t doc" href="' + page + '"><iframe src="' + rel +
+          '" sandbox loading="lazy" tabindex="-1" scrolling="no"></iframe></a>'
+        // An empty box when there is no artifact to name, not a dash. The house
+        // rule is no em dashes anywhere, and this one was also the character
+        // that exposed the encoding bug above.
+        : '<a class="t none" href="' + page + '">' + esc(file ? (extOf(file) || 'FILE').toUpperCase() : '') + '</a>';
 
   // Two links, in the order you would use them: the file first, because that
   // is what you came to look at, then the proof. A third link straight to the
@@ -779,6 +816,24 @@ function indexRow(folder, name, mtime) {
  */
 function writeProofPage(folder, name, file, digest, counter, info, mtime) {
   var dir = folder + '/' + name;
+
+  // NEVER write over the artifact. The page has to be called index.html, since
+  // that is what makes a browser render it instead of generating its own
+  // directory listing, so an export whose recorded file is itself named
+  // index.html cannot have one: writing it would destroy the very bytes the
+  // proof describes.
+  //
+  // This is not hypothetical. The feedback loop of 2026-08-04 recorded the
+  // sheet six times, and this function then overwrote all six artifacts before
+  // the collision was noticed. The hot folder now skips index.html so nothing
+  // new can land in that state, and this guard means the page generator cannot
+  // do the damage even if something does.
+  if (exists(dir + '/index.html')) {
+    var existing = sh(
+      'openssl dgst -sha256 -binary ' + quote(dir + '/index.html') + ' 2>/dev/null | openssl base64 -A 2>/dev/null'
+    );
+    if (existing && String(existing).trim() === String(digest).trim()) return;
+  }
   var isImage = file && IMAGE_EXT.indexOf(extOf(file)) !== -1;
 
   // Answer the artifact-binding question here rather than sending someone to
@@ -811,7 +866,13 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
     ? '<p class="hero"><a href="' + encodePath(file) + '"><img src="' + encodePath(file) + '" alt=""></a></p>'
     : file && extOf(file) === 'pdf'
       ? '<p class="hero"><embed class="pdfdoc" src="' + encodePath(file) + '" type="application/pdf"></p>'
-      : '';
+      : file && VIDEO_EXT.indexOf(extOf(file)) !== -1
+        ? '<p class="hero"><video class="av" src="' + encodePath(file) + '" controls preload="metadata" playsinline></video></p>'
+      : file && AUDIO_EXT.indexOf(extOf(file)) !== -1
+        ? '<p class="hero"><audio class="au" src="' + encodePath(file) + '" controls preload="metadata"></audio></p>'
+      : file && TEXT_EXT.indexOf(extOf(file)) !== -1
+        ? '<p class="hero"><iframe class="txtdoc" src="' + encodePath(file) + '" sandbox></iframe></p>'
+        : '';
 
   function line(label, value) {
     return value ? '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>' : '';
@@ -886,7 +947,11 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
         // everything else on the site.
         '.hero img{max-width:100%;max-height:min(60vh,520px);width:auto;height:auto;' +
         'display:block;border:1px solid #d0d5dd;background:#fff}' +
-        '.hero .pdfdoc{width:100%;height:min(64vh,560px);border:1px solid #d0d5dd;background:#fff;display:block}' +
+        '.hero .pdfdoc,.hero .txtdoc{width:100%;height:min(64vh,560px);border:1px solid #d0d5dd;' +
+        'background:#fff;display:block}' +
+        '.hero .av{max-width:100%;max-height:min(60vh,520px);display:block;background:#111827;' +
+        'border:1px solid #d0d5dd}' +
+        '.hero .au{width:100%;display:block}' +
         'dl{margin:0 0 28px;display:grid;gap:14px}' +
         'dt{font:600 10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;' +
         'text-transform:uppercase;color:#9aa3ae}' +
@@ -1015,14 +1080,23 @@ function writeIndex(folder) {
         // inside a framed thing; a bottom rule divides picture from caption.
         '.t{display:flex;align-items:center;justify-content:center;overflow:hidden;' +
         'width:100%;aspect-ratio:4/3;background:#fff;border-bottom:1px solid #d0d5dd}' +
-        '.t img{width:100%;height:100%;object-fit:cover;display:block}' +
+        '.t img,.t video{width:100%;height:100%;object-fit:cover;display:block;background:#111827}' +
         // A PDF cannot go in an <img>, but the browser's own viewer renders it
         // through <embed>, fitted to width with its controls off so it reads
         // as the document rather than as an application.
-        '.t.pdf{position:relative;display:block}' +
+        '.t.pdf,.t.doc{position:relative;display:block}' +
         '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;border:0}' +
-        '.none{color:#9aa3ae;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;' +
-        'letter-spacing:.1em;text-decoration:none}' +
+        // Text renders at the browser's own default size, which in a 330px box
+        // is two or three words. Laid out wide and scaled down instead, so the
+        // cell shows the opening of the file rather than its first line
+        // chopped. pointer-events off so the click reaches the link.
+        '.t.doc iframe{position:absolute;top:0;left:0;width:780px;height:590px;border:0;' +
+        'background:#fff;transform:scale(.42);transform-origin:top left;pointer-events:none}' +
+        // Sized for the cell it now sits in. 11px was set when this box was an
+        // 88px square; in a 330px card it read as a stray word floating in
+        // white rather than as the label for the thing.
+        '.none{color:#6b7280;font:600 17px/1 ui-monospace,SFMono-Regular,Menlo,monospace;' +
+        'letter-spacing:.14em;text-decoration:none}' +
         // The scaled-down PDF trick is for an 88px box. At cell width the
         // viewer can simply fill it, fitted to width, which also adapts as the
         // column count changes.
