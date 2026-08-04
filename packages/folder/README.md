@@ -8,13 +8,22 @@ export folder holding its proof and the Ethereum anchors that bracket it.
 
 ```
 BitGraph/
-    bitgraph-proof-1858 (sunset.jpg)/
+    BitGraph (sunset.jpg)/
         proof.json
         sunset.jpg
+        index.html
         ethereum-anchors/
             anchor-before.json    anchor-before-witness.json
             anchor-after.json     anchor-after-witness.json
+    files/
+        sunset.jpg            a hard link to the file above, not a copy
+    index.html                every recording, as a contact sheet
 ```
+
+`files/` is there so you can select every file you have recorded and drag them
+somewhere in one go, instead of opening each export. They are hard links, so
+they take no extra space and are the same bytes that were recorded. Deleting
+one side never harms the other.
 
 That folder is the same thing you would get by recording the file on
 [bitgraph.ing](https://bitgraph.ing) and downloading the export from its proof
@@ -92,7 +101,7 @@ by accident.
 Every export folder audits offline, with no network and no account:
 
 ```bash
-npx @mikeargento/bitgraph-audit "bitgraph-proof-1858 (sunset.jpg)"
+npx @mikeargento/bitgraph-audit "BitGraph (sunset.jpg)"
 ```
 
 **Expect exit code 2, and expect that to be fine.** An export holds one proof

@@ -16,14 +16,21 @@
 // rebuilt on every index pass, ignored by bitgraph-audit (which finds proofs by
 // schema shape rather than by filename), and deletable with nothing lost.
 //
-//   bitgraph-proof-1858 (random-494.txt)/
+//   BitGraph (random-494.txt)/
 //       proof.json
 //       random-494.txt                          the original bytes, moved in
+//       index.html                              the recording's own page
 //       ethereum-anchors/
 //           anchor-before.json                  lower bound
 //           anchor-before-witness.json          its block header
 //           anchor-after.json                   upper bound, the seal
 //           anchor-after-witness.json           its block header
+//   files/
+//       random-494.txt                          a hard link, not a copy
+//   index.html                                  the contact sheet
+//
+// files/ exists so the recorded files can be taken back out in one go, without
+// opening every export. Hard links, so it costs no disk and cannot drift.
 //
 // No archive is written: bitgraph-audit ingests a directory directly and
 // discovers entries by schema shape rather than by filename, so the folder
@@ -325,41 +332,116 @@ function builtHere(dir, digestB64, counter, epochUrlSafe) {
 }
 
 /**
- * Pick the export directory: `bitgraph-proof-3686 (kitchen-reno.jpg)`.
+ * Pick the export directory: `BitGraph (kitchen-reno.jpg)`.
  *
- * The counter leads because it is the part that is unique and the part the
- * website's export matches; the filename follows because a wall of
- * `bitgraph-proof-1670` in Finder tells you nothing about what you recorded.
- * The label is decoration and is never read back. Everything downstream takes
- * the counter and the digest from proof.json, which is what lets a folder be
- * renamed by hand without breaking anything.
+ * The counter used to lead, and it was noise dressed as an identifier. A
+ * counter is a position within one epoch, an epoch is one UTC day, and the
+ * chain runs to roughly twelve thousand of them before the day ends, so
+ * `bitgraph-proof-1345` names a different recording most days and identifies
+ * none of them. It is still in proof.json and on the recording's own page under
+ * Artifact Commit, which is where a number that needs its epoch belongs.
  *
- * Counters are unique within an epoch but repeat across epochs, so on a real
- * collision with different bytes the epoch is appended rather than overwriting.
+ * Dropping it also moves this closer to the website rather than further: a
+ * batch exported from the site already names each folder after its file.
  *
- * Folders written before 1.2.4 carry no label, so both spellings are checked
- * for an existing export: a re-fired watch has to land on the folder it
- * already built instead of making a second one beside it. Old folders keep
- * their old names. Renaming them is not this function's job, and the index
- * reads names off disk either way.
+ * The name is decoration and is never read back. Everything downstream reads
+ * proof.json, which is what lets a folder be renamed by hand without breaking
+ * anything, and it is how bitgraph-audit finds proofs too.
+ *
+ * THREE naming schemes have shipped in a day, so all of them are checked before
+ * this decides an export is missing. A re-fired watch has to land on the folder
+ * it already built rather than making a second one beside it. Old folders keep
+ * their old names: renaming them is not this function's job.
  */
 function resolveDir(folder, counter, epochUrlSafe, digestB64, fileName) {
-  var stem = folder + '/bitgraph-proof-' + counter;
   var label = labelFor(fileName);
   var suffix = label ? ' (' + label + ')' : '';
-  var named = stem + suffix;
+  var base = folder + '/BitGraph' + suffix;
+  var old = folder + '/bitgraph-proof-' + counter;
+  var oldEpoch = old + '-' + String(epochUrlSafe).slice(0, 8);
 
-  if (builtHere(named, digestB64)) return { dir: named, alreadyBuilt: true };
-  if (suffix && builtHere(stem, digestB64)) return { dir: stem, alreadyBuilt: true };
-  if (!exists(named + '/proof.json')) return { dir: named, alreadyBuilt: false };
+  // Newest first, so a re-fire on a current export costs one read.
+  var known = [base, old + suffix, old, oldEpoch + suffix, oldEpoch];
+  for (var i = 0; i < known.length; i++) {
+    if (builtHere(known[i], digestB64, counter, epochUrlSafe)) {
+      return { dir: known[i], alreadyBuilt: true };
+    }
+  }
+  if (!exists(base + '/proof.json')) return { dir: base, alreadyBuilt: false };
 
-  var dir = stem + '-' + String(epochUrlSafe).slice(0, 8) + suffix;
-  return { dir: dir, alreadyBuilt: exists(dir + '/proof.json') };
+  // The name is taken by a different recording. Two distinct files are both
+  // allowed to be called IMG_0001.jpg, and the same file recorded at a second
+  // causal position (BitGraph Again) is two recordings and wants two folders.
+  for (var n = 2; n < 1000; n++) {
+    var alt = base + ' ' + n;
+    if (builtHere(alt, digestB64, counter, epochUrlSafe)) return { dir: alt, alreadyBuilt: true };
+    if (!exists(alt + '/proof.json')) return { dir: alt, alreadyBuilt: false };
+  }
+  // A thousand recordings sharing one filename. Fall back to something that
+  // cannot collide rather than looping forever.
+  return { dir: base + ' ' + String(epochUrlSafe).slice(0, 6) + '-' + counter, alreadyBuilt: false };
 }
 
 function baseName(p) {
   var parts = String(p).split('/');
   return parts[parts.length - 1];
+}
+
+// ---- files/ ----------------------------------------------------------------
+//
+// A flat folder holding just the recorded files, so you can select them all and
+// drag them into the website, or anywhere else, without opening every export in
+// turn. That was the only way to get your own files back, and with a few
+// hundred recordings it is not a way at all.
+//
+// HARD LINKS, not copies. A hard link is not a second file: it is a second name
+// for the same bytes on disk, so this costs nothing, cannot drift, and what you
+// drag out is exactly what was recorded. Deleting either name leaves the other
+// whole, which means clearing out files/ never touches a proof, and deleting an
+// export never takes your file with it.
+//
+// The one thing to know: an application that writes IN PLACE through the link
+// would alter the export's bytes too. Almost nothing on macOS does; the normal
+// save is a write-and-rename, which breaks the link and leaves the export
+// untouched. And if bytes ever did change, the recording's own page says so in
+// red, which is the product working rather than failing.
+//
+// Derived, like the contact sheet. Delete the whole folder and the next drop or
+// `--index` rebuilds it.
+var FILES_DIR = 'files';
+
+/** True when two paths are the same bytes on disk rather than two copies. */
+function sameInode(a, b) {
+  var out = sh('stat -f %i ' + quote(a) + ' ' + quote(b) + ' 2>/dev/null');
+  if (!out) return false;
+  var ids = out.split('\r').join('\n').split('\n').filter(Boolean);
+  return ids.length === 2 && ids[0] === ids[1];
+}
+
+/** Link one recorded file into files/, numbering only on a real name clash. */
+function linkIntoFiles(folder, dir, fileName) {
+  var target = dir + '/' + fileName;
+  if (!exists(target)) return;
+  var files = folder + '/' + FILES_DIR;
+  mkdirp(files);
+
+  // `ln` without -f refuses to clobber, so the happy path is one call and an
+  // existing entry can never be overwritten by accident.
+  var link = files + '/' + fileName;
+  if (sh('ln ' + quote(target) + ' ' + quote(link) + ' 2>/dev/null && echo ok') === 'ok') return;
+  if (sameInode(link, target)) return; // already linked, nothing to do
+
+  // Taken by something else. Two different photos are both allowed to be
+  // called IMG_0001.jpg, so the name gets a number rather than the file getting
+  // dropped. The extension survives, since it is what says what the thing is.
+  var ext = extOf(fileName);
+  var tail = ext ? '.' + ext : '';
+  var stem = fileName.slice(0, fileName.length - tail.length);
+  for (var n = 2; n < 100; n++) {
+    var alt = files + '/' + stem + ' ' + n + tail;
+    if (sh('ln ' + quote(target) + ' ' + quote(alt) + ' 2>/dev/null && echo ok') === 'ok') return;
+    if (sameInode(alt, target)) return;
+  }
 }
 
 function dirName(p) {
@@ -398,6 +480,14 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe) {
 
   // Moved in last, so a failure above never strands the file.
   if (exists(filePath)) sh('mv ' + quote(filePath) + ' ' + quote(r.dir + '/' + fileName));
+
+  // Same treatment as the contact sheet: derived, and never allowed to turn a
+  // successful recording into an error.
+  try {
+    linkIntoFiles(folder, r.dir, fileName);
+  } catch (e) {
+    /* relinked by the next --index pass */
+  }
 
   // Refresh the contact sheet, and never let it break a recording. The proof
   // is already written and sealed by this point; index.html is a derived view,
@@ -1324,20 +1414,29 @@ function copyScript() {
 
 /** Rebuild index.html from whatever is on disk, newest first. */
 function writeIndex(folder) {
-  // One stat call for order and fallback time together. Newest first, by
-  // modification time: counters cannot do this job because they reset every
-  // epoch, so a folder from today and one from last week are not comparable by
-  // number alone. The glob is expanded by the shell, so `folder` is quoted and
-  // the pattern is not.
-  var listing = sh('cd ' + quote(folder) + ' && stat -f "%m %N" bitgraph-proof-* 2>/dev/null');
+  // Discovery is by CONTENT, not by name: a directory is an export when it
+  // holds a proof.json. Three naming schemes have shipped, and a folder can be
+  // renamed by hand at any time, so matching a name prefix would quietly drop
+  // recordings out of the sheet. It is also the rule bitgraph-audit uses.
+  //
+  // One shell call for the whole scan, giving order and fallback time together.
+  // Newest first by modification time: counters cannot do this job because they
+  // reset every epoch, so a folder from today and one from last week are not
+  // comparable by number. Ends in `true` because the loop's last iteration sets
+  // the exit status, and a non-zero one makes doShellScript throw away the
+  // entire listing.
+  var listing = sh('cd ' + quote(folder) +
+    ' && for d in */; do if [ -f "$d/proof.json" ]; then stat -f "%m %N" "$d"; fi; done 2>/dev/null; true');
   var lines = listing ? listing.split('\r').join('\n').split('\n').filter(Boolean) : [];
 
   var entries = [];
   lines.forEach(function (line) {
     var gap = line.indexOf(' ');
     if (gap === -1) return;
-    var name = line.slice(gap + 1);
-    if (name.indexOf('bitgraph-proof-') !== 0) return;
+    // `stat` prints the name as given, and the glob gives it with a trailing
+    // slash.
+    var name = line.slice(gap + 1).replace(/\/+$/, '');
+    if (!name || name === FILES_DIR) return;
     entries.push({ name: name, mtime: parseInt(line.slice(0, gap), 10) || 0 });
   });
   entries.sort(function (x, y) { return y.mtime - x.mtime; });
@@ -1348,6 +1447,14 @@ function writeIndex(folder) {
   entries.forEach(function (e) {
     var row = indexRow(folder, e.name, e.mtime);
     if (row) rows.push(row);
+    // Backfill files/ for anything recorded before this existed, or after
+    // someone emptied it. linkIntoFiles is a no-op once the link is there.
+    try {
+      var art = artifactIn(folder + '/' + e.name);
+      if (art) linkIntoFiles(folder, folder + '/' + e.name, art);
+    } catch (err) {
+      /* the sheet is the job here; a missing link costs nothing */
+    }
   });
 
   var body = rows.length
