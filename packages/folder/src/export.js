@@ -300,13 +300,25 @@ function utf8Len(s) {
   return $.NSString.stringWithString(String(s)).lengthOfBytesUsingEncoding($.NSUTF8StringEncoding);
 }
 
-/** True when this directory already holds the export for these exact bytes. */
-function builtHere(dir, digestB64) {
+/**
+ * True when this directory already holds THIS recording.
+ *
+ * All three of digest, counter and epoch, not the digest alone. The same bytes
+ * can be recorded at more than one causal position on purpose (BitGraph
+ * Again), and once the counter left the folder name the digest stopped being
+ * enough to tell a re-fired watch from a genuine second recording. Matching on
+ * the digest alone would have silently folded the second one into the first.
+ * The counter needs the epoch with it for the reason the number search was
+ * removed: counters restart every UTC day.
+ */
+function builtHere(dir, digestB64, counter, epochUrlSafe) {
   var raw = readFile(dir + '/proof.json');
   if (raw === null) return false;
   try {
     var p = JSON.parse(raw);
-    return Boolean(p && p.artifact && p.artifact.digestB64 === digestB64);
+    if (!p || !p.artifact || p.artifact.digestB64 !== digestB64) return false;
+    if (!p.commit || String(p.commit.counter) !== String(counter)) return false;
+    return toUrlSafe(String(p.commit.epochId || '')) === String(epochUrlSafe);
   } catch (e) {
     return false; /* unreadable, treat as a collision */
   }
