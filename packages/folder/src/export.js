@@ -973,7 +973,13 @@ function writeIndex(folder) {
   writeFile(
     folder + '/index.html',
     pageShell(
-      'BitGraph',
+      // The product's own name, not just "BitGraph". This is the one page that
+      // names it, since each export page is titled by its filename, and the
+      // string is the browser tab too: with the site and a few proof pages
+      // open, half the tabs otherwise read "BitGraph" and none of them are
+      // this. Not "BitGraph Desktop Folder", which was rejected because
+      // "Desktop" reads as desktop app.
+      'BitGraph Folder',
       // A contact sheet, so it reflows: auto-fill with a 230px minimum gives
       // three across the 800px column, two around 520px, one on a phone, with
       // no breakpoints to maintain. A single column was fine at nine
@@ -1029,7 +1035,7 @@ function writeIndex(folder) {
         '.l a{font-size:13.5px}' +
         '.sep{width:14px}' +
         '.empty{color:#4b5563}',
-      '<h1>BitGraph</h1>' +
+      '<h1>BitGraph Folder</h1>' +
         '<p class="s">' + rows.length + (rows.length === 1 ? ' recording' : ' recordings') + ', newest first.</p>' +
         body
     )
