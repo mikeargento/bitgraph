@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { proofPage, indexPage, blockTimeFromHeader, type ExportProof, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FileDrop } from "@/components/file-drop";
@@ -505,6 +506,18 @@ export default function BitGraphPage() {
       entry.push(new TextEncoder().encode(text), true);
     };
 
+    // One entry per proof folder, gathered as the zip is built so the pages
+    // can be written at the end without re-fetching anything. `sides` is filled
+    // by addAnchorsFor via the witness it downloads.
+    const built: { dir: string; fileName: string; proof: Record<string, unknown>;
+                   sides: { before: AnchorSide; after: AnchorSide } }[] = [];
+    const sidesFor = new Map<string, { before: AnchorSide; after: AnchorSide }>();
+    const sidesOf = (dir: string) => {
+      let v = sidesFor.get(dir);
+      if (!v) { v = { before: {}, after: {} }; sidesFor.set(dir, v); }
+      return v;
+    };
+
     // Fetch the two bounding ETH anchors for one recording and add them under
     // `dir`. The "after" anchor follows the counter (upper time bound), the
     // "before" anchor precedes it (lower time bound); together they pin the
@@ -526,7 +539,15 @@ export default function BitGraphPage() {
         const blockHash = eth?.blockHash ?? attr?.message;
         if (blockNumber === undefined || !blockHash) return;
         const resp = await fetch(`/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`);
-        if (resp.ok) addText(name, JSON.stringify(await resp.json(), null, 2));
+        if (resp.ok) {
+          const w = await resp.json();
+          addText(name, JSON.stringify(w, null, 2));
+          // The block time lives inside the header, not beside it.
+          const dir = name.slice(0, name.indexOf("ethereum-anchors/"));
+          const side = name.includes("before") ? sidesOf(dir).before : sidesOf(dir).after;
+          side.block = blockNumber;
+          if (w?.headerRlpHex) side.ts = blockTimeFromHeader(w.headerRlpHex) || null;
+        }
       } catch { /* non-critical: the bundle is valid without the witness */ }
     };
 
@@ -585,6 +606,8 @@ export default function BitGraphPage() {
         for (const pos of allPositions) {
           addText(`${prefix}proof.json`, JSON.stringify(pos, null, 2));
           singles.push(pos);
+          built.push({ dir: prefix.replace(/\/$/, ""), fileName: f.name,
+                       proof: pos as unknown as Record<string, unknown>, sides: sidesOf(prefix) });
         }
       } else {
         for (const pos of allPositions) {
@@ -595,6 +618,8 @@ export default function BitGraphPage() {
           fileEntry.push(fileBytes, true);
           addText(`${dir}proof.json`, JSON.stringify(pos, null, 2));
           if (c) await addAnchorsFor(dir, c, c, pos.commit?.epochId || "");
+          built.push({ dir: dir.replace(/\/$/, ""), fileName: f.name,
+                       proof: pos as unknown as Record<string, unknown>, sides: sidesOf(dir) });
         }
       }
     }
@@ -611,6 +636,34 @@ export default function BitGraphPage() {
         parseInt(b.commit?.counter || "0", 10) < parseInt(a.commit?.counter || "0", 10) ? b : a);
       await addAnchorsFor("", last.commit?.counter || "0", first.commit?.counter || "0", last.commit?.epochId || "");
     }
+    // Every proof folder gets its own page; only a collection gets the index
+    // over them. A single recording has nothing to index, and the proof page is
+    // already a link away. Same rule the BitGraph Folder applies.
+    const wantsIndex = built.length > 1;
+    for (const b of built) {
+      try {
+        addText(b.dir ? `${b.dir}/index.html` : "index.html", proofPage({
+          fileName: b.fileName,
+          proof: b.proof as ExportProof,
+          before: b.sides.before,
+          after: b.sides.after,
+          proofRaw: JSON.stringify(b.proof, null, 2),
+          hasIndex: wantsIndex && !!b.dir,
+        }));
+      } catch (e) { console.error("[bitgraph] export page failed:", e); }
+    }
+    if (wantsIndex) {
+      try {
+        addText("index.html", indexPage(built.filter((b) => b.dir).map((b) => ({
+          dir: b.dir,
+          fileName: b.fileName,
+          counter: (b.proof as ExportProof).commit?.counter ?? null,
+          before: b.sides.before,
+          after: b.sides.after,
+        }))));
+      } catch (e) { console.error("[bitgraph] export index failed:", e); }
+    }
+
     setExportProgress({ current: totalSteps - 1, total: totalSteps });
     await tick();
     z.end();

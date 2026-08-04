@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { proofPage, blockTimeFromHeader, type ExportProof, type AnchorSide } from "@/lib/export-pages";
 import { useParams } from "next/navigation";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
@@ -579,6 +580,10 @@ export default function ProofPage() {
     if (cachedFile) {
       files[cachedFile.name] = new Uint8Array(cachedFile.data);
     }
+    // Captured as the anchors are gathered, so the export's own page can state
+    // the causal window without a second round of fetching. Declared out here
+    // because the page is written after the fetch block closes.
+    const sides: { before: AnchorSide; after: AnchorSide } = { before: {}, after: {} };
     // Fetch BOTH bounding ETH anchors. The proof was witnessed after the
     // "before" anchor and before the "after" anchor, which brackets it to one
     // anchor interval (~12s) of public Ethereum time. Both are required to read
@@ -604,7 +609,14 @@ export default function ProofPage() {
           const blockHash = eth?.blockHash ?? attr?.message;
           if (blockNumber === undefined || !blockHash) return;
           const wResp = await fetch(`/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`);
-          if (wResp.ok) files[name] = strToU8(JSON.stringify(await wResp.json(), null, 2));
+          if (wResp.ok) {
+            const w = await wResp.json();
+            files[name] = strToU8(JSON.stringify(w, null, 2));
+            // The block time is not a field anywhere; it is inside the header.
+            const side = name.includes("before") ? sides.before : sides.after;
+            side.block = blockNumber;
+            if (w?.headerRlpHex) side.ts = blockTimeFromHeader(w.headerRlpHex) || null;
+          }
         } catch (_) { /* the bundle is valid without the witness */ }
       };
       // The four ETH anchor files (before/after anchor + their block-header
@@ -626,6 +638,22 @@ export default function ProofPage() {
         }
       }
     } catch (_) { /* ignore */ }
+
+    // The export opens as a page rather than as a pile of JSON. hasIndex is
+    // false: a single export has no contact sheet to go back to, which is the
+    // same rule the Folder applies.
+    try {
+      files["index.html"] = strToU8(proofPage({
+        fileName: cachedFile?.name ?? null,
+        fileSize: cachedFile ? cachedFile.data.byteLength : null,
+        proof: proof as ExportProof,
+        before: sides.before,
+        after: sides.after,
+        proofRaw: JSON.stringify(proof, null, 2),
+        hasIndex: false,
+      }));
+    } catch (e) { console.error("[bitgraph] export page failed:", e); }
+
     const zipped = zipSync(files, { level: 0 });
     const blob = new Blob([zipped as unknown as BlobPart], { type: "application/zip" });
     const url = URL.createObjectURL(blob);
