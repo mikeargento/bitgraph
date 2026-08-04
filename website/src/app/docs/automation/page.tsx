@@ -62,6 +62,21 @@ function Availability() {
   );
 }
 
+/**
+ * The all-versions invite, deliberately NOT the per-version one that
+ * `users:links` also prints: a version-specific link goes stale the moment a
+ * new version is pushed, and this one does not.
+ *
+ * Publishing it is a considered choice, not an oversight. It grants no
+ * capability that is not already public: /api/commit takes anonymous writes
+ * today, which is what the site's own drop zone uses, so the connector is a
+ * nicer surface over an open endpoint rather than a door into one. Per
+ * Zapier's docs a public link has no user cap and per-user access cannot be
+ * revoked once accepted, so treat it as one-way.
+ */
+const ZAPIER_INVITE =
+  "https://zapier.com/developer/public-invite/244638/3bb0a7733fb4d4a568b6a23d221d4a93/";
+
 export default function AutomationPage() {
   return (
     <article className="prose-doc">
@@ -135,23 +150,37 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
         available to later steps: the hash, the counter, the epoch, the chain, the proof URL,
         and the two Ethereum block times that bracket the recording.
       </p>
-      {/* Said plainly rather than implied. The page described a connection
-          flow in the present tense while the app was unlisted, so a reader
-          could follow it to a search box that returns nothing.
+      {/* "Private" on Zapier means unlisted, NOT unusable: the integration
+          works in full for anyone holding its invite link. Verified against
+          app 244638 on 2026-08-03 (state `private`, a live public-invite
+          link), which is why the link is the action here rather than a note
+          saying to ask for one. An earlier draft said the app "cannot be
+          added from inside a Zap", which was simply wrong.
 
-          "Private" on Zapier means unlisted, NOT unusable: the integration
-          works in full for anyone holding its invite link. Verified 2026-08-03
-          against app 244638 (state `private`, 0 Zap users, a live
-          public-invite link). So the honest fact is discoverability, not
-          capability, and the earlier "cannot be added from inside a Zap"
-          was wrong. The invite link itself is deliberately NOT printed here:
-          every Zapier customer egresses from shared addresses into one per-IP
-          rate-limit bucket until real keys are issued, and recordings are
-          permanent and public on the Roll. */}
+          An arrow link, not a button: the site has no buttons, and a filled
+          slab was tried on /docs/folder on 2026-08-03 and reverted the same
+          hour. */}
+      <p style={{ marginTop: 28, marginBottom: 20 }}>
+        <a
+          href={ZAPIER_INVITE}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="bg-arrow-link text-[#0065A4] font-semibold no-underline"
+        >
+          Add BitGraph to your Zapier account <span className="arrow" aria-hidden="true">&rarr;</span>
+        </a>
+      </p>
+      {/* The key field is `required: true` in the connector while the boundary
+          does not check keys at all, so without this sentence the first thing
+          anyone hits after following the link is a mandatory field they cannot
+          fill. Say it flat rather than let them guess. Delete this the moment
+          key issuance is real. */}
       <p className="text-sm text-[#4b5563]" style={{ marginBottom: 36 }}>
-        The app is not in Zapier&apos;s directory yet, so it will not appear when you search
-        inside the Zap editor. It works in full for anyone invited to it, and access is by
-        invite for now. The source is in <code>packages/zapier/</code> in the{" "}
+        The app is not in Zapier&apos;s directory yet, so it will not turn up if you search for
+        it inside the Zap editor; that link adds it to your account directly and it works in
+        full from there. Setting up the connection asks for an API key, which is not issued
+        yet, so any value connects and recordings use the standard rate limit until keys are
+        real. The source is in <code>packages/zapier/</code> in the{" "}
         <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
       </p>
 
