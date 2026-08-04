@@ -59,7 +59,26 @@ app.includeStandardAdditions = true;
 // for a key that does not exist and yields undefined, which then silently
 // becomes the string "undefined" in every URL.
 var ENV = ObjC.unwrap($.NSProcessInfo.processInfo.environment) || {};
-var API = ENV.BITGRAPH_API || 'https://bitgraph.ing';
+
+/**
+ * One environment variable, as a real string.
+ *
+ * Unwrapping the dictionary gets the KEYS right but leaves every VALUE an ObjC
+ * object: `typeof ENV.HOME` is "function" and String() on it yields
+ * "[id Swift.__StringStorage]". So `ENV.X || default` takes the wrong branch
+ * whenever X is set, and quietly hands back an object that concatenates into
+ * nonsense. Unwrapping the value in turn gives the string, and undefined when
+ * the key is genuinely absent, which is the whole reason to go through here.
+ */
+function env(name) {
+  var v = ObjC.unwrap(ENV[name]);
+  return typeof v === 'string' ? v : '';
+}
+
+var API = env('BITGRAPH_API') || 'https://bitgraph.ing';
+// Where hotfolder.sh keeps its state, including the version string the site
+// last advertised. Same default as hotfolder.sh, since either can be run alone.
+var HOME_DIR = env('BITGRAPH_HOME') || (env('HOME') + '/.bitgraph');
 
 // What a link to the site should call it. Read off API rather than written out,
 // so an export built against a test host cannot claim to point at bitgraph.ing.
@@ -677,6 +696,10 @@ function pageShell(title, extraCss, bodyHtml) {
     '.wrap{max-width:800px;margin:0 auto}' +
     'h1{margin:0 0 4px;font-size:28px;font-weight:600;letter-spacing:-.03em;overflow-wrap:anywhere}' +
     '.s{margin:0 0 40px;color:#4b5563;font-size:14px}' +
+    // Sits inline at the end of the count, not in a banner or a bar. It is a
+    // fact about the software, worth one sentence and no furniture, and it is
+    // the only link on this page that leaves the machine.
+    '.up{margin-left:10px;color:#0065A4;font-weight:600;text-decoration:none}' +
     '.l{margin:8px 0 0}' +
     '.l a{color:#0065A4;font-weight:600;font-size:14px;text-decoration:none}' +
     '.sep{display:inline-block;width:18px}' +
@@ -1412,6 +1435,46 @@ function copyScript() {
     '})();</script>';
 }
 
+/**
+ * "A newer version exists", when one does, as one sentence on the sheet.
+ *
+ * There is no update check here and there must never be one. A folder-watching
+ * tool has no business phoning home on a schedule, which is the reason
+ * auto-update was declined in the first place and the reason the download page
+ * can say nothing leaves your Mac. What happens instead is that the site states
+ * its current release in a header on the commit you already asked for by
+ * dropping a file; hotfolder.sh stashes that string, and this compares it to
+ * the installed version. Nothing about this machine is sent upward, no timer
+ * runs, and no host is contacted that was not already being contacted.
+ *
+ * Silent unless there is genuinely something newer. An unknown version, an
+ * unreadable file, or a match all render nothing: a folder that has never
+ * recorded anything must not accuse itself of being out of date.
+ *
+ * The comparison is numeric per component, so 1.3.10 correctly beats 1.3.9,
+ * which a string compare gets backwards.
+ */
+function newerThan(a, b) {
+  var x = String(a).split('.');
+  var y = String(b).split('.');
+  for (var i = 0; i < Math.max(x.length, y.length); i++) {
+    var p = parseInt(x[i], 10) || 0;
+    var q = parseInt(y[i], 10) || 0;
+    if (p !== q) return p > q;
+  }
+  return false;
+}
+
+function updateNote() {
+  var mine = env('BITGRAPH_VERSION');
+  var latest = String(readFile(HOME_DIR + '/latest') || '').replace(/\s+/g, '');
+  if (!mine || !latest || mine === 'unknown') return '';
+  if (!/^\d/.test(mine) || !/^\d/.test(latest)) return '';
+  if (!newerThan(latest, mine)) return '';
+  return ' <a class="up" href="' + API + '/docs/folder">BitGraph Folder ' +
+    esc(latest) + ' is available <span class="a">&rarr;</span></a>';
+}
+
 /** Rebuild index.html from whatever is on disk, newest first. */
 function writeIndex(folder) {
   // Discovery is by CONTENT, not by name: a directory is an export when it
@@ -1557,7 +1620,8 @@ function writeIndex(folder) {
         '.l a+a{margin-top:9px}' +
         '.empty{color:#4b5563}',
       '<h1>BitGraph Folder</h1>' +
-        '<p class="s">' + rows.length + (rows.length === 1 ? ' recording' : ' recordings') + ', newest first.</p>' +
+        '<p class="s">' + rows.length + (rows.length === 1 ? ' recording' : ' recordings') + ', newest first.' +
+        updateNote() + '</p>' +
         body
     )
   );

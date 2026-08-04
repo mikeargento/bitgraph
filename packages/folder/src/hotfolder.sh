@@ -43,7 +43,12 @@ mkdir -p "$HOME_DIR"
 
 # One run at a time; launchd queues another run if events arrive meanwhile.
 if ! mkdir "$LOCK" 2>/dev/null; then exit 0; fi
-trap 'rmdir "$LOCK" 2>/dev/null; rm -f "$HOME_DIR/.response.json"' EXIT
+trap 'rmdir "$LOCK" 2>/dev/null; rm -f "$HOME_DIR/.response.json" "$HOME_DIR/.headers"' EXIT
+
+# The exporter compares this against what the site advertises, to say on the
+# contact sheet when a newer release exists. Exported rather than merely sourced
+# because osascript is a child process and would not otherwise see it.
+export BITGRAPH_VERSION="${BITGRAPH_VERSION:-unknown}"
 
 touch "$STATE"
 
@@ -156,8 +161,14 @@ for f in "$FOLDER"/*; do
   # holds a drop rather than failing it.
   outcome=""
   for _ in 1 2 3; do
+    # -D captures the response headers. One of them states the current released
+    # version of this tool, which is how an installed copy learns it is behind
+    # without ever asking: no timer, no extra request, no host we were not
+    # already talking to, and nothing about this machine sent upward. It rides
+    # on the commit the user asked for by dropping a file.
     curl -s --max-time 120 -X POST "$API/api/commit" \
       -H "Content-Type: application/json" \
+      -D "$HOME_DIR/.headers" \
       -d "{\"digests\":[{\"digestB64\":\"$digest\",\"hashAlg\":\"sha256\"}],\"chainId\":\"bitgraph:main\"}" -o "$resp_file"
     outcome=$(parse_json commit "$resp_file")
     case "$outcome" in ok*) break ;; retry) sleep 20 ;; *) break ;; esac
@@ -167,6 +178,14 @@ for f in "$FOLDER"/*; do
     ok*)
       counter=$(printf '%s' "$outcome" | cut -f2)
       epoch=$(printf '%s' "$outcome" | cut -f3)
+      # Stash the advertised version for the contact sheet to read. Header names
+      # are case-insensitive and curl passes them through as the server sent
+      # them, so match case-insensitively; strip the CR that ends every HTTP
+      # header line, or the comparison downstream never matches.
+      if [ -f "$HOME_DIR/.headers" ]; then
+        grep -i '^X-BitGraph-Folder-Version:' "$HOME_DIR/.headers" 2>/dev/null \
+          | tail -1 | cut -d: -f2- | tr -d ' \r\n' > "$HOME_DIR/latest" || true
+      fi
       echo "$digest" >> "$STATE"
       log "recorded #$counter · $name · $API/proof/$urlsafe?counter=$counter&epoch=$epoch"
       notify "Recorded #$counter" "$name"

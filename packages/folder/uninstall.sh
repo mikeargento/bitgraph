@@ -40,13 +40,17 @@ say "scripts removed"
 printf '\nDone.\n\n'
 printf 'Left alone on purpose:\n\n'
 printf '  %s\n' "$FOLDER"
-printf '    Your files and every bitgraph-proof-* export folder. The proofs in\n'
-printf '    them stay valid and auditable without this tool. Delete it yourself\n'
-printf '    if you want it gone.\n\n'
+printf '    Your files and every export folder in it. The proofs inside stay\n'
+printf '    valid and auditable without this tool. Delete it yourself if you\n'
+printf '    want it gone.\n\n'
 if [ -f "$HOME_DIR/hotfolder.state" ]; then
   printf '  %s\n' "$HOME_DIR/hotfolder.state"
   printf '    The list of digests already handled, kept so a reinstall does not\n'
-  printf '    re-check everything. Safe to delete.\n\n'
+  printf '    re-check everything.\n\n'
+  printf '    DELETE THIS if you are reinstalling to test a first run. A digest\n'
+  printf '    listed here is skipped silently, so re-dropping a file you have\n'
+  printf '    already recorded does nothing at all, which reads as a broken\n'
+  printf '    install when it is the opposite.\n\n'
 fi
 printf 'Recordings already on the ledger are permanent and are not affected by\n'
 printf 'uninstalling.\n\n'

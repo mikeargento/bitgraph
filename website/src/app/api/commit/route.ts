@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storeProofByDigest, getProofByDigest, listKeysUnderPrefix } from "@/lib/s3";
+import { FOLDER_VERSION } from "@/lib/folder-version";
 
 const TEE_URL = "https://nitro.occproof.com";
 
@@ -101,7 +102,18 @@ export async function POST(req: NextRequest) {
       return storeProofByDigest(p, digestB64 !== undefined ? priors.get(digestB64) : undefined);
     }));
 
-    return NextResponse.json(teeData);
+    // The current Folder release, for an installed Folder to compare against
+    // its own. A HEADER rather than a body field on purpose: the body is the
+    // signed proof, which MCP, Zapier and the site all consume and which must
+    // not grow fields that are not part of bitgraph/1. A header is invisible to
+    // every one of them.
+    //
+    // Downward only. The site states its version; it never learns the client's,
+    // so this adds nothing to what leaves a user's machine and cannot narrow
+    // the anonymity set the way a client version string would.
+    return NextResponse.json(teeData, {
+      headers: { "X-BitGraph-Folder-Version": FOLDER_VERSION },
+    });
   } catch (e) {
     console.error("[api/commit] Error:", (e as Error).message);
     return NextResponse.json({ error: "Commit failed" }, { status: 500 });

@@ -18,6 +18,14 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # One source of truth, shared with install.sh, so the number the installer
 # reports and the number on the downloaded file can never drift apart.
 VERSION="${BITGRAPH_PKG_VERSION:-$(cat "$HERE/VERSION")}"
+# The site advertises the current release to installed Folders, as a header on
+# /api/commit. Rewriting it here, from the same VERSION, is what stops it
+# drifting behind: you cannot cut a release without updating what the release
+# announces. Committing the change is still on the releaser.
+SITE_VERSION_FILE="$HERE/../../website/src/lib/folder-version.ts"
+if [ -f "$SITE_VERSION_FILE" ]; then
+  /usr/bin/sed -i '' -E "s/^export const FOLDER_VERSION = \".*\";$/export const FOLDER_VERSION = \"$VERSION\";/" "$SITE_VERSION_FILE"
+fi
 IDENTIFIER="ing.bitgraph.folder"
 INSTALL_LOCATION="/usr/local/lib/bitgraph-folder"
 NOTARY_PROFILE="${BITGRAPH_NOTARY_PROFILE:-notary}"
