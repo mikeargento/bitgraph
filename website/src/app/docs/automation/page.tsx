@@ -6,18 +6,79 @@ export const metadata: Metadata = {
     "Use BitGraph as a step in ordinary business workflows. Create, verify, and retrieve proofs from Zapier and Make without writing code.",
 };
 
+/**
+ * The two platforms are not in the same state, and that is the first thing
+ * someone landing here needs to know.
+ *
+ * Zapier and Make logos were considered for this slot on 2026-08-03 and
+ * rejected. The Zapier app is private and unlisted, so their mark would
+ * advertise an integration a reader cannot add from inside a Zap; and the Make
+ * path that works today is Make's own HTTP module calling this API, not a Make
+ * app, so their mark would claim a partnership that does not exist. Both are
+ * also the trust-badge idiom this site rejects, and two marks side by side
+ * become the banned card grid. A logo row would have said "these two brands";
+ * this says which one is open to you right now, which is what the reader came
+ * for. Do not re-pitch the logos before the Zapier app is actually listed.
+ *
+ * Page-local CSS in a style block, the same pattern as folder-process.tsx.
+ * It also sidesteps `.prose-doc`'s unlayered defaults, which silently eat
+ * Tailwind spacing utilities on p / li / h2 across every docs page.
+ */
+function Availability() {
+  return (
+    <div className="bg-avail">
+      <style>{`
+        .bg-avail { margin: 0 0 3rem; }
+        .bg-avail dl {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 12px 22px;
+          margin: 0;
+        }
+        .bg-avail dt {
+          font-family: var(--font-mono);
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: #4b5563;
+          /* optical baseline match against the 15px body text beside it */
+          padding-top: 4px;
+        }
+        .bg-avail dd { margin: 0; font-size: 0.9375rem; line-height: 1.6; color: #1f2937; }
+        .bg-avail dd .state { font-weight: 600; color: #111827; }
+        @media (max-width: 480px) {
+          .bg-avail dl { gap: 10px 16px; }
+          .bg-avail dt { font-size: 10px; letter-spacing: 0.1em; }
+        }
+      `}</style>
+      <dl>
+        <dt>Make</dt>
+        <dd><span className="state">Works today.</span> Nothing to install.</dd>
+        <dt>Zapier</dt>
+        <dd><span className="state">Built and tested.</span> Not yet listed in Zapier&apos;s directory.</dd>
+      </dl>
+    </div>
+  );
+}
+
 export default function AutomationPage() {
   return (
     <article className="prose-doc">
       <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">Zapier and Make</h1>
-      <p className="text-[#1f2937] mb-10">
+      <p className="text-[#1f2937]" style={{ marginBottom: 36 }}>
         BitGraph as a step in an ordinary business workflow. A file arrives somewhere, it gets
         recorded, and the proof goes wherever the rest of your process needs it. No code, and
         the same ledger the API and MCP write to.
       </p>
 
+      <Availability />
+
+      {/* "What people build" was the header here and was cut: nobody builds
+          these yet, so it was social proof for a product with no users. The
+          rows are illustrations and the label now says so. */}
       <div className="code-block">
-        <div className="code-block-header"><span>What people build</span></div>
+        <div className="code-block-header"><span>Where the step goes</span></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`Google Drive  ->  Create BitGraph  ->  Google Drive   (write the proof URL back)
 DocuSign      ->  Create BitGraph  ->  Salesforce     (attach it to the record)
 Dropbox       ->  Create BitGraph  ->  Slack          (post the causal window)
@@ -68,12 +129,20 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Zapier</h2>
-      <p className="text-[#1f2937] mb-8">
-        The three steps above appear as ordinary Zapier actions. Connect once with an API key,
-        map a file into <strong className="text-text">Create BitGraph</strong>, and every field
-        of the proof is available to later steps: the hash, the counter, the epoch, the chain,
-        the proof URL, and the two Ethereum block times that bracket the recording. The source
-        is in <code>packages/zapier/</code> in the <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
+      <p className="text-[#1f2937]">
+        The three steps above are built as ordinary Zapier actions. Map a file into{" "}
+        <strong className="text-text">Create BitGraph</strong> and every field of the proof is
+        available to later steps: the hash, the counter, the epoch, the chain, the proof URL,
+        and the two Ethereum block times that bracket the recording.
+      </p>
+      {/* Said plainly rather than implied. The page described a connection
+          flow in the present tense while the app was private, so a reader
+          could follow it to a search box that returns nothing. State the
+          credential flat, or cut it. */}
+      <p className="text-sm text-[#4b5563]" style={{ marginBottom: 36 }}>
+        The app runs privately and is not in Zapier&apos;s directory yet, so it cannot be added
+        from inside a Zap today. The source is in <code>packages/zapier/</code> in the{" "}
+        <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Reading the result</h2>
