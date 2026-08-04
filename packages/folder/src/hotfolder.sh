@@ -101,7 +101,15 @@ for f in "$FOLDER"/*; do
   # Unknown bytes get the settle-then-REHASH treatment so a half-copied new file
   # is never recorded.
   digest=$(openssl dgst -sha256 -binary "$f" | base64)
-  if grep -qxF "$digest" "$STATE"; then continue; fi
+  # Say so rather than vanishing. Until 2026-08-04 this skipped before writing
+  # any log line, so re-dropping something recorded weeks ago produced no
+  # export, no message and no clue, which is indistinguishable from a broken
+  # watcher. The state file survives uninstall by design and holds every digest
+  # the machine has ever recorded, so this is the ordinary case, not a rare one.
+  if grep -qxF "$digest" "$STATE"; then
+    log "already recorded, left in place: $name"
+    continue
+  fi
 
   mtime=$(stat -f%m "$f" 2>/dev/null) || continue
   if [ $(( $(date +%s) - mtime )) -lt 5 ]; then

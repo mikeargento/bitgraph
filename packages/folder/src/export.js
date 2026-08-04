@@ -489,6 +489,12 @@ function pageShell(title, extraCss, bodyHtml) {
   return (
     '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    // These pages are rewritten in place at the same path every time a file is
+    // dropped, which is the case a browser cache gets wrong: you reload and see
+    // the sheet as it was before the drop. Nothing here is worth caching, and a
+    // stale contact sheet is worse than no contact sheet.
+    '<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">' +
+    '<meta http-equiv="pragma" content="no-cache"><meta http-equiv="expires" content="0">' +
     '<title>' + esc(title) + '</title><style>' +
     '*{box-sizing:border-box}' +
     'body{margin:0;padding:48px 24px 80px;background:#f5f5f5;color:#111827;' +
