@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState, useRef, useEffect } from "react";
 import { warm, ROLL_FEED_KEY } from "@/lib/warm";
+import { DOCS_SECTIONS, DOCS_REPO } from "@/lib/docs-sections";
 
 // Warm the Roll feed the moment the user signals intent to open it, so the page
 // paints filled-in instead of spinning. Fires on hover / focus / touch — only
@@ -11,6 +14,23 @@ import { warm, ROLL_FEED_KEY } from "@/lib/warm";
 const warmRoll = () => warm(ROLL_FEED_KEY);
 
 export function SiteNav() {
+  const pathname = usePathname();
+  const [docsOpen, setDocsOpen] = useState(false);
+  const docsRef = useRef<HTMLDivElement>(null);
+
+  // Close on a click outside and on Escape. The menu hangs off a sticky bar, so
+  // it can otherwise sit open over content the reader has scrolled to.
+  useEffect(() => {
+    if (!docsOpen) return;
+    const away = (e: MouseEvent) => {
+      if (docsRef.current && !docsRef.current.contains(e.target as Node)) setDocsOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setDocsOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [docsOpen]);
+
   return (
     // The nav shares the page background on purpose. A white bar was tried on
     // 2026-07-27 and reverted: it gave the page a defined top edge, but it also
@@ -99,12 +119,80 @@ export function SiteNav() {
           >
             Roll
           </Link>
-          <Link href="/docs" style={{
-            fontSize: 14, fontWeight: 600, color: "#111827",
-            textDecoration: "none",
-          }}>
-            Docs
-          </Link>
+          {/* Docs opens the section list rather than navigating.
+              It used to be a plain link to /docs, and every docs page then
+              carried a full-width sticky bar of its own holding this menu. That
+              bar was a button the width of the reading column whose label
+              repeated the h1 eight pixels beneath it, on a site whose rule is
+              no buttons. The list belongs in the nav, which is sticky already,
+              so a reader deep in the whitepaper can still jump sections.
+
+              Click, not hover: hover menus have no touch equivalent, and this
+              has to work on a phone. Visually it stays a nav link, with only a
+              chevron to say it opens something. */}
+          <div ref={docsRef} style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <button
+              onClick={() => setDocsOpen(o => !o)}
+              aria-expanded={docsOpen}
+              aria-haspopup="menu"
+              style={{
+                display: "flex", alignItems: "center", gap: 4,
+                padding: 0, margin: 0, border: "none", background: "none",
+                fontSize: 14, fontWeight: 600, color: "#111827",
+                fontFamily: "inherit", letterSpacing: "inherit", cursor: "pointer",
+              }}
+            >
+              Docs
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transform: docsOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {docsOpen && (
+              // Right-aligned and width-capped so it cannot push past the
+              // viewport on a phone, where Docs is the last item in the bar.
+              <div role="menu" style={{
+                position: "absolute", top: "calc(100% + 8px)", right: 0,
+                minWidth: 240, maxWidth: "min(320px, calc(100vw - 24px))",
+                padding: 8, background: "#fff", border: "1px solid #d0d5dd",
+                borderRadius: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+              }}>
+                {DOCS_SECTIONS.map((s) => (
+                  <Link
+                    key={s.href}
+                    href={s.href}
+                    role="menuitem"
+                    onClick={() => setDocsOpen(false)}
+                    style={{
+                      display: "block", padding: "8px 12px", fontSize: 14,
+                      fontWeight: pathname === s.href ? 600 : 400,
+                      color: pathname === s.href ? "#111827" : "#4b5563",
+                      textDecoration: "none",
+                      background: pathname === s.href ? "#f3f4f6" : "transparent",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {s.label}
+                  </Link>
+                ))}
+                {/* The one external link, always last. */}
+                <a
+                  href={DOCS_REPO}
+                  target="_blank"
+                  rel="noopener"
+                  role="menuitem"
+                  onClick={() => setDocsOpen(false)}
+                  style={{
+                    display: "block", padding: "8px 12px", fontSize: 14,
+                    fontWeight: 400, color: "#4b5563", textDecoration: "none",
+                  }}
+                >
+                  GitHub
+                </a>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -329,10 +329,6 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .overview td:first-child { white-space: normal; }
 }
 
-/* ── Docs layout: dropdown nav at every viewport, no desktop sidebar.
-   Keeps docs at the same 800px content width as the rest of the site. ── */
-.docs-section-nav { display: block; }
-
 /* Code block container */
 .code-block {
   border: 1px solid #e5e7eb;
