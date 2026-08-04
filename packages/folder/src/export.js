@@ -1291,7 +1291,20 @@ function writeIndex(folder) {
         // inside a framed thing; a bottom rule divides picture from caption.
         '.t{display:flex;align-items:center;justify-content:center;overflow:hidden;' +
         'width:100%;aspect-ratio:4/3;background:#fff;border-bottom:1px solid #d0d5dd}' +
-        '.t img,.t video{width:100%;height:100%;object-fit:cover;display:block;background:#111827}' +
+        // No backdrop on an image. object-fit:cover means an opaque one fills
+        // the box and the colour behind it never shows, so the only things it
+        // ever painted were the two cases where it does harm: a PNG with
+        // transparency, whose dark parts vanish into it, and an image that has
+        // not loaded, which then reads as a broken black block rather than an
+        // empty card. QuickLook is the second case every time, since it
+        // sandboxes the page and never fetches the file beside it, which is why
+        // a folder's icon in Finder was a grid of black squares. The card is
+        // white and .t inherits that, so transparency now composites onto the
+        // card it sits in.
+        '.t img{width:100%;height:100%;object-fit:cover;display:block}' +
+        // Video keeps it. It paints its first frame only once metadata loads,
+        // and dark is what an unpainted frame should look like.
+        '.t video{width:100%;height:100%;object-fit:cover;display:block;background:#111827}' +
         // A PDF cannot go in an <img>, but the browser's own viewer renders it
         // through <embed>, fitted to width with its controls off so it reads
         // as the document rather than as an application.

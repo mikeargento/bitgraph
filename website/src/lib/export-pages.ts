@@ -450,7 +450,16 @@ const INDEX_CSS =
   "li{display:block;min-width:0;background:#fff;border:1px solid #d0d5dd}" +
   ".t{display:flex;align-items:center;justify-content:center;overflow:hidden;width:100%;" +
   "aspect-ratio:4/3;background:#fff;border-bottom:1px solid #d0d5dd}" +
-  ".t img,.t video{width:100%;height:100%;object-fit:cover;display:block;background:#111827}" +
+  // No backdrop on an image. object-fit:cover means an opaque one fills the box
+  // and the colour behind it never shows, so the only things it ever painted
+  // were the two cases where it does harm: a PNG with transparency, whose dark
+  // parts vanish into it, and an image that has not loaded, which then reads as
+  // a broken black block rather than an empty card. The card is white and .t
+  // inherits that, so transparency composites onto the card it sits in.
+  // Video keeps it: it paints its first frame only once metadata loads, and
+  // dark is what an unpainted frame should look like.
+  ".t img{width:100%;height:100%;object-fit:cover;display:block}" +
+  ".t video{width:100%;height:100%;object-fit:cover;display:block;background:#111827}" +
   ".t.pdf,.t.doc{position:relative;display:block}" +
   ".t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;border:0}" +
   ".t.doc iframe{position:absolute;top:0;left:0;width:780px;height:590px;border:0;background:#fff;" +
