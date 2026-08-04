@@ -85,10 +85,14 @@ export default {
       label: "API Key",
       type: "password" as const,
       required: false,
+      // The link satisfies Zapier's D002 check, which wants each auth field to
+      // point at documentation rather than explain itself in a tooltip alone.
+      // It is a publishing task for the App Directory, not just advice.
       helpText:
         "Optional. Leave this blank to record at the shared rate limit. A key exempts your " +
         "recordings from it, so your account gets its own budget rather than competing with " +
-        "other Zapier users for one. Keys are not being issued yet.",
+        "other Zapier users for one. Keys are not being issued yet. " +
+        "[How this works](https://bitgraph.ing/docs/automation)",
     },
     {
       key: "baseUrl",
@@ -97,7 +101,8 @@ export default {
       required: false,
       default: DEFAULT_BASE_URL,
       helpText:
-        "Leave as is unless you run your own BitGraph boundary. Must be the canonical apex host, with no trailing slash.",
+        "Leave as is unless you run your own BitGraph boundary. Must be the canonical apex host, " +
+        "with no trailing slash. [Running your own](https://bitgraph.ing/docs/self-host-tee)",
     },
   ],
 

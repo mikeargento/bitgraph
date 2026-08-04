@@ -35,9 +35,47 @@ export const BATCH_CHECK_LIMIT = 500;
 const READ_TIMEOUT_MS = 30_000;
 const COMMIT_TIMEOUT_MS = 60_000;
 
+/**
+ * The configured endpoint, validated as an origin.
+ *
+ * This field lets someone point the connector at their own BitGraph boundary,
+ * which means it is also the one place a typo or a pasted-in host sends their
+ * digests somewhere unintended. Zapier's D026 check exists for exactly this
+ * shape of field. Three rules, each cheap and each catching a real mistake:
+ * it must parse, it must be https so digests never cross the wire in the
+ * clear, and it must be an origin with no path, query or fragment, because
+ * every endpoint in this client is built by appending to it and a stray path
+ * silently produces 404s that look like outages.
+ *
+ * Returning `origin` rather than the raw string also normalises away a
+ * trailing slash, default ports and case in the host.
+ */
 export function baseUrl(bundle: Bundle): string {
   const configured = (bundle.authData?.["baseUrl"] ?? "").trim();
-  return (configured.length > 0 ? configured : DEFAULT_BASE_URL).replace(/\/+$/, "");
+  if (configured.length === 0) return DEFAULT_BASE_URL;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(configured);
+  } catch {
+    throw new Error(
+      `API Endpoint is not a valid URL: "${configured}". Expected an origin such as ${DEFAULT_BASE_URL}.`
+    );
+  }
+
+  if (parsed.protocol !== "https:") {
+    throw new Error(
+      `API Endpoint must use https, so digests are never sent in the clear. Got "${parsed.protocol}//".`
+    );
+  }
+
+  if (parsed.pathname !== "/" || parsed.search !== "" || parsed.hash !== "") {
+    throw new Error(
+      `API Endpoint must be an origin with no path, query or fragment. Try "${parsed.origin}".`
+    );
+  }
+
+  return parsed.origin;
 }
 
 /** Proof page URL for a digest, optionally pinned to one causal position. */
