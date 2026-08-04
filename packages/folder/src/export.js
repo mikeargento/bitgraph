@@ -606,6 +606,78 @@ function extOf(name) {
   return i === -1 ? '' : String(name).slice(i + 1).toLowerCase();
 }
 
+// ---- Embedding the picture -------------------------------------------------
+//
+// The proof page carries its image inside itself rather than pointing at the
+// file beside it. A sandboxed viewer renders the HTML with no access to its
+// siblings, so a plain src= resolves to nothing: iOS Files shows a broken-image
+// glyph, macOS QuickLook shows an empty card, and the reader has no way to
+// reach the photo, because the "Open" link is blocked by the same rule. What is
+// embedded is the only version of the picture such a viewer will ever show.
+//
+// A budget rather than a blanket rule. Under it the real bytes go in and the
+// picture is exact, which covers screenshots and ordinary photos. Over it, sips
+// downscales until it fits. sips ships with macOS, ran in 44-68ms when this was
+// measured, and unlike qlmanage (which hung for over three minutes on a plain
+// text file) it is safe to sit in the drop path.
+//
+// Images only. A PDF or a video would blow any budget, and the point here is
+// the hero picture rather than every attachment.
+var EMBED_BUDGET = 400 * 1024; // base64 characters, not source bytes
+var EMBED_WIDTHS = [2000, 1400, 1000, 700, 450];
+
+var MIME = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+  webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', avif: 'image/avif',
+  bmp: 'image/bmp', tiff: 'image/tiff', tif: 'image/tiff', svg: 'image/svg+xml',
+};
+
+/**
+ * A file as a data: URI, read in process.
+ *
+ * Never through a shell pipe. doShellScript carries output through one, and a
+ * photo is hundreds of kilobytes of base64, which is exactly the ceiling the
+ * response files at the top of this script exist to avoid.
+ */
+function dataUri(path, ext) {
+  var mime = MIME[ext];
+  if (!mime || !exists(path)) return null;
+  try {
+    // An ObjC nil is truthy here (it arrives as a function), so the result is
+    // checked for being a real string rather than for being falsy.
+    var b64 = ObjC.unwrap($.NSData.dataWithContentsOfFile(path)
+      .base64EncodedStringWithOptions(0));
+    if (typeof b64 !== 'string' || !b64.length) return null;
+    return { uri: 'data:' + mime + ';base64,' + b64, len: b64.length };
+  } catch (e) {
+    return null;
+  }
+}
+
+/** The picture as a data: URI, or null to fall back to a plain relative src. */
+function embedImage(dir, file, digestB64) {
+  var ext = extOf(file);
+  var src = dir + '/' + file;
+  var direct = dataUri(src, ext);
+  if (direct && direct.len <= EMBED_BUDGET) return direct.uri;
+  // SVG is text, already small, and sips cannot rasterise it usefully here.
+  if (ext === 'svg') return direct ? direct.uri : null;
+
+  var tmp = '/tmp/bitgraph-embed-' + toUrlSafe(String(digestB64)).slice(0, 16) + '.jpg';
+  var best = null;
+  for (var i = 0; i < EMBED_WIDTHS.length; i++) {
+    sh('sips -Z ' + EMBED_WIDTHS[i] + ' --out ' + quote(tmp) + ' ' + quote(src) + ' >/dev/null 2>&1');
+    var small = dataUri(tmp, 'jpg');
+    if (!small) break;
+    best = small;
+    if (small.len <= EMBED_BUDGET) break;
+  }
+  sh('rm -f ' + quote(tmp));
+  // The smallest thing we managed beats nothing, and beats the original, which
+  // is over budget by definition at this point.
+  return best ? best.uri : (direct ? direct.uri : null);
+}
+
 /** The recorded file in an export: not the proof, the anchors, or a marker. */
 function artifactIn(dir) {
   var listing = sh('ls -1 ' + quote(dir) + ' 2>/dev/null');
@@ -972,8 +1044,12 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
   }
 
   var rel = file ? encodePath(file) : null;
+  // The src is embedded where it can be; the href stays the real file, which is
+  // what a browser that can reach it should open. In a sandbox that link is
+  // blocked either way, and the embedded src is what carries the page.
+  var src = isImage ? (embedImage(dir, file, digest) || rel) : rel;
   var media = isImage
-    ? '<div class="hero"><a href="' + rel + '"><img src="' + rel + '" alt=""></a></div>'
+    ? '<div class="hero"><a href="' + rel + '"><img src="' + src + '" alt=""></a></div>'
     : isPdf
       ? '<div class="hero"><embed class="doc" src="' + rel + '" type="application/pdf"></div>'
       : isVideo
@@ -1156,7 +1232,15 @@ function proofPageCss() {
     // high against the heavier type. The h1's own bottom margin moved here, so
     // the pair spaces the same as the heading did alone. gap keeps a long
     // heading off the link before it wraps.
-    '.tl{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 0 10px}' +
+    // Wraps, because on a phone the pair does not fit: "BitGraph Recorded" is
+    // about 200px at 20/800 and the link about 150px, against roughly 327px of
+    // content width. Squeezed onto one line the heading broke in half and the
+    // link's arrow orphaned onto its own row. Wrapped, the heading keeps the
+    // full width and the link sits under it, and nowrap keeps the arrow with
+    // the words it belongs to.
+    '.tl{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;' +
+    'gap:6px 16px;margin:0 0 10px}' +
+    '.tl a{white-space:nowrap}' +
     '.when{display:flex;flex-direction:column;gap:5px;padding:14px 16px;' +
     'border-bottom:1px solid #e2e5e9}' +
     '.wd{font-size:14px;font-weight:700;color:#111827;letter-spacing:-.01em}' +

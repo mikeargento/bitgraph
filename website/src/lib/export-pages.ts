@@ -415,7 +415,13 @@ const PROOF_CSS =
   // 20/800 and the link 14/600, so centring left the link visibly high against
   // the heavier type. The h1's own bottom margin moved here, so the pair spaces
   // the same as the heading did alone.
-  ".tl{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 0 10px}" +
+  // Wraps, because on a phone the pair does not fit: squeezed onto one line the
+  // heading broke in half and the link's arrow orphaned onto its own row.
+  // Wrapped, the heading keeps the full width and the link sits under it, and
+  // nowrap keeps the arrow with the words it belongs to.
+  ".tl{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;" +
+  "gap:6px 16px;margin:0 0 10px}" +
+  ".tl a{white-space:nowrap}" +
   ".cd{background:#fff;border:1px solid #d0d5dd;overflow:hidden;margin:0 0 10px}" +
   ".hd{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;" +
   "font-size:14px;font-weight:700;letter-spacing:.04em;color:#0065A4;padding:14px 16px;" +
