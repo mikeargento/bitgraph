@@ -857,6 +857,10 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
   // the bytes in this folder are the bytes this proof describes. It does not
   // check the enclave signature or the anchor chain, so the page names the
   // audit command for the full check rather than implying it did one.
+  // The proof as it sits on disk, so the copied text is byte-for-byte the file
+  // rather than a re-serialisation of it.
+  var proofRaw = readFile(dir + '/proof.json');
+
   var binding = null;
   if (file) {
     var got = sh(
@@ -911,10 +915,31 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
   // did not reliably come first.
   var rowsOut = [];
   var seen = {};
+
+  /**
+   * One entry. Text files open in place rather than in a new tab: every file
+   * here except the artifact is JSON, and sending someone to a browser's raw
+   * JSON view to read four anchors means four tabs and four trips back.
+   * Expanded, the block copies on click, the same affordance the proof page
+   * uses and the reason there is no copy button.
+   *
+   * The artifact stays a plain link, since it is already displayed full size
+   * at the top of this page and expanding it again would just be the same
+   * picture twice.
+   */
   function push(rel) {
     if (seen[rel]) return;
     seen[rel] = true;
-    rowsOut.push('<li><a href="' + encodePath(rel) + '">' + esc(rel) + '</a></li>');
+
+    var body = TEXT_EXT.indexOf(extOf(rel)) !== -1 ? readFile(dir + '/' + rel) : null;
+    if (body === null) {
+      rowsOut.push('<li><a href="' + encodePath(rel) + '">' + esc(rel) + '</a></li>');
+      return;
+    }
+    rowsOut.push(
+      '<li><details><summary>' + esc(rel) + '</summary>' +
+      '<pre class="copy" title="Click to copy">' + esc(body) + '</pre></details></li>'
+    );
   }
 
   if (file) push(file);
@@ -975,7 +1000,20 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
         '.bind b{font-weight:600;color:#dc2626}' +
         '.bind .audit{display:block;margin-top:8px;color:#4b5563;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}' +
         '.back{margin:0 0 28px;font-size:14px}' +
-        '.back a{color:#0065A4;font-weight:600;text-decoration:none}',
+        '.back a{color:#0065A4;font-weight:600;text-decoration:none}' +
+        // The filename keeps looking like the link it used to be, so the row
+        // still reads as openable; it just opens downward.
+        '.files summary{cursor:pointer;list-style:none;color:#0065A4;' +
+        'font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
+        '.files summary::-webkit-details-marker{display:none}' +
+        '.files details[open] summary{margin-bottom:10px}' +
+        '.files pre{margin:0 0 4px;padding:14px;background:#f9fafb;border:1px solid #e5e7eb;' +
+        'font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#374151;' +
+        'white-space:pre-wrap;word-break:break-all;cursor:pointer;max-height:420px;overflow:auto}' +
+        // The confirmation the proof page shows, same words and same blue.
+        '#c{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;' +
+        'padding:10px 22px;font-size:14px;font-weight:700;color:#fff;background:#0065A4;' +
+        'pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.22)}',
       '<p class="back"><a href="../index.html"><span class="a">&larr;</span> All recordings</a></p>' +
         '<h1>' + esc(file || name) + '</h1>' +
         '<p class="s">' + esc(name) + (counter ? ' &middot; #' + esc(counter) : '') + '</p>' +
@@ -1004,6 +1042,20 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
           : '') +
         '<h2 class="s" style="margin:0 0 4px;color:#111827;font-size:14px;font-weight:600">In this folder</h2>' +
         '<ul class="files">' + files + '</ul>' +
+        // One handler for every expanded block. Click the JSON to copy it,
+        // which is what the proof page does and why neither has a copy button.
+        // <details> does the collapsing with no script at all; only copying
+        // needs any, and it falls back to selecting the text if the clipboard
+        // is refused, which a browser may do on a file: page.
+        '<div id="c">Copied!</div>' +
+        '<script>(function(){var c=document.getElementById("c");' +
+        'function ok(){c.style.display="block";setTimeout(function(){c.style.display="none"},1500)}' +
+        'Array.prototype.forEach.call(document.querySelectorAll("pre.copy"),function(p){' +
+        'p.addEventListener("click",function(){' +
+        'function sel(){var r=document.createRange();r.selectNodeContents(p);' +
+        'var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand("copy");ok()}catch(e){}}' +
+        'if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.textContent).then(ok,sel)}else{sel()}' +
+        '});});})();</script>' +
         '<p class="l"><a href="' + API + '/proof/' + encodeURIComponent(toUrlSafe(digest)) +
         '" target="_blank" rel="noopener noreferrer">' +
         'Open proof on bitgraph.ing <span class="a">&rarr;</span></a></p>'
