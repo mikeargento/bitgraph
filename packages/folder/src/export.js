@@ -1312,11 +1312,20 @@ function writeIndex(folder) {
         // viewer can simply fill it, fitted to width, which also adapts as the
         // column count changes.
         '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;transform:none}' +
-        '.m{min-width:0;padding:14px 16px 16px}' +
+        // The caption's spacing is its own, not the proof page's 14px/16px
+        // field scale. A field there is one line in a dense stack; this is
+        // three lines standing alone under a picture, and at the field's
+        // spacing they bunched into a single grey block. The horizontal 16px
+        // stays, so a cell still lines up with a card.
+        '.m{min-width:0;padding:16px 16px 18px}' +
         '.n{margin:0;font-weight:600}' +
-        '.l{margin:10px 0 0}' +
-        '.l a{display:block;font-size:13.5px}' +
-        '.l a+a{margin-top:3px}' +
+        // The two links are the cell's actions and want daylight from the name
+        // above them and from each other. line-height is set rather than
+        // inherited so the gap is the gap, not the gap plus whatever the body
+        // font leaves around a 13.5px line.
+        '.l{margin:15px 0 0}' +
+        '.l a{display:block;font-size:13.5px;line-height:1.5}' +
+        '.l a+a{margin-top:9px}' +
         '.empty{color:#4b5563}',
       '<h1>BitGraph Folder</h1>' +
         '<p class="s">' + rows.length + (rows.length === 1 ? ' recording' : ' recordings') + ', newest first.</p>' +

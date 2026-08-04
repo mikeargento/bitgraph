@@ -457,10 +457,16 @@ const INDEX_CSS =
   "transform:scale(.42);transform-origin:top left;pointer-events:none}" +
   ".none{color:#6b7280;font:600 17px/1 ui-monospace,SFMono-Regular,Menlo,monospace;" +
   "letter-spacing:.14em;text-decoration:none}" +
-  ".m{min-width:0;padding:14px 16px 16px}" +
+  // The caption's spacing is its own, not the proof page's 14px/16px field
+  // scale. A field there is one line in a dense stack; this is three lines
+  // standing alone under a picture, and at the field's spacing they bunched
+  // into a single grey block. The horizontal 16px stays, so a cell still lines
+  // up with a card. line-height on the links is set rather than inherited, so
+  // the gap between them is the gap and not the gap plus leading.
+  ".m{min-width:0;padding:16px 16px 18px}" +
   ".n,.l a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
   ".n{margin:0;font-weight:600}" +
-  ".l{margin:10px 0 0}.l a{display:block;font-size:13.5px}.l a+a{margin-top:3px}" +
+  ".l{margin:15px 0 0}.l a{display:block;font-size:13.5px;line-height:1.5}.l a+a{margin-top:9px}" +
   ".empty{color:#4b5563}";
 
 /** Tap a field or a JSON block to copy it, the proof page's own affordance,
