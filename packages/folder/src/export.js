@@ -1017,7 +1017,6 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
           field('Submitted by', attr.name) +
           field('Note', attr.message, { mono: true }))
       : '') +
-    filesCard(dir, file) +
     (proofRaw ? card('Raw JSON', '<pre class="copy" title="Click to copy">' + esc(proofRaw) + '</pre>') : '');
 
   writeFile(
@@ -1032,7 +1031,7 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
         (SIBLINGS > 1
           ? '<a class="hm" href="../index.html"><span class="arrow">&larr;</span> All recordings</a>'
           : '<span></span>') +
-        '<span class="nn">' + esc(name) + (counter ? ' &middot; #' + esc(counter) : '') + '</span></nav>' +
+        '</nav>' +
         '<h1>BitGraph Recorded</h1>' +
         (binding === false
           ? '<p class="bind"><b>This file does not match the proof.</b> Its SHA-256 differs from the ' +
@@ -1088,7 +1087,10 @@ function proofPageCss() {
     '@media (hover:hover){.hm:hover .arrow{transform:translateX(-3px)}}' +
     '.nn{color:#4b5563;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;' +
     'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-    'h1{margin:0 0 18px}' +
+    // The proof page's own values for this heading, which is a 20px/800 line
+    // rather than the shell's 28px/600 page title: it asserts the recording
+    // happened, it does not name the document.
+    'h1{margin:0 0 10px;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}' +
     '.when{display:flex;flex-direction:column;gap:5px;padding:14px 16px;' +
     'border-bottom:1px solid #e2e5e9}' +
     '.wd{font-size:14px;font-weight:700;color:#111827;letter-spacing:-.01em}' +
