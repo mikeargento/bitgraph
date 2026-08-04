@@ -103,7 +103,27 @@ npm run push     # builds, then uploads
 `.zapierapprc`, `.env`, `build/`, and the deploy key are gitignored. Nothing in
 this package reads a credential from source.
 
-Four things about this toolchain that are not obvious and cost time once:
+Five things about this toolchain that are not obvious and cost time once:
+
+- **`index.js` at the package root is MANDATORY, and `main` is ignored.** The
+  generated `zapierwrapper.js` hardcodes `path.resolve(__dirname, 'index.js')`,
+  so the deployed runtime always requires `/var/task/index.js` no matter what
+  `package.json` `main` says. Delete that file and every call fails with
+  `Cannot find module '/var/task/index.js'`, which the Zap editor reports as
+  **"authentication failed"** — a packaging fault wearing a credentials
+  costume. The same file also decides what gets uploaded: `push` traces
+  requires with esbuild from the wrapper, whose require is built from a
+  variable esbuild cannot follow, and the CLI only compensates by adding a root
+  `index.js` when one exists. Without it the zip ships `definition.json`,
+  `package.json`, `zapierwrapper.js` and `node_modules` and **no `dist/`**.
+- ⚠️ **A correct-looking connection dialog is NOT evidence of a deploy.**
+  `definition.json` uploads separately and is only data, so fields, labels and
+  help text render perfectly while no executable app is present. Likewise
+  `zapier-platform invoke auth test` runs the app **locally**; only
+  `invoke -r` touches the Lambda, and it needs an `--authentication-id`, which
+  only exists after a connection has been saved successfully. So the real
+  smoke test is `unzip -l build/build.zip` — confirm `index.js` at the root and
+  a non-empty `dist/` before believing a push.
 
 - **The CLI's binary is `zapier-platform`, not `zapier`.** There is no npm
   package called `zapier`, so `npx zapier ...` fails with "could not determine
