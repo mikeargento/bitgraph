@@ -329,17 +329,20 @@ export function proofPage(input: ProofPageInput): string {
   return pageShell(
     fileName || "BitGraph",
     PROOF_CSS,
-    // The way back only exists when there is a contact sheet to go back to.
-    // The right slot holds the way to the same recording on the site: the
-    // page's one link off this machine, at the top, where the site puts its
-    // own nav.
-    '<nav class="nv">' +
-      (input.hasIndex
-        ? '<a class="hm" href="../index.html"><span class="arrow">&larr;</span> All recordings</a>'
-        : "<span></span>") +
+    // The way back only exists when there is a contact sheet to go back to, and
+    // it is the whole row.
+    (input.hasIndex
+      ? '<nav class="nv"><a class="hm bk" href="../index.html">' +
+        '<span class="arrow">&larr;</span> All recordings</a></nav>'
+      : "") +
+      // The link to the same recording on the site sits on the heading's line,
+      // not on a row of its own above it. It rode in the nav briefly and
+      // floated there: on a single export the nav's other slot is empty, so the
+      // link hung alone over a gap, anchored to nothing. Baseline-aligned, so
+      // the two sit on one line despite the h1 being the heavier type.
+      '<div class="tl"><h1>BitGraph Recorded</h1>' +
       siteLink(digest, "hm", "arrow") +
-      "</nav>" +
-      "<h1>BitGraph Recorded</h1>" + body +
+      "</div>" + body +
       '<div id="c">Copied!</div>' + COPY_SCRIPT
   );
 }
@@ -401,8 +404,18 @@ export function indexPage(rows: IndexRow[]): string {
 const PROOF_CSS =
   ".nv{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 34px}" +
   ".hm{color:#0065A4;font-weight:600;font-size:14px;text-decoration:none}" +
-  "@media (hover:hover){.hm:hover .arrow{transform:translateX(-3px)}}" +
-  "h1{margin:0 0 10px;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}" +
+  // An arrow leans the way it points, always outward. .hm carries both the back
+  // link and the forward one now, so the direction cannot sit on .hm: it was
+  // written when .hm was only the way out, and the forward arrow inherited the
+  // leftward pull and appeared to retreat into the page.
+  "@media (hover:hover){.hm:hover .arrow{transform:translateX(3px)}" +
+  ".hm.bk:hover .arrow{transform:translateX(-3px)}}" +
+  "h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}" +
+  // The heading and the site link share a line. Baseline, not centre: the h1 is
+  // 20/800 and the link 14/600, so centring left the link visibly high against
+  // the heavier type. The h1's own bottom margin moved here, so the pair spaces
+  // the same as the heading did alone.
+  ".tl{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 0 10px}" +
   ".cd{background:#fff;border:1px solid #d0d5dd;overflow:hidden;margin:0 0 10px}" +
   ".hd{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;" +
   "font-size:14px;font-weight:700;letter-spacing:.04em;color:#0065A4;padding:14px 16px;" +

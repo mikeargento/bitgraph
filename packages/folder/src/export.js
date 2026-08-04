@@ -1072,20 +1072,22 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
       proofPageCss(),
       // The site's nav bar, with the back link standing where the wordmark
       // stands there. Same slot, same weight: on a page inside a folder the
-      // way out is what the logo is on the site.
-      //
-      // The right slot holds the way to the same recording on the site. It sat
-      // empty until now, and a bare `bitgraph-proof-N · #N` was tried there and
-      // cut for saying nothing. This earns the slot: it is the page's one link
-      // off this machine, and it belongs at the top, where the site puts its
-      // own nav, rather than only in the sheet a level up.
-      '<nav class="nv">' +
-        (SIBLINGS > 1
-          ? '<a class="hm" href="../index.html"><span class="arrow">&larr;</span> All recordings</a>'
-          : '<span></span>') +
+      // way out is what the logo is on the site. It is the whole row, and on a
+      // single export there is no row at all.
+      (SIBLINGS > 1
+        ? '<nav class="nv"><a class="hm bk" href="../index.html">' +
+          '<span class="arrow">&larr;</span> All recordings</a></nav>'
+        : '') +
+        // The link to the same recording on the site sits on the heading's
+        // line, not on a row of its own above it. It rode in the nav briefly
+        // and floated there: on a single export the nav's other slot is empty,
+        // so the link hung alone over a gap, anchored to nothing. Set against
+        // the h1 it reads as what it is, the one thing you can do with this
+        // page besides read it. Baseline-aligned, so the two sit on one line
+        // despite the h1 being the heavier type.
+        '<div class="tl"><h1>BitGraph Recorded</h1>' +
         siteLink(digest, 'hm', 'arrow') +
-        '</nav>' +
-        '<h1>BitGraph Recorded</h1>' +
+        '</div>' +
         (binding === false
           ? '<p class="bind"><b>This file does not match the proof.</b> Its SHA-256 differs from the ' +
             'file hash below, so these are not the same bytes. Either the file changed after it was ' +
@@ -1137,13 +1139,24 @@ function proofPageCss() {
   return (
     '.nv{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 34px}' +
     '.hm{color:#0065A4;font-weight:600;font-size:14px;text-decoration:none}' +
-    '@media (hover:hover){.hm:hover .arrow{transform:translateX(-3px)}}' +
+    // An arrow leans the way it points, always outward. .hm carries both the
+    // back link and the forward one now, so the direction cannot sit on .hm:
+    // it was written when .hm was only the way out, and the forward arrow
+    // inherited the leftward pull and appeared to retreat into the page.
+    '@media (hover:hover){.hm:hover .arrow{transform:translateX(3px)}' +
+    '.hm.bk:hover .arrow{transform:translateX(-3px)}}' +
     '.nn{color:#4b5563;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;' +
     'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     // The proof page's own values for this heading, which is a 20px/800 line
     // rather than the shell's 28px/600 page title: it asserts the recording
     // happened, it does not name the document.
-    'h1{margin:0 0 10px;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}' +
+    'h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}' +
+    // The heading and the site link share a line. Baseline, not centre: the h1
+    // is 20/800 and the link 14/600, so centring them left the link visibly
+    // high against the heavier type. The h1's own bottom margin moved here, so
+    // the pair spaces the same as the heading did alone. gap keeps a long
+    // heading off the link before it wraps.
+    '.tl{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 0 10px}' +
     '.when{display:flex;flex-direction:column;gap:5px;padding:14px 16px;' +
     'border-bottom:1px solid #e2e5e9}' +
     '.wd{font-size:14px;font-weight:700;color:#111827;letter-spacing:-.01em}' +
