@@ -64,6 +64,12 @@ var POLL_MS = 3000;
 var PENDING = '.bitgraph-pending.json';
 var ANCHOR_DIR = 'ethereum-anchors';
 
+// How many exports the folder holds, set by writeIndex before it walks them.
+// A page only offers a way back when there is a sheet worth going back to:
+// with one recording the contact sheet is that same recording, and with an
+// export copied somewhere on its own there is no sheet at all.
+var SIBLINGS = 0;
+
 // ---------------------------------------------------------------------------
 // Shell and filesystem
 // ---------------------------------------------------------------------------
@@ -670,6 +676,19 @@ function clockOf(d) {
   return h12 + ':' + mm + ':' + ss + (h >= 12 ? 'pm' : 'am');
 }
 
+// The site prints "12:54:11 PM EDT": uppercase meridiem, spaced, with the
+// zone named. clockOf's compact "12:54:11pm" is for the contact sheet's cells,
+// where the row has to fit on one line.
+var TZ = sh('date +%Z') || '';
+
+function clock12(d) {
+  var h = d.getHours();
+  var h12 = h % 12 === 0 ? 12 : h % 12;
+  var mm = d.getMinutes() < 10 ? '0' + d.getMinutes() : String(d.getMinutes());
+  var ss = d.getSeconds() < 10 ? '0' + d.getSeconds() : String(d.getSeconds());
+  return h12 + ':' + mm + ':' + ss + ' ' + (h >= 12 ? 'PM' : 'AM');
+}
+
 function dateOf(d) {
   return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
 }
@@ -827,40 +846,34 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
   // that is what makes a browser render it instead of generating its own
   // directory listing, so an export whose recorded file is itself named
   // index.html cannot have one: writing it would destroy the very bytes the
-  // proof describes.
-  //
-  // This is not hypothetical. The feedback loop of 2026-08-04 recorded the
-  // sheet six times, and this function then overwrote all six artifacts before
-  // the collision was noticed. The hot folder now skips index.html so nothing
-  // new can land in that state, and this guard means the page generator cannot
-  // do the damage even if something does.
+  // proof describes. The 2026-08-04 feedback loop recorded the sheet six times
+  // and this function overwrote all six artifacts before the collision was
+  // noticed. The hot folder now skips index.html so nothing new can land in
+  // that state, and this guard means the generator cannot do the damage even
+  // if something does.
   if (exists(dir + '/index.html')) {
-    var existing = sh(
+    var existingHash = sh(
       'openssl dgst -sha256 -binary ' + quote(dir + '/index.html') + ' 2>/dev/null | openssl base64 -A 2>/dev/null'
     );
-    if (existing && String(existing).trim() === String(digest).trim()) return;
+    if (existingHash && String(existingHash).trim() === String(digest).trim()) return;
   }
-  var isImage = file && IMAGE_EXT.indexOf(extOf(file)) !== -1;
 
-  // Answer the artifact-binding question here rather than sending someone to
-  // the site to drop the file in by hand.
-  //
-  // Handing the file to the proof page automatically is not possible: a file:
-  // page cannot read its own sibling files (CORS forbids it), a file input
-  // cannot be set programmatically, and embedding the bytes as a data URI at
-  // write time would inflate the page by a third of the photo's size and still
-  // need bitgraph.ing to accept content from whatever page opened it.
-  //
-  // None of that is needed, because this script HAS the file. It hashes it and
-  // compares against the digest the proof commits to, which is the same
-  // question the drop zone answers. Scope is exactly that and no more: it says
-  // the bytes in this folder are the bytes this proof describes. It does not
-  // check the enclave signature or the anchor chain, so the page names the
-  // audit command for the full check rather than implying it did one.
-  // The proof as it sits on disk, so the copied text is byte-for-byte the file
-  // rather than a re-serialisation of it.
   var proofRaw = readFile(dir + '/proof.json');
+  var proof = null;
+  try { proof = proofRaw ? JSON.parse(proofRaw) : null; } catch (e) { proof = null; }
 
+  var ext = file ? extOf(file) : '';
+  var isImage = file && IMAGE_EXT.indexOf(ext) !== -1;
+  var isPdf = file && ext === 'pdf';
+  var isVideo = file && VIDEO_EXT.indexOf(ext) !== -1;
+  var isAudio = file && AUDIO_EXT.indexOf(ext) !== -1;
+  var isText = file && TEXT_EXT.indexOf(ext) !== -1;
+
+  // Answered here rather than by sending someone to the site to drop the file
+  // in by hand: this script has the bytes, so it hashes them and compares
+  // against what the proof commits to. Silent when they match, which is every
+  // normal page; announcing a match would promise a contrast the page cannot
+  // show and train the reader to skim past the one time it mattered.
   var binding = null;
   if (file) {
     var got = sh(
@@ -869,198 +882,280 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
     if (got) binding = String(got).trim() === String(digest).trim();
   }
 
-  // A PDF gets the browser's viewer at a size you can actually read, since on
-  // this page the artifact is the point. Controls stay on here, unlike the
-  // thumbnail: at full size paging and zoom are useful rather than clutter.
-  var hero = isImage
-    ? '<p class="hero"><a href="' + encodePath(file) + '"><img src="' + encodePath(file) + '" alt=""></a></p>'
-    : file && extOf(file) === 'pdf'
-      ? '<p class="hero"><embed class="pdfdoc" src="' + encodePath(file) + '" type="application/pdf"></p>'
-      : file && VIDEO_EXT.indexOf(extOf(file)) !== -1
-        ? '<p class="hero"><video class="av" src="' + encodePath(file) + '" controls preload="metadata" playsinline></video></p>'
-      : file && AUDIO_EXT.indexOf(extOf(file)) !== -1
-        ? '<p class="hero"><audio class="au" src="' + encodePath(file) + '" controls preload="metadata"></audio></p>'
-      : file && TEXT_EXT.indexOf(extOf(file)) !== -1
-        ? '<p class="hero"><iframe class="txtdoc" src="' + encodePath(file) + '" sandbox></iframe></p>'
-        : '';
-
-  function line(label, value) {
-    return value ? '<div><dt>' + label + '</dt><dd>' + value + '</dd></div>' : '';
-  }
-  function anchorSide(side) {
-    if (!side.ts && !side.block) return '';
-    var when = side.ts
-      ? clockOf(new Date(side.ts * 1000)) + ' on ' + dateOf(new Date(side.ts * 1000))
-      : 'time unavailable';
-    return (side.block ? 'block ' + esc(side.block) + ' &middot; ' : '') + when;
-  }
-
-  // Everything actually in the export, so this page answers the question the
-  // directory listing was answering, just legibly.
-  //
-  // FLATTENED ON PURPOSE: ethereum-anchors/ is expanded into its four files
-  // rather than linked as a directory. A directory link hands the browser back
-  // to its own generated listing, which is the exact page this one exists to
-  // replace, so there must be no directory link anywhere on it.
-  function entries(prefix) {
-    var out = sh('cd ' + quote(dir + (prefix ? '/' + prefix : '')) + ' && ls -1 2>/dev/null');
-    return out ? out.split('\r').join('\n').split('\n').filter(Boolean) : [];
-  }
-  // Ordered by what the thing IS, not alphabetically: the recorded file, then
-  // the proof of it, then the anchor evidence behind the proof.
-  //
-  // `ls` order put the artifact wherever its name happened to fall, so an
-  // uppercase filename led the list while a lowercase one landed in the middle
-  // of the anchors. Position meant nothing, and the file the export exists for
-  // did not reliably come first.
-  var rowsOut = [];
-  var seen = {};
-
-  /**
-   * One entry. Text files open in place rather than in a new tab: every file
-   * here except the artifact is JSON, and sending someone to a browser's raw
-   * JSON view to read four anchors means four tabs and four trips back.
-   * Expanded, the block copies on click, the same affordance the proof page
-   * uses and the reason there is no copy button.
-   *
-   * The artifact stays a plain link, since it is already displayed full size
-   * at the top of this page and expanding it again would just be the same
-   * picture twice.
-   */
-  function push(rel) {
-    if (seen[rel]) return;
-    seen[rel] = true;
-
-    var body = TEXT_EXT.indexOf(extOf(rel)) !== -1 ? readFile(dir + '/' + rel) : null;
-    if (body === null) {
-      rowsOut.push('<li><a href="' + encodePath(rel) + '">' + esc(rel) + '</a></li>');
-      return;
+  var sizeStr = '';
+  if (file) {
+    var b = parseInt(sh('stat -f%z ' + quote(dir + '/' + file) + ' 2>/dev/null'), 10);
+    if (isFinite(b) && b > 0) {
+      sizeStr = b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB'
+        : b >= 1024 ? Math.round(b / 1024) + ' KB' : b + ' bytes';
     }
-    rowsOut.push(
-      '<li><details><summary>' + esc(rel) + '</summary>' +
-      '<pre class="copy" title="Click to copy">' + esc(body) + '</pre></details></li>'
-    );
   }
 
-  if (file) push(file);
-  if (exists(dir + '/proof.json')) push('proof.json');
-  // Lower bound then upper bound, each followed by the block header that
-  // witnesses it, which is the order the window is stated in above. Alphabetical
-  // gave "after-witness, after, before-witness, before": the pair inverted and
-  // each witness ahead of the thing it witnesses.
-  ['anchor-before.json', 'anchor-before-witness.json', 'anchor-after.json', 'anchor-after-witness.json']
-    .forEach(function (a) {
-      if (exists(dir + '/' + ANCHOR_DIR + '/' + a)) push(ANCHOR_DIR + '/' + a);
-    });
-  // Anything else in there, so a file is never silently omitted.
-  entries(ANCHOR_DIR).forEach(function (a) {
-    if (a.charAt(0) !== '.') push(ANCHOR_DIR + '/' + a);
-  });
-  // Anything unexpected still gets listed, after the things we can order.
-  entries('').forEach(function (n) {
-    if (n === 'index.html' || n === ANCHOR_DIR) return;
-    if (n.charAt(0) === '.' || n.indexOf('Icon') === 0) return;
-    push(n);
-  });
+  /* ---- the proof page's own components, rebuilt in plain HTML ---- */
 
-  var files = rowsOut.join('');
+  // Every field is tap-to-copy and swaps its value for "Copied!", which is what
+  // that page does and the reason neither has a copy button.
+  function field(label, value, opts) {
+    if (value === undefined || value === null || value === '') return '';
+    opts = opts || {};
+    var cls = 'f' + (opts.mono ? ' mono' : '') + (opts.hl ? ' hl' : '');
+    if (opts.link) {
+      return '<div class="f"><span class="fl">' + esc(label) + '</span>' +
+        '<a class="fv lnk" href="' + esc(value) + '" target="_blank" rel="noopener noreferrer">' +
+        esc(value) + '</a></div>';
+    }
+    return '<div class="' + cls + '" data-copy="' + esc(value) + '">' +
+      '<span class="fl">' + esc(label) + '</span>' +
+      '<span class="fv">' + esc(value) + '</span></div>';
+  }
+
+  function card(title, inner, plain) {
+    if (!inner) return '';
+    // A plain card has NO header. The proof page passes a title and then
+    // renders nothing for it, because the h1 above already says it and the
+    // card's contents are the point of the page. Drawing the header here
+    // printed "BitGraph Recorded" twice, once as the heading and once in blue
+    // inside the box beneath it.
+    if (plain) return '<section class="cd">' + inner + '</section>';
+    return '<section class="cd"><details><summary class="hd">' +
+      '<span>' + esc(title) + '</span>' +
+      '<span class="chev" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" ' +
+      'fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square" ' +
+      'stroke-linejoin="miter"><path d="M9 6 L15 12 L9 18"/></svg></span>' +
+      '</summary><div class="bd">' + inner + '</div></details></section>';
+  }
+
+  var rel = file ? encodePath(file) : null;
+  var media = isImage
+    ? '<div class="hero"><a href="' + rel + '"><img src="' + rel + '" alt=""></a></div>'
+    : isPdf
+      ? '<div class="hero"><embed class="doc" src="' + rel + '" type="application/pdf"></div>'
+      : isVideo
+        ? '<div class="hero"><video class="av" src="' + rel + '" controls preload="metadata" playsinline></video></div>'
+        : isAudio
+          ? '<div class="hero"><audio class="au" src="' + rel + '" controls preload="metadata"></audio></div>'
+          : isText
+            ? '<div class="hero"><iframe class="doc" src="' + rel + '" sandbox></iframe></div>'
+            : '';
+
+  // "BitGraph Recorded", the page's one always-open card, exactly as the proof
+  // page treats it: the artifact, what it is called, and the hash that binds
+  // them. Everything else is collapsed beneath it.
+  // The window, written the way that page writes it: the date as the heading,
+  // the interval beneath it in the data font. It leads the card rather than
+  // being a section of its own, because it is what the recording IS.
+  var whenRow = '';
+  if (info.before.ts && info.after.ts) {
+    var wb = new Date(info.before.ts * 1000);
+    var wa = new Date(info.after.ts * 1000);
+    whenRow = '<div class="when"><div class="wd">' + dateOf(wb) + '</div>' +
+      '<div class="wt">between ' + clock12(wb) + ' and ' + clock12(wa) + ' ' + TZ + '</div></div>';
+  } else if (info.before.ts) {
+    var wo = new Date(info.before.ts * 1000);
+    whenRow = '<div class="when"><div class="wd">' + dateOf(wo) + '</div>' +
+      '<div class="wt">after ' + clock12(wo) + ' ' + TZ + ', sealing</div></div>';
+  }
+
+  var head =
+    whenRow +
+    media +
+    '<div class="fn">' +
+    '<span>' + esc(file || name) + (sizeStr ? ' &middot; ' + esc(sizeStr) : '') + '</span>' +
+    (rel ? '<a class="op" href="' + rel + '">Open <span class="arrow">&rarr;</span></a>' : '') +
+    '</div>' +
+    field('File Hash', digest, { mono: true });
+
+  var slot = (proof && proof.slotAllocation) || null;
+  var commit = (proof && proof.commit) || {};
+  var signer = (proof && proof.signer) || {};
+  var env = (proof && proof.environment) || {};
+  var attr = (proof && proof.attribution) || null;
+
+  function anchorCard(title, side) {
+    if (!side.block && !side.ts) return '';
+    var inner = field('Block', side.block ? '#' + side.block : '', { hl: true });
+    if (side.ts) {
+      var d = new Date(side.ts * 1000);
+      inner += field('Block Time', clockOf(d) + ' on ' + dateOf(d));
+    }
+    if (side.block) inner += field('Etherscan', 'https://etherscan.io/block/' + side.block, { link: true });
+    return card(title, inner);
+  }
+
+  // The proof page's order, which is the construction's order: what was
+  // reserved, what was committed into it, who signed it, where it ran, and only
+  // then the blocks that bracket it. The anchors are a bound placed on the
+  // whole thing afterwards, so they come after the thing they bound, not first.
+  //
+  // Two of that page's cards cannot exist here: Content Credentials needs the
+  // C2PA toolkit, and Recordings needs the ledger to know the other positions.
+  var body =
+    card('BitGraph Recorded', head, true) +
+    (slot
+      ? card('Reserved Slot',
+          field('Slot Counter', slot.counter ? '#' + slot.counter : '', { hl: true }) +
+          field('Nonce', slot.nonceB64, { mono: true }) +
+          field('Slot Signature', slot.signatureB64, { mono: true }) +
+          field('Epoch ID', slot.epochId, { mono: true }))
+      : '') +
+    card('Artifact Commit',
+      field('Artifact Counter', commit.counter ? '#' + commit.counter : '', { hl: true }) +
+      field('Epoch ID', slot ? '' : commit.epochId, { mono: true }) +
+      field('Previous Hash', commit.prevB64, { mono: true }) +
+      field('Slot Hash', commit.slotHashB64, { mono: true })) +
+    card('Signature',
+      field("This BitGraph's Hash", proof && proof.proofHash, { mono: true }) +
+      field('Signature', signer.signatureB64, { mono: true }) +
+      field('Public Key', signer.publicKeyB64, { mono: true })) +
+    card(env.enforcement === 'software' ? 'Software' : 'Hardware Enclave',
+      field('PCR0 Measurement', env.measurement, { mono: true }) +
+      field('Attestation Format', env.attestation && env.attestation.format)) +
+    anchorCard('Recorded after this block', info.before) +
+    anchorCard('Recorded before this block', info.after) +
+    (attr
+      ? card("Submitter's Note",
+          field('Submitted by', attr.name) +
+          field('Note', attr.message, { mono: true }))
+      : '') +
+    filesCard(dir, file) +
+    (proofRaw ? card('Raw JSON', '<pre class="copy" title="Click to copy">' + esc(proofRaw) + '</pre>') : '');
 
   writeFile(
     dir + '/index.html',
     pageShell(
       file || name,
-      '.hero{margin:0 0 32px}' +
-        // Capped on BOTH axes, not just width. A portrait or square image
-        // constrained only by width runs to full column height and pushes
-        // every proof fact below the fold, which defeats the page: it exists
-        // to show the file and its proof together. width/height auto keeps the
-        // aspect ratio while the two maxima do the fitting. Left-aligned, like
-        // everything else on the site.
-        '.hero img{max-width:100%;max-height:min(60vh,520px);width:auto;height:auto;' +
-        'display:block;border:1px solid #d0d5dd;background:#fff}' +
-        '.hero .pdfdoc,.hero .txtdoc{width:100%;height:min(64vh,560px);border:1px solid #d0d5dd;' +
-        'background:#fff;display:block}' +
-        '.hero .av{max-width:100%;max-height:min(60vh,520px);display:block;background:#111827;' +
-        'border:1px solid #d0d5dd}' +
-        '.hero .au{width:100%;display:block}' +
-        'dl{margin:0 0 28px;display:grid;gap:14px}' +
-        'dt{font:600 10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;' +
-        'text-transform:uppercase;color:#9aa3ae}' +
-        'dd{margin:2px 0 0;font-size:14px;color:#1f2937;overflow-wrap:anywhere}' +
-        'dd.mono{font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}' +
-        '.files{list-style:none;margin:0;padding:0;border-top:1px solid #e5e7eb}' +
-        '.files li{padding:10px 0;border-bottom:1px solid #e5e7eb}' +
-        // Blue by default, not on hover: these were dark and read as plain
-        // text, so nothing said they could be opened. Monospace because they
-        // are filenames, and no arrow on each: an arrow is this site's mark of
-        // an action, and eight of them would drown the one real action below.
-        '.files a{color:#0065A4;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;text-decoration:none}' +
-        '@media (hover:hover){.files a:hover{text-decoration:underline}}' +
-        '.bind{margin:0 0 28px;padding:14px 16px;border:1px solid #dc2626;font-size:14px;color:#111827}' +
-        '.bind b{font-weight:600;color:#dc2626}' +
-        '.bind .audit{display:block;margin-top:8px;color:#4b5563;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}' +
-        '.back{margin:0 0 28px;font-size:14px}' +
-        '.back a{color:#0065A4;font-weight:600;text-decoration:none}' +
-        // The filename keeps looking like the link it used to be, so the row
-        // still reads as openable; it just opens downward.
-        '.files summary{cursor:pointer;list-style:none;color:#0065A4;' +
-        'font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
-        '.files summary::-webkit-details-marker{display:none}' +
-        '.files details[open] summary{margin-bottom:10px}' +
-        '.files pre{margin:0 0 4px;padding:14px;background:#f9fafb;border:1px solid #e5e7eb;' +
-        'font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#374151;' +
-        'white-space:pre-wrap;word-break:break-all;cursor:pointer;max-height:420px;overflow:auto}' +
-        // The confirmation the proof page shows, same words and same blue.
-        '#c{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;' +
-        'padding:10px 22px;font-size:14px;font-weight:700;color:#fff;background:#0065A4;' +
-        'pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.22)}',
-      '<p class="back"><a href="../index.html"><span class="a">&larr;</span> All recordings</a></p>' +
-        '<h1>' + esc(file || name) + '</h1>' +
-        '<p class="s">' + esc(name) + (counter ? ' &middot; #' + esc(counter) : '') + '</p>' +
-        hero +
-        '<dl>' +
-        line('Recorded after', anchorSide(info.before)) +
-        line('And before', anchorSide(info.after)) +
-        '</dl>' +
-        // "File Hash", the name the proof page gives this exact field, not
-        // "Digest". A proof carries three other hashes (proofHash, the hash of
-        // the signed body, and the chain hash), so a generic label invites
-        // confusing the file's own SHA-256 with one of them.
-        '<dl><div><dt>File Hash</dt><dd class="mono">' + esc(digest) + '</dd></div></dl>' +
-        // Silent when the bytes match, which is every normal page. Announcing
-        // a match would promise a contrast the page cannot show and plant the
-        // doubt it was meant to remove, the same way a reassurance caption
-        // does. The expected state needs no words; only the alarming one does.
-        //
-        // Red is correct here and nowhere else on this page: site-wide it means
-        // exactly one thing, that something did not verify.
+      proofPageCss(),
+      // The site's nav bar, with the back link standing where the wordmark
+      // stands there. Same slot, same weight: on a page inside a folder the
+      // way out is what the logo is on the site.
+      '<nav class="nv">' +
+        (SIBLINGS > 1
+          ? '<a class="hm" href="../index.html"><span class="arrow">&larr;</span> All recordings</a>'
+          : '<span></span>') +
+        '<span class="nn">' + esc(name) + (counter ? ' &middot; #' + esc(counter) : '') + '</span></nav>' +
+        '<h1>BitGraph Recorded</h1>' +
         (binding === false
           ? '<p class="bind"><b>This file does not match the proof.</b> Its SHA-256 differs from the ' +
-            'file hash above, so these are not the same bytes. Either the file changed after it was ' +
+            'file hash below, so these are not the same bytes. Either the file changed after it was ' +
             'recorded, or it is not the file this proof describes.' +
             '<span class="audit">npx @mikeargento/bitgraph-audit ' + esc(name) + '</span></p>'
           : '') +
-        '<h2 class="s" style="margin:0 0 4px;color:#111827;font-size:14px;font-weight:600">In this folder</h2>' +
-        '<ul class="files">' + files + '</ul>' +
-        // One handler for every expanded block. Click the JSON to copy it,
-        // which is what the proof page does and why neither has a copy button.
-        // <details> does the collapsing with no script at all; only copying
-        // needs any, and it falls back to selecting the text if the clipboard
-        // is refused, which a browser may do on a file: page.
+        body +
         '<div id="c">Copied!</div>' +
-        '<script>(function(){var c=document.getElementById("c");' +
-        'function ok(){c.style.display="block";setTimeout(function(){c.style.display="none"},1500)}' +
-        'Array.prototype.forEach.call(document.querySelectorAll("pre.copy"),function(p){' +
-        'p.addEventListener("click",function(){' +
-        'function sel(){var r=document.createRange();r.selectNodeContents(p);' +
-        'var s=getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand("copy");ok()}catch(e){}}' +
-        'if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(p.textContent).then(ok,sel)}else{sel()}' +
-        '});});})();</script>' +
-        '<p class="l"><a href="' + API + '/proof/' + encodeURIComponent(toUrlSafe(digest)) +
-        '" target="_blank" rel="noopener noreferrer">' +
-        'Open proof on bitgraph.ing <span class="a">&rarr;</span></a></p>'
+        copyScript()
     )
   );
+}
+
+/** "In this folder", as one more card in the stack. */
+function filesCard(dir, artifact) {
+  var listed = [];
+  var seen = {};
+  function add(rel) {
+    if (seen[rel] || !exists(dir + '/' + rel)) return;
+    seen[rel] = true;
+    listed.push(rel);
+  }
+  // Ordered by what each thing IS, not by name: the recorded file, then its
+  // proof, then the anchor evidence, lower bound first with each witness after
+  // the anchor it witnesses.
+  if (artifact) add(artifact);
+  add('proof.json');
+  ['anchor-before.json', 'anchor-before-witness.json', 'anchor-after.json', 'anchor-after-witness.json']
+    .forEach(function (a) { add(ANCHOR_DIR + '/' + a); });
+
+  var out = listed.map(function (rel) {
+    return '<div class="f"><span class="fl">' + esc(rel) + '</span>' +
+      '<a class="fv lnk" href="' + encodePath(rel) + '">Open</a></div>';
+  }).join('');
+  return out ? cardStatic('In this folder', out) : '';
+}
+
+function cardStatic(title, inner) {
+  return '<section class="cd"><details><summary class="hd">' +
+    '<span>' + esc(title) + '</span>' +
+    '<span class="chev" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" ' +
+    'fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square" ' +
+    'stroke-linejoin="miter"><path d="M9 6 L15 12 L9 18"/></svg></span>' +
+    '</summary><div class="bd">' + inner + '</div></details></section>';
+}
+
+/** Values lifted from the proof page so the two read as one design. */
+function proofPageCss() {
+  return (
+    '.nv{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 34px}' +
+    '.hm{color:#0065A4;font-weight:600;font-size:14px;text-decoration:none}' +
+    '@media (hover:hover){.hm:hover .arrow{transform:translateX(-3px)}}' +
+    '.nn{color:#4b5563;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;' +
+    'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    'h1{margin:0 0 18px}' +
+    '.when{display:flex;flex-direction:column;gap:5px;padding:14px 16px;' +
+    'border-bottom:1px solid #e2e5e9}' +
+    '.wd{font-size:14px;font-weight:700;color:#111827;letter-spacing:-.01em}' +
+    '.wt{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#1f2937}' +
+    '.cd{background:#fff;border:1px solid #d0d5dd;overflow:hidden;margin:0 0 10px}' +
+    '.hd{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;' +
+    'font-size:14px;font-weight:700;letter-spacing:.04em;color:#0065A4;padding:14px 16px;' +
+    'background:#fff;cursor:pointer;list-style:none}' +
+    '.hd::-webkit-details-marker{display:none}' +
+    '.hd.plain{cursor:default}' +
+    'details[open]>.hd{background:rgba(0,101,164,.07);border-bottom:1px solid #e2e5e9}' +
+    '@media (hover:hover){summary.hd:hover{background:rgba(0,101,164,.07)}}' +
+    '.chev{flex-shrink:0;display:inline-flex;transition:transform .18s}' +
+    'details[open]>.hd .chev{transform:rotate(90deg)}' +
+    '.f{display:flex;flex-direction:column;gap:5px;padding:14px 16px;' +
+    'border-bottom:1px solid #e2e5e9;cursor:pointer}' +
+    '.f:last-child{border-bottom:0}' +
+    '.fl{font-size:14px;color:#374151;font-weight:700}' +
+    '.fv{font-size:14px;color:#1f2937;line-height:1.6;word-break:break-all}' +
+    // Long fixed-length strings stay on one line and scroll, rather than being
+    // shredded across ragged wrapped lines. Still tap-to-copy, so nobody has to
+    // scroll to grab one.
+    '.mono .fv{font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;' +
+    'white-space:nowrap;overflow-x:auto;word-break:normal}' +
+    '.hl .fv{color:#0065A4;font-weight:700}' +
+    '.lnk{color:#0065A4;text-decoration:none;font-size:13px}' +
+    // The proof page's PhotoCard, values and all: 20px of padding inside the
+    // card, the artwork centred in it, and a min(70vh,640px) ceiling with
+    // object-fit contain. Edge-to-edge at a smaller cap was the difference
+    // that made this look like a different page.
+    '.hero{background:#fff;padding:20px;display:flex;align-items:center;justify-content:center}' +
+    '.hero img{max-width:100%;max-height:min(70vh,640px);width:auto;height:auto;' +
+    'display:block;object-fit:contain}' +
+    '.hero .doc{width:100%;height:min(70vh,640px);border:0;display:block;background:#fff}' +
+    '.hero .av{max-width:100%;max-height:min(70vh,640px);display:block;background:#111827}' +
+    '.hero .au{width:100%;display:block}' +
+    '.fn{display:flex;align-items:center;justify-content:space-between;gap:12px;' +
+    'padding:14px 16px;border-top:1px solid #e2e5e9;font-size:14px;font-weight:600;color:#111827}' +
+    '.op{color:#0065A4;font-weight:600;text-decoration:none;flex-shrink:0}' +
+    '.arrow{display:inline-block;transition:transform .18s}' +
+    '@media (hover:hover){.op:hover .arrow{transform:translateX(3px)}}' +
+    '.bd pre.copy{margin:0;padding:14px 16px;background:#fff;border:0;' +
+    'font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#374151;' +
+    'white-space:pre-wrap;word-break:break-all;cursor:pointer;max-height:420px;overflow:auto}' +
+    '.bind{margin:0 0 16px;padding:14px 16px;border:1px solid #dc2626;font-size:14px;color:#111827}' +
+    '.bind b{font-weight:600;color:#dc2626}' +
+    '.bind .audit{display:block;margin-top:8px;color:#4b5563;' +
+    'font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}' +
+    '#c{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;' +
+    'padding:10px 22px;font-size:14px;font-weight:700;color:#fff;background:#0065A4;' +
+    'pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.22)}'
+  );
+}
+
+/** Tap a field or a JSON block to copy it, the proof page's own affordance. */
+function copyScript() {
+  return '<script>(function(){var c=document.getElementById("c");' +
+    'function ok(){c.style.display="block";setTimeout(function(){c.style.display="none"},1500)}' +
+    'function put(t){if(navigator.clipboard&&navigator.clipboard.writeText){' +
+    'navigator.clipboard.writeText(t).then(ok,function(){ok()})}else{ok()}}' +
+    'Array.prototype.forEach.call(document.querySelectorAll("[data-copy]"),function(f){' +
+    'f.addEventListener("click",function(){var v=f.querySelector(".fv");var o=v.textContent;' +
+    'put(f.getAttribute("data-copy"));v.textContent="Copied!";v.style.color="#0065A4";' +
+    'setTimeout(function(){v.textContent=o;v.style.color=""},1500)})});' +
+    'Array.prototype.forEach.call(document.querySelectorAll("pre.copy"),function(p){' +
+    'p.addEventListener("click",function(){put(p.textContent)})});' +
+    '})();</script>';
 }
 
 /** Rebuild index.html from whatever is on disk, newest first. */
@@ -1082,6 +1177,8 @@ function writeIndex(folder) {
     entries.push({ name: name, mtime: parseInt(line.slice(0, gap), 10) || 0 });
   });
   entries.sort(function (x, y) { return y.mtime - x.mtime; });
+
+  SIBLINGS = entries.length;
 
   var rows = [];
   entries.forEach(function (e) {
