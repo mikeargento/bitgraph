@@ -8,7 +8,7 @@ export folder holding its proof and the Ethereum anchors that bracket it.
 
 ```
 BitGraph/
-    bitgraph-proof-1858/
+    bitgraph-proof-1858 (sunset.jpg)/
         proof.json
         sunset.jpg
         ethereum-anchors/
@@ -92,7 +92,7 @@ by accident.
 Every export folder audits offline, with no network and no account:
 
 ```bash
-npx @mikeargento/bitgraph-audit bitgraph-proof-1858
+npx @mikeargento/bitgraph-audit "bitgraph-proof-1858 (sunset.jpg)"
 ```
 
 **Expect exit code 2, and expect that to be fine.** An export holds one proof

@@ -16,7 +16,7 @@
 // rebuilt on every index pass, ignored by bitgraph-audit (which finds proofs by
 // schema shape rather than by filename), and deletable with nothing lost.
 //
-//   bitgraph-proof-1858/
+//   bitgraph-proof-1858 (random-494.txt)/
 //       proof.json
 //       random-494.txt                          the original bytes, moved in
 //       ethereum-anchors/
@@ -53,6 +53,11 @@ app.includeStandardAdditions = true;
 // becomes the string "undefined" in every URL.
 var ENV = ObjC.unwrap($.NSProcessInfo.processInfo.environment) || {};
 var API = ENV.BITGRAPH_API || 'https://bitgraph.ing';
+
+// What a link to the site should call it. Read off API rather than written out,
+// so an export built against a test host cannot claim to point at bitgraph.ing.
+var SITE = String(API).replace(/^https?:\/\//, '').replace(/\/+$/, '');
+var SITE_LABEL = SITE === 'bitgraph.ing' ? 'BitGraph.ing' : SITE;
 
 // Anchors land within roughly 12-24s at the normal cadence, so the ceiling is
 // about 2x that. It is a ceiling, not a delay: the wait returns the moment the
@@ -258,24 +263,85 @@ function markPending(dir, meta, sealed) {
   else writeJson(dir + '/' + PENDING, meta);
 }
 
+// A path component is capped at 255 bytes. `bitgraph-proof-`, the counter, a
+// possible `-epoch8` and the two parentheses account for about forty of them,
+// so the label takes the rest with room to spare.
+var LABEL_BYTES = 200;
+
 /**
- * Pick the export directory, matching the website's bitgraph-proof-<counter>.
+ * The filename, made safe to sit inside a directory name.
+ *
+ * Two hazards, both rare and both real. A control character would break
+ * writeIndex, which reads `stat` output one line at a time: a newline is a
+ * legal character in a macOS filename and would split one entry into two. And
+ * a component over 255 bytes fails mkdir outright, which would turn a
+ * successful recording into no folder at all, so the cut is by byte rather
+ * than by character (one emoji is four bytes). The extension survives the cut,
+ * being the part that says what the file is.
+ *
+ * Returns '' when nothing usable is left, and the caller falls back to the
+ * bare counter.
+ */
+function labelFor(fileName) {
+  // Runs of plain spaces, not \s+. macOS names its own screenshots with a
+  // NARROW NO-BREAK SPACE (U+202F) before "PM", which \s matches, so collapsing
+  // by \s would quietly retype every screenshot's name into something that
+  // looks the same and is not. The label should read exactly like the file.
+  var clean = String(fileName).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/ {2,}/g, ' ').trim();
+  if (utf8Len(clean) <= LABEL_BYTES) return clean;
+  var ext = extOf(clean);
+  var tail = ext ? '.' + ext : '';
+  var head = clean.slice(0, clean.length - tail.length);
+  while (head.length && utf8Len(head + tail) > LABEL_BYTES) head = head.slice(0, -1);
+  return head ? head + tail : '';
+}
+
+function utf8Len(s) {
+  return $.NSString.stringWithString(String(s)).lengthOfBytesUsingEncoding($.NSUTF8StringEncoding);
+}
+
+/** True when this directory already holds the export for these exact bytes. */
+function builtHere(dir, digestB64) {
+  var raw = readFile(dir + '/proof.json');
+  if (raw === null) return false;
+  try {
+    var p = JSON.parse(raw);
+    return Boolean(p && p.artifact && p.artifact.digestB64 === digestB64);
+  } catch (e) {
+    return false; /* unreadable, treat as a collision */
+  }
+}
+
+/**
+ * Pick the export directory: `bitgraph-proof-3686 (kitchen-reno.jpg)`.
+ *
+ * The counter leads because it is the part that is unique and the part the
+ * website's export matches; the filename follows because a wall of
+ * `bitgraph-proof-1670` in Finder tells you nothing about what you recorded.
+ * The label is decoration and is never read back. Everything downstream takes
+ * the counter and the digest from proof.json, which is what lets a folder be
+ * renamed by hand without breaking anything.
+ *
  * Counters are unique within an epoch but repeat across epochs, so on a real
  * collision with different bytes the epoch is appended rather than overwriting.
+ *
+ * Folders written before 1.2.4 carry no label, so both spellings are checked
+ * for an existing export: a re-fired watch has to land on the folder it
+ * already built instead of making a second one beside it. Old folders keep
+ * their old names. Renaming them is not this function's job, and the index
+ * reads names off disk either way.
  */
-function resolveDir(folder, counter, epochUrlSafe, digestB64) {
-  var plain = folder + '/bitgraph-proof-' + counter;
-  var existing = readFile(plain + '/proof.json');
-  if (existing === null) return { dir: plain, alreadyBuilt: false };
-  try {
-    var p = JSON.parse(existing);
-    if (p && p.artifact && p.artifact.digestB64 === digestB64) {
-      return { dir: plain, alreadyBuilt: true };
-    }
-  } catch (e) {
-    /* unreadable, treat as a collision */
-  }
-  var dir = plain + '-' + String(epochUrlSafe).slice(0, 8);
+function resolveDir(folder, counter, epochUrlSafe, digestB64, fileName) {
+  var stem = folder + '/bitgraph-proof-' + counter;
+  var label = labelFor(fileName);
+  var suffix = label ? ' (' + label + ')' : '';
+  var named = stem + suffix;
+
+  if (builtHere(named, digestB64)) return { dir: named, alreadyBuilt: true };
+  if (suffix && builtHere(stem, digestB64)) return { dir: stem, alreadyBuilt: true };
+  if (!exists(named + '/proof.json')) return { dir: named, alreadyBuilt: false };
+
+  var dir = stem + '-' + String(epochUrlSafe).slice(0, 8) + suffix;
   return { dir: dir, alreadyBuilt: exists(dir + '/proof.json') };
 }
 
@@ -298,7 +364,7 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe) {
   var proof = fetchProof(digestB64, counter);
   if (!proof) return 'error: no proof at #' + counter + ' for ' + fileName + ', file left in place';
 
-  var r = resolveDir(folder, counter, epochUrlSafe, digestB64);
+  var r = resolveDir(folder, counter, epochUrlSafe, digestB64, fileName);
   if (r.alreadyBuilt) {
     // A re-fired watch must not redo the work. Still finish the move: the
     // caller marks the digest handled before calling in, so a run that died
@@ -431,10 +497,10 @@ function parseCommit(body) {
 //
 // A contact sheet for the folder, written to index.html beside the proofs.
 //
-// It exists because a wall of `bitgraph-proof-1670` tells you nothing about
-// what you recorded. Putting the filename in the folder name was the obvious
-// fix and it is not enough: camera files are IMG_4032.jpg and downloads are
-// HO1zC4UWMAAIqx0.jpg, so reading the name is not seeing the photo.
+// It exists because a name is not a picture. The folder name does carry the
+// filename (see resolveDir), and that was never going to be enough on its own:
+// camera files are IMG_4032.jpg and downloads are HO1zC4UWMAAIqx0.jpg, so
+// reading the name is still not seeing the photo.
 //
 // Custom Finder icons were prototyped first and rejected. NSWorkspace can set
 // one from an image in a single call, but every non-image needs a raster
@@ -736,6 +802,25 @@ function rowTime(info, mtime) {
   return 'added ' + dateOf(f) + ' at ' + clockOf(f);
 }
 
+/**
+ * The one link in an export that leaves the machine.
+ *
+ * It said "Open proof", which sat next to "Open file" and read as a second
+ * local file, which is exactly what it is not. Naming the destination is the
+ * whole job: of the two links on a row, one stays on your disk and this one
+ * goes to the site. Always a new tab, so following it never costs you your
+ * place in the sheet.
+ *
+ * The arrow's class is a parameter because the sheet and the proof page carry
+ * different stylesheets, `.a` in one and `.arrow` in the other.
+ */
+function siteLink(digest, cls, arrowCls) {
+  return '<a' + (cls ? ' class="' + cls + '"' : '') +
+    ' href="' + API + '/proof/' + encodeURIComponent(toUrlSafe(digest)) + '"' +
+    ' target="_blank" rel="noopener noreferrer">Open on ' + esc(SITE_LABEL) +
+    ' <span class="' + arrowCls + '">&rarr;</span></a>';
+}
+
 function indexRow(folder, name, mtime) {
   var dir = folder + '/' + name;
   var raw = readFile(dir + '/proof.json');
@@ -811,16 +896,15 @@ function indexRow(folder, name, mtime) {
     // title carries the full name, since a long one is clipped to keep every
     // cell the same height.
     '<p class="n" title="' + esc(file || name) + '">' + esc(file || name) + '</p>' +
-    '<p class="c">' + esc(name) + (counter ? ' &middot; #' + esc(counter) : '') + '</p>' +
+    // The folder name used to sit here. Since it started carrying the filename
+    // it repeats the line above and the counter beside it, so only the counter
+    // is left: the one part of the row that appears nowhere else.
+    '<p class="c">' + (counter ? '#' + esc(counter) : esc(name)) + '</p>' +
     '<p class="tm">' + rowTime(info, mtime) + '</p>' +
     '<p class="l">' +
     openFile +
     '<span class="sep"></span>' +
-    // The proof page is the one link that leaves the machine, so it opens in
-    // its own tab: the sheet is a place you work through, and following a row
-    // should not cost you your place in it.
-    '<a href="' + API + '/proof/' + encodeURIComponent(toUrlSafe(digest)) +
-    '" target="_blank" rel="noopener noreferrer">Open proof <span class="a">&rarr;</span></a>' +
+    siteLink(digest, '', 'a') +
     '</p></div></li>'
   );
 }
@@ -1027,10 +1111,17 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
       // The site's nav bar, with the back link standing where the wordmark
       // stands there. Same slot, same weight: on a page inside a folder the
       // way out is what the logo is on the site.
+      //
+      // The right slot holds the way to the same recording on the site. It sat
+      // empty until now, and a bare `bitgraph-proof-N · #N` was tried there and
+      // cut for saying nothing. This earns the slot: it is the page's one link
+      // off this machine, and it belongs at the top, where the site puts its
+      // own nav, rather than only in the sheet a level up.
       '<nav class="nv">' +
         (SIBLINGS > 1
           ? '<a class="hm" href="../index.html"><span class="arrow">&larr;</span> All recordings</a>'
           : '<span></span>') +
+        siteLink(digest, 'hm', 'arrow') +
         '</nav>' +
         '<h1>BitGraph Recorded</h1>' +
         (binding === false

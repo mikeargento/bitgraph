@@ -62,6 +62,31 @@ function extOf(name: string): string {
   return i === -1 ? "" : String(name).slice(i + 1).toLowerCase();
 }
 
+function toUrlSafe(b64: string): string {
+  return String(b64).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Absolute on purpose: an export is read off a disk, from a file: URL. */
+const SITE = "https://bitgraph.ing";
+const SITE_LABEL = "BitGraph.ing";
+
+/**
+ * The one link in an export that leaves the machine.
+ *
+ * It said "Open proof", which sat next to "Open file" and read as a second
+ * local file, which is exactly what it is not. Naming the destination is the
+ * whole job. Always a new tab, so following it never costs you your place.
+ *
+ * The arrow's class is a parameter because the sheet and the proof page carry
+ * different stylesheets.
+ */
+function siteLink(digest: string, cls: string, arrowCls: string): string {
+  return `<a${cls ? ` class="${cls}"` : ""}` +
+    ` href="${SITE}/proof/${encodeURIComponent(toUrlSafe(digest))}"` +
+    ` target="_blank" rel="noopener noreferrer">Open on ${esc(SITE_LABEL)}` +
+    ` <span class="${arrowCls}">&rarr;</span></a>`;
+}
+
 /* ── RLP: the block timestamp is field 12 of an Ethereum block header ──
    Block times are not stored as fields anywhere in an export; they live inside
    headerRlpHex in the witness files. Deriving it from the witness rather than
@@ -312,10 +337,14 @@ export function proofPage(input: ProofPageInput): string {
     fileName || "BitGraph",
     PROOF_CSS,
     // The way back only exists when there is a contact sheet to go back to.
+    // The right slot holds the way to the same recording on the site: the
+    // page's one link off this machine, at the top, where the site puts its
+    // own nav.
     '<nav class="nv">' +
       (input.hasIndex
         ? '<a class="hm" href="../index.html"><span class="arrow">&larr;</span> All recordings</a>'
         : "<span></span>") +
+      siteLink(digest, "hm", "arrow") +
       "</nav>" +
       "<h1>BitGraph Recorded</h1>" + body +
       '<div id="c">Copied!</div>' + COPY_SCRIPT
@@ -364,7 +393,10 @@ export function indexPage(rows: IndexRow[]): string {
     return "<li>" + thumb +
       '<div class="m">' +
       `<p class="n" title="${esc(r.fileName || r.dir)}">${esc(r.fileName || r.dir)}</p>` +
-      `<p class="c">${esc(r.dir)}${r.counter ? ` &middot; #${esc(r.counter)}` : ""}</p>` +
+      // The folder name used to sit here and it repeats the line above it, the
+      // folder being named for the file. Only the counter is left: the one part
+      // of the row that appears nowhere else.
+      `<p class="c">${r.counter ? `#${esc(r.counter)}` : esc(r.dir)}</p>` +
       `<p class="tm">${when}</p>` +
       `<p class="l"><a href="${page}">Open file <span class="arrow">&rarr;</span></a></p>` +
       "</div></li>";
