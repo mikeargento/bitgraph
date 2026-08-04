@@ -7,60 +7,24 @@ export const metadata: Metadata = {
 };
 
 /**
- * The two platforms are not in the same state, and that is the first thing
- * someone landing here needs to know.
+ * NO ZAPIER OR MAKE LOGOS. Considered 2026-08-03 and rejected, and the reason
+ * outlived the layout that prompted it. Zapier's badge permissions run through
+ * a published directory listing and this app is unlisted; the Make path that
+ * works is Make's own HTTP module calling this API rather than a Make app, so
+ * their mark would claim a partnership that does not exist. Both are also the
+ * trust-badge idiom this site rejects, and two marks side by side become the
+ * banned card grid. `website/public/logos/` is 26 dead partner SVGs from the
+ * agent-control era; the site has done the logo wall once already.
  *
- * Zapier and Make logos were considered for this slot on 2026-08-03 and
- * rejected. The Zapier app is private and unlisted, so their mark would
- * advertise an integration a reader cannot add from inside a Zap; and the Make
- * path that works today is Make's own HTTP module calling this API, not a Make
- * app, so their mark would claim a partnership that does not exist. Both are
- * also the trust-badge idiom this site rejects, and two marks side by side
- * become the banned card grid. A logo row would have said "these two brands";
- * this says which one is open to you right now, which is what the reader came
- * for. Do not re-pitch the logos before the Zapier app is actually listed.
- *
- * Page-local CSS in a style block, the same pattern as folder-process.tsx.
- * It also sidesteps `.prose-doc`'s unlayered defaults, which silently eat
- * Tailwind spacing utilities on p / li / h2 across every docs page.
+ * An availability rail lived here for a few hours the same day, reading
+ * "MAKE - Works today" / "ZAPIER - Works by invite". It was cut once the
+ * invite link went on the page: its whole job was to say which platform was
+ * open to you, and after publishing the link and making the connector's key
+ * optional, both are. "Works by invite" then read as a restriction that does
+ * not exist, and "not yet listed in Zapier's directory" only cast doubt on
+ * the working link below it. Do not rebuild it unless one of the two paths
+ * actually closes again.
  */
-function Availability() {
-  return (
-    <div className="bg-avail">
-      <style>{`
-        .bg-avail { margin: 0 0 3rem; }
-        .bg-avail dl {
-          display: grid;
-          grid-template-columns: auto 1fr;
-          gap: 12px 22px;
-          margin: 0;
-        }
-        .bg-avail dt {
-          font-family: var(--font-mono);
-          font-size: 11px;
-          font-weight: 600;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: #4b5563;
-          /* optical baseline match against the 15px body text beside it */
-          padding-top: 4px;
-        }
-        .bg-avail dd { margin: 0; font-size: 0.9375rem; line-height: 1.6; color: #1f2937; }
-        .bg-avail dd .state { font-weight: 600; color: #111827; }
-        @media (max-width: 480px) {
-          .bg-avail dl { gap: 10px 16px; }
-          .bg-avail dt { font-size: 10px; letter-spacing: 0.1em; }
-        }
-      `}</style>
-      <dl>
-        <dt>Make</dt>
-        <dd><span className="state">Works today.</span> Nothing to install.</dd>
-        <dt>Zapier</dt>
-        <dd><span className="state">Works by invite.</span> Not yet listed in Zapier&apos;s directory.</dd>
-      </dl>
-    </div>
-  );
-}
 
 /**
  * The all-versions invite, deliberately NOT the per-version one that
@@ -86,8 +50,6 @@ export default function AutomationPage() {
         recorded, and the proof goes wherever the rest of your process needs it. No code, and
         the same ledger the API and MCP write to.
       </p>
-
-      <Availability />
 
       {/* "What people build" was the header here and was cut: nobody builds
           these yet, so it was social proof for a product with no users. The
@@ -115,34 +77,15 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
         also why there is no field anywhere for a file URL that BitGraph would fetch itself.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Make</h2>
-      <p className="text-[#1f2937] mb-4">
-        Make can do this today with its built-in HTTP and Tools modules, with nothing to
-        install. It works because Make&apos;s own <code>sha256</code> emits base64 of the raw
-        digest, which is exactly the form the API takes:
-      </p>
-      <div className="code-block">
-        <div className="code-block-header"><span>Make expression</span></div>
-        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`{{sha256(2.data; "base64")}}`}</pre>
-      </div>
-      <p className="text-[#1f2937] mb-4">
-        Put that in the body of an HTTP module pointed at the commit endpoint:
-      </p>
-      <div className="code-block">
-        <div className="code-block-header"><span>HTTP module, request content</span></div>
-        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`POST https://bitgraph.ing/api/commit
-
-{
-  "digests": [{ "digestB64": "{{sha256(2.data; \\"base64\\")}}", "hashAlg": "sha256" }],
-  "chainId": "bitgraph:main"
-}`}</pre>
-      </div>
-      <p className="text-sm text-[#4b5563] mb-8">
-        Exact module settings for all three operations, the URL-safe digest expression the
-        proof links need, and importable scenario blueprints are in
-        <code> packages/make/</code> in the <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
-      </p>
-
+      {/* Zapier leads, and did not always. Make was first while the Zapier
+          app was an unobtainable dead end and Make's HTTP path was the only
+          thing a reader could act on. Publishing the invite and making the
+          connector's key optional inverted that: adding a prebuilt
+          integration is now less work than hand-building an HTTP module with
+          the right expression in it, and the h1 and the nav both read
+          "Zapier and Make", which the old order contradicted. The short
+          section also earns going first, since anyone who wants the harder
+          path will scroll. */}
       <h2 className="text-xl font-semibold mt-12 mb-4">Zapier</h2>
       <p className="text-[#1f2937]">
         The three steps above are built as ordinary Zapier actions. Map a file into{" "}
@@ -170,24 +113,52 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
           Add BitGraph to your Zapier account <span className="arrow" aria-hidden="true">&rarr;</span>
         </a>
       </p>
-      {/* Deliberately bare. Two sentences were cut here on 2026-08-03:
-          "not in Zapier's directory yet, so it will not turn up if you search"
-          duplicated the availability rail four lines above it, and once the
-          link is the action nobody needs telling not to search. The other
-          explained that the connection asks for an API key that is not issued
-          yet and that any value connects, which was the page apologising for
-          the connector: `apiKey` is `required: true` in
-          packages/zapier/src/authentication.ts while the boundary checks no
-          keys at all, and its helpText says to request one at bitgraph.ing,
-          which offers no way to do that.
+      {/* Deliberately bare. Two sentences were cut here on 2026-08-03: one
+          duplicated the availability rail that used to sit above, and the
+          other explained that the connection asks for an API key that is not
+          issued yet and that any value connects, which was the page
+          apologising for the connector.
 
-          ⚠️ That makes the connector fix LOAD-BEARING, not cosmetic. Until
-          `required` is false and the helpText is honest, someone following
-          the link lands on a mandatory field with no obtainable value. The
-          page no longer covers for it. */}
+          That apology is no longer needed: `apiKey` is now `required: false`
+          with honest helpText, pushed to Zapier the same day and verified
+          against the deployed definition. If the field ever goes back to
+          required, this paragraph has to say so again, because nothing else
+          on the page warns anyone. */}
       <p className="text-sm text-[#4b5563]" style={{ marginBottom: 36 }}>
         The source is in <code>packages/zapier/</code> in the{" "}
         <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
+      </p>
+
+      <h2 className="text-xl font-semibold mt-12 mb-4">Make</h2>
+      <p className="text-[#1f2937] mb-4">
+        {/* "can do this today" was here while Zapier was unavailable, where
+            "today" carried an implied contrast with the other platform. Both
+            work now, so the word was doing nothing but hinting at a gap that
+            has closed. */}
+        Make does this with its built-in HTTP and Tools modules, with nothing to install. It
+        works because Make&apos;s own <code>sha256</code> emits base64 of the raw digest,
+        which is exactly the form the API takes:
+      </p>
+      <div className="code-block">
+        <div className="code-block-header"><span>Make expression</span></div>
+        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`{{sha256(2.data; "base64")}}`}</pre>
+      </div>
+      <p className="text-[#1f2937] mb-4">
+        Put that in the body of an HTTP module pointed at the commit endpoint:
+      </p>
+      <div className="code-block">
+        <div className="code-block-header"><span>HTTP module, request content</span></div>
+        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`POST https://bitgraph.ing/api/commit
+
+{
+  "digests": [{ "digestB64": "{{sha256(2.data; \\"base64\\")}}", "hashAlg": "sha256" }],
+  "chainId": "bitgraph:main"
+}`}</pre>
+      </div>
+      <p className="text-sm text-[#4b5563]" style={{ marginBottom: 36 }}>
+        Exact module settings for all three operations, the URL-safe digest expression the
+        proof links need, and importable scenario blueprints are in{" "}
+        <code>packages/make/</code> in the <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Reading the result</h2>
@@ -212,7 +183,12 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
         <li>• <strong className="text-text">Recordings are permanent.</strong> The ledger has 10-year retention and no deletes. Point these steps at files you mean to put on record.</li>
         <li>• <strong className="text-text">Two failures are not failures.</strong> A 503 during the daily epoch rotation and a 429 from the rate limiter both reject before anything is minted, so both are safe to retry. Zapier retries by itself; in Make, use an error handler with Retry.</li>
         <li>• <strong className="text-text">One ledger.</strong> A recording made by a Zap is indistinguishable from one made by dropping the file on the site, and shows up on the same <a href="/roll">Roll</a>.</li>
-        <li>• <strong className="text-text">Verification does not require us.</strong> Every proof these steps return can be checked offline with <code>@mikeargento/bitgraph-verify</code>, without this site or any network. See <a href="/docs/verification">Verification</a>.</li>
+        {/* nowrap because a scoped package name is one token to read, and
+            `.prose-doc code` gives it a filled chip: breaking it renders two
+            disconnected blue blocks on separate lines. It is 235px on one
+            line, inside the 288px column at 320px, so pinning it cannot
+            overflow. */}
+        <li>• <strong className="text-text">Verification does not require us.</strong> Every proof these steps return can be checked offline with <code style={{ whiteSpace: "nowrap" }}>@mikeargento/bitgraph-verify</code>, without this site or any network. See <a href="/docs/verification">Verification</a>.</li>
       </ul>
     </article>
   );
