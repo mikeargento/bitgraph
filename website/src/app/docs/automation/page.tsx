@@ -56,7 +56,7 @@ function Availability() {
         <dt>Make</dt>
         <dd><span className="state">Works today.</span> Nothing to install.</dd>
         <dt>Zapier</dt>
-        <dd><span className="state">Built and tested.</span> Not yet listed in Zapier&apos;s directory.</dd>
+        <dd><span className="state">Works by invite.</span> Not yet listed in Zapier&apos;s directory.</dd>
       </dl>
     </div>
   );
@@ -136,12 +136,22 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
         and the two Ethereum block times that bracket the recording.
       </p>
       {/* Said plainly rather than implied. The page described a connection
-          flow in the present tense while the app was private, so a reader
-          could follow it to a search box that returns nothing. State the
-          credential flat, or cut it. */}
+          flow in the present tense while the app was unlisted, so a reader
+          could follow it to a search box that returns nothing.
+
+          "Private" on Zapier means unlisted, NOT unusable: the integration
+          works in full for anyone holding its invite link. Verified 2026-08-03
+          against app 244638 (state `private`, 0 Zap users, a live
+          public-invite link). So the honest fact is discoverability, not
+          capability, and the earlier "cannot be added from inside a Zap"
+          was wrong. The invite link itself is deliberately NOT printed here:
+          every Zapier customer egresses from shared addresses into one per-IP
+          rate-limit bucket until real keys are issued, and recordings are
+          permanent and public on the Roll. */}
       <p className="text-sm text-[#4b5563]" style={{ marginBottom: 36 }}>
-        The app runs privately and is not in Zapier&apos;s directory yet, so it cannot be added
-        from inside a Zap today. The source is in <code>packages/zapier/</code> in the{" "}
+        The app is not in Zapier&apos;s directory yet, so it will not appear when you search
+        inside the Zap editor. It works in full for anyone invited to it, and access is by
+        invite for now. The source is in <code>packages/zapier/</code> in the{" "}
         <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
       </p>
 
