@@ -69,8 +69,9 @@ export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNod
   // roll reads as files. The toggle refetches; ?files=1 lets the server skip
   // anchor objects via the anchors/{epoch}/ index instead of GETting each.
   const [showAnchors, setShowAnchors] = useState(false);
-  // Search: resolve a BitGraph # or a hash to a proof via /api/search, which
-  // verifies the proof is retrievable before handing back a link, then navigate.
+  // Search: resolve a hash to a proof via /api/search, which verifies the proof
+  // is retrievable before handing back a link, then navigate. Searching by
+  // BitGraph number was removed; see the endpoint for why it can never work.
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -84,10 +85,14 @@ export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNod
       const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
       const data = await r.json();
       if (data.found && data.digest) {
-        const sel = data.counter ? `?counter=${encodeURIComponent(data.counter)}` : "";
-        window.location.assign(`/proof/${data.digest}${sel}`);
+        window.location.assign(`/proof/${data.digest}`);
       } else {
-        setSearchError("No BitGraph found for that number or hash.");
+        // A number gets its own answer. It is the obvious thing to type, having
+        // just been read off a row, and a plain "not found" would say the
+        // recording was gone when the truth is the number never named it.
+        setSearchError(data.reason === "number"
+          ? "A number is a position within one day, and every day restarts it. Search by hash."
+          : "No BitGraph found for that hash.");
         setSearching(false);
       }
     } catch {
@@ -391,15 +396,21 @@ export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNod
         </div>
       )}
 
-      {/* Search — jump straight to a BitGraph by its # (searching by hash means
-          dropping the file itself, so it is not offered here). Submitting
-          resolves + verifies via /api/search, then navigates to the proof. */}
+      {/* Search — jump straight to a BitGraph by its hash. Submitting resolves
+          + verifies via /api/search, then navigates to the proof.
+
+          It searched by BitGraph number until 2026-08-04, which was the natural
+          thing to offer here and cannot be made correct: a counter is a
+          position within one epoch, an epoch is one UTC day, so the number on a
+          row from last week names a different recording today. For anyone
+          holding the file, dropping it is still the better path; this is for
+          anyone holding only a hash, out of a proof.json or a proof page. */}
       <form onSubmit={runSearch} style={{ display: "flex", gap: 8, marginBottom: searchError ? 6 : 12 }}>
         <input
           value={query}
           onChange={(e) => { setQuery(e.target.value); setSearchError(null); }}
-          placeholder="Search by BitGraph number"
-          aria-label="Search by BitGraph number"
+          placeholder="Search by hash"
+          aria-label="Search by hash"
           style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 14, color: "#111827", background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, outline: "none" }}
         />
         <button
