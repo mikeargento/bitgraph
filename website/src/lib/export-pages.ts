@@ -152,13 +152,6 @@ function clock12(d: Date): string {
   return `${h12}:${mm}:${ss} ${h >= 12 ? "PM" : "AM"}`;
 }
 
-/** Compact form for a contact-sheet cell, which must hold one line. */
-function clockShort(d: Date): string {
-  const h = d.getHours();
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}${h >= 12 ? "pm" : "am"}`;
-}
-
 const TZ = (() => {
   try {
     return new Intl.DateTimeFormat("en-US", { timeZoneName: "short" })
@@ -358,6 +351,8 @@ export interface IndexRow {
   dir: string;
   fileName?: string | null;
   counter?: string | null;
+  /** Standard base64. Builds the row's link to the recording on the site. */
+  digest?: string | null;
   before?: AnchorSide | null;
   after?: AnchorSide | null;
 }
@@ -375,31 +370,21 @@ export function indexPage(rows: IndexRow[]): string {
     else if (rel && TEXT_EXT.includes(ext)) thumb = `<a class="t doc" href="${page}"><iframe src="${rel}" sandbox loading="lazy" tabindex="-1" scrolling="no"></iframe></a>`;
     else thumb = `<a class="t none" href="${page}">${esc(ext ? ext.toUpperCase() : "")}</a>`;
 
-    // Compact enough to hold one line in a cell: the year goes, and the opening
-    // meridiem goes when both bounds share one. Truncating instead would cut
-    // off the closing bound, the half that makes this a window.
-    let when = "";
-    const b = r.before?.ts, a = r.after?.ts;
-    if (b && a) {
-      const db = new Date(b * 1000), da = new Date(a * 1000);
-      const sameHalf = (db.getHours() < 12) === (da.getHours() < 12);
-      const open = sameHalf ? clockShort(db).replace(/(am|pm)$/, "") : clockShort(db);
-      when = `${MONTHS[db.getMonth()]} ${db.getDate()} &middot; between ${open} and ${clockShort(da)}`;
-    } else if (b) {
-      const db = new Date(b * 1000);
-      when = `${MONTHS[db.getMonth()]} ${db.getDate()} &middot; after ${clockShort(db)}, sealing`;
-    }
-
+    // A cell is three things: the picture, its filename, and the two ways to
+    // open it. It also carried the folder name, the counter and the full anchor
+    // window, all of which were the proof page leaking into a contact sheet.
+    // They are one click away and stated in full there.
+    //
+    // The links are stacked rather than side by side. Two on one line were what
+    // set the cell's minimum width, and this page would rather spend that width
+    // on pictures.
     return "<li>" + thumb +
       '<div class="m">' +
       `<p class="n" title="${esc(r.fileName || r.dir)}">${esc(r.fileName || r.dir)}</p>` +
-      // The folder name used to sit here and it repeats the line above it, the
-      // folder being named for the file. Only the counter is left: the one part
-      // of the row that appears nowhere else.
-      `<p class="c">${r.counter ? `#${esc(r.counter)}` : esc(r.dir)}</p>` +
-      `<p class="tm">${when}</p>` +
-      `<p class="l"><a href="${page}">Open file <span class="arrow">&rarr;</span></a></p>` +
-      "</div></li>";
+      '<div class="l">' +
+      `<a href="${page}">Open locally <span class="arrow">&rarr;</span></a>` +
+      (r.digest ? siteLink(r.digest, "", "arrow") : "") +
+      "</div></div></li>";
   }).join("");
 
   return pageShell(
@@ -456,8 +441,12 @@ const PROOF_CSS =
 const INDEX_CSS =
   ".wrap{max-width:none}" +
   "h1{margin:0 0 4px;font-size:28px;font-weight:600;letter-spacing:-.03em}" +
+  // 230px. It was 300px to hold the full time window on one line, and with the
+  // window and the side-by-side links both gone nothing in the cell needs that
+  // width: the filename ellipsizes and the links are stacked. The narrower
+  // minimum buys another column or two, which on a contact sheet is the point.
   "ul{list-style:none;margin:0;padding:0;display:grid;gap:34px 24px;" +
-  "grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}" +
+  "grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}" +
   "li{display:block;min-width:0;background:#fff;border:1px solid #d0d5dd}" +
   ".t{display:flex;align-items:center;justify-content:center;overflow:hidden;width:100%;" +
   "aspect-ratio:4/3;background:#fff;border-bottom:1px solid #d0d5dd}" +
@@ -469,11 +458,9 @@ const INDEX_CSS =
   ".none{color:#6b7280;font:600 17px/1 ui-monospace,SFMono-Regular,Menlo,monospace;" +
   "letter-spacing:.14em;text-decoration:none}" +
   ".m{min-width:0;padding:14px 16px 16px}" +
-  ".n,.c,.tm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+  ".n,.l a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
   ".n{margin:0;font-weight:600}" +
-  ".c{margin:2px 0 0;color:#4b5563;font:11.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}" +
-  ".tm{margin:3px 0 0;color:#4b5563;font-size:12px;line-height:1.45}" +
-  ".l{margin:10px 0 0}.l a{font-size:13.5px}" +
+  ".l{margin:10px 0 0}.l a{display:block;font-size:13.5px}.l a+a{margin-top:3px}" +
   ".empty{color:#4b5563}";
 
 /** Tap a field or a JSON block to copy it, the proof page's own affordance,

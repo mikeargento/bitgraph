@@ -759,48 +759,11 @@ function dateOf(d) {
   return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
 }
 
-/**
- * The row's time. Shown in local time, since this sheet is read on the machine
- * that holds the folder.
- *
- * Falls back to the filesystem time only when the window cannot be built,
- * which means a still-pending seal or a missing witness. That case is labelled
- * "added" rather than given a bare timestamp, so a local clock reading is never
- * dressed up as the proof's claim.
- */
-function rowTime(info, mtime) {
-  var w = { before: info.before.ts, after: info.after.ts };
-
-  if (w.before && w.after) {
-    var b = new Date(w.before * 1000);
-    var a = new Date(w.after * 1000);
-    var sameDay = dateOf(b) === dateOf(a);
-
-    // Compact enough to survive one line in a grid cell. The full form,
-    // "Aug 3, 2026 . between 11:49:35pm and 11:49:47pm", is 46 characters and
-    // clipped at about 298px of text, which cut off the closing bound: the
-    // half that makes this a window rather than an instant. So the year goes
-    // (the export's own page states it in full) and the opening meridiem goes
-    // when both bounds share one, which is the normal way to set a range.
-    // Nothing that carries meaning is dropped.
-    var sameHalf = (b.getHours() < 12) === (a.getHours() < 12);
-    var open = sameDay && sameHalf ? clockOf(b).replace(/(am|pm)$/, '') : clockOf(b);
-
-    return MONTHS[b.getMonth()] + ' ' + b.getDate() + ' &middot; between ' + open + ' and ' +
-      (sameDay ? '' : MONTHS[a.getMonth()] + ' ' + a.getDate() + ' ') + clockOf(a);
-  }
-  if (w.before) {
-    // The upper anchor has not landed yet, so there is only a lower bound.
-    // Same compaction as the settled case: no year, since the export's own
-    // page carries it in full.
-    var lo = new Date(w.before * 1000);
-    return MONTHS[lo.getMonth()] + ' ' + lo.getDate() + ' &middot; after ' + clockOf(lo) + ', sealing';
-  }
-  var n = parseInt(mtime, 10);
-  if (!isFinite(n) || n <= 0) return '';
-  var f = new Date(n * 1000);
-  return 'added ' + dateOf(f) + ' at ' + clockOf(f);
-}
+// The row carried a date and a counter here too. A cell is three things now:
+// the picture, its filename, and the two ways to open it. Everything else was
+// the proof page leaking into a contact sheet. The window and the counter are
+// both one click away and stated in full there, the counter under Artifact
+// Commit and the window at the top of the page.
 
 /**
  * The one link in an export that leaves the machine.
@@ -876,7 +839,12 @@ function indexRow(folder, name, mtime) {
   // than revealing the folder in Finder, which nothing in a web page can do
   // without a registered URL scheme, which needs an app bundle, which is the
   // one thing "a folder, not an app" rules out.
-  var openFile = '<a href="' + page + '">Open file <span class="a">&rarr;</span></a>';
+  // "Open locally", against "Open on BitGraph.ing" below it. The pair names two
+  // places rather than two things: it is the same recording either way, this
+  // copy on the disk in front of you or the one on the site. "Open file" said
+  // the wrong thing twice over, since the link opens the recording's page and
+  // not the bytes, and it read as the local sibling of "Open proof".
+  var openFile = '<a href="' + page + '">Open locally <span class="a">&rarr;</span></a>';
 
   var info = anchorInfo(dir);
 
@@ -896,16 +864,10 @@ function indexRow(folder, name, mtime) {
     // title carries the full name, since a long one is clipped to keep every
     // cell the same height.
     '<p class="n" title="' + esc(file || name) + '">' + esc(file || name) + '</p>' +
-    // The folder name used to sit here. Since it started carrying the filename
-    // it repeats the line above and the counter beside it, so only the counter
-    // is left: the one part of the row that appears nowhere else.
-    '<p class="c">' + (counter ? '#' + esc(counter) : esc(name)) + '</p>' +
-    '<p class="tm">' + rowTime(info, mtime) + '</p>' +
-    '<p class="l">' +
-    openFile +
-    '<span class="sep"></span>' +
-    siteLink(digest, '', 'a') +
-    '</p></div></li>'
+    // Stacked, not side by side. Two links on one line were what set the cell's
+    // minimum width, and this page would rather spend that width on pictures.
+    '<div class="l">' + openFile + siteLink(digest, '', 'a') + '</div>' +
+    '</div></li>'
   );
 }
 
@@ -1306,12 +1268,13 @@ function writeIndex(folder) {
       // capping it wasted most of a wide display while forcing the text under
       // each one to wrap.
       '.wrap{max-width:none}' +
-        // 300px, not 230px, because the cell has to hold the full time window
-        // on one line: "Aug 3, 2026 . between 10:57:47pm and 10:58:11pm" is
-        // about 46 characters, and truncating it would cut off one of the two
-        // bounds, which is the half that makes it a window at all.
+        // Back to 230px. It was raised to 300px to hold the full time window on
+        // one line, and with the window and the side-by-side links both gone
+        // nothing in the cell needs that width: the filename ellipsizes and the
+        // links are stacked. The narrower minimum buys another column or two,
+        // which on a contact sheet is the whole point.
         'ul{list-style:none;margin:0;padding:0;display:grid;gap:34px 24px;' +
-        'grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}' +
+        'grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}' +
         // Each cell is the site's card: white, 1px #d0d5dd, square corners.
         // At five or seven columns the caption needs something tying it to its
         // own thumbnail, and the page background alone was not doing it.
@@ -1319,7 +1282,7 @@ function writeIndex(folder) {
         // Nothing wraps. Long filenames get an ellipsis rather than a second
         // line, so every cell is the same height and the grid stays a grid;
         // the full name is on the element's title for hovering.
-        '.n,.c,.tm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+        '.n,.l a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
         // Overrides the shared 88px square: fills the cell, fixed aspect so
         // the grid stays even whatever shape the pictures are.
         // The thumbnail. Only this page has one, which is why these live here
@@ -1350,12 +1313,10 @@ function writeIndex(folder) {
         // column count changes.
         '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;transform:none}' +
         '.m{min-width:0;padding:14px 16px 16px}' +
-        '.n{margin:0;font-weight:600;overflow-wrap:anywhere}' +
-        '.c{margin:2px 0 0;color:#4b5563;font:11.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
-        '.tm{margin:3px 0 0;color:#4b5563;font-size:12px;line-height:1.45}' +
+        '.n{margin:0;font-weight:600}' +
         '.l{margin:10px 0 0}' +
-        '.l a{font-size:13.5px}' +
-        '.sep{width:14px}' +
+        '.l a{display:block;font-size:13.5px}' +
+        '.l a+a{margin-top:3px}' +
         '.empty{color:#4b5563}',
       '<h1>BitGraph Folder</h1>' +
         '<p class="s">' + rows.length + (rows.length === 1 ? ' recording' : ' recordings') + ', newest first.</p>' +
