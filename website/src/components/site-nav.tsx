@@ -99,23 +99,22 @@ export function SiteNav() {
               at 266px of the 288 available, which is what killed it. Re-measure
               at 320px before lengthening this label again.
               The route matches the label; /uses and /why both redirect. */}
-          <Link href="/subjects" style={{
-            fontSize: 14, fontWeight: 600, color: "#111827",
-            textDecoration: "none",
-          }}>
+          <Link
+            href="/subjects"
+            aria-current={pathname === "/subjects" ? "page" : undefined}
+            style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+          >
             Subjects
           </Link>
           {/* Roll — the ledger, now on its own /roll page (no longer embedded
               under the home camera), so the nav is its way in. */}
           <Link
             href="/roll"
+            aria-current={pathname === "/roll" ? "page" : undefined}
             onMouseEnter={warmRoll}
             onFocus={warmRoll}
             onTouchStart={warmRoll}
-            style={{
-              fontSize: 14, fontWeight: 600, color: "#111827",
-              textDecoration: "none",
-            }}
+            style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
           >
             Roll
           </Link>
@@ -135,10 +134,13 @@ export function SiteNav() {
               onClick={() => setDocsOpen(o => !o)}
               aria-expanded={docsOpen}
               aria-haspopup="menu"
+              // Current for any docs route, including one not in the list, and
+              // while the menu is open: an open menu is a place you are too.
+              aria-current={(pathname?.startsWith("/docs") || docsOpen) ? "page" : undefined}
               style={{
                 display: "flex", alignItems: "center", gap: 4,
                 padding: 0, margin: 0, border: "none", background: "none",
-                fontSize: 14, fontWeight: 600, color: "#111827",
+                fontSize: 14, fontWeight: 600,
                 fontFamily: "inherit", letterSpacing: "inherit", cursor: "pointer",
               }}
             >
@@ -163,14 +165,13 @@ export function SiteNav() {
                     key={s.href}
                     href={s.href}
                     role="menuitem"
+                    className="docs-menu-item"
+                    aria-current={pathname === s.href ? "page" : undefined}
                     onClick={() => setDocsOpen(false)}
                     style={{
                       display: "block", padding: "8px 12px", fontSize: 14,
                       fontWeight: pathname === s.href ? 600 : 400,
-                      color: pathname === s.href ? "#111827" : "#4b5563",
-                      textDecoration: "none",
-                      background: pathname === s.href ? "#f3f4f6" : "transparent",
-                      whiteSpace: "nowrap",
+                      textDecoration: "none", whiteSpace: "nowrap",
                     }}
                   >
                     {s.label}
@@ -182,10 +183,11 @@ export function SiteNav() {
                   target="_blank"
                   rel="noopener"
                   role="menuitem"
+                  className="docs-menu-item"
                   onClick={() => setDocsOpen(false)}
                   style={{
                     display: "block", padding: "8px 12px", fontSize: 14,
-                    fontWeight: 400, color: "#4b5563", textDecoration: "none",
+                    fontWeight: 400, textDecoration: "none",
                   }}
                 >
                   GitHub

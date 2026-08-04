@@ -556,6 +556,29 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .bg-nav-links { gap: 24px; }
 @media (max-width: 400px) { .bg-nav-links { gap: 16px; } }
 
+/* ── Nav links: near-black, and brand blue for the page you are on. No hover
+   colour: the bar is chrome and the blue means "you are here", so lighting it
+   up under the cursor would say that about whatever you happen to be pointing
+   at. The colour lives here rather than inline so the aria-current rule can
+   win; an inline colour outranks every selector short of !important.
+
+   Direct children only. The docs menu hangs inside .bg-nav-links and styles its
+   own rows below; without the > the menu would inherit the bar's treatment and
+   every row would read as a top-level nav item. ── */
+.bg-nav-links > a,
+.bg-nav-links > div > button { color: #111827; }
+.bg-nav-links > a[aria-current="page"],
+.bg-nav-links > div > button[aria-current="page"] { color: #0065A4; }
+
+/* The menu's own rows, where hover DOES go blue. Fifteen of them, so the row
+   under the cursor has to be findable, and inside an open menu every row is
+   something you are about to click: blue reads as live there rather than as
+   "you are here". The page you are on is marked by weight and a fill instead,
+   so the two never say the same thing in the same way. */
+.docs-menu-item { color: #4b5563; background: transparent; transition: color .15s; }
+.docs-menu-item[aria-current="page"] { color: #111827; background: #f3f4f6; }
+@media (hover: hover) { .docs-menu-item:hover { color: #0065A4; } }
+
 /* ── Applications: separation between the six entries. On a phone the column
    narrows, every paragraph reflows to more lines, and six identically shaped
    blocks 34px apart read as one continuous grey river rather than six items.

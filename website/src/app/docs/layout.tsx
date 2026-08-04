@@ -13,7 +13,10 @@
  */
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "32px 0 80px" }}>
+    // 40px, matching /subjects. It was 32px, which read as docs starting
+    // tighter to the nav than the rest of the site; the difference only became
+    // visible once the section bar stopped occupying that space.
+    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
       {children}
     </div>
   );
