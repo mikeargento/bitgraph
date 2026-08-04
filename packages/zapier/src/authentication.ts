@@ -8,11 +8,20 @@
  * limiter. Reads are served from the ledger and take no credential, so the key
  * is only ever sent on writes (see BitGraphClient.writeHeaders).
  *
- * Why the key is required here even though the API accepts anonymous writes:
- * every Zapier customer's traffic leaves through Zapier's own egress
- * addresses, so without a key they all share ONE per-IP bucket (5000 digests,
- * refilling 20/minute). One busy account would throttle everyone else. A key
- * per customer is what keeps them separate.
+ * Why the key exists here even though the API accepts anonymous writes: every
+ * Zapier customer's traffic leaves through Zapier's own egress addresses, so
+ * without a key they all share ONE per-IP bucket (5000 digests, refilling
+ * 20/minute). One busy account would throttle everyone else. A key per
+ * customer is what keeps them separate.
+ *
+ * It is OPTIONAL, not required, and that is deliberate. The field was
+ * `required: true` until 2026-08-03, which made it the first thing a new user
+ * hit and an impossible one: no issuance mechanism exists, and the boundary
+ * does not check keys at all today (`REQUIRE_API_KEY` off, `API_KEYS` unset),
+ * so a key grants only a rate-limit exemption that is currently nobody's to
+ * grant. A mandatory field with no obtainable value is a dead end, and the
+ * public invite link on /docs/automation leads straight into it. Make this
+ * required again only in the same change that ships real key issuance.
  */
 
 import type { Bundle, ZObject } from "zapier-platform-core";
@@ -75,11 +84,11 @@ export default {
       key: "apiKey",
       label: "API Key",
       type: "password" as const,
-      required: true,
+      required: false,
       helpText:
-        "Your BitGraph API key. It exempts your recordings from the shared rate limit, " +
-        "so every Zapier account gets its own budget rather than competing for one. " +
-        "Request a key at [bitgraph.ing](https://bitgraph.ing).",
+        "Optional. Leave this blank to record at the shared rate limit. A key exempts your " +
+        "recordings from it, so your account gets its own budget rather than competing with " +
+        "other Zapier users for one. Keys are not being issued yet.",
     },
     {
       key: "baseUrl",
