@@ -170,17 +170,23 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
           Add BitGraph to your Zapier account <span className="arrow" aria-hidden="true">&rarr;</span>
         </a>
       </p>
-      {/* The key field is `required: true` in the connector while the boundary
-          does not check keys at all, so without this sentence the first thing
-          anyone hits after following the link is a mandatory field they cannot
-          fill. Say it flat rather than let them guess. Delete this the moment
-          key issuance is real. */}
+      {/* Deliberately bare. Two sentences were cut here on 2026-08-03:
+          "not in Zapier's directory yet, so it will not turn up if you search"
+          duplicated the availability rail four lines above it, and once the
+          link is the action nobody needs telling not to search. The other
+          explained that the connection asks for an API key that is not issued
+          yet and that any value connects, which was the page apologising for
+          the connector: `apiKey` is `required: true` in
+          packages/zapier/src/authentication.ts while the boundary checks no
+          keys at all, and its helpText says to request one at bitgraph.ing,
+          which offers no way to do that.
+
+          ⚠️ That makes the connector fix LOAD-BEARING, not cosmetic. Until
+          `required` is false and the helpText is honest, someone following
+          the link lands on a mandatory field with no obtainable value. The
+          page no longer covers for it. */}
       <p className="text-sm text-[#4b5563]" style={{ marginBottom: 36 }}>
-        The app is not in Zapier&apos;s directory yet, so it will not turn up if you search for
-        it inside the Zap editor; that link adds it to your account directly and it works in
-        full from there. Setting up the connection asks for an API key, which is not issued
-        yet, so any value connects and recordings use the standard rate limit until keys are
-        real. The source is in <code>packages/zapier/</code> in the{" "}
+        The source is in <code>packages/zapier/</code> in the{" "}
         <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
       </p>
 
