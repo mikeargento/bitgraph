@@ -10,7 +10,7 @@
     "url": "git+https://github.com/mikeargento/bitgraph.git",
     "directory": "packages/zapier"
   },
-  "main": "dist/src/index.js",
+  "main": "index.js",
   "scripts": {
     "build": "tsc && cp -R test/fixtures dist/test/",
     "typecheck": "tsc --noEmit",
