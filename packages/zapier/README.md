@@ -103,7 +103,7 @@ npm run push     # builds, then uploads
 `.zapierapprc`, `.env`, `build/`, and the deploy key are gitignored. Nothing in
 this package reads a credential from source.
 
-Three things about this toolchain that are not obvious and cost time once:
+Four things about this toolchain that are not obvious and cost time once:
 
 - **The CLI's binary is `zapier-platform`, not `zapier`.** There is no npm
   package called `zapier`, so `npx zapier ...` fails with "could not determine
@@ -117,6 +117,12 @@ Three things about this toolchain that are not obvious and cost time once:
 - **A new integration's first version must be `0.0.0`.** Zapier rejects any
   higher first version, one step at a time: `0.1.0` demands `0.0.x` exist, then
   `0.0.1` demands `0.0.0`. The app's version comes from this package.json.
+- **While a version has no Zap users, `push` overwrites it in place.** Leave the
+  package.json version alone and re-push; `versions` shows the same row with a
+  new `Updated at`. This is what you want for a fix: bumping instead would leave
+  anyone already connected on the old version until a separate `promote`, so a
+  one-line correction would ship to nobody. Once a version has users, that stops
+  being safe and the bump plus promote is the honest path.
 
 `zapier-platform-core` must be pinned to an exact version, not a range, or
 `validate` refuses to run.
