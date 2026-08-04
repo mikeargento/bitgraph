@@ -97,15 +97,28 @@ function readFile(path) {
   }
 }
 
+/**
+ * Write text as UTF-8.
+ *
+ * StandardAdditions' `write` encodes in the system's legacy encoding, not
+ * UTF-8: an em dash came back out as the single byte 0xD1, which is what it is
+ * in Mac Roman, and `file` reported the result as ISO-8859 despite the
+ * document declaring charset=utf-8. Any filename carrying an accent or an
+ * emoji would have been mangled the same way, and proof.json shares this
+ * function, so attribution text was exposed too.
+ *
+ * NSString writes the encoding we ask for. Atomically, so a reader never sees
+ * a half-written file.
+ */
 function writeFile(path, text) {
   if (badPath(path)) throw new Error('refusing to write to an empty path');
-  var f = app.openForAccess(Path(path), { writePermission: true });
-  try {
-    app.setEof(f, { to: 0 });
-    app.write(text, { to: f });
-  } finally {
-    app.closeAccess(f);
-  }
+  var ok = $.NSString.stringWithString(String(text)).writeToFileAtomicallyEncodingError(
+    path,
+    true,
+    $.NSUTF8StringEncoding,
+    $()
+  );
+  if (!ok) throw new Error('could not write ' + path);
 }
 
 function writeJson(path, value) {
@@ -466,26 +479,12 @@ function pageShell(title, extraCss, bodyHtml) {
     '.wrap{max-width:800px;margin:0 auto}' +
     'h1{margin:0 0 4px;font-size:28px;font-weight:600;letter-spacing:-.03em;overflow-wrap:anywhere}' +
     '.s{margin:0 0 40px;color:#4b5563;font-size:14px}' +
-    '.t{flex:0 0 88px;width:88px;height:88px;display:flex;align-items:center;' +
-    'justify-content:center;background:#fff;border:1px solid #d0d5dd;overflow:hidden}' +
-    '.t img{width:100%;height:100%;object-fit:cover;display:block}' +
-    // A PDF cannot go in an <img>, but the browser's own viewer can render it
-    // through <embed>. At 88px that viewer's chrome would be the whole picture,
-    // so it is laid out at a readable width and scaled down, which yields the
-    // top of page one as a real thumbnail. #toolbar=0 removes the controls,
-    // and pointer-events:none lets the click reach the link wrapping it.
-    '.t.pdf{position:relative;display:block}' +
-    '.t.pdf embed{position:absolute;top:0;left:0;width:620px;height:800px;border:0;' +
-    'transform:scale(.142);transform-origin:top left;pointer-events:none}' +
-    '.none{color:#9aa3ae;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;' +
-    'letter-spacing:.1em;text-decoration:none}' +
     '.l{margin:8px 0 0}' +
     '.l a{color:#0065A4;font-weight:600;font-size:14px;text-decoration:none}' +
     '.sep{display:inline-block;width:18px}' +
     '.a{display:inline-block;transition:transform .18s ease}' +
     '@media (hover:hover){.l a:hover .a{transform:translateX(3px)}}' +
-    '@media (max-width:520px){body{padding:32px 16px 64px}' +
-    '.t{flex-basis:64px;width:64px;height:64px}}' +
+    '@media (max-width:520px){body{padding:32px 16px 64px}}' +
     extraCss +
     '</style></head><body><div class="wrap">' +
     bodyHtml +
@@ -713,7 +712,10 @@ function indexRow(folder, name, mtime) {
     ? '<a class="t" href="' + page + '"><img src="' + rel + '" alt="" loading="lazy"></a>'
     : isPdf
       ? '<a class="t pdf" href="' + page + '"><embed src="' + rel + PDF_VIEW + '" type="application/pdf"></a>'
-      : '<a class="t none" href="' + page + '">' + esc(file ? (extOf(file) || 'file').toUpperCase() : '—') + '</a>';
+      // An empty box when there is no artifact to name, not a dash. The house
+      // rule is no em dashes anywhere, and this one was also the character
+      // that exposed the encoding bug above.
+      : '<a class="t none" href="' + page + '">' + esc(file ? (extOf(file) || 'FILE').toUpperCase() : '') + '</a>';
 
   // Two links, in the order you would use them: the file first, because that
   // is what you came to look at, then the proof. A third link straight to the
@@ -744,7 +746,9 @@ function indexRow(folder, name, mtime) {
     '<li>' +
     thumb +
     '<div class="m">' +
-    '<p class="n">' + esc(file || name) + '</p>' +
+    // title carries the full name, since a long one is clipped to keep every
+    // cell the same height.
+    '<p class="n" title="' + esc(file || name) + '">' + esc(file || name) + '</p>' +
     '<p class="c">' + esc(name) + (counter ? ' &middot; #' + esc(counter) : '') + '</p>' +
     '<p class="tm">' + rowTime(info, mtime) + '</p>' +
     '<p class="l">' +
@@ -831,20 +835,42 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
     var out = sh('cd ' + quote(dir + (prefix ? '/' + prefix : '')) + ' && ls -1 2>/dev/null');
     return out ? out.split('\r').join('\n').split('\n').filter(Boolean) : [];
   }
+  // Ordered by what the thing IS, not alphabetically: the recorded file, then
+  // the proof of it, then the anchor evidence behind the proof.
+  //
+  // `ls` order put the artifact wherever its name happened to fall, so an
+  // uppercase filename led the list while a lowercase one landed in the middle
+  // of the anchors. Position meant nothing, and the file the export exists for
+  // did not reliably come first.
   var rowsOut = [];
-  entries('')
-    .filter(function (n) { return n !== 'index.html' && n.charAt(0) !== '.' && n.indexOf('Icon') !== 0; })
-    .forEach(function (n) {
-      if (n === ANCHOR_DIR) {
-        entries(ANCHOR_DIR).forEach(function (a) {
-          if (a.charAt(0) === '.') return;
-          var rel = ANCHOR_DIR + '/' + a;
-          rowsOut.push('<li><a href="' + encodePath(rel) + '">' + esc(rel) + '</a></li>');
-        });
-        return;
-      }
-      rowsOut.push('<li><a href="' + encodePath(n) + '">' + esc(n) + '</a></li>');
+  var seen = {};
+  function push(rel) {
+    if (seen[rel]) return;
+    seen[rel] = true;
+    rowsOut.push('<li><a href="' + encodePath(rel) + '">' + esc(rel) + '</a></li>');
+  }
+
+  if (file) push(file);
+  if (exists(dir + '/proof.json')) push('proof.json');
+  // Lower bound then upper bound, each followed by the block header that
+  // witnesses it, which is the order the window is stated in above. Alphabetical
+  // gave "after-witness, after, before-witness, before": the pair inverted and
+  // each witness ahead of the thing it witnesses.
+  ['anchor-before.json', 'anchor-before-witness.json', 'anchor-after.json', 'anchor-after-witness.json']
+    .forEach(function (a) {
+      if (exists(dir + '/' + ANCHOR_DIR + '/' + a)) push(ANCHOR_DIR + '/' + a);
     });
+  // Anything else in there, so a file is never silently omitted.
+  entries(ANCHOR_DIR).forEach(function (a) {
+    if (a.charAt(0) !== '.') push(ANCHOR_DIR + '/' + a);
+  });
+  // Anything unexpected still gets listed, after the things we can order.
+  entries('').forEach(function (n) {
+    if (n === 'index.html' || n === ANCHOR_DIR) return;
+    if (n.charAt(0) === '.' || n.indexOf('Icon') === 0) return;
+    push(n);
+  });
+
   var files = rowsOut.join('');
 
   writeFile(
@@ -948,15 +974,61 @@ function writeIndex(folder) {
     folder + '/index.html',
     pageShell(
       'BitGraph',
-      'ul{list-style:none;margin:0;padding:0}' +
-        'li{display:flex;gap:20px;align-items:center;padding:18px 0;border-bottom:1px solid #e5e7eb}' +
-        'li:first-child{border-top:1px solid #e5e7eb}' +
-        '.m{min-width:0;flex:1}' +
+      // A contact sheet, so it reflows: auto-fill with a 230px minimum gives
+      // three across the 800px column, two around 520px, one on a phone, with
+      // no breakpoints to maintain. A single column was fine at nine
+      // recordings and unusable at several hundred.
+      //
+      // The thumbnail goes on top at the cell's full width rather than beside
+      // the text, because at 230px a side-by-side row leaves the filename
+      // about eleven characters.
+      // The contact sheet ignores the 800px reading column the rest of the
+      // site keeps. 800px is a measure for prose; this page is pictures, and
+      // capping it wasted most of a wide display while forcing the text under
+      // each one to wrap.
+      '.wrap{max-width:none}' +
+        // 300px, not 230px, because the cell has to hold the full time window
+        // on one line: "Aug 3, 2026 . between 10:57:47pm and 10:58:11pm" is
+        // about 46 characters, and truncating it would cut off one of the two
+        // bounds, which is the half that makes it a window at all.
+        'ul{list-style:none;margin:0;padding:0;display:grid;gap:34px 24px;' +
+        'grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}' +
+        // Each cell is the site's card: white, 1px #d0d5dd, square corners.
+        // At five or seven columns the caption needs something tying it to its
+        // own thumbnail, and the page background alone was not doing it.
+        'li{display:block;min-width:0;background:#fff;border:1px solid #d0d5dd}' +
+        // Nothing wraps. Long filenames get an ellipsis rather than a second
+        // line, so every cell is the same height and the grid stays a grid;
+        // the full name is on the element's title for hovering.
+        '.n,.c,.tm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+        // Overrides the shared 88px square: fills the cell, fixed aspect so
+        // the grid stays even whatever shape the pictures are.
+        // The thumbnail. Only this page has one, which is why these live here
+        // rather than in the shared shell. Flush to the card's edges so the
+        // card's border is the only one and the picture is not a framed thing
+        // inside a framed thing; a bottom rule divides picture from caption.
+        '.t{display:flex;align-items:center;justify-content:center;overflow:hidden;' +
+        'width:100%;aspect-ratio:4/3;background:#fff;border-bottom:1px solid #d0d5dd}' +
+        '.t img{width:100%;height:100%;object-fit:cover;display:block}' +
+        // A PDF cannot go in an <img>, but the browser's own viewer renders it
+        // through <embed>, fitted to width with its controls off so it reads
+        // as the document rather than as an application.
+        '.t.pdf{position:relative;display:block}' +
+        '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;border:0}' +
+        '.none{color:#9aa3ae;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;' +
+        'letter-spacing:.1em;text-decoration:none}' +
+        // The scaled-down PDF trick is for an 88px box. At cell width the
+        // viewer can simply fill it, fitted to width, which also adapts as the
+        // column count changes.
+        '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;transform:none}' +
+        '.m{min-width:0;padding:14px 16px 16px}' +
         '.n{margin:0;font-weight:600;overflow-wrap:anywhere}' +
-        '.c{margin:2px 0 0;color:#4b5563;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
-        '.tm{margin:2px 0 0;color:#4b5563;font-size:12.5px}' +
-        '.empty{color:#4b5563}' +
-        '@media (max-width:520px){li{gap:14px}}',
+        '.c{margin:2px 0 0;color:#4b5563;font:11.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}' +
+        '.tm{margin:3px 0 0;color:#4b5563;font-size:12px;line-height:1.45}' +
+        '.l{margin:10px 0 0}' +
+        '.l a{font-size:13.5px}' +
+        '.sep{width:14px}' +
+        '.empty{color:#4b5563}',
       '<h1>BitGraph</h1>' +
         '<p class="s">' + rows.length + (rows.length === 1 ? ' recording' : ' recordings') + ', newest first.</p>' +
         body

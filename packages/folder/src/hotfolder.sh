@@ -85,7 +85,14 @@ export_drop() { # $1 file, $2 digest, $3 counter, $4 epoch
 for f in "$FOLDER"/*; do
   [ -f "$f" ] || continue
   name=$(basename "$f")
-  case "$name" in .*) continue ;; esac
+  # index.html is written BY the exporter into this very folder, so recording
+  # it would be a feedback loop: writing it trips the watch, the watch records
+  # it, recording rewrites it. It cannot self-limit through the digest state
+  # either, because each rewrite changes the row count and so produces new
+  # bytes and a new digest every pass. This minted six permanent proofs on
+  # 2026-08-04 before the watch was stopped. The exporter's own output must
+  # never be one of its inputs.
+  case "$name" in .*|index.html) continue ;; esac
 
   # Hash first, stability-wait only for unknown bytes. A file still copying
   # cannot collide with a digest already in the state file, so a state hit is
