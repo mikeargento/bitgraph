@@ -186,6 +186,22 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   line-height: 1.75;
   color: #1f2937;
 }
+/* Inline code is a FILLED chip, so wrapping it is a visual problem the way
+   wrapping plain text is not: without box-decoration-break the background,
+   padding and radius are applied once to the whole inline box, and a chip
+   broken across two lines renders as one block missing its right end above
+   another missing its left. `clone` gives each line fragment its own padded,
+   rounded chip. Which strings break moves with the viewport, so this is not
+   fixable instance by instance: on /docs/audit alone,
+   `manifest-contents-hash-mismatch` broke at 1280px and
+   `shasum -a 256 bundle.tar.gz` broke at 514px.
+
+   Purely cosmetic and layout-neutral: it changes no widths and re-typesets
+   nothing, which is why it is safe to set here even though `.prose-doc` is
+   unlayered and its margin/line-height defaults must NOT be touched without
+   re-reviewing all thirteen docs pages. The 3px radius is the deliberate
+   inline-code exception to the site's square-corner rule (settled
+   2026-07-24), not an oversight. */
 .prose-doc code {
   font-size: 0.95em;
   font-family: var(--font-mono);
@@ -193,6 +209,8 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   color: #0065A4;
   padding: 0.125rem 0.375rem;
   border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .prose-doc table {
   width: 100%;

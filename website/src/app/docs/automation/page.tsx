@@ -183,11 +183,13 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
         <li>• <strong className="text-text">Recordings are permanent.</strong> The ledger has 10-year retention and no deletes. Point these steps at files you mean to put on record.</li>
         <li>• <strong className="text-text">Two failures are not failures.</strong> A 503 during the daily epoch rotation and a 429 from the rate limiter both reject before anything is minted, so both are safe to retry. Zapier retries by itself; in Make, use an error handler with Retry.</li>
         <li>• <strong className="text-text">One ledger.</strong> A recording made by a Zap is indistinguishable from one made by dropping the file on the site, and shows up on the same <a href="/roll">Roll</a>.</li>
-        {/* nowrap because a scoped package name is one token to read, and
-            `.prose-doc code` gives it a filled chip: breaking it renders two
-            disconnected blue blocks on separate lines. It is 235px on one
-            line, inside the 288px column at 320px, so pinning it cannot
-            overflow. */}
+        {/* nowrap because a scoped package name is a single token someone
+            copies, and splitting it hurts reading even where it renders
+            cleanly. The chip's appearance when wrapped is handled globally by
+            box-decoration-break in globals.css, so this is about the name, not
+            the styling. Safe to pin: 235px on one line, inside the 288px
+            column at 320px, so it cannot overflow. Do not add nowrap to longer
+            strings like commands, which genuinely need to wrap. */}
         <li>• <strong className="text-text">Verification does not require us.</strong> Every proof these steps return can be checked offline with <code style={{ whiteSpace: "nowrap" }}>@mikeargento/bitgraph-verify</code>, without this site or any network. See <a href="/docs/verification">Verification</a>.</li>
       </ul>
     </article>
