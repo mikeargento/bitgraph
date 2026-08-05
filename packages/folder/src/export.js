@@ -248,10 +248,37 @@ function fetchAnchors(counter, epochUrlSafe) {
  * signed block hash), so a miss just omits the file and the export stays valid.
  */
 function fetchWitness(anchor) {
-  var eth = anchor && anchor.ethereum;
-  if (!eth || typeof eth.blockNumber !== 'number' || typeof eth.blockHash !== 'string') return null;
-  return getJson(API + '/api/proofs/witness?block=' + eth.blockNumber +
-    '&hash=' + encodeURIComponent(eth.blockHash));
+  var b = anchorBlockOf(anchor);
+  if (!b) return null;
+  return getJson(API + '/api/proofs/witness?block=' + b.number +
+    '&hash=' + encodeURIComponent(b.hash));
+}
+
+/**
+ * An anchor's Ethereum block, from either shape it has ever been written in.
+ *
+ * ⚠️ THE `ethereum` OBJECT IS NOT ALWAYS THERE. Anchors written before it was
+ * added carry the block in attribution: the number inside an etherscan URL in
+ * `title`, the hash in `message`. Reading only `ethereum` meant no witness, so
+ * no block time, so the export page said "sealing" forever for anything
+ * recorded in that era. The recording was sealed the whole time; the export
+ * simply could not see it.
+ *
+ * The website's own export builder has always had this fallback. The Folder is
+ * the second implementation of that page and never got it.
+ */
+function anchorBlockOf(anchor) {
+  if (!anchor) return null;
+  var eth = anchor.ethereum;
+  if (eth && typeof eth.blockNumber === 'number' && typeof eth.blockHash === 'string') {
+    return { number: eth.blockNumber, hash: eth.blockHash };
+  }
+  var attr = anchor.attribution;
+  if (!attr || typeof attr.title !== 'string' || typeof attr.message !== 'string') return null;
+  var m = attr.title.match(/\/block\/(\d+)/);
+  if (!m) return null;
+  var n = parseInt(m[1], 10);
+  return isFinite(n) && attr.message ? { number: n, hash: attr.message } : null;
 }
 
 /** Wait for the sealing anchor, returning as soon as it appears or at the deadline. */
