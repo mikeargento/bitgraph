@@ -632,6 +632,22 @@ function placeArtifact(from, to, keepSource) {
 // hundred times. Set for the length of a recovery, with one index at the end.
 var DEFER_INDEX = false;
 
+/**
+ * Set by `--batch`: this export is one file of a whole drop, and the caller
+ * will seal and index once at the end.
+ *
+ * ⚠️ The seal wait is what made batches slow, not the hashing. Hashing a
+ * hundred files takes half a second; waiting for each one's anchor takes about
+ * twelve, because that is the anchor interval. Waiting per file made a drop
+ * O(n) in anchor intervals for information that ONE wait answers: anchors are
+ * time-based, so the single anchor that lands after the last commit seals every
+ * proof in the batch at once.
+ *
+ * Nothing is lost by not waiting. The export is written and marked pending, and
+ * `--complete` finishes it, which the watcher already runs.
+ */
+var BATCH_DROP = false;
+
 /** Build a fresh export folder for one recorded file. */
 /**
  * Build the export for one recorded file.
@@ -669,7 +685,7 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, kee
     counter: String(counter),
     epochUrlSafe: String(epochUrlSafe),
   };
-  var sealed = writeExportContents(r.dir, meta, proof, SEAL_WAIT_MS);
+  var sealed = writeExportContents(r.dir, meta, proof, BATCH_DROP ? 0 : SEAL_WAIT_MS);
   markPending(r.dir, meta, sealed);
 
   // Moved in last, so a failure above never strands the file.
@@ -698,8 +714,20 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, kee
   return 'ok: ' + baseName(r.dir) + (sealed ? '' : ' (pending seal)');
 }
 
-/** Finish any export still waiting on the anchor that seals it. */
-function completePending(folder) {
+/**
+ * Finish any export still waiting on the anchor that seals it.
+ *
+ * `waitMs` is per export and yet costs ONE wait for a whole batch, which is the
+ * property that makes deferring the seal free. Anchors are time-based, so the
+ * first pending export blocks until the next anchor lands and every later one
+ * in the same drop then finds that same anchor already there and returns at
+ * once. A hundred pending exports cost one anchor interval, not a hundred.
+ *
+ * Defaults to 0 so the watcher's opening sweep stays instant.
+ */
+function completePending(folder, waitMs) {
+  var wait = parseInt(waitMs, 10);
+  if (!(wait >= 0)) wait = 0;
   var listing = sh('ls -1 ' + quote(folder) + ' 2>/dev/null');
   if (!listing) return 'ok: nothing pending';
   var names = listing.split('\r').join('\n').split('\n').filter(Boolean);
@@ -719,9 +747,7 @@ function completePending(folder) {
     var proof = fetchProof(meta.digestB64, meta.counter, meta.epochUrlSafe);
     if (!proof) return;
     try {
-      // No waiting on a completion pass: take whatever has landed by now, so a
-      // backlog of pending folders cannot stall the run.
-      var sealed = writeExportContents(dir, meta, proof, 0);
+      var sealed = writeExportContents(dir, meta, proof, wait);
       markPending(dir, meta, sealed);
       if (sealed) sealedCount++;
     } catch (e) {
@@ -780,6 +806,77 @@ function parseBatch(body) {
 }
 
 /** Commit response to `ok\t<counter>\t<epoch>` / `retry` / `fail`. */
+/**
+ * The same lookup, for MANY digests at once: one line of
+ * `digestB64<TAB>counter<TAB>epoch` per digest the ledger knows.
+ *
+ * The watcher used to ask about one digest per HTTP request. A round trip to
+ * the ledger costs about the same whether it carries one digest or twenty-five
+ * (measured: 1.32s for one, 0.72s for twenty-five), so a hundred-file drop was
+ * paying a hundred round trips for work that fits in four.
+ *
+ * ⚠️ KEYED BY THE DIGEST INSIDE EACH PROOF, never by position in the response.
+ * The caller matches lines back to files by digest, so a server that reorders,
+ * omits or dedupes results cannot silently hand a file the proof of a different
+ * file. Position-matching is the same mistake that produced "no proof at #22".
+ *
+ * Digests are emitted in the STANDARD base64 the caller hashed with, whatever
+ * alphabet the response keyed on.
+ */
+function parseBatchMany(body) {
+  try {
+    var results = JSON.parse(body).results || {};
+    var lines = [];
+    Object.keys(results).forEach(function (key) {
+      var proofs = (results[key] && results[key].proofs) || [];
+      if (!proofs.length) return;
+      // proofs[0] is the ledger's earliest, by write times this does not have.
+      // Never re-derive it; see parseBatch.
+      var p = proofs[0].proof || proofs[0];
+      var commit = p && p.commit;
+      var digest = p && p.artifact && p.artifact.digestB64;
+      if (!commit || !digest) return;
+      lines.push(digest + '\t' + (commit.counter || '') + '\t' + epochToUrlSafe(commit.epochId));
+    });
+    return lines.join('\n');
+  } catch (e) {
+    return 'error';
+  }
+}
+
+/**
+ * A batch commit's reply: one `digestB64<TAB>counter<TAB>epoch` line per proof.
+ *
+ * `/api/commit` has always taken `digests` as an ARRAY and answered with one
+ * proof per digest; the website's batch path uses it. The watcher sent one
+ * digest per request anyway, so a hundred-file drop made a hundred commits.
+ *
+ * ⚠️ Matched back by each proof's OWN artifact digest, for the reason in
+ * parseBatchMany, and it matters more here: this is the path that mints
+ * permanent proofs, so mispairing a file with a counter would bind a recording
+ * to the wrong bytes on a ledger that cannot be rewritten.
+ */
+function parseCommitMany(body) {
+  try {
+    var parsed = JSON.parse(body);
+    var proofs = Array.isArray(parsed) ? parsed : [parsed];
+    var lines = [];
+    for (var i = 0; i < proofs.length; i++) {
+      var p = proofs[i];
+      // The service holds drops rather than failing them during the daily
+      // epoch rotation. One retry answer applies to the whole request.
+      if (p && p.code === 'tee-restarting') return 'retry';
+      var commit = p && p.commit;
+      var digest = p && p.artifact && p.artifact.digestB64;
+      if (!commit || commit.counter === undefined || commit.counter === null || !digest) continue;
+      lines.push(digest + '\t' + commit.counter + '\t' + epochToUrlSafe(commit.epochId));
+    }
+    return lines.length ? lines.join('\n') : 'fail';
+  } catch (e) {
+    return 'fail';
+  }
+}
+
 function parseCommit(body) {
   try {
     var parsed = JSON.parse(body);
@@ -2287,8 +2384,8 @@ function usage() {
     '',
     'Run by the watcher:',
     '  --index <folder>             rebuild the contact sheet',
-    '  --complete <folder>          finish exports still awaiting their seal',
-    '  <file> <digest> <counter> <epoch> [dest]    build one export',
+    '  --complete <folder> [waitMs] finish exports still awaiting their seal',
+    '  <file> <digest> <counter> <epoch> [dest] [--batch]   build one export',
   ].join('\n');
 }
 
@@ -2302,11 +2399,16 @@ function run(argv) {
     }
     if (argv[0] === '--json') {
       var body = readFile(argv[2]);
-      if (body === null) return argv[1] === 'commit' ? 'fail' : 'error';
-      return argv[1] === 'batch' ? parseBatch(body) : parseCommit(body);
+      if (body === null) {
+        return argv[1] === 'commit' || argv[1] === 'commitmany' ? 'fail' : 'error';
+      }
+      if (argv[1] === 'batch') return parseBatch(body);
+      if (argv[1] === 'batchmany') return parseBatchMany(body);
+      if (argv[1] === 'commitmany') return parseCommitMany(body);
+      return parseCommit(body);
     }
     if (argv[0] === '--complete') {
-      return completePending(argv[1]);
+      return completePending(argv[1], argv[2]);
     }
     if (argv[0] === '--verify') {
       return verifyFolder(argv[1]);
@@ -2319,6 +2421,12 @@ function run(argv) {
     }
     if (argv.length < 4) {
       return 'error: not enough arguments\n\n' + usage();
+    }
+    // One file of a whole drop. The caller seals and indexes once at the end,
+    // so this export does neither. See BATCH_DROP.
+    if (argv[5] === '--batch') {
+      BATCH_DROP = true;
+      DEFER_INDEX = true;
     }
     return buildExport(argv[0], argv[1], argv[2], argv[3], argv[4]);
   } catch (e) {
