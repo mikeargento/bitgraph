@@ -751,6 +751,10 @@ function extOf(name) {
 // Images only. A PDF or a video would blow any budget, and the point here is
 // the hero picture rather than every attachment.
 var EMBED_BUDGET = 400 * 1024; // base64 characters, not source bytes
+// The ceiling when the budget cannot be met because sips could not read the
+// file. Generous, because one large page beats a page with no picture, but
+// finite, because a 20MB raw photo should not become a 27MB HTML file.
+var EMBED_HARD_MAX = 3 * 1024 * 1024;
 var EMBED_WIDTHS = [2000, 1400, 1000, 700, 450];
 
 var MIME = {
@@ -793,16 +797,32 @@ function embedImage(dir, file, digestB64) {
   var tmp = '/tmp/bitgraph-embed-' + toUrlSafe(String(digestB64)).slice(0, 16) + '.jpg';
   var best = null;
   for (var i = 0; i < EMBED_WIDTHS.length; i++) {
-    sh('sips -Z ' + EMBED_WIDTHS[i] + ' --out ' + quote(tmp) + ' ' + quote(src) + ' >/dev/null 2>&1');
+    // `-s format jpeg` is NOT optional. With `-Z` alone sips infers the output
+    // format from the .jpg extension for some inputs and not others: a PNG
+    // converts, a WEBP silently writes nothing at all and the budget is then
+    // quietly skipped. Naming the output format explicitly makes every input
+    // sips can read behave the same way.
+    sh('sips -s format jpeg -Z ' + EMBED_WIDTHS[i] +
+      ' --out ' + quote(tmp) + ' ' + quote(src) + ' >/dev/null 2>&1');
     var small = dataUri(tmp, 'jpg');
     if (!small) break;
     best = small;
     if (small.len <= EMBED_BUDGET) break;
   }
   sh('rm -f ' + quote(tmp));
-  // The smallest thing we managed beats nothing, and beats the original, which
-  // is over budget by definition at this point.
-  return best ? best.uri : (direct ? direct.uri : null);
+  if (best) return best.uri;
+
+  // sips produced nothing, so the budget cannot be met by shrinking. ⚠️ THIS
+  // HAPPENS: sips cannot read WebP at all, silently writing no output file, and
+  // the same is true of any format ImageIO does not decode. Falling through to
+  // the original was the old behaviour and it made the budget a lie.
+  //
+  // Embedding oversize still beats not embedding, because not embedding is the
+  // bug this whole thing exists to fix: no picture at all in a sandboxed
+  // viewer. So the original goes in, up to a hard ceiling that keeps one page
+  // from becoming tens of megabytes.
+  if (direct && direct.len <= EMBED_HARD_MAX) return direct.uri;
+  return null;
 }
 
 /** The recorded file in an export: not the proof, the anchors, or a marker. */
