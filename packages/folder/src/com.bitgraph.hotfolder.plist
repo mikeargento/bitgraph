@@ -3,10 +3,11 @@
 <!--
   BitGraph Folder watcher.
 
-  WatchPaths fires this whenever the watched folder changes, including once at
-  load. ThrottleInterval keeps a burst of Finder events (a multi-file drag) from
-  spawning a run per file; the script takes a lock anyway, so an extra firing is
-  harmless.
+  WatchPaths fires this whenever the watched folder changes. ThrottleInterval
+  keeps a burst of Finder events (a multi-file drag) from spawning a run per
+  file; the script takes a lock anyway, so an extra firing is harmless, which is
+  why 1 second is enough. It was 3, and that is up to two seconds of a drop
+  sitting there before anything even starts.
 
   __PLACEHOLDERS__ are filled in by install.sh, which resolves the real paths on
   the machine it runs on.
@@ -28,7 +29,18 @@
   </array>
 
   <key>ThrottleInterval</key>
-  <integer>3</integer>
+  <integer>1</integer>
+
+  <!--
+    Also run once when the agent loads, which is at login.
+
+    WatchPaths only fires while the agent is live, so anything that arrived
+    while it was not (a file synced down overnight, a machine that was off, a
+    crash) was invisible until some later folder change happened to trigger a
+    run. Nothing swept, and nothing retried on a timer.
+  -->
+  <key>RunAtLoad</key>
+  <true/>
 
   <key>StandardErrorPath</key>
   <string>__ERRLOG__</string>

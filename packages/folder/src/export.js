@@ -1569,8 +1569,46 @@ function indexRow(folder, name, mtime) {
  * (which finds proofs by schema shape, not by filename), and deletable with no
  * loss. Nothing verifies against it.
  */
+// Set for a pass when the sibling count changed. The back link only exists when
+// the folder holds more than one export, so crossing that line is the one thing
+// that restyles pages whose own contents did not change.
+var FORCE_PAGES = false;
+
+/**
+ * True when this export's page is already current.
+ *
+ * ⚠️ Regenerating every page on every index pass is what made a drop slow, and
+ * it grows with the folder: measured 19.5 seconds on 44 exports with nothing
+ * pending. The expensive part is per page, not per pass, because the artifact
+ * is re-encoded into a data: URI each time.
+ *
+ * A page is derived from exactly two things on disk, proof.json and the anchor
+ * files, so it is current when it is newer than both. Being wrong here would
+ * show a stale page, so the test is deliberately conservative: any doubt, any
+ * missing timestamp, and it regenerates.
+ */
+function pageIsCurrent(dir) {
+  if (FORCE_PAGES) return false;
+  var out = sh('cd ' + quote(dir) + ' && stat -f %m index.html proof.json 2>/dev/null');
+  if (!out) return false;
+  var t = out.split('\r').join('\n').split('\n').filter(Boolean);
+  if (t.length < 2) return false;
+  var page = parseInt(t[0], 10);
+  var proof = parseInt(t[1], 10);
+  if (!page || !proof || page < proof) return false;
+  // The anchors are the other input, and they arrive later than the proof.
+  var anchors = sh('cd ' + quote(dir) + ' && stat -f %m ' + quote(ANCHOR_DIR) + ' 2>/dev/null');
+  if (anchors) {
+    var a = parseInt(String(anchors).trim(), 10);
+    if (!a || page < a) return false;
+  }
+  return true;
+}
+
 function writeProofPage(folder, name, file, digest, counter, info, mtime) {
   var dir = folder + '/' + name;
+
+  if (pageIsCurrent(dir)) return;
 
   // NEVER write over the artifact. The page has to be called index.html, since
   // that is what makes a browser render it instead of generating its own
@@ -2028,6 +2066,22 @@ function writeIndex(folder) {
   });
 
   SIBLINGS = entries.length;
+
+  // Pages are skipped when they are newer than their own inputs (pageIsCurrent),
+  // which is what makes an index pass cheap. The one thing that changes a page
+  // without touching anything in its folder is the sibling count crossing 1,
+  // since that is when the back link appears or disappears. Remembered here so
+  // that pass, and only that pass, regenerates everything.
+  var stamp = folder + '/.bitgraph-siblings';
+  var seen = String(readFile(stamp) || '').replace(/\s+/g, '');
+  FORCE_PAGES = seen !== String(SIBLINGS) && (seen === '' || seen === '1' || SIBLINGS === 1);
+  if (seen !== String(SIBLINGS)) {
+    try {
+      writeFile(stamp, String(SIBLINGS) + '\n');
+    } catch (e) {
+      /* a missing stamp only costs a regeneration */
+    }
+  }
 
   var rows = [];
   entries.forEach(function (e) {

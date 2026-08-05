@@ -44,9 +44,37 @@ OSASCRIPT="/usr/bin/osascript"
 
 mkdir -p "$HOME_DIR"
 
-# One run at a time; launchd queues another run if events arrive meanwhile.
-if ! mkdir "$LOCK" 2>/dev/null; then exit 0; fi
-trap 'rmdir "$LOCK" 2>/dev/null; rm -rf "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"' EXIT
+# One run at a time.
+#
+# ⚠️ A REFUSED INVOCATION LEAVES A NOTE. It used to just exit, and launchd does
+# NOT queue anything: WatchPaths fires on a folder change, and that change has
+# already been and gone. So a file dropped while a run was busy got no run of
+# its own and sat there until some later, unrelated change happened to trigger
+# one. That is both the lag on back-to-back drops and a way to be missed
+# entirely.
+#
+# The holder checks for this note when it finishes and starts over.
+if ! mkdir "$LOCK" 2>/dev/null; then
+  : > "$HOME_DIR/.rescan"
+  exit 0
+fi
+trap 'rmdir "$LOCK" 2>/dev/null; rmdir "$SEAL_LOCK" 2>/dev/null; rm -rf "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"' EXIT
+
+# ⚠️ THE SEALING WAIT GETS ITS OWN LOCK, AND THE DROP LOCK IS RELEASED BEFORE IT.
+#
+# This was the real lag, and it had nothing to do with how fast a drop is
+# handled. The run ends by waiting up to 45 seconds for the anchor that seals
+# what it just recorded, and it used to hold the one lock the whole time. A file
+# dropped during that window got an invocation that could not take the lock and
+# exited immediately, so it was not picked up until some later folder change
+# happened to trigger another run. Measured on three consecutive drops: 21.6s,
+# 53.0s, and 1.9s. The 1.9s one was simply the drop that did not land while
+# something was sealing.
+#
+# Skipping when another run is already sealing is correct, not a compromise:
+# --complete scans every pending export in the folder, so whoever holds this
+# lock will finish ours too.
+SEAL_LOCK="$HOME_DIR/hotfolder.seal.lock"
 
 # The exporter compares this against what the site advertises, to say on the
 # contact sheet when a newer release exists. Exported rather than merely sourced
@@ -121,7 +149,22 @@ droppable() {
 # Finish any export still waiting on the anchor that seals it. No wait here:
 # this is housekeeping left by an earlier run, not the drop being handled now,
 # and the run at the END of this script is the one that waits.
-"$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" 0 >/dev/null 2>&1 || true
+#
+# ⚠️ ONLY WHEN SOMETHING IS ACTUALLY PENDING. This used to run unconditionally,
+# and it is not cheap: it ends by rebuilding the contact sheet, which regenerates
+# every proof page in the folder. Measured on a 44-export folder with nothing
+# pending at all: 19.5 seconds, to seal zero. Every drop paid that before it was
+# even looked at, and it grows with the folder.
+#
+# ⚠️ AND ONLY WHEN NOBODY IS ALREADY SEALING. A drop leaves its exports pending
+# while a separate process waits for the anchor, so the very next drop would see
+# "something is pending" and start a second full index rebuild alongside the one
+# already running. That is duplicated work, on the path the person is waiting
+# on, and it is why back-to-back drops still took ten seconds after the lock was
+# split. Whoever holds the seal lock sweeps the whole folder, ours included.
+if [ ! -d "$SEAL_LOCK" ] && compgen -G "$FOLDER"/*/.bitgraph-pending.json >/dev/null 2>&1; then
+  "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" 0 >/dev/null 2>&1 || true
+fi
 
 # ---------------------------------------------------------------------------
 # A drop is handled in PHASES, not one file at a time.
@@ -428,13 +471,53 @@ rm -f "$MANIFEST"
 # One wait covers the whole drop: anchors are time-based, so the anchor that
 # lands after the last commit seals every proof in it. This also writes the
 # contact sheet, so there is no separate index pass.
+clear_husks
+
 if [ $((recorded + on_record)) -gt 0 ]; then
+  # ⚠️ THE DROP LOCK IS RELEASED FIRST. Everything the person is waiting for has
+  # already happened: they were notified, the exports are written and the files
+  # are moved. What is left is waiting on an anchor, and holding the lock
+  # through it is what made the NEXT drop wait up to 45 seconds for a run.
+  rmdir "$LOCK" 2>/dev/null
+  rm -rf "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" \
+         "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"
+
   # Only a fresh recording can still be waiting on an anchor. A drop of bytes
   # already on the ledger was sealed long ago, so it needs the index pass but
   # never the wait.
   wait_ms=0
   [ "$recorded" -gt 0 ] && wait_ms=45000
-  "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" "$wait_ms" >/dev/null 2>&1 || true
+
+  # Skip if someone else is already sealing: --complete sweeps every pending
+  # export in the folder, so their pass covers ours.
+  #
+  # ⚠️ DETACHED, so this run ENDS here. Waiting on the anchor is the last thing
+  # that happens and nobody is waiting for it: the person has been notified, the
+  # exports are written, the files are moved. Keeping the run alive through it
+  # meant the next drop's turn came ~12 seconds later, because the check for
+  # work that arrived meanwhile sits after this point.
+  #
+  # It removes its own lock. If launchd reaps it the seal simply does not
+  # happen, and the next drop's opening sweep finishes those exports instead.
+  if mkdir "$SEAL_LOCK" 2>/dev/null; then
+    (
+      "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" "$wait_ms" >/dev/null 2>&1
+      rmdir "$SEAL_LOCK" 2>/dev/null
+    ) &
+    disown 2>/dev/null || true
+  fi
 fi
 
-clear_husks
+# Something arrived while this run was busy and was turned away. Go again rather
+# than leaving it for a folder change that may never come. Bounded, so a folder
+# being written to continuously cannot spin here forever; the next real change
+# picks up whatever is left.
+if [ -f "$HOME_DIR/.rescan" ]; then
+  rm -f "$HOME_DIR/.rescan"
+  rmdir "$LOCK" 2>/dev/null
+  depth="${BITGRAPH_RESCAN_DEPTH:-0}"
+  if [ "$depth" -lt 5 ]; then
+    export BITGRAPH_RESCAN_DEPTH=$((depth + 1))
+    exec /bin/bash "$0"
+  fi
+fi
