@@ -1238,7 +1238,16 @@ function embedImage(dir, file, digestB64) {
 //
 // Named for the export folder, which is already unique, so two photos that
 // share a filename cannot collide here either.
-var THUMBS_DIR = '.thumbs';
+// Every piece of derived machinery lives under ONE hidden directory, so even
+// someone browsing with hidden files visible sees a single item, not three
+// loose ones. It stays INSIDE the watched folder on purpose: the sheet's
+// thumbnails have to travel with the folder (synced elsewhere, the sheet would
+// otherwise render broken images), so the state belongs beside it, just
+// consolidated. Everything in here is regenerable; deleting it costs one slow
+// pass. Same name as ~/.bitgraph deliberately: machine state lives under a
+// dot-bitgraph wherever it is.
+var STATE_DIR = '.bitgraph';
+var THUMBS_DIR = STATE_DIR + '/thumbs';
 // 600px for a cell that packs to roughly 230-300px, so it still holds up on a
 // retina display without carrying a full-size photo to do it.
 var THUMB_WIDTH = 600;
@@ -1307,7 +1316,7 @@ function repairWitnesses(dir) {
 function pruneThumbs(folder) {
   sh('cd ' + quote(folder + '/' + THUMBS_DIR) + ' 2>/dev/null && for t in *.jpg; do ' +
     '[ -e "$t" ] || continue; d="${t%.jpg}"; ' +
-    '[ -d "../' + REC_DIR + '/$d" ] || [ -d "../$d" ] || rm -f "$t"; done; true');
+    '[ -d "../../' + REC_DIR + '/$d" ] || [ -d "../../$d" ] || rm -f "$t"; done; true');
 }
 
 /** The recorded file in an export: not the proof, the anchors, or a marker. */
@@ -2132,7 +2141,8 @@ function snapshotFolder(folder) {
   var listing = sh(
     'cd ' + quote(folder) + ' && find . -mindepth 1 -maxdepth 4 ' +
     "-path './" + FILES_DIR + "' -prune -o " +
-    "-path './" + THUMBS_DIR + "' -prune -o " +
+    "-path './" + STATE_DIR + "' -prune -o " +
+    "-path './.thumbs' -prune -o " +
     '-print0 2>/dev/null | xargs -0 stat -f "%m %N" 2>/dev/null; true'
   );
   var lines = listing ? listing.split('\r').join('\n').split('\n').filter(Boolean) : [];
@@ -2210,7 +2220,7 @@ function snapshotFolder(folder) {
 // Keyed by the mtimes of exactly the files the values came from, so a rewritten
 // proof or a newly landed anchor rebuilds its entry and nothing else does.
 // Derived and disposable, like .thumbs: deleting it costs one slow pass.
-var SHEET_CACHE = '.bitgraph-cache.json';
+var SHEET_CACHE = STATE_DIR + '/cache.json';
 
 function loadSheetCache(folder) {
   try {
@@ -2257,6 +2267,18 @@ function sheetEntry(folder, name, d) {
 
 /** Rebuild index.html from whatever is on disk, newest first. */
 function writeIndex(folder) {
+  // Consolidate the older loose machinery (.thumbs, .bitgraph-cache.json,
+  // .bitgraph-siblings) into STATE_DIR, once. mv, not regenerate: a cache is
+  // cheap to lose but the siblings stamp going missing reads as the count
+  // crossing and would force every page.
+  if (exists(folder + '/.thumbs') || exists(folder + '/.bitgraph-cache.json') ||
+      exists(folder + '/.bitgraph-siblings')) {
+    mkdirp(folder + '/' + STATE_DIR);
+    sh('cd ' + quote(folder) + ' && ' +
+      '{ [ -d .thumbs ] && [ ! -e ' + quote(THUMBS_DIR) + ' ] && mv .thumbs ' + quote(THUMBS_DIR) + '; ' +
+      '[ -f .bitgraph-cache.json ] && mv .bitgraph-cache.json ' + quote(SHEET_CACHE) + '; ' +
+      '[ -f .bitgraph-siblings ] && mv .bitgraph-siblings ' + quote(STATE_DIR + '/siblings') + '; }; true');
+  }
   var snap = snapshotFolder(folder);
   var cache = loadSheetCache(folder);
 
@@ -2318,7 +2340,7 @@ function writeIndex(folder) {
   // without touching anything in its folder is the sibling count crossing 1,
   // since that is when the back link appears or disappears. Remembered here so
   // that pass, and only that pass, regenerates everything.
-  var stamp = folder + '/.bitgraph-siblings';
+  var stamp = folder + '/' + STATE_DIR + '/siblings';
   var seen = String(readFile(stamp) || '').replace(/\s+/g, '');
   FORCE_PAGES = seen !== String(SIBLINGS) && (seen === '' || seen === '1' || SIBLINGS === 1);
   if (seen !== String(SIBLINGS)) {
