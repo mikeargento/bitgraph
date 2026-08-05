@@ -80,10 +80,6 @@ var API = env('BITGRAPH_API') || 'https://bitgraph.ing';
 // last advertised. Same default as hotfolder.sh, since either can be run alone.
 var HOME_DIR = env('BITGRAPH_HOME') || (env('HOME') + '/.bitgraph');
 
-// What a link to the site should call it. Read off API rather than written out,
-// so an export built against a test host cannot claim to point at bitgraph.ing.
-var SITE = String(API).replace(/^https?:\/\//, '').replace(/\/+$/, '');
-var SITE_LABEL = SITE === 'bitgraph.ing' ? 'BitGraph.ing' : SITE;
 
 // Anchors land within roughly 12-24s at the normal cadence, so the ceiling is
 // about 2x that. It is a ceiling, not a delay: the wait returns the moment the
@@ -690,6 +686,12 @@ function pageShell(title, extraCss, bodyHtml) {
     '<meta http-equiv="pragma" content="no-cache"><meta http-equiv="expires" content="0">' +
     '<title>' + esc(title) + '</title><style>' +
     '*{box-sizing:border-box}' +
+    // color-scheme, because this page frames content the BROWSER styles: a
+    // recorded .txt in an <iframe> is rendered by the UA, which follows the
+    // viewer's OS preference unless told otherwise. On a dark-mode Mac that
+    // thumbnail came out white-on-black inside an otherwise light page. The
+    // whole product is light only, so say so.
+    ':root{color-scheme:light}' +
     'body{margin:0;padding:48px 24px 80px;background:#f5f5f5;color:#111827;' +
     'font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;' +
     '-webkit-font-smoothing:antialiased}' +
@@ -962,24 +964,6 @@ function dateOf(d) {
 // both one click away and stated in full there, the counter under Artifact
 // Commit and the window at the top of the page.
 
-/**
- * The one link in an export that leaves the machine.
- *
- * It said "Open proof", which sat next to "Open file" and read as a second
- * local file, which is exactly what it is not. Naming the destination is the
- * whole job: of the two links on a row, one stays on your disk and this one
- * goes to the site. Always a new tab, so following it never costs you your
- * place in the sheet.
- *
- * The arrow's class is a parameter because the sheet and the proof page carry
- * different stylesheets, `.a` in one and `.arrow` in the other.
- */
-function siteLink(digest, cls, arrowCls) {
-  return '<a' + (cls ? ' class="' + cls + '"' : '') +
-    ' href="' + API + '/proof/' + encodeURIComponent(toUrlSafe(digest)) + '"' +
-    ' target="_blank" rel="noopener noreferrer">Open on ' + esc(SITE_LABEL) +
-    ' <span class="' + arrowCls + '">&rarr;</span></a>';
-}
 
 function indexRow(folder, name, mtime) {
   var dir = folder + '/' + name;
@@ -1036,12 +1020,10 @@ function indexRow(folder, name, mtime) {
   // than revealing the folder in Finder, which nothing in a web page can do
   // without a registered URL scheme, which needs an app bundle, which is the
   // one thing "a folder, not an app" rules out.
-  // "Open locally", against "Open on BitGraph.ing" below it. The pair names two
-  // places rather than two things: it is the same recording either way, this
-  // copy on the disk in front of you or the one on the site. "Open file" said
-  // the wrong thing twice over, since the link opens the recording's page and
-  // not the bytes, and it read as the local sibling of "Open proof".
-  var openFile = '<a href="' + page + '">Open locally <span class="a">&rarr;</span></a>';
+  // Just "Open" now. It was "Open locally", which earned the qualifier only
+  // while a second link to the site sat under it; with that gone, "locally" is
+  // answering a question nobody is asking.
+  var openFile = '<a href="' + page + '">Open <span class="a">&rarr;</span></a>';
 
   var info = anchorInfo(dir);
 
@@ -1061,9 +1043,7 @@ function indexRow(folder, name, mtime) {
     // title carries the full name, since a long one is clipped to keep every
     // cell the same height.
     '<p class="n" title="' + esc(file || name) + '">' + esc(file || name) + '</p>' +
-    // Stacked, not side by side. Two links on one line were what set the cell's
-    // minimum width, and this page would rather spend that width on pictures.
-    '<div class="l">' + openFile + siteLink(digest, '', 'a') + '</div>' +
+    '<div class="l">' + openFile + '</div>' +
     '</div></li>'
   );
 }
@@ -1271,28 +1251,27 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
     pageShell(
       file || name,
       proofPageCss(),
-      // Where the site link goes depends on whether the back link exists, and
-      // both placements are the same rule: a link needs something to sit
-      // against.
+      // ❄️ There is no link to the site here, and there should not be one.
       //
-      // With a back link, the two pair off on one row. They are the same kind
-      // of thing and carry identical treatment, so splitting them left one at
-      // the top left and the other a row below at the right, a staircase with
-      // an empty top right corner and nothing balancing the heading.
+      // It was tried, moved twice, and cut. Two reasons. The site is already
+      // reachable by the thing the reader is holding: dropping a recorded file
+      // on bitgraph.ing goes straight to its proof, and the file is right here
+      // in this folder and again in files/. A link is a second way to do what
+      // the product's one gesture already does.
       //
-      // Without one, that row would hold a single link over a gap, anchored to
-      // nothing, so it drops to the heading's line instead. Baseline-aligned
-      // there, since the h1 is 20/800 against the link's 14/600.
+      // And it was quietly wrong. Pinning a causal position needs counter and
+      // epoch in the query; the link carried neither, so on the second
+      // recording of the same bytes it opened the first one. A link that can
+      // point at a different recording than the page it sits on is worse than
+      // no link.
       //
-      // Either way the site link sits in the upper right and the heading on the
-      // left, so the two layouts read as the same page.
+      // The way back is the only navigation this page needs, and only when
+      // there is a sheet to go back to.
       (SIBLINGS > 1
         ? '<nav class="nv"><a class="hm bk" href="../index.html">' +
-          '<span class="arrow">&larr;</span> All recordings</a>' +
-          siteLink(digest, 'hm', 'arrow') + '</nav>' +
-          '<div class="tl"><h1>BitGraph Recorded</h1></div>'
-        : '<div class="tl"><h1>BitGraph Recorded</h1>' +
-          siteLink(digest, 'hm', 'arrow') + '</div>') +
+          '<span class="arrow">&larr;</span> All recordings</a></nav>'
+        : '') +
+        '<h1>BitGraph Recorded</h1>' +
         (binding === false
           ? '<p class="bind"><b>This file does not match the proof.</b> Its SHA-256 differs from the ' +
             'file hash below, so these are not the same bytes. Either the file changed after it was ' +
@@ -1355,21 +1334,7 @@ function proofPageCss() {
     // The proof page's own values for this heading, which is a 20px/800 line
     // rather than the shell's 28px/600 page title: it asserts the recording
     // happened, it does not name the document.
-    'h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}' +
-    // The heading and the site link share a line. Baseline, not centre: the h1
-    // is 20/800 and the link 14/600, so centring them left the link visibly
-    // high against the heavier type. The h1's own bottom margin moved here, so
-    // the pair spaces the same as the heading did alone. gap keeps a long
-    // heading off the link before it wraps.
-    // Wraps, because on a phone the pair does not fit: "BitGraph Recorded" is
-    // about 200px at 20/800 and the link about 150px, against roughly 327px of
-    // content width. Squeezed onto one line the heading broke in half and the
-    // link's arrow orphaned onto its own row. Wrapped, the heading keeps the
-    // full width and the link sits under it, and nowrap keeps the arrow with
-    // the words it belongs to.
-    '.tl{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;' +
-    'gap:6px 16px;margin:0 0 10px}' +
-    '.tl a{white-space:nowrap}' +
+    'h1{margin:0 0 10px;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}' +
     '.when{display:flex;flex-direction:column;gap:5px;padding:14px 16px;' +
     'border-bottom:1px solid #e2e5e9}' +
     '.wd{font-size:14px;font-weight:700;color:#111827;letter-spacing:-.01em}' +

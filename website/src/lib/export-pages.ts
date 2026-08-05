@@ -62,30 +62,8 @@ function extOf(name: string): string {
   return i === -1 ? "" : String(name).slice(i + 1).toLowerCase();
 }
 
-function toUrlSafe(b64: string): string {
-  return String(b64).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
 
-/** Absolute on purpose: an export is read off a disk, from a file: URL. */
-const SITE = "https://bitgraph.ing";
-const SITE_LABEL = "BitGraph.ing";
 
-/**
- * The one link in an export that leaves the machine.
- *
- * It said "Open proof", which sat next to "Open file" and read as a second
- * local file, which is exactly what it is not. Naming the destination is the
- * whole job. Always a new tab, so following it never costs you your place.
- *
- * The arrow's class is a parameter because the sheet and the proof page carry
- * different stylesheets.
- */
-function siteLink(digest: string, cls: string, arrowCls: string): string {
-  return `<a${cls ? ` class="${cls}"` : ""}` +
-    ` href="${SITE}/proof/${encodeURIComponent(toUrlSafe(digest))}"` +
-    ` target="_blank" rel="noopener noreferrer">Open on ${esc(SITE_LABEL)}` +
-    ` <span class="${arrowCls}">&rarr;</span></a>`;
-}
 
 /* ── RLP: the block timestamp is field 12 of an Ethereum block header ──
    Block times are not stored as fields anywhere in an export; they live inside
@@ -173,6 +151,12 @@ function pageShell(title: string, extraCss: string, body: string): string {
     '<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">' +
     "<style>" +
     "*{box-sizing:border-box}" +
+    // color-scheme, because this page frames content the BROWSER styles: a
+    // recorded .txt in an <iframe> is rendered by the UA, which follows the
+    // viewer's OS preference unless told otherwise. On a dark-mode Mac that
+    // thumbnail came out white-on-black inside an otherwise light page. The
+    // whole product is light only, so say so.
+    ":root{color-scheme:light}" +
     "body{margin:0;padding:48px 24px 80px;background:#f5f5f5;color:#111827;" +
     'font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;' +
     "-webkit-font-smoothing:antialiased}" +
@@ -337,11 +321,9 @@ export function proofPage(input: ProofPageInput): string {
     // the heading's line and baseline-aligns against it.
     (input.hasIndex
       ? '<nav class="nv"><a class="hm bk" href="../index.html">' +
-        '<span class="arrow">&larr;</span> All recordings</a>' +
-        siteLink(digest, "hm", "arrow") + "</nav>" +
-        '<div class="tl"><h1>BitGraph Recorded</h1></div>'
-      : '<div class="tl"><h1>BitGraph Recorded</h1>' +
-        siteLink(digest, "hm", "arrow") + "</div>") + body +
+        '<span class="arrow">&larr;</span> All recordings</a></nav>'
+      : "") +
+      "<h1>BitGraph Recorded</h1>" + body +
       '<div id="c">Copied!</div>' + COPY_SCRIPT
   );
 }
@@ -353,8 +335,6 @@ export interface IndexRow {
   dir: string;
   fileName?: string | null;
   counter?: string | null;
-  /** Standard base64. Builds the row's link to the recording on the site. */
-  digest?: string | null;
   before?: AnchorSide | null;
   after?: AnchorSide | null;
 }
@@ -383,10 +363,8 @@ export function indexPage(rows: IndexRow[]): string {
     return "<li>" + thumb +
       '<div class="m">' +
       `<p class="n" title="${esc(r.fileName || r.dir)}">${esc(r.fileName || r.dir)}</p>` +
-      '<div class="l">' +
-      `<a href="${page}">Open locally <span class="arrow">&rarr;</span></a>` +
-      (r.digest ? siteLink(r.digest, "", "arrow") : "") +
-      "</div></div></li>";
+      `<div class="l"><a href="${page}">Open <span class="arrow">&rarr;</span></a></div>` +
+      "</div></li>";
   }).join("");
 
   return pageShell(
@@ -409,18 +387,7 @@ const PROOF_CSS =
   // leftward pull and appeared to retreat into the page.
   "@media (hover:hover){.hm:hover .arrow{transform:translateX(3px)}" +
   ".hm.bk:hover .arrow{transform:translateX(-3px)}}" +
-  "h1{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}" +
-  // The heading and the site link share a line. Baseline, not centre: the h1 is
-  // 20/800 and the link 14/600, so centring left the link visibly high against
-  // the heavier type. The h1's own bottom margin moved here, so the pair spaces
-  // the same as the heading did alone.
-  // Wraps, because on a phone the pair does not fit: squeezed onto one line the
-  // heading broke in half and the link's arrow orphaned onto its own row.
-  // Wrapped, the heading keeps the full width and the link sits under it, and
-  // nowrap keeps the arrow with the words it belongs to.
-  ".tl{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;" +
-  "gap:6px 16px;margin:0 0 10px}" +
-  ".tl a{white-space:nowrap}" +
+  "h1{margin:0 0 10px;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}" +
   ".cd{background:#fff;border:1px solid #d0d5dd;overflow:hidden;margin:0 0 10px}" +
   ".hd{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;" +
   "font-size:14px;font-weight:700;letter-spacing:.04em;color:#0065A4;padding:14px 16px;" +

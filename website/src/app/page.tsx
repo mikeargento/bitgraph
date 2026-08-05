@@ -658,7 +658,6 @@ export default function BitGraphPage() {
           dir: b.dir,
           fileName: b.fileName,
           counter: (b.proof as ExportProof).commit?.counter ?? null,
-          digest: (b.proof as ExportProof).artifact?.digestB64 ?? null,
           before: b.sides.before,
           after: b.sides.after,
         }))));
