@@ -94,20 +94,22 @@ export function SiteNav() {
               Not "Usage", which on a technical site reads as consumption or
               quota. Not "Recordings"/"Records", which collide with the proof
               page's own Recordings card.
-              2026-08-05: renamed to "Applications", Mike's explicit call,
-              superseding the earlier width rejection (it measured 266px of the
-              288 available at 320px — tight, not overflowing). Re-measure at
-              320px before anything in this bar grows further.
+              2026-08-05: "Applications" for a few hours, then "Use cases" —
+              both Mike's explicit calls, and the second knowingly readmits
+              the register the 08-02 rename walked away from; his product,
+              his word. Narrower than "Applications" was, so the 320px bar
+              (which "Applications" filled to exactly 288 of 288) has slack
+              again. Re-measure at 320px before anything in this bar grows.
               The ROUTE stays /subjects on purpose: /applications shipped as a
-              PERMANENT 308 to /uses on 2026-07-27, so any browser holding that
-              cached redirect would loop if /applications became a real page.
-              /uses and /why still redirect here. */}
+              PERMANENT 308 to /uses on 2026-07-27, and /uses 308s onward, so
+              reviving either path as a real page risks a cached-redirect
+              loop. /uses and /why still redirect here. */}
           <Link
             href="/subjects"
             aria-current={pathname === "/subjects" ? "page" : undefined}
             style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
           >
-            Applications
+            Use cases
           </Link>
           {/* Roll — the ledger, now on its own /roll page (no longer embedded
               under the home camera), so the nav is its way in. */}

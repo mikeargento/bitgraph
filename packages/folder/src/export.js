@@ -17,11 +17,10 @@
 // schema shape rather than by filename), and deletable with nothing lost.
 //
 //   index.html                                  the contact sheet
-//   random-494.txt                              the file, exactly where dropped
 //   Recordings/
 //       BitGraph (random-494.txt)/
 //           proof.json
-//           random-494.txt                      a hard link to the file above
+//           random-494.txt                      the original bytes, moved in
 //           index.html                          the recording's own page
 //           ethereum-anchors/
 //               anchor-before.json              lower bound
@@ -29,19 +28,22 @@
 //               anchor-after.json               upper bound, the seal
 //               anchor-after-witness.json       its block header
 //
-//   A dropped file STAYS WHERE THE PERSON PUT IT (1.8.0; drops used to be
-//   consumed into their exports, and "users could lose their place"). The
-//   export takes a hard link — a second name for the same bytes, no extra
-//   disk — so the top level is the person's own arrangement and Recordings/
-//   is the proof material. Exports found flat at the top level (an older
-//   layout, or an old export dragged back in) are tucked into Recordings/ by
-//   the next index pass; discovery is by content everywhere, so both shapes
-//   keep working throughout.
+//   The top level is the drop zone and stays empty at rest: the shutter and
+//   the archive are different places. Exports found flat at the top level
+//   (an older layout, or an old export dragged back in) are tucked into
+//   Recordings/ by the next index pass; discovery is by content everywhere,
+//   so both shapes keep working throughout.
 //
-// files/ is GONE (1.8.0). It existed so every recorded file could be dragged
-// out in one go; the files now simply stay at the top level, and the site's
-// drop zone walks a dropped folder, so the parallel tree lost both jobs.
-// writeIndex dissolves an existing one safely — see the migration there.
+// files/ is GONE (1.8.0, Mike's call). It held a parallel hard link per
+// recorded file so everything could be dragged out at once; the site's drop
+// zone walks a whole dropped folder now, so it lost its job. writeIndex
+// dissolves an existing one safely — see the migration there. What it also
+// means: the export holds this folder's ONLY copy of the file, so deleting an
+// export sends the file inside it to the Trash with it. The person who wants
+// their original kept elsewhere keeps it elsewhere: a plain same-disk drag
+// into any folder is a MOVE and that is Finder's rule, not ours — copy-paste
+// or Option-drag is how a copy comes in (asked and settled 2026-08-05; a
+// droplet app was offered and declined, "i want it to remain a folder").
 //
 // No archive is written: bitgraph-audit ingests a directory directly and
 // discovers entries by schema shape rather than by filename, so the folder
@@ -619,10 +621,10 @@ function baseName(p) {
 // zone walking a whole dropped folder took the other half of the job.
 var FILES_DIR = 'files';
 
-// Where exports live: one level down, out of the person's way. The top level
-// is THEIR arrangement — dropped files stay exactly where they were put
-// (1.8.0) — and Recordings/ is the proof material grown beside it. The
-// machinery (.thumbs, the caches) is dotfile-hidden.
+// Where exports live: one level down, so the folder a person drops into stays
+// EMPTY at rest. The top level is the shutter, Recordings/ is the roll, and
+// the reason the folder used to read as messy is that they were the same
+// place. The machinery (.thumbs, the caches) is dotfile-hidden.
 //
 // ⚠️ The website's export ZIP stays FLAT, deliberately. A zip is a snapshot
 // that never grows; this container exists to keep a LIVING folder calm. That
@@ -639,28 +641,45 @@ function dirName(p) {
 /**
  * Put the recorded file into its export.
  *
- * A drop NEVER MOVES the file (1.8.0; it did, and "users could lose their
- * place"). The person's copy stays exactly where they put it, and the export
- * takes a hard link — a second name for the same bytes, no disk, no drift.
- * The copy is the fallback for a source on another volume, which a recovery
- * from an external backup drive always is.
+ * A drop MOVES. The file was handed to the folder, and the export is where it
+ * now lives. (Settled twice, 2026-08-05: what Mike wanted preserved was the
+ * ORIGIN the file was dragged FROM, and by the time the watcher sees a file
+ * Finder has already moved it off its origin — a same-disk drag into any
+ * folder is a move, and that is Finder's rule, not ours. Copy-paste or
+ * Option-drag is how a copy comes in; a droplet app that would have made
+ * drops copy was offered and declined, "i want it to remain a folder". So
+ * the folder absorbs what actually enters it, and "stays where dropped" —
+ * briefly shipped between those two decisions — was a misreading.)
  *
- * The shared bytes cut both ways, and that is a feature: an application that
- * writes IN PLACE through the person's copy alters the export's bytes too,
- * and the recording's own page reports the mismatch in red. Almost nothing on
- * macOS writes in place — the normal save is write-and-rename, which breaks
- * the link, leaves the export's bytes untouched, and makes the saved file an
- * ordinary new drop.
+ * A recovery must not move, which is what `keepSource` is for: its source is
+ * the user's own library or a backup, and emptying that out would be a second
+ * loss on top of the one being repaired. It links instead, which is not a
+ * copy but a second name for the same bytes, so it costs no disk and cannot
+ * drift. The copy is the fallback for a source on another volume, which an
+ * external backup drive always is.
  *
- * Never clobbers the artifact. If the export already holds the file, whatever
- * put it there already finished, and `from` and `to` can even be the same
- * path in a recovery. Overwriting is how the 2026-08-04 feedback loop
+ * Never clobbers the artifact. If the export already holds the file then the
+ * move this is finishing already happened, and in a recovery `from` and `to`
+ * can even be the same path. Overwriting is how the 2026-08-04 feedback loop
  * destroyed six recorded files, so the rule here is that an artifact already
- * in place wins — and the person's copy is never deleted, for any reason.
+ * in place wins.
  */
-function placeArtifact(from, to) {
+function placeArtifact(from, to, keepSource) {
   if (!exists(from)) return;
-  if (exists(to)) return;
+  if (exists(to)) {
+    // Two names, same bytes: a drop that arrived twice. The export already has
+    // what it needs, so the duplicate at the top level is just litter and goes.
+    // Only ever when the digests agree, because deleting a file that is NOT
+    // already safely inside the export would be losing it.
+    if (!keepSource && digestOfFile(from) === digestOfFile(to)) {
+      sh('rm -f ' + quote(from));
+    }
+    return;
+  }
+  if (!keepSource) {
+    sh('mv ' + quote(from) + ' ' + quote(to));
+    return;
+  }
   if (sh('ln ' + quote(from) + ' ' + quote(to) + ' 2>/dev/null && echo ok') === 'ok') return;
   sh('cp -p ' + quote(from) + ' ' + quote(to));
 }
@@ -696,10 +715,10 @@ var BATCH_DROP = false;
  * inside vacation/, complete with its own contact sheet, instead of joining the
  * others at the top level.
  *
- * The source file is never touched: drops and recoveries alike leave it where
- * it is and the export links to it. See placeArtifact.
+ * `keepSource` leaves the original where it is instead of moving it in, which
+ * is what a recovery needs and a drop must never do. See placeArtifact.
  */
-function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
+function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, keepSource) {
   var fileName = baseName(filePath);
   var folder = destFolder || dirName(filePath);
 
@@ -708,10 +727,11 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
 
   var r = resolveDir(folder, counter, epochUrlSafe, digestB64, fileName);
   if (r.alreadyBuilt) {
-    // A re-fired watch must not redo the work. Still place the link, so an
+    // A re-fired watch must not redo the work. Still finish the move: an
     // export whose artifact went missing (a run that died mid-build, a hand
-    // deletion) is made whole by the next drop of the same bytes.
-    placeArtifact(filePath, r.dir + '/' + fileName);
+    // deletion) is made whole by the next drop of the same bytes, and a
+    // duplicate of bytes already inside is cleaned up as litter.
+    placeArtifact(filePath, r.dir + '/' + fileName, keepSource);
     return 'ok: already exported';
   }
   mkdirp(r.dir);
@@ -725,9 +745,8 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
   var sealed = writeExportContents(r.dir, meta, proof, BATCH_DROP ? 0 : SEAL_WAIT_MS);
   markPending(r.dir, meta, sealed);
 
-  // Linked in last, so a failure above never leaves a half-built export
-  // claiming the file.
-  placeArtifact(filePath, r.dir + '/' + fileName);
+  // Moved in last, so a failure above never strands the file.
+  placeArtifact(filePath, r.dir + '/' + fileName, keepSource);
 
   // Refresh the contact sheet, and never let it break a recording. The proof
   // is already written and sealed by this point; index.html is a derived view,
@@ -2541,7 +2560,7 @@ function buildDrop(manifestPath, folder, responsesDir) {
     if (!path) continue;
     var out;
     try {
-      out = String(buildExport(path, f[i + 1], f[i + 2], f[i + 3], folder));
+      out = String(buildExport(path, f[i + 1], f[i + 2], f[i + 3], folder, false));
     } catch (e) {
       out = 'error: ' + (e && e.message ? e.message : String(e));
     }
@@ -2703,7 +2722,7 @@ function recoverInto(source, destFolder) {
         // positions is BitGraph Again, which is two recordings and was two
         // exports before they were lost.
         found.forEach(function (q) {
-          var out = String(buildExport(rec.paths[0], rec.digestB64, q.counter, q.epoch, folder));
+          var out = String(buildExport(rec.paths[0], rec.digestB64, q.counter, q.epoch, folder, true));
           if (out.indexOf('ok: already exported') === 0) {
             already++;
             note('  already here   ' + name + '  #' + q.counter);

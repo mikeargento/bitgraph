@@ -3,35 +3,40 @@
 A folder on your Desktop that records whatever you put in it.
 
 Drop a file in. It gets hashed on your machine, the digest is recorded at a
-causal position on the BitGraph ledger, and an export folder grows beside it
-holding its proof and the Ethereum anchors that bracket it.
+causal position on the BitGraph ledger, and the file comes back wrapped in an
+export folder holding its proof and the Ethereum anchors that bracket it.
 
 ```
 BitGraph/
     index.html                every recording, as a contact sheet
-    sunset.jpg                your file, exactly where you put it
     Recordings/
         BitGraph (sunset.jpg)/
             proof.json
-            sunset.jpg        a hard link to your file, not a copy
+            sunset.jpg
             index.html
             ethereum-anchors/
                 anchor-before.json    anchor-before-witness.json
                 anchor-after.json     anchor-after-witness.json
 ```
 
-Your file stays exactly where you put it — dropping something in never moves
-it, so nothing you file away can lose its place. The export holds a hard link
-to it: the same bytes under a second name, no extra disk. Recordings land in
-`Recordings/`, and an export from an older version, or one you drag back in
-from anywhere, is tucked in there on the next pass.
+The top level is the place you drop things, and it stays empty: the shutter
+and the archive are different places. Recordings land in `Recordings/`, and an
+export from an older version, or one you drag back in from anywhere, is tucked
+in there on the next pass.
+
+One thing worth knowing about the drag itself: on macOS, dragging a file into
+any folder on the same disk MOVES it — that is Finder, not BitGraph. If you
+want your original to stay where it was, copy-paste it in, or hold Option
+while dragging.
 
 Dropping a file that is already on record is answered too: the folder tells
-you it is already on record and rebuilds its export if the export has gone
-missing. (Versions before 1.8.0 held a `files/` folder of hard links so the
-recorded files could be dragged out in one go; the files simply staying put
-made it redundant, and it is dissolved safely on the first pass after
-updating.)
+you it is already on record, rebuilds its export if the export has gone
+missing, and tidies away the duplicate. (Versions before 1.8.0 held a
+`files/` folder of hard links so the recorded files could be dragged out in
+one go; the site's drop zone can check a whole dragged folder now, which made
+it redundant, and it is dissolved safely on the first pass after updating.
+Since the export now holds this folder's only copy, deleting an export sends
+the file inside it to the Trash with it.)
 
 Each folder inside `Recordings/` is the same thing you would get by recording
 the file on [bitgraph.ing](https://bitgraph.ing) and downloading the export
@@ -199,12 +204,10 @@ different drives.
 and no daemon sitting in memory. When the folder changes, the watcher:
 
 1. Hashes each new file, waiting for its size to settle first so a file still
-   being copied is never hashed mid-write; files already settled on an earlier
-   run are skipped without rehashing
+   being copied is never hashed mid-write
 2. Asks the ledger whether those bytes are already on it
 3. Records the digest if they are not
-4. Builds the export folder, which takes a hard link to the file; the file
-   itself stays where you put it
+4. Builds the export folder and moves the file into it
 
 Hidden files and export folders are skipped, so recordings are not rescanned.
 
