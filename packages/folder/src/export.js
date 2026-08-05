@@ -471,9 +471,18 @@ function dirName(p) {
 }
 
 /** Build a fresh export folder for one recorded file. */
-function buildExport(filePath, digestB64, counter, epochUrlSafe) {
+/**
+ * Build the export for one recorded file.
+ *
+ * `destFolder` is where the export goes, which is normally the directory the
+ * file sits in and is not when the file came from a folder someone dragged in.
+ * Without it a photo at BitGraph/vacation/001.jpg would have its export built
+ * inside vacation/, complete with its own contact sheet, instead of joining the
+ * others at the top level.
+ */
+function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
   var fileName = baseName(filePath);
-  var folder = dirName(filePath);
+  var folder = destFolder || dirName(filePath);
 
   var proof = fetchProof(digestB64, counter);
   if (!proof) return 'error: no proof at #' + counter + ' for ' + fileName + ', file left in place';
@@ -1700,9 +1709,9 @@ function run(argv) {
       return completePending(argv[1]);
     }
     if (argv.length < 4) {
-      return 'error: usage: export.js <file> <digestB64> <counter> <epochUrlSafe>';
+      return 'error: usage: export.js <file> <digestB64> <counter> <epochUrlSafe> [destFolder]';
     }
-    return buildExport(argv[0], argv[1], argv[2], argv[3]);
+    return buildExport(argv[0], argv[1], argv[2], argv[3], argv[4]);
   } catch (e) {
     return 'error: ' + (e && e.message ? e.message : String(e));
   }

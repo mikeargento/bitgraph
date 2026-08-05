@@ -1,18 +1,21 @@
 #!/bin/bash
 # BitGraph Folder: record every file dropped into the watched folder.
 #
-# Triggered by launchd (WatchPaths) whenever the folder changes. Scans the top
-# level only, skips hidden files and directories, waits for a file's size to go
-# stable before hashing (so half-copied files are never hashed), then checks the
-# digest against the ledger and records only if the bytes are not already on it.
+# Triggered by launchd (WatchPaths) whenever the folder changes. Takes every
+# file dropped in, INCLUDING the contents of a folder someone dragged in, which
+# a browser cannot offer and this can. Skips hidden files and its own
+# directories, waits for a file's size to go stable before hashing (so
+# half-copied files are never hashed), then checks the digest against the ledger
+# and records only if the bytes are not already on it.
 #
 # Only the SHA-256 digest leaves the machine. File contents never do.
 #
-# Each handled file is then wrapped by export.js into a bitgraph-proof-<N>/
-# folder holding proof.json, an ethereum-anchors/ subfolder with the bracketing
-# anchors and their block header witnesses, and the file itself. This is the
-# same layout the website's proof-page export produces. The dropped file is
-# MOVED in, so the folder holds one export per drop and nothing loose.
+# Each handled file is then wrapped by export.js into a `BitGraph (name)/` folder
+# holding proof.json, an ethereum-anchors/ subfolder with the bracketing anchors
+# and their block header witnesses, and the file itself. This is the same layout
+# the website's proof-page export produces. The dropped file is MOVED in, so the
+# folder holds one export per drop and nothing loose, and a dragged-in folder is
+# left empty and removed.
 #
 # Receipts: a macOS notification per outcome, and the export folder itself.
 # Diagnostics go to stderr, which launchd writes to the error log configured in
@@ -77,18 +80,40 @@ parse_json() { # $1 batch|commit, $2 response file
 # so nothing else here may touch it afterwards. Never fatal: the recording
 # already stands on its own, the export is only the packaging.
 export_drop() { # $1 file, $2 digest, $3 counter, $4 epoch
-  result=$("$OSASCRIPT" -l JavaScript "$EXPORTER" "$1" "$2" "$3" "$4" 2>&1)
+  # The destination is always the watched folder, never the file's own
+  # directory, so a photo that came out of a dragged-in folder lands beside
+  # every other recording instead of building an export inside that folder.
+  result=$("$OSASCRIPT" -l JavaScript "$EXPORTER" "$1" "$2" "$3" "$4" "$FOLDER" 2>&1)
   case "$result" in
     ok*) ;;
     *) log "export: $result" ;;
   esac
 }
 
+# Everything droppable, including the contents of a folder someone dragged in.
+#
+# Dragging a folder of photos used to do NOTHING: the loop tested `-f` and moved
+# on, with no log line and no notification, which is indistinguishable from a
+# dead watcher. It is also the obvious thing to try, and the one thing a browser
+# cannot offer, so the folder should be better at it than the website rather
+# than worse.
+#
+# Ours are pruned rather than descended into: files/ holds hard links to things
+# already recorded, .thumbs/ is generated, and any directory carrying a
+# proof.json is an export. Recursive, because a folder of folders of photos is
+# still a folder of photos.
+droppable() {
+  find "$FOLDER" -mindepth 1 \
+    \( -name '.*' \
+       -o -name files \
+       -o \( -type d -exec test -e '{}/proof.json' ';' \) \
+    \) -prune -o -type f -print0
+}
+
 # Finish any export still waiting on the anchor that seals it.
 "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" >/dev/null 2>&1 || true
 
-for f in "$FOLDER"/*; do
-  [ -f "$f" ] || continue
+while IFS= read -r -d '' f; do
   name=$(basename "$f")
   # index.html is written BY the exporter into this very folder, so recording
   # it would be a feedback loop: writing it trips the watch, the watch records
@@ -200,4 +225,13 @@ for f in "$FOLDER"/*; do
       notify "Not recorded" "$name failed; see $HOME_DIR/hotfolder.err"
       ;;
   esac
-done
+# Process substitution, not a pipe: a piped `while` runs in a subshell, so every
+# variable it set would be discarded at the end of the loop.
+done < <(droppable)
+
+# A dragged-in folder is empty once its files have moved into their exports, so
+# the husk goes. -depth collapses nested ones from the inside out. Only ever
+# EMPTY directories, and never ours, so nothing of the user's is ever removed
+# with anything still in it.
+find "$FOLDER" -mindepth 1 -depth -type d -empty ! -name '.*' ! -name files \
+  -exec rmdir {} ';' 2>/dev/null || true
