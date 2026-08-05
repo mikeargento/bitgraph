@@ -421,8 +421,13 @@ function baseName(p) {
 // untouched. And if bytes ever did change, the recording's own page says so in
 // red, which is the product working rather than failing.
 //
-// Derived, like the contact sheet. Delete the whole folder and the next drop or
-// `--index` rebuilds it.
+// Rebuilt by `--index` for every export still on disk, so deleting the folder
+// costs nothing while the exports are there.
+//
+// NOT pruned when an export is deleted, and deliberately so: at that moment the
+// link here is the LAST COPY of those bytes, because a drop moves the file in
+// rather than copying it. Tidying it away would delete the user's photo to keep
+// a derived folder neat. Losing a recording must never mean losing the file.
 var FILES_DIR = 'files';
 
 /** True when two paths are the same bytes on disk rather than two copies. */
@@ -825,6 +830,57 @@ function embedImage(dir, file, digestB64) {
   return null;
 }
 
+// ---- Thumbnails -----------------------------------------------------------
+//
+// The contact sheet drew its cells from the full-resolution originals, scaled
+// down by CSS. Measured on a three-recording folder: index.html is under 4KB
+// and pulled 425KB of image to draw three 230px cells. At eighteen phone photos
+// that is roughly 50MB decoded to fill a grid, and it grows with the folder.
+//
+// So each image gets one small copy here, and the sheet points at that instead.
+// A separate file rather than a data: URI in the page, because index.html is
+// rewritten on EVERY drop: embedding would mean rewriting a multi-megabyte file
+// each time, growing without bound. The page stays about 4KB and the browser
+// pulls roughly 40KB per visible cell, lazily.
+//
+// Hidden, derived, and deletable as a group. Nothing verifies against these,
+// `--index` rebuilds any that are missing, and the export folders themselves
+// are untouched: a thumbnail never goes inside the thing being proved.
+//
+// Named for the export folder, which is already unique, so two photos that
+// share a filename cannot collide here either.
+var THUMBS_DIR = '.thumbs';
+// 600px for a cell that packs to roughly 230-300px, so it still holds up on a
+// retina display without carrying a full-size photo to do it.
+var THUMB_WIDTH = 600;
+
+/**
+ * A small copy of an export's image for the sheet, made once and reused.
+ *
+ * Returns a path relative to the folder, or null to fall back to the original,
+ * which is what happens for a format sips cannot read.
+ */
+function thumbFor(folder, name, file) {
+  if (IMAGE_EXT.indexOf(extOf(file)) === -1) return null;
+  var rel = THUMBS_DIR + '/' + name + '.jpg';
+  var abs = folder + '/' + rel;
+  if (!exists(abs)) {
+    mkdirp(folder + '/' + THUMBS_DIR);
+    // `-s format jpeg` for the reason embedImage carries it: without it sips
+    // silently writes nothing for a WEBP.
+    sh('sips -s format jpeg -Z ' + THUMB_WIDTH + ' --out ' + quote(abs) + ' ' +
+      quote(folder + '/' + name + '/' + file) + ' >/dev/null 2>&1');
+    if (!exists(abs)) return null;
+  }
+  return encodePath(rel);
+}
+
+/** Drop thumbnails whose export no longer exists. One call, after the scan. */
+function pruneThumbs(folder) {
+  sh('cd ' + quote(folder + '/' + THUMBS_DIR) + ' 2>/dev/null && for t in *.jpg; do ' +
+    '[ -e "$t" ] || continue; d="${t%.jpg}"; [ -d "../$d" ] || rm -f "$t"; done; true');
+}
+
 /** The recorded file in an export: not the proof, the anchors, or a marker. */
 function artifactIn(dir) {
   var listing = sh('ls -1 ' + quote(dir) + ' 2>/dev/null');
@@ -1012,9 +1068,14 @@ function indexRow(folder, name, mtime) {
   // actually wanted.
   var page = encodePath(name) + '/index.html';
 
+  // A small copy where one can be made, the original where it cannot. The
+  // difference is the whole page's weight: originals meant pulling megabytes to
+  // draw 230px cells.
+  var shown = (isImage && thumbFor(folder, name, file)) || rel;
+
   var thumb = isImage
     // loading=lazy so a folder with hundreds of recordings still opens at once.
-    ? '<a class="t" href="' + page + '"><img src="' + rel + '" alt="" loading="lazy"></a>'
+    ? '<a class="t" href="' + page + '"><img src="' + shown + '" alt="" loading="lazy"></a>'
     : isPdf
       ? '<a class="t pdf" href="' + page + '"><embed src="' + rel + PDF_VIEW + '" type="application/pdf"></a>'
       : file && VIDEO_EXT.indexOf(extOf(file)) !== -1
@@ -1508,6 +1569,12 @@ function writeIndex(folder) {
       /* the sheet is the job here; a missing link costs nothing */
     }
   });
+  // Derived folders are only honest if they are also tidied.
+  try {
+    pruneThumbs(folder);
+  } catch (err) {
+    /* a stale thumbnail is harmless and goes on the next pass */
+  }
 
   var body = rows.length
     ? '<ul>' + rows.join('') + '</ul>'
