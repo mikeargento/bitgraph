@@ -680,7 +680,12 @@ export default function BitGraphPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = withProofs.length === 1 ? `${withProofs[0].file.name.replace(/\.[^.]+$/, "")}-bitgraph.zip` : "bitgraph-proof-batch.zip";
+    // The Folder's naming, in both arities: one file is `BitGraph (name).zip`
+    // exactly as its export folder would be called, and a batch says what it
+    // holds instead of "batch". Two other schemes lived here before.
+    a.download = withProofs.length === 1
+      ? `BitGraph (${withProofs[0].file.name.replace(/[\x00-\x1f\x7f/]/g, " ").trim()}).zip`
+      : `BitGraph (${withProofs.length} files).zip`;
     a.click();
     URL.revokeObjectURL(url);
     setStep("results");

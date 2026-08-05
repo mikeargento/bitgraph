@@ -657,7 +657,14 @@ export default function ProofPage() {
     const zipped = zipSync(files, { level: 0 });
     const blob = new Blob([zipped as unknown as BlobPart], { type: "application/zip" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `bitgraph-proof-${commit.counter}.zip`; a.click();
+    // Named the way the Folder names its exports, so the zip expands into an
+    // identically named folder and the two stay interchangeable. The counter
+    // scheme this replaces was rejected for folder names long ago (a counter
+    // is a position within one epoch and identifies nothing across days); the
+    // zip had kept it. Without a file in hand there is no label, and a bare
+    // "BitGraph.zip" beats advertising a number that means nothing tomorrow.
+    const zipLabel = cachedFile?.name ? ` (${cachedFile.name.replace(/[\x00-\x1f\x7f/]/g, " ").trim()})` : "";
+    const a = document.createElement("a"); a.href = url; a.download = `BitGraph${zipLabel}.zip`; a.click();
     URL.revokeObjectURL(url);
     } catch (e) { console.error("[bitgraph] export error:", e); alert("Export failed: " + e); }
     finally { setExporting(false); }
