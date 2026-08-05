@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { formatFileSize } from "@/lib/bitgraph";
+import { entriesFromDataTransfer, walkEntries, type WalkedFile } from "@/lib/folder-check";
 
 /* Creating a BitGraph is always a SELECTION of a file that already exists —
    no step in the process may create anything (doctrine, 2026-07-31). Two
@@ -27,6 +28,10 @@ interface FileDropProps {
   /** Multi-file mode */
   multiple?: boolean;
   onFiles?: (files: File[]) => void;
+  /** When set, a drop containing a DIRECTORY is walked read-only and handed
+      over as a flat file list with relative paths — the drop zone detecting
+      what it was given, no mode switch. Plain-file drops are untouched. */
+  onFolder?: (walked: WalkedFile[]) => void;
   files?: File[];
   onRemoveFile?: (index: number) => void;
   onClearAll?: () => void;
@@ -54,6 +59,7 @@ export function FileDrop({
   onClear,
   multiple,
   onFiles,
+  onFolder,
   files,
   onRemoveFile,
   onClearAll,
@@ -87,12 +93,24 @@ export function FileDrop({
       e.preventDefault();
       setDragover(false);
       if (disabled) return;
+      // Folder drops: the entry handles MUST be captured synchronously —
+      // DataTransferItemList is neutered after the first await. Only a drop
+      // that actually contains a directory takes this path (entries is null
+      // otherwise); dataTransfer.files would show a folder as a useless
+      // 0-byte pseudo-file, so walking is also the only correct reading.
+      if (onFolder) {
+        const entries = entriesFromDataTransfer(e.dataTransfer);
+        if (entries) {
+          void walkEntries(entries).then((walked) => { if (walked.length) onFolder(walked); });
+          return;
+        }
+      }
       const dropped = selectExisting(Array.from(e.dataTransfer.files));
       if (!dropped.length) return;
       if (multiple && onFiles) onFiles(dropped);
       else if (onFile) onFile(dropped[0]);
     },
-    [onFile, onFiles, multiple, disabled, selectExisting]
+    [onFile, onFiles, onFolder, multiple, disabled, selectExisting]
   );
 
   const handleInputChange = useCallback(

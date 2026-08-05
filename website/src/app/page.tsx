@@ -17,6 +17,7 @@ import {
   type BitGraphProof,
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
+import { discoverDrop, checkExports, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
@@ -54,11 +55,21 @@ interface FileItem {
 // (File objects intact — no serialization). A hard reload (the logo's
 // documented "start over" gesture) still wipes it.
 let cachedResults: FileItem[] | null = null;
+// Same survival rule for a dropped folder's check verdicts (the File objects
+// inside are only used again for click-through caching, so nothing serializes).
+let cachedChecked: ExportCheckResult[] | null = null;
 
 export default function BitGraphPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>(() => (cachedResults?.length ? "results" : "drop"));
+  const [step, setStep] = useState<Step>(() => (cachedResults?.length || cachedChecked?.length ? "results" : "drop"));
   const [items, setItems] = useState<FileItem[]>(() => cachedResults ?? []);
+  // Verdicts for a dropped folder of BitGraph exports (the skeptic's drop):
+  // one entry per export directory found in the drop, in walk order.
+  const [checked, setChecked] = useState<ExportCheckResult[]>(() => cachedChecked ?? []);
+  // True while checkExports is doing its per-export ledger work, so the
+  // checking wait shows a live count even for small folders (each export is
+  // its own round trips, unlike the one-request digest lookup).
+  const [folderChecking, setFolderChecking] = useState(false);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
   // Ledger-check progress (digests looked up). Only meaningful when the check
   // is chunked (large drops); a single-request check has nothing to count.
@@ -85,6 +96,9 @@ export default function BitGraphPage() {
   useEffect(() => {
     if (step === "results" && items.length > 0) cachedResults = items;
   }, [step, items]);
+  useEffect(() => {
+    if (step === "results" && checked.length > 0) cachedChecked = checked;
+  }, [step, checked]);
 
   // Start 15s countdown when proofs finish (waiting for next ETH anchor)
   const endTimeRef = useRef<number>(0);
@@ -169,8 +183,11 @@ export default function BitGraphPage() {
 
   /* ── Drop → Scan ── */
 
-  async function handleFiles(files: File[]) {
-    setStep("scanning");
+  // Phases 1-3 of a drop — hash locally, one batched ledger lookup, assemble
+  // in drop order. Shared by the plain-file flow (handleFiles, which adds the
+  // solo routing and auto-record) and the folder-check flow, whose stray
+  // files ride the same scan with none of the routing.
+  async function scanFiles(files: File[]): Promise<FileItem[]> {
     setScanPhase("reading");
     setScanProgress({ current: 0, total: files.length });
 
@@ -293,6 +310,13 @@ export default function BitGraphPage() {
       return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const };
     }));
 
+    return results;
+  }
+
+  async function handleFiles(files: File[]) {
+    setStep("scanning");
+    const results = await scanFiles(files);
+
     // One file in, one page out. A single artifact drop always lands on its
     // proof page, with no button in between: the drop IS the shutter.
     //   - already recorded  → open its existing proof (a lookup).
@@ -365,6 +389,65 @@ export default function BitGraphPage() {
     // results list; for a large drop (1000+) that looked hung near the end and
     // took far too long. The final number just appears.
     setAnimCount(results.filter(r => r.status === "found").length);
+  }
+
+  /* ── Folder drop: the skeptic's drop ── */
+
+  // The drop zone detected a directory. Discovery is by content, the same
+  // rule as the Folder and bitgraph-audit: directories holding a proof.json
+  // are exports and get the three-sided check (bytes vs proof, proof vs
+  // ledger at the claimed position, anchors vs chain); a folder with no
+  // proof.json anywhere is just files and takes the ordinary flow — which
+  // also finally makes "drag the files/ folder itself" work without
+  // select-all. Every step is a read; nothing here can record.
+  async function handleFolder(walked: WalkedFile[]) {
+    const scan = discoverDrop(walked);
+    if (scan.exports.length === 0) {
+      if (scan.strays.length) void handleFiles(scan.strays);
+      return;
+    }
+    setStep("scanning");
+    setScanPhase("reading");
+    setScanProgress({ current: 0, total: 0 });
+    setCheckProgress({ current: 0, total: 0 });
+    setFolderChecking(true);
+    try {
+      const results = await checkExports(scan.exports, {
+        onHash: (current, total) => setScanProgress({ current, total }),
+        onCheck: (current, total) => {
+          setScanPhase("checking");
+          setCheckProgress({ current, total });
+        },
+      });
+      // Files in the drop that belong to no export are just files: hash and
+      // look them up like any other drop (their card renders below the
+      // verdicts), with none of the solo routing.
+      const strayItems = scan.strays.length ? await scanFiles(scan.strays) : [];
+      setChecked(results);
+      setItems(strayItems);
+      setAnimCount(strayItems.filter(r => r.status === "found").length);
+      setStep("results");
+    } catch (e) {
+      console.error("[bitgraph] folder check failed:", e);
+      setStep("drop");
+    } finally {
+      setFolderChecking(false);
+    }
+  }
+
+  // Open a verdict row's proof page, pinned to the claimed position. The
+  // artifact bytes are cached for the page only when they matched the proof —
+  // caching differing bytes under the proof's digest would show the wrong
+  // image on the record's own page.
+  function openCheckedRow(r: ExportCheckResult) {
+    if (!r.onLedger || !r.digestUrlSafe) return;
+    if (r.matchedFile && r.proof) {
+      void cacheArtifactToIDB(r.matchedFile, r.proof.artifact.digestB64).catch((e) => console.error("[bitgraph] cache error:", e));
+    }
+    const sel = r.counter
+      ? `?counter=${encodeURIComponent(r.counter)}${r.epochUrlSafe ? `&epoch=${encodeURIComponent(r.epochUrlSafe)}` : ""}`
+      : "";
+    router.push(`/proof/${encodeURIComponent(r.digestUrlSafe)}${sel}`);
   }
 
   /* ── Prove unproven files ── */
@@ -845,6 +928,7 @@ export default function BitGraphPage() {
                   multiple
                   onFile={(f) => handleFiles([f])}
                   onFiles={handleFiles}
+                  onFolder={handleFolder}
                   hint="Drag and drop, or click to choose."
                   subhint="Your file never leaves your device."
                 />
@@ -885,7 +969,10 @@ export default function BitGraphPage() {
         ) : (
           <div className="bitgraph-wait">
             <div role="status" aria-label="Checking the ledger" style={waitSpinner} />
-            {checkProgress.total > 50 ? (
+            {/* Digest lookups are one round trip and only worth counting when
+                chunked; a folder check is per-export round trips, so its count
+                is live from the first export. */}
+            {checkProgress.total > 50 || (folderChecking && checkProgress.total > 0) ? (
               <>
                 <div style={waitLabel}>Checking {checkProgress.current} of {checkProgress.total}</div>
                 <div style={waitTrack}>
@@ -937,7 +1024,7 @@ export default function BitGraphPage() {
         )}
 
         {/* ── Results ── */}
-        {step === "results" && items.length > 0 && (
+        {step === "results" && (items.length > 0 || checked.length > 0) && (
           <div style={{ animation: "slideIn 0.3s ease-out", display: "flex", flexDirection: "column", gap: 24 }}>
 
               {/* No drop box here: the results page is a terminal "here's what you
@@ -946,6 +1033,68 @@ export default function BitGraphPage() {
                   screen (it force-reloads home). Matches the proof page, which
                   also has no camera. */}
 
+              {/* ── The skeptic's drop: verdicts for a dropped folder of
+                  exports. Same receipt + rows grammar as the rest of this
+                  page; the verdict speaks the two-outcome color language —
+                  blue "matches the ledger", red naming the side that
+                  differed. Factual phrasing only, and NO buttons: the drop
+                  triggered everything, the rows just report. ── */}
+              {checked.length > 0 && (() => {
+                const okCount = checked.filter((c) => c.ok).length;
+                return (
+                  <div>
+                    <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 10 }}>
+                      BitGraph{checked.length === 1 ? "" : "s"} Checked
+                    </div>
+                    <div style={{ background: "#fff", border: "1px solid #d0d5dd", padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 10 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                        {okCount} of {checked.length} {okCount === 1 ? "matches" : "match"} the ledger
+                      </span>
+                      {okCount < checked.length && (
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", whiteSpace: "nowrap" }}>
+                          {checked.length - okCount} {checked.length - okCount === 1 ? "does" : "do"} not
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {checked.map((r, i) => {
+                        const clickable = r.onLedger && !!r.digestUrlSafe;
+                        return (
+                          <div key={r.dirName + i} className="bitgraph-file-card" data-clickable={clickable} style={{ border: "1px solid #d0d5dd", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
+                            <div
+                              role={clickable ? "button" : undefined}
+                              tabIndex={clickable ? 0 : undefined}
+                              onClick={clickable ? () => openCheckedRow(r) : undefined}
+                              onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCheckedRow(r); } } : undefined}
+                              className={`bitgraph-result-row${clickable ? " bitgraph-file-row" : ""}`}
+                              style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: clickable ? "pointer" : "default" }}
+                            >
+                              {/* Left — the claimed position, in the verdict's
+                                  color. A proof too broken to carry one gets
+                                  a dash. */}
+                              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: r.ok ? "#0065A4" : "#dc2626", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                                {r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "—"}
+                              </span>
+                              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {r.fileName ?? r.dirName}
+                              </span>
+                              <span style={{ flexShrink: 0, maxWidth: "45%", fontSize: 12.5, fontWeight: 600, color: r.ok ? "#0065A4" : "#dc2626", textAlign: "right" }}>
+                                {r.ok ? "matches the ledger" : r.failure}
+                              </span>
+                              {clickable && (
+                                <span aria-label="Open" style={{ display: "inline-flex", flexShrink: 0, color: "#0065A4" }}>
+                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* The whole batch state lives in one receipt card (same anatomy
                   as the proof page's receipt): count + export in the body, and
                   when files remain unrecorded, a Record row in the arrow-link
@@ -953,6 +1102,7 @@ export default function BitGraphPage() {
               {/* Title sits above the card as a page heading, the same way the
                   proof page and the Roll title their content. Wrapped so the
                   column's 24px gap applies below the card, not under the title. */}
+              {items.length > 0 && (<>
               <div>
               <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 10 }}>
                 BitGraph{items.length === 1 ? "" : "s"} Recorded
@@ -1118,6 +1268,7 @@ export default function BitGraphPage() {
                 );
               })}
             </div>
+            </>)}
 
           </div>
         )}
