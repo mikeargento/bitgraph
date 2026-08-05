@@ -1094,6 +1094,48 @@ function anchorInfo(dir) {
   return { before: read('before'), after: read('after') };
 }
 
+/**
+ * Where a recording sits in causal order, which is the only order this folder
+ * has an opinion about.
+ *
+ * The key is the Ethereum block of its lower-bound anchor, then the counter
+ * inside that block. mtime used to do this job and it is the FILESYSTEM's
+ * opinion, not the ledger's: copying the folder, restoring a backup or touching
+ * a file rewrites it, and it never said anything about when a recording
+ * actually happened.
+ *
+ * Counters alone genuinely cannot do it, which is why they were not used: they
+ * restart every UTC day, so #22 from today and #13000 from last week are not
+ * comparable. Anchors are exactly the mechanism that relates one epoch to
+ * another, because a block number is globally ordered and cannot be predicted
+ * before it is mined. So (block, counter) IS causal order across the whole
+ * folder, including across epochs, and it is already sitting in each export.
+ *
+ * A recording with no anchor has not sealed yet, which can only mean it was
+ * just made, so it sorts newest.
+ */
+function causalKey(folder, name) {
+  var dir = folder + '/' + name;
+  var block = 0;
+  var counter = 0;
+  try {
+    var info = anchorInfo(dir);
+    block = info.before.block || info.after.block || 0;
+  } catch (e) {
+    /* unordered beats unlisted */
+  }
+  var raw = readFile(dir + '/proof.json');
+  if (raw !== null) {
+    try {
+      var p = JSON.parse(raw);
+      counter = parseInt((p.commit && p.commit.counter) || 0, 10) || 0;
+    } catch (e) {
+      /* as above */
+    }
+  }
+  return { block: block, counter: counter };
+}
+
 function clockOf(d) {
   var h = d.getHours();
   var h12 = h % 12 === 0 ? 12 : h % 12;
@@ -1640,7 +1682,21 @@ function writeIndex(folder) {
     if (!name || name === FILES_DIR) return;
     entries.push({ name: name, mtime: parseInt(line.slice(0, gap), 10) || 0 });
   });
-  entries.sort(function (x, y) { return y.mtime - x.mtime; });
+  // Causal order, newest first: the ledger's order, not the filesystem's.
+  // See causalKey. mtime survives only as the tiebreak for two recordings that
+  // share a block and a counter, which nothing real does.
+  entries.forEach(function (e) {
+    var k = causalKey(folder, e.name);
+    e.block = k.block;
+    e.counter = k.counter;
+  });
+  entries.sort(function (x, y) {
+    // Unsealed means just recorded, so it leads regardless of block.
+    if (!x.block !== !y.block) return x.block ? 1 : -1;
+    if (x.block !== y.block) return y.block - x.block;
+    if (x.counter !== y.counter) return y.counter - x.counter;
+    return y.mtime - x.mtime;
+  });
 
   SIBLINGS = entries.length;
 
