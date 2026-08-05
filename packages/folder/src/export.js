@@ -931,6 +931,38 @@ function thumbFor(folder, name, file) {
   return encodePath(rel);
 }
 
+/**
+ * Fetch a witness that was never written, for an export already on disk.
+ *
+ * An anchor whose block could not be read left `anchor-<side>.json` there with
+ * no witness beside it. That export counts as SEALED, because the anchor itself
+ * was found, so `--complete` never looks at it again: its page said "sealing"
+ * permanently for a recording that had in fact sealed months earlier. Fixing
+ * fetchWitness only helped exports built afterwards, which left every existing
+ * one wrong with no way back.
+ *
+ * Narrow on purpose. It fires only when the anchor is present and the witness
+ * is not, which is exactly the broken state and nothing else. A genuinely
+ * unsealed export has no anchor file to read, so it is never touched here and
+ * stays with `--complete` where it belongs. One request, once, and never again
+ * for that side after it lands.
+ */
+function repairWitnesses(dir) {
+  ['before', 'after'].forEach(function (side) {
+    var anchorPath = dir + '/' + ANCHOR_DIR + '/anchor-' + side + '.json';
+    var witnessPath = dir + '/' + ANCHOR_DIR + '/anchor-' + side + '-witness.json';
+    if (exists(witnessPath) || !exists(anchorPath)) return;
+    var raw = readFile(anchorPath);
+    if (raw === null) return;
+    try {
+      var witness = fetchWitness(JSON.parse(raw));
+      if (witness) writeJson(witnessPath, witness);
+    } catch (e) {
+      /* tried again on the next pass */
+    }
+  });
+}
+
 /** Drop thumbnails whose export no longer exists. One call, after the scan. */
 function pruneThumbs(folder) {
   sh('cd ' + quote(folder + '/' + THUMBS_DIR) + ' 2>/dev/null && for t in *.jpg; do ' +
@@ -1614,6 +1646,14 @@ function writeIndex(folder) {
 
   var rows = [];
   entries.forEach(function (e) {
+    // Repair FIRST. indexRow reads the anchor window and rewrites the
+    // recording's page from it, so a witness fetched after that call would not
+    // show until the pass after this one.
+    try {
+      repairWitnesses(folder + '/' + e.name);
+    } catch (err) {
+      /* tried again on the next pass */
+    }
     var row = indexRow(folder, e.name, e.mtime);
     if (row) rows.push(row);
     // Backfill files/ for anything recorded before this existed, or after
