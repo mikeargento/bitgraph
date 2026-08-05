@@ -348,7 +348,70 @@ export interface IndexRow {
 }
 
 export function indexPage(rows: IndexRow[]): string {
-  const cells = rows.map((r) => {
+  // Causal order, newest first — the Folder's sheet order, mirrored: the
+  // lower-bound anchor's block, then the counter inside it. Unsealed rows
+  // (no block yet) lead. The zip used to keep drop order, which diverged from
+  // the twin for no reason.
+  const ordered = [...rows].sort((x, y) => {
+    const xb = x.before?.block ?? x.after?.block ?? 0;
+    const yb = y.before?.block ?? y.after?.block ?? 0;
+    if (!xb !== !yb) return xb ? 1 : -1;
+    if (xb !== yb) return yb - xb;
+    return (parseInt(y.counter || "0", 10) || 0) - (parseInt(x.counter || "0", 10) || 0);
+  });
+
+  // Day navigation, mirrored from writeIndex in packages/folder/src/export.js:
+  // LOCAL days from the lower-bound block's timestamp (upper stands in),
+  // headers emitted where the day changes along the causal walk, unsealed rows
+  // grouped under today, ts-less sealed rows inheriting the open group. The
+  // jump strip appears only past one day. Plain anchors, no script.
+  const dayIdOf = (dt: Date) => {
+    const m = dt.getMonth() + 1;
+    const day = dt.getDate();
+    return `d${dt.getFullYear()}${m < 10 ? "0" : ""}${m}${day < 10 ? "0" : ""}${day}`;
+  };
+  const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const stripLabelOf = (dt: Date) => {
+    const l = `${MONTHS_SHORT[dt.getMonth()]} ${dt.getDate()}`;
+    return dt.getFullYear() === new Date().getFullYear() ? l : `${l}, ${dt.getFullYear()}`;
+  };
+  const headerLabelOf = (dt: Date) => `${MONTHS_SHORT[dt.getMonth()]} ${dt.getDate()}, ${dt.getFullYear()}`;
+  let openDayId: string | null = null;
+  const seenDays = new Set<string>();
+  const dayNav: Array<{ id: string; label: string }> = [];
+
+  const cells = ordered.map((r) => {
+    const block = r.before?.block ?? r.after?.block ?? 0;
+    const ts = r.before?.ts ?? r.after?.ts ?? 0;
+    const when = !block ? new Date() : ts ? new Date(ts * 1000) : null;
+    let header = "";
+    if (when !== null) {
+      const id = dayIdOf(when);
+      if (id !== openDayId && !seenDays.has(id)) {
+        openDayId = id;
+        seenDays.add(id);
+        dayNav.push({ id, label: stripLabelOf(when) });
+        header = `<li class="day" id="${id}">${esc(headerLabelOf(when))}</li>`;
+      }
+    }
+    return header + cellFor(r);
+  }).join("");
+
+  const dayStrip = dayNav.length > 1
+    ? `<nav class="days">${dayNav.map((g) => `<a href="#${g.id}">${esc(g.label)}</a>`).join("")}</nav>`
+    : "";
+
+  return pageShell(
+    "BitGraph",
+    INDEX_CSS,
+    "<h1>BitGraph</h1>" +
+      `<p class="s">${rows.length} ${rows.length === 1 ? "recording" : "recordings"}, newest first.</p>` +
+      dayStrip +
+      (cells ? `<ul>${cells}</ul>` : '<p class="empty">Nothing here.</p>')
+  );
+}
+
+function cellFor(r: IndexRow): string {
     const ext = r.fileName ? extOf(r.fileName) : "";
     const page = `${encodePath(r.dir)}/index.html`;
     const rel = r.fileName ? `${encodePath(r.dir)}/${encodePath(r.fileName)}` : null;
@@ -373,15 +436,6 @@ export function indexPage(rows: IndexRow[]): string {
       `<p class="n" title="${esc(r.fileName || r.dir)}">${esc(r.fileName || r.dir)}</p>` +
       `<div class="l"><a href="${page}">Open <span class="arrow">&rarr;</span></a></div>` +
       "</div></li>";
-  }).join("");
-
-  return pageShell(
-    "BitGraph",
-    INDEX_CSS,
-    "<h1>BitGraph</h1>" +
-      `<p class="s">${rows.length} ${rows.length === 1 ? "recording" : "recordings"}.</p>` +
-      (cells ? `<ul>${cells}</ul>` : '<p class="empty">Nothing here.</p>')
-  );
 }
 
 /* ── styles, mirrored from packages/folder/src/export.js ── */
@@ -465,6 +519,14 @@ const INDEX_CSS =
   // into a single grey block. The horizontal 16px stays, so a cell still lines
   // up with a card. line-height on the links is set rather than inherited, so
   // the gap between them is the gap and not the gap plus leading.
+  // Day headers and the jump strip, mirrored from writeIndex in
+  // packages/folder/src/export.js. The .day li opts out of the card chrome
+  // the li rule paints on every cell.
+  ".day{grid-column:1/-1;margin:14px 0 -12px;font-size:15px;font-weight:800;" +
+  "letter-spacing:-.01em;color:#111827;scroll-margin-top:12px;background:none;border:0}" +
+  ".day:first-child{margin-top:0}" +
+  ".days{margin:-26px 0 40px;display:flex;flex-wrap:wrap;gap:6px 16px}" +
+  ".days a{color:#0065A4;font-weight:600;font-size:13.5px;text-decoration:none}" +
   ".m{min-width:0;padding:16px 16px 18px}" +
   ".n,.l a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
   ".n{margin:0;font-weight:600}" +

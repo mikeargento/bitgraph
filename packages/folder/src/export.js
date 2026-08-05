@@ -2176,7 +2176,11 @@ function loadSheetCache(folder) {
   try {
     var raw = readFile(folder + '/' + SHEET_CACHE);
     var parsed = raw ? JSON.parse(raw) : null;
-    return (parsed && parsed.v === 1 && parsed.rows) || {};
+    // v2: entries gained ts, and v1 entries cached after the 1.7.0 migration
+    // hold counter 0 / block 0 from the path bug in sheetEntry, keyed by
+    // mtimes that will never move again. One version bump discards them all
+    // for the cost of a single slow pass.
+    return (parsed && parsed.v === 2 && parsed.rows) || {};
   } catch (e) {
     return {};
   }
@@ -2184,8 +2188,19 @@ function loadSheetCache(folder) {
 
 /** Sort keys for one export, read from disk. The cache-miss path. */
 function sheetEntry(folder, name, d) {
+  // ⚠️ Both places, like every other reader. This read the top level only,
+  // which was the pre-Recordings/ layout: every entry cached after the 1.7.0
+  // migration silently carried counter 0 / block 0, and the sheet fell back
+  // to mtime order for months of recordings without anyone noticing, because
+  // mtime order approximates causal order for normally dropped files. Found
+  // 2026-08-05 while wiring day navigation, which would have put every such
+  // export in the wrong day. The stale entries themselves are healed by the
+  // cache version bump below (v1 rows are discarded), not by this line.
+  var dir = folder + '/' + REC_DIR + '/' + name;
+  if (!exists(dir + '/proof.json')) dir = folder + '/' + name;
+
   var counter = 0;
-  var raw = readFile(folder + '/' + name + '/proof.json');
+  var raw = readFile(dir + '/proof.json');
   if (raw !== null) {
     try {
       var p = JSON.parse(raw);
@@ -2199,10 +2214,16 @@ function sheetEntry(folder, name, d) {
   // every UTC day, but a block number is globally ordered and unpredictable
   // before it is mined. mtime is the FILESYSTEM's opinion, rewritten by any
   // copy or restore, and survives only as the tiebreak.
+  // ts is the lower-bound block's own timestamp (unix seconds, decoded from
+  // the witness header), which is what the day headers group by; the upper
+  // bound stands in when the lower witness is missing, since the two are at
+  // most an anchor interval apart and a day boundary between them is rare.
   var block = 0;
+  var ts = 0;
   try {
-    var info = anchorInfo(folder + '/' + name);
+    var info = anchorInfo(dir);
     block = info.before.block || info.after.block || 0;
+    ts = info.before.ts || info.after.ts || 0;
   } catch (e) {
     /* an unsealed export sorts newest */
   }
@@ -2212,6 +2233,7 @@ function sheetEntry(folder, name, d) {
     artifact: d.artifact || null,
     counter: counter,
     block: block,
+    ts: ts,
   };
 }
 
@@ -2301,7 +2323,7 @@ function writeIndex(folder) {
       c = sheetEntry(folder, name, d);
     }
     fresh[name] = c;
-    entries.push({ name: name, mtime: d.m || 0, block: c.block, counter: c.counter, d: d });
+    entries.push({ name: name, mtime: d.m || 0, block: c.block, counter: c.counter, ts: c.ts || 0, d: d });
   });
 
   // Causal order, newest first: the ledger's order, not the filesystem's.
@@ -2333,9 +2355,49 @@ function writeIndex(folder) {
     }
   }
 
+  // Day navigation (2026-08-05, Mike: "do JUST day / date navigation").
+  // LOCAL days, deliberately not UTC epochs: the export pages print local
+  // time with the zone named, and an evening drop grouped under tomorrow's
+  // date would read as a bug. Grouping is a property of the VIEW, computed
+  // fresh from the anchors on every rebuild, which is also why it is done
+  // here and not in the folder layout: a folder name is frozen at creation,
+  // a view regroups when the timezone under it changes. (Day folders inside
+  // Recordings/ were proposed the same day and argued down for exactly that.)
+  //
+  // The entries are already in causal order, so day boundaries are emitted on
+  // the walk: a header goes in whenever the day changes from the row above.
+  // An unsealed export is a recording happening now, so it groups under
+  // today; a sealed export whose witness has not landed yet (ts 0) inherits
+  // the open group, which its causal position makes honest, rather than
+  // minting an "undated" bucket.
+  var dayIdOf = function (dt) {
+    var m = dt.getMonth() + 1;
+    var day = dt.getDate();
+    return 'd' + dt.getFullYear() + (m < 10 ? '0' : '') + m + (day < 10 ? '0' : '') + day;
+  };
+  var stripLabelOf = function (dt) {
+    // Compact for the strip: "Aug 5" this year, "Dec 30, 2025" across years.
+    var l = MONTHS[dt.getMonth()] + ' ' + dt.getDate();
+    return dt.getFullYear() === new Date().getFullYear() ? l : l + ', ' + dt.getFullYear();
+  };
+  var openDayId = null;
+  var seenDays = {};
+  var dayNav = [];
+  var cellCount = 0;
+
   var rows = [];
   entries.forEach(function (e) {
     var d = e.d;
+    var when = !e.block ? new Date() : e.ts ? new Date(e.ts * 1000) : null;
+    if (when !== null) {
+      var id = dayIdOf(when);
+      if (id !== openDayId && !seenDays[id]) {
+        openDayId = id;
+        seenDays[id] = true;
+        dayNav.push({ id: id, label: stripLabelOf(when) });
+        rows.push('<li class="day" id="' + id + '">' + esc(dateOf(when)) + '</li>');
+      }
+    }
     // Repair FIRST, and only where the snapshot shows an anchor sitting there
     // without its witness, which is exactly the broken state. The old code
     // probed all four paths for every export on every pass; those probes were
@@ -2351,7 +2413,10 @@ function writeIndex(folder) {
       }
     }
     var row = sheetRow(folder, e.name, d, snap, repaired > 0 || migrated[e.name] === true, e.mtime);
-    if (row) rows.push(row);
+    if (row) {
+      rows.push(row);
+      cellCount++;
+    }
   });
   // Derived folders are only honest if they are also tidied.
   try {
@@ -2361,14 +2426,24 @@ function writeIndex(folder) {
   }
   // The keys just used, pruned to the exports that still exist.
   try {
-    writeJson(folder + '/' + SHEET_CACHE, { v: 1, rows: fresh });
+    writeJson(folder + '/' + SHEET_CACHE, { v: 2, rows: fresh });
   } catch (err) {
     /* a lost cache only costs one slow pass */
   }
 
-  var body = rows.length
+  var body = cellCount
     ? '<ul>' + rows.join('') + '</ul>'
     : '<p class="empty">Nothing recorded yet. Drop a file into this folder.</p>';
+
+  // The strip earns its place the way the back link does: only when there is
+  // somewhere to go. One day of recordings needs no jump list. Plain anchor
+  // links, no script and no state, so it works in every sandboxed viewer the
+  // pages already survive.
+  var dayStrip = dayNav.length > 1
+    ? '<nav class="days">' + dayNav.map(function (g) {
+        return '<a href="#' + g.id + '">' + esc(g.label) + '</a>';
+      }).join('') + '</nav>'
+    : '';
 
   writeFile(
     folder + '/index.html',
@@ -2464,14 +2539,27 @@ function writeIndex(folder) {
         '.l{margin:15px 0 0}' +
         '.l a{display:block;font-size:13.5px;line-height:1.5}' +
         '.l a+a{margin-top:9px}' +
+        // A day header spans the grid and reads as a heading over its group,
+        // not as a cell: no card chrome. Extra air above ties it to the group
+        // BELOW it rather than floating between two; the first sits flush.
+        // scroll-margin keeps a jumped-to date from landing at the very edge.
+        '.day{grid-column:1/-1;margin:14px 0 -12px;font-size:15px;font-weight:800;' +
+        'letter-spacing:-.01em;color:#111827;scroll-margin-top:12px;background:none;border:0}' +
+        '.day:first-child{margin-top:0}' +
+        // The jump strip sits in the header block: pulled up toward the count
+        // line it belongs with, restoring the standard 40px before the grid.
+        '.days{margin:-26px 0 40px;display:flex;flex-wrap:wrap;gap:6px 16px}' +
+        '.days a{color:#0065A4;font-weight:600;font-size:13.5px;text-decoration:none}' +
         '.empty{color:#4b5563}',
       '<h1>BitGraph Folder</h1>' +
-        '<p class="s">' + rows.length + (rows.length === 1 ? ' recording' : ' recordings') + ', newest first.' +
+        '<p class="s">' + cellCount + (cellCount === 1 ? ' recording' : ' recordings') + ', newest first.' +
         updateNote() + '</p>' +
+        dayStrip +
         body
     )
   );
-  return rows.length;
+  // Recordings, not list items: rows now holds day headers too.
+  return cellCount;
 }
 
 // ---------------------------------------------------------------------------

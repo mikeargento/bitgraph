@@ -77,40 +77,17 @@ export function SiteNav() {
             A 12-character label ("Applications", before this settled on "Uses")
             left only 7px between the wordmark and the first link at 320px. */}
         <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
-          {/* Subjects → Roll → Docs reads left to right from "what do you point
-              this at" to "show me the ledger" to "show me the spec", so the nav
-              gets progressively more technical.
-
-              Two renames on 2026-08-02. "Uses" carried the SaaS-taxonomy
-              register ("Solutions", "Use cases") this site strips everywhere
-              else, and once the page came to open with the commercial thesis
-              ("Trust is expensive. Proof isn't.") the label promised a list of
-              applications while the page delivered an argument. "Why" fixed the
-              register but was vague and, as an interrogative among two nouns,
-              broke the series; it also hid the page's second half, the domain
-              sections a buyer actually navigates for. "Subjects" is the
-              camera's own word for what you point it at, it is a noun like Roll
-              and Docs, and the page is literally organized by subject.
-              Not "Usage", which on a technical site reads as consumption or
-              quota. Not "Recordings"/"Records", which collide with the proof
-              page's own Recordings card.
-              2026-08-05: "Applications" for a few hours, then "Use cases" —
-              both Mike's explicit calls, and the second knowingly readmits
-              the register the 08-02 rename walked away from; his product,
-              his word. Narrower than "Applications" was, so the 320px bar
-              (which "Applications" filled to exactly 288 of 288) has slack
-              again. Re-measure at 320px before anything in this bar grows.
-              The ROUTE stays /subjects on purpose: /applications shipped as a
-              PERMANENT 308 to /uses on 2026-07-27, and /uses 308s onward, so
-              reviving either path as a real page risks a cached-redirect
-              loop. /uses and /why still redirect here. */}
-          <Link
-            href="/subjects"
-            aria-current={pathname === "/subjects" ? "page" : undefined}
-            style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
-          >
-            Use cases
-          </Link>
+          {/* Roll → Docs: the ledger, then the spec. The page of what you
+              point the camera at lived here for months under four names
+              (Uses → Why → Subjects → Applications → "Use cases", each a
+              deliberate call, the history is in git) and moved INTO the Docs
+              menu on 2026-08-05 as its second entry — Mike: "'Use cases'
+              should be moved to inside the docs." The 320px width battle
+              this slot kept fighting went with it.
+              Its ROUTE stays /subjects on purpose: /applications shipped as
+              a PERMANENT 308 to /uses on 2026-07-27, and /uses 308s onward,
+              so reviving either path as a real page risks a cached-redirect
+              loop for anyone holding the old redirect. */}
           {/* Roll — the ledger, now on its own /roll page (no longer embedded
               under the home camera), so the nav is its way in. */}
           <Link

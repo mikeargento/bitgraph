@@ -37,6 +37,13 @@
  */
 export const DOCS_SECTIONS: { href: string; label: string }[] = [
   { href: "/docs/overview", label: "Overview" },
+  // Use cases moved in from the top nav (2026-08-05, Mike's call after the
+  // label had already gone Subjects → Applications → Use cases that same
+  // day). Second, right after Overview: orient first, then motivate, then
+  // the definitional pair. The one entry here that lives outside /docs; the
+  // route stays /subjects because /uses and /applications are both burned as
+  // permanently cached redirects.
+  { href: "/subjects", label: "Use cases" },
   { href: "/docs/what-is-bitgraph", label: "What is BitGraph" },
   { href: "/docs/what-bitgraph-is-not", label: "What BitGraph is Not" },
   { href: "/docs/trust-model", label: "Trust Model" },
