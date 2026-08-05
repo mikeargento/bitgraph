@@ -12,16 +12,19 @@
 #
 # Each handled file is then wrapped by export.js into a `BitGraph (name)/` folder
 # holding proof.json, an ethereum-anchors/ subfolder with the bracketing anchors
-# and their block header witnesses, and the file itself. This is the same layout
-# the website's proof-page export produces. The dropped file is MOVED in, so the
-# folder holds one export per drop and nothing loose, and a dragged-in folder is
-# left empty and removed.
+# and their block header witnesses, and a hard link to the file itself. This is
+# the same layout the website's proof-page export produces. The dropped file
+# STAYS EXACTLY WHERE THE PERSON PUT IT (1.8.0; drops used to be consumed into
+# their exports, and "users could lose their place"): the top level is their
+# arrangement, Recordings/ is the proof material grown beside it, and a
+# dragged-in folder keeps its contents.
 #
 # Receipts: a macOS notification per outcome, and the export folder itself.
 # Diagnostics go to stderr, which launchd writes to the error log configured in
-# the plist, deliberately outside the visible folder. State (already-handled
-# digests) lives beside this script so a re-fired watch never re-records the
-# same bytes.
+# the plist, deliberately outside the visible folder. A residents list beside
+# this script says which files were already settled last run, so a re-fired
+# watch skips them without re-hashing; re-recording is never the risk anyway,
+# because the ledger dedupes by digest.
 #
 # macOS only: this uses launchd, BSD stat, and osascript.
 
@@ -35,6 +38,18 @@ FOLDER="${BITGRAPH_FOLDER:-$HOME/BitGraph}"
 API="${BITGRAPH_API:-https://bitgraph.ing}"
 HOME_DIR="${BITGRAPH_HOME:-$HOME/.bitgraph}"
 STATE="$HOME_DIR/hotfolder.state"
+# What was settled in the folder last run, one "size mtime<TAB>path" line per
+# file. Files stay where they are dropped now, so every run re-sees them; this
+# is what keeps a resident file from being re-processed every watch fire, and
+# it is deliberately keyed by PATH + stat, not digest: a file that arrives at a
+# NEW path goes through the pipeline even when its bytes are already on the
+# ledger, which is what finally makes re-dropping a recorded file answer
+# "Already on record" instead of doing nothing at all. A resident whose size or
+# mtime moved is treated as a fresh drop of whatever it now holds (a Finder
+# "Replace" is a real drop); the ledger dedupes by digest, so the worst case of
+# reprocessing is one wasted lookup.
+RESIDENTS="$HOME_DIR/hotfolder.residents"
+RESIDENTS_NEW="$HOME_DIR/.residents.new"
 LOCK="$HOME_DIR/hotfolder.lock"
 EXPORTER="$HOME_DIR/export.js"
 
@@ -101,16 +116,25 @@ echo $$ > "$LOCK/pid"
 # person, before their own file was even looked at. The sealer owns its lock
 # and removes it itself; a sealer that dies without doing so is cleared by the
 # liveness check above.
-trap 'rm -rf "$LOCK" "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"' EXIT
+trap 'rm -rf "$LOCK" "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop" "$HOME_DIR/.residents.new"' EXIT
 
 # The exporter compares this against what the site advertises, to say on the
 # contact sheet when a newer release exists. Exported rather than merely sourced
 # because osascript is a child process and would not otherwise see it.
 export BITGRAPH_VERSION="${BITGRAPH_VERSION:-unknown}"
 
-touch "$STATE"
+touch "$STATE" "$RESIDENTS"
+: > "$RESIDENTS_NEW"
 
 log() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >&2; }
+
+# The residents list is REBUILT each run from what was actually seen and
+# settled, then swapped in whole. A file that failed (lookup down, commit
+# refused, export error) is simply not written, so the next watch fire retries
+# it — the same retry-on-next-drop property the digest state used to carry.
+# A run that dies mid-way leaves the old list untouched; reprocessing is safe
+# because the ledger dedupes by digest.
+save_residents() { mv "$RESIDENTS_NEW" "$RESIDENTS" 2>/dev/null || true; }
 
 notify() { # $1 title-suffix, $2 body
   /usr/bin/osascript -e "display notification \"$2\" with title \"BitGraph\" subtitle \"$1\"" 2>/dev/null
@@ -118,28 +142,20 @@ notify() { # $1 title-suffix, $2 body
 
 to_urlsafe() { printf '%s' "$1" | tr '+/' '-_' | tr -d '='; }
 
-# A dragged-in folder is empty once its files have moved into their exports, so
-# the husk goes. -depth collapses nested ones from the inside out. Only ever
-# EMPTY directories, and never ours, so nothing of the user's is ever removed
-# with anything still in it.
-#
-# A function because the phases below can finish early, and a run that exits
-# before this would leave a husk sitting in the folder until the next drop.
 # An export sitting flat at the top level (an older layout, or one dragged
 # back in from anywhere) belongs in Recordings/. The index pass is what tucks
 # it there, and a drag-in of an already-built export is exactly the case where
 # the run otherwise finds nothing to record and exits before any index pass:
 # the export would sit at the top level until some later drop. One cheap glob
 # decides; the pass itself is ~0.1s when there is nothing else to do.
+#
+# (clear_husks is GONE, 1.8.0. It removed emptied dragged-in folders, and a
+# drop no longer empties anything: files stay where the person put them, so an
+# "empty folder" here is now the person's own arrangement and not ours to
+# tidy.)
 tuck_strays() {
   compgen -G "$FOLDER"/*/proof.json >/dev/null 2>&1 || return 0
   "$OSASCRIPT" -l JavaScript "$EXPORTER" --index "$FOLDER" >/dev/null 2>&1 || true
-}
-
-clear_husks() {
-  find "$FOLDER" -mindepth 1 -depth -type d -empty ! -name '.*' ! -name files \
-    ! -path "$FOLDER/Recordings" \
-    -exec rmdir {} ';' 2>/dev/null || true
 }
 
 if [ ! -f "$EXPORTER" ]; then
@@ -155,15 +171,16 @@ parse_json() { # $1 batch|commit, $2 response file
   "$OSASCRIPT" -l JavaScript "$EXPORTER" --json "$1" "$2" 2>/dev/null
 }
 
-# Mark a digest handled, but ONLY once its export exists.
-#
-# ⚠️ THE ORDER MATTERS AND USED TO BE WRONG. This was written before the export
-# ran, so a failed export left the digest marked handled forever: every later
-# drop of that file hit the state check, logged "already recorded, left in
-# place", and never tried again. One file on this machine was stuck that way
-# from the day it was first dropped. Recording it a second time is not the risk
-# here, because the ledger dedupes by digest; losing the ability to retry is.
-handled() { echo "$1" >> "$STATE"; }
+# The digest state is WRITTEN but no longer consulted (1.8.0). Reading it is
+# what made re-dropping a recorded file do nothing at all — no export rebuilt,
+# no notification, no clue — because a digest recorded once was skipped
+# silently forever, and the file survives uninstall so a reinstall looked
+# broken the same way. Skipping residents is the residents list's job now,
+# keyed by path + stat, and known BYTES at a new path go through the pipeline
+# on purpose: the ledger lookup answers "on record", the export is rebuilt if
+# missing, and the person is told. The file stays as an append-only record of
+# every digest this machine has handled.
+handled() { grep -qxF "$1" "$STATE" 2>/dev/null || echo "$1" >> "$STATE"; }
 
 # Everything droppable, including the contents of a folder someone dragged in.
 #
@@ -173,10 +190,10 @@ handled() { echo "$1" >> "$STATE"; }
 # cannot offer, so the folder should be better at it than the website rather
 # than worse.
 #
-# Ours are pruned rather than descended into: files/ holds hard links to things
-# already recorded, .thumbs/ is generated, and any directory carrying a
-# proof.json is an export. Recursive, because a folder of folders of photos is
-# still a folder of photos.
+# Ours are pruned rather than descended into: files/ (legacy, dissolved by the
+# next index pass) held hard links to bytes already inside exports, .thumbs/ is
+# generated, and any directory carrying a proof.json is an export. Recursive,
+# because a folder of folders of photos is still a folder of photos.
 droppable() {
   # Recordings/ is pruned by its exact top-level path, which both skips every
   # export in one test instead of one per directory and keeps a USER folder
@@ -251,21 +268,23 @@ while IFS= read -r -d '' f; do
   # never be one of its inputs.
   case "$name" in .*|index.html) continue ;; esac
 
-  # Hash first, settle only what needs it. A file still copying cannot collide
-  # with a digest already in the state file, so a state hit is proof of
-  # completeness and costs no wait; that keeps rescans of a big folder (or a
-  # bulk re-copy of known files) at hashing speed.
+  # Residents first, and no hashing for them. Files stay where they are
+  # dropped now, so every watch fire re-sees the whole folder; a file whose
+  # path, size and mtime all match last run's settled listing has already been
+  # through the pipeline and is skipped for the cost of one stat and one grep,
+  # which is what keeps a folder of hundreds of resident photos from being
+  # re-hashed on every drop. Anything else — a new path, or a resident whose
+  # stat moved (a Finder "Replace" is a real drop) — is processed in full, and
+  # deliberately WITHOUT consulting the digest state: bytes already on the
+  # ledger still deserve their "Already on record" answer and an export
+  # rebuilt if it went missing. Re-dropping known bytes used to do nothing at
+  # all, which is indistinguishable from a broken watcher.
   before=$(stat -f '%z %m' "$f" 2>/dev/null) || continue
-  digest=$(openssl dgst -sha256 -binary "$f" | base64)
-  # Say so rather than vanishing. Until 2026-08-04 this skipped before writing
-  # any log line, so re-dropping something recorded weeks ago produced no
-  # export, no message and no clue, which is indistinguishable from a broken
-  # watcher. The state file survives uninstall by design and holds every digest
-  # the machine has ever recorded, so this is the ordinary case, not a rare one.
-  if grep -qxF "$digest" "$STATE"; then
-    log "already recorded, left in place: $name"
+  if grep -qxF "$before$TAB$f" "$RESIDENTS" 2>/dev/null; then
+    printf '%s\t%s\n' "$before" "$f" >> "$RESIDENTS_NEW"
     continue
   fi
+  digest=$(openssl dgst -sha256 -binary "$f" | base64)
 
   keep_paths+=("$f")
   keep_digests+=("$digest")
@@ -275,7 +294,7 @@ while IFS= read -r -d '' f; do
 done < <(droppable)
 
 count=${#keep_paths[@]}
-[ "$count" -eq 0 ] && { tuck_strays; clear_husks; exit 0; }
+[ "$count" -eq 0 ] && { tuck_strays; save_residents; exit 0; }
 
 resp_file="$HOME_DIR/.response.json"
 
@@ -349,7 +368,7 @@ done
 keep_paths=("${settled_paths[@]:+${settled_paths[@]}}")
 keep_digests=("${settled_digests[@]:+${settled_digests[@]}}")
 count=${#keep_paths[@]}
-[ "$count" -eq 0 ] && { tuck_strays; clear_husks; exit 0; }
+[ "$count" -eq 0 ] && { tuck_strays; save_residents; exit 0; }
 
 # Everything the ledger already held, before anything new is committed. Kept
 # because the two outcomes have to stay distinguishable: a drop of known bytes
@@ -472,6 +491,7 @@ fi
 MANIFEST="$HOME_DIR/.drop"
 : > "$MANIFEST"
 built_digests=()
+built_lines=()
 for i in $(seq 0 $((count - 1))); do
   f="${keep_paths[$i]}"
   d="${keep_digests[$i]}"
@@ -485,6 +505,7 @@ for i in $(seq 0 $((count - 1))); do
   epoch=$(printf '%s' "$hit" | cut -f3)
   printf '%s\0%s\0%s\0%s\0' "$f" "$d" "$counter" "$epoch" >> "$MANIFEST"
   built_digests+=("$d")
+  built_lines+=("${keep_before[$i]}$TAB$f")
   if grep -qF "$d$TAB" "$PRIOR"; then
     # These bytes were already on the ledger, so this drop was a lookup and
     # nothing new was minted. Same wording the site uses for the same case.
@@ -506,6 +527,9 @@ if [ "${#built_digests[@]}" -gt 0 ]; then
   # place, so the worst case is re-exporting something already exported, which
   # buildExport answers with "already exported".
   for d in "${built_digests[@]}"; do handled "$d"; done
+  for line in "${built_lines[@]:+${built_lines[@]}}"; do
+    printf '%s\n' "$line" >> "$RESIDENTS_NEW"
+  done
 fi
 rm -f "$MANIFEST"
 
@@ -514,12 +538,11 @@ rm -f "$MANIFEST"
 # One wait covers the whole drop: anchors are time-based, so the anchor that
 # lands after the last commit seals every proof in it. This also writes the
 # contact sheet, so there is no separate index pass.
-clear_husks
+save_residents
 
 if [ $((recorded + on_record)) -gt 0 ]; then
   # ⚠️ THE DROP LOCK IS RELEASED FIRST. Everything the person is waiting for has
-  # already happened: they were notified, the exports are written and the files
-  # are moved. What is left is waiting on an anchor, and holding the lock
+  # already happened: they were notified and the exports are written. What is left is waiting on an anchor, and holding the lock
   # through it is what made the NEXT drop wait up to 45 seconds for a run.
   rm -rf "$LOCK" "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" \
          "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"
@@ -538,7 +561,8 @@ if [ $((recorded + on_record)) -gt 0 ]; then
   # main script exits, and the trap above not touching SEAL_LOCK stops a second
   # sealer starting while it works. Waiting on the anchor is the last thing that
   # happens and nobody is waiting for it: the person has been notified, the
-  # exports are written and listed, the files are moved.
+  # exports are written and listed, the files sit untouched where they were
+  # dropped.
   #
   # The loop re-checks for pending work because a drop can land while the seal
   # wait is in progress, AFTER --complete listed the folder: that export would

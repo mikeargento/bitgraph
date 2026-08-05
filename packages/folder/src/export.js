@@ -17,27 +17,31 @@
 // schema shape rather than by filename), and deletable with nothing lost.
 //
 //   index.html                                  the contact sheet
+//   random-494.txt                              the file, exactly where dropped
 //   Recordings/
 //       BitGraph (random-494.txt)/
 //           proof.json
-//           random-494.txt                      the original bytes, moved in
+//           random-494.txt                      a hard link to the file above
 //           index.html                          the recording's own page
 //           ethereum-anchors/
 //               anchor-before.json              lower bound
 //               anchor-before-witness.json      its block header
 //               anchor-after.json               upper bound, the seal
 //               anchor-after-witness.json       its block header
-//   files/
-//       random-494.txt                          a hard link, not a copy
 //
-//   The top level is the drop zone and stays empty at rest: the shutter and
-//   the archive are different places. Exports found flat at the top level
-//   (an older layout, or an old export dragged back in) are tucked into
-//   Recordings/ by the next index pass; discovery is by content everywhere,
-//   so both shapes keep working throughout.
+//   A dropped file STAYS WHERE THE PERSON PUT IT (1.8.0; drops used to be
+//   consumed into their exports, and "users could lose their place"). The
+//   export takes a hard link — a second name for the same bytes, no extra
+//   disk — so the top level is the person's own arrangement and Recordings/
+//   is the proof material. Exports found flat at the top level (an older
+//   layout, or an old export dragged back in) are tucked into Recordings/ by
+//   the next index pass; discovery is by content everywhere, so both shapes
+//   keep working throughout.
 //
-// files/ exists so the recorded files can be taken back out in one go, without
-// opening every export. Hard links, so it costs no disk and cannot drift.
+// files/ is GONE (1.8.0). It existed so every recorded file could be dragged
+// out in one go; the files now simply stay at the top level, and the site's
+// drop zone walks a dropped folder, so the parallel tree lost both jobs.
+// writeIndex dissolves an existing one safely — see the migration there.
 //
 // No archive is written: bitgraph-audit ingests a directory directly and
 // discovers entries by schema shape rather than by filename, so the folder
@@ -604,79 +608,27 @@ function baseName(p) {
   return parts[parts.length - 1];
 }
 
-// ---- files/ ----------------------------------------------------------------
+// ---- files/ (legacy, dissolved by writeIndex) ------------------------------
 //
-// A flat folder holding just the recorded files, so you can select them all and
-// drag them into the website, or anywhere else, without opening every export in
-// turn. That was the only way to get your own files back, and with a few
-// hundred recordings it is not a way at all.
-//
-// HARD LINKS, not copies. A hard link is not a second file: it is a second name
-// for the same bytes on disk, so this costs nothing, cannot drift, and what you
-// drag out is exactly what was recorded. Deleting either name leaves the other
-// whole, which means clearing out files/ never touches a proof, and deleting an
-// export never takes your file with it.
-//
-// The one thing to know: an application that writes IN PLACE through the link
-// would alter the export's bytes too. Almost nothing on macOS does; the normal
-// save is a write-and-rename, which breaks the link and leaves the export
-// untouched. And if bytes ever did change, the recording's own page says so in
-// red, which is the product working rather than failing.
-//
-// Rebuilt by `--index` for every export still on disk, so deleting the folder
-// costs nothing while the exports are there.
-//
-// NOT pruned when an export is deleted, and deliberately so: at that moment the
-// link here is the LAST COPY of those bytes, because a drop moves the file in
-// rather than copying it. Tidying it away would delete the user's photo to keep
-// a derived folder neat. Losing a recording must never mean losing the file.
+// The name survives only so the migration and the walkers can recognise the
+// directory in folders built before 1.8.0. It held a flat set of hard links
+// to every recorded file, because a drop used to MOVE the file into its
+// export and this was the one way to get everything back out in one go. Drops
+// no longer consume the file (it stays where the person put it, the export
+// links to it), so the parallel tree lost its purpose, and the site's drop
+// zone walking a whole dropped folder took the other half of the job.
 var FILES_DIR = 'files';
 
-// Where exports live: one level down, so the folder a person drops into stays
-// EMPTY at rest. The top level is the shutter, Recordings/ is the roll, and
-// the reason the folder used to read as messy is that they were the same
-// place. files/ stays at the top because it is user-facing (drag everything
-// out at once), and the machinery (.thumbs, the caches) is dotfile-hidden.
+// Where exports live: one level down, out of the person's way. The top level
+// is THEIR arrangement — dropped files stay exactly where they were put
+// (1.8.0) — and Recordings/ is the proof material grown beside it. The
+// machinery (.thumbs, the caches) is dotfile-hidden.
 //
 // ⚠️ The website's export ZIP stays FLAT, deliberately. A zip is a snapshot
 // that never grows; this container exists to keep a LIVING folder calm. That
 // is the one structural asymmetry between the two implementations, and it is
 // documented in both headers.
 var REC_DIR = 'Recordings';
-
-/** True when two paths are the same bytes on disk rather than two copies. */
-function sameInode(a, b) {
-  var out = sh('stat -f %i ' + quote(a) + ' ' + quote(b) + ' 2>/dev/null');
-  if (!out) return false;
-  var ids = out.split('\r').join('\n').split('\n').filter(Boolean);
-  return ids.length === 2 && ids[0] === ids[1];
-}
-
-/** Link one recorded file into files/, numbering only on a real name clash. */
-function linkIntoFiles(folder, dir, fileName) {
-  var target = dir + '/' + fileName;
-  if (!exists(target)) return;
-  var files = folder + '/' + FILES_DIR;
-  mkdirp(files);
-
-  // `ln` without -f refuses to clobber, so the happy path is one call and an
-  // existing entry can never be overwritten by accident.
-  var link = files + '/' + fileName;
-  if (sh('ln ' + quote(target) + ' ' + quote(link) + ' 2>/dev/null && echo ok') === 'ok') return;
-  if (sameInode(link, target)) return; // already linked, nothing to do
-
-  // Taken by something else. Two different photos are both allowed to be
-  // called IMG_0001.jpg, so the name gets a number rather than the file getting
-  // dropped. The extension survives, since it is what says what the thing is.
-  var ext = extOf(fileName);
-  var tail = ext ? '.' + ext : '';
-  var stem = fileName.slice(0, fileName.length - tail.length);
-  for (var n = 2; n < 100; n++) {
-    var alt = files + '/' + stem + ' ' + n + tail;
-    if (sh('ln ' + quote(target) + ' ' + quote(alt) + ' 2>/dev/null && echo ok') === 'ok') return;
-    if (sameInode(alt, target)) return;
-  }
-}
 
 function dirName(p) {
   var parts = String(p).split('/');
@@ -687,38 +639,28 @@ function dirName(p) {
 /**
  * Put the recorded file into its export.
  *
- * A drop MOVES. The file was handed to the folder, and the export is where it
- * now lives.
+ * A drop NEVER MOVES the file (1.8.0; it did, and "users could lose their
+ * place"). The person's copy stays exactly where they put it, and the export
+ * takes a hard link — a second name for the same bytes, no disk, no drift.
+ * The copy is the fallback for a source on another volume, which a recovery
+ * from an external backup drive always is.
  *
- * A recovery must not, which is what `keepSource` is for: its source is the
- * user's own library or a backup, and emptying that out would be a second loss
- * on top of the one being repaired. It links instead, which is not a copy but a
- * second name for the same bytes, so it costs no disk and cannot drift. The
- * copy is the fallback for a source on another volume, which an external backup
- * drive always is.
+ * The shared bytes cut both ways, and that is a feature: an application that
+ * writes IN PLACE through the person's copy alters the export's bytes too,
+ * and the recording's own page reports the mismatch in red. Almost nothing on
+ * macOS writes in place — the normal save is write-and-rename, which breaks
+ * the link, leaves the export's bytes untouched, and makes the saved file an
+ * ordinary new drop.
  *
- * Never clobbers the artifact. If the export already holds the file then the
- * move this is finishing already happened, and in a recovery `from` and `to`
- * can even be the same path. Overwriting is how the 2026-08-04 feedback loop
- * destroyed six recorded files, so the rule here is that an artifact already in
- * place wins.
+ * Never clobbers the artifact. If the export already holds the file, whatever
+ * put it there already finished, and `from` and `to` can even be the same
+ * path in a recovery. Overwriting is how the 2026-08-04 feedback loop
+ * destroyed six recorded files, so the rule here is that an artifact already
+ * in place wins — and the person's copy is never deleted, for any reason.
  */
-function placeArtifact(from, to, keepSource) {
+function placeArtifact(from, to) {
   if (!exists(from)) return;
-  if (exists(to)) {
-    // Two names, same bytes: a drop that arrived twice. The export already has
-    // what it needs, so the duplicate at the top level is just litter and goes.
-    // Only ever when the digests agree, because deleting a file that is NOT
-    // already safely inside the export would be losing it.
-    if (!keepSource && digestOfFile(from) === digestOfFile(to)) {
-      sh('rm -f ' + quote(from));
-    }
-    return;
-  }
-  if (!keepSource) {
-    sh('mv ' + quote(from) + ' ' + quote(to));
-    return;
-  }
+  if (exists(to)) return;
   if (sh('ln ' + quote(from) + ' ' + quote(to) + ' 2>/dev/null && echo ok') === 'ok') return;
   sh('cp -p ' + quote(from) + ' ' + quote(to));
 }
@@ -754,10 +696,10 @@ var BATCH_DROP = false;
  * inside vacation/, complete with its own contact sheet, instead of joining the
  * others at the top level.
  *
- * `keepSource` leaves the original where it is instead of moving it in, which
- * is what a recovery needs and a drop must never do. See placeArtifact.
+ * The source file is never touched: drops and recoveries alike leave it where
+ * it is and the export links to it. See placeArtifact.
  */
-function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, keepSource) {
+function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
   var fileName = baseName(filePath);
   var folder = destFolder || dirName(filePath);
 
@@ -766,11 +708,10 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, kee
 
   var r = resolveDir(folder, counter, epochUrlSafe, digestB64, fileName);
   if (r.alreadyBuilt) {
-    // A re-fired watch must not redo the work. Still finish the move: the
-    // caller marks the digest handled before calling in, so a run that died
-    // between writing the contents and moving the file would otherwise strand
-    // it at the top level forever.
-    placeArtifact(filePath, r.dir + '/' + fileName, keepSource);
+    // A re-fired watch must not redo the work. Still place the link, so an
+    // export whose artifact went missing (a run that died mid-build, a hand
+    // deletion) is made whole by the next drop of the same bytes.
+    placeArtifact(filePath, r.dir + '/' + fileName);
     return 'ok: already exported';
   }
   mkdirp(r.dir);
@@ -784,16 +725,9 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, kee
   var sealed = writeExportContents(r.dir, meta, proof, BATCH_DROP ? 0 : SEAL_WAIT_MS);
   markPending(r.dir, meta, sealed);
 
-  // Moved in last, so a failure above never strands the file.
-  placeArtifact(filePath, r.dir + '/' + fileName, keepSource);
-
-  // Same treatment as the contact sheet: derived, and never allowed to turn a
-  // successful recording into an error.
-  try {
-    linkIntoFiles(folder, r.dir, fileName);
-  } catch (e) {
-    /* relinked by the next --index pass */
-  }
+  // Linked in last, so a failure above never leaves a half-built export
+  // claiming the file.
+  placeArtifact(filePath, r.dir + '/' + fileName);
 
   // Refresh the contact sheet, and never let it break a recording. The proof
   // is already written and sealed by this point; index.html is a derived view,
@@ -2124,8 +2058,8 @@ function exportDirs(folder) {
  * dirs[name]  = { m, proofM, pageM, anchorsM, anchors, witnesses, pending,
  *                 artifact } — mtimes are seconds, counts are of anchor jsons
  *                 and their witnesses, artifact matches artifactIn's rule.
- * files, thumbs = name sets of files/ and .thumbs/, so backfill and thumbnail
- *                 checks are lookups rather than probes.
+ * thumbs      = name set of .thumbs/, so thumbnail checks are lookups rather
+ *               than probes.
  *
  * find|xargs so the stat runs in a handful of big batches however large the
  * folder grows. A filename containing a newline mis-parses its own entry and
@@ -2136,7 +2070,7 @@ function snapshotFolder(folder) {
   // directories that hold a proof.json, meaning exports an older version
   // built flat, or an old export someone dragged back in; writeIndex tucks
   // them into Recordings/ and that is the entire migration story.
-  var snap = { dirs: {}, stray: {}, files: {}, thumbs: {} };
+  var snap = { dirs: {}, stray: {}, thumbs: {} };
 
   var listing = sh(
     'cd ' + quote(folder) + ' && find . -mindepth 1 -maxdepth 4 ' +
@@ -2203,12 +2137,9 @@ function snapshotFolder(folder) {
   });
 
   var lists = sh('cd ' + quote(folder) +
-    ' && ls -1 ' + quote(FILES_DIR) + ' 2>/dev/null; echo "///"; ls -1 ' +
-    quote(THUMBS_DIR) + ' 2>/dev/null; true');
-  var side = snap.files;
+    ' && ls -1 ' + quote(THUMBS_DIR) + ' 2>/dev/null; true');
   (lists ? lists.split('\r').join('\n').split('\n') : []).forEach(function (n) {
-    if (n === '///') { side = snap.thumbs; return; }
-    if (n) side[n] = true;
+    if (n) snap.thumbs[n] = true;
   });
   return snap;
 }
@@ -2278,6 +2209,38 @@ function writeIndex(folder) {
       '{ [ -d .thumbs ] && [ ! -e ' + quote(THUMBS_DIR) + ' ] && mv .thumbs ' + quote(THUMBS_DIR) + '; ' +
       '[ -f .bitgraph-cache.json ] && mv .bitgraph-cache.json ' + quote(SHEET_CACHE) + '; ' +
       '[ -f .bitgraph-siblings ] && mv .bitgraph-siblings ' + quote(STATE_DIR + '/siblings') + '; }; true');
+  }
+
+  // files/ dissolves, once (1.8.0). An entry with more than one link is a
+  // second name for bytes still safe inside an export and is just removed. An
+  // entry whose link count is 1 is the LAST COPY of those bytes — its export
+  // was deleted back when a drop moved the file in — and is rescued to the
+  // top level (numbered on a name clash, extension preserved), because losing
+  // a recording must never mean losing the file. The watcher then treats the
+  // rescue as an ordinary drop of bytes already on the ledger and quietly
+  // rebuilds the export, which is the folder mirroring the ledger for a file
+  // the person still has.
+  if (exists(folder + '/' + FILES_DIR)) {
+    sh('find ' + quote(folder + '/' + FILES_DIR) +
+      ' -type f -links +1 -delete 2>/dev/null; true');
+    var left = sh('ls -1 ' + quote(folder + '/' + FILES_DIR) + ' 2>/dev/null');
+    (left ? left.split('\r').join('\n').split('\n').filter(Boolean) : [])
+      .forEach(function (n) {
+        var src = folder + '/' + FILES_DIR + '/' + n;
+        var dst = folder + '/' + n;
+        if (exists(dst)) {
+          var ext = extOf(n);
+          var tail = ext ? '.' + ext : '';
+          var stem = n.slice(0, n.length - tail.length);
+          for (var k = 2; k < 100 && exists(dst); k++) {
+            dst = folder + '/' + stem + ' ' + k + tail;
+          }
+        }
+        if (!exists(dst)) sh('mv ' + quote(src) + ' ' + quote(dst) + ' 2>/dev/null; true');
+      });
+    // Only ever while empty: a rescue that could not land leaves the folder,
+    // and this line, for the next pass.
+    sh('rmdir ' + quote(folder + '/' + FILES_DIR) + ' 2>/dev/null; true');
   }
   var snap = snapshotFolder(folder);
   var cache = loadSheetCache(folder);
@@ -2370,18 +2333,6 @@ function writeIndex(folder) {
     }
     var row = sheetRow(folder, e.name, d, snap, repaired > 0 || migrated[e.name] === true, e.mtime);
     if (row) rows.push(row);
-    // Backfill files/ for anything recorded before it existed, or after someone
-    // emptied it. A lookup against the snapshot's listing, not a probe: the
-    // live path already links at build time with full name-collision handling,
-    // so this is belt-and-braces for old exports, and a same-named different
-    // file is the one case it knowingly leaves to that build-time path.
-    if (d.artifact && !snap.files[d.artifact]) {
-      try {
-        linkIntoFiles(folder, folder + '/' + REC_DIR + '/' + e.name, d.artifact);
-      } catch (err) {
-        /* the sheet is the job here; a missing link costs nothing */
-      }
-    }
   });
   // Derived folders are only honest if they are also tidied.
   try {
@@ -2590,7 +2541,7 @@ function buildDrop(manifestPath, folder, responsesDir) {
     if (!path) continue;
     var out;
     try {
-      out = String(buildExport(path, f[i + 1], f[i + 2], f[i + 3], folder, false));
+      out = String(buildExport(path, f[i + 1], f[i + 2], f[i + 3], folder));
     } catch (e) {
       out = 'error: ' + (e && e.message ? e.message : String(e));
     }
@@ -2752,7 +2703,7 @@ function recoverInto(source, destFolder) {
         // positions is BitGraph Again, which is two recordings and was two
         // exports before they were lost.
         found.forEach(function (q) {
-          var out = String(buildExport(rec.paths[0], rec.digestB64, q.counter, q.epoch, folder, true));
+          var out = String(buildExport(rec.paths[0], rec.digestB64, q.counter, q.epoch, folder));
           if (out.indexOf('ok: already exported') === 0) {
             already++;
             note('  already here   ' + name + '  #' + q.counter);

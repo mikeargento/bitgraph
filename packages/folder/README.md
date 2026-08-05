@@ -3,33 +3,35 @@
 A folder on your Desktop that records whatever you put in it.
 
 Drop a file in. It gets hashed on your machine, the digest is recorded at a
-causal position on the BitGraph ledger, and the file comes back wrapped in an
-export folder holding its proof and the Ethereum anchors that bracket it.
+causal position on the BitGraph ledger, and an export folder grows beside it
+holding its proof and the Ethereum anchors that bracket it.
 
 ```
 BitGraph/
     index.html                every recording, as a contact sheet
+    sunset.jpg                your file, exactly where you put it
     Recordings/
         BitGraph (sunset.jpg)/
             proof.json
-            sunset.jpg
+            sunset.jpg        a hard link to your file, not a copy
             index.html
             ethereum-anchors/
                 anchor-before.json    anchor-before-witness.json
                 anchor-after.json     anchor-after-witness.json
-    files/
-        sunset.jpg            a hard link to the file above, not a copy
 ```
 
-The top level is the place you drop things, and it stays empty: the shutter
-and the archive are different places. Recordings land in `Recordings/`, and an
-export from an older version, or one you drag back in from anywhere, is tucked
-in there on the next pass.
+Your file stays exactly where you put it — dropping something in never moves
+it, so nothing you file away can lose its place. The export holds a hard link
+to it: the same bytes under a second name, no extra disk. Recordings land in
+`Recordings/`, and an export from an older version, or one you drag back in
+from anywhere, is tucked in there on the next pass.
 
-`files/` is there so you can select every file you have recorded and drag them
-somewhere in one go, instead of opening each export. They are hard links, so
-they take no extra space and are the same bytes that were recorded. Deleting
-one side never harms the other.
+Dropping a file that is already on record is answered too: the folder tells
+you it is already on record and rebuilds its export if the export has gone
+missing. (Versions before 1.8.0 held a `files/` folder of hard links so the
+recorded files could be dragged out in one go; the files simply staying put
+made it redundant, and it is dissolved safely on the first pass after
+updating.)
 
 Each folder inside `Recordings/` is the same thing you would get by recording
 the file on [bitgraph.ing](https://bitgraph.ing) and downloading the export
@@ -196,14 +198,15 @@ different drives.
 `launchctl` watches the folder with a `WatchPaths` agent, so there is no polling
 and no daemon sitting in memory. When the folder changes, the watcher:
 
-1. Hashes each new top-level file, waiting for its size to settle first so a
-   file still being copied is never hashed mid-write
+1. Hashes each new file, waiting for its size to settle first so a file still
+   being copied is never hashed mid-write; files already settled on an earlier
+   run are skipped without rehashing
 2. Asks the ledger whether those bytes are already on it
 3. Records the digest if they are not
-4. Builds the export folder and moves the file into it
+4. Builds the export folder, which takes a hard link to the file; the file
+   itself stays where you put it
 
-Hidden files and subfolders are skipped, so existing export folders are not
-rescanned.
+Hidden files and export folders are skipped, so recordings are not rescanned.
 
 ### Why the Desktop item is a symlink
 
