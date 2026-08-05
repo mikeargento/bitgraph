@@ -295,7 +295,26 @@ function digestOfFile(path) {
  * The epoch goes too when it is known, because a counter alone does not name a
  * position: counters restart every UTC day.
  */
+// Proofs the watcher already received, from the lookup and commit responses it
+// made anyway. Filled by --drop; empty otherwise, so a single build is
+// unchanged. See indexResponses.
+var PROOF_CACHE = {};
+
 function fetchProof(digestB64, counter, epochUrlSafe) {
+  // ⚠️ Still checked against the position asked for, exactly as a fetched proof
+  // is. A cached proof is only usable when it is the RIGHT one: the same bytes
+  // can sit at several causal positions, and handing back the wrong one would
+  // build an export around a recording that is not the one being exported.
+  var held = PROOF_CACHE[toUrlSafe(digestB64)];
+  if (held) {
+    for (var i = 0; i < held.length; i++) {
+      var c = held[i];
+      if (String(c.commit.counter) !== String(counter)) continue;
+      if (epochUrlSafe && toUrlSafe(String(c.commit.epochId || '')) !== String(epochUrlSafe)) continue;
+      return c;
+    }
+  }
+
   var url = API + '/api/proofs/digest/' + toUrlSafe(digestB64) +
     '?counter=' + encodeURIComponent(counter) +
     (epochUrlSafe ? '&epoch=' + encodeURIComponent(epochUrlSafe) : '');
@@ -309,14 +328,58 @@ function fetchProof(digestB64, counter, epochUrlSafe) {
 }
 
 /** { before, after } anchor proofs bracketing a position. Either may be null. */
+/**
+ * Bracketing anchors, remembered as SPANS rather than per counter.
+ *
+ * ⚠️ This is the single biggest cost in a batch. Each call is two requests, and
+ * a hundred-file drop made two hundred of them to learn the same answer over
+ * and over: a batch commits within seconds, so every proof in it sits between
+ * the same two anchors.
+ *
+ * A span is exact, not a guess. If the nearest anchor before counter X is at
+ * `lo` and the nearest after is at `hi`, then for ANY counter strictly between
+ * lo and hi the nearest anchors are those same two, because by definition there
+ * is no anchor in between. So one answer covers the whole span, and a hundred
+ * files collapse to one or two lookups.
+ *
+ * Only cached when both sides are known and carry counters, since a span with
+ * an open end says nothing about what might land in it later.
+ */
+var ANCHOR_SPANS = [];
+
+function anchorCounterOf(anchor) {
+  var c = anchor && anchor.commit && anchor.commit.counter;
+  if (c === undefined || c === null) return null;
+  var n = parseInt(c, 10);
+  return isNaN(n) ? null : n;
+}
+
 function fetchAnchors(counter, epochUrlSafe) {
-  var q = 'counter=' + encodeURIComponent(counter) + '&epoch=' + encodeURIComponent(epochUrlSafe);
+  var n = parseInt(counter, 10);
+  var epoch = String(epochUrlSafe);
+  if (!isNaN(n)) {
+    for (var i = 0; i < ANCHOR_SPANS.length; i++) {
+      var s = ANCHOR_SPANS[i];
+      if (s.epoch === epoch && n > s.lo && n < s.hi) {
+        return { before: s.before, after: s.after };
+      }
+    }
+  }
+
+  var q = 'counter=' + encodeURIComponent(counter) + '&epoch=' + encodeURIComponent(epoch);
   var after = getJson(API + '/api/proofs/anchors?' + q + '&limit=1');
   var before = getJson(API + '/api/proofs/anchors?' + q + '&before=1');
-  return {
+  var out = {
     before: before && before.anchors && before.anchors[0] ? before.anchors[0] : null,
     after: after && after.anchors && after.anchors[0] ? after.anchors[0] : null,
   };
+
+  var lo = anchorCounterOf(out.before);
+  var hi = anchorCounterOf(out.after);
+  if (lo !== null && hi !== null && lo < hi) {
+    ANCHOR_SPANS.push({ epoch: epoch, lo: lo, hi: hi, before: out.before, after: out.after });
+  }
+  return out;
 }
 
 /**
@@ -324,11 +387,21 @@ function fetchAnchors(counter, epochUrlSafe) {
  * The server self-checks it (returns it only when keccak256(header) equals the
  * signed block hash), so a miss just omits the file and the export stays valid.
  */
+// A block header is immutable, and a whole batch shares the same two anchors,
+// so this went from two requests per file to two per drop. Negative results are
+// cached too: a witness that is not there for a block will not appear during
+// one run, and re-asking per file is what made it expensive.
+var WITNESS_CACHE = {};
+
 function fetchWitness(anchor) {
   var b = anchorBlockOf(anchor);
   if (!b) return null;
-  return getJson(API + '/api/proofs/witness?block=' + b.number +
+  var key = String(b.number) + '|' + String(b.hash);
+  if (Object.prototype.hasOwnProperty.call(WITNESS_CACHE, key)) return WITNESS_CACHE[key];
+  var w = getJson(API + '/api/proofs/witness?block=' + b.number +
     '&hash=' + encodeURIComponent(b.hash));
+  WITNESS_CACHE[key] = w;
+  return w;
 }
 
 /**
@@ -2093,6 +2166,108 @@ function writeIndex(folder) {
 }
 
 // ---------------------------------------------------------------------------
+// --drop
+// ---------------------------------------------------------------------------
+//
+// Build every export of one drop in ONE process.
+//
+// ⚠️ This exists entirely so the caches above can work. Each export needs the
+// proof, the two bracketing anchors and a witness for each, which is five
+// requests; running one process per file made a hundred-file drop issue five
+// hundred of them, and about four hundred and ninety asked for something
+// already in hand. A batch commits within seconds, so it shares one anchor span
+// and two block headers, and the proofs came back in the responses the watcher
+// already had.
+//
+// One process, so: anchors resolve to a span after the first file, witnesses
+// are fetched twice for the whole drop, proofs are read from the responses, and
+// the contact sheet is written once at the end.
+//
+// The manifest is NUL-separated fields, four per record: path, digest, counter,
+// epoch. NUL because it is the one byte a filename cannot contain, and a
+// newline is a byte it can.
+
+/**
+ * Index every proof the watcher already received, by URL-safe digest.
+ *
+ * The responses are whatever came back from /api/proofs/batch (keyed results,
+ * each holding a proofs array) and /api/commit (a bare array of proofs, or one
+ * proof). Both shapes are read, and each proof is filed under the digest it
+ * states about itself rather than under whatever key it arrived beside.
+ */
+function indexResponses(dir) {
+  var map = {};
+  if (badPath(dir) || !exists(dir)) return map;
+  var listing = sh('ls -1 ' + quote(dir) + ' 2>/dev/null');
+  var names = listing ? listing.split('\r').join('\n').split('\n').filter(Boolean) : [];
+
+  function file(p) {
+    if (!p || !p.commit || !p.artifact || !p.artifact.digestB64) return;
+    var k = toUrlSafe(p.artifact.digestB64);
+    if (!map[k]) map[k] = [];
+    map[k].push(p);
+  }
+
+  names.forEach(function (n) {
+    var raw = readFile(dir + '/' + n);
+    if (raw === null) return;
+    var parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      return;
+    }
+    if (Array.isArray(parsed)) {
+      parsed.forEach(function (p) { file(p && p.proof ? p.proof : p); });
+    } else if (parsed && parsed.results) {
+      Object.keys(parsed.results).forEach(function (key) {
+        var proofs = (parsed.results[key] && parsed.results[key].proofs) || [];
+        proofs.forEach(function (e) { file(e && e.proof ? e.proof : e); });
+      });
+    } else {
+      file(parsed && parsed.proof ? parsed.proof : parsed);
+    }
+  });
+  return map;
+}
+
+function buildDrop(manifestPath, folder, responsesDir) {
+  if (badPath(manifestPath) || badPath(folder)) {
+    return 'error: usage: export.js --drop <manifest> <folder> [responsesDir]';
+  }
+  var raw = readFileUtf8(manifestPath);
+  if (raw === null) return 'error: cannot read the drop manifest';
+  var f = raw.split('\u0000');
+
+  PROOF_CACHE = indexResponses(responsesDir);
+
+  // The caller handles the seal and the sheet, once, after this returns.
+  BATCH_DROP = true;
+  DEFER_INDEX = true;
+
+  var built = 0, failed = 0;
+  for (var i = 0; i + 3 < f.length; i += 4) {
+    var path = f[i];
+    if (!path) continue;
+    var out;
+    try {
+      out = String(buildExport(path, f[i + 1], f[i + 2], f[i + 3], folder, false));
+    } catch (e) {
+      out = 'error: ' + (e && e.message ? e.message : String(e));
+    }
+    if (out.indexOf('ok:') === 0) {
+      built++;
+    } else {
+      failed++;
+      // Named, because the watcher can no longer report per file: it made one
+      // call for the whole drop.
+      note('export failed: ' + baseName(path) + ': ' + out);
+    }
+  }
+  return 'ok: built ' + built + (failed ? ', ' + failed + ' failed' : '');
+}
+
+// ---------------------------------------------------------------------------
 // --recover
 // ---------------------------------------------------------------------------
 //
@@ -2383,6 +2558,7 @@ function usage() {
     '  --recover <folder> [dest]    rebuild exports the ledger still has',
     '',
     'Run by the watcher:',
+    '  --drop <manifest> <folder> [responses]   build a whole drop, one process',
     '  --index <folder>             rebuild the contact sheet',
     '  --complete <folder> [waitMs] finish exports still awaiting their seal',
     '  <file> <digest> <counter> <epoch> [dest] [--batch]   build one export',
@@ -2415,6 +2591,9 @@ function run(argv) {
     }
     if (argv[0] === '--recover') {
       return recoverInto(argv[1], argv[2]);
+    }
+    if (argv[0] === '--drop') {
+      return buildDrop(argv[1], argv[2], argv[3]);
     }
     if (String(argv[0]).indexOf('--') === 0) {
       return 'error: no such command: ' + argv[0] + '\n\n' + usage();

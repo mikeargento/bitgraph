@@ -46,7 +46,7 @@ mkdir -p "$HOME_DIR"
 
 # One run at a time; launchd queues another run if events arrive meanwhile.
 if ! mkdir "$LOCK" 2>/dev/null; then exit 0; fi
-trap 'rmdir "$LOCK" 2>/dev/null; rm -f "$HOME_DIR/.response.json" "$HOME_DIR/.headers"' EXIT
+trap 'rmdir "$LOCK" 2>/dev/null; rm -rf "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"' EXIT
 
 # The exporter compares this against what the site advertises, to say on the
 # contact sheet when a newer release exists. Exported rather than merely sourced
@@ -86,24 +86,6 @@ fi
 # attestation would be at the mercy of shell pipe limits otherwise.
 parse_json() { # $1 batch|commit, $2 response file
   "$OSASCRIPT" -l JavaScript "$EXPORTER" --json "$1" "$2" 2>/dev/null
-}
-
-# Wrap one handled file into its export folder. The exporter moves the file in,
-# so nothing else here may touch it afterwards. Never fatal: the recording
-# already stands on its own, the export is only the packaging.
-export_drop() { # $1 file, $2 digest, $3 counter, $4 epoch, $5 --batch -> 0 on success
-  # The destination is always the watched folder, never the file's own
-  # directory, so a photo that came out of a dragged-in folder lands beside
-  # every other recording instead of building an export inside that folder.
-  #
-  # $5 is passed through so a run can say "this is one file of a drop": no
-  # per-file wait for the sealing anchor and no per-file rebuild of the sheet,
-  # because the caller does both once at the end.
-  result=$("$OSASCRIPT" -l JavaScript "$EXPORTER" "$1" "$2" "$3" "$4" "$FOLDER" "${5:-}" 2>&1)
-  case "$result" in
-    ok*) return 0 ;;
-    *) log "export: $result"; return 1 ;;
-  esac
 }
 
 # Mark a digest handled, but ONLY once its export exists.
@@ -211,6 +193,13 @@ count=${#keep_paths[@]}
 
 resp_file="$HOME_DIR/.response.json"
 
+# Every reply is KEPT, not overwritten, because each one carries the full proofs
+# for its chunk and the exporter would otherwise re-fetch every single one of
+# them. Cleared at the start of the run and removed at the end.
+RESPONSES="$HOME_DIR/.responses"
+rm -rf "$RESPONSES"; mkdir -p "$RESPONSES"
+resp_n=0
+
 # ---- ask the ledger about everything at once -------------------------------
 #
 # Already on record? Then a drop is a lookup, not a recording. Both endpoints
@@ -231,7 +220,10 @@ while [ "$i" -lt "$count" ]; do
     # A failed lookup is not an absent recording. Left out of FOUND, these fall
     # through to the commit below, and the ledger dedupes by digest anyway, so
     # the worst case is a wasted request rather than a duplicate proof.
-    [ "$out" = "error" ] || printf '%s\n' "$out" >> "$FOUND"
+    if [ "$out" != "error" ]; then
+      printf '%s\n' "$out" >> "$FOUND"
+      resp_n=$((resp_n + 1)); cp "$resp_file" "$RESPONSES/$resp_n.json"
+    fi
   else
     log "ledger lookup failed for a chunk (will fall through to commit)"
   fi
@@ -323,6 +315,7 @@ while [ "$i" -lt "$new_count" ]; do
       ;;
     *)
       printf '%s\n' "$outcome" >> "$FOUND"
+      resp_n=$((resp_n + 1)); cp "$resp_file" "$RESPONSES/$resp_n.json"
       if [ -f "$HOME_DIR/.headers" ]; then
         # Header names are case-insensitive and curl passes them through as the
         # server sent them, so match case-insensitively; strip the CR that ends
@@ -377,11 +370,22 @@ elif [ $((recorded + on_record)) -gt 0 ]; then
   notify "Recorded $recorded files" "$on_record already on record"
 fi
 
-# ---- build the exports -----------------------------------------------------
+# ---- build the exports, in ONE exporter process ----------------------------
 #
-# Sequential on purpose: exports share files/ and .thumbs/, and `ln` without -f
-# plus a numbered fallback is not safe to run concurrently against itself.
-# --batch tells the exporter that this run seals and indexes once at the end.
+# ⚠️ One process for the whole drop, not one per file, and the reason is not
+# process startup (that is 0.1s). It is that each export needs the proof, both
+# bracketing anchors and a witness for each: five requests. One process per file
+# meant a hundred-file drop issued five hundred of them, and nearly all asked
+# for something already known. A batch commits within seconds, so it shares one
+# anchor span and two block headers, and the proofs are sitting in the responses
+# received above.
+#
+# So the manifest and the responses go in, and the exporter answers them from
+# memory. Fields are NUL-separated because NUL is the one byte a filename cannot
+# contain, and a newline is a byte it can.
+MANIFEST="$HOME_DIR/.drop"
+: > "$MANIFEST"
+built_digests=()
 for i in $(seq 0 $((count - 1))); do
   f="${keep_paths[$i]}"
   d="${keep_digests[$i]}"
@@ -393,18 +397,31 @@ for i in $(seq 0 $((count - 1))); do
   fi
   counter=$(printf '%s' "$hit" | cut -f2)
   epoch=$(printf '%s' "$hit" | cut -f3)
-  # Marked handled only once the export exists; see handled().
-  if export_drop "$f" "$d" "$counter" "$epoch" --batch; then
-    handled "$d"
-    if grep -qF "$d$TAB" "$PRIOR"; then
-      # These bytes were already on the ledger, so this drop was a lookup and
-      # nothing new was minted. Same wording the site uses for the same case.
-      log "on record  · $name · #$counter"
-    else
-      log "recorded #$counter · $name · $API/proof/$(to_urlsafe "$d")?counter=$counter&epoch=$epoch"
-    fi
+  printf '%s\0%s\0%s\0%s\0' "$f" "$d" "$counter" "$epoch" >> "$MANIFEST"
+  built_digests+=("$d")
+  if grep -qF "$d$TAB" "$PRIOR"; then
+    # These bytes were already on the ledger, so this drop was a lookup and
+    # nothing new was minted. Same wording the site uses for the same case.
+    log "on record  · $name · #$counter"
+  else
+    log "recorded #$counter · $name · $API/proof/$(to_urlsafe "$d")?counter=$counter&epoch=$epoch"
   fi
 done
+
+if [ "${#built_digests[@]}" -gt 0 ]; then
+  result=$("$OSASCRIPT" -l JavaScript "$EXPORTER" --drop "$MANIFEST" "$FOLDER" "$RESPONSES" 2>&1)
+  case "$result" in
+    ok*) ;;
+    *) log "drop: $result" ;;
+  esac
+  # ⚠️ Marked handled only after the exporter has run, never before. A digest
+  # written here on a failed export would be skipped forever; see handled().
+  # The exporter reports per-file failures on stderr and leaves those files in
+  # place, so the worst case is re-exporting something already exported, which
+  # buildExport answers with "already exported".
+  for d in "${built_digests[@]}"; do handled "$d"; done
+fi
+rm -f "$MANIFEST"
 
 # ---- seal and index, once --------------------------------------------------
 #
