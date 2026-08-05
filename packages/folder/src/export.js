@@ -2265,8 +2265,38 @@ function verifyFolder(folder) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * What this thing can do, in the tool's own words.
+ *
+ * ⚠️ The usage string used to list ONLY the positional build form, so asking
+ * the tool anything at all, including `--help`, was told that --verify and
+ * --recover did not exist. A command documented in a source comment and denied
+ * by the program is not a command anyone will find. Any new entry point goes
+ * here as well as in the dispatch below.
+ */
+function usage() {
+  var v = env('BITGRAPH_VERSION');
+  return [
+    'BitGraph Folder' + (v && v !== 'unknown' ? ' ' + v : ''),
+    '',
+    '  osascript -l JavaScript ' + '~/.bitgraph/export.js <command>',
+    '',
+    'Run by hand. Neither of these can record anything:',
+    '  --verify <folder>            re-hash every export against its own proof',
+    '  --recover <folder> [dest]    rebuild exports the ledger still has',
+    '',
+    'Run by the watcher:',
+    '  --index <folder>             rebuild the contact sheet',
+    '  --complete <folder>          finish exports still awaiting their seal',
+    '  <file> <digest> <counter> <epoch> [dest]    build one export',
+  ].join('\n');
+}
+
 function run(argv) {
   try {
+    if (!argv.length || argv[0] === '--help' || argv[0] === '-h') {
+      return usage();
+    }
     if (argv[0] === '--index') {
       return 'ok: indexed ' + writeIndex(argv[1]);
     }
@@ -2284,8 +2314,11 @@ function run(argv) {
     if (argv[0] === '--recover') {
       return recoverInto(argv[1], argv[2]);
     }
+    if (String(argv[0]).indexOf('--') === 0) {
+      return 'error: no such command: ' + argv[0] + '\n\n' + usage();
+    }
     if (argv.length < 4) {
-      return 'error: usage: export.js <file> <digestB64> <counter> <epochUrlSafe> [destFolder]';
+      return 'error: not enough arguments\n\n' + usage();
     }
     return buildExport(argv[0], argv[1], argv[2], argv[3], argv[4]);
   } catch (e) {
