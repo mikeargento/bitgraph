@@ -79,16 +79,26 @@ parse_json() { # $1 batch|commit, $2 response file
 # Wrap one handled file into its export folder. The exporter moves the file in,
 # so nothing else here may touch it afterwards. Never fatal: the recording
 # already stands on its own, the export is only the packaging.
-export_drop() { # $1 file, $2 digest, $3 counter, $4 epoch
+export_drop() { # $1 file, $2 digest, $3 counter, $4 epoch -> 0 on success
   # The destination is always the watched folder, never the file's own
   # directory, so a photo that came out of a dragged-in folder lands beside
   # every other recording instead of building an export inside that folder.
   result=$("$OSASCRIPT" -l JavaScript "$EXPORTER" "$1" "$2" "$3" "$4" "$FOLDER" 2>&1)
   case "$result" in
-    ok*) ;;
-    *) log "export: $result" ;;
+    ok*) return 0 ;;
+    *) log "export: $result"; return 1 ;;
   esac
 }
+
+# Mark a digest handled, but ONLY once its export exists.
+#
+# ⚠️ THE ORDER MATTERS AND USED TO BE WRONG. This was written before the export
+# ran, so a failed export left the digest marked handled forever: every later
+# drop of that file hit the state check, logged "already recorded, left in
+# place", and never tried again. One file on this machine was stuck that way
+# from the day it was first dropped. Recording it a second time is not the risk
+# here, because the ledger dedupes by digest; losing the ability to retry is.
+handled() { echo "$1" >> "$STATE"; }
 
 # Everything droppable, including the contents of a folder someone dragged in.
 #
@@ -170,10 +180,9 @@ while IFS= read -r -d '' f; do
     yes*)
       counter=$(printf '%s' "$on_record" | cut -f2)
       epoch=$(printf '%s' "$on_record" | cut -f3)
-      echo "$digest" >> "$STATE"
       log "on record  · $name · #$counter"
       notify "Already on record" "$name"
-      export_drop "$f" "$digest" "$counter" "$epoch"
+      export_drop "$f" "$digest" "$counter" "$epoch" && handled "$digest"
       continue
       ;;
     error)
@@ -211,10 +220,10 @@ while IFS= read -r -d '' f; do
         grep -i '^X-BitGraph-Folder-Version:' "$HOME_DIR/.headers" 2>/dev/null \
           | tail -1 | cut -d: -f2- | tr -d ' \r\n' > "$HOME_DIR/latest" || true
       fi
-      echo "$digest" >> "$STATE"
       log "recorded #$counter · $name · $API/proof/$urlsafe?counter=$counter&epoch=$epoch"
       notify "Recorded #$counter" "$name"
-      export_drop "$f" "$digest" "$counter" "$epoch"
+      # Marked handled only once the export exists; see handled().
+      export_drop "$f" "$digest" "$counter" "$epoch" && handled "$digest"
       ;;
     retry)
       log "camera restarting, not recorded yet (will retry on next drop): $name"

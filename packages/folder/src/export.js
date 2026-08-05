@@ -205,16 +205,30 @@ function toUrlSafe(b64) {
 // ---------------------------------------------------------------------------
 
 /** The proof at this exact causal position, or null. */
-function fetchProof(digestB64, counter) {
-  var data = getJson(API + '/api/proofs/digest/' + toUrlSafe(digestB64));
+/**
+ * The proof at one causal position.
+ *
+ * ⚠️ THE POSITION MUST BE ASKED FOR. This endpoint answers with exactly one
+ * proof, `{proofs:[{proof}]}`, and without ?counter= that one is the server's
+ * own earliest. Searching that single-element array for some other position
+ * therefore always missed, which is what produced "no proof at #22" and left a
+ * file permanently unexportable. The batch endpoint is the one that returns
+ * every position; this one selects.
+ *
+ * The epoch goes too when it is known, because a counter alone does not name a
+ * position: counters restart every UTC day.
+ */
+function fetchProof(digestB64, counter, epochUrlSafe) {
+  var url = API + '/api/proofs/digest/' + toUrlSafe(digestB64) +
+    '?counter=' + encodeURIComponent(counter) +
+    (epochUrlSafe ? '&epoch=' + encodeURIComponent(epochUrlSafe) : '');
+  var data = getJson(url);
   if (!data || !data.proofs || !data.proofs.length) return null;
-  // The same bytes can sit at several positions (BitGraph Again), so match on
-  // the counter rather than taking the first.
-  for (var i = 0; i < data.proofs.length; i++) {
-    var p = data.proofs[i].proof || data.proofs[i];
-    if (p && p.commit && String(p.commit.counter) === String(counter)) return p;
-  }
-  return null;
+  var p = data.proofs[0].proof || data.proofs[0];
+  if (!p || !p.commit) return null;
+  // The server falls back to its earliest when the position is unknown to it,
+  // so confirm we were given what we asked for rather than something else.
+  return String(p.commit.counter) === String(counter) ? p : null;
 }
 
 /** { before, after } anchor proofs bracketing a position. Either may be null. */
@@ -484,7 +498,7 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
   var fileName = baseName(filePath);
   var folder = destFolder || dirName(filePath);
 
-  var proof = fetchProof(digestB64, counter);
+  var proof = fetchProof(digestB64, counter, epochUrlSafe);
   if (!proof) return 'error: no proof at #' + counter + ' for ' + fileName + ', file left in place';
 
   var r = resolveDir(folder, counter, epochUrlSafe, digestB64, fileName);
@@ -549,7 +563,7 @@ function completePending(folder) {
     } catch (e) {
       return;
     }
-    var proof = fetchProof(meta.digestB64, meta.counter);
+    var proof = fetchProof(meta.digestB64, meta.counter, meta.epochUrlSafe);
     if (!proof) return;
     try {
       // No waiting on a completion pass: take whatever has landed by now, so a
@@ -595,12 +609,18 @@ function parseBatch(body) {
     var proofs = results[keys[0]].proofs || [];
     if (!proofs.length) return 'no';
 
-    var earliest = null;
-    proofs.forEach(function (entry) {
-      var c = (entry.proof || entry).commit || {};
-      if (earliest === null || Number(c.counter || 0) < Number(earliest.counter || 0)) earliest = c;
-    });
-    return 'yes\t' + (earliest.counter || '') + '\t' + epochToUrlSafe(earliest.epochId);
+    // ⚠️ TAKE THE SERVER'S FIRST. This used to pick the numerically smallest
+    // counter, which compares positions ACROSS EPOCHS and is meaningless:
+    // counters restart every UTC day, so a #22 recorded tonight looks "earlier"
+    // than a #13000 recorded last week. The ledger returns these earliest-first
+    // using write times it has and this does not, so re-deriving the order here
+    // could only ever get it wrong.
+    //
+    // It did. A file recorded on two different days reported #22, the export
+    // then asked for a position the digest lookup did not answer with, and the
+    // drop failed with "no proof at #22" every single time.
+    var first = (proofs[0].proof || proofs[0]).commit || {};
+    return 'yes\t' + (first.counter || '') + '\t' + epochToUrlSafe(first.epochId);
   } catch (e) {
     return 'error';
   }
