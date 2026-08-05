@@ -170,7 +170,7 @@ TAB=$(printf '\t')
 # macOS ships bash 3.2, which has no associative arrays, so the ledger's answers
 # go to a file and are matched with grep -F. Indexed arrays are fine and hold
 # any filename the filesystem allows.
-paths=(); digests=()
+keep_paths=(); keep_digests=(); keep_before=()
 
 while IFS= read -r -d '' f; do
   name=$(basename "$f")
@@ -183,12 +183,11 @@ while IFS= read -r -d '' f; do
   # never be one of its inputs.
   case "$name" in .*|index.html) continue ;; esac
 
-  # Hash first, stability-wait only for unknown bytes. A file still copying
-  # cannot collide with a digest already in the state file, so a state hit is
-  # proof of completeness and costs no wait; that keeps rescans of a big folder
-  # (or a bulk re-copy of known files) at hashing speed instead of ~1s per file.
-  # Unknown bytes get the settle-then-REHASH treatment so a half-copied new file
-  # is never recorded.
+  # Hash first, settle only what needs it. A file still copying cannot collide
+  # with a digest already in the state file, so a state hit is proof of
+  # completeness and costs no wait; that keeps rescans of a big folder (or a
+  # bulk re-copy of known files) at hashing speed.
+  before=$(stat -f '%z %m' "$f" 2>/dev/null) || continue
   digest=$(openssl dgst -sha256 -binary "$f" | base64)
   # Say so rather than vanishing. Until 2026-08-04 this skipped before writing
   # any log line, so re-dropping something recorded weeks ago produced no
@@ -200,46 +199,12 @@ while IFS= read -r -d '' f; do
     continue
   fi
 
-  # Freshness is recorded, not acted on: the settle below is ONE wait for the
-  # whole drop rather than a second per file. A file already in the state file
-  # never reaches here, so a bulk re-copy of known bytes still costs no wait.
-  mtime=$(stat -f%m "$f" 2>/dev/null) || continue
-  paths+=("$f")
-  digests+=("$digest")
+  keep_paths+=("$f")
+  keep_digests+=("$digest")
+  keep_before+=("$before")
 # Process substitution, not a pipe: a piped `while` runs in a subshell, so every
 # variable it set would be discarded at the end of the loop.
 done < <(droppable)
-
-count=${#paths[@]}
-[ "$count" -eq 0 ] && { clear_husks; exit 0; }
-
-# ---- settle, once for the whole drop ---------------------------------------
-#
-# A file still being copied must never be hashed. That used to be a per-file
-# loop of `sleep 1`, so a hundred-file drag paid a hundred seconds to learn one
-# thing. Sizes are snapshotted, the run sleeps ONCE, and anything whose size
-# moved is left for the next pass. The rehash is what actually protects us: a
-# file that changed between the two hashes is not recorded at all.
-sizes=()
-for i in $(seq 0 $((count - 1))); do sizes+=("$(stat -f%z "${paths[$i]}" 2>/dev/null || echo -1)"); done
-sleep 1
-
-keep_paths=(); keep_digests=()
-for i in $(seq 0 $((count - 1))); do
-  f="${paths[$i]}"
-  now=$(stat -f%z "$f" 2>/dev/null || echo -2)
-  if [ "$now" != "${sizes[$i]}" ]; then
-    log "skipped (still copying): $(basename "$f")"
-    continue
-  fi
-  # Rehash after settling. If the bytes moved since the first hash, the first
-  # hash described a half-written file and must not be used.
-  d=$(openssl dgst -sha256 -binary "$f" | base64)
-  [ "$d" = "${digests[$i]}" ] || log "rehashed after settling: $(basename "$f")"
-  grep -qxF "$d" "$STATE" && continue
-  keep_paths+=("$f")
-  keep_digests+=("$d")
-done
 
 count=${#keep_paths[@]}
 [ "$count" -eq 0 ] && { clear_husks; exit 0; }
@@ -272,6 +237,41 @@ while [ "$i" -lt "$count" ]; do
   fi
   i=$((i + 25))
 done
+
+# ---- settle: is anything still being written? ------------------------------
+#
+# ⚠️ THIS RUNS AFTER THE LOOKUP ON PURPOSE, AND THAT IS THE WHOLE TRICK. A file
+# still being copied must never be recorded, which needs an observation window,
+# and a window is just time. The old code bought that time with `sleep 1` on
+# every fresh drop, which is a second the person is standing there for.
+#
+# The ledger lookup above is a network round trip we are making anyway, so the
+# window is free: snapshot size and mtime before hashing, ask the ledger, then
+# re-stat and REHASH. Anything whose bytes moved across all of that was being
+# written and is left for the next pass. Nothing has been committed yet, so a
+# dropped file costs one wasted lookup and nothing else.
+#
+# ⚠️ DO NOT shorten this window back to "across the hash" alone. That was tried
+# and it FAILED: hashing a small file takes milliseconds, shorter than the gap
+# between two writes, and `stat` mtime has one-second granularity so it does not
+# move either. A file being appended to every 120ms sailed through and was
+# recorded half-written.
+settled_paths=(); settled_digests=()
+for i in $(seq 0 $((count - 1))); do
+  f="${keep_paths[$i]}"
+  now=$(stat -f '%z %m' "$f" 2>/dev/null) || continue
+  d=$(openssl dgst -sha256 -binary "$f" 2>/dev/null | base64) || continue
+  if [ "$now" != "${keep_before[$i]}" ] || [ "$d" != "${keep_digests[$i]}" ]; then
+    log "skipped (still copying): $(basename "$f")"
+    continue
+  fi
+  settled_paths+=("$f")
+  settled_digests+=("$d")
+done
+keep_paths=("${settled_paths[@]:+${settled_paths[@]}}")
+keep_digests=("${settled_digests[@]:+${settled_digests[@]}}")
+count=${#keep_paths[@]}
+[ "$count" -eq 0 ] && { clear_husks; exit 0; }
 
 # Everything the ledger already held, before anything new is committed. Kept
 # because the two outcomes have to stay distinguishable: a drop of known bytes
@@ -335,15 +335,53 @@ while [ "$i" -lt "$new_count" ]; do
   i=$((i + 20))
 done
 
+# ---- say so NOW ------------------------------------------------------------
+#
+# ⚠️ THE NOTIFICATION GOES BEFORE THE EXPORTS, AND BEFORE THE SEAL. A recording
+# exists the moment the commit returns, which is about three seconds after the
+# drop. Everything after this point is packaging: writing the export, fetching
+# the anchors, waiting for the one that seals it. Announcing at the end of all
+# that made a single drop feel like sixteen seconds instead of three, which is
+# a regression I introduced when the phases went in, and it is the number the
+# person standing at the folder actually experiences.
+#
+# The export can still fail after this. That is the same trade the per-file
+# version made, and it is the honest one: the proof is on the ledger and stands
+# on its own, so the notification is not lying if the packaging trips.
+recorded=0
+on_record=0
+last_name=""
+last_counter=""
+for i in $(seq 0 $((count - 1))); do
+  hit=$(grep -F "${keep_digests[$i]}$TAB" "$FOUND" | head -1)
+  [ -z "$hit" ] && continue
+  if grep -qF "${keep_digests[$i]}$TAB" "$PRIOR"; then
+    on_record=$((on_record + 1))
+  else
+    recorded=$((recorded + 1))
+    last_name=$(basename "${keep_paths[$i]}")
+    last_counter=$(printf '%s' "$hit" | cut -f2)
+  fi
+done
+
+# One notification per DROP, not per file. A hundred files used to mean a
+# hundred notifications, which is both unusable and slow: each one is its own
+# osascript process, and they queue in Notification Centre for minutes.
+if [ "$recorded" -eq 1 ] && [ "$on_record" -eq 0 ]; then
+  notify "Recorded #$last_counter" "$last_name"
+elif [ "$recorded" -gt 1 ] && [ "$on_record" -eq 0 ]; then
+  notify "Recorded $recorded files" "Newest #$last_counter · $last_name"
+elif [ "$recorded" -eq 0 ] && [ "$on_record" -gt 0 ]; then
+  notify "Already on record" "$on_record $([ "$on_record" -eq 1 ] && echo file || echo files)"
+elif [ $((recorded + on_record)) -gt 0 ]; then
+  notify "Recorded $recorded files" "$on_record already on record"
+fi
+
 # ---- build the exports -----------------------------------------------------
 #
 # Sequential on purpose: exports share files/ and .thumbs/, and `ln` without -f
 # plus a numbered fallback is not safe to run concurrently against itself.
 # --batch tells the exporter that this run seals and indexes once at the end.
-recorded=0
-on_record=0
-last_name=""
-last_counter=""
 for i in $(seq 0 $((count - 1))); do
   f="${keep_paths[$i]}"
   d="${keep_digests[$i]}"
@@ -361,12 +399,8 @@ for i in $(seq 0 $((count - 1))); do
     if grep -qF "$d$TAB" "$PRIOR"; then
       # These bytes were already on the ledger, so this drop was a lookup and
       # nothing new was minted. Same wording the site uses for the same case.
-      on_record=$((on_record + 1))
       log "on record  · $name · #$counter"
     else
-      recorded=$((recorded + 1))
-      last_name="$name"
-      last_counter="$counter"
       log "recorded #$counter · $name · $API/proof/$(to_urlsafe "$d")?counter=$counter&epoch=$epoch"
     fi
   fi
@@ -384,19 +418,6 @@ if [ $((recorded + on_record)) -gt 0 ]; then
   wait_ms=0
   [ "$recorded" -gt 0 ] && wait_ms=45000
   "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" "$wait_ms" >/dev/null 2>&1 || true
-fi
-
-# One notification per DROP, not per file. A hundred files used to mean a
-# hundred notifications, which is both unusable and slow: each one is its own
-# osascript process, and they queue in Notification Centre for minutes.
-if [ "$recorded" -eq 1 ] && [ "$on_record" -eq 0 ]; then
-  notify "Recorded #$last_counter" "$last_name"
-elif [ "$recorded" -gt 1 ] && [ "$on_record" -eq 0 ]; then
-  notify "Recorded $recorded files" "Newest #$last_counter · $last_name"
-elif [ "$recorded" -eq 0 ] && [ "$on_record" -gt 0 ]; then
-  notify "Already on record" "$on_record $([ "$on_record" -eq 1 ] && echo file || echo files)"
-elif [ $((recorded + on_record)) -gt 0 ]; then
-  notify "Recorded $recorded files" "$on_record already on record"
 fi
 
 clear_husks
