@@ -41,7 +41,7 @@ printf '\nBitGraph Folder %s\n\n' "${VERSION:-}"
 
 # --- Install --------------------------------------------------------------
 
-mkdir -p "$FOLDER" "$HOME_DIR" "$HOME/Library/LaunchAgents"
+mkdir -p "$FOLDER/Recordings" "$HOME_DIR" "$HOME/Library/LaunchAgents"
 
 install -m 0755 "$SRC/hotfolder.sh" "$HOME_DIR/hotfolder.sh"
 install -m 0644 "$SRC/export.js" "$HOME_DIR/export.js"

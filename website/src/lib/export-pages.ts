@@ -17,6 +17,11 @@
  *   CHANGE ONE, CHANGE BOTH. The structure, the card order, the class names
  *   and the CSS values here are mirrored there deliberately.
  *
+ * One deliberate asymmetry (1.7.0): the Folder keeps its exports in a
+ * Recordings/ subfolder so a LIVING folder's top level stays calm; this zip
+ * stays FLAT, because a zip is a snapshot that never grows. Per-export
+ * structure and the sheet itself remain identical.
+ *
  * Everything is derived and inert: nothing verifies against these pages, and
  * `bitgraph-audit` ignores them because it discovers proofs by schema shape
  * rather than by filename.
@@ -428,7 +433,7 @@ const PROOF_CSS =
 
 const INDEX_CSS =
   ".wrap{max-width:none}" +
-  "h1{margin:0 0 4px;font-size:28px;font-weight:600;letter-spacing:-.03em}" +
+  "h1{margin:0 0 4px;font-size:28px;font-weight:800;letter-spacing:-.03em}" +
   // 230px. It was 300px to hold the full time window on one line, and with the
   // window and the side-by-side links both gone nothing in the cell needs that
   // width: the filename ellipsizes and the links are stacked. The narrower

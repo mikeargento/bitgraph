@@ -8,26 +8,32 @@ export folder holding its proof and the Ethereum anchors that bracket it.
 
 ```
 BitGraph/
-    BitGraph (sunset.jpg)/
-        proof.json
-        sunset.jpg
-        index.html
-        ethereum-anchors/
-            anchor-before.json    anchor-before-witness.json
-            anchor-after.json     anchor-after-witness.json
+    index.html                every recording, as a contact sheet
+    Recordings/
+        BitGraph (sunset.jpg)/
+            proof.json
+            sunset.jpg
+            index.html
+            ethereum-anchors/
+                anchor-before.json    anchor-before-witness.json
+                anchor-after.json     anchor-after-witness.json
     files/
         sunset.jpg            a hard link to the file above, not a copy
-    index.html                every recording, as a contact sheet
 ```
+
+The top level is the place you drop things, and it stays empty: the shutter
+and the archive are different places. Recordings land in `Recordings/`, and an
+export from an older version, or one you drag back in from anywhere, is tucked
+in there on the next pass.
 
 `files/` is there so you can select every file you have recorded and drag them
 somewhere in one go, instead of opening each export. They are hard links, so
 they take no extra space and are the same bytes that were recorded. Deleting
 one side never harms the other.
 
-That folder is the same thing you would get by recording the file on
-[bitgraph.ing](https://bitgraph.ing) and downloading the export from its proof
-page. Identical layout, so the two are interchangeable.
+Each folder inside `Recordings/` is the same thing you would get by recording
+the file on [bitgraph.ing](https://bitgraph.ing) and downloading the export
+from its proof page. Identical layout, so the two are interchangeable.
 
 ## No dependencies
 
@@ -101,7 +107,7 @@ by accident.
 Every export folder audits offline, with no network and no account:
 
 ```bash
-npx @mikeargento/bitgraph-audit "BitGraph (sunset.jpg)"
+npx @mikeargento/bitgraph-audit "Recordings/BitGraph (sunset.jpg)"
 ```
 
 It should come back clean:

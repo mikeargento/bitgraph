@@ -16,18 +16,25 @@
 // rebuilt on every index pass, ignored by bitgraph-audit (which finds proofs by
 // schema shape rather than by filename), and deletable with nothing lost.
 //
-//   BitGraph (random-494.txt)/
-//       proof.json
-//       random-494.txt                          the original bytes, moved in
-//       index.html                              the recording's own page
-//       ethereum-anchors/
-//           anchor-before.json                  lower bound
-//           anchor-before-witness.json          its block header
-//           anchor-after.json                   upper bound, the seal
-//           anchor-after-witness.json           its block header
+//   index.html                                  the contact sheet
+//   Recordings/
+//       BitGraph (random-494.txt)/
+//           proof.json
+//           random-494.txt                      the original bytes, moved in
+//           index.html                          the recording's own page
+//           ethereum-anchors/
+//               anchor-before.json              lower bound
+//               anchor-before-witness.json      its block header
+//               anchor-after.json               upper bound, the seal
+//               anchor-after-witness.json       its block header
 //   files/
 //       random-494.txt                          a hard link, not a copy
-//   index.html                                  the contact sheet
+//
+//   The top level is the drop zone and stays empty at rest: the shutter and
+//   the archive are different places. Exports found flat at the top level
+//   (an older layout, or an old export dragged back in) are tucked into
+//   Recordings/ by the next index pass; discovery is by content everywhere,
+//   so both shapes keep working throughout.
 //
 // files/ exists so the recorded files can be taken back out in one go, without
 // opening every export. Hard links, so it costs no disk and cannot drift.
@@ -562,12 +569,16 @@ function builtHere(dir, digestB64, counter, epochUrlSafe) {
 function resolveDir(folder, counter, epochUrlSafe, digestB64, fileName) {
   var label = labelFor(fileName);
   var suffix = label ? ' (' + label + ')' : '';
-  var base = folder + '/BitGraph' + suffix;
+  var base = folder + '/' + REC_DIR + '/BitGraph' + suffix;
+  // Every layout that has ever shipped, flat at the top level: the 1.2.4-1.6.x
+  // name, then the counter-era ones. A re-fired watch has to land on the
+  // folder it already built wherever an older version built it.
+  var flat = folder + '/BitGraph' + suffix;
   var old = folder + '/bitgraph-proof-' + counter;
   var oldEpoch = old + '-' + String(epochUrlSafe).slice(0, 8);
 
   // Newest first, so a re-fire on a current export costs one read.
-  var known = [base, old + suffix, old, oldEpoch + suffix, oldEpoch];
+  var known = [base, flat, old + suffix, old, oldEpoch + suffix, oldEpoch];
   for (var i = 0; i < known.length; i++) {
     if (builtHere(known[i], digestB64, counter, epochUrlSafe)) {
       return { dir: known[i], alreadyBuilt: true };
@@ -620,6 +631,18 @@ function baseName(p) {
 // rather than copying it. Tidying it away would delete the user's photo to keep
 // a derived folder neat. Losing a recording must never mean losing the file.
 var FILES_DIR = 'files';
+
+// Where exports live: one level down, so the folder a person drops into stays
+// EMPTY at rest. The top level is the shutter, Recordings/ is the roll, and
+// the reason the folder used to read as messy is that they were the same
+// place. files/ stays at the top because it is user-facing (drag everything
+// out at once), and the machinery (.thumbs, the caches) is dotfile-hidden.
+//
+// ⚠️ The website's export ZIP stays FLAT, deliberately. A zip is a snapshot
+// that never grows; this container exists to keep a LIVING folder calm. That
+// is the one structural asymmetry between the two implementations, and it is
+// documented in both headers.
+var REC_DIR = 'Recordings';
 
 /** True when two paths are the same bytes on disk rather than two copies. */
 function sameInode(a, b) {
@@ -801,9 +824,18 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, kee
 function completePending(folder, waitMs) {
   var wait = parseInt(waitMs, 10);
   if (!(wait >= 0)) wait = 0;
-  var listing = sh('ls -1 ' + quote(folder) + ' 2>/dev/null');
-  if (!listing) return 'ok: nothing pending';
-  var names = listing.split('\r').join('\n').split('\n').filter(Boolean);
+  // Both places: Recordings/ is where exports live, the top level is where an
+  // older layout left them or a dragged-back export sits until the next index
+  // pass tucks it in. A pending file rides inside its export either way.
+  var names = [];
+  [[folder + '/' + REC_DIR, REC_DIR + '/'], [folder, '']].forEach(function (pair) {
+    var listing = sh('ls -1 ' + quote(pair[0]) + ' 2>/dev/null');
+    if (!listing) return;
+    listing.split('\r').join('\n').split('\n').filter(Boolean).forEach(function (n) {
+      names.push(pair[1] + n);
+    });
+  });
+  if (!names.length) return 'ok: nothing pending';
   var sealedCount = 0;
 
   names.forEach(function (name) {
@@ -1058,7 +1090,7 @@ function pageShell(title, extraCss, bodyHtml) {
     'font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;' +
     '-webkit-font-smoothing:antialiased}' +
     '.wrap{max-width:800px;margin:0 auto}' +
-    'h1{margin:0 0 4px;font-size:28px;font-weight:600;letter-spacing:-.03em;overflow-wrap:anywhere}' +
+    'h1{margin:0 0 4px;font-size:28px;font-weight:800;letter-spacing:-.03em;overflow-wrap:anywhere}' +
     '.s{margin:0 0 40px;color:#4b5563;font-size:14px}' +
     // Sits inline at the end of the count, not in a banner or a bar. It is a
     // fact about the software, worth one sentence and no furniture, and it is
@@ -1226,7 +1258,7 @@ function thumbFor(folder, name, file) {
     // `-s format jpeg` for the reason embedImage carries it: without it sips
     // silently writes nothing for a WEBP.
     sh('sips -s format jpeg -Z ' + THUMB_WIDTH + ' --out ' + quote(abs) + ' ' +
-      quote(folder + '/' + name + '/' + file) + ' >/dev/null 2>&1');
+      quote(folder + '/' + REC_DIR + '/' + name + '/' + file) + ' >/dev/null 2>&1');
     if (!exists(abs)) return null;
   }
   return encodePath(rel);
@@ -1274,7 +1306,8 @@ function repairWitnesses(dir) {
 /** Drop thumbnails whose export no longer exists. One call, after the scan. */
 function pruneThumbs(folder) {
   sh('cd ' + quote(folder + '/' + THUMBS_DIR) + ' 2>/dev/null && for t in *.jpg; do ' +
-    '[ -e "$t" ] || continue; d="${t%.jpg}"; [ -d "../$d" ] || rm -f "$t"; done; true');
+    '[ -e "$t" ] || continue; d="${t%.jpg}"; ' +
+    '[ -d "../' + REC_DIR + '/$d" ] || [ -d "../$d" ] || rm -f "$t"; done; true');
 }
 
 /** The recorded file in an export: not the proof, the anchors, or a marker. */
@@ -1438,9 +1471,9 @@ function dateOf(d) {
 
 
 function sheetRow(folder, name, d, snap, forcePage, mtime) {
-  var dir = folder + '/' + name;
+  var dir = folder + '/' + REC_DIR + '/' + name;
   var file = d.artifact;
-  var rel = file ? encodePath(name + '/' + file) : null;
+  var rel = file ? encodePath(REC_DIR + '/' + name + '/' + file) : null;
   var isImage = file && IMAGE_EXT.indexOf(extOf(file)) !== -1;
 
   var isPdf = file && extOf(file) === 'pdf';
@@ -1449,7 +1482,7 @@ function sheetRow(folder, name, d, snap, forcePage, mtime) {
   // about a recording lives on that page, the file among it, so sending the
   // most obvious click straight to the artifact skipped past the thing you
   // actually wanted.
-  var page = encodePath(name) + '/index.html';
+  var page = encodePath(REC_DIR + '/' + name) + '/index.html';
 
   // A small copy where one can be made, the original where it cannot. The
   // difference is the whole page's weight: originals meant pulling megabytes to
@@ -1532,7 +1565,7 @@ function sheetRow(folder, name, d, snap, forcePage, mtime) {
       var digest = proof && proof.artifact && proof.artifact.digestB64;
       if (digest) {
         var counter = (proof.commit && proof.commit.counter) || '';
-        writeProofPage(folder, name, file, digest, counter, anchorInfo(dir), mtime);
+        writeProofPage(folder, name, file, digest, counter, anchorInfo(dir), mtime, forcePage);
       }
     } catch (e) {
       /* the row still works without it */
@@ -1611,10 +1644,14 @@ function pageIsCurrent(dir, file) {
   return true;
 }
 
-function writeProofPage(folder, name, file, digest, counter, info, mtime) {
-  var dir = folder + '/' + name;
+function writeProofPage(folder, name, file, digest, counter, info, mtime, force) {
+  var dir = folder + '/' + REC_DIR + '/' + name;
 
-  if (pageIsCurrent(dir, file)) return;
+  // `force` rides in from sheetRow for the cases where the page's INPUTS did
+  // not move but the page is wrong anyway: a freshly landed witness, or a
+  // migration, which changes where the sheet lives relative to this page (the
+  // back link) while mv leaves every mtime untouched.
+  if (!force && pageIsCurrent(dir, file)) return;
 
   // NEVER write over the artifact. The page has to be called index.html, since
   // that is what makes a browser render it instead of generating its own
@@ -1814,8 +1851,9 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
       //
       // The way back is the only navigation this page needs, and only when
       // there is a sheet to go back to.
+      // Two levels up: the export lives in Recordings/, the sheet beside it.
       (SIBLINGS > 1
-        ? '<nav class="nv"><a class="hm bk" href="../index.html">' +
+        ? '<nav class="nv"><a class="hm bk" href="../../index.html">' +
           '<span class="arrow">&larr;</span> All recordings</a></nav>'
         : '') +
         '<h1>BitGraph Recorded</h1>' +
@@ -2037,17 +2075,22 @@ function updateNote() {
  * what counts as an export.
  */
 function exportDirs(folder) {
+  // Recordings/ first, then any flat stragglers at the top level, so --verify
+  // covers an old folder, a new one, and the mixed moment in between. Names
+  // keep their prefix; every caller joins them onto `folder`.
   var listing = sh('cd ' + quote(folder) +
-    ' && for d in */; do if [ -f "$d/proof.json" ]; then stat -f "%m %N" "$d"; fi; done 2>/dev/null; true');
+    ' && for d in ' + REC_DIR + '/*/ */; do if [ -f "$d/proof.json" ]; then stat -f "%m %N" "$d"; fi; done 2>/dev/null; true');
   var lines = listing ? listing.split('\r').join('\n').split('\n').filter(Boolean) : [];
 
   var entries = [];
+  var seen = {};
   lines.forEach(function (line) {
     var gap = line.indexOf(' ');
     if (gap === -1) return;
     // `stat` prints the name as given, and the glob gives it with a trailing slash.
     var name = line.slice(gap + 1).replace(/\/+$/, '');
-    if (!name || name === FILES_DIR) return;
+    if (!name || name === FILES_DIR || seen[name]) return;
+    seen[name] = true;
     entries.push({ name: name, mtime: parseInt(line.slice(0, gap), 10) || 0 });
   });
   return entries;
@@ -2080,10 +2123,14 @@ function exportDirs(folder) {
  * nothing else, the same standing limitation the old ls-based scan had.
  */
 function snapshotFolder(folder) {
-  var snap = { dirs: {}, files: {}, thumbs: {} };
+  // dirs: exports inside Recordings/, keyed by bare name. stray: top-level
+  // directories that hold a proof.json, meaning exports an older version
+  // built flat, or an old export someone dragged back in; writeIndex tucks
+  // them into Recordings/ and that is the entire migration story.
+  var snap = { dirs: {}, stray: {}, files: {}, thumbs: {} };
 
   var listing = sh(
-    'cd ' + quote(folder) + ' && find . -mindepth 1 -maxdepth 3 ' +
+    'cd ' + quote(folder) + ' && find . -mindepth 1 -maxdepth 4 ' +
     "-path './" + FILES_DIR + "' -prune -o " +
     "-path './" + THUMBS_DIR + "' -prune -o " +
     '-print0 2>/dev/null | xargs -0 stat -f "%m %N" 2>/dev/null; true'
@@ -2096,8 +2143,17 @@ function snapshotFolder(folder) {
     var path = line.slice(gap + 1);
     if (path.slice(0, 2) !== './') return;
     var segs = path.slice(2).split('/');
+    // Both shapes read with one parser: entries under Recordings/ are the
+    // folder proper, top-level ones are strays to migrate.
+    var bucket = snap.dirs;
+    if (segs[0] === REC_DIR) {
+      segs = segs.slice(1);
+      if (!segs.length) return; // Recordings/ itself
+    } else {
+      bucket = snap.stray;
+    }
     var name = segs[0];
-    var d = snap.dirs[name] || (snap.dirs[name] = {
+    var d = bucket[name] || (bucket[name] = {
       m: 0, proofM: 0, pageM: 0, anchorsM: 0, anchors: 0, witnesses: 0,
       pending: false, artifact: null, candidates: [],
     });
@@ -2115,18 +2171,25 @@ function snapshotFolder(folder) {
       else if (/^anchor-(before|after)-witness\.json$/.test(segs[2])) d.witnesses++;
     }
   });
+  // A stray is only a stray if it is actually an export; anything else at the
+  // top level is the walker's business, not ours.
+  Object.keys(snap.stray).forEach(function (n) {
+    if (!snap.stray[n].proofM) delete snap.stray[n];
+  });
   // Alphabetical first, the order artifactIn's `ls` returned, so a folder that
   // somehow holds two loose files names the same one it always has. The
   // artifact's own mtime rides along: it is one of the page's inputs, and the
   // one whose omission would blind the page to an artifact edited in place.
-  Object.keys(snap.dirs).forEach(function (n) {
-    var d = snap.dirs[n];
-    if (d.candidates.length) {
-      d.candidates.sort(function (a, b) { return a.n < b.n ? -1 : a.n > b.n ? 1 : 0; });
-      d.artifact = d.candidates[0].n;
-      d.artM = d.candidates[0].m;
-    }
-    delete d.candidates;
+  [snap.dirs, snap.stray].forEach(function (bucket) {
+    Object.keys(bucket).forEach(function (n) {
+      var d = bucket[n];
+      if (d.candidates.length) {
+        d.candidates.sort(function (a, b) { return a.n < b.n ? -1 : a.n > b.n ? 1 : 0; });
+        d.artifact = d.candidates[0].n;
+        d.artM = d.candidates[0].m;
+      }
+      delete d.candidates;
+    });
   });
 
   var lists = sh('cd ' + quote(folder) +
@@ -2197,6 +2260,29 @@ function writeIndex(folder) {
   var snap = snapshotFolder(folder);
   var cache = loadSheetCache(folder);
 
+  // Tuck any top-level export into Recordings/. This is the whole migration:
+  // continuous, by content, and it also gives an OLD export dragged back into
+  // the folder a home (it used to sit at the top level forever). mv changes no
+  // mtime inside, so a migrated export's page still says ../index.html, one
+  // level short of where the sheet now lives; migrated names are therefore
+  // forced through writeProofPage this pass.
+  var migrated = {};
+  var strays = Object.keys(snap.stray);
+  if (strays.length) {
+    mkdirp(folder + '/' + REC_DIR);
+    strays.forEach(function (name) {
+      var dest = name;
+      // Two distinct recordings are allowed to share a filename; never merge.
+      for (var n = 2; snap.dirs[dest] && n < 1000; n++) dest = name + ' ' + n;
+      if (snap.dirs[dest]) return; /* a thousand collisions: leave it, next pass */
+      var ok = sh('mv ' + quote(folder + '/' + name) + ' ' +
+        quote(folder + '/' + REC_DIR + '/' + dest) + ' 2>/dev/null && echo ok');
+      if (ok !== 'ok') return; /* still flat; every reader checks both places */
+      snap.dirs[dest] = snap.stray[name];
+      migrated[dest] = true;
+    });
+  }
+
   // An export is a directory holding a proof.json, discovered by CONTENT and
   // never by name: three naming schemes have shipped and folders get renamed by
   // hand. Same rule bitgraph-audit uses.
@@ -2255,12 +2341,12 @@ function writeIndex(folder) {
     var repaired = 0;
     if ((d.anchors || 0) > (d.witnesses || 0)) {
       try {
-        repaired = repairWitnesses(folder + '/' + e.name);
+        repaired = repairWitnesses(folder + '/' + REC_DIR + '/' + e.name);
       } catch (err) {
         /* tried again on the next pass */
       }
     }
-    var row = sheetRow(folder, e.name, d, snap, repaired > 0, e.mtime);
+    var row = sheetRow(folder, e.name, d, snap, repaired > 0 || migrated[e.name] === true, e.mtime);
     if (row) rows.push(row);
     // Backfill files/ for anything recorded before it existed, or after someone
     // emptied it. A lookup against the snapshot's listing, not a probe: the
@@ -2269,7 +2355,7 @@ function writeIndex(folder) {
     // file is the one case it knowingly leaves to that build-time path.
     if (d.artifact && !snap.files[d.artifact]) {
       try {
-        linkIntoFiles(folder, folder + '/' + e.name, d.artifact);
+        linkIntoFiles(folder, folder + '/' + REC_DIR + '/' + e.name, d.artifact);
       } catch (err) {
         /* the sheet is the job here; a missing link costs nothing */
       }

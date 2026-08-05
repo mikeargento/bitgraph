@@ -125,8 +125,20 @@ to_urlsafe() { printf '%s' "$1" | tr '+/' '-_' | tr -d '='; }
 #
 # A function because the phases below can finish early, and a run that exits
 # before this would leave a husk sitting in the folder until the next drop.
+# An export sitting flat at the top level (an older layout, or one dragged
+# back in from anywhere) belongs in Recordings/. The index pass is what tucks
+# it there, and a drag-in of an already-built export is exactly the case where
+# the run otherwise finds nothing to record and exits before any index pass:
+# the export would sit at the top level until some later drop. One cheap glob
+# decides; the pass itself is ~0.1s when there is nothing else to do.
+tuck_strays() {
+  compgen -G "$FOLDER"/*/proof.json >/dev/null 2>&1 || return 0
+  "$OSASCRIPT" -l JavaScript "$EXPORTER" --index "$FOLDER" >/dev/null 2>&1 || true
+}
+
 clear_husks() {
   find "$FOLDER" -mindepth 1 -depth -type d -empty ! -name '.*' ! -name files \
+    ! -path "$FOLDER/Recordings" \
     -exec rmdir {} ';' 2>/dev/null || true
 }
 
@@ -166,8 +178,12 @@ handled() { echo "$1" >> "$STATE"; }
 # proof.json is an export. Recursive, because a folder of folders of photos is
 # still a folder of photos.
 droppable() {
+  # Recordings/ is pruned by its exact top-level path, which both skips every
+  # export in one test instead of one per directory and keeps a USER folder
+  # that happens to be called Recordings, dragged in deeper down, recordable.
   find "$FOLDER" -mindepth 1 \
-    \( -name '.*' \
+    \( -path "$FOLDER/Recordings" \
+       -o -name '.*' \
        -o -name files \
        -o \( -type d -exec test -e '{}/proof.json' ';' \) \
     \) -prune -o -type f -print0
@@ -189,7 +205,7 @@ droppable() {
 # already running. That is duplicated work, on the path the person is waiting
 # on, and it is why back-to-back drops still took ten seconds after the lock was
 # split. Whoever holds the seal lock sweeps the whole folder, ours included.
-if [ ! -d "$SEAL_LOCK" ] && compgen -G "$FOLDER"/*/.bitgraph-pending.json >/dev/null 2>&1; then
+if [ ! -d "$SEAL_LOCK" ] && { compgen -G "$FOLDER"/Recordings/*/.bitgraph-pending.json >/dev/null 2>&1 || compgen -G "$FOLDER"/*/.bitgraph-pending.json >/dev/null 2>&1; }; then
   "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" 0 >/dev/null 2>&1 || true
 fi
 
@@ -259,7 +275,7 @@ while IFS= read -r -d '' f; do
 done < <(droppable)
 
 count=${#keep_paths[@]}
-[ "$count" -eq 0 ] && { clear_husks; exit 0; }
+[ "$count" -eq 0 ] && { tuck_strays; clear_husks; exit 0; }
 
 resp_file="$HOME_DIR/.response.json"
 
@@ -333,7 +349,7 @@ done
 keep_paths=("${settled_paths[@]:+${settled_paths[@]}}")
 keep_digests=("${settled_digests[@]:+${settled_digests[@]}}")
 count=${#keep_paths[@]}
-[ "$count" -eq 0 ] && { clear_husks; exit 0; }
+[ "$count" -eq 0 ] && { tuck_strays; clear_husks; exit 0; }
 
 # Everything the ledger already held, before anything new is committed. Kept
 # because the two outcomes have to stay distinguishable: a drop of known bytes
@@ -531,7 +547,7 @@ if [ $((recorded + on_record)) -gt 0 ]; then
   if mkdir "$SEAL_LOCK" 2>/dev/null; then
     (
       passes=0
-      while [ "$passes" -lt 3 ] && compgen -G "$FOLDER"/*/.bitgraph-pending.json >/dev/null 2>&1; do
+      while [ "$passes" -lt 3 ] && { compgen -G "$FOLDER"/Recordings/*/.bitgraph-pending.json >/dev/null 2>&1 || compgen -G "$FOLDER"/*/.bitgraph-pending.json >/dev/null 2>&1; }; do
         "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" "$wait_ms" >/dev/null 2>&1
         passes=$((passes + 1))
       done
