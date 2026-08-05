@@ -42,7 +42,14 @@
 // Usage (always via osascript -l JavaScript):
 //   export.js <file> <digestB64> <counter> <epochUrlSafe>   build one export
 //   export.js --complete <folder>                           finish pending ones
+//   export.js --index <folder>                              rebuild the sheet
+//   export.js --verify <folder>                             re-hash every export
+//   export.js --recover <folder> [destFolder]               rebuild lost exports
 //   export.js --json batch|commit <responseFile>            parse a response
+//
+// --verify and --recover are the two a person runs by hand. Neither can record
+// anything: --verify makes no request at all, and --recover only ever asks the
+// ledger what it already holds.
 //
 // Responses are read from FILES rather than piped in. doShellScript carries
 // output through a shell pipe, and proofs embed a multi-kilobyte attestation;
@@ -176,6 +183,28 @@ function tempPath() {
   return sh('mktemp -t bitgraph-export') || '/tmp/bitgraph-export.json';
 }
 
+/**
+ * Read a file as UTF-8 through NSString.
+ *
+ * StandardAdditions' `read` handles ordinary text, but it cannot carry a NUL
+ * byte, and the recovery walk separates paths with NULs on purpose: a newline
+ * is a legal character in a macOS filename, so a line-separated listing would
+ * split one path into two. `find -print0` into a file and this reader is the
+ * combination that survives every name the filesystem allows.
+ */
+function readFileUtf8(path) {
+  if (badPath(path)) return null;
+  try {
+    var s = $.NSString.stringWithContentsOfFileEncodingError(path, $.NSUTF8StringEncoding, $());
+    var js = ObjC.unwrap(s);
+    // An ObjC nil is TRUTHY here and arrives as a function, so the type is the
+    // only honest test. Same trap as the environment dictionary above.
+    return typeof js === 'string' ? js : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 /** GET a URL and parse it. Returns null on any failure, which callers treat as absent. */
 function getJson(url) {
   var tmp = tempPath();
@@ -192,12 +221,60 @@ function getJson(url) {
   }
 }
 
+/**
+ * POST a JSON body and parse the reply.
+ *
+ * Both directions go through files, for the reason stated at the top: response
+ * bodies carry multi-kilobyte attestations and doShellScript pipes have a
+ * ceiling that truncates silently. `--data-binary @file` keeps the request off
+ * the command line too, which a batch of a few dozen digests would otherwise
+ * fill.
+ */
+function postJson(url, body) {
+  var reply = tempPath();
+  var payload = tempPath();
+  try {
+    writeFile(payload, JSON.stringify(body));
+    sh('curl -s --max-time 60 -X POST ' + quote(url) +
+      ' -H ' + quote('Content-Type: application/json') +
+      ' --data-binary ' + quote('@' + payload) +
+      ' -o ' + quote(reply));
+    var raw = readFile(reply);
+    if (!raw) return null;
+    var parsed = JSON.parse(raw);
+    return parsed && parsed.error ? null : parsed;
+  } catch (e) {
+    return null;
+  } finally {
+    sh('rm -f ' + quote(reply) + ' ' + quote(payload));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function toUrlSafe(b64) {
   return String(b64).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/**
+ * SHA-256 of a file, STANDARD base64, which is the form proof.json stores.
+ *
+ * The URL-safe alphabet is for URLs only; comparing one against the other reads
+ * as a mismatch for any digest that happens to contain a + or a /, which is
+ * most of them.
+ *
+ * `openssl base64 -A` rather than plain `base64`: -A refuses to wrap, and a
+ * wrapped digest arriving through doShellScript would compare unequal to a
+ * proof that stores it on one line. 32 bytes encodes to 44 characters, far
+ * under any pipe's ceiling, so this one is safe to read through the shell.
+ */
+function digestOfFile(path) {
+  if (badPath(path)) return null;
+  var out = sh('openssl dgst -sha256 -binary ' + quote(path) +
+    ' 2>/dev/null | openssl base64 -A 2>/dev/null');
+  return out ? String(out).trim() || null : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -511,6 +588,50 @@ function dirName(p) {
   return parts.join('/') || '/';
 }
 
+/**
+ * Put the recorded file into its export.
+ *
+ * A drop MOVES. The file was handed to the folder, and the export is where it
+ * now lives.
+ *
+ * A recovery must not, which is what `keepSource` is for: its source is the
+ * user's own library or a backup, and emptying that out would be a second loss
+ * on top of the one being repaired. It links instead, which is not a copy but a
+ * second name for the same bytes, so it costs no disk and cannot drift. The
+ * copy is the fallback for a source on another volume, which an external backup
+ * drive always is.
+ *
+ * Never clobbers the artifact. If the export already holds the file then the
+ * move this is finishing already happened, and in a recovery `from` and `to`
+ * can even be the same path. Overwriting is how the 2026-08-04 feedback loop
+ * destroyed six recorded files, so the rule here is that an artifact already in
+ * place wins.
+ */
+function placeArtifact(from, to, keepSource) {
+  if (!exists(from)) return;
+  if (exists(to)) {
+    // Two names, same bytes: a drop that arrived twice. The export already has
+    // what it needs, so the duplicate at the top level is just litter and goes.
+    // Only ever when the digests agree, because deleting a file that is NOT
+    // already safely inside the export would be losing it.
+    if (!keepSource && digestOfFile(from) === digestOfFile(to)) {
+      sh('rm -f ' + quote(from));
+    }
+    return;
+  }
+  if (!keepSource) {
+    sh('mv ' + quote(from) + ' ' + quote(to));
+    return;
+  }
+  if (sh('ln ' + quote(from) + ' ' + quote(to) + ' 2>/dev/null && echo ok') === 'ok') return;
+  sh('cp -p ' + quote(from) + ' ' + quote(to));
+}
+
+// writeIndex rebuilds every page and prunes thumbnails, so calling it once per
+// file during a recovery of several hundred would redo that whole pass several
+// hundred times. Set for the length of a recovery, with one index at the end.
+var DEFER_INDEX = false;
+
 /** Build a fresh export folder for one recorded file. */
 /**
  * Build the export for one recorded file.
@@ -520,8 +641,11 @@ function dirName(p) {
  * Without it a photo at BitGraph/vacation/001.jpg would have its export built
  * inside vacation/, complete with its own contact sheet, instead of joining the
  * others at the top level.
+ *
+ * `keepSource` leaves the original where it is instead of moving it in, which
+ * is what a recovery needs and a drop must never do. See placeArtifact.
  */
-function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
+function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, keepSource) {
   var fileName = baseName(filePath);
   var folder = destFolder || dirName(filePath);
 
@@ -534,7 +658,7 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
     // caller marks the digest handled before calling in, so a run that died
     // between writing the contents and moving the file would otherwise strand
     // it at the top level forever.
-    if (exists(filePath)) sh('mv ' + quote(filePath) + ' ' + quote(r.dir + '/' + fileName));
+    placeArtifact(filePath, r.dir + '/' + fileName, keepSource);
     return 'ok: already exported';
   }
   mkdirp(r.dir);
@@ -549,7 +673,7 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
   markPending(r.dir, meta, sealed);
 
   // Moved in last, so a failure above never strands the file.
-  if (exists(filePath)) sh('mv ' + quote(filePath) + ' ' + quote(r.dir + '/' + fileName));
+  placeArtifact(filePath, r.dir + '/' + fileName, keepSource);
 
   // Same treatment as the contact sheet: derived, and never allowed to turn a
   // successful recording into an error.
@@ -563,10 +687,12 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder) {
   // is already written and sealed by this point; index.html is a derived view,
   // so a failure here costs a stale listing that the next drop or `--index`
   // repairs, and must not turn a successful recording into an error.
-  try {
-    writeIndex(folder);
-  } catch (e) {
-    /* rebuilt on the next drop */
+  if (!DEFER_INDEX) {
+    try {
+      writeIndex(folder);
+    } catch (e) {
+      /* rebuilt on the next drop */
+    }
   }
 
   return 'ok: ' + baseName(r.dir) + (sealed ? '' : ' (pending seal)');
@@ -1286,10 +1412,8 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
   // that state, and this guard means the generator cannot do the damage even
   // if something does.
   if (exists(dir + '/index.html')) {
-    var existingHash = sh(
-      'openssl dgst -sha256 -binary ' + quote(dir + '/index.html') + ' 2>/dev/null | openssl base64 -A 2>/dev/null'
-    );
-    if (existingHash && String(existingHash).trim() === String(digest).trim()) return;
+    var existingHash = digestOfFile(dir + '/index.html');
+    if (existingHash && existingHash === String(digest).trim()) return;
   }
 
   var proofRaw = readFile(dir + '/proof.json');
@@ -1310,10 +1434,8 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
   // show and train the reader to skim past the one time it mattered.
   var binding = null;
   if (file) {
-    var got = sh(
-      'openssl dgst -sha256 -binary ' + quote(dir + '/' + file) + ' 2>/dev/null | openssl base64 -A 2>/dev/null'
-    );
-    if (got) binding = String(got).trim() === String(digest).trim();
+    var got = digestOfFile(dir + '/' + file);
+    if (got) binding = got === String(digest).trim();
   }
 
   var sizeStr = '';
@@ -1487,9 +1609,23 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
           ? '<p class="bind"><b>This file does not match the proof.</b> Its SHA-256 differs from the ' +
             'file hash below, so these are not the same bytes. Either the file changed after it was ' +
             'recorded, or it is not the file this proof describes.' +
-            '<span class="audit">npx @mikeargento/bitgraph-audit ' + esc(name) + '</span></p>'
+            '<span class="audit">' + esc(auditCommand(name)) + '</span></p>'
           : '') +
         body +
+        // ❄️ An "audit this yourself" block sat here and was CUT. Do not add it
+        // back. The page already re-hashes the artifact and says so in red when
+        // the bytes disagree, which is the check anyone actually needs, so a
+        // standing note telling the reader not to trust the page taxes every
+        // reader to serve a rare adversarial one who can find the command in
+        // the README. Mike: "its like not trusting something you dont have to
+        // trust". It also failed in practice: the command it printed was
+        // relative to the parent folder, and following it landed you in
+        // ~/BitGraph where bitgraph-audit writes audit-report.json and
+        // audit-report.md, which the watcher would then record. Two permanent
+        // proofs for reading a page.
+        //
+        // The command still appears on a MISMATCH, which is the one moment the
+        // reader has a reason to want it.
         '<div id="c">Copied!</div>' +
         copyScript()
     )
@@ -1600,6 +1736,19 @@ function proofPageCss() {
   );
 }
 
+/**
+ * The command that checks an export without trusting the page inside it.
+ *
+ * ⚠️ The folder name is SHELL-QUOTED. Exports are called `BitGraph (sunset.jpg)`,
+ * and both the parentheses and the space are shell syntax: pasted bare, as the
+ * mismatch warning used to print it, that line is a syntax error in bash and
+ * zsh rather than an audit. `quote` is the same single-quoting doShellScript
+ * gets, because it is the same job, one string into one shell word.
+ */
+function auditCommand(name) {
+  return 'npx @mikeargento/bitgraph-audit ' + quote(name);
+}
+
 /** Tap a field or a JSON block to copy it, the proof page's own affordance. */
 function copyScript() {
   return '<script>(function(){var c=document.getElementById("c");' +
@@ -1655,19 +1804,24 @@ function updateNote() {
     esc(latest) + ' is available <span class="a">&rarr;</span></a>';
 }
 
-/** Rebuild index.html from whatever is on disk, newest first. */
-function writeIndex(folder) {
-  // Discovery is by CONTENT, not by name: a directory is an export when it
-  // holds a proof.json. Three naming schemes have shipped, and a folder can be
-  // renamed by hand at any time, so matching a name prefix would quietly drop
-  // recordings out of the sheet. It is also the rule bitgraph-audit uses.
-  //
-  // One shell call for the whole scan, giving order and fallback time together.
-  // Newest first by modification time: counters cannot do this job because they
-  // reset every epoch, so a folder from today and one from last week are not
-  // comparable by number. Ends in `true` because the loop's last iteration sets
-  // the exit status, and a non-zero one makes doShellScript throw away the
-  // entire listing.
+/**
+ * Every export in a folder, as `{ name, mtime }`.
+ *
+ * Discovery is by CONTENT, not by name: a directory is an export when it holds
+ * a proof.json. Three naming schemes have shipped, and a folder can be renamed
+ * by hand at any time, so matching a name prefix would quietly drop recordings
+ * out of the sheet. It is the rule bitgraph-audit uses too.
+ *
+ * One shell call for the whole scan, giving name and fallback time together.
+ * mtime is the FILESYSTEM's opinion and no longer orders anything (see
+ * causalKey); it survives only as a tiebreak. Ends in `true` because the loop's
+ * last iteration sets the exit status, and a non-zero one makes doShellScript
+ * throw away the entire listing.
+ *
+ * One implementation on purpose. The sheet and `--verify` have to agree on what
+ * counts as an export, or a recording could be listed and never checked.
+ */
+function exportDirs(folder) {
   var listing = sh('cd ' + quote(folder) +
     ' && for d in */; do if [ -f "$d/proof.json" ]; then stat -f "%m %N" "$d"; fi; done 2>/dev/null; true');
   var lines = listing ? listing.split('\r').join('\n').split('\n').filter(Boolean) : [];
@@ -1676,12 +1830,17 @@ function writeIndex(folder) {
   lines.forEach(function (line) {
     var gap = line.indexOf(' ');
     if (gap === -1) return;
-    // `stat` prints the name as given, and the glob gives it with a trailing
-    // slash.
+    // `stat` prints the name as given, and the glob gives it with a trailing slash.
     var name = line.slice(gap + 1).replace(/\/+$/, '');
     if (!name || name === FILES_DIR) return;
     entries.push({ name: name, mtime: parseInt(line.slice(0, gap), 10) || 0 });
   });
+  return entries;
+}
+
+/** Rebuild index.html from whatever is on disk, newest first. */
+function writeIndex(folder) {
+  var entries = exportDirs(folder);
   // Causal order, newest first: the ledger's order, not the filesystem's.
   // See causalKey. mtime survives only as the tiebreak for two recordings that
   // share a block and a counter, which nothing real does.
@@ -1837,6 +1996,274 @@ function writeIndex(folder) {
 }
 
 // ---------------------------------------------------------------------------
+// --recover
+// ---------------------------------------------------------------------------
+//
+// Point it at files you still have. It hashes each one, asks the ledger which
+// of them are already recorded, and rebuilds the export for every position it
+// finds.
+//
+// The case it exists for: a recording lives on the ledger permanently, but the
+// export is an ordinary folder on an ordinary disk. Delete ~/BitGraph and the
+// proofs are all still there, unreachable, with nothing that puts them back.
+// That happened on 2026-08-04 and cost 21 exports.
+//
+// ⚠️ READ-ONLY AGAINST THE LEDGER, and it has to stay that way. It asks
+// /api/proofs/batch and /api/proofs/digest, both lookups, and never touches
+// /api/commit. Anything it cannot find was never recorded, and recovery is not
+// the place to decide otherwise: a file that turns out to be unrecorded is
+// reported and left alone, because recording it here would mint a permanent
+// proof at today's position for something the user believed was already on
+// record from months ago. Dropping it in is a deliberate act and stays one.
+//
+// ⚠️ It does NOT move the source files. See placeArtifact.
+
+/**
+ * Every candidate file under a directory, NUL-separated so no filename can
+ * split one path into two.
+ *
+ * Pruned like the hot folder's own walker and for the same reasons: files/
+ * holds a hard link to every artifact, so without it each recovery would be
+ * found twice, and hidden directories are ours or the system's. Anchors are
+ * skipped because they are proof material, not recordings.
+ *
+ * ⚠️ The one deliberate difference: EXPORT DIRECTORIES ARE NOT PRUNED. The
+ * likeliest source there is is an old copy of ~/BitGraph, and the artifacts
+ * worth recovering are sitting inside those very folders. Rebuilding an export
+ * that already exists is free (buildExport answers `already exported`), so
+ * descending costs nothing and skipping would miss the main case.
+ */
+function droppableUnder(dir) {
+  var list = tempPath();
+  try {
+    sh('find ' + quote(dir) + ' -mindepth 1 ' +
+      '\\( -name ' + quote('.*') +
+      ' -o -name ' + quote(FILES_DIR) +
+      ' -o -name ' + quote(ANCHOR_DIR) + ' \\) -prune -o ' +
+      '-type f ! -name ' + quote('index.html') +
+      ' ! -name ' + quote('proof.json') +
+      ' -print0 > ' + quote(list) + ' 2>/dev/null; true');
+    var raw = readFileUtf8(list);
+    return raw ? raw.split('\u0000').filter(Boolean) : [];
+  } finally {
+    sh('rm -f ' + quote(list));
+  }
+}
+
+// A batch big enough to matter and small enough to stay a normal request. Each
+// answer carries whole proofs, attestations included, so this is kilobytes per
+// digest rather than bytes.
+var RECOVER_CHUNK = 25;
+
+function recoverInto(source, destFolder) {
+  if (badPath(source)) return 'error: usage: export.js --recover <folder> [destFolder]';
+  if (!exists(source)) return 'error: no such folder: ' + source;
+  var folder = destFolder || (env('HOME') + '/BitGraph');
+  mkdirp(folder);
+
+  var paths = droppableUnder(source);
+  if (!paths.length) return 'ok: no files under ' + source;
+
+  note('Hashing ' + paths.length + '...');
+  // Keyed by digest, because two copies of one photo are ONE recording. Asking
+  // about it twice and building it twice would be wrong on both counts.
+  var byDigest = {};
+  var order = [];
+  paths.forEach(function (p) {
+    var d = digestOfFile(p);
+    if (!d) return;
+    var k = toUrlSafe(d);
+    if (!byDigest[k]) {
+      byDigest[k] = { digestB64: d, paths: [] };
+      order.push(k);
+    }
+    byDigest[k].paths.push(p);
+  });
+  if (!order.length) return 'ok: nothing readable under ' + source;
+
+  var onRecord = 0, built = 0, already = 0, absent = 0, failed = 0;
+
+  DEFER_INDEX = true;
+  try {
+    for (var i = 0; i < order.length; i += RECOVER_CHUNK) {
+      var slice = order.slice(i, i + RECOVER_CHUNK);
+      note('Asking the ledger about ' + (i + 1) + '-' +
+        Math.min(i + RECOVER_CHUNK, order.length) + ' of ' + order.length + '...');
+      var data = postJson(API + '/api/proofs/batch', { digests: slice });
+      if (!data || !data.results) {
+        // A failed lookup is not an absent recording. Saying "not on record"
+        // here would tell someone their proofs are gone when the network is
+        // simply down, so it is counted separately and the run can be repeated.
+        failed += slice.length;
+        note('  lookup failed for ' + slice.length + ', run it again');
+        continue;
+      }
+
+      // Matched back by the digest INSIDE each proof rather than by the
+      // response's own keys, so whichever base64 alphabet the server keys on
+      // cannot silently drop a result on the floor.
+      var positions = {};
+      Object.keys(data.results).forEach(function (key) {
+        var proofs = (data.results[key] && data.results[key].proofs) || [];
+        proofs.forEach(function (entry) {
+          var p = (entry && entry.proof) || entry;
+          if (!p || !p.commit || !p.artifact || !p.artifact.digestB64) return;
+          var k = toUrlSafe(p.artifact.digestB64);
+          if (!positions[k]) positions[k] = [];
+          positions[k].push({
+            counter: String(p.commit.counter),
+            epoch: toUrlSafe(String(p.commit.epochId || '')),
+          });
+        });
+      });
+
+      slice.forEach(function (k) {
+        var rec = byDigest[k];
+        var name = baseName(rec.paths[0]);
+        var found = positions[k] || [];
+        if (!found.length) {
+          absent++;
+          note('  not on record  ' + name);
+          return;
+        }
+        onRecord++;
+        // EVERY position, not just the earliest. The same bytes at two causal
+        // positions is BitGraph Again, which is two recordings and was two
+        // exports before they were lost.
+        found.forEach(function (q) {
+          var out = String(buildExport(rec.paths[0], rec.digestB64, q.counter, q.epoch, folder, true));
+          if (out.indexOf('ok: already exported') === 0) {
+            already++;
+            note('  already here   ' + name + '  #' + q.counter);
+          } else if (out.indexOf('ok:') === 0) {
+            built++;
+            note('  recovered      ' + name + '  #' + q.counter);
+          } else {
+            failed++;
+            note('  failed         ' + name + '  #' + q.counter + '  ' + out);
+          }
+        });
+      });
+    }
+  } finally {
+    // Cleared even on a throw, or an ordinary drop afterwards would silently
+    // stop rebuilding the sheet.
+    DEFER_INDEX = false;
+  }
+
+  // The one index pass the whole recovery gets.
+  try {
+    writeIndex(folder);
+  } catch (e) {
+    /* rebuilt on the next drop */
+  }
+
+  // Paths and recordings are different numbers and both are worth saying: a
+  // library with three copies of one photo is three files and one recording,
+  // and a summary that conflated them would look like it had lost two.
+  return 'ok: ' + paths.length + (paths.length === 1 ? ' file' : ' files') +
+    (order.length === paths.length ? '' : ', ' + order.length + ' distinct') +
+    ', ' + onRecord + ' on record, ' + built + ' recovered' +
+    (already ? ', ' + already + ' already here' : '') +
+    (absent ? ', ' + absent + ' not on record' : '') +
+    (failed ? ', ' + failed + ' failed' : '');
+}
+
+// ---------------------------------------------------------------------------
+// --verify
+// ---------------------------------------------------------------------------
+//
+// Re-hash every export's artifact and compare it against the digest inside that
+// export's own proof.json.
+//
+// Entirely local. It makes no request, needs no network and writes nothing: the
+// proof already states what the bytes were, so the only question is whether the
+// file sitting beside it still hashes to that. Nothing asked until now unless
+// someone happened to open a recording's page in a browser, one page at a time,
+// which is not a thing anyone does to an archive of several hundred.
+//
+// ⚠️ What a pass does NOT mean. It says the file beside a proof is the file
+// that proof describes. It says nothing about whether the proof itself is
+// genuine, which takes the signature, the enclave attestation and the anchors:
+// `npx @mikeargento/bitgraph-audit <folder>`, and that one needs the ledger.
+// This is the cheap local check, not a replacement for that one.
+
+/**
+ * A line of progress, to stderr.
+ *
+ * `run` returns a single string and osascript prints it only once everything is
+ * finished, so a long pass would sit completely silent. console.log goes to
+ * stderr, which keeps it clear of the result a caller parses on stdout.
+ */
+function note(line) {
+  try {
+    console.log(line);
+  } catch (e) {
+    /* progress is not worth failing a run over */
+  }
+}
+
+function verifyFolder(folder) {
+  if (badPath(folder)) return 'error: usage: export.js --verify <folder>';
+  var entries = exportDirs(folder);
+  if (!entries.length) return 'ok: no exports in ' + folder;
+  note('Checking ' + entries.length + '...');
+
+  var problems = [];
+  var intact = 0;
+
+  entries.forEach(function (e) {
+    var dir = folder + '/' + e.name;
+
+    var want = null;
+    var raw = readFile(dir + '/proof.json');
+    if (raw !== null) {
+      try {
+        var p = JSON.parse(raw);
+        want = (p && p.artifact && p.artifact.digestB64) || null;
+      } catch (err) {
+        /* falls through to the unreadable case below */
+      }
+    }
+    if (!want) {
+      problems.push('unreadable  ' + e.name + '  (proof.json)');
+      return;
+    }
+
+    var file = artifactIn(dir);
+    if (!file) {
+      // Still evidence without it: the proof, the anchors and the page are all
+      // here, and files/ may well hold the bytes under a hard link. It is worth
+      // saying anyway, because an export is meant to be self-contained.
+      problems.push('no file     ' + e.name);
+      return;
+    }
+
+    var got = digestOfFile(dir + '/' + file);
+    if (!got) {
+      problems.push('unreadable  ' + e.name + '  (' + file + ')');
+      return;
+    }
+    if (got === want) {
+      intact++;
+      return;
+    }
+    // Both digests printed, because "changed" on its own invites the reader to
+    // assume a bug in this tool. Two strings that differ are checkable by hand.
+    problems.push('CHANGED     ' + e.name + '  (' + file + ')');
+    problems.push('              recorded  ' + want);
+    problems.push('              on disk   ' + got);
+  });
+
+  var n = entries.length;
+  var head = n + (n === 1 ? ' export' : ' exports') + ' checked, ' + intact + ' intact';
+  if (!problems.length) return 'ok: ' + head;
+  // Summary first, detail under it. A folder with sixty problems should say so
+  // before it starts listing them.
+  return head + ', ' + (n - intact) + ' to look at\n\n' + problems.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 
 function run(argv) {
   try {
@@ -1850,6 +2277,12 @@ function run(argv) {
     }
     if (argv[0] === '--complete') {
       return completePending(argv[1]);
+    }
+    if (argv[0] === '--verify') {
+      return verifyFolder(argv[1]);
+    }
+    if (argv[0] === '--recover') {
+      return recoverInto(argv[1], argv[2]);
     }
     if (argv.length < 4) {
       return 'error: usage: export.js <file> <digestB64> <counter> <epochUrlSafe> [destFolder]';

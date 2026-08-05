@@ -323,6 +323,9 @@ export function proofPage(input: ProofPageInput): string {
       ? '<nav class="nv"><a class="hm bk" href="../index.html">' +
         '<span class="arrow">&larr;</span> All recordings</a></nav>'
       : "") +
+      // ❄️ An "audit this yourself" block sat here and was CUT, along with its
+      // twin in packages/folder/src/export.js. Do not add it back. See the note
+      // at the same spot there for why.
       "<h1>BitGraph Recorded</h1>" + body +
       '<div id="c">Copied!</div>' + COPY_SCRIPT
   );

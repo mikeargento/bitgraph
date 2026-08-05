@@ -104,13 +104,26 @@ Every export folder audits offline, with no network and no account:
 npx @mikeargento/bitgraph-audit "BitGraph (sunset.jpg)"
 ```
 
-**Expect exit code 2, and expect that to be fine.** An export holds one proof
-and its two bracketing anchors, lifted out of a chain thousands of proofs long.
-The audit tool is built to audit whole epochs, so it reports the positions it
-cannot see as `unexplained-counter-positions`. In its own words, that "does not,
-by itself, establish that the authority failed to create or withheld any proof."
+It should come back clean:
 
-What should come back clean in the report:
+```
+exit 0: clean: no verification failures, no chain anomalies, no divergences
+```
+
+An export holds one proof and its two bracketing anchors, lifted out of a chain
+thousands of proofs long, and that is enough to check on its own.
+
+Run it from anywhere except `~/BitGraph` itself. It writes `audit-report.json`
+and `audit-report.md` into whatever directory you are standing in, and inside
+the watched folder those two files would be treated as dropped files and
+recorded.
+
+The one case that does not come back clean: a recording made before May 2026
+carries the schema's older name, `occ/1`, which the current audit tool does not
+accept. It rejects the file rather than checking it. That is a limitation of the
+tool, not a finding about the proof.
+
+What comes back in the report:
 
 | Field | Meaning |
 | --- | --- |
@@ -121,9 +134,6 @@ What should come back clean in the report:
 | `attestation.userDataBound` | the attestation is bound to this exact proof |
 | `temporal.anchorsWithVerifiedWitness` | block hashes recomputed from their headers |
 
-The two anchors report `artifact-unavailable`, which is expected: an anchor's
-artifact is a chain hash rather than a file.
-
 To check just the bytes, skip the tool entirely:
 
 ```bash
@@ -132,6 +142,48 @@ shasum -a 256 sunset.jpg
 
 and compare against `artifact.digestB64` in `proof.json`, which is the same
 value in base64.
+
+## Checking every export at once
+
+`bitgraph-audit` checks one export thoroughly. This checks all of them cheaply,
+and with no network at all:
+
+```bash
+osascript -l JavaScript ~/.bitgraph/export.js --verify ~/BitGraph
+```
+
+It re-hashes every recorded file and compares it against the digest in that
+export's own `proof.json`, then prints only what does not match:
+
+```
+17 exports checked, 17 intact
+```
+
+A file that has changed is named with both digests, the one that was recorded
+and the one on disk now. Nothing is written and nothing is sent anywhere.
+
+## If an export is lost
+
+The recording is permanent. The export is an ordinary folder, and folders get
+deleted. If you still have the files anywhere, the exports can be rebuilt:
+
+```bash
+osascript -l JavaScript ~/.bitgraph/export.js --recover ~/Pictures/vacation
+```
+
+It hashes everything under that folder, asks the ledger which digests are
+already recorded, and rebuilds the export for each position it finds. Pass a
+second path to write somewhere other than `~/BitGraph`. Point it at an old copy
+of `~/BitGraph` itself and it will read the files out of the exports inside.
+
+**It never records anything.** A file that is not already on record is reported
+and left alone. Recording it here would put it at today's position rather than
+the one it actually had, and dropping a file in is how you record something.
+That stays a deliberate act.
+
+**It does not move your files.** The source keeps everything. The export gets a
+hard link to the same bytes, which costs no disk, or a copy when the two are on
+different drives.
 
 ## How it works
 
