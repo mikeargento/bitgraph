@@ -44,6 +44,40 @@ OSASCRIPT="/usr/bin/osascript"
 
 mkdir -p "$HOME_DIR"
 
+# The sealing wait has its own lock, separate from the drop lock, so waiting on
+# an anchor never blocks the next drop from being handled. Skipping when another
+# run is already sealing is correct, not a compromise: the sealer sweeps every
+# pending export in the folder and re-checks before it quits, so whoever holds
+# this lock finishes ours too.
+SEAL_LOCK="$HOME_DIR/hotfolder.seal.lock"
+
+# A lock is a directory holding its owner's PID.
+#
+# mkdir is the atomic take, same as ever. The PID is what makes a crash
+# survivable: a SIGKILL (reboot, launchd tearing a job down) runs no trap, and
+# a lock that nothing will ever release used to mean every future invocation
+# bounced off it and the watcher was dead until someone cleaned up by hand.
+# With RunAtLoad, even login could not have healed it.
+#
+# A lock with no PID file yet is treated as live while it is fresh, because the
+# owner writes the PID immediately after mkdir and a checker can land in
+# between; one that has sat PID-less for over a minute is a corpse (a crash in
+# that same gap, or a lock left by a version before PIDs) and is cleared.
+lock_is_live() { # $1 lockdir
+  [ -d "$1" ] || return 1
+  pid=$(cat "$1/pid" 2>/dev/null)
+  if [ -n "$pid" ]; then
+    kill -0 "$pid" 2>/dev/null
+    return
+  fi
+  now=$(date +%s)
+  born=$(stat -f %m "$1" 2>/dev/null || echo 0)
+  [ $(( now - born )) -lt 60 ]
+}
+
+lock_is_live "$LOCK" || rm -rf "$LOCK"
+lock_is_live "$SEAL_LOCK" || rm -rf "$SEAL_LOCK"
+
 # One run at a time.
 #
 # ⚠️ A REFUSED INVOCATION LEAVES A NOTE. It used to just exit, and launchd does
@@ -58,23 +92,16 @@ if ! mkdir "$LOCK" 2>/dev/null; then
   : > "$HOME_DIR/.rescan"
   exit 0
 fi
-trap 'rmdir "$LOCK" 2>/dev/null; rmdir "$SEAL_LOCK" 2>/dev/null; rm -rf "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"' EXIT
+echo $$ > "$LOCK/pid"
 
-# ⚠️ THE SEALING WAIT GETS ITS OWN LOCK, AND THE DROP LOCK IS RELEASED BEFORE IT.
-#
-# This was the real lag, and it had nothing to do with how fast a drop is
-# handled. The run ends by waiting up to 45 seconds for the anchor that seals
-# what it just recorded, and it used to hold the one lock the whole time. A file
-# dropped during that window got an invocation that could not take the lock and
-# exited immediately, so it was not picked up until some later folder change
-# happened to trigger another run. Measured on three consecutive drops: 21.6s,
-# 53.0s, and 1.9s. The 1.9s one was simply the drop that did not land while
-# something was sealing.
-#
-# Skipping when another run is already sealing is correct, not a compromise:
-# --complete scans every pending export in the folder, so whoever holds this
-# lock will finish ours too.
-SEAL_LOCK="$HOME_DIR/hotfolder.seal.lock"
+# ⚠️ The trap does NOT touch SEAL_LOCK. It did, and that one line was the whole
+# 11-second lag: the trap freed the seal lock as the main script exited, launchd
+# then killed the process group, the "detached" sealer died with it, and the
+# NEXT drop's opening sweep did the sealing synchronously, in front of the
+# person, before their own file was even looked at. The sealer owns its lock
+# and removes it itself; a sealer that dies without doing so is cleared by the
+# liveness check above.
+trap 'rm -rf "$LOCK" "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"' EXIT
 
 # The exporter compares this against what the site advertises, to say on the
 # contact sheet when a newer release exists. Exported rather than merely sourced
@@ -478,8 +505,7 @@ if [ $((recorded + on_record)) -gt 0 ]; then
   # already happened: they were notified, the exports are written and the files
   # are moved. What is left is waiting on an anchor, and holding the lock
   # through it is what made the NEXT drop wait up to 45 seconds for a run.
-  rmdir "$LOCK" 2>/dev/null
-  rm -rf "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" \
+  rm -rf "$LOCK" "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" \
          "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"
 
   # Only a fresh recording can still be waiting on an anchor. A drop of bytes
@@ -488,22 +514,30 @@ if [ $((recorded + on_record)) -gt 0 ]; then
   wait_ms=0
   [ "$recorded" -gt 0 ] && wait_ms=45000
 
-  # Skip if someone else is already sealing: --complete sweeps every pending
-  # export in the folder, so their pass covers ours.
+  # Skip if someone else is already sealing: the running sealer re-checks for
+  # pending exports before it quits, so a drop that lands mid-seal is covered.
   #
-  # ⚠️ DETACHED, so this run ENDS here. Waiting on the anchor is the last thing
-  # that happens and nobody is waiting for it: the person has been notified, the
-  # exports are written, the files are moved. Keeping the run alive through it
-  # meant the next drop's turn came ~12 seconds later, because the check for
-  # work that arrived meanwhile sits after this point.
+  # ⚠️ DETACHED, and it SURVIVES this run ending, which needs both halves:
+  # AbandonProcessGroup in the launch agent stops launchd killing it when the
+  # main script exits, and the trap above not touching SEAL_LOCK stops a second
+  # sealer starting while it works. Waiting on the anchor is the last thing that
+  # happens and nobody is waiting for it: the person has been notified, the
+  # exports are written and listed, the files are moved.
   #
-  # It removes its own lock. If launchd reaps it the seal simply does not
-  # happen, and the next drop's opening sweep finishes those exports instead.
+  # The loop re-checks for pending work because a drop can land while the seal
+  # wait is in progress, AFTER --complete listed the folder: that export would
+  # otherwise stay pending with nothing scheduled to finish it. Bounded, so
+  # anchoring being idle (the TEE at rest) cannot hold a sealer open forever.
   if mkdir "$SEAL_LOCK" 2>/dev/null; then
     (
-      "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" "$wait_ms" >/dev/null 2>&1
-      rmdir "$SEAL_LOCK" 2>/dev/null
+      passes=0
+      while [ "$passes" -lt 3 ] && compgen -G "$FOLDER"/*/.bitgraph-pending.json >/dev/null 2>&1; do
+        "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" "$wait_ms" >/dev/null 2>&1
+        passes=$((passes + 1))
+      done
+      rm -rf "$SEAL_LOCK"
     ) &
+    echo $! > "$SEAL_LOCK/pid" 2>/dev/null || true
     disown 2>/dev/null || true
   fi
 fi
@@ -514,7 +548,7 @@ fi
 # picks up whatever is left.
 if [ -f "$HOME_DIR/.rescan" ]; then
   rm -f "$HOME_DIR/.rescan"
-  rmdir "$LOCK" 2>/dev/null
+  rm -rf "$LOCK"
   depth="${BITGRAPH_RESCAN_DEPTH:-0}"
   if [ "$depth" -lt 5 ]; then
     export BITGRAPH_RESCAN_DEPTH=$((depth + 1))

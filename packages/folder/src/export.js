@@ -820,7 +820,12 @@ function completePending(folder, waitMs) {
     var proof = fetchProof(meta.digestB64, meta.counter, meta.epochUrlSafe);
     if (!proof) return;
     try {
+      // One wait per PASS, not per export. Anchors are time-based, so the
+      // anchor the first pending export waits for seals every other one in the
+      // same pass; and when anchoring is idle (the TEE at rest), one timeout
+      // must not become one per export.
       var sealed = writeExportContents(dir, meta, proof, wait);
+      wait = 0;
       markPending(dir, meta, sealed);
       if (sealed) sealedCount++;
     } catch (e) {
@@ -1244,6 +1249,7 @@ function thumbFor(folder, name, file) {
  * for that side after it lands.
  */
 function repairWitnesses(dir) {
+  var wrote = 0;
   ['before', 'after'].forEach(function (side) {
     var anchorPath = dir + '/' + ANCHOR_DIR + '/anchor-' + side + '.json';
     var witnessPath = dir + '/' + ANCHOR_DIR + '/anchor-' + side + '-witness.json';
@@ -1252,11 +1258,17 @@ function repairWitnesses(dir) {
     if (raw === null) return;
     try {
       var witness = fetchWitness(JSON.parse(raw));
-      if (witness) writeJson(witnessPath, witness);
+      if (witness) {
+        writeJson(witnessPath, witness);
+        wrote++;
+      }
     } catch (e) {
       /* tried again on the next pass */
     }
   });
+  // How many landed, so the caller knows the window it is about to render just
+  // changed and the recording's page needs to be written again.
+  return wrote;
 }
 
 /** Drop thumbnails whose export no longer exists. One call, after the scan. */
@@ -1390,48 +1402,6 @@ function anchorInfo(dir) {
   return { before: read('before'), after: read('after') };
 }
 
-/**
- * Where a recording sits in causal order, which is the only order this folder
- * has an opinion about.
- *
- * The key is the Ethereum block of its lower-bound anchor, then the counter
- * inside that block. mtime used to do this job and it is the FILESYSTEM's
- * opinion, not the ledger's: copying the folder, restoring a backup or touching
- * a file rewrites it, and it never said anything about when a recording
- * actually happened.
- *
- * Counters alone genuinely cannot do it, which is why they were not used: they
- * restart every UTC day, so #22 from today and #13000 from last week are not
- * comparable. Anchors are exactly the mechanism that relates one epoch to
- * another, because a block number is globally ordered and cannot be predicted
- * before it is mined. So (block, counter) IS causal order across the whole
- * folder, including across epochs, and it is already sitting in each export.
- *
- * A recording with no anchor has not sealed yet, which can only mean it was
- * just made, so it sorts newest.
- */
-function causalKey(folder, name) {
-  var dir = folder + '/' + name;
-  var block = 0;
-  var counter = 0;
-  try {
-    var info = anchorInfo(dir);
-    block = info.before.block || info.after.block || 0;
-  } catch (e) {
-    /* unordered beats unlisted */
-  }
-  var raw = readFile(dir + '/proof.json');
-  if (raw !== null) {
-    try {
-      var p = JSON.parse(raw);
-      counter = parseInt((p.commit && p.commit.counter) || 0, 10) || 0;
-    } catch (e) {
-      /* as above */
-    }
-  }
-  return { block: block, counter: counter };
-}
-
 function clockOf(d) {
   var h = d.getHours();
   var h12 = h % 12 === 0 ? 12 : h % 12;
@@ -1467,22 +1437,9 @@ function dateOf(d) {
 // Commit and the window at the top of the page.
 
 
-function indexRow(folder, name, mtime) {
+function sheetRow(folder, name, d, snap, forcePage, mtime) {
   var dir = folder + '/' + name;
-  var raw = readFile(dir + '/proof.json');
-  if (raw === null) return null;
-
-  var proof;
-  try {
-    proof = JSON.parse(raw);
-  } catch (e) {
-    return null;
-  }
-  var digest = proof && proof.artifact && proof.artifact.digestB64;
-  if (!digest) return null;
-
-  var counter = (proof.commit && proof.commit.counter) || '';
-  var file = artifactIn(dir);
+  var file = d.artifact;
   var rel = file ? encodePath(name + '/' + file) : null;
   var isImage = file && IMAGE_EXT.indexOf(extOf(file)) !== -1;
 
@@ -1496,8 +1453,20 @@ function indexRow(folder, name, mtime) {
 
   // A small copy where one can be made, the original where it cannot. The
   // difference is the whole page's weight: originals meant pulling megabytes to
-  // draw 230px cells.
-  var shown = (isImage && thumbFor(folder, name, file)) || rel;
+  // draw 230px cells. Membership in .thumbs answers "is there one already" with
+  // no probe; thumbFor runs only the first time an image is ever listed.
+  var shown = rel;
+  if (isImage) {
+    if (snap.thumbs[name + '.jpg']) {
+      shown = encodePath(THUMBS_DIR + '/' + name + '.jpg');
+    } else {
+      var made = thumbFor(folder, name, file);
+      if (made) {
+        shown = made;
+        snap.thumbs[name + '.jpg'] = true;
+      }
+    }
+  }
 
   var thumb = isImage
     // loading=lazy so a folder with hundreds of recordings still opens at once.
@@ -1532,15 +1501,28 @@ function indexRow(folder, name, mtime) {
   // answering a question nobody is asking.
   var openFile = '<a href="' + page + '">Open <span class="a">&rarr;</span></a>';
 
-  var info = anchorInfo(dir);
-
-  // Written here rather than at export time so it is rebuilt on every index
-  // pass: a folder recorded before this version existed gets its page on the
-  // next drop, and a deleted one comes back.
-  try {
-    writeProofPage(folder, name, file, digest, counter, info, mtime);
-  } catch (e) {
-    /* the row still works without it */
+  // The recording's own page, rebuilt ONLY when its inputs moved. A page is
+  // derived from proof.json and the anchor files, so it is current when newer
+  // than both; the snapshot already holds those mtimes, so the common case
+  // decides with no probe, no proof parse and no witness decode at all. The
+  // proof is read here, inside the stale branch, because only the page needs
+  // its digest, and a fresh witness (forcePage) or the back link appearing
+  // (FORCE_PAGES) both count as the inputs moving.
+  var pageCurrent = !FORCE_PAGES && !forcePage &&
+    (d.pageM || 0) > 0 && (d.proofM || 0) > 0 &&
+    d.pageM >= d.proofM && (!d.anchorsM || d.pageM >= d.anchorsM);
+  if (!pageCurrent) {
+    try {
+      var raw = readFile(dir + '/proof.json');
+      var proof = raw ? JSON.parse(raw) : null;
+      var digest = proof && proof.artifact && proof.artifact.digestB64;
+      if (digest) {
+        var counter = (proof.commit && proof.commit.counter) || '';
+        writeProofPage(folder, name, file, digest, counter, anchorInfo(dir), mtime);
+      }
+    } catch (e) {
+      /* the row still works without it */
+    }
   }
 
   return (
@@ -2022,12 +2004,13 @@ function updateNote() {
  *
  * One shell call for the whole scan, giving name and fallback time together.
  * mtime is the FILESYSTEM's opinion and no longer orders anything (see
- * causalKey); it survives only as a tiebreak. Ends in `true` because the loop's
- * last iteration sets the exit status, and a non-zero one makes doShellScript
- * throw away the entire listing.
+ * sheetEntry); it survives only as a tiebreak. Ends in `true` because the
+ * loop's last iteration sets the exit status, and a non-zero one makes
+ * doShellScript throw away the entire listing.
  *
- * One implementation on purpose. The sheet and `--verify` have to agree on what
- * counts as an export, or a recording could be listed and never checked.
+ * --verify's discovery. The sheet itself reads snapshotFolder now, which
+ * applies the same holds-a-proof.json rule, so the two cannot disagree about
+ * what counts as an export.
  */
 function exportDirs(folder) {
   var listing = sh('cd ' + quote(folder) +
@@ -2046,17 +2029,164 @@ function exportDirs(folder) {
   return entries;
 }
 
+// ---------------------------------------------------------------------------
+// The folder, observed once
+// ---------------------------------------------------------------------------
+//
+// ⚠️ An index pass used to spawn ~11 subprocesses PER EXPORT: four `test`s in
+// repairWitnesses, an `ls` in artifactIn, an existence probe in thumbFor, two
+// `stat`s in pageIsCurrent, and up to three in linkIntoFiles. At 163 exports
+// that is ~1,800 process spawns, measured at 7.75 seconds, paid on EVERY pass,
+// and it grew with the folder, which is why the Folder felt slower the more it
+// was used. Every one of those questions is answered here instead, by two shell
+// calls for the whole folder, and the per-export work runs only for exports the
+// snapshot says actually need it.
+
+/**
+ * Everything writeIndex needs to know about the folder, in two shell calls.
+ *
+ * dirs[name]  = { m, proofM, pageM, anchorsM, anchors, witnesses, pending,
+ *                 artifact } — mtimes are seconds, counts are of anchor jsons
+ *                 and their witnesses, artifact matches artifactIn's rule.
+ * files, thumbs = name sets of files/ and .thumbs/, so backfill and thumbnail
+ *                 checks are lookups rather than probes.
+ *
+ * find|xargs so the stat runs in a handful of big batches however large the
+ * folder grows. A filename containing a newline mis-parses its own entry and
+ * nothing else, the same standing limitation the old ls-based scan had.
+ */
+function snapshotFolder(folder) {
+  var snap = { dirs: {}, files: {}, thumbs: {} };
+
+  var listing = sh(
+    'cd ' + quote(folder) + ' && find . -mindepth 1 -maxdepth 3 ' +
+    "-path './" + FILES_DIR + "' -prune -o " +
+    "-path './" + THUMBS_DIR + "' -prune -o " +
+    '-print0 2>/dev/null | xargs -0 stat -f "%m %N" 2>/dev/null; true'
+  );
+  var lines = listing ? listing.split('\r').join('\n').split('\n').filter(Boolean) : [];
+  lines.forEach(function (line) {
+    var gap = line.indexOf(' ');
+    if (gap === -1) return;
+    var m = parseInt(line.slice(0, gap), 10) || 0;
+    var path = line.slice(gap + 1);
+    if (path.slice(0, 2) !== './') return;
+    var segs = path.slice(2).split('/');
+    var name = segs[0];
+    var d = snap.dirs[name] || (snap.dirs[name] = {
+      m: 0, proofM: 0, pageM: 0, anchorsM: 0, anchors: 0, witnesses: 0,
+      pending: false, artifact: null, candidates: [],
+    });
+    if (segs.length === 1) {
+      d.m = m;
+    } else if (segs.length === 2) {
+      var entry = segs[1];
+      if (entry === 'proof.json') d.proofM = m;
+      else if (entry === 'index.html') d.pageM = m;
+      else if (entry === ANCHOR_DIR) d.anchorsM = m;
+      else if (entry === PENDING) d.pending = true;
+      else if (entry.charAt(0) !== '.' && entry.indexOf('Icon') !== 0) d.candidates.push(entry);
+    } else if (segs.length === 3 && segs[1] === ANCHOR_DIR) {
+      if (/^anchor-(before|after)\.json$/.test(segs[2])) d.anchors++;
+      else if (/^anchor-(before|after)-witness\.json$/.test(segs[2])) d.witnesses++;
+    }
+  });
+  // Alphabetical first, the order artifactIn's `ls` returned, so a folder that
+  // somehow holds two loose files names the same one it always has.
+  Object.keys(snap.dirs).forEach(function (n) {
+    var d = snap.dirs[n];
+    if (d.candidates.length) d.artifact = d.candidates.sort()[0];
+    delete d.candidates;
+  });
+
+  var lists = sh('cd ' + quote(folder) +
+    ' && ls -1 ' + quote(FILES_DIR) + ' 2>/dev/null; echo "///"; ls -1 ' +
+    quote(THUMBS_DIR) + ' 2>/dev/null; true');
+  var side = snap.files;
+  (lists ? lists.split('\r').join('\n').split('\n') : []).forEach(function (n) {
+    if (n === '///') { side = snap.thumbs; return; }
+    if (n) side[n] = true;
+  });
+  return snap;
+}
+
+// The sheet's sort keys, remembered between passes. A row is ordered by its
+// anchor block and counter, which live inside proof.json and a witness file,
+// and neither changes once written: re-reading and re-parsing 163 of them
+// (proofs carry whole attestation documents) on every pass was pure repetition.
+// Keyed by the mtimes of exactly the files the values came from, so a rewritten
+// proof or a newly landed anchor rebuilds its entry and nothing else does.
+// Derived and disposable, like .thumbs: deleting it costs one slow pass.
+var SHEET_CACHE = '.bitgraph-cache.json';
+
+function loadSheetCache(folder) {
+  try {
+    var raw = readFile(folder + '/' + SHEET_CACHE);
+    var parsed = raw ? JSON.parse(raw) : null;
+    return (parsed && parsed.v === 1 && parsed.rows) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+/** Sort keys for one export, read from disk. The cache-miss path. */
+function sheetEntry(folder, name, d) {
+  var counter = 0;
+  var raw = readFile(folder + '/' + name + '/proof.json');
+  if (raw !== null) {
+    try {
+      var p = JSON.parse(raw);
+      counter = parseInt((p.commit && p.commit.counter) || 0, 10) || 0;
+    } catch (e) {
+      /* unordered beats unlisted */
+    }
+  }
+  // The block of the lower-bound anchor, then the counter inside it, is causal
+  // order across the whole folder including across epochs: counters restart
+  // every UTC day, but a block number is globally ordered and unpredictable
+  // before it is mined. mtime is the FILESYSTEM's opinion, rewritten by any
+  // copy or restore, and survives only as the tiebreak.
+  var block = 0;
+  try {
+    var info = anchorInfo(folder + '/' + name);
+    block = info.before.block || info.after.block || 0;
+  } catch (e) {
+    /* an unsealed export sorts newest */
+  }
+  return {
+    pm: d.proofM || 0,
+    am: d.anchorsM || 0,
+    artifact: d.artifact || null,
+    counter: counter,
+    block: block,
+  };
+}
+
 /** Rebuild index.html from whatever is on disk, newest first. */
 function writeIndex(folder) {
-  var entries = exportDirs(folder);
-  // Causal order, newest first: the ledger's order, not the filesystem's.
-  // See causalKey. mtime survives only as the tiebreak for two recordings that
-  // share a block and a counter, which nothing real does.
-  entries.forEach(function (e) {
-    var k = causalKey(folder, e.name);
-    e.block = k.block;
-    e.counter = k.counter;
+  var snap = snapshotFolder(folder);
+  var cache = loadSheetCache(folder);
+
+  // An export is a directory holding a proof.json, discovered by CONTENT and
+  // never by name: three naming schemes have shipped and folders get renamed by
+  // hand. Same rule bitgraph-audit uses.
+  var entries = [];
+  var fresh = {};
+  Object.keys(snap.dirs).forEach(function (name) {
+    var d = snap.dirs[name];
+    if (!d.proofM || name === FILES_DIR) return;
+    var c = cache[name];
+    if (!c || c.pm !== (d.proofM || 0) || c.am !== (d.anchorsM || 0) ||
+        c.artifact !== (d.artifact || null)) {
+      c = sheetEntry(folder, name, d);
+    }
+    fresh[name] = c;
+    entries.push({ name: name, mtime: d.m || 0, block: c.block, counter: c.counter, d: d });
   });
+
+  // Causal order, newest first: the ledger's order, not the filesystem's.
+  // mtime survives only as the tiebreak for two recordings that share a block
+  // and a counter, which nothing real does.
   entries.sort(function (x, y) {
     // Unsealed means just recorded, so it leads regardless of block.
     if (!x.block !== !y.block) return x.block ? 1 : -1;
@@ -2085,23 +2215,34 @@ function writeIndex(folder) {
 
   var rows = [];
   entries.forEach(function (e) {
-    // Repair FIRST. indexRow reads the anchor window and rewrites the
-    // recording's page from it, so a witness fetched after that call would not
-    // show until the pass after this one.
-    try {
-      repairWitnesses(folder + '/' + e.name);
-    } catch (err) {
-      /* tried again on the next pass */
+    var d = e.d;
+    // Repair FIRST, and only where the snapshot shows an anchor sitting there
+    // without its witness, which is exactly the broken state. The old code
+    // probed all four paths for every export on every pass; those probes were
+    // a third of the whole index cost, spent almost always confirming nothing
+    // was wrong. A landed witness changes the window the page renders, so it
+    // also forces that page below.
+    var repaired = 0;
+    if ((d.anchors || 0) > (d.witnesses || 0)) {
+      try {
+        repaired = repairWitnesses(folder + '/' + e.name);
+      } catch (err) {
+        /* tried again on the next pass */
+      }
     }
-    var row = indexRow(folder, e.name, e.mtime);
+    var row = sheetRow(folder, e.name, d, snap, repaired > 0, e.mtime);
     if (row) rows.push(row);
-    // Backfill files/ for anything recorded before this existed, or after
-    // someone emptied it. linkIntoFiles is a no-op once the link is there.
-    try {
-      var art = artifactIn(folder + '/' + e.name);
-      if (art) linkIntoFiles(folder, folder + '/' + e.name, art);
-    } catch (err) {
-      /* the sheet is the job here; a missing link costs nothing */
+    // Backfill files/ for anything recorded before it existed, or after someone
+    // emptied it. A lookup against the snapshot's listing, not a probe: the
+    // live path already links at build time with full name-collision handling,
+    // so this is belt-and-braces for old exports, and a same-named different
+    // file is the one case it knowingly leaves to that build-time path.
+    if (d.artifact && !snap.files[d.artifact]) {
+      try {
+        linkIntoFiles(folder, folder + '/' + e.name, d.artifact);
+      } catch (err) {
+        /* the sheet is the job here; a missing link costs nothing */
+      }
     }
   });
   // Derived folders are only honest if they are also tidied.
@@ -2109,6 +2250,12 @@ function writeIndex(folder) {
     pruneThumbs(folder);
   } catch (err) {
     /* a stale thumbnail is harmless and goes on the next pass */
+  }
+  // The keys just used, pruned to the exports that still exist.
+  try {
+    writeJson(folder + '/' + SHEET_CACHE, { v: 1, rows: fresh });
+  } catch (err) {
+    /* a lost cache only costs one slow pass */
   }
 
   var body = rows.length
@@ -2317,6 +2464,16 @@ function buildDrop(manifestPath, folder, responsesDir) {
       // call for the whole drop.
       note('export failed: ' + baseName(path) + ': ' + out);
     }
+  }
+  // The sheet, NOW, not when the seal lands. The person who just dropped a
+  // file looks at the folder immediately, and until the sealer's later pass
+  // the new export was not listed and had no page. This pass is cheap (the
+  // snapshot and cache above), the new page simply renders "sealing" until
+  // the anchor arrives, and the sealer's own index refresh replaces it.
+  try {
+    writeIndex(folder);
+  } catch (e) {
+    /* the sealer rebuilds it in a few seconds anyway */
   }
   return 'ok: built ' + built + (failed ? ', ' + failed + ' failed' : '');
 }

@@ -42,6 +42,19 @@
   <key>RunAtLoad</key>
   <true/>
 
+  <!--
+    Let the sealing step outlive the run.
+
+    A drop is answered in about two seconds; what remains afterwards is waiting
+    for the Ethereum anchor that seals it, done by a background child so the
+    watcher is immediately free for the next drop. Without this key, launchd
+    kills that child with the rest of the process group the moment the main
+    script exits, which silently deleted the whole arrangement: the seal never
+    happened in the background, and the NEXT drop paid for it up front instead.
+  -->
+  <key>AbandonProcessGroup</key>
+  <true/>
+
   <key>StandardErrorPath</key>
   <string>__ERRLOG__</string>
 </dict>
