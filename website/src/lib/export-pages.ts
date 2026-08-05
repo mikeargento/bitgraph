@@ -329,20 +329,19 @@ export function proofPage(input: ProofPageInput): string {
   return pageShell(
     fileName || "BitGraph",
     PROOF_CSS,
-    // The way back only exists when there is a contact sheet to go back to, and
-    // it is the whole row.
+    // Where the site link goes depends on whether the back link exists, and
+    // both placements are the same rule: a link needs something to sit against.
+    // With a back link the two pair off on one row, since splitting two links
+    // of identical treatment left a staircase with an empty top right corner.
+    // Without one, that row would hold a single link over a gap, so it drops to
+    // the heading's line and baseline-aligns against it.
     (input.hasIndex
       ? '<nav class="nv"><a class="hm bk" href="../index.html">' +
-        '<span class="arrow">&larr;</span> All recordings</a></nav>'
-      : "") +
-      // The link to the same recording on the site sits on the heading's line,
-      // not on a row of its own above it. It rode in the nav briefly and
-      // floated there: on a single export the nav's other slot is empty, so the
-      // link hung alone over a gap, anchored to nothing. Baseline-aligned, so
-      // the two sit on one line despite the h1 being the heavier type.
-      '<div class="tl"><h1>BitGraph Recorded</h1>' +
-      siteLink(digest, "hm", "arrow") +
-      "</div>" + body +
+        '<span class="arrow">&larr;</span> All recordings</a>' +
+        siteLink(digest, "hm", "arrow") + "</nav>" +
+        '<div class="tl"><h1>BitGraph Recorded</h1></div>'
+      : '<div class="tl"><h1>BitGraph Recorded</h1>' +
+        siteLink(digest, "hm", "arrow") + "</div>") + body +
       '<div id="c">Copied!</div>' + COPY_SCRIPT
   );
 }

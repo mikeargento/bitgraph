@@ -1271,24 +1271,28 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime) {
     pageShell(
       file || name,
       proofPageCss(),
-      // The site's nav bar, with the back link standing where the wordmark
-      // stands there. Same slot, same weight: on a page inside a folder the
-      // way out is what the logo is on the site. It is the whole row, and on a
-      // single export there is no row at all.
+      // Where the site link goes depends on whether the back link exists, and
+      // both placements are the same rule: a link needs something to sit
+      // against.
+      //
+      // With a back link, the two pair off on one row. They are the same kind
+      // of thing and carry identical treatment, so splitting them left one at
+      // the top left and the other a row below at the right, a staircase with
+      // an empty top right corner and nothing balancing the heading.
+      //
+      // Without one, that row would hold a single link over a gap, anchored to
+      // nothing, so it drops to the heading's line instead. Baseline-aligned
+      // there, since the h1 is 20/800 against the link's 14/600.
+      //
+      // Either way the site link sits in the upper right and the heading on the
+      // left, so the two layouts read as the same page.
       (SIBLINGS > 1
         ? '<nav class="nv"><a class="hm bk" href="../index.html">' +
-          '<span class="arrow">&larr;</span> All recordings</a></nav>'
-        : '') +
-        // The link to the same recording on the site sits on the heading's
-        // line, not on a row of its own above it. It rode in the nav briefly
-        // and floated there: on a single export the nav's other slot is empty,
-        // so the link hung alone over a gap, anchored to nothing. Set against
-        // the h1 it reads as what it is, the one thing you can do with this
-        // page besides read it. Baseline-aligned, so the two sit on one line
-        // despite the h1 being the heavier type.
-        '<div class="tl"><h1>BitGraph Recorded</h1>' +
-        siteLink(digest, 'hm', 'arrow') +
-        '</div>' +
+          '<span class="arrow">&larr;</span> All recordings</a>' +
+          siteLink(digest, 'hm', 'arrow') + '</nav>' +
+          '<div class="tl"><h1>BitGraph Recorded</h1></div>'
+        : '<div class="tl"><h1>BitGraph Recorded</h1>' +
+          siteLink(digest, 'hm', 'arrow') + '</div>') +
         (binding === false
           ? '<p class="bind"><b>This file does not match the proof.</b> Its SHA-256 differs from the ' +
             'file hash below, so these are not the same bytes. Either the file changed after it was ' +
