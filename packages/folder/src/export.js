@@ -1021,7 +1021,7 @@ var PDF_VIEW = '#toolbar=0&amp;navpanes=0&amp;scrollbar=0&amp;view=FitH';
  * collided with the time line's class and silently cancelled the page's
  * `margin:0 auto`.
  */
-function pageShell(title, extraCss, bodyHtml) {
+function pageShell(title, extraCss, bodyHtml, baseHref) {
   return (
     '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
@@ -1031,7 +1031,12 @@ function pageShell(title, extraCss, bodyHtml) {
     // stale contact sheet is worse than no contact sheet.
     '<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">' +
     '<meta http-equiv="pragma" content="no-cache"><meta http-equiv="expires" content="0">' +
-    '<title>' + esc(title) + '</title><style>' +
+    '<title>' + esc(title) + '</title>' +
+    // Day pages live two levels down in .bitgraph/days/ and reuse the sheet's
+    // cell HTML verbatim; the base is what makes those folder-relative links
+    // resolve. Absent everywhere else.
+    (baseHref ? '<base href="' + esc(baseHref) + '">' : '') +
+    '<style>' +
     '*{box-sizing:border-box}' +
     // color-scheme, because this page frames content the BROWSER styles: a
     // recorded .txt in an <iframe> is rendered by the UA, which follows the
@@ -1289,6 +1294,8 @@ function artifactIn(dir) {
 }
 
 var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
 
 // ---- Time ------------------------------------------------------------------
 //
@@ -2237,6 +2244,107 @@ function sheetEntry(folder, name, d) {
   };
 }
 
+// The sheet's own styles, shared verbatim by the day pages and the shelf so
+// the four surfaces read as one page family.
+var SHEET_CSS =
+  // A contact sheet, so it reflows: auto-fill with a 230px minimum gives
+  // three across the 800px column, two around 520px, one on a phone, with
+  // no breakpoints to maintain. A single column was fine at nine
+  // recordings and unusable at several hundred.
+  //
+  // The thumbnail goes on top at the cell's full width rather than beside
+  // the text, because at 230px a side-by-side row leaves the filename
+  // about eleven characters.
+  // The contact sheet ignores the 800px reading column the rest of the
+  // site keeps. 800px is a measure for prose; this page is pictures, and
+  // capping it wasted most of a wide display while forcing the text under
+  // each one to wrap.
+  '.wrap{max-width:none}' +
+  // Back to 230px. It was raised to 300px to hold the full time window on
+  // one line, and with the window and the side-by-side links both gone
+  // nothing in the cell needs that width: the filename ellipsizes and the
+  // links are stacked. The narrower minimum buys another column or two,
+  // which on a contact sheet is the whole point.
+  'ul{list-style:none;margin:0;padding:0;display:grid;gap:34px 24px;' +
+  'grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}' +
+  // Each cell is the site's card: white, 1px #d0d5dd, square corners.
+  // At five or seven columns the caption needs something tying it to its
+  // own thumbnail, and the page background alone was not doing it.
+  'li{display:block;min-width:0;background:#fff;border:1px solid #d0d5dd}' +
+  // Nothing wraps. Long filenames get an ellipsis rather than a second
+  // line, so every cell is the same height and the grid stays a grid;
+  // the full name is on the element's title for hovering.
+  '.n,.l a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+  // Overrides the shared 88px square: fills the cell, fixed aspect so
+  // the grid stays even whatever shape the pictures are.
+  // The thumbnail. Only this page has one, which is why these live here
+  // rather than in the shared shell. Flush to the card's edges so the
+  // card's border is the only one and the picture is not a framed thing
+  // inside a framed thing; a bottom rule divides picture from caption.
+  '.t{display:flex;align-items:center;justify-content:center;overflow:hidden;' +
+  'width:100%;aspect-ratio:4/3;background:#fff;border-bottom:1px solid #d0d5dd}' +
+  // No backdrop on an image. object-fit:cover means an opaque one fills
+  // the box and the colour behind it never shows, so the only things it
+  // ever painted were the two cases where it does harm: a PNG with
+  // transparency, whose dark parts vanish into it, and an image that has
+  // not loaded, which then reads as a broken black block rather than an
+  // empty card. QuickLook is the second case every time, since it
+  // sandboxes the page and never fetches the file beside it, which is why
+  // a folder's icon in Finder was a grid of black squares. The card is
+  // white and .t inherits that, so transparency now composites onto the
+  // card it sits in.
+  '.t img{width:100%;height:100%;object-fit:cover;display:block}' +
+  // Video keeps it. It paints its first frame only once metadata loads,
+  // and dark is what an unpainted frame should look like.
+  '.t video{width:100%;height:100%;object-fit:cover;display:block;background:#111827}' +
+  // A PDF cannot go in an <img>, but the browser's own viewer renders it
+  // through <embed>, fitted to width with its controls off so it reads
+  // as the document rather than as an application.
+  '.t.pdf,.t.doc{position:relative;display:block}' +
+  '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;border:0}' +
+  // Text renders at the browser's own default size, which in a 330px box
+  // is two or three words. Laid out wide and scaled down instead, so the
+  // cell shows the opening of the file rather than its first line
+  // chopped. pointer-events off so the click reaches the link.
+  '.t.doc iframe{position:absolute;top:0;left:0;width:780px;height:590px;border:0;' +
+  'background:#fff;transform:scale(.42);transform-origin:top left;pointer-events:none}' +
+  // Sized for the cell it now sits in. 11px was set when this box was an
+  // 88px square; in a 330px card it read as a stray word floating in
+  // white rather than as the label for the thing.
+  '.none{color:#6b7280;font:600 17px/1 ui-monospace,SFMono-Regular,Menlo,monospace;' +
+  'letter-spacing:.14em;text-decoration:none}' +
+  // The scaled-down PDF trick is for an 88px box. At cell width the
+  // viewer can simply fill it, fitted to width, which also adapts as the
+  // column count changes.
+  '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;transform:none}' +
+  // The caption's spacing is its own, not the proof page's 14px/16px
+  // field scale. A field there is one line in a dense stack; this is
+  // three lines standing alone under a picture, and at the field's
+  // spacing they bunched into a single grey block. The horizontal 16px
+  // stays, so a cell still lines up with a card.
+  '.m{min-width:0;padding:16px 16px 18px}' +
+  '.n{margin:0;font-weight:600}' +
+  // The two links are the cell's actions and want daylight from the name
+  // above them and from each other. line-height is set rather than
+  // inherited so the gap is the gap, not the gap plus whatever the body
+  // font leaves around a 13.5px line.
+  '.l{margin:15px 0 0}' +
+  '.l a{display:block;font-size:13.5px;line-height:1.5}' +
+  '.l a+a{margin-top:9px}' +
+'.empty{color:#4b5563}' +
+  // The Roll's nav line, copied: previous day on the left, the shelf (or
+  // the way back to all recordings) on the right, pulled up toward the
+  // count line it belongs with. Labels shorten on phones exactly like the
+  // site's (.dl long / .ds short).
+  '.dn{display:flex;align-items:center;justify-content:space-between;gap:16px;' +
+  'margin:-26px 0 40px;white-space:nowrap}' +
+  '.dn a{color:#0065A4;font-weight:600;font-size:13.5px;text-decoration:none}' +
+  '.dn .dnr{margin-left:auto}' +
+  '@media (hover:hover){.dn a:hover .a{transform:translateX(3px)}}' +
+  '.ds{display:none}' +
+  '@media (max-width:600px){.dl{display:none}.ds{display:inline}}' +
+  '.empty{color:#4b5563}';
+
 /** Rebuild index.html from whatever is on disk, newest first. */
 function writeIndex(folder) {
   // Consolidate the older loose machinery (.thumbs, .bitgraph-cache.json,
@@ -2355,47 +2463,56 @@ function writeIndex(folder) {
     }
   }
 
-  // Day navigation (2026-08-05, Mike: "do JUST day / date navigation").
+  // Day navigation, copying the way the Roll works on the site (Mike,
+  // 2026-08-05: "you should just copy the way the roll works" — an inline
+  // header-and-jump-strip rendition shipped for about an hour first). The
+  // Roll's grammar: the live page is every recording newest first with no
+  // inline separators, each past day is its own page, a dated prev/next
+  // stepper walks between them, and a month-grid shelf indexes them all.
+  //
   // LOCAL days, deliberately not UTC epochs: the export pages print local
   // time with the zone named, and an evening drop grouped under tomorrow's
   // date would read as a bug. Grouping is a property of the VIEW, computed
-  // fresh from the anchors on every rebuild, which is also why it is done
-  // here and not in the folder layout: a folder name is frozen at creation,
-  // a view regroups when the timezone under it changes. (Day folders inside
-  // Recordings/ were proposed the same day and argued down for exactly that.)
+  // fresh from the anchors on every rebuild, which is also why it is pages
+  // and not folders: a folder name is frozen at creation, a view regroups
+  // when the timezone under it changes.
   //
-  // The entries are already in causal order, so day boundaries are emitted on
-  // the walk: a header goes in whenever the day changes from the row above.
-  // An unsealed export is a recording happening now, so it groups under
-  // today; a sealed export whose witness has not landed yet (ts 0) inherits
-  // the open group, which its causal position makes honest, rather than
-  // minting an "undated" bucket.
-  var dayIdOf = function (dt) {
+  // The entries are already in causal order, so groups are cut on the walk:
+  // a new one opens whenever the day changes from the row above. An unsealed
+  // export is a recording happening now, so it groups under today; a sealed
+  // export whose witness has not landed yet (ts 0) inherits the open group,
+  // which its causal position makes honest, rather than minting an "undated"
+  // bucket. (Real chain data cannot revisit a day — block timestamps are
+  // monotone — so a recurring day folds into its first group.)
+  //
+  // The day pages live in .bitgraph/days/, which the watcher's dot-prune
+  // already refuses to record (a page written into the watched folder is the
+  // feedback loop that minted six proofs on 2026-08-04) and Finder keeps out
+  // of sight. Each carries <base href="../../"> so the cells are the exact
+  // strings the sheet uses, links intact.
+  var isoOf = function (dt) {
     var m = dt.getMonth() + 1;
     var day = dt.getDate();
-    return 'd' + dt.getFullYear() + (m < 10 ? '0' : '') + m + (day < 10 ? '0' : '') + day;
+    return dt.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
   };
-  var stripLabelOf = function (dt) {
-    // Compact for the strip: "Aug 5" this year, "Dec 30, 2025" across years.
-    var l = MONTHS[dt.getMonth()] + ' ' + dt.getDate();
-    return dt.getFullYear() === new Date().getFullYear() ? l : l + ', ' + dt.getFullYear();
-  };
-  var openDayId = null;
-  var seenDays = {};
-  var dayNav = [];
-  var cellCount = 0;
+  var groups = [];        // [{ iso, when, rows: [] }] newest first, walk order
+  var groupByIso = {};
+  var openGroup = null;
 
   var rows = [];
+  var cellCount = 0;
   entries.forEach(function (e) {
     var d = e.d;
     var when = !e.block ? new Date() : e.ts ? new Date(e.ts * 1000) : null;
     if (when !== null) {
-      var id = dayIdOf(when);
-      if (id !== openDayId && !seenDays[id]) {
-        openDayId = id;
-        seenDays[id] = true;
-        dayNav.push({ id: id, label: stripLabelOf(when) });
-        rows.push('<li class="day" id="' + id + '">' + esc(dateOf(when)) + '</li>');
+      var iso = isoOf(when);
+      if (!openGroup || openGroup.iso !== iso) {
+        openGroup = groupByIso[iso];
+        if (!openGroup) {
+          openGroup = { iso: iso, when: when, rows: [] };
+          groupByIso[iso] = openGroup;
+          groups.push(openGroup);
+        }
       }
     }
     // Repair FIRST, and only where the snapshot shows an anchor sitting there
@@ -2415,6 +2532,7 @@ function writeIndex(folder) {
     var row = sheetRow(folder, e.name, d, snap, repaired > 0 || migrated[e.name] === true, e.mtime);
     if (row) {
       rows.push(row);
+      if (openGroup) openGroup.rows.push(row);
       cellCount++;
     }
   });
@@ -2435,15 +2553,123 @@ function writeIndex(folder) {
     ? '<ul>' + rows.join('') + '</ul>'
     : '<p class="empty">Nothing recorded yet. Drop a file into this folder.</p>';
 
-  // The strip earns its place the way the back link does: only when there is
-  // somewhere to go. One day of recordings needs no jump list. Plain anchor
-  // links, no script and no state, so it works in every sandboxed viewer the
-  // pages already survive.
-  var dayStrip = dayNav.length > 1
-    ? '<nav class="days">' + dayNav.map(function (g) {
-        return '<a href="#' + g.id + '">' + esc(g.label) + '</a>';
-      }).join('') + '</nav>'
-    : '';
+  // The Roll's labels: "August 3" on the stepper ("Aug 3" on phones, the same
+  // shortening the site does), the full date with the year on a day page's
+  // own subtitle. A year that is not this year rides along on the stepper
+  // too, because a recovered archive can reach back further than the ledger's
+  // shelf ever needs to.
+  var stepLong = function (g) {
+    var l = MONTHS_LONG[g.when.getMonth()] + ' ' + g.when.getDate();
+    return g.when.getFullYear() === new Date().getFullYear() ? l : l + ', ' + g.when.getFullYear();
+  };
+  var stepShort = function (g) {
+    var l = MONTHS[g.when.getMonth()] + ' ' + g.when.getDate();
+    return g.when.getFullYear() === new Date().getFullYear() ? l : l + ', ' + g.when.getFullYear();
+  };
+  var longDate = function (g) {
+    return MONTHS_LONG[g.when.getMonth()] + ' ' + g.when.getDate() + ', ' + g.when.getFullYear();
+  };
+  var stepSpans = function (g) {
+    return '<span class="dl">' + esc(stepLong(g)) + '</span><span class="ds">' + esc(stepShort(g)) + '</span>';
+  };
+
+  // The navigation earns its place the way the back link does: only when
+  // there is somewhere to go. One day of recordings gets no chrome at all.
+  var daysDir = folder + '/' + STATE_DIR + '/days';
+  var indexNav = '';
+  if (groups.length > 1) {
+    // The live sheet's nav line, the Roll's exactly: the previous day on the
+    // left, the shelf on the right. groups[0] is the open day, so the way
+    // back in time starts at groups[1].
+    indexNav = '<nav class="dn"><a href="' + encodePath(STATE_DIR + '/days') + '/' + groups[1].iso + '.html">' +
+      '<span aria-hidden>&larr;</span> ' + stepSpans(groups[1]) + '</a>' +
+      '<a href="' + encodePath(STATE_DIR + '/days') + '/index.html">All days <span class="a">&rarr;</span></a></nav>';
+
+    mkdirp(daysDir);
+    var wanted = { 'index.html': true };
+    groups.forEach(function (g, i) {
+      wanted[g.iso + '.html'] = true;
+      var older = groups[i + 1] || null;   // previous recorded day
+      var newer = groups[i - 1] || null;   // next recorded day
+      var nav = '<nav class="dn"><span>' +
+        (older
+          ? '<a href="' + older.iso + '.html"><span aria-hidden>&larr;</span> ' + stepSpans(older) + '</a>'
+          : '') +
+        '</span><span class="dnr">' +
+        (newer
+          ? '<a href="' + newer.iso + '.html">' + stepSpans(newer) + ' <span class="a">&rarr;</span></a>'
+          : '<a href="../../index.html">All recordings <span class="a">&rarr;</span></a>') +
+        '</span></nav>';
+      writeFile(daysDir + '/' + g.iso + '.html', pageShell(
+        'BitGraph Folder',
+        SHEET_CSS,
+        '<h1>BitGraph Folder</h1>' +
+          '<p class="s">The recordings for ' + esc(longDate(g)) + '.</p>' +
+          nav +
+          '<ul>' + g.rows.join('') + '</ul>',
+        // The whole trick: the cells are the SAME strings the sheet uses,
+        // and this makes their folder-relative links resolve from here.
+        '../../'
+      ));
+    });
+
+    // The shelf: the Roll's /rolls month grid, newest month first, every
+    // month from the oldest recording to now. A day is a link when it has
+    // recordings; today is the outlined open frame and leads back to the
+    // live sheet, recorded or not; everything else sits grey. Zero data
+    // beyond the links, same as the site's.
+    var now = new Date();
+    var oldest = groups[groups.length - 1].when;
+    var shelfMonths = [];
+    for (var y = now.getFullYear(), m = now.getMonth();
+         y > oldest.getFullYear() || (y === oldest.getFullYear() && m >= oldest.getMonth());
+         m === 0 ? (y--, m = 11) : m--) {
+      var daysIn = new Date(y, m + 1, 0).getDate();
+      var cells = '';
+      for (var lead = new Date(y, m, 1).getDay(); lead > 0; lead--) cells += '<div class="rd"></div>';
+      for (var dd = 1; dd <= daysIn; dd++) {
+        var iso = isoOf(new Date(y, m, dd));
+        if (iso === isoOf(now)) {
+          cells += '<a class="rd" href="../../index.html" aria-label="Today" style="box-shadow:inset 0 0 0 1px #0065A4">' + dd + '</a>';
+        } else if (groupByIso[iso]) {
+          cells += '<a class="rd" href="' + iso + '.html">' + dd + '</a>';
+        } else {
+          cells += '<div class="rd" style="color:#c7ccd1">' + dd + '</div>';
+        }
+      }
+      shelfMonths.push('<section class="mo"><div class="ml">' + esc(MONTHS_LONG[m] + ' ' + y) + '</div>' +
+        '<div class="mg">' +
+        ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (w) {
+          return '<div class="rd wd">' + w + '</div>';
+        }).join('') + cells + '</div></section>');
+    }
+    writeFile(daysDir + '/index.html', pageShell(
+      'BitGraph Folder',
+      SHEET_CSS +
+        '.mo{margin-top:32px;max-width:340px}' +
+        '.ml{font-size:14px;font-weight:700;letter-spacing:-.01em;color:#111827;margin-bottom:8px}' +
+        '.mg{display:grid;grid-template-columns:repeat(7,1fr);' +
+        'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}' +
+        '.rd{display:flex;align-items:center;justify-content:center;aspect-ratio:1;font-size:13px}' +
+        'a.rd{color:#0065A4;font-weight:600;text-decoration:none}' +
+        '@media (hover:hover){a.rd:hover{background:#f0f6ff}}' +
+        '.rd.wd{font-size:10.5px;color:#9ca3af;aspect-ratio:auto;padding-bottom:4px}',
+      '<h1>BitGraph Folder</h1>' +
+        '<p class="s">One page per day of recordings.</p>' +
+        '<nav class="dn"><span></span><span class="dnr">' +
+        '<a href="../../index.html">All recordings <span class="a">&rarr;</span></a></span></nav>' +
+        shelfMonths.join('')
+    ));
+
+    // Days that lost their last recording leave a page behind; tidy it.
+    var have = sh('ls -1 ' + quote(daysDir) + ' 2>/dev/null');
+    (have ? have.split('\r').join('\n').split('\n').filter(Boolean) : []).forEach(function (n) {
+      if (!wanted[n]) sh('rm -f ' + quote(daysDir + '/' + n));
+    });
+  } else if (exists(daysDir)) {
+    // Back to one day (deletions): the navigation goes with it, whole.
+    sh('rm -rf ' + quote(daysDir));
+  }
 
   writeFile(
     folder + '/index.html',
@@ -2455,110 +2681,15 @@ function writeIndex(folder) {
       // this. Not "BitGraph Desktop Folder", which was rejected because
       // "Desktop" reads as desktop app.
       'BitGraph Folder',
-      // A contact sheet, so it reflows: auto-fill with a 230px minimum gives
-      // three across the 800px column, two around 520px, one on a phone, with
-      // no breakpoints to maintain. A single column was fine at nine
-      // recordings and unusable at several hundred.
-      //
-      // The thumbnail goes on top at the cell's full width rather than beside
-      // the text, because at 230px a side-by-side row leaves the filename
-      // about eleven characters.
-      // The contact sheet ignores the 800px reading column the rest of the
-      // site keeps. 800px is a measure for prose; this page is pictures, and
-      // capping it wasted most of a wide display while forcing the text under
-      // each one to wrap.
-      '.wrap{max-width:none}' +
-        // Back to 230px. It was raised to 300px to hold the full time window on
-        // one line, and with the window and the side-by-side links both gone
-        // nothing in the cell needs that width: the filename ellipsizes and the
-        // links are stacked. The narrower minimum buys another column or two,
-        // which on a contact sheet is the whole point.
-        'ul{list-style:none;margin:0;padding:0;display:grid;gap:34px 24px;' +
-        'grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}' +
-        // Each cell is the site's card: white, 1px #d0d5dd, square corners.
-        // At five or seven columns the caption needs something tying it to its
-        // own thumbnail, and the page background alone was not doing it.
-        'li{display:block;min-width:0;background:#fff;border:1px solid #d0d5dd}' +
-        // Nothing wraps. Long filenames get an ellipsis rather than a second
-        // line, so every cell is the same height and the grid stays a grid;
-        // the full name is on the element's title for hovering.
-        '.n,.l a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-        // Overrides the shared 88px square: fills the cell, fixed aspect so
-        // the grid stays even whatever shape the pictures are.
-        // The thumbnail. Only this page has one, which is why these live here
-        // rather than in the shared shell. Flush to the card's edges so the
-        // card's border is the only one and the picture is not a framed thing
-        // inside a framed thing; a bottom rule divides picture from caption.
-        '.t{display:flex;align-items:center;justify-content:center;overflow:hidden;' +
-        'width:100%;aspect-ratio:4/3;background:#fff;border-bottom:1px solid #d0d5dd}' +
-        // No backdrop on an image. object-fit:cover means an opaque one fills
-        // the box and the colour behind it never shows, so the only things it
-        // ever painted were the two cases where it does harm: a PNG with
-        // transparency, whose dark parts vanish into it, and an image that has
-        // not loaded, which then reads as a broken black block rather than an
-        // empty card. QuickLook is the second case every time, since it
-        // sandboxes the page and never fetches the file beside it, which is why
-        // a folder's icon in Finder was a grid of black squares. The card is
-        // white and .t inherits that, so transparency now composites onto the
-        // card it sits in.
-        '.t img{width:100%;height:100%;object-fit:cover;display:block}' +
-        // Video keeps it. It paints its first frame only once metadata loads,
-        // and dark is what an unpainted frame should look like.
-        '.t video{width:100%;height:100%;object-fit:cover;display:block;background:#111827}' +
-        // A PDF cannot go in an <img>, but the browser's own viewer renders it
-        // through <embed>, fitted to width with its controls off so it reads
-        // as the document rather than as an application.
-        '.t.pdf,.t.doc{position:relative;display:block}' +
-        '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;border:0}' +
-        // Text renders at the browser's own default size, which in a 330px box
-        // is two or three words. Laid out wide and scaled down instead, so the
-        // cell shows the opening of the file rather than its first line
-        // chopped. pointer-events off so the click reaches the link.
-        '.t.doc iframe{position:absolute;top:0;left:0;width:780px;height:590px;border:0;' +
-        'background:#fff;transform:scale(.42);transform-origin:top left;pointer-events:none}' +
-        // Sized for the cell it now sits in. 11px was set when this box was an
-        // 88px square; in a 330px card it read as a stray word floating in
-        // white rather than as the label for the thing.
-        '.none{color:#6b7280;font:600 17px/1 ui-monospace,SFMono-Regular,Menlo,monospace;' +
-        'letter-spacing:.14em;text-decoration:none}' +
-        // The scaled-down PDF trick is for an 88px box. At cell width the
-        // viewer can simply fill it, fitted to width, which also adapts as the
-        // column count changes.
-        '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;transform:none}' +
-        // The caption's spacing is its own, not the proof page's 14px/16px
-        // field scale. A field there is one line in a dense stack; this is
-        // three lines standing alone under a picture, and at the field's
-        // spacing they bunched into a single grey block. The horizontal 16px
-        // stays, so a cell still lines up with a card.
-        '.m{min-width:0;padding:16px 16px 18px}' +
-        '.n{margin:0;font-weight:600}' +
-        // The two links are the cell's actions and want daylight from the name
-        // above them and from each other. line-height is set rather than
-        // inherited so the gap is the gap, not the gap plus whatever the body
-        // font leaves around a 13.5px line.
-        '.l{margin:15px 0 0}' +
-        '.l a{display:block;font-size:13.5px;line-height:1.5}' +
-        '.l a+a{margin-top:9px}' +
-        // A day header spans the grid and reads as a heading over its group,
-        // not as a cell: no card chrome. Extra air above ties it to the group
-        // BELOW it rather than floating between two; the first sits flush.
-        // scroll-margin keeps a jumped-to date from landing at the very edge.
-        '.day{grid-column:1/-1;margin:14px 0 -12px;font-size:15px;font-weight:800;' +
-        'letter-spacing:-.01em;color:#111827;scroll-margin-top:12px;background:none;border:0}' +
-        '.day:first-child{margin-top:0}' +
-        // The jump strip sits in the header block: pulled up toward the count
-        // line it belongs with, restoring the standard 40px before the grid.
-        '.days{margin:-26px 0 40px;display:flex;flex-wrap:wrap;gap:6px 16px}' +
-        '.days a{color:#0065A4;font-weight:600;font-size:13.5px;text-decoration:none}' +
-        '.empty{color:#4b5563}',
+      SHEET_CSS,
+
       '<h1>BitGraph Folder</h1>' +
         '<p class="s">' + cellCount + (cellCount === 1 ? ' recording' : ' recordings') + ', newest first.' +
         updateNote() + '</p>' +
-        dayStrip +
+        indexNav +
         body
     )
   );
-  // Recordings, not list items: rows now holds day headers too.
   return cellCount;
 }
 

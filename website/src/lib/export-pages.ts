@@ -17,10 +17,17 @@
  *   CHANGE ONE, CHANGE BOTH. The structure, the card order, the class names
  *   and the CSS values here are mirrored there deliberately.
  *
- * One deliberate asymmetry (1.7.0): the Folder keeps its exports in a
- * Recordings/ subfolder so a LIVING folder's top level stays calm; this zip
- * stays FLAT, because a zip is a snapshot that never grows. Per-export
- * structure and the sheet itself remain identical.
+ * Two deliberate asymmetries:
+ *
+ * 1.7.0 — the Folder keeps its exports in a Recordings/ subfolder so a
+ * LIVING folder's top level stays calm; this zip stays FLAT, because a zip
+ * is a snapshot that never grows.
+ *
+ * 2026-08-05 — day navigation. The Folder copies the way the Roll works on
+ * the site: per-day pages, a dated stepper, a month-grid shelf, all rebuilt
+ * as days accrue. A snapshot has no accruing days to navigate, so this zip's
+ * sheet renders the same day GROUPING as inline headers plus a jump strip
+ * (.day / .days below) instead of growing a page tree.
  *
  * Everything is derived and inert: nothing verifies against these pages, and
  * `bitgraph-audit` ignores them because it discovers proofs by schema shape
