@@ -1508,9 +1508,23 @@ function sheetRow(folder, name, d, snap, forcePage, mtime) {
   // proof is read here, inside the stale branch, because only the page needs
   // its digest, and a fresh witness (forcePage) or the back link appearing
   // (FORCE_PAGES) both count as the inputs moving.
+  // ⚠️ The ARTIFACT's mtime is one of the inputs, and it is the load-bearing
+  // one: the page re-hashes the artifact when it is written, which is the only
+  // passive tamper check the export has, and the hard-link design in files/
+  // leans on it ("a change is reported loudly by the proof page"). The first
+  // version of this test compared only proof.json and the anchors, so a file
+  // edited in place kept its clean page forever. Found by tampering one in a
+  // scratch copy and watching nothing happen.
   var pageCurrent = !FORCE_PAGES && !forcePage &&
     (d.pageM || 0) > 0 && (d.proofM || 0) > 0 &&
-    d.pageM >= d.proofM && (!d.anchorsM || d.pageM >= d.anchorsM);
+    d.pageM >= d.proofM && (!d.anchorsM || d.pageM >= d.anchorsM) &&
+    // Strict for the artifact, >= for the rest. mtimes have one-second
+    // granularity, so an artifact touched in the same second the page was
+    // written reads as equal, and equal must count as SUSPECT for the one
+    // input whose change is a tamper. The cost is a single extra rewrite for
+    // a page born in its artifact's same second, after which pageM is ahead
+    // and it settles.
+    (!d.artM || d.pageM > d.artM);
   if (!pageCurrent) {
     try {
       var raw = readFile(dir + '/proof.json');
@@ -1569,15 +1583,25 @@ var FORCE_PAGES = false;
  * show a stale page, so the test is deliberately conservative: any doubt, any
  * missing timestamp, and it regenerates.
  */
-function pageIsCurrent(dir) {
+function pageIsCurrent(dir, file) {
   if (FORCE_PAGES) return false;
-  var out = sh('cd ' + quote(dir) + ' && stat -f %m index.html proof.json 2>/dev/null');
+  // The artifact is statted WITH the page and proof: its mtime is an input
+  // too, and the one that moves when a file is edited in place. See the note
+  // at the snapshot-driven test in sheetRow, which learned this the hard way.
+  var out = sh('cd ' + quote(dir) + ' && stat -f %m index.html proof.json' +
+    (file ? ' ' + quote(file) : '') + ' 2>/dev/null');
   if (!out) return false;
   var t = out.split('\r').join('\n').split('\n').filter(Boolean);
-  if (t.length < 2) return false;
+  if (t.length < (file ? 3 : 2)) return false;
   var page = parseInt(t[0], 10);
   var proof = parseInt(t[1], 10);
   if (!page || !proof || page < proof) return false;
+  if (file) {
+    // Strict: see the granularity note in sheetRow's test. Equal seconds must
+    // read as stale for the artifact.
+    var art = parseInt(t[2], 10);
+    if (!art || page <= art) return false;
+  }
   // The anchors are the other input, and they arrive later than the proof.
   var anchors = sh('cd ' + quote(dir) + ' && stat -f %m ' + quote(ANCHOR_DIR) + ' 2>/dev/null');
   if (anchors) {
@@ -1590,7 +1614,7 @@ function pageIsCurrent(dir) {
 function writeProofPage(folder, name, file, digest, counter, info, mtime) {
   var dir = folder + '/' + name;
 
-  if (pageIsCurrent(dir)) return;
+  if (pageIsCurrent(dir, file)) return;
 
   // NEVER write over the artifact. The page has to be called index.html, since
   // that is what makes a browser render it instead of generating its own
@@ -2085,17 +2109,23 @@ function snapshotFolder(folder) {
       else if (entry === 'index.html') d.pageM = m;
       else if (entry === ANCHOR_DIR) d.anchorsM = m;
       else if (entry === PENDING) d.pending = true;
-      else if (entry.charAt(0) !== '.' && entry.indexOf('Icon') !== 0) d.candidates.push(entry);
+      else if (entry.charAt(0) !== '.' && entry.indexOf('Icon') !== 0) d.candidates.push({ n: entry, m: m });
     } else if (segs.length === 3 && segs[1] === ANCHOR_DIR) {
       if (/^anchor-(before|after)\.json$/.test(segs[2])) d.anchors++;
       else if (/^anchor-(before|after)-witness\.json$/.test(segs[2])) d.witnesses++;
     }
   });
   // Alphabetical first, the order artifactIn's `ls` returned, so a folder that
-  // somehow holds two loose files names the same one it always has.
+  // somehow holds two loose files names the same one it always has. The
+  // artifact's own mtime rides along: it is one of the page's inputs, and the
+  // one whose omission would blind the page to an artifact edited in place.
   Object.keys(snap.dirs).forEach(function (n) {
     var d = snap.dirs[n];
-    if (d.candidates.length) d.artifact = d.candidates.sort()[0];
+    if (d.candidates.length) {
+      d.candidates.sort(function (a, b) { return a.n < b.n ? -1 : a.n > b.n ? 1 : 0; });
+      d.artifact = d.candidates[0].n;
+      d.artM = d.candidates[0].m;
+    }
     delete d.candidates;
   });
 
