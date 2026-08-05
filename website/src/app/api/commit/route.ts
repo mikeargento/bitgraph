@@ -17,8 +17,25 @@ export const dynamic = "force-dynamic";
 // first anchor could never land.
 // Restarting and not-yet-anchored both surface as the same retryable 503
 // (code "tee-restarting"), so one client retry loop covers the whole window.
+
+// ── Folder version ─────────────────────────────────────────────────────────
+// Stated on EVERY response from this route, successes and failures alike, so an
+// installed Folder learns it is behind even when its drop was held through an
+// epoch rotation and retried. It also means the header can be checked without
+// committing anything, which matters: a version notice nobody can test is a
+// version notice nobody can trust.
+//
+// A header rather than a body field, because the body is the signed proof that
+// MCP, Zapier and the site all consume and it must not grow fields outside
+// bitgraph/1. Downward only: the site states its own version and never learns
+// the client's, so nothing is added to what leaves a user's machine.
+const VERSION_HEADER = { "X-BitGraph-Folder-Version": FOLDER_VERSION };
+
 const teeRestarting503 = () =>
-  NextResponse.json({ error: "The camera is restarting", code: "tee-restarting" }, { status: 503 });
+  NextResponse.json(
+    { error: "The camera is restarting", code: "tee-restarting" },
+    { status: 503, headers: VERSION_HEADER },
+  );
 
 let cachedKey: { epochId: string; at: number } | null = null;
 const anchoredEpochs = new Set<string>();
@@ -90,7 +107,7 @@ export async function POST(req: NextRequest) {
 
     if (!teeRes.ok) {
       const err = await teeRes.json().catch(() => ({ error: teeRes.statusText }));
-      return NextResponse.json(err, { status: teeRes.status });
+      return NextResponse.json(err, { status: teeRes.status, headers: VERSION_HEADER });
     }
 
     const teeData = await teeRes.json();
@@ -102,20 +119,9 @@ export async function POST(req: NextRequest) {
       return storeProofByDigest(p, digestB64 !== undefined ? priors.get(digestB64) : undefined);
     }));
 
-    // The current Folder release, for an installed Folder to compare against
-    // its own. A HEADER rather than a body field on purpose: the body is the
-    // signed proof, which MCP, Zapier and the site all consume and which must
-    // not grow fields that are not part of bitgraph/1. A header is invisible to
-    // every one of them.
-    //
-    // Downward only. The site states its version; it never learns the client's,
-    // so this adds nothing to what leaves a user's machine and cannot narrow
-    // the anonymity set the way a client version string would.
-    return NextResponse.json(teeData, {
-      headers: { "X-BitGraph-Folder-Version": FOLDER_VERSION },
-    });
+    return NextResponse.json(teeData, { headers: VERSION_HEADER });
   } catch (e) {
     console.error("[api/commit] Error:", (e as Error).message);
-    return NextResponse.json({ error: "Commit failed" }, { status: 500 });
+    return NextResponse.json({ error: "Commit failed" }, { status: 500, headers: VERSION_HEADER });
   }
 }
