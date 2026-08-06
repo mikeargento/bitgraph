@@ -152,16 +152,23 @@ export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, heading = 
 
   return (
     <div>
+      {/* heading === null hands the WHOLE header to the caller: /folder has
+          its own h1 and count line, and stacking a second title and a second
+          count under them was three sizes of text saying two things. The
+          day-view line survives regardless, because only this component
+          knows which day is open. */}
       {heading && (
         <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
           {heading}
         </div>
       )}
-      <div style={{ fontSize: 13, color: "#4b5563", marginTop: 2, marginBottom: 10 }}>
-        {view
-          ? `The recordings for ${view.label}.`
-          : `${checked.length} recording${checked.length === 1 ? "" : "s"} from your folder, newest first.`}
-      </div>
+      {(heading || view) && (
+        <div style={{ fontSize: 13, color: "#4b5563", marginTop: 2, marginBottom: 10 }}>
+          {view
+            ? `The recordings for ${view.label}.`
+            : `${checked.length.toLocaleString()} recording${checked.length === 1 ? "" : "s"} from your folder, newest first.`}
+        </div>
+      )}
       <div style={{ background: "#fff", border: "1px solid #d0d5dd", padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 10 }}>
         {pending > 0 ? (
           <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>

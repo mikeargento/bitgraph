@@ -185,10 +185,10 @@ export default function FolderPage() {
                 onFolder={handleFolder}
                 onFolderScan={(files, done) => setWalkCount(done ? null : files)}
                 onFiles={() => { /* a loose file is not a folder; the home page takes those */ }}
-                headline="Open your folder"
+                headline="Sync your folder"
                 hint={walkCount !== null
                   ? `Reading… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
-                  : "Drag it in."}
+                  : "Open the BitGraph folder on your Desktop\nand drag Recordings here."}
                 subhint="Read on your device. Nothing is uploaded."
               />
             </div>
@@ -207,19 +207,29 @@ export default function FolderPage() {
       </div>
     </>
   ) : (
-    <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 80px" }}>
-      <h1 style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827", margin: "8px 0 6px" }}>
+    /* The same column as /roll, to the pixel: 90% up to 800, 40px under the
+       nav. The first cut used max-width alone with inner padding, which made
+       this the one page whose text column was 760px with its own gutters. */
+    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
+      {/* fadeIn's keyframes live per-page (the roll defines its own); this
+          branch needs its own copy or the animation is silently nothing. */}
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }`}</style>
+      <h1 style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827", margin: "0 0 4px" }}>
         Your BitGraph Folder
       </h1>
-      <p style={{ fontSize: 13, color: "#4b5563", margin: "0 0 14px", lineHeight: 1.6 }}>
+      {/* One subtitle, carrying the count AND the state; the roll's own
+          header is off (heading={null}) so nothing repeats it below. */}
+      <p style={{ fontSize: 14, color: "#4b5563", margin: "0 0 4px", lineHeight: 1.6 }}>
+        {rows.length.toLocaleString()} recording{rows.length === 1 ? "" : "s"}, newest first
         {fromCache
-          ? "Remembered from the last time you opened your folder. Open it again to check these against the ledger and pick up anything new."
+          ? ", remembered from last time."
           : checking
-          ? "Checking each recording against the ledger."
-          : "Checked against the ledger."}
-        {" "}
+          ? ". Checking each against the ledger…"
+          : ", checked against the ledger."}
+      </p>
+      <p style={{ fontSize: 13, margin: "0 0 18px", lineHeight: 1.6 }}>
         <button type="button" style={linkStyle} onClick={() => { setRows(null); setFromCache(false); }}>
-          Open your folder
+          Sync again
         </button>
         {" · "}
         <button type="button" style={linkStyle} onClick={() => void forget()}>
