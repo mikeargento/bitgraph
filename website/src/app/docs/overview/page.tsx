@@ -13,6 +13,17 @@ export default function OverviewPage() {
         Overview
       </h1>
 
+      {/* The axiom as the lede, the same pattern /docs/folder opens with
+          ("Drop a file. Get a BitGraph."): the page's thesis in one short
+          semibold line before the prose earns it. It also leads /camera,
+          which shows the same idea as a picture; this page argues it. */}
+      {/* Inline size, not text-lg: this page's own p rules are unlayered and
+          eat Tailwind utilities (the same trap as .prose-doc, see the
+          2026-08-03 handoff). 18px semibold is /docs/folder's lede exactly. */}
+      <p className="font-semibold" style={{ fontSize: 18, lineHeight: 1.45, color: "#1f2937", marginBottom: 32 }}>
+        The frame exists first.
+      </p>
+
       <p>
         BitGraphs are not labels or metadata added after the fact. They are new computations created when your file&rsquo;s hash <em>fills</em> a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof file permanently bound to the original.
       </p>

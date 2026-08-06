@@ -852,7 +852,12 @@ export default function BitGraphPage() {
            old centered hero's measure and read as a mistake beside the
            full-width box above it). */
         .hero-explainer { margin: 18px 0 0; font-size: 14px; line-height: 1.65; color: #374151; }
-        .hero-explainer p { margin: 0; }
+        /* pretty, not balance: balance is for short blocks (browsers cap it
+           around six lines, so the 8-line phone rendering would silently get
+           nothing), while pretty fixes exactly what a long ragged paragraph
+           suffers: orphaned last words and lines that break one word early.
+           Applies at every width; browsers without it just wrap greedily. */
+        .hero-explainer p { margin: 0; text-wrap: pretty; }
         /* The two offers, styled exactly like /folder's stacked links. */
         .see-example { text-align: left; margin-top: 18px; }
         .see-example-second { margin-top: 6px; }
