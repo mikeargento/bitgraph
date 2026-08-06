@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { formatFileSize } from "@/lib/bitgraph";
+import { useDashedEdges } from "@/lib/use-dashed-edges";
 import {
   entriesFromDataTransfer, walkEntries,
   supportsDirectoryPicker, pickDirectory, type WalkedFile, type DirHandle,
@@ -86,6 +87,11 @@ export function FileDrop({
   headlineSize = "clamp(20px, 6vw, 24px)",
 }: FileDropProps) {
   const [dragover, setDragover] = useState(false);
+  // The edges are painted (see use-dashed-edges), so hover and focus have to
+  // be state rather than :hover/:focus-visible border classes.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const edges = useDashedEdges();
   const inputRef = useRef<HTMLInputElement>(null);
   // A SECOND input, because one cannot do both jobs: `multiple` selects files
   // and will not select a folder (it opens it instead), `webkitdirectory`
@@ -255,22 +261,32 @@ export function FileDrop({
           inputRef.current?.click();
         }
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={(e) => setFocused(e.currentTarget.matches(":focus-visible"))}
+      onBlur={() => setFocused(false)}
+      /* ⚠️ DASHED EDGES, drawn per edge by use-dashed-edges — the drop-target
+         doctrine (2026-08-06): a dashed border means "this is where you drop
+         files", every drop box wears it. Rest is a step darker than the card
+         hairlines (#b3bac2) so the box has presence sitting still. It
+         deliberately does NOT start blue: blue is what hover means, and the
+         light fill on top of blue is what dragging over means. Starting blue
+         collapses those two rungs and leaves hover nothing to say. */
+      ref={edges.ref}
+      style={shutter ? undefined : edges.edgeStyle(
+        !disabled && (dragover || ((hovered || focused) && !hasFiles)) ? "#0065A4" : "#b3bac2",
+      )}
       className={
         shutter
           ? `relative flex flex-col items-center justify-center outline-none ${disabled ? "opacity-50" : ""}`
           : `
-        h-full relative border-2 rounded-none transition-all duration-200 cursor-pointer flex items-center outline-none
+        h-full relative rounded-none transition-all duration-200 cursor-pointer flex items-center outline-none
         ${disabled ? "opacity-50 cursor-not-allowed" : ""}
         ${dragover
-          ? "border-[#0065A4] bg-[#f0f6ff] ring-2 ring-[#0065A4]/20 scale-[1.005]"
+          ? "bg-[#f0f6ff] ring-2 ring-[#0065A4]/20 scale-[1.005]"
           : hasFiles
-          /* Rest is a step darker than the card hairlines (#b3bac2, was
-             #c3c8cf) so the box has presence sitting still. It deliberately
-             does NOT start blue: blue is what hover means, and the light fill
-             on top of blue is what dragging over means. Starting blue
-             collapses those two rungs and leaves hover nothing to say. */
-          ? "border-[#b3bac2] bg-white"
-          : "border-[#b3bac2] bg-white hover:border-[#0065A4] hover:bg-[#fafbfd] focus-visible:border-[#0065A4] focus-visible:ring-2 focus-visible:ring-[#0065A4]/20"
+          ? "bg-white"
+          : "bg-white hover:bg-[#fafbfd] focus-visible:ring-2 focus-visible:ring-[#0065A4]/20"
         }
       `
       }

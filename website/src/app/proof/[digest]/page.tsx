@@ -11,6 +11,7 @@ import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-veri
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
+import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
@@ -1332,23 +1333,13 @@ function BringYourFile({
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [readCount, setReadCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const boxRef = useRef<HTMLDivElement>(null);
 
-  /* Dash geometry, solved per edge so every corner is a clean right angle.
-   *
-   * A fixed dash+gap cannot do it: an edge is only as long as it is, so the
-   * pattern gets cut wherever it happens to land and three of the four
-   * corners end mid-gap. The fix is to let the length pick the numbers.
-   *
-   * For n dashes and the n-1 gaps between them to exactly span L:
-   *
-   *     n·d + (n-1)·g = L
-   *
-   * Fix the look (d:g = 9:7) and solve for the pair that fits: choose n from
-   * the target period, then g = L / (n·r + n − 1) and d = r·g. Both ends of
-   * every edge therefore land ON a dash, and since each edge is measured
-   * separately the dashes stay ~9px whether the edge is 348px or 960px.
-   */
+  /* Dash geometry lives in use-dashed-edges now, shared with FileDrop: the
+     doctrine (2026-08-06) is that EVERY drop target wears the dashed edge —
+     "this is where you drop files" — so the solved-per-edge drawing has one
+     home instead of a copy per box. */
+  const edges = useDashedEdges();
+
   /* ⚠️ Offered ONLY where showDirectoryPicker exists. A webkitdirectory
      input makes the browser ask to UPLOAD the folder ("Only do this if you
      trust the site"), which is intolerable here; explaining that dialog in
@@ -1365,31 +1356,6 @@ function BringYourFile({
     if (!picked) { setState("idle"); return; }
     void check(picked.walked.map((w) => w.file));
   }
-
-  const [dash, setDash] = useState({ hd: 9, hg: 7, vd: 9, vg: 7 });
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const RATIO = 9 / 7;   // dash : gap
-    const PERIOD = 16;     // the look we are aiming at, in px
-    const fit = (L: number) => {
-      if (!L) return { d: 9, g: 7 };
-      // L ≈ n·(d+g) − g, so this is the dash count nearest the target period.
-      const n = Math.max(2, Math.round((L + PERIOD / (1 + RATIO)) / PERIOD));
-      const g = L / (n * RATIO + n - 1);
-      return { d: RATIO * g, g };
-    };
-    const measure = () => {
-      const w = el.clientWidth, h = el.clientHeight;
-      if (!w || !h) return;
-      const H = fit(w), V = fit(h);
-      setDash({ hd: H.d, hg: H.g, vd: V.d, vg: V.g });
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // The drop may be many files, or whole folders, and the matching file is
   // FOUND by hashing rather than the person knowing which it is: drop your
@@ -1464,35 +1430,12 @@ function BringYourFile({
       /* The same instrument as the home page's, not a footnote to the proof:
          this box is how a stranger who was handed a file actually uses the
          page. Same mark, same blue on hover and drag, and enough height to
-         read as the thing you are meant to do.
-
-         ⚠️ DASHED HERE ON PURPOSE, and it is the one place that is. A dashed
-         border was retired from the home drop zone and should stay retired
-         there: that box is the instrument itself, always ready, nothing
-         absent. This box is the opposite. It stands for a file that is NOT
-         here, and the broken line is what says so before a word is read
-         (Mike, 2026-08-06: "it feels more like something is missing"). Solid
-         made it look like a finished panel rather than a gap to fill.
-
-         ⚠️ The dashes are DRAWN, not a border-style: dashed. A CSS dashed
-         border gives each side its own dash run and then fills the mitre
-         where they meet, so every corner came out as a solid L-shaped blob
-         thicker than the line itself. These are four backgrounds, one per
-         edge, 2px thin, and the dash lengths are solved from each edge's
-         measured length (see `dash` above) so all FOUR corners land on a
-         dash and read as a clean right angle. */
-      ref={boxRef}
+         read as the thing you are meant to do. Dashed edges from the shared
+         hook, like every drop target. */
+      ref={edges.ref}
       style={{
         backgroundColor: dragOver ? "#f0f6ff" : "#fff",
-        backgroundImage: [
-          `repeating-linear-gradient(to right, ${edge} 0 ${dash.hd}px, transparent ${dash.hd}px ${dash.hd + dash.hg}px)`,
-          `repeating-linear-gradient(to bottom, ${edge} 0 ${dash.vd}px, transparent ${dash.vd}px ${dash.vd + dash.vg}px)`,
-          `repeating-linear-gradient(to right, ${edge} 0 ${dash.hd}px, transparent ${dash.hd}px ${dash.hd + dash.hg}px)`,
-          `repeating-linear-gradient(to bottom, ${edge} 0 ${dash.vd}px, transparent ${dash.vd}px ${dash.vd + dash.vg}px)`,
-        ].join(", "),
-        backgroundSize: "100% 2px, 2px 100%, 100% 2px, 2px 100%",
-        backgroundPosition: "0 0, 100% 0, 0 100%, 0 0",
-        backgroundRepeat: "no-repeat",
+        ...edges.edgeStyle(edge),
         // Height, not padding: the box then holds ONE size across all four
         // states, so it does not jump when a drop starts reading or a miss
         // comes back with two lines of explanation.
