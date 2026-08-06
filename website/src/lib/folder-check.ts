@@ -33,6 +33,7 @@ import {
   type BitGraphProof,
 } from "./bitgraph";
 import { toUrlSafeB64 } from "./explorer";
+import { blockTimeFromHeader } from "./export-pages";
 
 /* ── Walking the dropped tree ── */
 
@@ -279,6 +280,16 @@ export interface ExportCheckResult {
   /** The artifact whose bytes matched the proof — cached for the proof page
    *  on click-through. Null when the bytes differ or no file was found. */
   matchedFile: File | null;
+  /** The file sitting beside proof.json whether or not its bytes match —
+   *  the viewer thumbnails it either way (a red row still shows what is
+   *  there). Null only when the export holds no file at all. */
+  artifactFile: File | null;
+  /** The lower-bound anchor's Ethereum block and its timestamp (unix
+   *  seconds), decoded from the export's own witness file; the upper bound
+   *  stands in when the lower is missing. The viewer's causal sort and day
+   *  grouping — the sheet's exact keys, computed client-side now. */
+  block: number | null;
+  ts: number | null;
   proof: BitGraphProof | null;
   counter: string | null;
   epochUrlSafe: string | null;
@@ -368,6 +379,9 @@ export async function checkExports(
       dirName: cand.dirName,
       fileName: null,
       matchedFile: null,
+      artifactFile: cand.artifactCandidates[0] ?? null,
+      block: null,
+      ts: null,
       proof: null,
       counter: null,
       epochUrlSafe: null,
@@ -381,6 +395,20 @@ export async function checkExports(
       ledgerProof: null,
     };
     working.push(w);
+
+    // The causal keys, straight from the export's own witness files: the
+    // lower-bound block orders across epochs (counters restart daily), its
+    // header carries the timestamp the day grouping reads. Wrong-shaped or
+    // absent witnesses just leave the row unsealed-sorted; verification does
+    // not depend on this.
+    for (const side of [cand.anchors.beforeWitness, cand.anchors.afterWitness]) {
+      if (w.block !== null || !side) continue;
+      const witness = await parseJsonFile(side);
+      const header = typeof witness?.headerRlpHex === "string" ? (witness.headerRlpHex as string) : null;
+      const num = typeof witness?.blockNumber === "number" ? (witness.blockNumber as number) : null;
+      if (num !== null) w.block = num;
+      if (header) w.ts = blockTimeFromHeader(header) || null;
+    }
 
     const proof = isBitGraphProof(await cand.proofFile.text().catch(() => ""));
     if (!proof) {
@@ -410,6 +438,7 @@ export async function checkExports(
         bumpHash();
         if (digest && digest === proof.artifact.digestB64 && !w.matchedFile) {
           w.matchedFile = f;
+          w.artifactFile = f;
           w.fileName = f.name;
         }
         // Yield so the UI paints and Safari can reclaim the buffer between
@@ -607,6 +636,9 @@ export async function checkExports(
     dirName: w.dirName,
     fileName: w.fileName,
     matchedFile: w.matchedFile,
+    artifactFile: w.artifactFile,
+    block: w.block,
+    ts: w.ts,
     proof: w.proof,
     counter: w.counter,
     epochUrlSafe: w.epochUrlSafe,

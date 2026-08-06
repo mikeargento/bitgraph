@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { proofPage, indexPage, blockTimeFromHeader, type ExportProof, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -1033,67 +1033,16 @@ export default function BitGraphPage() {
                   screen (it force-reloads home). Matches the proof page, which
                   also has no camera. */}
 
-              {/* ── The skeptic's drop: verdicts for a dropped folder of
-                  exports. Same receipt + rows grammar as the rest of this
-                  page; the verdict speaks the two-outcome color language —
-                  blue "matches the ledger", red naming the side that
-                  differed. Factual phrasing only, and NO buttons: the drop
-                  triggered everything, the rows just report. ── */}
-              {checked.length > 0 && (() => {
-                const okCount = checked.filter((c) => c.ok).length;
-                return (
-                  <div>
-                    <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 10 }}>
-                      BitGraph{checked.length === 1 ? "" : "s"} Checked
-                    </div>
-                    <div style={{ background: "#fff", border: "1px solid #d0d5dd", padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 10 }}>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                        {okCount} of {checked.length} {okCount === 1 ? "matches" : "match"} the ledger
-                      </span>
-                      {okCount < checked.length && (
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", whiteSpace: "nowrap" }}>
-                          {checked.length - okCount} {checked.length - okCount === 1 ? "does" : "do"} not
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {checked.map((r, i) => {
-                        const clickable = r.onLedger && !!r.digestUrlSafe;
-                        return (
-                          <div key={r.dirName + i} className="bitgraph-file-card" data-clickable={clickable} style={{ border: "1px solid #d0d5dd", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
-                            <div
-                              role={clickable ? "button" : undefined}
-                              tabIndex={clickable ? 0 : undefined}
-                              onClick={clickable ? () => openCheckedRow(r) : undefined}
-                              onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCheckedRow(r); } } : undefined}
-                              className={`bitgraph-result-row${clickable ? " bitgraph-file-row" : ""}`}
-                              style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: clickable ? "pointer" : "default" }}
-                            >
-                              {/* Left — the claimed position, in the verdict's
-                                  color. A proof too broken to carry one gets
-                                  a dash. */}
-                              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: r.ok ? "#0065A4" : "#dc2626", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                                {r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "—"}
-                              </span>
-                              <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {r.fileName ?? r.dirName}
-                              </span>
-                              <span style={{ flexShrink: 0, maxWidth: "45%", fontSize: 12.5, fontWeight: 600, color: r.ok ? "#0065A4" : "#dc2626", textAlign: "right" }}>
-                                {r.ok ? "matches the ledger" : r.failure}
-                              </span>
-                              {clickable && (
-                                <span aria-label="Open" style={{ display: "inline-flex", flexShrink: 0, color: "#0065A4" }}>
-                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
+              {/* ── The folder's Roll: a dropped BitGraph folder loads HERE
+                  instead of carrying its own generated sheet (Mike,
+                  2026-08-05: "no index file at all... you drag and drop the
+                  whole folder into the camera and it loads the Roll! and this
+                  viewer can have small thumbs"). Roll grammar throughout: day
+                  headers over causal order, rows with a small thumb made from
+                  the dropped bytes themselves, the verdict in the two-outcome
+                  colors — blue "matches the ledger", red naming the side that
+                  differed. NO buttons: the drop triggered everything. ── */}
+              {checked.length > 0 && <CheckedRoll checked={checked} onOpen={openCheckedRow} />}
 
               {/* The whole batch state lives in one receipt card (same anatomy
                   as the proof page's receipt): count + export in the body, and
@@ -1304,6 +1253,162 @@ async function cacheArtifactToIDB(file: File, proofDigest: string) {
     console.warn("[bitgraph] c2pa read failed:", e);
   }
   await writeRecord(c2pa, true);
+}
+
+/* ── The folder's Roll — the viewer a dropped BitGraph folder loads into.
+   The Folder generates no browsing pages of its own (1.9.0); this is where a
+   folder is browsed AND checked, in one surface the site renders. Day
+   grouping and causal order are the sheet's exact keys, computed here from
+   the exports' own proof.json and witness files; thumbnails are object URLs
+   over the dropped bytes, never uploaded, revoked on unmount. ── */
+
+const IMAGE_THUMB_EXT = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "svg"];
+
+function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen: (r: ExportCheckResult) => void }) {
+  // Causal order, newest first: lower-bound block, then counter; unsealed
+  // (no block) lead. The same sort every surface in the product uses.
+  const ordered = useMemo(() => [...checked].sort((x, y) => {
+    const xb = x.block ?? 0, yb = y.block ?? 0;
+    if (!xb !== !yb) return xb ? 1 : -1;
+    if (xb !== yb) return yb - xb;
+    return (parseInt(y.counter || "0", 10) || 0) - (parseInt(x.counter || "0", 10) || 0);
+  }), [checked]);
+
+  // Day groups along the causal walk: unsealed under today, ts-less sealed
+  // rows inherit the open group. Local days, never UTC epochs.
+  const groups = useMemo(() => {
+    const out: Array<{ label: string; rows: ExportCheckResult[] }> = [];
+    let openKey: string | null = null;
+    for (const r of ordered) {
+      const when = !r.block ? new Date() : r.ts ? new Date(r.ts * 1000) : null;
+      if (when !== null) {
+        const key = `${when.getFullYear()}-${when.getMonth()}-${when.getDate()}`;
+        if (key !== openKey) {
+          openKey = key;
+          out.push({
+            label: when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
+            rows: [],
+          });
+        }
+      }
+      if (!out.length) out.push({ label: new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }), rows: [] });
+      out[out.length - 1].rows.push(r);
+    }
+    return out;
+  }, [ordered]);
+
+  // Real small thumbnails, generated from the dropped bytes: decode once,
+  // draw at 96px (2x the 48px box), keep only the few-KB blob. An object URL
+  // straight over the original was tried and was wrong twice over — a 26MB
+  // photo per 48px cell, and the full-res decode never even started under
+  // loading="lazy" here. Created INSIDE the effect so each run owns the URLs
+  // it revokes (a memoized map plus revoke-on-cleanup breaks under
+  // StrictMode's double-invoke). Sequential, appearing as they finish.
+  const [thumbs, setThumbs] = useState<Map<ExportCheckResult, string>>(() => new Map());
+  useEffect(() => {
+    let dead = false;
+    const urls: string[] = [];
+    const m = new Map<ExportCheckResult, string>();
+    void (async () => {
+      for (const r of checked) {
+        if (dead) return;
+        const f = r.artifactFile;
+        if (!f) continue;
+        const ext = f.name.slice(f.name.lastIndexOf(".") + 1).toLowerCase();
+        if (!IMAGE_THUMB_EXT.includes(ext)) continue;
+        try {
+          const bmp = await createImageBitmap(f);
+          const w = 96;
+          const h = Math.max(1, Math.round((bmp.height / bmp.width) * w));
+          const c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          c.getContext("2d")?.drawImage(bmp, 0, 0, w, h);
+          bmp.close();
+          const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.75));
+          if (!blob || dead) continue;
+          const url = URL.createObjectURL(blob);
+          urls.push(url);
+          m.set(r, url);
+          setThumbs(new Map(m));
+        } catch { /* a row without a thumb shows its type label */ }
+      }
+    })();
+    return () => { dead = true; for (const u of urls) URL.revokeObjectURL(u); };
+  }, [checked]);
+
+  const okCount = checked.filter((c) => c.ok).length;
+
+  return (
+    <div>
+      <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
+        BitGraph Roll
+      </div>
+      <div style={{ fontSize: 13, color: "#4b5563", marginTop: 2, marginBottom: 10 }}>
+        {checked.length} recording{checked.length === 1 ? "" : "s"} from your folder, newest first.
+      </div>
+      <div style={{ background: "#fff", border: "1px solid #d0d5dd", padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 10 }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+          {okCount} of {checked.length} {okCount === 1 ? "matches" : "match"} the ledger
+        </span>
+        {okCount < checked.length && (
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", whiteSpace: "nowrap" }}>
+            {checked.length - okCount} {checked.length - okCount === 1 ? "does" : "do"} not
+          </span>
+        )}
+      </div>
+      {groups.map((g) => (
+        <div key={g.label}>
+          <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.01em", color: "#111827", margin: "18px 0 8px" }}>
+            {g.label}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {g.rows.map((r, i) => {
+              const clickable = r.onLedger && !!r.digestUrlSafe;
+              const thumb = thumbs.get(r);
+              const ext = r.fileName ? r.fileName.slice(r.fileName.lastIndexOf(".") + 1).toUpperCase() : "";
+              return (
+                <div key={r.dirName + i} className="bitgraph-file-card" data-clickable={clickable} style={{ border: "1px solid #d0d5dd", animation: `slideIn 0.2s ease-out ${Math.min(i, 12) * 0.03}s both` }}>
+                  <div
+                    role={clickable ? "button" : undefined}
+                    tabIndex={clickable ? 0 : undefined}
+                    onClick={clickable ? () => onOpen(r) : undefined}
+                    onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(r); } } : undefined}
+                    className={`bitgraph-result-row${clickable ? " bitgraph-file-row" : ""}`}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px 10px 10px", cursor: clickable ? "pointer" : "default" }}
+                  >
+                    {/* The small thumb, from the dropped bytes themselves. A
+                        non-image shows its type the way the sheet's cells
+                        did; square corners, the card's own border. */}
+                    {thumb ? (
+                      <img src={thumb} alt="" style={{ width: 48, height: 48, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e5e9", display: "block" }} />
+                    ) : (
+                      <span style={{ width: 48, height: 48, flexShrink: 0, border: "1px solid #e2e5e9", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#6b7280", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                        {ext.slice(0, 4)}
+                      </span>
+                    )}
+                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: r.ok ? "#0065A4" : "#dc2626", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                      {r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "—"}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {r.fileName ?? r.dirName}
+                    </span>
+                    <span style={{ flexShrink: 0, maxWidth: "40%", fontSize: 12.5, fontWeight: 600, color: r.ok ? "#0065A4" : "#dc2626", textAlign: "right" }}>
+                      {r.ok ? "matches the ledger" : r.failure}
+                    </span>
+                    {clickable && (
+                      <span aria-label="Open" style={{ display: "inline-flex", flexShrink: 0, color: "#0065A4" }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /* ── Inline file-match check — shown under a dropped proof.json so the visitor
