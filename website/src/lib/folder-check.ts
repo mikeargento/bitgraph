@@ -172,29 +172,27 @@ export async function walkEntries(
  * leads with "Drag a folder".
  */
 
-type DirHandle = {
+export type DirHandle = {
   kind: "file" | "directory";
   name: string;
   entries: () => AsyncIterableIterator<[string, DirHandle]>;
   getFile: () => Promise<File>;
+  /** Chromium's permission pair. A stored handle answers "granted" on later
+   *  visits when the person told Chrome to allow it every time; "prompt"
+   *  means one requestPermission inside a click puts it back to granted.
+   *  Optional because only real handles carry them. */
+  queryPermission?: (d: { mode: "read" }) => Promise<PermissionState>;
+  requestPermission?: (d: { mode: "read" }) => Promise<PermissionState>;
 };
 
-export const supportsDirectoryPicker = () =>
-  typeof window !== "undefined" &&
-  typeof (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === "function";
-
-/**
- * Read a directory the person chooses, no upload wording anywhere.
- * Returns null when they cancel. Same prunes and same shape as the walk.
- */
-export async function pickDirectory(onProgress?: (files: number) => void): Promise<WalkedFile[] | null> {
-  const show = (window as unknown as { showDirectoryPicker: () => Promise<DirHandle> }).showDirectoryPicker;
-  let root: DirHandle;
-  try {
-    root = await show();
-  } catch {
-    return null; // cancelled, or permission refused
-  }
+/** Walk a directory HANDLE into the walk's shape. The handle is the re-usable
+ *  form of a hand-over: unlike a drop's entries, it can be stored and asked
+ *  to read again later, which is what makes "sync again without a drag"
+ *  possible at all. Same prunes as everywhere. */
+export async function walkDirectoryHandle(
+  root: DirHandle,
+  onProgress?: (files: number) => void,
+): Promise<WalkedFile[]> {
   const out: WalkedFile[] = [];
   let lastTick = 0;
   const visit = async (dir: DirHandle, path: string[]): Promise<void> => {
@@ -213,6 +211,25 @@ export async function pickDirectory(onProgress?: (files: number) => void): Promi
   await visit(root, [root.name]);
   onProgress?.(out.length);
   return out;
+}
+
+export const supportsDirectoryPicker = () =>
+  typeof window !== "undefined" &&
+  typeof (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === "function";
+
+/**
+ * Read a directory the person chooses, no upload wording anywhere.
+ * Returns null when they cancel. Same prunes and same shape as the walk.
+ */
+export async function pickDirectory(onProgress?: (files: number) => void): Promise<{ walked: WalkedFile[]; handle: DirHandle } | null> {
+  const show = (window as unknown as { showDirectoryPicker: () => Promise<DirHandle> }).showDirectoryPicker;
+  let root: DirHandle;
+  try {
+    root = await show();
+  } catch {
+    return null; // cancelled, or permission refused
+  }
+  return { walked: await walkDirectoryHandle(root, onProgress), handle: root };
 }
 
 /* ── Discovery by content ── */

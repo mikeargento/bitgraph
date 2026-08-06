@@ -1330,9 +1330,9 @@ function BringYourFile({
   async function chooseFolder() {
     setState("reading");
     setReadCount(0);
-    const walked = await pickDirectory((n) => setReadCount(n));
-    if (!walked) { setState("idle"); return; }
-    void check(walked.map((w) => w.file));
+    const picked = await pickDirectory((n) => setReadCount(n));
+    if (!picked) { setState("idle"); return; }
+    void check(picked.walked.map((w) => w.file));
   }
 
   const [dash, setDash] = useState({ hd: 9, hg: 7, vd: 9, vg: 7 });

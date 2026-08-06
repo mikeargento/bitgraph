@@ -21,7 +21,12 @@
 
 const DB = "bitgraph-folder";
 const STORE = "rows";
-const VERSION = 1;
+// v2 adds "meta", which holds one thing: the directory handle. A handle is
+// the re-usable form of a hand-over — structured-cloneable, so IndexedDB can
+// keep it — and it is what lets "Sync again" read the folder without another
+// drag, in the browsers whose API allows it at all.
+const META = "meta";
+const VERSION = 2;
 
 /** One remembered recording. Mirrors the fields the roll renders, which is
  *  deliberately not the whole proof: this is a browsing cache, not a copy of
@@ -49,6 +54,7 @@ function open(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "digest" });
+      if (!db.objectStoreNames.contains(META)) db.createObjectStore(META);
     };
     req.onsuccess = () => res(req.result);
     req.onerror = () => rej(req.error);
@@ -115,14 +121,46 @@ export async function writeCachedThumb(digest: string, thumb: Blob): Promise<voi
   } catch { /* the row simply shows its type label next time */ }
 }
 
-/** Forget the folder. The recordings are untouched: they are on the ledger
- *  and in the folder, and this only ever held a picture of them. */
+/** Keep the folder's directory handle for later syncs. Chromium only; the
+ *  value is opaque here on purpose (folder-check owns the shape). */
+export async function saveDirHandle(handle: unknown): Promise<void> {
+  try {
+    const db = await open();
+    await new Promise<void>((res, rej) => {
+      const tx = db.transaction(META, "readwrite");
+      tx.objectStore(META).put(handle, "dirHandle");
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+    db.close();
+  } catch { /* syncing just stays a drag */ }
+}
+
+export async function readDirHandle(): Promise<unknown | null> {
+  try {
+    const db = await open();
+    const h = await new Promise<unknown>((res, rej) => {
+      const req = db.transaction(META, "readonly").objectStore(META).get("dirHandle");
+      req.onsuccess = () => res(req.result ?? null);
+      req.onerror = () => rej(req.error);
+    });
+    db.close();
+    return h;
+  } catch {
+    return null;
+  }
+}
+
+/** Forget the folder: rows, thumbnails AND the handle. The recordings are
+ *  untouched: they are on the ledger and in the folder, and this only ever
+ *  held a picture of them plus permission to look again. */
 export async function clearCachedRows(): Promise<void> {
   try {
     const db = await open();
     await new Promise<void>((res, rej) => {
-      const tx = db.transaction(STORE, "readwrite");
+      const tx = db.transaction([STORE, META], "readwrite");
       tx.objectStore(STORE).clear();
+      tx.objectStore(META).clear();
       tx.oncomplete = () => res();
       tx.onerror = () => rej(tx.error);
     });

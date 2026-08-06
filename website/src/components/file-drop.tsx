@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { formatFileSize } from "@/lib/bitgraph";
 import {
   entriesFromDataTransfer, walkEntries,
-  supportsDirectoryPicker, pickDirectory, type WalkedFile,
+  supportsDirectoryPicker, pickDirectory, type WalkedFile, type DirHandle,
 } from "@/lib/folder-check";
 
 /* Creating a BitGraph is always a SELECTION of a file that already exists —
@@ -38,6 +38,10 @@ interface FileDropProps {
   /** Progress while the dropped folder is being READ, before anything can be
       shown. `done` marks the last call; onFolder follows immediately after. */
   onFolderScan?: (files: number, done: boolean) => void;
+  /** A re-usable handle for the folder that was handed over, when the
+      browser can produce one (Chromium, from a drop or the picker). This is
+      what a caller stores so its next sync needs no drag. */
+  onFolderHandle?: (handle: DirHandle) => void;
   files?: File[];
   onRemoveFile?: (index: number) => void;
   onClearAll?: () => void;
@@ -67,6 +71,7 @@ export function FileDrop({
   onFiles,
   onFolder,
   onFolderScan,
+  onFolderHandle,
   files,
   onRemoveFile,
   onClearAll,
@@ -108,11 +113,12 @@ export function FileDrop({
     // No progress is reported until the first file arrives: the dialog is
     // open until then and nothing is happening, so announcing a read that
     // has not started would strand the caller's spinner on cancel.
-    const walked = await pickDirectory((n) => onFolderScan?.(n, false));
-    if (!walked) return; // cancelled: nothing was ever raised
-    onFolderScan?.(walked.length, true);
-    onFolder?.(walked);
-  }, [onFolder, onFolderScan]);
+    const picked = await pickDirectory((n) => onFolderScan?.(n, false));
+    if (!picked) return; // cancelled: nothing was ever raised
+    onFolderScan?.(picked.walked.length, true);
+    onFolderHandle?.(picked.handle);
+    onFolder?.(picked.walked);
+  }, [onFolder, onFolderScan, onFolderHandle]);
   // Set when an intake refused an ephemeral blob (see selectExisting).
   const [refusedEphemeral, setRefusedEphemeral] = useState(false);
 
@@ -139,15 +145,33 @@ export function FileDrop({
       if (onFolder) {
         const entries = entriesFromDataTransfer(e.dataTransfer);
         if (entries) {
+          // A drop can also yield a STORABLE handle (Chromium's
+          // getAsFileSystemHandle), which is how "sync again without a drag"
+          // gets its permission slip from an ordinary drag. Captured
+          // synchronously, same rule as the entries: the item list is
+          // neutered after the first await.
+          const handlePromises: Array<Promise<unknown>> = [];
+          if (onFolderHandle) {
+            for (let i = 0; i < e.dataTransfer.items.length; i++) {
+              const it = e.dataTransfer.items[i] as DataTransferItem & { getAsFileSystemHandle?: () => Promise<unknown> };
+              if (typeof it.getAsFileSystemHandle === "function") handlePromises.push(it.getAsFileSystemHandle());
+            }
+          }
           // Say so IMMEDIATELY: the walk below is the one stretch of a big
           // drop with nothing on screen, and it is the longest.
           onFolderScan?.(0, false);
-          void walkEntries(entries, (n) => onFolderScan?.(n, false)).then((walked) => {
+          void walkEntries(entries, (n) => onFolderScan?.(n, false)).then(async (walked) => {
             onFolderScan?.(walked.length, true);
             // Always handed over, even when empty, so the caller can retire
             // the reading state instead of spinning forever on a folder that
             // turned out to hold nothing.
             onFolder(walked);
+            for (const hp of handlePromises) {
+              try {
+                const h = (await hp) as DirHandle | null;
+                if (h && h.kind === "directory") { onFolderHandle?.(h); break; }
+              } catch { /* this browser's drops are not storable; fine */ }
+            }
           });
           return;
         }

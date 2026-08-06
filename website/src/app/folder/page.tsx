@@ -23,11 +23,12 @@ import Link from "next/link";
 import { FileDrop } from "@/components/file-drop";
 import { CheckedRoll } from "@/components/folder-roll";
 import {
-  discoverDrop, startFolderCheck,
-  type WalkedFile, type ExportCheckResult,
+  discoverDrop, startFolderCheck, walkDirectoryHandle,
+  type WalkedFile, type ExportCheckResult, type DirHandle,
 } from "@/lib/folder-check";
 import {
   readCachedRows, writeCachedRows, writeCachedThumb, clearCachedRows,
+  saveDirHandle, readDirHandle,
   type CachedRow,
 } from "@/lib/folder-cache";
 
@@ -82,6 +83,10 @@ export default function FolderPage() {
   const [walkCount, setWalkCount] = useState<number | null>(null);
   const [thumbs, setThumbs] = useState<Map<string, string>>(() => new Map());
   const thumbUrls = useRef<string[]>([]);
+  // The stored permission slip: a Chromium directory handle from an earlier
+  // drag or pick. Held in state so "Sync again" can use it; null everywhere
+  // the browser cannot produce one, and syncing there stays a drag.
+  const dirHandleRef = useRef<DirHandle | null>(null);
 
   useEffect(() => () => { for (const u of thumbUrls.current) URL.revokeObjectURL(u); }, []);
 
@@ -106,6 +111,32 @@ export default function FolderPage() {
     return () => { dead = true; };
   }, []);
 
+  // The stored handle, and the quiet resync it allows. queryPermission
+  // answering "granted" with no prompt means the person told Chrome to allow
+  // this site's reads on every visit, so the page can do exactly what it has
+  // permission to do: read the folder again and bring the roll up to date,
+  // remembered rows standing until fresh ones replace them. Anything short
+  // of "granted" waits for the Sync again CLICK, because requestPermission
+  // must ride a user gesture.
+  useEffect(() => {
+    let dead = false;
+    void (async () => {
+      const h = (await readDirHandle()) as DirHandle | null;
+      if (dead || !h) return;
+      dirHandleRef.current = h;
+      try {
+        const q = await h.queryPermission?.({ mode: "read" });
+        if (q !== "granted" || dead) return;
+        const walked = await walkDirectoryHandle(h, (n) => { if (!dead) setWalkCount(n); });
+        if (dead) return;
+        setWalkCount(null);
+        handleFolderRef.current?.(walked);
+      } catch { /* the remembered rows stand */ }
+    })();
+    return () => { dead = true; };
+  }, []);
+
+  const handleFolderRef = useRef<((walked: WalkedFile[]) => void) | null>(null);
   const handleFolder = useCallback((walked: WalkedFile[]) => {
     const scan = discoverDrop(walked);
     setWalkCount(null);
@@ -125,9 +156,31 @@ export default function FolderPage() {
     });
     void done.catch(() => setChecking(false));
   }, []);
+  handleFolderRef.current = handleFolder;
+
+  /** Sync without a drag when the stored handle allows it; otherwise back to
+   *  the drop box. The click IS the user gesture requestPermission needs. */
+  const syncAgain = useCallback(async () => {
+    const h = dirHandleRef.current;
+    if (h) {
+      try {
+        let perm = (await h.queryPermission?.({ mode: "read" })) ?? "prompt";
+        if (perm !== "granted") perm = (await h.requestPermission?.({ mode: "read" })) ?? "denied";
+        if (perm === "granted") {
+          const walked = await walkDirectoryHandle(h, (n) => setWalkCount(n));
+          setWalkCount(null);
+          handleFolder(walked);
+          return;
+        }
+      } catch { /* the drag still works */ }
+    }
+    setRows(null);
+    setFromCache(false);
+  }, [handleFolder]);
 
   const forget = useCallback(async () => {
     await clearCachedRows();
+    dirHandleRef.current = null;
     for (const u of thumbUrls.current) URL.revokeObjectURL(u);
     thumbUrls.current = [];
     setThumbs(new Map());
@@ -191,6 +244,7 @@ export default function FolderPage() {
               <FileDrop
                 multiple
                 onFolder={handleFolder}
+                onFolderHandle={(h) => { dirHandleRef.current = h; void saveDirHandle(h); }}
                 onFolderScan={(files, done) => setWalkCount(done ? null : files)}
                 onFiles={() => { /* a loose file is not a folder; the home page takes those */ }}
                 headline="Sync your folder"
@@ -228,15 +282,17 @@ export default function FolderPage() {
       {/* One subtitle, carrying the count AND the state; the roll's own
           header is off (heading={null}) so nothing repeats it below. */}
       <p style={{ fontSize: 14, color: "#4b5563", margin: "0 0 4px", lineHeight: 1.6 }}>
-        {rows.length.toLocaleString()} recording{rows.length === 1 ? "" : "s"}, newest first
+        {walkCount !== null
+          ? `Reading your folder… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
+          : <>{rows.length.toLocaleString()} recording{rows.length === 1 ? "" : "s"}, newest first
         {fromCache
           ? ", remembered from last time."
           : checking
           ? ". Checking each against the ledger…"
-          : ", checked against the ledger."}
+          : ", checked against the ledger."}</>}
       </p>
       <p style={{ fontSize: 13, margin: "0 0 18px", lineHeight: 1.6 }}>
-        <button type="button" style={linkStyle} onClick={() => { setRows(null); setFromCache(false); }}>
+        <button type="button" style={linkStyle} onClick={() => void syncAgain()}>
           Sync again
         </button>
         {" · "}
