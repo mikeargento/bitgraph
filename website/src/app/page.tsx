@@ -847,9 +847,11 @@ export default function BitGraphPage() {
         .hero-why { font-size: 14px; line-height: 1.6; color: #4b5563; margin: 0 0 18px; }
         .hero-why p { margin: 0; }
         /* Explainer under the box: the one place the film/photograph metaphor
-           is spelled out. Left-aligned reading prose now, capped at a
-           readable measure inside the 800 column. */
-        .hero-explainer { max-width: 640px; margin: 18px 0 0; font-size: 14px; line-height: 1.65; color: #374151; }
+           is spelled out. Left-aligned reading prose, spanning the full
+           column like every other line on the page (the 640px cap was the
+           old centered hero's measure and read as a mistake beside the
+           full-width box above it). */
+        .hero-explainer { margin: 18px 0 0; font-size: 14px; line-height: 1.65; color: #374151; }
         .hero-explainer p { margin: 0; }
         /* The two offers, styled exactly like /folder's stacked links. */
         .see-example { text-align: left; margin-top: 18px; }
