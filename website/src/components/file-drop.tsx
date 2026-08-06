@@ -32,6 +32,9 @@ interface FileDropProps {
       over as a flat file list with relative paths — the drop zone detecting
       what it was given, no mode switch. Plain-file drops are untouched. */
   onFolder?: (walked: WalkedFile[]) => void;
+  /** Progress while the dropped folder is being READ, before anything can be
+      shown. `done` marks the last call; onFolder follows immediately after. */
+  onFolderScan?: (files: number, done: boolean) => void;
   files?: File[];
   onRemoveFile?: (index: number) => void;
   onClearAll?: () => void;
@@ -60,6 +63,7 @@ export function FileDrop({
   multiple,
   onFiles,
   onFolder,
+  onFolderScan,
   files,
   onRemoveFile,
   onClearAll,
@@ -101,7 +105,16 @@ export function FileDrop({
       if (onFolder) {
         const entries = entriesFromDataTransfer(e.dataTransfer);
         if (entries) {
-          void walkEntries(entries).then((walked) => { if (walked.length) onFolder(walked); });
+          // Say so IMMEDIATELY: the walk below is the one stretch of a big
+          // drop with nothing on screen, and it is the longest.
+          onFolderScan?.(0, false);
+          void walkEntries(entries, (n) => onFolderScan?.(n, false)).then((walked) => {
+            onFolderScan?.(walked.length, true);
+            // Always handed over, even when empty, so the caller can retire
+            // the reading state instead of spinning forever on a folder that
+            // turned out to hold nothing.
+            onFolder(walked);
+          });
           return;
         }
       }
@@ -110,7 +123,7 @@ export function FileDrop({
       if (multiple && onFiles) onFiles(dropped);
       else if (onFile) onFile(dropped[0]);
     },
-    [onFile, onFiles, onFolder, multiple, disabled, selectExisting]
+    [onFile, onFiles, onFolder, onFolderScan, multiple, disabled, selectExisting]
   );
 
   const handleInputChange = useCallback(

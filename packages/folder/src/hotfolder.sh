@@ -127,9 +127,21 @@ to_urlsafe() { printf '%s' "$1" | tr '+/' '-_' | tr -d '='; }
 # anymore: browsing is dropping the folder on bitgraph.ing. The glob keeps
 # the common nothing-to-do run at zero exporter calls; the legacy purge runs
 # whenever the old sheet is still present.
+#
+# ⚠️ The trigger list is also what bounds tidy's cost. Tidy now scans every
+# export for a proof this tool can actually verify (a file whose proof is not
+# bitgraph/1 is not a recording, so its artifact is returned to the drop zone
+# and recorded properly). That scan is one grep, but on a 2000-recording
+# folder it is still ~0.5s, which is a third of a whole drop and must not be
+# paid every time. It does not need to be: such exports arrive only by being
+# MIGRATED in, and migration only happens when a flat export is sitting at the
+# top level, which is already a trigger. The once-marker covers folders that
+# adopted some before this version existed.
 tuck_strays() {
-  if compgen -G "$FOLDER"/*/proof.json >/dev/null 2>&1 || [ -f "$FOLDER/index.html" ] || [ -d "$FOLDER/.bitgraph" ]; then
+  if compgen -G "$FOLDER"/*/proof.json >/dev/null 2>&1 || [ -f "$FOLDER/index.html" ] \
+     || [ -d "$FOLDER/.bitgraph" ] || [ ! -f "$HOME_DIR/legacy-swept" ]; then
     "$OSASCRIPT" -l JavaScript "$EXPORTER" --tidy "$FOLDER" >/dev/null 2>&1 || true
+    : > "$HOME_DIR/legacy-swept"
   fi
 }
 

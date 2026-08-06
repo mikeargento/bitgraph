@@ -1935,6 +1935,44 @@ function exportDirsUnder(folder) {
   return dirs;
 }
 
+/**
+ * Export directories whose proof.json is NOT a bitgraph/1 proof.
+ *
+ * Two passes, because the fast way to ASK is not a safe way to be ANSWERED.
+ *
+ * ⚠️ BSD grep ignores -Z for -l/-L: it terminates every path with a newline
+ * whatever you ask for, and a newline is a byte a filename can legally
+ * contain. Splitting that output would corrupt the very names this has to
+ * move, and it silently did the first time: both paths arrived as one blob,
+ * the trailing-newline match failed, and nothing was reclaimed at all.
+ *
+ * So the batched `-exec grep -L ... {} +` is used only as a DETECTOR, where
+ * "any output at all" is the whole answer and delimiting does not matter. It
+ * costs one grep for the whole folder (~0.5s at 2000 recordings). Only when
+ * that finds something does the precise enumeration run: find's own negated
+ * -exec with -print0, which is NUL-safe but pays a grep per export (~2.4s at
+ * 2000). The slow pass therefore runs about once in a folder's life, and the
+ * ordinary answer of "nothing to reclaim" stays cheap.
+ */
+function staleExportProofs(folder) {
+  var roots = quote(folder + '/' + REC_DIR) + ' ' + quote(folder) +
+    ' -mindepth 2 -maxdepth 2 -name ' + quote('proof.json');
+  var pattern = quote('"version": "bitgraph/1"');
+
+  var any = sh('find ' + roots + ' -exec grep -L ' + pattern + ' {} + 2>/dev/null | head -c 1');
+  if (!any) return [];
+
+  var list = tempPath();
+  try {
+    sh('find ' + roots + ' ! -exec grep -q ' + pattern + ' {} ' + quote(';') +
+      ' -print0 > ' + quote(list) + ' 2>/dev/null; true');
+    var raw = readFileUtf8(list);
+    return raw ? raw.split('\u0000').filter(Boolean) : [];
+  } finally {
+    sh('rm -f ' + quote(list));
+  }
+}
+
 function tidyFolder(folder) {
   var did = [];
 
@@ -1980,6 +2018,54 @@ function tidyFolder(folder) {
     });
     sh('rmdir ' + quote(folder + '/' + FILES_DIR) + ' 2>/dev/null; true');
     did.push('dissolved files/');
+  }
+
+  // 2b. Reclaim anything sitting in the folder that is not a BitGraph.
+  //
+  //     A file whose proof is not a bitgraph/1 proof is not a recording: it
+  //     cannot be verified by this tool, by the site, or by the audit
+  //     package, so leaving it in place means a permanent red row and a file
+  //     the owner believes is recorded when it is not. Pre-cutover occ/1
+  //     exports are the whole of this population today, and they arrive by
+  //     being MIGRATED in: dragging an old folder into the drop zone tucks
+  //     its export directories into Recordings/ by content, and content is
+  //     all the tuck looks at.
+  //
+  //     So the artifact goes back to the drop zone, where the ordinary path
+  //     records it properly, and the stale proof material is set aside
+  //     rather than deleted. Nothing is lost either way: those proofs remain
+  //     on the ledger permanently, which is the only place they were ever
+  //     authoritative.
+  var stale = staleExportProofs(folder);
+  if (stale.length) {
+    var aside = env('HOME') + '/.bitgraph/superseded';
+    mkdirp(aside);
+    var reclaimed = 0;
+    stale.forEach(function (proofPath) {
+      var dir = proofPath.replace(/\/proof\.json$/, '');
+      if (dir === proofPath || !exists(dir)) return;
+      var base = dir.split('/').pop();
+      // The artifact first: it is the only thing here that cannot be
+      // regenerated, so it moves before anything is set aside.
+      var listing = sh('ls -1 ' + quote(dir) + ' 2>/dev/null');
+      var names = listing ? listing.split('\r').join('\n').split('\n').filter(Boolean) : [];
+      names.forEach(function (n) {
+        if (n === 'proof.json' || n === 'index.html' || n === ANCHOR_DIR || n.charAt(0) === '.') return;
+        var dst = folder + '/' + n;
+        if (exists(dst)) {
+          var ext = extOf(n);
+          var tail = ext ? '.' + ext : '';
+          var stem = n.slice(0, n.length - tail.length);
+          for (var k = 2; k < 1000 && exists(dst); k++) dst = folder + '/' + stem + ' ' + k + tail;
+        }
+        if (!exists(dst)) sh('mv ' + quote(dir + '/' + n) + ' ' + quote(dst) + ' 2>/dev/null; true');
+      });
+      var park = aside + '/' + base;
+      for (var m = 2; exists(park) && m < 1000; m++) park = aside + '/' + base + ' ' + m;
+      if (sh('mv ' + quote(dir) + ' ' + quote(park) + ' 2>/dev/null && echo ok') === 'ok') reclaimed++;
+    });
+    if (reclaimed) did.push('reclaimed ' + reclaimed + ' not-a-BitGraph ' +
+      (reclaimed === 1 ? 'export' : 'exports'));
   }
 
   // 3. Purge the browsing layer a pre-1.9 install generated. The top-level

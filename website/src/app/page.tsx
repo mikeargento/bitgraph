@@ -77,7 +77,11 @@ export default function BitGraphPage() {
   // The scan is two honest phases: hashing files locally ("reading"), then
   // one batch round trip to the ledger ("checking"). The label tracks them;
   // "N of N checked" sitting under a full bar while the lookup ran was a lie.
-  const [scanPhase, setScanPhase] = useState<"reading" | "checking">("reading");
+  // "walking" is the folder being READ off the disk, which has no total to
+  // count against (you learn the size by finishing) and so shows a live file
+  // count without a bar. The other two keep their progress bars.
+  const [scanPhase, setScanPhase] = useState<"walking" | "reading" | "checking">("reading");
+  const [walkCount, setWalkCount] = useState(0);
   const [proveProgress, setProveProgress] = useState({ current: 0, total: 0 });
   // True while a commit is being held because the boundary is mid-rotation
   // (daily key renewal) or the fresh epoch's first anchor has not landed.
@@ -400,10 +404,21 @@ export default function BitGraphPage() {
   // proof.json anywhere is just files and takes the ordinary flow — which
   // also finally makes "drag the files/ folder itself" work without
   // select-all. Every step is a read; nothing here can record.
+  function handleFolderScan(files: number, done: boolean) {
+    if (done) return; // handleFolder takes the screen from here
+    setScanPhase("walking");
+    setWalkCount(files);
+    setStep("scanning");
+  }
+
   async function handleFolder(walked: WalkedFile[]) {
     const scan = discoverDrop(walked);
     if (scan.exports.length === 0) {
+      // Hand off, or put the drop zone back: the reading state was raised
+      // before anyone knew what was in the folder, so it has to be retired
+      // here even when the answer is "nothing".
       if (scan.strays.length) void handleFiles(scan.strays);
+      else setStep("drop");
       return;
     }
     // The roll renders the moment the local scan finishes; verdicts stream
@@ -937,6 +952,7 @@ export default function BitGraphPage() {
                   onFile={(f) => handleFiles([f])}
                   onFiles={handleFiles}
                   onFolder={handleFolder}
+                  onFolderScan={handleFolderScan}
                   hint="Drag and drop, or click to choose."
                   subhint="Your file never leaves your device."
                 />
@@ -966,7 +982,19 @@ export default function BitGraphPage() {
         {/* ── Scanning: read the files, then check the ledger. Both use the
             shared wait look; the bar appears only when there is a live count
             (always while reading, and for large ledger checks). ── */}
-        {step === "scanning" && (scanPhase === "reading" ? (
+        {step === "scanning" && (scanPhase === "walking" ? (
+          <div className="bitgraph-wait">
+            <div role="status" aria-label="Reading your folder" style={waitSpinner} />
+            {/* No bar: the size of a folder is not known until it has been
+                read, and a bar that cannot reach its end is worse than none.
+                The count alone is enough to show the work is moving. */}
+            <div style={waitLabel}>
+              {walkCount > 0
+                ? `Reading your folder… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
+                : "Reading your folder…"}
+            </div>
+          </div>
+        ) : scanPhase === "reading" ? (
           <div className="bitgraph-wait">
             <div role="status" aria-label="Reading files" style={waitSpinner} />
             <div style={waitLabel}>Reading {scanProgress.current} of {scanProgress.total}</div>

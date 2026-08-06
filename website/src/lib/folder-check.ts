@@ -116,14 +116,31 @@ const fileOfEntry = (entry: EntryLike): Promise<File | null> =>
  * machinery or OS noise everywhere and are pruned without descending — the
  * same `-name '.*'` rule the Folder's own walker applies.
  */
-export async function walkEntries(entries: EntryLike[]): Promise<WalkedFile[]> {
+export async function walkEntries(
+  entries: EntryLike[],
+  /** Called with the running file count. A whole-folder drop spends seconds
+   *  in here before anything can be rendered (a 2000-recording folder is
+   *  ~10,000 files and one round trip per directory), and with no signal at
+   *  all that reads as a dead drop zone. Throttled: this fires on a schedule,
+   *  not per file, so it cannot itself become the cost. */
+  onProgress?: (files: number) => void,
+): Promise<WalkedFile[]> {
   const out: WalkedFile[] = [];
+  let lastTick = 0;
+  const tick = () => {
+    if (!onProgress) return;
+    const now = Date.now();
+    if (now - lastTick < 120) return;
+    lastTick = now;
+    onProgress(out.length);
+  };
   const visit = async (entry: EntryLike, path: string[]): Promise<void> => {
     if (entry.name.startsWith(".")) return;
     const here = [...path, entry.name];
     if (entry.isFile) {
       const f = await fileOfEntry(entry);
       if (f) out.push({ file: f, path: here });
+      tick();
       return;
     }
     if (entry.isDirectory) {
@@ -131,6 +148,7 @@ export async function walkEntries(entries: EntryLike[]): Promise<WalkedFile[]> {
     }
   };
   for (const entry of entries) await visit(entry, []);
+  onProgress?.(out.length);
   return out;
 }
 
