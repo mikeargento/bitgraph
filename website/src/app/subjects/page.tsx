@@ -122,15 +122,17 @@ export default function SubjectsPage() {
           Deliberately NOT the home hero's up-to-54px: that scale belongs to
           "A camera for bits." and is locked to the /camera morph; matching it
           would set the two pages shouting.
-          The docs h1 treatment exactly (text-3xl sm:text-4xl, 600, -0.03em):
-          this page sits in the Docs menu now and its title must carry the
-          same weight as its shelf-mates (Mike, 2026-08-05: "should match
-          boldness of other docs titles"). That supersedes an earlier
-          never-wrap sizing (clamp to 6.4vw at weight 800, measured so the
-          line stayed whole on phones): at the docs size a phone breaks the
-          line at the period, "Trust is expensive. / Proof isn't.", which
-          stacks the reversal rather than reducing it to a subtitle. */}
-      <h1 className="text-3xl sm:text-4xl" style={{ fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1.15, color: "#111827", marginBottom: 24 }}>
+          The docs h1 treatment AS RENDERED, not as declared (Mike, twice on
+          2026-08-05: "should match boldness of other docs titles", then
+          "needs to match text size"). Docs h1s carry text-3xl sm:text-4xl
+          but the UNLAYERED .prose-doc h1 rule beats those utilities (the
+          08-03 unlayering), so what a docs page actually renders is a fixed
+          2rem/600/-0.03em at every width - measured, 32px against the 36px
+          the classes suggest. Matching the truth, inline, with prose-doc
+          h1's own line-height and margin. Supersedes the earlier never-wrap
+          clamp; on phones the line breaks at the period, which stacks the
+          reversal rather than reducing it to a subtitle. */}
+      <h1 style={{ fontSize: "2rem", fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1.11, color: "#111827", marginBottom: "1.25rem" }}>
         Trust is expensive. Proof isn&rsquo;t.
       </h1>
 
