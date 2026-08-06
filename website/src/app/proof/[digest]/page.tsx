@@ -1372,7 +1372,15 @@ function BringYourFile({
       style={{
         background: dragOver ? "#f0f6ff" : "#fff",
         border: `2px solid ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c3c8cf"}`,
-        padding: "clamp(30px, 7vw, 46px) 24px",
+        // Height, not padding: the box then holds ONE size across all four
+        // states, so it does not jump when a drop starts reading or a miss
+        // comes back with two lines of explanation.
+        minHeight: "clamp(268px, 46vw, 348px)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "28px clamp(20px, 5vw, 34px)",
         textAlign: "center",
         cursor: "pointer",
         transition: "border-color .15s, background-color .15s",
@@ -1395,12 +1403,12 @@ function BringYourFile({
         </div>
       ) : mismatch ? (
         <>
-          <div style={{ fontSize: "clamp(16px, 4vw, 19px)", fontWeight: 700, color: "#dc2626" }}>
+          <div style={{ fontSize: "clamp(16px, 4vw, 19px)", fontWeight: 700, color: "#dc2626", textWrap: "balance" }}>
             {checkedCount > 1
               ? `No match. None of the ${checkedCount.toLocaleString()} files you dropped are this file.`
               : "No match. Those are not the bytes this BitGraph describes."}
           </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 8, lineHeight: 1.5 }}>
+          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 8, lineHeight: 1.5, maxWidth: 460, textWrap: "balance" }}>
             Changing a single bit changes the hash completely, so an edited or re-saved copy will never match. Drop the original to try again.
           </div>
         </>
@@ -1416,13 +1424,16 @@ function BringYourFile({
               <line x1="9" y1="15" x2="15" y2="15" />
             </svg>
           </div>
-          <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: "#111827", letterSpacing: "-0.01em" }}>
+          {/* text-wrap: balance on every line, the same treatment the hero and
+              the camera page use: centered copy with one short trailing line
+              reads as a mistake. */}
+          <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: "#111827", letterSpacing: "-0.01em", textWrap: "balance" }}>
             Have the file? Drop it here.
           </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 10, lineHeight: 1.55, maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
+          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 10, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
             Drop one file, or a whole folder, and the matching file is found for you by its hash. You do not have to know which file it is.
           </div>
-          <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6 }}>
+          <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
             Nothing is uploaded. The check runs on your device.
           </div>
         </>
