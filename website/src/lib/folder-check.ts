@@ -299,8 +299,10 @@ export interface ExportCheckResult {
   /** True when the claimed position exists on the ledger — the proof page
    *  link is meaningful even for a row that failed a later side. */
   onLedger: boolean;
-  ok: boolean;
-  /** The specific failing side, factual, one line. Null when ok. */
+  /** null while the verdict is still streaming in (the roll renders
+   *  instantly from local data; verification catches up per row). */
+  ok: boolean | null;
+  /** The specific failing side, factual, one line. Null when ok/pending. */
   failure: string | null;
 }
 
@@ -341,43 +343,56 @@ async function parseJsonFile(f: File): Promise<Record<string, unknown> | null> {
   }
 }
 
-/**
- * Verify every export against the ledger. Read-only throughout.
+/* ── The check itself: instant rows, streaming verification ──
  *
- * The ledger lookups are batched 25 digests per request (the TEE rate limiter
- * counts digests, and the site runs on a plan with no overage headroom); the
- * per-position window lookups run one export at a time behind the progress
- * callback — the pinned digest route is CDN-cached for settled proofs, so a
- * folder exported from one batch mostly rides the cache.
+ * The roll renders the moment the local scan finishes (proof.json fields and
+ * the witness timestamps are all the rows need); hashing, signatures and the
+ * ledger sides stream in per row afterwards. It was one sequential pass that
+ * blocked rendering on the slowest network call, which read as "kind of
+ * slow" the first time a real 157-export folder was dropped: browsing must
+ * be instant, verification merely prompt.
  *
- * `apiBase` exists so the pipeline can be exercised from Node against the
- * live site; in the browser it stays "" and every URL is same-origin.
+ * Read-only throughout. Batch lookups run 50 digests per request, three
+ * requests in flight (the same shape the home drop uses against the same
+ * endpoint); the per-position window lookups run five exports at a time —
+ * CDN-cached for settled proofs. `apiBase` exists so Node harnesses can run
+ * the pipeline against the live site.
  */
-export async function checkExports(
-  candidates: ExportCandidate[],
-  progress: CheckProgress = {},
-  apiBase = "",
-): Promise<ExportCheckResult[]> {
-  type Working = ExportCheckResult & {
-    cand: ExportCandidate;
-    claimedDigest: string | null;
-    epochId: string | null;
-    ledgerProof: BitGraphProof | null;
-  };
 
-  /* Phase 1 — local work: parse each proof.json, check its signature, hash
-   * the artifact beside it. No network. Failures recorded here stand even if
-   * a later side also fails: bytes-vs-proof is the most fundamental side. */
+type Working = ExportCheckResult & {
+  cand: ExportCandidate;
+  claimedDigest: string | null;
+  epochId: string | null;
+  ledgerProof: BitGraphProof | null;
+};
+
+const stripWorking = (w: Working): ExportCheckResult => ({
+  dirName: w.dirName,
+  fileName: w.fileName,
+  matchedFile: w.matchedFile,
+  artifactFile: w.artifactFile,
+  block: w.block,
+  ts: w.ts,
+  proof: w.proof,
+  counter: w.counter,
+  epochUrlSafe: w.epochUrlSafe,
+  digestUrlSafe: w.digestUrlSafe,
+  writeTime: w.writeTime,
+  onLedger: w.onLedger,
+  ok: w.ok,
+  failure: w.failure,
+});
+
+/** The fast half: everything the roll needs to render, no hashing and no
+ *  network. Structural failures (unreadable proof, no file at all) are
+ *  verdicts already; everything else is pending (`ok: null`). */
+async function scanExportsLocal(candidates: ExportCandidate[]): Promise<Working[]> {
   const working: Working[] = [];
-  const hashTotal = candidates.reduce((n, c) => n + Math.max(1, c.artifactCandidates.length), 0);
-  let hashed = 0;
-  const bumpHash = () => progress.onHash?.(Math.min(++hashed, hashTotal), hashTotal);
-
   for (const cand of candidates) {
     const w: Working = {
       cand,
       dirName: cand.dirName,
-      fileName: null,
+      fileName: cand.artifactCandidates[0]?.name ?? null,
       matchedFile: null,
       artifactFile: cand.artifactCandidates[0] ?? null,
       block: null,
@@ -388,7 +403,7 @@ export async function checkExports(
       digestUrlSafe: null,
       writeTime: null,
       onLedger: false,
-      ok: false,
+      ok: null,
       failure: null,
       claimedDigest: null,
       epochId: null,
@@ -398,9 +413,7 @@ export async function checkExports(
 
     // The causal keys, straight from the export's own witness files: the
     // lower-bound block orders across epochs (counters restart daily), its
-    // header carries the timestamp the day grouping reads. Wrong-shaped or
-    // absent witnesses just leave the row unsealed-sorted; verification does
-    // not depend on this.
+    // header carries the timestamp the day grouping reads.
     for (const side of [cand.anchors.beforeWitness, cand.anchors.afterWitness]) {
       if (w.block !== null || !side) continue;
       const witness = await parseJsonFile(side);
@@ -412,8 +425,8 @@ export async function checkExports(
 
     const proof = isBitGraphProof(await cand.proofFile.text().catch(() => ""));
     if (!proof) {
+      w.ok = false;
       w.failure = "proof.json is not a BitGraph proof";
-      for (let i = 0; i < Math.max(1, cand.artifactCandidates.length); i++) bumpHash();
       continue;
     }
     w.proof = proof;
@@ -422,230 +435,247 @@ export async function checkExports(
     w.counter = proof.commit?.counter ?? null;
     w.epochId = proof.commit?.epochId ?? null;
     w.epochUrlSafe = w.epochId ? toUrlSafeB64(w.epochId) : null;
-
-    const sig = await verifyProofSignature(proof).catch(() => ({ valid: false }));
-    if (!sig.valid) w.failure = "proof signature does not verify";
-
-    // Side 1 — bytes vs proof. Hash whatever sits beside proof.json; the
-    // artifact is whichever candidate matches. One candidate that does not
-    // match is the headline tamper case.
     if (cand.artifactCandidates.length === 0) {
-      bumpHash();
-      if (!w.failure) w.failure = "no file beside proof.json";
-    } else {
-      for (const f of cand.artifactCandidates) {
+      w.ok = false;
+      w.failure = "no file beside proof.json";
+    }
+  }
+  return working;
+}
+
+export interface FolderCheckCallbacks {
+  /** The full row set, renderable, before any verification has run. */
+  onRows?: (rows: ExportCheckResult[]) => void;
+  /** One row's verdict landed. */
+  onUpdate?: (index: number, row: ExportCheckResult) => void;
+  /** Every verdict is in. */
+  onDone?: (rows: ExportCheckResult[]) => void;
+}
+
+export function startFolderCheck(
+  candidates: ExportCandidate[],
+  cb: FolderCheckCallbacks = {},
+  apiBase = "",
+): { done: Promise<ExportCheckResult[]> } {
+  const done = (async () => {
+    const working = await scanExportsLocal(candidates);
+    cb.onRows?.(working.map(stripWorking));
+
+    /* Ledger prefetch: every digest, 50 per request, three in flight. Each
+     * row awaits only its own digest's promise. null = the lookup FAILED,
+     * kept distinct from an empty answer: an unreachable ledger is our gap,
+     * "not on the ledger" is a verdict about the folder. */
+    const keys = [...new Set(working.map((w) => w.digestUrlSafe).filter((k): k is string => !!k))];
+    const resolvers = new Map<string, (v: LedgerEntry[] | null) => void>();
+    const ledgerFor = new Map<string, Promise<LedgerEntry[] | null>>();
+    for (const k of keys) ledgerFor.set(k, new Promise((res) => resolvers.set(k, res)));
+    void (async () => {
+      const chunks: string[][] = [];
+      for (let i = 0; i < keys.length; i += 50) chunks.push(keys.slice(i, i + 50));
+      let next = 0;
+      await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, async () => {
+        while (next < chunks.length) {
+          const mine = chunks[next++];
+          try {
+            const r = await fetch(`${apiBase}/api/proofs/batch`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ digests: mine }),
+            });
+            if (!r.ok) throw new Error(String(r.status));
+            const results = ((await r.json()) as { results?: Record<string, { proofs?: LedgerEntry[] }> }).results || {};
+            for (const k of mine) resolvers.get(k)?.(results[k]?.proofs || []);
+          } catch {
+            for (const k of mine) resolvers.get(k)?.(null);
+          }
+        }
+      }));
+    })();
+
+    const witnessCache = new Map<string, Promise<string | null>>();
+    const fetchWitnessHeader = (blockNumber: number, blockHash: string): Promise<string | null> => {
+      const key = `${blockNumber}:${blockHash}`;
+      let p = witnessCache.get(key);
+      if (!p) {
+        p = (async () => {
+          try {
+            const r = await fetch(`${apiBase}/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`);
+            if (r.ok) return ((await r.json()) as { headerRlpHex?: string }).headerRlpHex?.toLowerCase() ?? null;
+          } catch { /* witness unavailable — the check is skipped, not failed */ }
+          return null;
+        })();
+        witnessCache.set(key, p);
+      }
+      return p;
+    };
+
+    async function verifyOne(w: Working): Promise<void> {
+      if (!w.proof || !w.digestUrlSafe) return;
+
+      const sig = await verifyProofSignature(w.proof).catch(() => ({ valid: false }));
+      if (!sig.valid) { w.failure = "proof signature does not verify"; return; }
+
+      // Side 1 — bytes vs proof. The artifact is whichever candidate matches;
+      // one candidate that does not match is the headline tamper case.
+      for (const f of w.cand.artifactCandidates) {
         const digest = await hashFile(f).catch(() => null);
-        bumpHash();
-        if (digest && digest === proof.artifact.digestB64 && !w.matchedFile) {
+        if (digest && digest === w.proof.artifact.digestB64 && !w.matchedFile) {
           w.matchedFile = f;
           w.artifactFile = f;
           w.fileName = f.name;
         }
         // Yield so the UI paints and Safari can reclaim the buffer between
-        // multi-MB reads — same rhythm as the drop zone's hash workers.
+        // multi-MB reads.
         await new Promise((r) => setTimeout(r, 0));
       }
-      if (!w.matchedFile) {
-        w.fileName = cand.artifactCandidates[0].name;
-        if (!w.failure) w.failure = "bytes differ from the proof";
-      }
-    }
-  }
+      if (!w.matchedFile) { w.failure = "bytes differ from the proof"; return; }
 
-  /* Phase 2 — proof vs ledger, batched. The batch route returns EVERY
-   * position recorded for a digest, each proof carrying its own counter and
-   * epoch, so the claimed position is matched here directly — there is no
-   * fallback to be fooled by. */
-  const lookupKeys = [...new Set(working.filter((w) => w.digestUrlSafe).map((w) => w.digestUrlSafe as string))];
-  // null marks a chunk whose lookup FAILED, which must stay distinct from an
-  // empty answer: an unreachable ledger is our gap, "not on the ledger" is a
-  // verdict about the folder, and conflating them brands a clean folder bad.
-  const ledger: Record<string, LedgerEntry[] | null> = {};
-  for (let i = 0; i < lookupKeys.length; i += 25) {
-    const chunk = lookupKeys.slice(i, i + 25);
-    try {
-      const r = await fetch(`${apiBase}/api/proofs/batch`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ digests: chunk }),
+      // Side 2 — the ledger's copy at the CLAIMED position.
+      const entries = await (ledgerFor.get(w.digestUrlSafe) ?? Promise.resolve(null));
+      if (entries === null) { w.failure = "could not reach the ledger"; return; }
+      const claimed = entries.find((e) => {
+        const c = e.proof?.commit;
+        if (!c) return false;
+        if (normCounter(c.counter) !== normCounter(w.counter)) return false;
+        return !w.epochId || c.epochId === w.epochId;
       });
-      if (!r.ok) throw new Error(String(r.status));
-      const results = ((await r.json()) as { results?: Record<string, { proofs?: LedgerEntry[] }> }).results || {};
-      for (const k of chunk) ledger[k] = results[k]?.proofs || [];
-    } catch {
-      for (const k of chunk) if (!(k in ledger)) ledger[k] = null;
-    }
-  }
-
-  /* Phase 3 — per-export: pin the position, then anchors vs chain. One
-   * export at a time; witnesses are cached by block since a whole batch
-   * shares its two anchors. */
-  const witnessCache = new Map<string, string | null>();
-  const fetchWitnessHeader = async (blockNumber: number, blockHash: string): Promise<string | null> => {
-    const key = `${blockNumber}:${blockHash}`;
-    if (witnessCache.has(key)) return witnessCache.get(key) ?? null;
-    let header: string | null = null;
-    try {
-      const r = await fetch(`${apiBase}/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`);
-      if (r.ok) header = ((await r.json()) as { headerRlpHex?: string }).headerRlpHex?.toLowerCase() ?? null;
-    } catch { /* witness unavailable — the check is skipped, not failed */ }
-    witnessCache.set(key, header);
-    return header;
-  };
-
-  let done = 0;
-  progress.onCheck?.(0, working.length);
-  for (const w of working) {
-    try {
-      await checkOne(w);
-    } catch {
-      if (!w.failure && !w.ok) w.failure = "check did not complete";
-    }
-    progress.onCheck?.(++done, working.length);
-  }
-
-  async function checkOne(w: Working): Promise<void> {
-    if (!w.proof || !w.digestUrlSafe) return;
-
-    // Side 2 — the ledger's copy at the CLAIMED position.
-    const entries = ledger[w.digestUrlSafe];
-    if (entries === null || entries === undefined) {
-      if (!w.failure) w.failure = "could not reach the ledger";
-      return;
-    }
-    const claimed = entries.find((e) => {
-      const c = e.proof?.commit;
-      if (!c) return false;
-      if (normCounter(c.counter) !== normCounter(w.counter)) return false;
-      return !w.epochId || c.epochId === w.epochId;
-    });
-    if (!claimed) {
-      if (!w.failure) {
+      if (!claimed) {
         w.failure = entries.length === 0 ? "not on the ledger" : "not on the ledger at its claimed position";
+        return;
       }
-      return;
-    }
-    w.onLedger = true;
-    w.writeTime = claimed.writeTime ?? null;
-    w.ledgerProof = claimed.proof;
+      w.onLedger = true;
+      w.writeTime = claimed.writeTime ?? null;
+      w.ledgerProof = claimed.proof;
 
-    // Same signed body, same signature — the folder's proof.json is the
-    // ledger's, byte-meaning for byte-meaning. proofHashB64 hashes the FULL
-    // canonical signed body, so any drifted field inside it shows here.
-    const [localHash, ledgerHash] = await Promise.all([
-      proofHashB64(w.proof),
-      proofHashB64(claimed.proof),
-    ]);
-    if (localHash !== ledgerHash || w.proof.signer.signatureB64 !== claimed.proof.signer.signatureB64) {
-      if (!w.failure) w.failure = "proof differs from the ledger's copy";
-      return;
-    }
+      // Same signed body, same signature — the folder's proof.json is the
+      // ledger's, byte-meaning for byte-meaning.
+      const [localHash, ledgerHash] = await Promise.all([
+        proofHashB64(w.proof),
+        proofHashB64(claimed.proof),
+      ]);
+      if (localHash !== ledgerHash || w.proof.signer.signatureB64 !== claimed.proof.signer.signatureB64) {
+        w.failure = "proof differs from the ledger's copy";
+        return;
+      }
 
-    // Side 3 — anchors vs chain. The pinned digest route resolves the causal
-    // window for the claimed position server-side (both anchor shapes).
-    // ⚠️ The server FALLS BACK to its earliest proof for a position it does
-    // not have, so the answer is only trusted after its own counter and epoch
-    // are compared against what was asked (the 1.3.7 rule). Position
-    // existence was already established from the batch above; this guard
-    // protects the WINDOW from describing a different recording.
-    const hasLocalAnchors = !!(w.cand.anchors.before || w.cand.anchors.after);
-    const hasLocalWitness = !!(w.cand.anchors.beforeWitness || w.cand.anchors.afterWitness);
-    if (!hasLocalAnchors && !hasLocalWitness) {
-      // Nothing to triangulate — an export still waiting on its seal. The
-      // first two sides carried the verdict.
-      if (!w.failure) w.ok = true;
-      return;
-    }
+      // Side 3 — anchors vs chain. The pinned digest route resolves the
+      // causal window server-side (both anchor shapes).
+      // ⚠️ The server FALLS BACK to its earliest proof for a position it does
+      // not have, so the answer is only trusted after its own counter and
+      // epoch are compared against what was asked (the 1.3.7 rule).
+      const hasLocalAnchors = !!(w.cand.anchors.before || w.cand.anchors.after);
+      const hasLocalWitness = !!(w.cand.anchors.beforeWitness || w.cand.anchors.afterWitness);
+      if (!hasLocalAnchors && !hasLocalWitness) return; // still sealing — sides 1-2 carried it
 
-    type Side = { blockNumber: number | null; blockHash: string | null } | null;
-    let windowBefore: Side = null;
-    let windowAfter: Side = null;
-    try {
-      const sel = `?counter=${encodeURIComponent(normCounter(w.counter))}${w.epochUrlSafe ? `&epoch=${encodeURIComponent(w.epochUrlSafe)}` : ""}`;
-      const r = await fetch(`${apiBase}/api/proofs/digest/${encodeURIComponent(w.digestUrlSafe)}${sel}`);
-      if (r.ok) {
-        const data = (await r.json()) as {
-          proofs?: Array<{ proof: BitGraphProof }>;
-          causalWindow?: {
-            anchorBefore?: { blockNumber: number | null; blockHash: string | null } | null;
-            anchorAfter?: { blockNumber: number | null; blockHash: string | null } | null;
-          } | null;
-        };
-        const echoed = data.proofs?.[0]?.proof?.commit;
-        const echoOk =
-          !!echoed &&
-          normCounter(echoed.counter) === normCounter(w.counter) &&
-          (!w.epochId || echoed.epochId === w.epochId);
-        if (echoOk) {
-          windowBefore = data.causalWindow?.anchorBefore
-            ? { blockNumber: data.causalWindow.anchorBefore.blockNumber, blockHash: data.causalWindow.anchorBefore.blockHash?.toLowerCase() ?? null }
-            : null;
-          windowAfter = data.causalWindow?.anchorAfter
-            ? { blockNumber: data.causalWindow.anchorAfter.blockNumber, blockHash: data.causalWindow.anchorAfter.blockHash?.toLowerCase() ?? null }
-            : null;
+      type Side = { blockNumber: number | null; blockHash: string | null } | null;
+      let windowBefore: Side = null;
+      let windowAfter: Side = null;
+      try {
+        const sel = `?counter=${encodeURIComponent(normCounter(w.counter))}${w.epochUrlSafe ? `&epoch=${encodeURIComponent(w.epochUrlSafe)}` : ""}`;
+        const r = await fetch(`${apiBase}/api/proofs/digest/${encodeURIComponent(w.digestUrlSafe)}${sel}`);
+        if (r.ok) {
+          const data = (await r.json()) as {
+            proofs?: Array<{ proof: BitGraphProof }>;
+            causalWindow?: {
+              anchorBefore?: { blockNumber: number | null; blockHash: string | null } | null;
+              anchorAfter?: { blockNumber: number | null; blockHash: string | null } | null;
+            } | null;
+          };
+          const echoed = data.proofs?.[0]?.proof?.commit;
+          const echoOk =
+            !!echoed &&
+            normCounter(echoed.counter) === normCounter(w.counter) &&
+            (!w.epochId || echoed.epochId === w.epochId);
+          if (echoOk) {
+            windowBefore = data.causalWindow?.anchorBefore
+              ? { blockNumber: data.causalWindow.anchorBefore.blockNumber, blockHash: data.causalWindow.anchorBefore.blockHash?.toLowerCase() ?? null }
+              : null;
+            windowAfter = data.causalWindow?.anchorAfter
+              ? { blockNumber: data.causalWindow.anchorAfter.blockNumber, blockHash: data.causalWindow.anchorAfter.blockHash?.toLowerCase() ?? null }
+              : null;
+          }
         }
-      }
-    } catch { /* window unavailable — compare what can be compared */ }
+      } catch { /* window unavailable — compare what can be compared */ }
 
-    for (const side of ["before", "after"] as const) {
-      const anchorFile = w.cand.anchors[side];
-      const witnessFile = side === "before" ? w.cand.anchors.beforeWitness : w.cand.anchors.afterWitness;
-      const ledgerSide = side === "before" ? windowBefore : windowAfter;
+      for (const side of ["before", "after"] as const) {
+        const anchorFile = w.cand.anchors[side];
+        const witnessFile = side === "before" ? w.cand.anchors.beforeWitness : w.cand.anchors.afterWitness;
+        const ledgerSide = side === "before" ? windowBefore : windowAfter;
 
-      let localBlock: { blockNumber: number | null; blockHash: string | null } | null = null;
-      if (anchorFile) {
-        localBlock = anchorBlockOf(await parseJsonFile(anchorFile));
-        // Both sides known → they must name the same Ethereum block. A local
-        // anchor the ledger's window does not corroborate is left uncompared,
-        // not failed: an unresolved window is our gap, not the folder's.
-        if (
-          ledgerSide &&
-          localBlock.blockNumber !== null &&
-          ledgerSide.blockNumber !== null &&
-          (localBlock.blockNumber !== ledgerSide.blockNumber ||
-            (localBlock.blockHash && ledgerSide.blockHash && localBlock.blockHash !== ledgerSide.blockHash))
-        ) {
-          if (!w.failure) w.failure = "anchors differ from the chain";
-          return;
-        }
-      }
-
-      if (witnessFile) {
-        const localWitness = await parseJsonFile(witnessFile);
-        const localHeader = typeof localWitness?.headerRlpHex === "string" ? (localWitness.headerRlpHex as string).toLowerCase() : null;
-        // Ask the chain about the block the LEDGER names (falling back to the
-        // local anchor's claim when the window is unresolved). The server
-        // only returns a witness whose header hashes to that block hash, so
-        // header equality is equality with the real chain.
-        const blockNumber = ledgerSide?.blockNumber ?? localBlock?.blockNumber ?? null;
-        const blockHash = ledgerSide?.blockHash ?? localBlock?.blockHash ?? null;
-        if (localHeader && blockNumber !== null && blockHash && /^0x[0-9a-f]{64}$/.test(blockHash)) {
-          const chainHeader = await fetchWitnessHeader(blockNumber, blockHash);
-          if (chainHeader && chainHeader !== localHeader) {
-            if (!w.failure) w.failure = "witness differs from the chain";
+        let localBlock: { blockNumber: number | null; blockHash: string | null } | null = null;
+        if (anchorFile) {
+          localBlock = anchorBlockOf(await parseJsonFile(anchorFile));
+          // Both sides known → the same Ethereum block. A local anchor the
+          // ledger's window does not corroborate is left uncompared, not
+          // failed: an unresolved window is our gap, not the folder's.
+          if (
+            ledgerSide &&
+            localBlock.blockNumber !== null &&
+            ledgerSide.blockNumber !== null &&
+            (localBlock.blockNumber !== ledgerSide.blockNumber ||
+              (localBlock.blockHash && ledgerSide.blockHash && localBlock.blockHash !== ledgerSide.blockHash))
+          ) {
+            w.failure = "anchors differ from the chain";
             return;
+          }
+        }
+
+        if (witnessFile) {
+          const localWitness = await parseJsonFile(witnessFile);
+          const localHeader = typeof localWitness?.headerRlpHex === "string" ? (localWitness.headerRlpHex as string).toLowerCase() : null;
+          // Ask the chain about the block the LEDGER names (falling back to
+          // the local anchor's claim when the window is unresolved). The
+          // server only returns a witness whose header hashes to that block
+          // hash, so header equality is equality with the real chain.
+          const blockNumber = ledgerSide?.blockNumber ?? localBlock?.blockNumber ?? null;
+          const blockHash = ledgerSide?.blockHash ?? localBlock?.blockHash ?? null;
+          if (localHeader && blockNumber !== null && blockHash && /^0x[0-9a-f]{64}$/.test(blockHash)) {
+            const chainHeader = await fetchWitnessHeader(blockNumber, blockHash);
+            if (chainHeader && chainHeader !== localHeader) {
+              w.failure = "witness differs from the chain";
+              return;
+            }
           }
         }
       }
     }
 
-    if (!w.failure) w.ok = true;
-  }
+    /* The verdict pool: five rows in flight. Each row's verdict lands the
+     * moment its own work is done, in whatever order that happens. */
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(5, working.length) }, async () => {
+      while (next < working.length) {
+        const i = next++;
+        const w = working[i];
+        if (w.ok === null) {
+          try {
+            await verifyOne(w);
+          } catch {
+            if (!w.failure) w.failure = "check did not complete";
+          }
+          w.ok = !w.failure;
+        }
+        cb.onUpdate?.(i, stripWorking(w));
+      }
+    }));
 
-  return working.map((w) => ({
-    dirName: w.dirName,
-    fileName: w.fileName,
-    matchedFile: w.matchedFile,
-    artifactFile: w.artifactFile,
-    block: w.block,
-    ts: w.ts,
-    proof: w.proof,
-    counter: w.counter,
-    epochUrlSafe: w.epochUrlSafe,
-    digestUrlSafe: w.digestUrlSafe,
-    writeTime: w.writeTime,
-    onLedger: w.onLedger,
-    ok: w.ok,
-    failure: w.failure,
-  }));
+    const rows = working.map(stripWorking);
+    cb.onDone?.(rows);
+    return rows;
+  })();
+  return { done };
+}
+
+/** The one-shot form: resolves once every verdict is in. What the Node
+ *  harness and any non-streaming caller uses. */
+export async function checkExports(
+  candidates: ExportCandidate[],
+  progress: CheckProgress = {},
+  apiBase = "",
+): Promise<ExportCheckResult[]> {
+  let doneCount = 0;
+  progress.onCheck?.(0, candidates.length);
+  return startFolderCheck(candidates, {
+    onUpdate: () => progress.onCheck?.(++doneCount, candidates.length),
+  }, apiBase).done;
 }

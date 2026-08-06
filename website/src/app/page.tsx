@@ -17,7 +17,7 @@ import {
   type BitGraphProof,
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
-import { discoverDrop, checkExports, findMatchInDrop, findMatchInFiles, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
+import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
@@ -406,32 +406,36 @@ export default function BitGraphPage() {
       if (scan.strays.length) void handleFiles(scan.strays);
       return;
     }
-    setStep("scanning");
-    setScanPhase("reading");
-    setScanProgress({ current: 0, total: 0 });
-    setCheckProgress({ current: 0, total: 0 });
+    // The roll renders the moment the local scan finishes; verdicts stream
+    // in per row behind it. No full-screen wait at all: browsing must be
+    // instant, verification merely prompt.
     setFolderChecking(true);
-    try {
-      const results = await checkExports(scan.exports, {
-        onHash: (current, total) => setScanProgress({ current, total }),
-        onCheck: (current, total) => {
-          setScanPhase("checking");
-          setCheckProgress({ current, total });
-        },
-      });
-      // Files in the drop that belong to no export are just files: hash and
-      // look them up like any other drop (their card renders below the
-      // verdicts), with none of the solo routing.
-      const strayItems = scan.strays.length ? await scanFiles(scan.strays) : [];
-      setChecked(results);
-      setItems(strayItems);
-      setAnimCount(strayItems.filter(r => r.status === "found").length);
-      setStep("results");
-    } catch (e) {
+    const { done } = startFolderCheck(scan.exports, {
+      onRows: (rows) => {
+        setChecked(rows);
+        setItems([]);
+        setStep("results");
+      },
+      onUpdate: (index, row) => {
+        setChecked((prev) => prev.map((r, i) => (i === index ? row : r)));
+      },
+      onDone: (rows) => {
+        setChecked(rows);
+        setFolderChecking(false);
+      },
+    });
+    void done.catch((e) => {
       console.error("[bitgraph] folder check failed:", e);
-      setStep("drop");
-    } finally {
       setFolderChecking(false);
+    });
+    // Files in the drop that belong to no export are just files: hash and
+    // look them up like any other drop (their card renders below the
+    // verdicts), with none of the solo routing.
+    if (scan.strays.length) {
+      void scanFiles(scan.strays).then((strayItems) => {
+        setItems(strayItems);
+        setAnimCount(strayItems.filter((r) => r.status === "found").length);
+      }).catch(() => { /* strays are secondary; the roll stands */ });
     }
   }
 
@@ -1277,7 +1281,7 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
   // Day groups along the causal walk: unsealed under today, ts-less sealed
   // rows inherit the open group. Local days, never UTC epochs.
   const groups = useMemo(() => {
-    const out: Array<{ label: string; rows: ExportCheckResult[] }> = [];
+    const out: Array<{ key: string; label: string; short: string; rows: ExportCheckResult[] }> = [];
     let openKey: string | null = null;
     for (const r of ordered) {
       const when = !r.block ? new Date() : r.ts ? new Date(r.ts * 1000) : null;
@@ -1286,34 +1290,65 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
         if (key !== openKey) {
           openKey = key;
           out.push({
+            key,
             label: when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
+            short: when.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }),
             rows: [],
           });
         }
       }
-      if (!out.length) out.push({ label: new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }), rows: [] });
+      if (!out.length) {
+        const now = new Date();
+        out.push({
+          key: `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`,
+          label: now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
+          short: now.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }),
+          rows: [],
+        });
+      }
       out[out.length - 1].rows.push(r);
     }
     return out;
   }, [ordered]);
 
+  // The Roll's navigation, exactly (Mike: "i thought maybe you could just
+  // use Roll exactly for this"): the default view is every recording newest
+  // first, and past days are walked one at a time with dated steppers - not
+  // scrolled past under inline headers. `day` is which slice is open; null
+  // is the live view. Steppers move between RECORDED days (a folder is
+  // sparse where the ledger is continuous - the same knowing deviation the
+  // old sheet made).
+  const [day, setDay] = useState<string | null>(null);
+  const dayIdx = day === null ? -1 : groups.findIndex((g) => g.key === day);
+  const view = day === null ? null : groups[dayIdx] ?? null;
+  const shownGroups = view ? [view] : groups;
+  const older = day === null ? (groups.length > 1 ? groups[1] : null) : groups[dayIdx + 1] ?? null;
+  const newer = day === null ? null : dayIdx > 0 ? groups[dayIdx - 1] : null;
+
+  const stepLink: React.CSSProperties = { color: "#0065A4", fontWeight: 600, fontSize: 13.5, textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" };
+
   // Real small thumbnails, generated from the dropped bytes: decode once,
   // draw at 96px (2x the 48px box), keep only the few-KB blob. An object URL
   // straight over the original was tried and was wrong twice over — a 26MB
   // photo per 48px cell, and the full-res decode never even started under
-  // loading="lazy" here. Created INSIDE the effect so each run owns the URLs
-  // it revokes (a memoized map plus revoke-on-cleanup breaks under
-  // StrictMode's double-invoke). Sequential, appearing as they finish.
-  const [thumbs, setThumbs] = useState<Map<ExportCheckResult, string>>(() => new Map());
+  // loading="lazy" here.
+  //
+  // Keyed by the FILE, not the row: verdicts stream in and replace the row
+  // array many times per drop, and a [checked]-owned map restarted the whole
+  // generation on every verdict (24 restarts for 24 exports — thumbs never
+  // finished until the last one). The File objects are stable across
+  // updates, so each thumb is made once, whichever rerun gets to it; URLs
+  // are revoked only on unmount.
+  const [thumbs, setThumbs] = useState<Map<File, string>>(() => new Map());
+  const thumbMapRef = useRef<Map<File, string>>(new Map());
+  useEffect(() => () => { for (const u of thumbMapRef.current.values()) URL.revokeObjectURL(u); }, []);
   useEffect(() => {
     let dead = false;
-    const urls: string[] = [];
-    const m = new Map<ExportCheckResult, string>();
     void (async () => {
       for (const r of checked) {
         if (dead) return;
         const f = r.artifactFile;
-        if (!f) continue;
+        if (!f || thumbMapRef.current.has(f)) continue;
         const ext = f.name.slice(f.name.lastIndexOf(".") + 1).toLowerCase();
         if (!IMAGE_THUMB_EXT.includes(ext)) continue;
         try {
@@ -1325,18 +1360,18 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
           c.getContext("2d")?.drawImage(bmp, 0, 0, w, h);
           bmp.close();
           const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.75));
-          if (!blob || dead) continue;
-          const url = URL.createObjectURL(blob);
-          urls.push(url);
-          m.set(r, url);
-          setThumbs(new Map(m));
+          if (!blob) continue;
+          if (thumbMapRef.current.has(f)) continue; // a racing rerun got here first
+          thumbMapRef.current.set(f, URL.createObjectURL(blob));
+          setThumbs(new Map(thumbMapRef.current));
         } catch { /* a row without a thumb shows its type label */ }
       }
     })();
-    return () => { dead = true; for (const u of urls) URL.revokeObjectURL(u); };
+    return () => { dead = true; };
   }, [checked]);
 
-  const okCount = checked.filter((c) => c.ok).length;
+  const okCount = checked.filter((c) => c.ok === true).length;
+  const pending = checked.filter((c) => c.ok === null).length;
 
   return (
     <div>
@@ -1344,27 +1379,53 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
         BitGraph Roll
       </div>
       <div style={{ fontSize: 13, color: "#4b5563", marginTop: 2, marginBottom: 10 }}>
-        {checked.length} recording{checked.length === 1 ? "" : "s"} from your folder, newest first.
+        {view
+          ? `The recordings for ${view.label}.`
+          : `${checked.length} recording${checked.length === 1 ? "" : "s"} from your folder, newest first.`}
       </div>
       <div style={{ background: "#fff", border: "1px solid #d0d5dd", padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 10 }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-          {okCount} of {checked.length} {okCount === 1 ? "matches" : "match"} the ledger
-        </span>
-        {okCount < checked.length && (
+        {pending > 0 ? (
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+            Checking {checked.length - pending} of {checked.length}&hellip;
+          </span>
+        ) : (
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+            {okCount} of {checked.length} {okCount === 1 ? "matches" : "match"} the ledger
+          </span>
+        )}
+        {okCount + pending < checked.length && (
           <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", whiteSpace: "nowrap" }}>
-            {checked.length - okCount} {checked.length - okCount === 1 ? "does" : "do"} not
+            {checked.length - okCount - pending} {checked.length - okCount - pending === 1 ? "does" : "do"} not
           </span>
         )}
       </div>
-      {groups.map((g) => (
-        <div key={g.label}>
-          <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.01em", color: "#111827", margin: "18px 0 8px" }}>
-            {g.label}
-          </div>
+      {groups.length > 1 && (
+        <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "14px 0 4px" }}>
+          <span style={{ display: "flex", gap: 20 }}>
+            {older && (
+              <button type="button" style={stepLink} onClick={() => setDay(older.key)}>
+                <span aria-hidden>&larr;</span> {older.short}
+              </button>
+            )}
+            {newer && (
+              <button type="button" style={stepLink} onClick={() => setDay(newer.key)}>
+                {newer.short} <span aria-hidden>&rarr;</span>
+              </button>
+            )}
+          </span>
+          {view && (
+            <button type="button" style={stepLink} onClick={() => setDay(null)}>
+              All recordings <span aria-hidden>&rarr;</span>
+            </button>
+          )}
+        </nav>
+      )}
+      {shownGroups.map((g) => (
+        <div key={g.key} style={{ marginTop: 10 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {g.rows.map((r, i) => {
               const clickable = r.onLedger && !!r.digestUrlSafe;
-              const thumb = thumbs.get(r);
+              const thumb = r.artifactFile ? thumbs.get(r.artifactFile) : undefined;
               const ext = r.fileName ? r.fileName.slice(r.fileName.lastIndexOf(".") + 1).toUpperCase() : "";
               return (
                 <div key={r.dirName + i} className="bitgraph-file-card" data-clickable={clickable} style={{ border: "1px solid #d0d5dd", animation: `slideIn 0.2s ease-out ${Math.min(i, 12) * 0.03}s both` }}>
@@ -1386,14 +1447,17 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
                         {ext.slice(0, 4)}
                       </span>
                     )}
-                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: r.ok ? "#0065A4" : "#dc2626", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: r.ok === false ? "#dc2626" : "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
                       {r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "—"}
                     </span>
                     <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {r.fileName ?? r.dirName}
                     </span>
-                    <span style={{ flexShrink: 0, maxWidth: "40%", fontSize: 12.5, fontWeight: 600, color: r.ok ? "#0065A4" : "#dc2626", textAlign: "right" }}>
-                      {r.ok ? "matches the ledger" : r.failure}
+                    <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }} className="bg-roll-when">
+                      {fmtRowWhen(r.ts ? r.ts * 1000 : r.writeTime)}
+                    </span>
+                    <span style={{ flexShrink: 0, maxWidth: "40%", fontSize: 12.5, fontWeight: 600, color: r.ok === true ? "#0065A4" : r.ok === false ? "#dc2626" : "#9ca3af", textAlign: "right" }}>
+                      {r.ok === true ? "matches the ledger" : r.ok === false ? r.failure : "checking\u2026"}
                     </span>
                     {clickable && (
                       <span aria-label="Open" style={{ display: "inline-flex", flexShrink: 0, color: "#0065A4" }}>
