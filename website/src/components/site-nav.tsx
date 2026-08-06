@@ -100,6 +100,18 @@ export function SiteNav() {
           >
             Roll
           </Link>
+          {/* Folder — YOUR recordings, as against the Roll's everyone's. The
+              pair is the point: the ledger stream and the folder on your own
+              disk, named for exactly what each one is. It shares a name with
+              the Mac app on purpose, because this page IS that folder,
+              viewed. */}
+          <Link
+            href="/folder"
+            aria-current={pathname === "/folder" ? "page" : undefined}
+            style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+          >
+            Folder
+          </Link>
           {/* Docs opens the section list rather than navigating.
               It used to be a plain link to /docs, and every docs page then
               carried a full-width sticky bar of its own holding this menu. That
