@@ -152,32 +152,6 @@ export async function walkEntries(
   return out;
 }
 
-/**
- * The same shape walkEntries produces, from a folder chosen in the file
- * PICKER rather than dragged in.
- *
- * A file input can offer one or the other: plain `multiple` selects files and
- * refuses to select a folder (opening it instead, which is the whole
- * complaint), while `webkitdirectory` selects a folder and hands back every
- * file under it at once. The picked files carry webkitRelativePath, whose
- * segments are exactly the `path` the walk builds, so everything downstream
- * (export discovery, the roll, the stray split) is identical either way.
- *
- * Dot-named segments are pruned here because the walk prunes them there: a
- * picked folder otherwise arrives carrying .DS_Store and every export's
- * internal machinery, which the drag path would never have shown.
- */
-export function walkedFromPicker(files: File[]): WalkedFile[] {
-  const out: WalkedFile[] = [];
-  for (const file of files) {
-    const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-    const path = rel ? rel.split("/").filter(Boolean) : [file.name];
-    if (path.some((seg) => seg.startsWith("."))) continue;
-    out.push({ file, path });
-  }
-  return out;
-}
-
 /* ── Choosing a folder without the word "upload" ──
  *
  * A webkitdirectory input makes the browser put up its own confirmation, and
@@ -188,9 +162,14 @@ export function walkedFromPicker(files: File[]): WalkedFile[] {
  * contradicts the product in the browser's own voice.
  *
  * showDirectoryPicker asks a different question: "Let this site view files?"
- * That is what actually happens. So it is used wherever it exists (Chromium),
- * and the input stays as the fallback (Safari, Firefox) where the wording is
- * out of our hands and the copy warns about it instead.
+ * That is what actually happens, so it is the ONLY way a folder is ever
+ * chosen here. There is no webkitdirectory fallback: warning about that
+ * dialog in advance confused people more than the dialog did, and showing it
+ * alarmed them, so it is simply never triggered. Where this API is missing
+ * (Safari, Firefox, and Brave, which is Chromium with the File System Access
+ * API off for privacy) the folder link is not rendered at all. Dragging a
+ * folder in works in every browser and raises nothing, which is why the copy
+ * leads with "Drag a folder".
  */
 
 type DirHandle = {

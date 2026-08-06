@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { formatFileSize } from "@/lib/bitgraph";
 import {
-  entriesFromDataTransfer, walkEntries, walkedFromPicker,
+  entriesFromDataTransfer, walkEntries,
   supportsDirectoryPicker, pickDirectory, type WalkedFile,
 } from "@/lib/folder-check";
 
@@ -86,22 +86,32 @@ export function FileDrop({
   // and will not select a folder (it opens it instead), `webkitdirectory`
   // selects a folder and returns everything under it. Dragging always allowed
   // both; choosing did not, which made the picker feel broken.
-  const folderInputRef = useRef<HTMLInputElement>(null);
+  /* ⚠️ The folder link EXISTS ONLY where showDirectoryPicker does, and that
+     is deliberate: it is the difference between a browser asking to "view
+     files" and a browser asking to UPLOAD them.
 
-  // Prefer the picker that asks to VIEW files over the input that makes the
-  // browser ask to UPLOAD them. Cancelling is silent, as it should be.
+     A webkitdirectory input makes the browser put up "Upload 4 files to this
+     site? ... Only do this if you trust the site." on a page whose whole
+     claim is that nothing is uploaded. Explaining that dialog in advance was
+     tried and confused people more than the dialog did; showing the dialog
+     confused them too. So it is never triggered. Dragging a folder in works
+     in every browser and raises nothing, which is why the copy leads with
+     "Drag a folder".
+
+     Brave is the case that proves it matters: Chromium, but the File System
+     Access API is off for privacy, so it takes this path. Detection runs
+     after mount because the server cannot know the answer. */
+  const [canPickFolder, setCanPickFolder] = useState(false);
+  useEffect(() => { setCanPickFolder(supportsDirectoryPicker()); }, []);
+
   const chooseFolder = useCallback(async () => {
-    if (supportsDirectoryPicker()) {
-      // ⚠️ No progress is reported until the first file arrives. The dialog
-      // is open until then and nothing is happening; announcing a read that
-      // has not started would strand the caller's spinner if they cancel.
-      const walked = await pickDirectory((n) => onFolderScan?.(n, false));
-      if (!walked) return; // cancelled: nothing was ever raised
-      onFolderScan?.(walked.length, true);
-      onFolder?.(walked);
-      return;
-    }
-    folderInputRef.current?.click();
+    // No progress is reported until the first file arrives: the dialog is
+    // open until then and nothing is happening, so announcing a read that
+    // has not started would strand the caller's spinner on cancel.
+    const walked = await pickDirectory((n) => onFolderScan?.(n, false));
+    if (!walked) return; // cancelled: nothing was ever raised
+    onFolderScan?.(walked.length, true);
+    onFolder?.(walked);
   }, [onFolder, onFolderScan]);
   // Set when an intake refused an ephemeral blob (see selectExisting).
   const [refusedEphemeral, setRefusedEphemeral] = useState(false);
@@ -242,29 +252,6 @@ export function FileDrop({
       }
     >
       {/* File input covers the entire drop zone when no files are selected */}
-      {/* Folder picker. webkitdirectory hands back every file under the
-          chosen folder at once, with webkitRelativePath, which
-          walkedFromPicker turns into exactly what a dragged folder produces. */}
-      {onFolder && (
-        <input
-          ref={folderInputRef}
-          type="file"
-          title=""
-          // React does not know this attribute; the DOM does.
-          {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
-          multiple
-          onChange={(e) => {
-            const picked = Array.from(e.target.files || []);
-            e.target.value = "";
-            if (!picked.length) return;
-            const walked = walkedFromPicker(picked);
-            onFolderScan?.(walked.length, true);
-            onFolder(walked);
-          }}
-          disabled={disabled}
-          style={{ position: "absolute", width: 1, height: 1, opacity: 0, top: -9999, fontSize: 0 }}
-        />
-      )}
       <input
         ref={inputRef}
         type="file"
@@ -459,7 +446,7 @@ export function FileDrop({
           {/* Clicking the box opens the FILE picker, which cannot select a
               folder. This is the way to hand over a whole one without
               dragging. A text link, not a button. */}
-          {onFolder && (
+          {onFolder && canPickFolder && (
             <>
               <button
                 type="button"

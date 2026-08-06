@@ -1301,7 +1301,6 @@ function BringYourFile({
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [readCount, setReadCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
   /* Dash geometry, solved per edge so every corner is a clean right angle.
@@ -1319,18 +1318,21 @@ function BringYourFile({
    * every edge therefore land ON a dash, and since each edge is measured
    * separately the dashes stay ~9px whether the edge is 348px or 960px.
    */
-  /** Prefer the picker that asks to VIEW files over the input that makes the
-   *  browser ask to UPLOAD them. Cancelling is silent. */
+  /* ⚠️ Offered ONLY where showDirectoryPicker exists. A webkitdirectory
+     input makes the browser ask to UPLOAD the folder ("Only do this if you
+     trust the site"), which is intolerable here; explaining that dialog in
+     advance confused people, and showing it alarms them. So it is never
+     triggered: dragging a folder works everywhere and raises nothing. Brave
+     is the case that proves it (Chromium, but the API is off for privacy). */
+  const [canPickFolder, setCanPickFolder] = useState(false);
+  useEffect(() => { setCanPickFolder(supportsDirectoryPicker()); }, []);
+
   async function chooseFolder() {
-    if (supportsDirectoryPicker()) {
-      setState("reading");
-      setReadCount(0);
-      const walked = await pickDirectory((n) => setReadCount(n));
-      if (!walked) { setState("idle"); return; }
-      void check(walked.map((w) => w.file));
-      return;
-    }
-    folderInputRef.current?.click();
+    setState("reading");
+    setReadCount(0);
+    const walked = await pickDirectory((n) => setReadCount(n));
+    if (!walked) { setState("idle"); return; }
+    void check(walked.map((w) => w.file));
   }
 
   const [dash, setDash] = useState({ hd: 9, hg: 7, vd: 9, vg: 7 });
@@ -1477,26 +1479,6 @@ function BringYourFile({
       onMouseLeave={() => setHover(false)}
     >
       <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
-      {/* The folder picker, which the file picker cannot be: `multiple`
-          refuses to select a folder and opens it instead. Hidden files are
-          dropped so a picked folder searches the same set a dragged one does
-          (a picker hands back .DS_Store and every export's machinery). */}
-      <input
-        ref={folderInputRef}
-        type="file"
-        {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
-        multiple
-        style={{ display: "none" }}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => {
-          const fs = Array.from(e.currentTarget.files || []).filter((f) => {
-            const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
-            return !rel.split("/").some((seg) => seg.startsWith("."));
-          });
-          e.currentTarget.value = "";
-          if (fs.length) void check(fs);
-        }}
-      />
       {state === "reading" ? (
         <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
           {readCount > 0
@@ -1551,17 +1533,19 @@ function BringYourFile({
           </div>
           {/* Clicking the box opens the file picker, which cannot select a
               folder. This is how you hand over a whole one without dragging. */}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); void chooseFolder(); }}
-            style={{
-              marginTop: 12, background: "none", border: "none", padding: 0,
-              cursor: "pointer", color: "#0065A4", fontWeight: 500,
-              fontFamily: "inherit", fontSize: "clamp(12px, 2.8vw, 13px)",
-            }}
-          >
-            or choose a folder
-          </button>
+          {canPickFolder && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); void chooseFolder(); }}
+              style={{
+                marginTop: 12, background: "none", border: "none", padding: 0,
+                cursor: "pointer", color: "#0065A4", fontWeight: 500,
+                fontFamily: "inherit", fontSize: "clamp(12px, 2.8vw, 13px)",
+              }}
+            >
+              or choose a folder
+            </button>
+          )}
         </>
       )}
     </div>
