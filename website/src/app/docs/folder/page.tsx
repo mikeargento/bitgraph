@@ -75,8 +75,14 @@ export default function FolderPage() {
           line of a paragraph rather than the page's one action. Same bug family
           as the `.prose-doc a` layering fixed in `eaeab8a0`. Fixing the rule
           properly would reflow all thirteen docs pages, so this is surgical. */}
-      <p className="text-lg" style={{ marginTop: 40 }}>
-        <span className="bg-dl-mac">
+      {/* ⚠️ Size is what makes this the primary action, since a filled button
+          is out (see above). It was text-lg, the SAME size as the subtitle a
+          line above it, so it had no rank at all: brand blue on a page whose
+          other actions are also brand blue links, at body size. It now sits
+          between the h1 and the subtitle in the type scale, which is where
+          the page's one job belongs, and the air around it does the rest. */}
+      <p className="text-lg" style={{ marginTop: 52, marginBottom: 8 }}>
+        <span className="bg-dl-mac" style={{ fontSize: "clamp(21px, 4.6vw, 26px)", letterSpacing: "-0.015em" }}>
           <Action href={DOWNLOAD}>Download for macOS</Action>
         </span>
         <span className="bg-dl-touch text-base text-[#1f2937]">
