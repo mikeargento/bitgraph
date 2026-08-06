@@ -45,7 +45,17 @@ export interface CachedRow {
    *  never re-presented as a fresh check; see the note above. */
   ok: boolean | null;
   failure: string | null;
+  /** The matched file's identity when the verdict was ok: name is in
+   *  fileName, these two complete the (name, size, mtime) fingerprint that
+   *  lets the next sync skip re-hashing a file that demonstrably has not
+   *  changed. Absent on rows that never matched. */
+  size?: number | null;
+  mtime?: number | null;
   thumb?: Blob;
+  /** A ~512px JPEG of the artifact, made in the same decode as the thumb.
+   *  What a proof page opened from /folder shows when the bytes themselves
+   *  are not in hand. Never uploaded, like everything here. */
+  preview?: Blob;
 }
 
 function open(): Promise<IDBDatabase> {
@@ -78,9 +88,10 @@ export async function readCachedRows(): Promise<CachedRow[]> {
   }
 }
 
-/** Write rows, preserving any thumbnail already held for the same digest: a
- *  re-read of the folder produces fresh verdicts but regenerates thumbnails
- *  lazily, and dropping them on every visit would make the roll flash empty. */
+/** Write rows, preserving any thumbnail and preview already held for the same
+ *  digest: a re-read of the folder produces fresh verdicts but regenerates
+ *  pictures lazily, and dropping them on every visit would make the roll
+ *  flash empty. */
 export async function writeCachedRows(rows: CachedRow[]): Promise<void> {
   if (!rows.length) return;
   try {
@@ -92,7 +103,7 @@ export async function writeCachedRows(rows: CachedRow[]): Promise<void> {
         const get = store.get(row.digest);
         get.onsuccess = () => {
           const prior = get.result as CachedRow | undefined;
-          store.put(row.thumb ? row : { ...row, thumb: prior?.thumb });
+          store.put({ thumb: prior?.thumb, preview: prior?.preview, ...row });
         };
       }
       tx.oncomplete = () => res();
@@ -102,8 +113,8 @@ export async function writeCachedRows(rows: CachedRow[]): Promise<void> {
   } catch { /* browsing still works, it just will not be remembered */ }
 }
 
-/** Attach a thumbnail to a row already written. */
-export async function writeCachedThumb(digest: string, thumb: Blob): Promise<void> {
+/** Attach a thumbnail (and its larger preview) to a row already written. */
+export async function writeCachedThumb(digest: string, thumb: Blob, preview?: Blob): Promise<void> {
   try {
     const db = await open();
     await new Promise<void>((res, rej) => {
@@ -112,13 +123,30 @@ export async function writeCachedThumb(digest: string, thumb: Blob): Promise<voi
       const get = store.get(digest);
       get.onsuccess = () => {
         const prior = get.result as CachedRow | undefined;
-        if (prior) store.put({ ...prior, thumb });
+        if (prior) store.put({ ...prior, thumb, ...(preview ? { preview } : {}) });
       };
       tx.oncomplete = () => res();
       tx.onerror = () => rej(tx.error);
     });
     db.close();
   } catch { /* the row simply shows its type label next time */ }
+}
+
+/** One row, by the url-safe digest a proof page is addressed by. How that
+ *  page finds the preview for a recording whose bytes are not in hand. */
+export async function readCachedRow(digest: string): Promise<CachedRow | null> {
+  try {
+    const db = await open();
+    const row = await new Promise<CachedRow | null>((res, rej) => {
+      const req = db.transaction(STORE, "readonly").objectStore(STORE).get(digest);
+      req.onsuccess = () => res((req.result as CachedRow | undefined) ?? null);
+      req.onerror = () => rej(req.error);
+    });
+    db.close();
+    return row;
+  } catch {
+    return null;
+  }
 }
 
 /** Keep the folder's directory handle for later syncs. Chromium only; the

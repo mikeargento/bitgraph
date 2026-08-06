@@ -600,10 +600,32 @@ export interface FolderCheckCallbacks {
   onDone?: (rows: ExportCheckResult[]) => void;
 }
 
+/** What an earlier sync remembers about a recording that MATCHED. The name,
+ *  size and mtime identify the artifact file that was hashed then; writeTime
+ *  is carried so the row renders the same moment it did. */
+export interface VerdictMemo {
+  name: string;
+  size: number;
+  mtime: number;
+  writeTime: number | null;
+}
+
+/* A memo hit skips the whole verification for one row: no hash, no signature,
+ * no ledger round-trips. Sound on two grounds, one per side. The ledger side:
+ * the ledger is append-only (Object Lock COMPLIANCE), so a proof that was ON
+ * it at its claimed position cannot later be off it — an ok verdict's ledger
+ * half cannot rot. The bytes side CAN rot (the file on disk can change), and
+ * name+size+mtime is the change detector, the same identity every sync tool
+ * uses. Only rows whose last verdict was ok are ever memoized; failures and
+ * unchecked rows re-verify in full, every time. */
+const memoMatches = (m: VerdictMemo | undefined, f: File | null): m is VerdictMemo =>
+  !!m && !!f && f.name === m.name && f.size === m.size && f.lastModified === m.mtime;
+
 export function startFolderCheck(
   candidates: ExportCandidate[],
   cb: FolderCheckCallbacks = {},
   apiBase = "",
+  memo?: Map<string, VerdictMemo>,
 ): { done: Promise<ExportCheckResult[]> } {
   const done = (async () => {
     const working = await scanExportsLocal(candidates);
@@ -612,8 +634,12 @@ export function startFolderCheck(
     /* Ledger prefetch: every digest, 50 per request, three in flight. Each
      * row awaits only its own digest's promise. null = the lookup FAILED,
      * kept distinct from an empty answer: an unreachable ledger is our gap,
-     * "not on the ledger" is a verdict about the folder. */
-    const keys = [...new Set(working.map((w) => w.digestUrlSafe).filter((k): k is string => !!k))];
+     * "not on the ledger" is a verdict about the folder. Digests a memo will
+     * answer are not asked about at all — on a settled folder that turns the
+     * whole prefetch into nothing. */
+    const memoized = (w: Working) =>
+      !!w.digestUrlSafe && w.ok === null && memoMatches(memo?.get(w.digestUrlSafe), w.artifactFile);
+    const keys = [...new Set(working.filter((w) => !memoized(w)).map((w) => w.digestUrlSafe).filter((k): k is string => !!k))];
     const resolvers = new Map<string, (v: LedgerEntry[] | null) => void>();
     const ledgerFor = new Map<string, Promise<LedgerEntry[] | null>>();
     for (const k of keys) ledgerFor.set(k, new Promise((res) => resolvers.set(k, res)));
@@ -676,6 +702,19 @@ export function startFolderCheck(
 
     async function verifyOne(w: Working): Promise<void> {
       if (!w.proof || !w.digestUrlSafe) return;
+
+      // The remembered verdict, honored when the file it was about is
+      // demonstrably the same file (see the memo note above). This is what
+      // makes re-syncing a settled folder seconds instead of minutes: the
+      // expensive work below runs only for what is new or changed.
+      const m = memo?.get(w.digestUrlSafe);
+      if (memoMatches(m, w.artifactFile)) {
+        w.matchedFile = w.artifactFile;
+        w.fileName = w.artifactFile!.name;
+        w.onLedger = true;
+        w.writeTime = m.writeTime;
+        return;
+      }
 
       const sig = await verifyProofSignature(w.proof).catch(() => ({ valid: false }));
       if (!sig.valid) { w.failure = "proof signature does not verify"; return; }

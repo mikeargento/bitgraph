@@ -22,7 +22,7 @@ import { CheckedRoll, fmtRowWhen } from "@/components/folder-roll";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
-import type { C2PAReadResult } from "@/lib/c2pa-reader";
+import { cacheArtifactToIDB } from "@/lib/file-cache";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -298,7 +298,13 @@ export default function BitGraphPage() {
         return { file: f, digestB64: digest, proof: proofJson, proofs: [proofJson], valid, status: "found" as const, fromProofJson: true };
       }
       const rec = digest ? lookup[toUrlSafeB64(digest)] : undefined;
-      const recProofs = rec?.proofs || [];
+      // "On record" means bitgraph/1 only — the same filter the Folder applies
+      // at its response edge (1.10.0). The append-only ledger still answers
+      // occ/1 proofs for pre-cutover bytes, but those can never verify under
+      // the current chain, so treating them as "on record" here meant a drop
+      // LOOKED UP a dead proof instead of recording the bytes properly. The
+      // earliest bitgraph/1 position stays proofs[0], never re-derived.
+      const recProofs = (rec?.proofs || []).filter((x) => x.proof?.version === "bitgraph/1");
       const all = recProofs.map((x) => x.proof);
       if (all.length > 0) {
         const result = await verifyProofSignature(all[0]);
@@ -1265,34 +1271,8 @@ export default function BitGraphPage() {
   );
 }
 
-/* ── Cache an artifact's bytes (and any embedded C2PA manifest) to IndexedDB
-   under the proof digest, so the proof page can render the image. The bytes are
-   written first so the image appears immediately; C2PA parsing is best-effort
-   (loads a ~6 MB WASM toolkit lazily) and never blocks caching the file. ── */
-async function cacheArtifactToIDB(file: File, proofDigest: string) {
-  const buf = await file.arrayBuffer();
-  const writeRecord = async (c2pa: C2PAReadResult | null, c2paChecked: boolean) => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open("bitgraph-files", 1);
-      req.onupgradeneeded = () => req.result.createObjectStore("files");
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-    const tx = db.transaction("files", "readwrite");
-    tx.objectStore("files").put({ name: file.name, data: buf, c2pa, c2paChecked }, proofDigest);
-    await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
-    db.close();
-  };
-  await writeRecord(null, false);
-  let c2pa: C2PAReadResult | null = null;
-  try {
-    const { readC2PA } = await import("@/lib/c2pa-reader");
-    c2pa = await readC2PA(file);
-  } catch (e) {
-    console.warn("[bitgraph] c2pa read failed:", e);
-  }
-  await writeRecord(c2pa, true);
-}
+/* The artifact-bytes handoff moved to lib/file-cache.ts so /folder can hand a
+   clicked row's bytes to the proof page the same way the drop flow does. */
 
 
 /* ── The shelf — /rolls, translated to a dropped folder. One cell per day,

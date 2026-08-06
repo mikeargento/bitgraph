@@ -22,7 +22,7 @@ export const fmtRowWhen = (ms?: number | null) =>
 
 const IMAGE_THUMB_EXT = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "svg"];
 
-export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, heading = "BitGraph Roll" }: {
+export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, cachedComplete, heading = "BitGraph Roll" }: {
   checked: ExportCheckResult[];
   onOpen: (r: ExportCheckResult) => void;
   /** The list's own title. null on /folder, where the page's h1 already
@@ -33,8 +33,14 @@ export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, heading = 
    *  (a remembered folder renders from these until it is re-read). */
   cachedThumbs?: Map<string, string>;
   /** Emitted once per thumbnail generated from real bytes, so a caller can
-   *  keep it. The blob is the few-KB JPEG, not the original. */
-  onThumb?: (digestUrlSafe: string, blob: Blob) => void;
+   *  keep it. `blob` is the few-KB JPEG for the 48px cell; `preview` is the
+   *  ~512px JPEG a proof page shows when the bytes are not in hand. Neither
+   *  is the original. */
+  onThumb?: (digestUrlSafe: string, blob: Blob, preview?: Blob) => void;
+  /** Digests whose thumb AND preview are already remembered. Decoding a
+   *  2,000-photo folder again to remake pictures we have is most of what
+   *  made a re-sync feel endless, so these are skipped entirely. */
+  cachedComplete?: Set<string>;
 }) {
   // Causal order, newest first: lower-bound block, then counter; unsealed
   // (no block) lead. The same sort every surface in the product uses.
@@ -112,10 +118,12 @@ export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, heading = 
   const [thumbs, setThumbs] = useState<Map<File, string>>(() => new Map());
   const thumbMapRef = useRef<Map<File, string>>(new Map());
   useEffect(() => () => { for (const u of thumbMapRef.current.values()) URL.revokeObjectURL(u); }, []);
-  // The caller's onThumb in a ref, so an inline lambda cannot restart the
-  // generation loop every render.
+  // The caller's onThumb and cachedComplete in refs, so an inline lambda or a
+  // rebuilt Set cannot restart the generation loop every render.
   const onThumbRef = useRef(onThumb);
   onThumbRef.current = onThumb;
+  const cachedCompleteRef = useRef(cachedComplete);
+  cachedCompleteRef.current = cachedComplete;
 
   useEffect(() => {
     let dead = false;
@@ -135,22 +143,32 @@ export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, heading = 
         const r = ordered[i];
         const f = r.artifactFile;
         if (!f || thumbMapRef.current.has(f)) continue;
+        // Already remembered in full (cell thumb + proof-page preview): the
+        // cachedThumbs URL renders the cell, so decoding again buys nothing.
+        if (r.digestUrlSafe && cachedCompleteRef.current?.has(r.digestUrlSafe)) continue;
         const ext = f.name.slice(f.name.lastIndexOf(".") + 1).toLowerCase();
         if (!IMAGE_THUMB_EXT.includes(ext)) continue;
         try {
           const bmp = await createImageBitmap(f);
-          const w = 96;
-          const h = Math.max(1, Math.round((bmp.height / bmp.width) * w));
-          const c = document.createElement("canvas");
-          c.width = w; c.height = h;
-          c.getContext("2d")?.drawImage(bmp, 0, 0, w, h);
+          // One decode, two sizes: the 96px cell thumb (2x the 48px box) and
+          // a ~512px preview for the proof page. The bitmap is the expensive
+          // part; the second draw is nearly free next to it.
+          const drawScaled = async (w: number, q: number): Promise<Blob | null> => {
+            const width = Math.min(w, bmp.width);
+            const h = Math.max(1, Math.round((bmp.height / bmp.width) * width));
+            const c = document.createElement("canvas");
+            c.width = width; c.height = h;
+            c.getContext("2d")?.drawImage(bmp, 0, 0, width, h);
+            return new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", q));
+          };
+          const blob = await drawScaled(96, 0.75);
+          const preview = (await drawScaled(512, 0.72)) ?? undefined;
           bmp.close();
-          const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.75));
           if (!blob || dead) continue;
           if (thumbMapRef.current.has(f)) continue; // a racing rerun got here first
           thumbMapRef.current.set(f, URL.createObjectURL(blob));
           setThumbs(new Map(thumbMapRef.current));
-          if (r.digestUrlSafe) onThumbRef.current?.(r.digestUrlSafe, blob);
+          if (r.digestUrlSafe) onThumbRef.current?.(r.digestUrlSafe, blob, preview);
         } catch { /* a row without a thumb shows its type label */ }
       }
     };

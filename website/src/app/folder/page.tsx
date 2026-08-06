@@ -24,13 +24,14 @@ import { FileDrop } from "@/components/file-drop";
 import { CheckedRoll } from "@/components/folder-roll";
 import {
   discoverDrop, startFolderCheck, walkDirectoryHandle,
-  type WalkedFile, type ExportCheckResult, type DirHandle,
+  type WalkedFile, type ExportCheckResult, type DirHandle, type VerdictMemo,
 } from "@/lib/folder-check";
 import {
   readCachedRows, writeCachedRows, writeCachedThumb, clearCachedRows,
   saveDirHandle, readDirHandle,
   type CachedRow,
 } from "@/lib/folder-cache";
+import { cacheArtifactToIDB } from "@/lib/file-cache";
 
 const DOWNLOAD = "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraphFolder.pkg";
 
@@ -69,8 +70,24 @@ const cacheFromRow = (r: ExportCheckResult): CachedRow | null =>
         writeTime: r.writeTime,
         ok: r.ok,
         failure: r.failure,
+        // The matched file's fingerprint, which is what lets the NEXT sync
+        // skip re-hashing this recording (see VerdictMemo). Only a matched
+        // file's identity is worth remembering.
+        size: r.matchedFile?.size ?? null,
+        mtime: r.matchedFile?.lastModified ?? null,
       }
     : null;
+
+/** The remembered verdicts a sync may honor: ok rows with a full fingerprint. */
+const memoFromCache = (cached: CachedRow[]): Map<string, VerdictMemo> => {
+  const memo = new Map<string, VerdictMemo>();
+  for (const c of cached) {
+    if (c.ok === true && c.fileName && typeof c.size === "number" && typeof c.mtime === "number") {
+      memo.set(c.digest, { name: c.fileName, size: c.size, mtime: c.mtime, writeTime: c.writeTime });
+    }
+  }
+  return memo;
+};
 
 export default function FolderPage() {
   const router = useRouter();
@@ -93,8 +110,14 @@ export default function FolderPage() {
   // most thumbs made during a sync were silently dropped, and every later
   // visit showed the same gaps ("the thumb issue persists"). They wait here
   // until the rows are down, then flush.
-  const pendingThumbs = useRef<Map<string, Blob>>(new Map());
+  const pendingThumbs = useRef<Map<string, { thumb: Blob; preview?: Blob }>>(new Map());
   const rowsPersisted = useRef(false);
+  // The remembered verdicts a sync may honor (ok rows whose file fingerprint
+  // is known), and the digests whose pictures are already stored in full.
+  // Together they are why re-syncing a settled folder is seconds, not
+  // minutes: unchanged files are neither re-hashed nor re-decoded.
+  const memoRef = useRef<Map<string, VerdictMemo>>(new Map());
+  const cachedCompleteRef = useRef<Set<string>>(new Set());
 
   useEffect(() => () => { for (const u of thumbUrls.current) URL.revokeObjectURL(u); }, []);
 
@@ -104,6 +127,8 @@ export default function FolderPage() {
     void (async () => {
       const cached = await readCachedRows();
       if (dead) return;
+      memoRef.current = memoFromCache(cached);
+      cachedCompleteRef.current = new Set(cached.filter((c) => c.thumb && c.preview).map((c) => c.digest));
       if (!cached.length) { setRows(null); return; } // answered: nothing remembered
       const urls = new Map<string, string>();
       for (const c of cached) {
@@ -165,11 +190,13 @@ export default function FolderPage() {
         // they belong to.
         void writeCachedRows(r.map(cacheFromRow).filter((x): x is CachedRow => !!x)).then(() => {
           rowsPersisted.current = true;
-          for (const [d, b] of pendingThumbs.current) void writeCachedThumb(d, b);
+          for (const [d, b] of pendingThumbs.current) void writeCachedThumb(d, b.thumb, b.preview);
           pendingThumbs.current.clear();
         });
+        // The verdicts that just landed are next sync's memo.
+        memoRef.current = memoFromCache(r.map(cacheFromRow).filter((x): x is CachedRow => !!x));
       },
-    });
+    }, "", memoRef.current);
     void done.catch(() => setChecking(false));
   }, []);
   handleFolderRef.current = handleFolder;
@@ -206,6 +233,15 @@ export default function FolderPage() {
 
   const openRow = useCallback((r: ExportCheckResult) => {
     if (!r.digestUrlSafe) return;
+    // When the MATCHED bytes are in hand (a sync this visit), hand them to
+    // the proof page the same way the home drop does, so it opens WITH the
+    // picture. Only the matched file: caching a non-matching candidate under
+    // the digest would just make the proof page hash it and throw it out.
+    // Fire-and-forget: navigation does not wait, the page polls briefly.
+    const digestB64 = r.proof?.artifact.digestB64;
+    if (r.matchedFile && digestB64) {
+      void cacheArtifactToIDB(r.matchedFile, digestB64).catch(() => { /* preview covers it */ });
+    }
     const q = r.counter
       ? `?counter=${encodeURIComponent(r.counter)}${r.epochUrlSafe ? `&epoch=${encodeURIComponent(r.epochUrlSafe)}` : ""}`
       : "";
@@ -215,121 +251,98 @@ export default function FolderPage() {
   const linkStyle: React.CSSProperties = {
     background: "none", border: "none", padding: 0, cursor: "pointer",
     color: "#0065A4", fontWeight: 500, fontFamily: "inherit", fontSize: 13,
+    textDecoration: "none",
   };
 
   // The cache answers in milliseconds; a blank beat is invisible, either
   // wrong state for that beat is not.
   if (rows === undefined) return null;
 
-  return rows === null ? (
-    /* ── First arrival: the home page's hero, pointed at the folder.
-       Mike: "before you have synced, it should mirror the homepage style."
-       Same tagline scale, same centered stack, same camera box, same
-       stacked arrow links. The style rules are copied from page.tsx's hero
-       block (they are page-mounted <style> tags there, so there is nothing
-       shared to import); if the home hero's numbers change, change these. ── */
-    <>
-      <style>{`
-        @keyframes slideIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
-        .bgf-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: max(52px, calc(50dvh - 318px)) 0 32px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 72px); }
-        @media (min-width: 769px) { .bgf-wrap { padding-top: max(52px, calc(50dvh - 386px)); } }
-        .bgf-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(26px, 4.5vw, 40px); }
-        .bgf-head { display: flex; flex-direction: column; align-items: stretch; gap: clamp(12px, 2.5vw, 16px); }
-        .bgf-tagline { text-align: center; font-size: clamp(24px, 9.3vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; margin: 0; }
-        .bgf-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15px, 3.6vw, 18px); line-height: 1.4; color: #1f2937; font-weight: 500; letter-spacing: -0.012em; text-wrap: balance; }
-        .bgf-why p { margin: 0; }
-        .bgf-links { text-align: center; }
-        .bgf-links .second { margin-top: 10px; }
-        .bgf-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; text-decoration: none; }
-        .bgf-link .arrow { transition: transform .18s ease; }
-        @media (hover: hover) { .bgf-link:hover .arrow { transform: translateX(3px); } }
-        .bgf-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
-      `}</style>
-      <div className="bgf-wrap">
-        <div className="bgf-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
-          <div className="bgf-head">
-            <h1 className="bgf-tagline">Your BitGraph Folder.</h1>
-            {/* File-neutral on purpose: the folder holds photos, PDFs, video,
-                text — a recording is a recording. */}
-            <div className="bgf-why">
-              <p>Every recording in your folder, checked against the ledger.</p>
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "clamp(26px, 4.5vw, 40px)" }}>
-            <div className="bitgraph-camera">
-              <FileDrop
-                multiple
-                onFolder={handleFolder}
-                onFolderHandle={(h) => { dirHandleRef.current = h; void saveDirHandle(h); }}
-                onFolderScan={(files, done) => setWalkCount(done ? null : files)}
-                onFiles={() => { /* a loose file is not a folder; the home page takes those */ }}
-                headline="Sync your folder"
-                hint={walkCount !== null
-                  ? `Reading… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
-                  : "Open the BitGraph folder on your Desktop and drag Recordings here."}
-                subhint="Read on your device. Nothing is uploaded."
-              />
-            </div>
-            <div className="bgf-links">
-              <a href={DOWNLOAD} className="bgf-link">
-                Download BitGraph Folder for macOS <span className="arrow" aria-hidden>&rarr;</span>
-              </a>
-              <div className="second">
-                <Link href="/docs/folder" className="bgf-link">
-                  How the Folder works <span className="arrow" aria-hidden>&rarr;</span>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  ) : (
-    /* The same column as /roll, to the pixel: 90% up to 800, 40px under the
-       nav. The first cut used max-width alone with inner padding, which made
-       this the one page whose text column was 760px with its own gutters. */
+  /* ── ONE layout, synced or not (Mike: "this page should always look like
+     this, not the homepage"). The same column as /roll, to the pixel: 90% up
+     to 800, 40px under the nav. Before a sync the drop box simply sits first,
+     where the roll will be — no hero, no tagline, nothing to graduate from.
+     The hero-mirror empty state was tried and retired the same week. ── */
+  return (
     <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
       {/* fadeIn's keyframes live per-page (the roll defines its own); this
-          branch needs its own copy or the animation is silently nothing. */}
+          page needs its own copy or the animation is silently nothing. */}
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }`}</style>
       <h1 style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827", margin: "0 0 4px" }}>
         Your BitGraph Folder
       </h1>
-      {/* One subtitle, carrying the count AND the state; the roll's own
-          header is off (heading={null}) so nothing repeats it below. */}
-      <p style={{ fontSize: 14, color: "#4b5563", margin: "0 0 4px", lineHeight: 1.6 }}>
-        {walkCount !== null
-          ? `Reading your folder… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
-          : <>{rows.length.toLocaleString()} recording{rows.length === 1 ? "" : "s"}, newest first
-        {fromCache
-          ? ", remembered from last time."
-          : checking
-          ? ". Checking each against the ledger…"
-          : ", checked against the ledger."}</>}
-      </p>
-      <p style={{ fontSize: 13, margin: "0 0 18px", lineHeight: 1.6 }}>
-        <button type="button" style={linkStyle} onClick={() => void syncAgain()}>
-          Sync again
-        </button>
-        {" · "}
-        {/* Clears what this page remembers (rows + thumbnails, the local
-            IndexedDB picture) and nothing else: the folder on disk and the
-            ledger are untouched. "Forget it" made people ask what "it" was. */}
-        <button type="button" style={linkStyle} onClick={() => void forget()}
-          title="Clears what this page remembers. Your folder and the ledger are untouched.">
-          Forget this folder
-        </button>
-      </p>
-      <CheckedRoll
-        checked={rows}
-        onOpen={openRow}
-        heading={null}
-        cachedThumbs={thumbs}
-        onThumb={(digest, blob) => {
-          if (rowsPersisted.current) void writeCachedThumb(digest, blob);
-          else pendingThumbs.current.set(digest, blob);
-        }}
-      />
+      {rows === null ? (
+        <>
+          {/* File-neutral on purpose: the folder holds photos, PDFs, video,
+              text — a recording is a recording. */}
+          <p style={{ fontSize: 14, color: "#4b5563", margin: "0 0 18px", lineHeight: 1.6 }}>
+            Every recording in your folder, checked against the ledger.
+          </p>
+          <div className="bitgraph-camera">
+            <FileDrop
+              multiple
+              onFolder={handleFolder}
+              onFolderHandle={(h) => { dirHandleRef.current = h; void saveDirHandle(h); }}
+              onFolderScan={(files, done) => setWalkCount(done ? null : files)}
+              onFiles={() => { /* a loose file is not a folder; the home page takes those */ }}
+              headline="Sync your folder"
+              hint={walkCount !== null
+                ? `Reading… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
+                : "Open the BitGraph folder on your Desktop and drag Recordings here."}
+              subhint="Read on your device. Nothing is uploaded."
+            />
+          </div>
+          <p style={{ fontSize: 13, margin: "18px 0 0", lineHeight: 1.6 }}>
+            <a href={DOWNLOAD} style={linkStyle}>
+              Download BitGraph Folder for macOS <span aria-hidden>&rarr;</span>
+            </a>
+          </p>
+          <p style={{ fontSize: 13, margin: "6px 0 0", lineHeight: 1.6 }}>
+            <Link href="/docs/folder" style={linkStyle}>
+              How the Folder works <span aria-hidden>&rarr;</span>
+            </Link>
+          </p>
+        </>
+      ) : (
+        <>
+          {/* One subtitle, carrying the count AND the state; the roll's own
+              header is off (heading={null}) so nothing repeats it below. */}
+          <p style={{ fontSize: 14, color: "#4b5563", margin: "0 0 4px", lineHeight: 1.6 }}>
+            {walkCount !== null
+              ? `Reading your folder… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
+              : <>{rows.length.toLocaleString()} recording{rows.length === 1 ? "" : "s"}, newest first
+            {fromCache
+              ? ", remembered from last time."
+              : checking
+              ? ". Checking each against the ledger…"
+              : ", checked against the ledger."}</>}
+          </p>
+          <p style={{ fontSize: 13, margin: "0 0 18px", lineHeight: 1.6 }}>
+            <button type="button" style={linkStyle} onClick={() => void syncAgain()}>
+              Sync again
+            </button>
+            {" · "}
+            {/* Clears what this page remembers (rows + thumbnails, the local
+                IndexedDB picture) and nothing else: the folder on disk and the
+                ledger are untouched. "Forget it" made people ask what "it" was. */}
+            <button type="button" style={linkStyle} onClick={() => void forget()}
+              title="Clears what this page remembers. Your folder and the ledger are untouched.">
+              Forget this folder
+            </button>
+          </p>
+          <CheckedRoll
+            checked={rows}
+            onOpen={openRow}
+            heading={null}
+            cachedThumbs={thumbs}
+            cachedComplete={cachedCompleteRef.current}
+            onThumb={(digest, blob, preview) => {
+              if (rowsPersisted.current) void writeCachedThumb(digest, blob, preview);
+              else pendingThumbs.current.set(digest, { thumb: blob, preview });
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }
