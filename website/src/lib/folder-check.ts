@@ -288,10 +288,14 @@ export async function findMatchInDrop(
   dt: DataTransfer,
   digestB64: string,
   onProgress?: (done: number, total: number) => void,
+  /** Running file count while the folder is being READ, before hashing can
+   *  begin. Dropping a Pictures folder here is the case this box is for, and
+   *  the read is the longest silent stretch of it. */
+  onWalk?: (files: number) => void,
 ): Promise<{ match: File | null; checked: number }> {
   const entries = entriesFromDataTransfer(dt);
   const files = entries
-    ? (await walkEntries(entries)).map((w) => w.file)
+    ? (await walkEntries(entries, onWalk)).map((w) => w.file)
     : Array.from(dt.files);
   return findMatchInFiles(files, digestB64, onProgress);
 }

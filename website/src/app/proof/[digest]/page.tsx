@@ -1292,12 +1292,13 @@ function BringYourFile({
   proof: BitGraphProof;
   onMatch: (rec: { name: string; data: ArrayBuffer; c2pa: C2PAReadResult | null; c2paChecked: boolean }) => void;
 }) {
-  const [state, setState] = useState<"idle" | "checking" | "mismatch">("idle");
+  const [state, setState] = useState<"idle" | "reading" | "checking" | "mismatch">("idle");
   const [dragOver, setDragOver] = useState(false);
   // How many files the last run hashed (for the mismatch wording) and live
   // progress while a multi-file or folder drop is being searched.
   const [checkedCount, setCheckedCount] = useState(0);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [readCount, setReadCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // The drop may be many files, or whole folders, and the matching file is
@@ -1308,10 +1309,19 @@ function BringYourFile({
   async function check(source: DataTransfer | File[]) {
     setState("checking");
     setProgress({ done: 0, total: 0 });
+    setReadCount(0);
     try {
       const { match, checked } = Array.isArray(source)
         ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }))
-        : await findMatchInDrop(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }));
+        : await findMatchInDrop(
+            source,
+            proof.artifact.digestB64,
+            // The walk fully precedes the hashing, so the first progress
+            // report is also the signal that reading is over.
+            (done, total) => { setState("checking"); setProgress({ done, total }); },
+            // A dropped folder is read before a single hash can be taken.
+            (files) => { setReadCount(files); setState("reading"); },
+          );
       setCheckedCount(checked);
       if (!match) { setState("mismatch"); return; }
       await accept(match);
@@ -1354,33 +1364,67 @@ function BringYourFile({
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(e.dataTransfer); }}
+      /* The same instrument as the home page's, not a footnote to the proof:
+         this box is how a stranger who was handed a file actually uses the
+         page. Solid square border (a dashed one was retired product-wide),
+         the same blue on hover and drag, and enough height to read as the
+         thing you are meant to do. */
       style={{
-        background: "#fff",
-        border: `2px dashed ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c4c9d0"}`,
-        padding: "34px 24px",
+        background: dragOver ? "#f0f6ff" : "#fff",
+        border: `2px solid ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c3c8cf"}`,
+        padding: "clamp(30px, 7vw, 46px) 24px",
         textAlign: "center",
         cursor: "pointer",
-        transition: "border-color .15s",
+        transition: "border-color .15s, background-color .15s",
       }}
+      onMouseEnter={(e) => { if (!mismatch) e.currentTarget.style.borderColor = "#0065A4"; }}
+      onMouseLeave={(e) => { if (!mismatch && !dragOver) e.currentTarget.style.borderColor = "#c3c8cf"; }}
     >
       <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
-      {state === "checking" ? (
-        <div style={{ fontSize: 15, fontWeight: 600, color: "#4b5563" }}>
-          {progress.total > 1 ? `Checking ${progress.done} of ${progress.total}…` : "Checking…"}
+      {state === "reading" ? (
+        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
+          {readCount > 0
+            ? `Reading your folder… ${readCount.toLocaleString()} file${readCount === 1 ? "" : "s"}`
+            : "Reading your folder…"}
+        </div>
+      ) : state === "checking" ? (
+        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
+          {progress.total > 1
+            ? `Looking for the match… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`
+            : "Looking for the match…"}
         </div>
       ) : mismatch ? (
         <>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>
+          <div style={{ fontSize: "clamp(16px, 4vw, 19px)", fontWeight: 700, color: "#dc2626" }}>
             {checkedCount > 1
-              ? `None of the ${checkedCount.toLocaleString()} files match this BitGraph`
-              : "These bytes don’t match this BitGraph"}
+              ? `No match. None of the ${checkedCount.toLocaleString()} files you dropped are this file.`
+              : "No match. Those are not the bytes this BitGraph describes."}
           </div>
-          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 6 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
+          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 8, lineHeight: 1.5 }}>
+            Changing a single bit changes the hash completely, so an edited or re-saved copy will never match. Drop the original to try again.
+          </div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Have the file? Check it against this BitGraph.</div>
-          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 6 }}>Drop files or a whole folder and the match is found by hash. In your browser; nothing is uploaded.</div>
+          {/* Same document-plus mark as the home drop zone: this is the same
+              instrument, pointed at one recording instead of the ledger. */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.227" aria-hidden>
+              <path d="M5 2 H14 L19 7 V22 H5 Z" />
+              <path d="M14 2 V7 H19" />
+              <line x1="12" y1="12" x2="12" y2="18" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+          </div>
+          <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: "#111827", letterSpacing: "-0.01em" }}>
+            Have the file? Drop it here.
+          </div>
+          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 10, lineHeight: 1.55, maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
+            Drop one file, or a whole folder, and the matching file is found for you by its hash. You do not have to know which file it is.
+          </div>
+          <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6 }}>
+            Nothing is uploaded. The check runs on your device.
+          </div>
         </>
       )}
     </div>
