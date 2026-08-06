@@ -112,11 +112,27 @@ export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, heading = 
   const [thumbs, setThumbs] = useState<Map<File, string>>(() => new Map());
   const thumbMapRef = useRef<Map<File, string>>(new Map());
   useEffect(() => () => { for (const u of thumbMapRef.current.values()) URL.revokeObjectURL(u); }, []);
+  // The caller's onThumb in a ref, so an inline lambda cannot restart the
+  // generation loop every render.
+  const onThumbRef = useRef(onThumb);
+  onThumbRef.current = onThumb;
+
   useEffect(() => {
     let dead = false;
-    void (async () => {
-      for (const r of checked) {
-        if (dead) return;
+    // ⚠️ VISIBLE-FIRST, FOUR AT A TIME. This ran one file at a time in
+    // DISCOVERY order, and on a 2,000-photo folder that is minutes of
+    // decoding delivered in an order nobody is looking at: thumbs landed
+    // scattered down the page while the rows on screen sat as type labels
+    // (which read as "unpopulated", and got asked about). The queue is now
+    // the exact order the roll renders, so pictures fill from the top of
+    // what you see, and a small pool cuts the total wait without pinning
+    // the main thread the way unlimited decodes would.
+    let next = 0;
+    const worker = async () => {
+      while (!dead) {
+        const i = next++;
+        if (i >= ordered.length) return;
+        const r = ordered[i];
         const f = r.artifactFile;
         if (!f || thumbMapRef.current.has(f)) continue;
         const ext = f.name.slice(f.name.lastIndexOf(".") + 1).toLowerCase();
@@ -130,16 +146,17 @@ export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, heading = 
           c.getContext("2d")?.drawImage(bmp, 0, 0, w, h);
           bmp.close();
           const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.75));
-          if (!blob) continue;
+          if (!blob || dead) continue;
           if (thumbMapRef.current.has(f)) continue; // a racing rerun got here first
           thumbMapRef.current.set(f, URL.createObjectURL(blob));
           setThumbs(new Map(thumbMapRef.current));
-          if (r.digestUrlSafe) onThumb?.(r.digestUrlSafe, blob);
+          if (r.digestUrlSafe) onThumbRef.current?.(r.digestUrlSafe, blob);
         } catch { /* a row without a thumb shows its type label */ }
       }
-    })();
+    };
+    void Promise.all(Array.from({ length: 4 }, worker));
     return () => { dead = true; };
-  }, [checked]);
+  }, [ordered]);
 
   const okCount = checked.filter((c) => c.ok === true).length;
   const pending = checked.filter((c) => c.ok === null).length;

@@ -73,7 +73,10 @@ const cacheFromRow = (r: ExportCheckResult): CachedRow | null =>
 
 export default function FolderPage() {
   const router = useRouter();
-  const [rows, setRows] = useState<ExportCheckResult[] | null>(null);
+  // undefined = the cache has not answered yet. Rendering the empty state
+  // during that gap flashed the drop box at everyone whose folder was
+  // remembered, which reads as the page forgetting and then remembering.
+  const [rows, setRows] = useState<ExportCheckResult[] | null | undefined>(undefined);
   const [fromCache, setFromCache] = useState(false);
   const [checking, setChecking] = useState(false);
   const [walkCount, setWalkCount] = useState<number | null>(null);
@@ -87,7 +90,8 @@ export default function FolderPage() {
     let dead = false;
     void (async () => {
       const cached = await readCachedRows();
-      if (dead || !cached.length) return;
+      if (dead) return;
+      if (!cached.length) { setRows(null); return; } // answered: nothing remembered
       const urls = new Map<string, string>();
       for (const c of cached) {
         if (!c.thumb) continue;
@@ -143,6 +147,10 @@ export default function FolderPage() {
     background: "none", border: "none", padding: 0, cursor: "pointer",
     color: "#0065A4", fontWeight: 500, fontFamily: "inherit", fontSize: 13,
   };
+
+  // The cache answers in milliseconds; a blank beat is invisible, either
+  // wrong state for that beat is not.
+  if (rows === undefined) return null;
 
   return rows === null ? (
     /* ── First arrival: the home page's hero, pointed at the folder.
@@ -232,8 +240,12 @@ export default function FolderPage() {
           Sync again
         </button>
         {" · "}
-        <button type="button" style={linkStyle} onClick={() => void forget()}>
-          Forget it
+        {/* Clears what this page remembers (rows + thumbnails, the local
+            IndexedDB picture) and nothing else: the folder on disk and the
+            ledger are untouched. "Forget it" made people ask what "it" was. */}
+        <button type="button" style={linkStyle} onClick={() => void forget()}
+          title="Clears what this page remembers. Your folder and the ledger are untouched.">
+          Forget this folder
         </button>
       </p>
       <CheckedRoll
