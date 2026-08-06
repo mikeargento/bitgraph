@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { FileDrop } from "@/components/file-drop";
 import { CheckedRoll } from "@/components/folder-roll";
 import {
@@ -143,65 +144,95 @@ export default function FolderPage() {
     color: "#0065A4", fontWeight: 500, fontFamily: "inherit", fontSize: 13,
   };
 
-  return (
+  return rows === null ? (
+    /* ── First arrival: the home page's hero, pointed at the folder.
+       Mike: "before you have synced, it should mirror the homepage style."
+       Same tagline scale, same centered stack, same camera box, same
+       stacked arrow links. The style rules are copied from page.tsx's hero
+       block (they are page-mounted <style> tags there, so there is nothing
+       shared to import); if the home hero's numbers change, change these. ── */
+    <>
+      <style>{`
+        @keyframes slideIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
+        .bgf-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: max(52px, calc(50dvh - 318px)) 0 32px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 72px); }
+        @media (min-width: 769px) { .bgf-wrap { padding-top: max(52px, calc(50dvh - 386px)); } }
+        .bgf-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(26px, 4.5vw, 40px); }
+        .bgf-head { display: flex; flex-direction: column; align-items: stretch; gap: clamp(12px, 2.5vw, 16px); }
+        .bgf-tagline { text-align: center; font-size: clamp(24px, 9.3vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; margin: 0; }
+        .bgf-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15px, 3.6vw, 18px); line-height: 1.4; color: #1f2937; font-weight: 500; letter-spacing: -0.012em; text-wrap: balance; }
+        .bgf-why p { margin: 0; }
+        .bgf-links { text-align: center; }
+        .bgf-links .second { margin-top: 10px; }
+        .bgf-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; text-decoration: none; }
+        .bgf-link .arrow { transition: transform .18s ease; }
+        @media (hover: hover) { .bgf-link:hover .arrow { transform: translateX(3px); } }
+        .bgf-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
+      `}</style>
+      <div className="bgf-wrap">
+        <div className="bgf-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
+          <div className="bgf-head">
+            <h1 className="bgf-tagline">Your BitGraph Folder.</h1>
+            {/* File-neutral on purpose: the folder holds photos, PDFs, video,
+                text — a recording is a recording. */}
+            <div className="bgf-why">
+              <p>Every recording in your folder, checked against the ledger.</p>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "clamp(26px, 4.5vw, 40px)" }}>
+            <div className="bitgraph-camera">
+              <FileDrop
+                multiple
+                onFolder={handleFolder}
+                onFolderScan={(files, done) => setWalkCount(done ? null : files)}
+                onFiles={() => { /* a loose file is not a folder; the home page takes those */ }}
+                headline="Open your folder"
+                hint={walkCount !== null
+                  ? `Reading… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
+                  : "Drag it in."}
+                subhint="Read on your device. Nothing is uploaded."
+              />
+            </div>
+            <div className="bgf-links">
+              <a href={DOWNLOAD} className="bgf-link">
+                Download BitGraph Folder for macOS <span className="arrow" aria-hidden>&rarr;</span>
+              </a>
+              <div className="second">
+                <Link href="/docs/folder" className="bgf-link">
+                  How the Folder works <span className="arrow" aria-hidden>&rarr;</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  ) : (
     <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px 80px" }}>
       <h1 style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827", margin: "8px 0 6px" }}>
         Your BitGraph Folder
       </h1>
-
-      {rows === null ? (
-        <>
-          <p style={{ fontSize: "clamp(15px, 3.6vw, 17px)", color: "#374151", lineHeight: 1.5, margin: "0 0 28px", textWrap: "balance" }}>
-            Every recording in your folder, with its picture, checked against the ledger. Nothing is uploaded: the folder is read here on your device.
-          </p>
-          <div style={{ height: "clamp(254px, 42vw, 340px)" }}>
-            <FileDrop
-              multiple
-              onFolder={handleFolder}
-              onFolderScan={(files, done) => setWalkCount(done ? null : files)}
-              onFiles={() => { /* a loose file is not a folder; the home page takes those */ }}
-              headline="Open your BitGraph folder"
-              hint={walkCount !== null
-                ? `Reading… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
-                : "Drag a folder."}
-              subhint="It is read here. Nothing is uploaded."
-            />
-          </div>
-          {/* The page is otherwise blank for anyone who has not installed the
-              Folder yet, and blank pages do not explain themselves. */}
-          <p style={{ marginTop: 26, fontSize: 14, color: "#4b5563", lineHeight: 1.6 }}>
-            Do not have the folder yet?{" "}
-            <a href={DOWNLOAD} className="bg-arrow-link" style={{ color: "#0065A4", fontWeight: 600, textDecoration: "none" }}>
-              Download BitGraph Folder for macOS <span className="arrow" aria-hidden>&rarr;</span>
-            </a>
-          </p>
-        </>
-      ) : (
-        <>
-          <p style={{ fontSize: 13, color: "#4b5563", margin: "0 0 14px", lineHeight: 1.6 }}>
-            {fromCache
-              ? "Remembered from the last time you opened your folder. Open it again to check these against the ledger and pick up anything new."
-              : checking
-              ? "Checking each recording against the ledger."
-              : "Checked against the ledger."}
-            {" "}
-            <button type="button" style={linkStyle} onClick={() => { setRows(null); setFromCache(false); }}>
-              Open your folder
-            </button>
-            {" · "}
-            <button type="button" style={linkStyle} onClick={() => void forget()}>
-              Forget it
-            </button>
-          </p>
-          <CheckedRoll
-            checked={rows}
-            onOpen={openRow}
-            heading={null}
-            cachedThumbs={thumbs}
-            onThumb={(digest, blob) => void writeCachedThumb(digest, blob)}
-          />
-        </>
-      )}
+      <p style={{ fontSize: 13, color: "#4b5563", margin: "0 0 14px", lineHeight: 1.6 }}>
+        {fromCache
+          ? "Remembered from the last time you opened your folder. Open it again to check these against the ledger and pick up anything new."
+          : checking
+          ? "Checking each recording against the ledger."
+          : "Checked against the ledger."}
+        {" "}
+        <button type="button" style={linkStyle} onClick={() => { setRows(null); setFromCache(false); }}>
+          Open your folder
+        </button>
+        {" · "}
+        <button type="button" style={linkStyle} onClick={() => void forget()}>
+          Forget it
+        </button>
+      </p>
+      <CheckedRoll
+        checked={rows}
+        onOpen={openRow}
+        heading={null}
+        cachedThumbs={thumbs}
+        onThumb={(digest, blob) => void writeCachedThumb(digest, blob)}
+      />
     </div>
   );
 }
