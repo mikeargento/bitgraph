@@ -14,4 +14,4 @@
  * packages/folder/VERSION. Do not edit by hand: cutting a release updates this,
  * which is what stops it drifting behind the thing it advertises.
  */
-export const FOLDER_VERSION = "1.7.1";
+export const FOLDER_VERSION = "1.8.0";
