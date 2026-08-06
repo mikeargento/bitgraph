@@ -139,7 +139,23 @@ tuck_strays() {
 # with anything still in it. A function because the phases below can finish
 # early, and a run that exits before this would leave a husk sitting in the
 # folder until the next drop.
+#
+# ⚠️ .DS_Store is swept FIRST. Finder writes one into any folder it has ever
+# shown, so a dragged-in folder is rarely empty once its files have moved out:
+# it holds that one regenerable Finder-metadata file, rmdir refuses it, and the
+# husk sat there forever. Only .DS_Store, and only under husk candidates — the
+# prunes mirror droppable(), and the folder's own top-level .DS_Store (the
+# BitGraph window's view settings) is kept. -exec rm, not -delete: -delete
+# implies depth-first, which silently disables -prune.
 clear_husks() {
+  find "$FOLDER" -mindepth 1 \
+    \( -path "$FOLDER/Recordings" \
+       -o \( -name '.*' ! -name '.DS_Store' \) \
+       -o -name files \
+       -o \( -type d -exec test -e '{}/proof.json' ';' \) \
+    \) -prune -o \
+    -type f -name '.DS_Store' ! -path "$FOLDER/.DS_Store" \
+    -exec rm -f {} ';' 2>/dev/null || true
   find "$FOLDER" -mindepth 1 -depth -type d -empty ! -name '.*' ! -name files \
     ! -path "$FOLDER/Recordings" \
     -exec rmdir {} ';' 2>/dev/null || true
