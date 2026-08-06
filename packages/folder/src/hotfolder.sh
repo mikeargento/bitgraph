@@ -105,8 +105,8 @@ echo $$ > "$LOCK/pid"
 # liveness check above.
 trap 'rm -rf "$LOCK" "$HOME_DIR/.response.json" "$HOME_DIR/.headers" "$HOME_DIR/.responses" "$HOME_DIR/.found" "$HOME_DIR/.prior" "$HOME_DIR/.drop"' EXIT
 
-# The exporter compares this against what the site advertises, to say on the
-# contact sheet when a newer release exists. Exported rather than merely sourced
+# Compared against what the site advertises (captured from the commit
+# response's headers) to notify once when a newer release exists. Exported
 # because osascript is a child process and would not otherwise see it.
 export BITGRAPH_VERSION="${BITGRAPH_VERSION:-unknown}"
 
@@ -120,24 +120,25 @@ notify() { # $1 title-suffix, $2 body
 
 to_urlsafe() { printf '%s' "$1" | tr '+/' '-_' | tr -d '='; }
 
+# Layout hygiene: an export sitting flat at the top level (an older layout,
+# or one dragged back in from anywhere) belongs in Recordings/, and a folder
+# from a pre-1.9 install still carries the generated browsing layer (sheet,
+# day pages, thumbs), which --tidy purges once. There is NO sheet to rebuild
+# anymore: browsing is dropping the folder on bitgraph.ing. The glob keeps
+# the common nothing-to-do run at zero exporter calls; the legacy purge runs
+# whenever the old sheet is still present.
+tuck_strays() {
+  if compgen -G "$FOLDER"/*/proof.json >/dev/null 2>&1 || [ -f "$FOLDER/index.html" ] || [ -d "$FOLDER/.bitgraph" ]; then
+    "$OSASCRIPT" -l JavaScript "$EXPORTER" --tidy "$FOLDER" >/dev/null 2>&1 || true
+  fi
+}
+
 # A dragged-in folder is empty once its files have moved into their exports, so
 # the husk goes. -depth collapses nested ones from the inside out. Only ever
 # EMPTY directories, and never ours, so nothing of the user's is ever removed
-# with anything still in it.
-#
-# A function because the phases below can finish early, and a run that exits
-# before this would leave a husk sitting in the folder until the next drop.
-# An export sitting flat at the top level (an older layout, or one dragged
-# back in from anywhere) belongs in Recordings/. The index pass is what tucks
-# it there, and a drag-in of an already-built export is exactly the case where
-# the run otherwise finds nothing to record and exits before any index pass:
-# the export would sit at the top level until some later drop. One cheap glob
-# decides; the pass itself is ~0.1s when there is nothing else to do.
-tuck_strays() {
-  compgen -G "$FOLDER"/*/proof.json >/dev/null 2>&1 || return 0
-  "$OSASCRIPT" -l JavaScript "$EXPORTER" --index "$FOLDER" >/dev/null 2>&1 || true
-}
-
+# with anything still in it. A function because the phases below can finish
+# early, and a run that exits before this would leave a husk sitting in the
+# folder until the next drop.
 clear_husks() {
   find "$FOLDER" -mindepth 1 -depth -type d -empty ! -name '.*' ! -name files \
     ! -path "$FOLDER/Recordings" \
@@ -452,6 +453,20 @@ elif [ "$recorded" -eq 0 ] && [ "$on_record" -gt 0 ]; then
   notify "Already on record" "$on_record $([ "$on_record" -eq 1 ] && echo file || echo files)"
 elif [ $((recorded + on_record)) -gt 0 ]; then
   notify "Recorded $recorded files" "$on_record already on record"
+fi
+
+# ---- say once when a newer release exists ----------------------------------
+#
+# The sheet used to carry this line; there is no sheet (1.9.0). The version
+# still arrives downward-only, on the commit response's headers, and the
+# notice fires ONCE per release: the seen-file remembers the last version
+# announced, so a new one nudges exactly one time and never nags.
+latest=$(cat "$HOME_DIR/latest" 2>/dev/null || true)
+if [ -n "$latest" ] && [ "$latest" != "$BITGRAPH_VERSION" ] && [ "$BITGRAPH_VERSION" != "unknown" ]; then
+  if [ "$latest" != "$(cat "$HOME_DIR/notified" 2>/dev/null || true)" ]; then
+    notify "Update available" "BitGraph Folder $latest is out; this is $BITGRAPH_VERSION"
+    printf '%s' "$latest" > "$HOME_DIR/notified"
+  fi
 fi
 
 # ---- build the exports, in ONE exporter process ----------------------------

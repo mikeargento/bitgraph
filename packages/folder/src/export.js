@@ -16,7 +16,6 @@
 // rebuilt on every index pass, ignored by bitgraph-audit (which finds proofs by
 // schema shape rather than by filename), and deletable with nothing lost.
 //
-//   index.html                                  the contact sheet
 //   Recordings/
 //       BitGraph (random-494.txt)/
 //           proof.json
@@ -31,12 +30,20 @@
 //   The top level is the drop zone and stays empty at rest: the shutter and
 //   the archive are different places. Exports found flat at the top level
 //   (an older layout, or an old export dragged back in) are tucked into
-//   Recordings/ by the next index pass; discovery is by content everywhere,
+//   Recordings/ by the next tidy pass; discovery is by content everywhere,
 //   so both shapes keep working throughout.
+//
+//   THE FOLDER GENERATES NO BROWSING LAYER (1.9.0, Mike: "no index file at
+//   all. instead, you drag and drop the whole folder into the camera and it
+//   loads the Roll"). No contact sheet, no day pages, no thumbnail cache:
+//   dropping the folder on bitgraph.ing renders all of that, verified, with
+//   one implementation instead of two. The ONE page kept is each export's
+//   own index.html - the offline receipt that lets a folder read months
+//   later, on a machine with no network, still explain itself.
 //
 // files/ is GONE (1.8.0, Mike's call). It held a parallel hard link per
 // recorded file so everything could be dragged out at once; the site's drop
-// zone walks a whole dropped folder now, so it lost its job. writeIndex
+// zone walks a whole dropped folder now, so it lost its job. --tidy
 // dissolves an existing one safely — see the migration there. What it also
 // means: the export holds this folder's ONLY copy of the file, so deleting an
 // export sends the file inside it to the Trash with it. The person who wants
@@ -55,7 +62,7 @@
 // Usage (always via osascript -l JavaScript):
 //   export.js <file> <digestB64> <counter> <epochUrlSafe>   build one export
 //   export.js --complete <folder>                           finish pending ones
-//   export.js --index <folder>                              rebuild the sheet
+//   export.js --tidy <folder>                               layout hygiene
 //   export.js --verify <folder>                             re-hash every export
 //   export.js --recover <folder> [destFolder]               rebuild lost exports
 //   export.js --json batch|commit <responseFile>            parse a response
@@ -111,11 +118,6 @@ var POLL_MS = 3000;
 var PENDING = '.bitgraph-pending.json';
 var ANCHOR_DIR = 'ethereum-anchors';
 
-// How many exports the folder holds, set by writeIndex before it walks them.
-// A page only offers a way back when there is a sheet worth going back to:
-// with one recording the contact sheet is that same recording, and with an
-// export copied somewhere on its own there is no sheet at all.
-var SIBLINGS = 0;
 
 // ---------------------------------------------------------------------------
 // Shell and filesystem
@@ -498,7 +500,7 @@ var LABEL_BYTES = 200;
  * The filename, made safe to sit inside a directory name.
  *
  * Two hazards, both rare and both real. A control character would break
- * writeIndex, which reads `stat` output one line at a time: a newline is a
+ * the old sheet pass, which read `stat` output one line at a time: a newline is a
  * legal character in a macOS filename and would split one entry into two. And
  * a component over 255 bytes fails mkdir outright, which would turn a
  * successful recording into no folder at all, so the cut is by byte rather
@@ -610,7 +612,7 @@ function baseName(p) {
   return parts[parts.length - 1];
 }
 
-// ---- files/ (legacy, dissolved by writeIndex) ------------------------------
+// ---- files/ (legacy, dissolved by --tidy) ----------------------------------
 //
 // The name survives only so the migration and the walkers can recognise the
 // directory in folders built before 1.8.0. It held a flat set of hard links
@@ -684,10 +686,6 @@ function placeArtifact(from, to, keepSource) {
   sh('cp -p ' + quote(from) + ' ' + quote(to));
 }
 
-// writeIndex rebuilds every page and prunes thumbnails, so calling it once per
-// file during a recovery of several hundred would redo that whole pass several
-// hundred times. Set for the length of a recovery, with one index at the end.
-var DEFER_INDEX = false;
 
 /**
  * Set by `--batch`: this export is one file of a whole drop, and the caller
@@ -748,16 +746,13 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, kee
   // Moved in last, so a failure above never strands the file.
   placeArtifact(filePath, r.dir + '/' + fileName, keepSource);
 
-  // Refresh the contact sheet, and never let it break a recording. The proof
-  // is already written and sealed by this point; index.html is a derived view,
-  // so a failure here costs a stale listing that the next drop or `--index`
-  // repairs, and must not turn a successful recording into an error.
-  if (!DEFER_INDEX) {
-    try {
-      writeIndex(folder);
-    } catch (e) {
-      /* rebuilt on the next drop */
-    }
+  // The receipt, written by the same hand that wrote the evidence and the
+  // artifact. The sheet pass used to write it; there is no sheet pass (1.9.0:
+  // browsing happens on the site, the export carries only its own page).
+  try {
+    rebuildPage(r.dir, true);
+  } catch (e) {
+    /* the evidence stands; the next completion pass rebuilds the page */
   }
 
   return 'ok: ' + baseName(r.dir) + (sealed ? '' : ' (pending seal)');
@@ -793,6 +788,14 @@ function completePending(folder, waitMs) {
 
   names.forEach(function (name) {
     var dir = folder + '/' + name;
+    // Witness self-repair used to ride the sheet pass; with no sheet pass it
+    // rides here. Narrow as ever: fires only when an anchor sits without its
+    // witness, and the page is rebuilt so "sealing" closes into a window.
+    try {
+      if (repairWitnesses(dir) > 0) rebuildPage(dir, true);
+    } catch (e) {
+      /* tried again next pass */
+    }
     var raw = readFile(dir + '/' + PENDING);
     if (raw === null) return;
 
@@ -812,20 +815,12 @@ function completePending(folder, waitMs) {
       var sealed = writeExportContents(dir, meta, proof, wait);
       wait = 0;
       markPending(dir, meta, sealed);
+      rebuildPage(dir, true);
       if (sealed) sealedCount++;
     } catch (e) {
       /* leave it pending; the next run tries again */
     }
   });
-  // A completion pass turns pending exports into sealed ones, which changes
-  // nothing the index shows today but keeps it correct if it ever surfaces
-  // seal state. It also self-heals a folder whose index was never written,
-  // e.g. one recorded before this version was installed.
-  try {
-    writeIndex(folder);
-  } catch (e) {
-    /* rebuilt on the next drop */
-  }
 
   return 'ok: sealed ' + sealedCount;
 }
@@ -1196,40 +1191,14 @@ function embedImage(dir, file, digestB64) {
 //
 // Named for the export folder, which is already unique, so two photos that
 // share a filename cannot collide here either.
-// Every piece of derived machinery lives under ONE hidden directory, so even
-// someone browsing with hidden files visible sees a single item, not three
-// loose ones. It stays INSIDE the watched folder on purpose: the sheet's
-// thumbnails have to travel with the folder (synced elsewhere, the sheet would
-// otherwise render broken images), so the state belongs beside it, just
-// consolidated. Everything in here is regenerable; deleting it costs one slow
-// pass. Same name as ~/.bitgraph deliberately: machine state lives under a
-// dot-bitgraph wherever it is.
+// Where the sheet's derived machinery (thumbs, cache, siblings stamp, day
+// pages) used to live. The browsing layer is GONE (1.9.0 - a dropped folder
+// loads the Roll on the site instead); the name survives only so --tidy can
+// purge the directory from folders built before that.
 var STATE_DIR = '.bitgraph';
-var THUMBS_DIR = STATE_DIR + '/thumbs';
 // 600px for a cell that packs to roughly 230-300px, so it still holds up on a
 // retina display without carrying a full-size photo to do it.
 var THUMB_WIDTH = 600;
-
-/**
- * A small copy of an export's image for the sheet, made once and reused.
- *
- * Returns a path relative to the folder, or null to fall back to the original,
- * which is what happens for a format sips cannot read.
- */
-function thumbFor(folder, name, file) {
-  if (IMAGE_EXT.indexOf(extOf(file)) === -1) return null;
-  var rel = THUMBS_DIR + '/' + name + '.jpg';
-  var abs = folder + '/' + rel;
-  if (!exists(abs)) {
-    mkdirp(folder + '/' + THUMBS_DIR);
-    // `-s format jpeg` for the reason embedImage carries it: without it sips
-    // silently writes nothing for a WEBP.
-    sh('sips -s format jpeg -Z ' + THUMB_WIDTH + ' --out ' + quote(abs) + ' ' +
-      quote(folder + '/' + REC_DIR + '/' + name + '/' + file) + ' >/dev/null 2>&1');
-    if (!exists(abs)) return null;
-  }
-  return encodePath(rel);
-}
 
 /**
  * Fetch a witness that was never written, for an export already on disk.
@@ -1270,32 +1239,7 @@ function repairWitnesses(dir) {
   return wrote;
 }
 
-/** Drop thumbnails whose export no longer exists. One call, after the scan. */
-function pruneThumbs(folder) {
-  sh('cd ' + quote(folder + '/' + THUMBS_DIR) + ' 2>/dev/null && for t in *.jpg; do ' +
-    '[ -e "$t" ] || continue; d="${t%.jpg}"; ' +
-    '[ -d "../../' + REC_DIR + '/$d" ] || [ -d "../../$d" ] || rm -f "$t"; done; true');
-}
-
-/** The recorded file in an export: not the proof, the anchors, or a marker. */
-function artifactIn(dir) {
-  var listing = sh('ls -1 ' + quote(dir) + ' 2>/dev/null');
-  if (!listing) return null;
-  var names = listing.split('\r').join('\n').split('\n').filter(Boolean);
-  for (var i = 0; i < names.length; i++) {
-    var n = names[i];
-    // index.html is written BY this script, so it must never be mistaken for
-    // the thing that was recorded. Held aside rather than discarded: see below.
-    if (n === 'proof.json' || n === ANCHOR_DIR || n === PENDING || n === 'index.html') continue;
-    if (n.charAt(0) === '.' || n.indexOf('Icon') === 0) continue;
-    return n;
-  }
-  return null;
-}
-
 var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-var MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'];
 
 // ---- Time ------------------------------------------------------------------
 //
@@ -1378,6 +1322,62 @@ function rlpHeaderTimestamp(hex) {
   return v;
 }
 
+/** The recorded file in an export: not the proof, the anchors, or a marker. */
+function artifactIn(dir) {
+  var listing = sh('ls -1 ' + quote(dir) + ' 2>/dev/null');
+  if (!listing) return null;
+  var names = listing.split('\r').join('\n').split('\n').filter(Boolean);
+  for (var i = 0; i < names.length; i++) {
+    var n = names[i];
+    // index.html is written BY this script, so it must never be mistaken for
+    // the thing that was recorded. Held aside rather than discarded: see below.
+    if (n === 'proof.json' || n === ANCHOR_DIR || n === PENDING || n === 'index.html') continue;
+    if (n.charAt(0) === '.' || n.indexOf('Icon') === 0) continue;
+    return n;
+  }
+  return null;
+}
+
+/**
+ * True when this export's page is already current.
+ *
+ * ⚠️ Regenerating every page on every index pass is what made a drop slow, and
+ * it grows with the folder: measured 19.5 seconds on 44 exports with nothing
+ * pending. The expensive part is per page, not per pass, because the artifact
+ * is re-encoded into a data: URI each time.
+ *
+ * A page is derived from exactly two things on disk, proof.json and the anchor
+ * files, so it is current when it is newer than both. Being wrong here would
+ * show a stale page, so the test is deliberately conservative: any doubt, any
+ * missing timestamp, and it regenerates.
+ */
+function pageIsCurrent(dir, file) {
+  // The artifact is statted WITH the page and proof: its mtime is an input
+  // too, and the one that moves when a file is edited in place. See the note
+  // at the snapshot-driven test in sheetRow, which learned this the hard way.
+  var out = sh('cd ' + quote(dir) + ' && stat -f %m index.html proof.json' +
+    (file ? ' ' + quote(file) : '') + ' 2>/dev/null');
+  if (!out) return false;
+  var t = out.split('\r').join('\n').split('\n').filter(Boolean);
+  if (t.length < (file ? 3 : 2)) return false;
+  var page = parseInt(t[0], 10);
+  var proof = parseInt(t[1], 10);
+  if (!page || !proof || page < proof) return false;
+  if (file) {
+    // Strict: see the granularity note in sheetRow's test. Equal seconds must
+    // read as stale for the artifact.
+    var art = parseInt(t[2], 10);
+    if (!art || page <= art) return false;
+  }
+  // The anchors are the other input, and they arrive later than the proof.
+  var anchors = sh('cd ' + quote(dir) + ' && stat -f %m ' + quote(ANCHOR_DIR) + ' 2>/dev/null');
+  if (anchors) {
+    var a = parseInt(String(anchors).trim(), 10);
+    if (!a || page < a) return false;
+  }
+  return true;
+}
+
 /**
  * The anchors bracketing this export: block time and block number for each.
  * Either side may be absent, which is what a pending seal looks like.
@@ -1439,184 +1439,31 @@ function dateOf(d) {
 // Commit and the window at the top of the page.
 
 
-function sheetRow(folder, name, d, snap, forcePage, mtime) {
-  var dir = folder + '/' + REC_DIR + '/' + name;
-  var file = d.artifact;
-  var rel = file ? encodePath(REC_DIR + '/' + name + '/' + file) : null;
-  var isImage = file && IMAGE_EXT.indexOf(extOf(file)) !== -1;
-
-  var isPdf = file && extOf(file) === 'pdf';
-
-  // The thumbnail opens the file's own page, not the raw bytes. Everything
-  // about a recording lives on that page, the file among it, so sending the
-  // most obvious click straight to the artifact skipped past the thing you
-  // actually wanted.
-  var page = encodePath(REC_DIR + '/' + name) + '/index.html';
-
-  // A small copy where one can be made, the original where it cannot. The
-  // difference is the whole page's weight: originals meant pulling megabytes to
-  // draw 230px cells. Membership in .thumbs answers "is there one already" with
-  // no probe; thumbFor runs only the first time an image is ever listed.
-  var shown = rel;
-  if (isImage) {
-    if (snap.thumbs[name + '.jpg']) {
-      shown = encodePath(THUMBS_DIR + '/' + name + '.jpg');
-    } else {
-      var made = thumbFor(folder, name, file);
-      if (made) {
-        shown = made;
-        snap.thumbs[name + '.jpg'] = true;
-      }
-    }
+/**
+ * Rebuild one export's receipt page from what is on disk. The one writer of
+ * pages since the sheet pass died: build, completion, witness repair and
+ * --tidy all come through here.
+ */
+function rebuildPage(dir, force) {
+  var raw = readFile(dir + '/proof.json');
+  if (raw === null) return;
+  var digest = null;
+  var counter = null;
+  try {
+    var p = JSON.parse(raw);
+    digest = p && p.artifact && p.artifact.digestB64;
+    counter = p && p.commit && p.commit.counter;
+  } catch (e) {
+    return;
   }
-
-  var thumb = isImage
-    // loading=lazy so a folder with hundreds of recordings still opens at once.
-    ? '<a class="t" href="' + page + '"><img src="' + shown + '" alt="" loading="lazy"></a>'
-    : isPdf
-      ? '<a class="t pdf" href="' + page + '"><embed src="' + rel + PDF_VIEW + '" type="application/pdf"></a>'
-      : file && VIDEO_EXT.indexOf(extOf(file)) !== -1
-        ? '<a class="t" href="' + page + '"><video src="' + rel +
-          '" preload="metadata" muted playsinline tabindex="-1"></video></a>'
-      : file && TEXT_EXT.indexOf(extOf(file)) !== -1
-        ? '<a class="t doc" href="' + page + '"><iframe src="' + rel +
-          '" sandbox loading="lazy" tabindex="-1" scrolling="no"></iframe></a>'
-        // An empty box when there is no artifact to name, not a dash. The house
-        // rule is no em dashes anywhere, and this one was also the character
-        // that exposed the encoding bug above.
-        : '<a class="t none" href="' + page + '">' + esc(file ? (extOf(file) || 'FILE').toUpperCase() : '') + '</a>';
-
-  // Two links, in the order you would use them: the file first, because that
-  // is what you came to look at, then the proof. A third link straight to the
-  // raw bytes was cut, since the file's page already lists them along with
-  // proof.json and the anchors.
-  //
-  // It points at index.html rather than at the directory on purpose. A browser
-  // given a `file:` directory link renders its own unstyleable listing,
-  // "Index of /private/tmp/…" in Times, headed by the absolute path. Naming
-  // the file is what lets our page win. It still opens in a browser rather
-  // than revealing the folder in Finder, which nothing in a web page can do
-  // without a registered URL scheme, which needs an app bundle, which is the
-  // one thing "a folder, not an app" rules out.
-  // Just "Open" now. It was "Open locally", which earned the qualifier only
-  // while a second link to the site sat under it; with that gone, "locally" is
-  // answering a question nobody is asking.
-  var openFile = '<a href="' + page + '">Open <span class="a">&rarr;</span></a>';
-
-  // The recording's own page, rebuilt ONLY when its inputs moved. A page is
-  // derived from proof.json and the anchor files, so it is current when newer
-  // than both; the snapshot already holds those mtimes, so the common case
-  // decides with no probe, no proof parse and no witness decode at all. The
-  // proof is read here, inside the stale branch, because only the page needs
-  // its digest, and a fresh witness (forcePage) or the back link appearing
-  // (FORCE_PAGES) both count as the inputs moving.
-  // ⚠️ The ARTIFACT's mtime is one of the inputs, and it is the load-bearing
-  // one: the page re-hashes the artifact when it is written, which is the only
-  // passive tamper check the export has, and the hard-link design in files/
-  // leans on it ("a change is reported loudly by the proof page"). The first
-  // version of this test compared only proof.json and the anchors, so a file
-  // edited in place kept its clean page forever. Found by tampering one in a
-  // scratch copy and watching nothing happen.
-  var pageCurrent = !FORCE_PAGES && !forcePage &&
-    (d.pageM || 0) > 0 && (d.proofM || 0) > 0 &&
-    d.pageM >= d.proofM && (!d.anchorsM || d.pageM >= d.anchorsM) &&
-    // Strict for the artifact, >= for the rest. mtimes have one-second
-    // granularity, so an artifact touched in the same second the page was
-    // written reads as equal, and equal must count as SUSPECT for the one
-    // input whose change is a tamper. The cost is a single extra rewrite for
-    // a page born in its artifact's same second, after which pageM is ahead
-    // and it settles.
-    (!d.artM || d.pageM > d.artM);
-  if (!pageCurrent) {
-    try {
-      var raw = readFile(dir + '/proof.json');
-      var proof = raw ? JSON.parse(raw) : null;
-      var digest = proof && proof.artifact && proof.artifact.digestB64;
-      if (digest) {
-        var counter = (proof.commit && proof.commit.counter) || '';
-        writeProofPage(folder, name, file, digest, counter, anchorInfo(dir), mtime, forcePage);
-      }
-    } catch (e) {
-      /* the row still works without it */
-    }
-  }
-
-  return (
-    '<li>' +
-    thumb +
-    '<div class="m">' +
-    // title carries the full name, since a long one is clipped to keep every
-    // cell the same height.
-    '<p class="n" title="' + esc(file || name) + '">' + esc(file || name) + '</p>' +
-    '<div class="l">' + openFile + '</div>' +
-    '</div></li>'
-  );
+  if (!digest) return;
+  writeProofPage(dir, artifactIn(dir), digest, counter, anchorInfo(dir), force);
 }
 
-/**
- * The page one export opens to, written inside the export as index.html.
- *
- * It exists because a browser handed a `file:` directory link renders its own
- * listing, and there is no styling it: "Index of /private/tmp/…" in Times, with
- * the full absolute path as a heading. Pointing the link at index.html instead
- * of at the directory means the browser renders this rather than that.
- *
- * ⚠️ This is the one thing in the export that the website's zip does not
- * contain, so a Folder export and a downloaded one are no longer byte-identical.
- * It is inert: derived, rewritten on every index pass, ignored by the auditor
- * (which finds proofs by schema shape, not by filename), and deletable with no
- * loss. Nothing verifies against it.
- */
-// Set for a pass when the sibling count changed. The back link only exists when
-// the folder holds more than one export, so crossing that line is the one thing
-// that restyles pages whose own contents did not change.
-var FORCE_PAGES = false;
+function writeProofPage(dir, file, digest, counter, info, force) {
+  var name = baseName(dir);
 
-/**
- * True when this export's page is already current.
- *
- * ⚠️ Regenerating every page on every index pass is what made a drop slow, and
- * it grows with the folder: measured 19.5 seconds on 44 exports with nothing
- * pending. The expensive part is per page, not per pass, because the artifact
- * is re-encoded into a data: URI each time.
- *
- * A page is derived from exactly two things on disk, proof.json and the anchor
- * files, so it is current when it is newer than both. Being wrong here would
- * show a stale page, so the test is deliberately conservative: any doubt, any
- * missing timestamp, and it regenerates.
- */
-function pageIsCurrent(dir, file) {
-  if (FORCE_PAGES) return false;
-  // The artifact is statted WITH the page and proof: its mtime is an input
-  // too, and the one that moves when a file is edited in place. See the note
-  // at the snapshot-driven test in sheetRow, which learned this the hard way.
-  var out = sh('cd ' + quote(dir) + ' && stat -f %m index.html proof.json' +
-    (file ? ' ' + quote(file) : '') + ' 2>/dev/null');
-  if (!out) return false;
-  var t = out.split('\r').join('\n').split('\n').filter(Boolean);
-  if (t.length < (file ? 3 : 2)) return false;
-  var page = parseInt(t[0], 10);
-  var proof = parseInt(t[1], 10);
-  if (!page || !proof || page < proof) return false;
-  if (file) {
-    // Strict: see the granularity note in sheetRow's test. Equal seconds must
-    // read as stale for the artifact.
-    var art = parseInt(t[2], 10);
-    if (!art || page <= art) return false;
-  }
-  // The anchors are the other input, and they arrive later than the proof.
-  var anchors = sh('cd ' + quote(dir) + ' && stat -f %m ' + quote(ANCHOR_DIR) + ' 2>/dev/null');
-  if (anchors) {
-    var a = parseInt(String(anchors).trim(), 10);
-    if (!a || page < a) return false;
-  }
-  return true;
-}
-
-function writeProofPage(folder, name, file, digest, counter, info, mtime, force) {
-  var dir = folder + '/' + REC_DIR + '/' + name;
-
-  // `force` rides in from sheetRow for the cases where the page's INPUTS did
+  // `force` covers the cases where the page's INPUTS did
   // not move but the page is wrong anyway: a freshly landed witness, or a
   // migration, which changes where the sheet lives relative to this page (the
   // back link) while mv leaves every mtime untouched.
@@ -1818,14 +1665,9 @@ function writeProofPage(folder, name, file, digest, counter, info, mtime, force)
       // point at a different recording than the page it sits on is worse than
       // no link.
       //
-      // The way back is the only navigation this page needs, and only when
-      // there is a sheet to go back to.
-      // Two levels up: the export lives in Recordings/, the sheet beside it.
-      (SIBLINGS > 1
-        ? '<nav class="nv"><a class="hm bk" href="../../index.html">' +
-          '<span class="arrow">&larr;</span> All recordings</a></nav>'
-        : '') +
-        '<h1>BitGraph Recorded</h1>' +
+      // No way-back navigation: the folder carries no sheet to go back to
+      // (1.9.0 - browsing happens on the site, by dropping the folder in).
+      '<h1>BitGraph Recorded</h1>' +
         (binding === false
           ? '<p class="bind"><b>This file does not match the proof.</b> Its SHA-256 differs from the ' +
             'file hash below, so these are not the same bytes. Either the file changed after it was ' +
@@ -2015,16 +1857,6 @@ function newerThan(a, b) {
   return false;
 }
 
-function updateNote() {
-  var mine = env('BITGRAPH_VERSION');
-  var latest = String(readFile(HOME_DIR + '/latest') || '').replace(/\s+/g, '');
-  if (!mine || !latest || mine === 'unknown') return '';
-  if (!/^\d/.test(mine) || !/^\d/.test(latest)) return '';
-  if (!newerThan(latest, mine)) return '';
-  return ' <a class="up" href="' + API + '/docs/folder">BitGraph Folder ' +
-    esc(latest) + ' is available <span class="a">&rarr;</span></a>';
-}
-
 /**
  * Every export in a folder, as `{ name, mtime }`.
  *
@@ -2034,14 +1866,13 @@ function updateNote() {
  * out of the sheet. It is the rule bitgraph-audit uses too.
  *
  * One shell call for the whole scan, giving name and fallback time together.
- * mtime is the FILESYSTEM's opinion and no longer orders anything (see
- * sheetEntry); it survives only as a tiebreak. Ends in `true` because the
- * loop's last iteration sets the exit status, and a non-zero one makes
- * doShellScript throw away the entire listing.
+ * mtime is the FILESYSTEM's opinion and orders nothing; it rides along only
+ * as a tiebreak. Ends in `true` because the loop's last iteration sets the
+ * exit status, and a non-zero one makes doShellScript throw away the entire
+ * listing.
  *
- * --verify's discovery. The sheet itself reads snapshotFolder now, which
- * applies the same holds-a-proof.json rule, so the two cannot disagree about
- * what counts as an export.
+ * --verify's discovery, and --tidy applies the same holds-a-proof.json rule,
+ * so the two cannot disagree about what counts as an export.
  */
 function exportDirs(folder) {
   // Recordings/ first, then any flat stragglers at the top level, so --verify
@@ -2066,632 +1897,103 @@ function exportDirs(folder) {
 }
 
 // ---------------------------------------------------------------------------
-// The folder, observed once
+// --tidy: layout hygiene
 // ---------------------------------------------------------------------------
 //
-// ⚠️ An index pass used to spawn ~11 subprocesses PER EXPORT: four `test`s in
-// repairWitnesses, an `ls` in artifactIn, an existence probe in thumbFor, two
-// `stat`s in pageIsCurrent, and up to three in linkIntoFiles. At 163 exports
-// that is ~1,800 process spawns, measured at 7.75 seconds, paid on EVERY pass,
-// and it grew with the folder, which is why the Folder felt slower the more it
-// was used. Every one of those questions is answered here instead, by two shell
-// calls for the whole folder, and the per-export work runs only for exports the
-// snapshot says actually need it.
+// The side jobs the sheet pass used to carry, without the sheet: exports
+// found flat at the top level are tucked into Recordings/, a pre-1.8 files/
+// tree is dissolved, and the browsing layer a pre-1.9 install generated (the
+// contact sheet, day pages, thumbs, caches) is purged once. Cheap when there
+// is nothing to do, which is every ordinary run.
 
-/**
- * Everything writeIndex needs to know about the folder, in two shell calls.
- *
- * dirs[name]  = { m, proofM, pageM, anchorsM, anchors, witnesses, pending,
- *                 artifact } — mtimes are seconds, counts are of anchor jsons
- *                 and their witnesses, artifact matches artifactIn's rule.
- * thumbs      = name set of .thumbs/, so thumbnail checks are lookups rather
- *               than probes.
- *
- * find|xargs so the stat runs in a handful of big batches however large the
- * folder grows. A filename containing a newline mis-parses its own entry and
- * nothing else, the same standing limitation the old ls-based scan had.
- */
-function snapshotFolder(folder) {
-  // dirs: exports inside Recordings/, keyed by bare name. stray: top-level
-  // directories that hold a proof.json, meaning exports an older version
-  // built flat, or an old export someone dragged back in; writeIndex tucks
-  // them into Recordings/ and that is the entire migration story.
-  var snap = { dirs: {}, stray: {}, thumbs: {} };
-
-  var listing = sh(
-    'cd ' + quote(folder) + ' && find . -mindepth 1 -maxdepth 4 ' +
-    "-path './" + FILES_DIR + "' -prune -o " +
-    "-path './" + STATE_DIR + "' -prune -o " +
-    "-path './.thumbs' -prune -o " +
-    '-print0 2>/dev/null | xargs -0 stat -f "%m %N" 2>/dev/null; true'
-  );
-  var lines = listing ? listing.split('\r').join('\n').split('\n').filter(Boolean) : [];
-  lines.forEach(function (line) {
-    var gap = line.indexOf(' ');
-    if (gap === -1) return;
-    var m = parseInt(line.slice(0, gap), 10) || 0;
-    var path = line.slice(gap + 1);
-    if (path.slice(0, 2) !== './') return;
-    var segs = path.slice(2).split('/');
-    // Both shapes read with one parser: entries under Recordings/ are the
-    // folder proper, top-level ones are strays to migrate.
-    var bucket = snap.dirs;
-    if (segs[0] === REC_DIR) {
-      segs = segs.slice(1);
-      if (!segs.length) return; // Recordings/ itself
-    } else {
-      bucket = snap.stray;
-    }
-    var name = segs[0];
-    var d = bucket[name] || (bucket[name] = {
-      m: 0, proofM: 0, pageM: 0, anchorsM: 0, anchors: 0, witnesses: 0,
-      pending: false, artifact: null, candidates: [],
-    });
-    if (segs.length === 1) {
-      d.m = m;
-    } else if (segs.length === 2) {
-      var entry = segs[1];
-      if (entry === 'proof.json') d.proofM = m;
-      else if (entry === 'index.html') d.pageM = m;
-      else if (entry === ANCHOR_DIR) d.anchorsM = m;
-      else if (entry === PENDING) d.pending = true;
-      else if (entry.charAt(0) !== '.' && entry.indexOf('Icon') !== 0) d.candidates.push({ n: entry, m: m });
-    } else if (segs.length === 3 && segs[1] === ANCHOR_DIR) {
-      if (/^anchor-(before|after)\.json$/.test(segs[2])) d.anchors++;
-      else if (/^anchor-(before|after)-witness\.json$/.test(segs[2])) d.witnesses++;
-    }
-  });
-  // A stray is only a stray if it is actually an export; anything else at the
-  // top level is the walker's business, not ours.
-  Object.keys(snap.stray).forEach(function (n) {
-    if (!snap.stray[n].proofM) delete snap.stray[n];
-  });
-  // Alphabetical first, the order artifactIn's `ls` returned, so a folder that
-  // somehow holds two loose files names the same one it always has. The
-  // artifact's own mtime rides along: it is one of the page's inputs, and the
-  // one whose omission would blind the page to an artifact edited in place.
-  [snap.dirs, snap.stray].forEach(function (bucket) {
-    Object.keys(bucket).forEach(function (n) {
-      var d = bucket[n];
-      if (d.candidates.length) {
-        d.candidates.sort(function (a, b) { return a.n < b.n ? -1 : a.n > b.n ? 1 : 0; });
-        d.artifact = d.candidates[0].n;
-        d.artM = d.candidates[0].m;
-      }
-      delete d.candidates;
+function exportDirsUnder(folder) {
+  var dirs = [];
+  [[folder + '/' + REC_DIR, REC_DIR + '/'], [folder, '']].forEach(function (pair) {
+    var listing = sh('ls -1 ' + quote(pair[0]) + ' 2>/dev/null');
+    if (!listing) return;
+    listing.split('\r').join('\n').split('\n').filter(Boolean).forEach(function (n) {
+      if (exists(pair[0] + '/' + n + '/proof.json')) dirs.push(pair[1] + n);
     });
   });
-
-  var lists = sh('cd ' + quote(folder) +
-    ' && ls -1 ' + quote(THUMBS_DIR) + ' 2>/dev/null; true');
-  (lists ? lists.split('\r').join('\n').split('\n') : []).forEach(function (n) {
-    if (n) snap.thumbs[n] = true;
-  });
-  return snap;
+  return dirs;
 }
 
-// The sheet's sort keys, remembered between passes. A row is ordered by its
-// anchor block and counter, which live inside proof.json and a witness file,
-// and neither changes once written: re-reading and re-parsing 163 of them
-// (proofs carry whole attestation documents) on every pass was pure repetition.
-// Keyed by the mtimes of exactly the files the values came from, so a rewritten
-// proof or a newly landed anchor rebuilds its entry and nothing else does.
-// Derived and disposable, like .thumbs: deleting it costs one slow pass.
-var SHEET_CACHE = STATE_DIR + '/cache.json';
+function tidyFolder(folder) {
+  var did = [];
 
-function loadSheetCache(folder) {
-  try {
-    var raw = readFile(folder + '/' + SHEET_CACHE);
-    var parsed = raw ? JSON.parse(raw) : null;
-    // v2: entries gained ts, and v1 entries cached after the 1.7.0 migration
-    // hold counter 0 / block 0 from the path bug in sheetEntry, keyed by
-    // mtimes that will never move again. One version bump discards them all
-    // for the cost of a single slow pass.
-    return (parsed && parsed.v === 2 && parsed.rows) || {};
-  } catch (e) {
-    return {};
-  }
-}
-
-/** Sort keys for one export, read from disk. The cache-miss path. */
-function sheetEntry(folder, name, d) {
-  // ⚠️ Both places, like every other reader. This read the top level only,
-  // which was the pre-Recordings/ layout: every entry cached after the 1.7.0
-  // migration silently carried counter 0 / block 0, and the sheet fell back
-  // to mtime order for months of recordings without anyone noticing, because
-  // mtime order approximates causal order for normally dropped files. Found
-  // 2026-08-05 while wiring day navigation, which would have put every such
-  // export in the wrong day. The stale entries themselves are healed by the
-  // cache version bump below (v1 rows are discarded), not by this line.
-  var dir = folder + '/' + REC_DIR + '/' + name;
-  if (!exists(dir + '/proof.json')) dir = folder + '/' + name;
-
-  var counter = 0;
-  var raw = readFile(dir + '/proof.json');
-  if (raw !== null) {
-    try {
-      var p = JSON.parse(raw);
-      counter = parseInt((p.commit && p.commit.counter) || 0, 10) || 0;
-    } catch (e) {
-      /* unordered beats unlisted */
-    }
-  }
-  // The block of the lower-bound anchor, then the counter inside it, is causal
-  // order across the whole folder including across epochs: counters restart
-  // every UTC day, but a block number is globally ordered and unpredictable
-  // before it is mined. mtime is the FILESYSTEM's opinion, rewritten by any
-  // copy or restore, and survives only as the tiebreak.
-  // ts is the lower-bound block's own timestamp (unix seconds, decoded from
-  // the witness header), which is what the day headers group by; the upper
-  // bound stands in when the lower witness is missing, since the two are at
-  // most an anchor interval apart and a day boundary between them is rare.
-  var block = 0;
-  var ts = 0;
-  try {
-    var info = anchorInfo(dir);
-    block = info.before.block || info.after.block || 0;
-    ts = info.before.ts || info.after.ts || 0;
-  } catch (e) {
-    /* an unsealed export sorts newest */
-  }
-  return {
-    pm: d.proofM || 0,
-    am: d.anchorsM || 0,
-    artifact: d.artifact || null,
-    counter: counter,
-    block: block,
-    ts: ts,
-  };
-}
-
-// The sheet's own styles, shared verbatim by the day pages and the shelf so
-// the four surfaces read as one page family.
-var SHEET_CSS =
-  // A contact sheet, so it reflows: auto-fill with a 230px minimum gives
-  // three across the 800px column, two around 520px, one on a phone, with
-  // no breakpoints to maintain. A single column was fine at nine
-  // recordings and unusable at several hundred.
-  //
-  // The thumbnail goes on top at the cell's full width rather than beside
-  // the text, because at 230px a side-by-side row leaves the filename
-  // about eleven characters.
-  // The contact sheet ignores the 800px reading column the rest of the
-  // site keeps. 800px is a measure for prose; this page is pictures, and
-  // capping it wasted most of a wide display while forcing the text under
-  // each one to wrap.
-  '.wrap{max-width:none}' +
-  // Back to 230px. It was raised to 300px to hold the full time window on
-  // one line, and with the window and the side-by-side links both gone
-  // nothing in the cell needs that width: the filename ellipsizes and the
-  // links are stacked. The narrower minimum buys another column or two,
-  // which on a contact sheet is the whole point.
-  'ul{list-style:none;margin:0;padding:0;display:grid;gap:34px 24px;' +
-  'grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}' +
-  // Each cell is the site's card: white, 1px #d0d5dd, square corners.
-  // At five or seven columns the caption needs something tying it to its
-  // own thumbnail, and the page background alone was not doing it.
-  'li{display:block;min-width:0;background:#fff;border:1px solid #d0d5dd}' +
-  // Nothing wraps. Long filenames get an ellipsis rather than a second
-  // line, so every cell is the same height and the grid stays a grid;
-  // the full name is on the element's title for hovering.
-  '.n,.l a{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-  // Overrides the shared 88px square: fills the cell, fixed aspect so
-  // the grid stays even whatever shape the pictures are.
-  // The thumbnail. Only this page has one, which is why these live here
-  // rather than in the shared shell. Flush to the card's edges so the
-  // card's border is the only one and the picture is not a framed thing
-  // inside a framed thing; a bottom rule divides picture from caption.
-  '.t{display:flex;align-items:center;justify-content:center;overflow:hidden;' +
-  'width:100%;aspect-ratio:4/3;background:#fff;border-bottom:1px solid #d0d5dd}' +
-  // No backdrop on an image. object-fit:cover means an opaque one fills
-  // the box and the colour behind it never shows, so the only things it
-  // ever painted were the two cases where it does harm: a PNG with
-  // transparency, whose dark parts vanish into it, and an image that has
-  // not loaded, which then reads as a broken black block rather than an
-  // empty card. QuickLook is the second case every time, since it
-  // sandboxes the page and never fetches the file beside it, which is why
-  // a folder's icon in Finder was a grid of black squares. The card is
-  // white and .t inherits that, so transparency now composites onto the
-  // card it sits in.
-  '.t img{width:100%;height:100%;object-fit:cover;display:block}' +
-  // Video keeps it. It paints its first frame only once metadata loads,
-  // and dark is what an unpainted frame should look like.
-  '.t video{width:100%;height:100%;object-fit:cover;display:block;background:#111827}' +
-  // A PDF cannot go in an <img>, but the browser's own viewer renders it
-  // through <embed>, fitted to width with its controls off so it reads
-  // as the document rather than as an application.
-  '.t.pdf,.t.doc{position:relative;display:block}' +
-  '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;border:0}' +
-  // Text renders at the browser's own default size, which in a 330px box
-  // is two or three words. Laid out wide and scaled down instead, so the
-  // cell shows the opening of the file rather than its first line
-  // chopped. pointer-events off so the click reaches the link.
-  '.t.doc iframe{position:absolute;top:0;left:0;width:780px;height:590px;border:0;' +
-  'background:#fff;transform:scale(.42);transform-origin:top left;pointer-events:none}' +
-  // Sized for the cell it now sits in. 11px was set when this box was an
-  // 88px square; in a 330px card it read as a stray word floating in
-  // white rather than as the label for the thing.
-  '.none{color:#6b7280;font:600 17px/1 ui-monospace,SFMono-Regular,Menlo,monospace;' +
-  'letter-spacing:.14em;text-decoration:none}' +
-  // The scaled-down PDF trick is for an 88px box. At cell width the
-  // viewer can simply fill it, fitted to width, which also adapts as the
-  // column count changes.
-  '.t.pdf embed{position:absolute;top:0;left:0;width:100%;height:100%;transform:none}' +
-  // The caption's spacing is its own, not the proof page's 14px/16px
-  // field scale. A field there is one line in a dense stack; this is
-  // three lines standing alone under a picture, and at the field's
-  // spacing they bunched into a single grey block. The horizontal 16px
-  // stays, so a cell still lines up with a card.
-  '.m{min-width:0;padding:16px 16px 18px}' +
-  '.n{margin:0;font-weight:600}' +
-  // The two links are the cell's actions and want daylight from the name
-  // above them and from each other. line-height is set rather than
-  // inherited so the gap is the gap, not the gap plus whatever the body
-  // font leaves around a 13.5px line.
-  '.l{margin:15px 0 0}' +
-  '.l a{display:block;font-size:13.5px;line-height:1.5}' +
-  '.l a+a{margin-top:9px}' +
-'.empty{color:#4b5563}' +
-  // The Roll's nav line, copied: previous day on the left, the shelf (or
-  // the way back to all recordings) on the right, pulled up toward the
-  // count line it belongs with. Labels shorten on phones exactly like the
-  // site's (.dl long / .ds short).
-  '.dn{display:flex;align-items:center;justify-content:space-between;gap:16px;' +
-  'margin:-26px 0 40px;white-space:nowrap}' +
-  '.dn a{color:#0065A4;font-weight:600;font-size:13.5px;text-decoration:none}' +
-  '.dn .dnl{display:flex;gap:20px}' +
-  '.dn .dnr{margin-left:auto}' +
-  '@media (hover:hover){.dn a:hover .a{transform:translateX(3px)}}' +
-  '.ds{display:none}' +
-  '@media (max-width:600px){.dl{display:none}.ds{display:inline}}' +
-  '.empty{color:#4b5563}';
-
-/** Rebuild index.html from whatever is on disk, newest first. */
-function writeIndex(folder) {
-  // Consolidate the older loose machinery (.thumbs, .bitgraph-cache.json,
-  // .bitgraph-siblings) into STATE_DIR, once. mv, not regenerate: a cache is
-  // cheap to lose but the siblings stamp going missing reads as the count
-  // crossing and would force every page.
-  if (exists(folder + '/.thumbs') || exists(folder + '/.bitgraph-cache.json') ||
-      exists(folder + '/.bitgraph-siblings')) {
-    mkdirp(folder + '/' + STATE_DIR);
-    sh('cd ' + quote(folder) + ' && ' +
-      '{ [ -d .thumbs ] && [ ! -e ' + quote(THUMBS_DIR) + ' ] && mv .thumbs ' + quote(THUMBS_DIR) + '; ' +
-      '[ -f .bitgraph-cache.json ] && mv .bitgraph-cache.json ' + quote(SHEET_CACHE) + '; ' +
-      '[ -f .bitgraph-siblings ] && mv .bitgraph-siblings ' + quote(STATE_DIR + '/siblings') + '; }; true');
-  }
-
-  // files/ dissolves, once (1.8.0). An entry with more than one link is a
-  // second name for bytes still safe inside an export and is just removed. An
-  // entry whose link count is 1 is the LAST COPY of those bytes — its export
-  // was deleted back when a drop moved the file in — and is rescued to the
-  // top level (numbered on a name clash, extension preserved), because losing
-  // a recording must never mean losing the file. The watcher then treats the
-  // rescue as an ordinary drop of bytes already on the ledger and quietly
-  // rebuilds the export, which is the folder mirroring the ledger for a file
-  // the person still has.
-  if (exists(folder + '/' + FILES_DIR)) {
-    sh('find ' + quote(folder + '/' + FILES_DIR) +
-      ' -type f -links +1 -delete 2>/dev/null; true');
-    var left = sh('ls -1 ' + quote(folder + '/' + FILES_DIR) + ' 2>/dev/null');
-    (left ? left.split('\r').join('\n').split('\n').filter(Boolean) : [])
-      .forEach(function (n) {
-        var src = folder + '/' + FILES_DIR + '/' + n;
-        var dst = folder + '/' + n;
-        if (exists(dst)) {
-          var ext = extOf(n);
-          var tail = ext ? '.' + ext : '';
-          var stem = n.slice(0, n.length - tail.length);
-          for (var k = 2; k < 100 && exists(dst); k++) {
-            dst = folder + '/' + stem + ' ' + k + tail;
-          }
-        }
-        if (!exists(dst)) sh('mv ' + quote(src) + ' ' + quote(dst) + ' 2>/dev/null; true');
-      });
-    // Only ever while empty: a rescue that could not land leaves the folder,
-    // and this line, for the next pass.
-    sh('rmdir ' + quote(folder + '/' + FILES_DIR) + ' 2>/dev/null; true');
-  }
-  var snap = snapshotFolder(folder);
-  var cache = loadSheetCache(folder);
-
-  // Tuck any top-level export into Recordings/. This is the whole migration:
-  // continuous, by content, and it also gives an OLD export dragged back into
-  // the folder a home (it used to sit at the top level forever). mv changes no
-  // mtime inside, so a migrated export's page still says ../index.html, one
-  // level short of where the sheet now lives; migrated names are therefore
-  // forced through writeProofPage this pass.
-  var migrated = {};
-  var strays = Object.keys(snap.stray);
-  if (strays.length) {
+  // 1. Tuck flat exports into Recordings/, by content, never merging: two
+  //    distinct recordings are allowed to share a filename.
+  var flat = exportDirsUnder(folder).filter(function (n) { return n.indexOf(REC_DIR + '/') !== 0; });
+  if (flat.length) {
     mkdirp(folder + '/' + REC_DIR);
-    strays.forEach(function (name) {
+    flat.forEach(function (name) {
       var dest = name;
-      // Two distinct recordings are allowed to share a filename; never merge.
-      for (var n = 2; snap.dirs[dest] && n < 1000; n++) dest = name + ' ' + n;
-      if (snap.dirs[dest]) return; /* a thousand collisions: leave it, next pass */
+      for (var n = 2; exists(folder + '/' + REC_DIR + '/' + dest) && n < 1000; n++) dest = name + ' ' + n;
+      if (exists(folder + '/' + REC_DIR + '/' + dest)) return; /* next pass */
       var ok = sh('mv ' + quote(folder + '/' + name) + ' ' +
         quote(folder + '/' + REC_DIR + '/' + dest) + ' 2>/dev/null && echo ok');
-      if (ok !== 'ok') return; /* still flat; every reader checks both places */
-      snap.dirs[dest] = snap.stray[name];
-      migrated[dest] = true;
+      if (ok === 'ok') {
+        // mv keeps every mtime, so the page must be forced: its old location
+        // may be baked into stale chrome.
+        try { rebuildPage(folder + '/' + REC_DIR + '/' + dest, true); } catch (e) { /* next pass */ }
+        did.push('tucked ' + name);
+      }
     });
   }
 
-  // An export is a directory holding a proof.json, discovered by CONTENT and
-  // never by name: three naming schemes have shipped and folders get renamed by
-  // hand. Same rule bitgraph-audit uses.
-  var entries = [];
-  var fresh = {};
-  Object.keys(snap.dirs).forEach(function (name) {
-    var d = snap.dirs[name];
-    if (!d.proofM || name === FILES_DIR) return;
-    var c = cache[name];
-    if (!c || c.pm !== (d.proofM || 0) || c.am !== (d.anchorsM || 0) ||
-        c.artifact !== (d.artifact || null)) {
-      c = sheetEntry(folder, name, d);
-    }
-    fresh[name] = c;
-    entries.push({ name: name, mtime: d.m || 0, block: c.block, counter: c.counter, ts: c.ts || 0, d: d });
-  });
-
-  // Causal order, newest first: the ledger's order, not the filesystem's.
-  // mtime survives only as the tiebreak for two recordings that share a block
-  // and a counter, which nothing real does.
-  entries.sort(function (x, y) {
-    // Unsealed means just recorded, so it leads regardless of block.
-    if (!x.block !== !y.block) return x.block ? 1 : -1;
-    if (x.block !== y.block) return y.block - x.block;
-    if (x.counter !== y.counter) return y.counter - x.counter;
-    return y.mtime - x.mtime;
-  });
-
-  SIBLINGS = entries.length;
-
-  // Pages are skipped when they are newer than their own inputs (pageIsCurrent),
-  // which is what makes an index pass cheap. The one thing that changes a page
-  // without touching anything in its folder is the sibling count crossing 1,
-  // since that is when the back link appears or disappears. Remembered here so
-  // that pass, and only that pass, regenerates everything.
-  var stamp = folder + '/' + STATE_DIR + '/siblings';
-  var seen = String(readFile(stamp) || '').replace(/\s+/g, '');
-  FORCE_PAGES = seen !== String(SIBLINGS) && (seen === '' || seen === '1' || SIBLINGS === 1);
-  if (seen !== String(SIBLINGS)) {
-    try {
-      writeFile(stamp, String(SIBLINGS) + '\n');
-    } catch (e) {
-      /* a missing stamp only costs a regeneration */
-    }
-  }
-
-  // Day navigation, copying the way the Roll works on the site (Mike,
-  // 2026-08-05: "you should just copy the way the roll works" — an inline
-  // header-and-jump-strip rendition shipped for about an hour first). The
-  // Roll's grammar: the live page is every recording newest first with no
-  // inline separators, each past day is its own page, a dated prev/next
-  // stepper walks between them, and a month-grid shelf indexes them all.
-  //
-  // LOCAL days, deliberately not UTC epochs: the export pages print local
-  // time with the zone named, and an evening drop grouped under tomorrow's
-  // date would read as a bug. Grouping is a property of the VIEW, computed
-  // fresh from the anchors on every rebuild, which is also why it is pages
-  // and not folders: a folder name is frozen at creation, a view regroups
-  // when the timezone under it changes.
-  //
-  // The entries are already in causal order, so groups are cut on the walk:
-  // a new one opens whenever the day changes from the row above. An unsealed
-  // export is a recording happening now, so it groups under today; a sealed
-  // export whose witness has not landed yet (ts 0) inherits the open group,
-  // which its causal position makes honest, rather than minting an "undated"
-  // bucket. (Real chain data cannot revisit a day — block timestamps are
-  // monotone — so a recurring day folds into its first group.)
-  //
-  // The day pages live in .bitgraph/days/, which the watcher's dot-prune
-  // already refuses to record (a page written into the watched folder is the
-  // feedback loop that minted six proofs on 2026-08-04) and Finder keeps out
-  // of sight. Each carries <base href="../../"> so the cells are the exact
-  // strings the sheet uses, links intact.
-  var isoOf = function (dt) {
-    var m = dt.getMonth() + 1;
-    var day = dt.getDate();
-    return dt.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
-  };
-  var groups = [];        // [{ iso, when, rows: [] }] newest first, walk order
-  var groupByIso = {};
-  var openGroup = null;
-
-  var rows = [];
-  var cellCount = 0;
-  entries.forEach(function (e) {
-    var d = e.d;
-    var when = !e.block ? new Date() : e.ts ? new Date(e.ts * 1000) : null;
-    if (when !== null) {
-      var iso = isoOf(when);
-      if (!openGroup || openGroup.iso !== iso) {
-        openGroup = groupByIso[iso];
-        if (!openGroup) {
-          openGroup = { iso: iso, when: when, rows: [] };
-          groupByIso[iso] = openGroup;
-          groups.push(openGroup);
-        }
+  // 2. files/ dissolves, once (1.8.0). An entry with more than one link is a
+  //    second name for bytes still safe inside an export and is removed. An
+  //    entry whose link count is 1 is the LAST COPY of those bytes - its
+  //    export was deleted back when a drop moved the file in - and is rescued
+  //    to the top level, because losing a recording must never mean losing
+  //    the file.
+  if (exists(folder + '/' + FILES_DIR)) {
+    sh('find ' + quote(folder + '/' + FILES_DIR) + ' -type f -links +1 -delete 2>/dev/null; true');
+    var left = sh('ls -1 ' + quote(folder + '/' + FILES_DIR) + ' 2>/dev/null');
+    (left ? left.split('\r').join('\n').split('\n').filter(Boolean) : []).forEach(function (n) {
+      var src = folder + '/' + FILES_DIR + '/' + n;
+      var dst = folder + '/' + n;
+      if (exists(dst)) {
+        var ext = extOf(n);
+        var tail = ext ? '.' + ext : '';
+        var stem = n.slice(0, n.length - tail.length);
+        for (var k = 2; k < 100 && exists(dst); k++) dst = folder + '/' + stem + ' ' + k + tail;
       }
-    }
-    // Repair FIRST, and only where the snapshot shows an anchor sitting there
-    // without its witness, which is exactly the broken state. The old code
-    // probed all four paths for every export on every pass; those probes were
-    // a third of the whole index cost, spent almost always confirming nothing
-    // was wrong. A landed witness changes the window the page renders, so it
-    // also forces that page below.
-    var repaired = 0;
-    if ((d.anchors || 0) > (d.witnesses || 0)) {
-      try {
-        repaired = repairWitnesses(folder + '/' + REC_DIR + '/' + e.name);
-      } catch (err) {
-        /* tried again on the next pass */
-      }
-    }
-    var row = sheetRow(folder, e.name, d, snap, repaired > 0 || migrated[e.name] === true, e.mtime);
-    if (row) {
-      rows.push(row);
-      if (openGroup) openGroup.rows.push(row);
-      cellCount++;
-    }
-  });
-  // Derived folders are only honest if they are also tidied.
-  try {
-    pruneThumbs(folder);
-  } catch (err) {
-    /* a stale thumbnail is harmless and goes on the next pass */
-  }
-  // The keys just used, pruned to the exports that still exist.
-  try {
-    writeJson(folder + '/' + SHEET_CACHE, { v: 2, rows: fresh });
-  } catch (err) {
-    /* a lost cache only costs one slow pass */
-  }
-
-  var body = cellCount
-    ? '<ul>' + rows.join('') + '</ul>'
-    : '<p class="empty">Nothing recorded yet. Drop a file into this folder.</p>';
-
-  // The Roll's labels: "August 3" on the stepper ("Aug 3" on phones, the same
-  // shortening the site does), the full date with the year on a day page's
-  // own subtitle. A year that is not this year rides along on the stepper
-  // too, because a recovered archive can reach back further than the ledger's
-  // shelf ever needs to.
-  var stepLong = function (g) {
-    return MONTHS_LONG[g.when.getMonth()] + ' ' + g.when.getDate() + ', ' + g.when.getFullYear();
-  };
-  var stepShort = function (g) {
-    return MONTHS[g.when.getMonth()] + ' ' + g.when.getDate() + ', ' + g.when.getFullYear();
-  };
-  var longDate = function (g) {
-    return MONTHS_LONG[g.when.getMonth()] + ' ' + g.when.getDate() + ', ' + g.when.getFullYear();
-  };
-  var stepSpans = function (g) {
-    return '<span class="dl">' + esc(stepLong(g)) + '</span><span class="ds">' + esc(stepShort(g)) + '</span>';
-  };
-
-  // The navigation earns its place the way the back link does: only when
-  // there is somewhere to go. One day of recordings gets no chrome at all.
-  var daysDir = folder + '/' + STATE_DIR + '/days';
-  var indexNav = '';
-  if (groups.length > 1) {
-    // The live sheet's nav line, the Roll's exactly: the previous day on the
-    // left, the shelf on the right. groups[0] is the open day, so the way
-    // back in time starts at groups[1].
-    indexNav = '<nav class="dn"><a href="' + encodePath(STATE_DIR + '/days') + '/' + groups[1].iso + '.html">' +
-      '<span aria-hidden>&larr;</span> ' + stepSpans(groups[1]) + '</a>' +
-      '<a href="' + encodePath(STATE_DIR + '/days') + '/index.html">All days <span class="a">&rarr;</span></a></nav>';
-
-    mkdirp(daysDir);
-    var wanted = { 'index.html': true };
-    groups.forEach(function (g, i) {
-      wanted[g.iso + '.html'] = true;
-      var older = groups[i + 1] || null;   // previous recorded day
-      var newer = groups[i - 1] || null;   // next recorded day
-      var dayHref = function (iso) { return encodePath(STATE_DIR + '/days') + '/' + iso + '.html'; };
-      var nav = '<nav class="dn"><span class="dnl">' +
-        (older
-          ? '<a href="' + dayHref(older.iso) + '"><span aria-hidden>&larr;</span> ' + stepSpans(older) + '</a>'
-          : '') +
-        (newer
-          ? '<a href="' + dayHref(newer.iso) + '">' + stepSpans(newer) + ' <span class="a">&rarr;</span></a>'
-          : '<a href="index.html">All recordings <span class="a">&rarr;</span></a>') +
-        '</span><span class="dnr">' +
-        '<a href="' + encodePath(STATE_DIR + '/days') + '/index.html">All days <span class="a">&rarr;</span></a>' +
-        '</span></nav>';
-      writeFile(daysDir + '/' + g.iso + '.html', pageShell(
-        'BitGraph Folder',
-        SHEET_CSS,
-        '<h1>BitGraph Folder</h1>' +
-          '<p class="s">The recordings for ' + esc(longDate(g)) + '.</p>' +
-          nav +
-          '<ul>' + g.rows.join('') + '</ul>',
-        // The whole trick: the cells are the SAME strings the sheet uses,
-        // and this makes their folder-relative links resolve from here.
-        '../../'
-      ));
+      if (!exists(dst)) sh('mv ' + quote(src) + ' ' + quote(dst) + ' 2>/dev/null; true');
     });
-
-    // The shelf: the Roll's /rolls month grid, newest month first, every
-    // month from the oldest recording to now. A day is a link when it has
-    // recordings; today is the outlined open frame and leads back to the
-    // live sheet, recorded or not; everything else sits grey. Zero data
-    // beyond the links, same as the site's.
-    var now = new Date();
-    var oldest = groups[groups.length - 1].when;
-    var shelfMonths = [];
-    for (var y = now.getFullYear(), m = now.getMonth();
-         y > oldest.getFullYear() || (y === oldest.getFullYear() && m >= oldest.getMonth());
-         m === 0 ? (y--, m = 11) : m--) {
-      var daysIn = new Date(y, m + 1, 0).getDate();
-      var cells = '';
-      for (var lead = new Date(y, m, 1).getDay(); lead > 0; lead--) cells += '<div class="rd"></div>';
-      for (var dd = 1; dd <= daysIn; dd++) {
-        var iso = isoOf(new Date(y, m, dd));
-        if (iso === isoOf(now)) {
-          cells += '<a class="rd" href="../../index.html" aria-label="Today" style="box-shadow:inset 0 0 0 1px #0065A4">' + dd + '</a>';
-        } else if (groupByIso[iso]) {
-          cells += '<a class="rd" href="' + iso + '.html">' + dd + '</a>';
-        } else {
-          cells += '<div class="rd" style="color:#c7ccd1">' + dd + '</div>';
-        }
-      }
-      shelfMonths.push('<section class="mo"><div class="ml">' + esc(MONTHS_LONG[m] + ' ' + y) + '</div>' +
-        '<div class="mg">' +
-        ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(function (w) {
-          return '<div class="rd wd">' + w + '</div>';
-        }).join('') + cells + '</div></section>');
-    }
-    writeFile(daysDir + '/index.html', pageShell(
-      'BitGraph Folder',
-      SHEET_CSS +
-        '.mo{margin-top:32px;max-width:340px}' +
-        '.ml{font-size:14px;font-weight:700;letter-spacing:-.01em;color:#111827;margin-bottom:8px}' +
-        '.mg{display:grid;grid-template-columns:repeat(7,1fr);' +
-        'font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}' +
-        '.rd{display:flex;align-items:center;justify-content:center;aspect-ratio:1;font-size:13px}' +
-        'a.rd{color:#0065A4;font-weight:600;text-decoration:none}' +
-        '@media (hover:hover){a.rd:hover{background:#f0f6ff}}' +
-        '.rd.wd{font-size:10.5px;color:#9ca3af;aspect-ratio:auto;padding-bottom:4px}',
-      '<h1>BitGraph Folder</h1>' +
-        '<p class="s">One page per day of recordings.</p>' +
-        '<nav class="dn"><span></span><span class="dnr">' +
-        '<a href="../../index.html">All recordings <span class="a">&rarr;</span></a></span></nav>' +
-        shelfMonths.join('')
-    ));
-
-    // Days that lost their last recording leave a page behind; tidy it.
-    var have = sh('ls -1 ' + quote(daysDir) + ' 2>/dev/null');
-    (have ? have.split('\r').join('\n').split('\n').filter(Boolean) : []).forEach(function (n) {
-      if (!wanted[n]) sh('rm -f ' + quote(daysDir + '/' + n));
-    });
-  } else if (exists(daysDir)) {
-    // Back to one day (deletions): the navigation goes with it, whole.
-    sh('rm -rf ' + quote(daysDir));
+    sh('rmdir ' + quote(folder + '/' + FILES_DIR) + ' 2>/dev/null; true');
+    did.push('dissolved files/');
   }
 
-  writeFile(
-    folder + '/index.html',
-    pageShell(
-      // The product's own name, not just "BitGraph". This is the one page that
-      // names it, since each export page is titled by its filename, and the
-      // string is the browser tab too: with the site and a few proof pages
-      // open, half the tabs otherwise read "BitGraph" and none of them are
-      // this. Not "BitGraph Desktop Folder", which was rejected because
-      // "Desktop" reads as desktop app.
-      'BitGraph Folder',
-      SHEET_CSS,
+  // 3. Purge the browsing layer a pre-1.9 install generated. The top-level
+  //    index.html is deleted only when it is provably OURS (the sheet named
+  //    the product; a person's own index.html dropped at the top level is a
+  //    recorded file and untouchable). When any of it existed, every receipt
+  //    is rebuilt once, because the old pages carry a back link into the
+  //    sheet that no longer exists.
+  var hadLegacy = false;
+  var sheet = folder + '/index.html';
+  if (exists(sheet)) {
+    var head = String(readFile(sheet) || '').slice(0, 2000);
+    if (head.indexOf('BitGraph Folder') !== -1) {
+      sh('rm -f ' + quote(sheet));
+      hadLegacy = true;
+      did.push('removed the sheet');
+    }
+  }
+  if (exists(folder + '/' + STATE_DIR)) {
+    sh('rm -rf ' + quote(folder + '/' + STATE_DIR));
+    hadLegacy = true;
+    did.push('purged ' + STATE_DIR + '/');
+  }
+  if (hadLegacy) {
+    exportDirsUnder(folder).forEach(function (name) {
+      try { rebuildPage(folder + '/' + name, true); } catch (e) { /* next pass */ }
+    });
+    did.push('rebuilt receipts');
+  }
 
-      '<h1>BitGraph Folder</h1>' +
-        '<p class="s">' + cellCount + (cellCount === 1 ? ' recording' : ' recordings') + ', newest first.' +
-        updateNote() + '</p>' +
-        indexNav +
-        body
-    )
-  );
-  return cellCount;
+  return did.length ? 'ok: ' + did.join(', ') : 'ok: nothing to tidy';
 }
 
 // ---------------------------------------------------------------------------
@@ -2770,9 +2072,8 @@ function buildDrop(manifestPath, folder, responsesDir) {
 
   PROOF_CACHE = indexResponses(responsesDir);
 
-  // The caller handles the seal and the sheet, once, after this returns.
+  // The caller handles the seal, once, after this returns.
   BATCH_DROP = true;
-  DEFER_INDEX = true;
 
   var built = 0, failed = 0;
   for (var i = 0; i + 3 < f.length; i += 4) {
@@ -2792,16 +2093,6 @@ function buildDrop(manifestPath, folder, responsesDir) {
       // call for the whole drop.
       note('export failed: ' + baseName(path) + ': ' + out);
     }
-  }
-  // The sheet, NOW, not when the seal lands. The person who just dropped a
-  // file looks at the folder immediately, and until the sealer's later pass
-  // the new export was not listed and had no page. This pass is cheap (the
-  // snapshot and cache above), the new page simply renders "sealing" until
-  // the anchor arrives, and the sealer's own index refresh replaces it.
-  try {
-    writeIndex(folder);
-  } catch (e) {
-    /* the sealer rebuilds it in a few seconds anyway */
   }
   return 'ok: built ' + built + (failed ? ', ' + failed + ' failed' : '');
 }
@@ -2894,7 +2185,6 @@ function recoverInto(source, destFolder) {
 
   var onRecord = 0, built = 0, already = 0, absent = 0, failed = 0;
 
-  DEFER_INDEX = true;
   try {
     for (var i = 0; i < order.length; i += RECOVER_CHUNK) {
       var slice = order.slice(i, i + RECOVER_CHUNK);
@@ -2959,14 +2249,13 @@ function recoverInto(source, destFolder) {
   } finally {
     // Cleared even on a throw, or an ordinary drop afterwards would silently
     // stop rebuilding the sheet.
-    DEFER_INDEX = false;
   }
 
-  // The one index pass the whole recovery gets.
+  // Recovered exports may have landed flat; one tidy pass homes them.
   try {
-    writeIndex(folder);
+    tidyFolder(folder);
   } catch (e) {
-    /* rebuilt on the next drop */
+    /* the watcher's next tidy homes them */
   }
 
   // Paths and recordings are different numbers and both are worth saying: a
@@ -3098,7 +2387,7 @@ function usage() {
     '',
     'Run by the watcher:',
     '  --drop <manifest> <folder> [responses]   build a whole drop, one process',
-    '  --index <folder>             rebuild the contact sheet',
+    '  --tidy <folder>              tuck stray exports, purge legacy layout',
     '  --complete <folder> [waitMs] finish exports still awaiting their seal',
     '  <file> <digest> <counter> <epoch> [dest] [--batch]   build one export',
   ].join('\n');
@@ -3109,8 +2398,8 @@ function run(argv) {
     if (!argv.length || argv[0] === '--help' || argv[0] === '-h') {
       return usage();
     }
-    if (argv[0] === '--index') {
-      return 'ok: indexed ' + writeIndex(argv[1]);
+    if (argv[0] === '--tidy') {
+      return tidyFolder(argv[1]);
     }
     if (argv[0] === '--json') {
       var body = readFile(argv[2]);
@@ -3144,8 +2433,7 @@ function run(argv) {
     // so this export does neither. See BATCH_DROP.
     if (argv[5] === '--batch') {
       BATCH_DROP = true;
-      DEFER_INDEX = true;
-    }
+      }
     return buildExport(argv[0], argv[1], argv[2], argv[3], argv[4]);
   } catch (e) {
     return 'error: ' + (e && e.message ? e.message : String(e));

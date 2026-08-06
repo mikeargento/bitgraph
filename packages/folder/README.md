@@ -8,7 +8,6 @@ export folder holding its proof and the Ethereum anchors that bracket it.
 
 ```
 BitGraph/
-    index.html                every recording, as a contact sheet
     Recordings/
         BitGraph (sunset.jpg)/
             proof.json
@@ -23,6 +22,13 @@ The top level is the place you drop things, and it stays empty: the shutter
 and the archive are different places. Recordings land in `Recordings/`, and an
 export from an older version, or one you drag back in from anywhere, is tucked
 in there on the next pass.
+
+To browse your recordings, drag the whole folder onto
+[bitgraph.ing](https://bitgraph.ing): it loads as a roll, day by day, with
+thumbnails, and every recording is checked against the ledger as it renders.
+The folder generates no pages of its own beyond each export's receipt, and
+browsing uploads nothing, the same as recording: the files are read in your
+browser and only digests are looked up.
 
 One thing worth knowing about the drag itself: on macOS, dragging a file into
 any folder on the same disk MOVES it — that is Finder, not BitGraph. If you
