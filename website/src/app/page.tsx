@@ -1319,6 +1319,9 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
   // sparse where the ledger is continuous - the same knowing deviation the
   // old sheet made).
   const [day, setDay] = useState<string | null>(null);
+  // The shelf: the Roll's /rolls month-grid calendar, client-side. Not
+  // important at two days, load-bearing at two hundred (Mike's call).
+  const [shelf, setShelf] = useState(false);
   const dayIdx = day === null ? -1 : groups.findIndex((g) => g.key === day);
   const view = day === null ? null : groups[dayIdx] ?? null;
   const shownGroups = view ? [view] : groups;
@@ -1399,7 +1402,7 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
           </span>
         )}
       </div>
-      {groups.length > 1 && (
+      {groups.length > 1 && !shelf && (
         <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "14px 0 4px" }}>
           <span style={{ display: "flex", gap: 20 }}>
             {older && (
@@ -1413,14 +1416,26 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
               </button>
             )}
           </span>
-          {view && (
-            <button type="button" style={stepLink} onClick={() => setDay(null)}>
-              All recordings <span aria-hidden>&rarr;</span>
+          <span style={{ display: "flex", gap: 20, marginLeft: "auto" }}>
+            {view && (
+              <button type="button" style={stepLink} onClick={() => setDay(null)}>
+                All recordings <span aria-hidden>&rarr;</span>
+              </button>
+            )}
+            <button type="button" style={stepLink} onClick={() => setShelf(true)}>
+              All rolls <span aria-hidden>&rarr;</span>
             </button>
-          )}
+          </span>
         </nav>
       )}
-      {shownGroups.map((g) => (
+      {shelf && (
+        <CheckedShelf
+          groups={groups}
+          onPick={(key) => { setDay(key); setShelf(false); }}
+          onLive={() => { setDay(null); setShelf(false); }}
+        />
+      )}
+      {!shelf && shownGroups.map((g) => (
         <div key={g.key} style={{ marginTop: 10 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {g.rows.map((r, i) => {
@@ -1471,6 +1486,73 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ── The shelf — /rolls, translated to a dropped folder. One cell per day,
+   months newest first from now back to the oldest recording; a day is a link
+   when the folder recorded on it, today is the outlined open frame leading
+   back to the live view, and everything else sits grey. Zero data beyond the
+   links, same as the site's. ── */
+function CheckedShelf({ groups, onPick, onLive }: {
+  groups: Array<{ key: string; label: string; short: string; rows: ExportCheckResult[] }>;
+  onPick: (key: string) => void;
+  onLive: () => void;
+}) {
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  const recorded = new Map(groups.map((g) => [g.key, g]));
+  const oldest = groups.length
+    ? groups[groups.length - 1].key.split("-").map((x) => parseInt(x, 10))
+    : [now.getFullYear(), now.getMonth()];
+  const months: Array<{ label: string; y: number; m: number }> = [];
+  for (let y = now.getFullYear(), m = now.getMonth();
+       y > oldest[0] || (y === oldest[0] && m >= oldest[1]);
+       m === 0 ? (y--, m = 11) : m--) {
+    months.push({ label: new Date(y, m, 1).toLocaleDateString(undefined, { year: "numeric", month: "long" }), y, m });
+  }
+  const cell: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", aspectRatio: "1", fontSize: 13 };
+  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace";
+  return (
+    <div>
+      {months.map(({ label, y, m }) => {
+        const daysIn = new Date(y, m + 1, 0).getDate();
+        const lead = new Date(y, m, 1).getDay();
+        return (
+          <section key={label} style={{ marginTop: 24, maxWidth: 340 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", marginBottom: 8 }}>{label}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", fontFamily: mono, fontVariantNumeric: "tabular-nums" }}>
+              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                <div key={`h${i}`} style={{ ...cell, fontSize: 10.5, color: "#9ca3af", aspectRatio: "auto", paddingBottom: 4 }}>{d}</div>
+              ))}
+              {Array.from({ length: lead }, (_, i) => <div key={`b${i}`} style={cell} />)}
+              {Array.from({ length: daysIn }, (_, i) => {
+                const d = i + 1;
+                const key = `${y}-${m}-${d}`;
+                if (key === todayKey) {
+                  return (
+                    <button key={key} type="button" onClick={onLive} aria-label="Today"
+                      style={{ ...cell, color: "#0065A4", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: mono, boxShadow: "inset 0 0 0 1px #0065A4" }}>
+                      {d}
+                    </button>
+                  );
+                }
+                if (recorded.has(key)) {
+                  return (
+                    <button key={key} type="button" onClick={() => onPick(key)}
+                      className="bitgraph-shelf-day"
+                      style={{ ...cell, color: "#0065A4", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: mono }}>
+                      {d}
+                    </button>
+                  );
+                }
+                return <div key={key} style={{ ...cell, color: "#c7ccd1" }}>{d}</div>;
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
