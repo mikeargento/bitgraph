@@ -8,8 +8,45 @@
 
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 
+/**
+ * Raised when the ledger could not be READ. It is not an answer about the
+ * ledger's contents, and callers must never degrade it into one: "we could
+ * not check" and "these bytes were never recorded" are opposite claims, and
+ * only one of them accuses the holder of a file.
+ */
+export class LedgerUnavailableError extends Error {
+  constructor(where: string, cause?: unknown) {
+    super(`ledger read failed (${where}): ${(cause as Error)?.message ?? "unknown"}`);
+    this.name = "LedgerUnavailableError";
+  }
+}
+
+/**
+ * ONE client for the process, not one per lookup.
+ *
+ * This used to construct a fresh S3Client on every call, and every read path
+ * calls it per digest: a 2000-recording folder dropped on the site fanned out
+ * into thousands of clients, each with its own connection pool and none of
+ * them reused. Under that burst the reads started failing, and because every
+ * layer below turned a failure into an empty answer, the viewer told the
+ * owner that hundreds of genuine recordings were not on the ledger (observed
+ * 2026-08-06: 448 false verdicts in one drop, all of them present when asked
+ * again calmly).
+ *
+ * `adaptive` retries add client-side rate limiting on top of the standard
+ * backoff, which is the mode meant for exactly this: a burst that trips
+ * throttling should slow itself down rather than fail.
+ */
+let client: S3Client | null = null;
 function getClient() {
-  return new S3Client({ region: (process.env.LEDGER_REGION || "us-east-2").trim() });
+  if (!client) {
+    client = new S3Client({
+      region: (process.env.LEDGER_REGION || "us-east-2").trim(),
+      maxAttempts: 5,
+      retryMode: "adaptive",
+    });
+  }
+  return client;
 }
 
 function getBucket() {
@@ -113,6 +150,20 @@ export async function getObjectText(key: string): Promise<string | null> {
 
 /** Look up a proof by artifact digest (legacy single-object index: latest proof only) */
 export async function getProofByDigest(digestB64: string): Promise<Record<string, unknown> | null> {
+  return readLegacyDigest(digestB64, false);
+}
+
+/**
+ * The legacy single-object index read.
+ *
+ * `strict` is the difference between the two things a null can mean. A
+ * missing key is an ANSWER (these bytes have no legacy entry); any other
+ * error is a failure to read, and the strict form raises it so a reader
+ * cannot mistake one for the other. The write path (commit pre-reads the
+ * prior) stays lenient: there, a failed read costs a merge hint, not a
+ * verdict about someone's file.
+ */
+async function readLegacyDigest(digestB64: string, strict: boolean): Promise<Record<string, unknown> | null> {
   try {
     const s3 = getClient();
     const key = `by-digest/${toSafe(digestB64)}.json`;
@@ -124,6 +175,7 @@ export async function getProofByDigest(digestB64: string): Promise<Record<string
     const name = (err as { name?: string }).name;
     if (name === "NoSuchKey" || name === "NotFound") return null;
     console.error("[s3] getProofByDigest failed:", name, (err as Error).message);
+    if (strict) throw new LedgerUnavailableError("legacy digest key", err);
     return null;
   }
 }
@@ -235,6 +287,12 @@ export interface DigestProofEntry {
 export async function getProofsByDigest(digestB64: string): Promise<DigestProofEntry[]> {
   const safeDigest = toSafe(digestB64);
   const entries: DigestProofEntry[] = [];
+  // ⚠️ NOTHING in this function may turn a read failure into an empty or
+  // partial answer. It used to do both — the outer catch logged and carried
+  // on with whatever it had, and a per-object catch dropped individual
+  // positions — so a throttled read came back looking exactly like "never
+  // recorded". Every failure below raises LedgerUnavailableError, and the
+  // routes turn that into a 503 the caller can tell apart from a verdict.
   try {
     const s3 = getClient();
     const bucket = getBucket();
@@ -254,13 +312,19 @@ export async function getProofsByDigest(digestB64: string): Promise<DigestProofE
         // they order like the legacy key (before any write time).
         const backfilled = result.Metadata?.["bg-backfill"] === "1";
         return { proof: JSON.parse(body) as Record<string, unknown>, writeTime: backfilled ? null : obj.LastModified?.getTime() ?? null };
-      } catch { return null; }
+      } catch (err) {
+        // A position that was LISTED but could not be read is a hole in the
+        // answer, not a position that does not exist.
+        throw new LedgerUnavailableError(`position ${obj.Key}`, err);
+      }
     }));
     for (const e of fetched) if (e) entries.push(e);
   } catch (err) {
+    if (err instanceof LedgerUnavailableError) throw err;
     console.error("[s3] getProofsByDigest failed:", (err as Error).message);
+    throw new LedgerUnavailableError("by-digest listing", err);
   }
-  const legacy = await getProofByDigest(digestB64);
+  const legacy = await readLegacyDigest(digestB64, true);
   if (legacy) entries.push({ proof: legacy, writeTime: null });
 
   const positionOf = (p: Record<string, unknown>) => {

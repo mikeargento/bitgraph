@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyProofIntegrity } from "@mikeargento/bitgraph-verify";
-import { getProofsByDigest } from "@/lib/s3";
+import { getProofsByDigest, LedgerUnavailableError } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +92,12 @@ export async function POST(req: NextRequest) {
       checkedAgainst = "supplied proof";
       const artifactDigest = (proof["artifact"] as { digestB64?: string } | undefined)?.digestB64;
       if (typeof artifactDigest === "string") {
-        const entries = await getProofsByDigest(artifactDigest).catch(() => []);
+        // ⚠️ NOT `.catch(() => [])`. That silently answered "not on record"
+        // whenever the ledger could not be read, which is the one wrong
+        // answer this endpoint must never give: a caller wiring this into an
+        // automation would see a clean file reported as unrecorded. A read
+        // failure raises and leaves as a 503 below.
+        const entries = await getProofsByDigest(artifactDigest);
         onRecord = entries.length > 0;
         totalPositions = entries.length;
       }
@@ -212,6 +217,16 @@ export async function POST(req: NextRequest) {
       { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } },
     );
   } catch (e) {
+    // "We could not read the ledger" is not a verification result. Callers
+    // (Zapier, Make) retry a 503; they would have recorded a 200 saying
+    // "not on record" as fact.
+    if (e instanceof LedgerUnavailableError) {
+      console.error("POST /api/verify ledger unavailable:", e.message);
+      return NextResponse.json(
+        { error: "ledger unavailable", detail: "The ledger could not be read. This is not a verdict about the file; try again." },
+        { status: 503 },
+      );
+    }
     console.error("POST /api/verify error:", (e as Error).message);
     return NextResponse.json({ error: "Verification failed" }, { status: 500 });
   }

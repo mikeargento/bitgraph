@@ -17,7 +17,7 @@ import {
   type BitGraphProof,
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
-import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
+import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, isUnchecked, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
@@ -1379,6 +1379,12 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
 
   const okCount = checked.filter((c) => c.ok === true).length;
   const pending = checked.filter((c) => c.ok === null).length;
+  // Rows the ledger could not be asked about. Counted apart from the failures
+  // on purpose: they are not evidence against the recording, and lumping them
+  // in is how a throttled sweep once reported 448 of this folder's recordings
+  // as not matching when every one of them was on the ledger.
+  const uncheckedCount = checked.filter(isUnchecked).length;
+  const failCount = checked.length - okCount - pending - uncheckedCount;
 
   return (
     <div>
@@ -1400,11 +1406,18 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
             {okCount} of {checked.length} {okCount === 1 ? "matches" : "match"} the ledger
           </span>
         )}
-        {okCount + pending < checked.length && (
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626", whiteSpace: "nowrap" }}>
-            {checked.length - okCount - pending} {checked.length - okCount - pending === 1 ? "does" : "do"} not
-          </span>
-        )}
+        <span style={{ display: "flex", gap: 14, whiteSpace: "nowrap" }}>
+          {failCount > 0 && (
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>
+              {failCount} {failCount === 1 ? "does" : "do"} not
+            </span>
+          )}
+          {uncheckedCount > 0 && (
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#6b7280" }}>
+              {uncheckedCount} not checked
+            </span>
+          )}
+        </span>
       </div>
       {groups.length > 1 && !shelf && (
         <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "14px 0 4px" }}>
@@ -1466,7 +1479,9 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
                         {ext.slice(0, 4)}
                       </span>
                     )}
-                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: r.ok === false ? "#dc2626" : "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                    {/* An unchecked row keeps the ordinary blue: nothing is
+                        wrong with it, we simply did not get an answer. */}
+                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: r.ok === false && !isUnchecked(r) ? "#dc2626" : "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
                       {r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "—"}
                     </span>
                     <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1475,7 +1490,7 @@ function CheckedRoll({ checked, onOpen }: { checked: ExportCheckResult[]; onOpen
                     <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }} className="bg-roll-when">
                       {fmtRowWhen(r.ts ? r.ts * 1000 : r.writeTime)}
                     </span>
-                    <span style={{ flexShrink: 0, maxWidth: "40%", fontSize: 12.5, fontWeight: 600, color: r.ok === true ? "#0065A4" : r.ok === false ? "#dc2626" : "#9ca3af", textAlign: "right" }}>
+                    <span style={{ flexShrink: 0, maxWidth: "40%", fontSize: 12.5, fontWeight: 600, color: r.ok === true ? "#0065A4" : r.ok === false ? (isUnchecked(r) ? "#6b7280" : "#dc2626") : "#9ca3af", textAlign: "right" }}>
                       {r.ok === true ? "matches the ledger" : r.ok === false ? r.failure : "checking\u2026"}
                     </span>
                     {clickable && (

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter } from "@/lib/s3";
+import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 
 export const dynamic = "force-dynamic";
@@ -176,6 +176,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       : "public, s-maxage=5, stale-while-revalidate=30";
     return NextResponse.json({ proofs: [{ proof }], positions, causalWindow, anchorBlock }, { headers: { "Cache-Control": cacheControl } });
   } catch (e) {
+    // Never cached, and never confusable with the `{ proofs: [] }` miss above:
+    // that answer means the ledger has nothing, this one means we could not
+    // ask it.
+    if (e instanceof LedgerUnavailableError) {
+      console.error("GET /api/proofs/digest ledger unavailable:", e.message);
+      return NextResponse.json({ error: "ledger unavailable" }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
     console.error("GET /api/proofs/digest error:", e);
     return NextResponse.json({ error: "Failed" }, { status: 500, headers: { "Cache-Control": "no-store" } });
   }

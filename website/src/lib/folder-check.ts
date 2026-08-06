@@ -312,6 +312,20 @@ export interface ExportCheckResult {
   failure: string | null;
 }
 
+/**
+ * The one `failure` string that is NOT a claim about the file.
+ *
+ * Every other failure says something went wrong with THIS recording; this one
+ * says the check did not happen. Callers must keep it out of any "does not
+ * match" tally, or a bad afternoon on the network reads as hundreds of
+ * forgeries. Exported so the row and the summary agree on which is which.
+ */
+export const LEDGER_UNREACHABLE = "could not reach the ledger";
+
+/** True when the row has no verdict because the ledger could not be read. */
+export const isUnchecked = (r: { ok: boolean | null; failure: string | null }) =>
+  r.ok === false && r.failure === LEDGER_UNREACHABLE;
+
 export interface CheckProgress {
   onHash?: (done: number, total: number) => void;
   onCheck?: (done: number, total: number) => void;
@@ -508,18 +522,35 @@ export function startFolderCheck(
       await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, async () => {
         while (next < chunks.length) {
           const mine = chunks[next++];
-          try {
-            const r = await fetch(`${apiBase}/api/proofs/batch`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ digests: mine }),
-            });
-            if (!r.ok) throw new Error(String(r.status));
-            const results = ((await r.json()) as { results?: Record<string, { proofs?: LedgerEntry[] }> }).results || {};
-            for (const k of mine) resolvers.get(k)?.(results[k]?.proofs || []);
-          } catch {
-            for (const k of mine) resolvers.get(k)?.(null);
+          // A whole folder arrives as dozens of these at once, and a burst is
+          // exactly when a lookup is most likely to fail transiently. Giving
+          // up on the first error marked 50 recordings at a time as unchecked
+          // (and, before the server stopped conflating the two, as NOT ON THE
+          // LEDGER). Three tries with backoff, then honestly unknown.
+          let answered = false;
+          for (let attempt = 0; attempt < 3 && !answered; attempt++) {
+            if (attempt) await new Promise((r) => setTimeout(r, 400 * attempt * attempt));
+            try {
+              const r = await fetch(`${apiBase}/api/proofs/batch`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ digests: mine }),
+              });
+              if (!r.ok) throw new Error(String(r.status));
+              const results = ((await r.json()) as {
+                results?: Record<string, { proofs?: LedgerEntry[]; unavailable?: boolean }>;
+              }).results || {};
+              // `unavailable` is the server saying it could not read, per
+              // digest. null carries that through as "we do not know", which
+              // is a different row than "not on the ledger".
+              for (const k of mine) {
+                const entry = results[k];
+                resolvers.get(k)?.(entry?.unavailable ? null : entry?.proofs || []);
+              }
+              answered = true;
+            } catch { /* retry, then fall through to null below */ }
           }
+          if (!answered) for (const k of mine) resolvers.get(k)?.(null);
         }
       }));
     })();
@@ -564,7 +595,7 @@ export function startFolderCheck(
 
       // Side 2 — the ledger's copy at the CLAIMED position.
       const entries = await (ledgerFor.get(w.digestUrlSafe) ?? Promise.resolve(null));
-      if (entries === null) { w.failure = "could not reach the ledger"; return; }
+      if (entries === null) { w.failure = LEDGER_UNREACHABLE; return; }
       const claimed = entries.find((e) => {
         const c = e.proof?.commit;
         if (!c) return false;
