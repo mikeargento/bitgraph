@@ -953,7 +953,12 @@ export default function BitGraphPage() {
                   onFiles={handleFiles}
                   onFolder={handleFolder}
                   onFolderScan={handleFolderScan}
-                  hint="Drag and drop, or click to choose."
+                  // The three ways in are not equivalent, so the words say
+                  // which is which: dragging takes a file OR a whole folder,
+                  // clicking the box opens the FILE picker (a file input
+                  // cannot select a folder), and the link below opens the
+                  // folder picker.
+                  hint="Drag in a file or a whole folder, or click to choose files."
                   subhint="Your file never leaves your device."
                 />
               </div>

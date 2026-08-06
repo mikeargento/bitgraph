@@ -211,8 +211,13 @@ export function FileDrop({
         ${dragover
           ? "border-[#0065A4] bg-[#f0f6ff] ring-2 ring-[#0065A4]/20 scale-[1.005]"
           : hasFiles
-          ? "border-[#c3c8cf] bg-white"
-          : "border-[#c3c8cf] bg-white hover:border-[#0065A4] hover:bg-[#fafbfd] focus-visible:border-[#0065A4] focus-visible:ring-2 focus-visible:ring-[#0065A4]/20"
+          /* Rest is a step darker than the card hairlines (#b3bac2, was
+             #c3c8cf) so the box has presence sitting still. It deliberately
+             does NOT start blue: blue is what hover means, and the light fill
+             on top of blue is what dragging over means. Starting blue
+             collapses those two rungs and leaves hover nothing to say. */
+          ? "border-[#b3bac2] bg-white"
+          : "border-[#b3bac2] bg-white hover:border-[#0065A4] hover:bg-[#fafbfd] focus-visible:border-[#0065A4] focus-visible:ring-2 focus-visible:ring-[#0065A4]/20"
         }
       `
       }

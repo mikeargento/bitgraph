@@ -1302,6 +1302,47 @@ function BringYourFile({
   const [readCount, setReadCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  /* Dash geometry, solved per edge so every corner is a clean right angle.
+   *
+   * A fixed dash+gap cannot do it: an edge is only as long as it is, so the
+   * pattern gets cut wherever it happens to land and three of the four
+   * corners end mid-gap. The fix is to let the length pick the numbers.
+   *
+   * For n dashes and the n-1 gaps between them to exactly span L:
+   *
+   *     n·d + (n-1)·g = L
+   *
+   * Fix the look (d:g = 9:7) and solve for the pair that fits: choose n from
+   * the target period, then g = L / (n·r + n − 1) and d = r·g. Both ends of
+   * every edge therefore land ON a dash, and since each edge is measured
+   * separately the dashes stay ~9px whether the edge is 348px or 960px.
+   */
+  const [dash, setDash] = useState({ hd: 9, hg: 7, vd: 9, vg: 7 });
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const RATIO = 9 / 7;   // dash : gap
+    const PERIOD = 16;     // the look we are aiming at, in px
+    const fit = (L: number) => {
+      if (!L) return { d: 9, g: 7 };
+      // L ≈ n·(d+g) − g, so this is the dash count nearest the target period.
+      const n = Math.max(2, Math.round((L + PERIOD / (1 + RATIO)) / PERIOD));
+      const g = L / (n * RATIO + n - 1);
+      return { d: RATIO * g, g };
+    };
+    const measure = () => {
+      const w = el.clientWidth, h = el.clientHeight;
+      if (!w || !h) return;
+      const H = fit(w), V = fit(h);
+      setDash({ hd: H.d, hg: H.g, vd: V.d, vg: V.g });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // The drop may be many files, or whole folders, and the matching file is
   // FOUND by hashing rather than the person knowing which it is: drop your
@@ -1362,7 +1403,11 @@ function BringYourFile({
   const mismatch = state === "mismatch";
   // The edges are painted, so hover has to be state rather than a style
   // mutation on the node.
-  const edge = mismatch ? "#dc2626" : dragOver || hover ? "#0065A4" : "#c3c8cf";
+  // Rest is a step darker than the card hairlines so the box has presence
+  // without spending the hover signal: blue stays the thing that means
+  // "interactive", and the fill on top of it means "release here". Starting
+  // blue would collapse rest and hover into one rung.
+  const edge = mismatch ? "#dc2626" : dragOver || hover ? "#0065A4" : "#b3bac2";
   return (
     <div
       onClick={() => inputRef.current?.click()}
@@ -1386,15 +1431,17 @@ function BringYourFile({
          border gives each side its own dash run and then fills the mitre
          where they meet, so every corner came out as a solid L-shaped blob
          thicker than the line itself. These are four backgrounds, one per
-         edge, 2px thin: each edge starts its pattern AT the corner, so the
-         corners meet as a clean right angle with no join to fill. */
+         edge, 2px thin, and the dash lengths are solved from each edge's
+         measured length (see `dash` above) so all FOUR corners land on a
+         dash and read as a clean right angle. */
+      ref={boxRef}
       style={{
         backgroundColor: dragOver ? "#f0f6ff" : "#fff",
         backgroundImage: [
-          `repeating-linear-gradient(to right, ${edge} 0 9px, transparent 9px 16px)`,
-          `repeating-linear-gradient(to bottom, ${edge} 0 9px, transparent 9px 16px)`,
-          `repeating-linear-gradient(to right, ${edge} 0 9px, transparent 9px 16px)`,
-          `repeating-linear-gradient(to bottom, ${edge} 0 9px, transparent 9px 16px)`,
+          `repeating-linear-gradient(to right, ${edge} 0 ${dash.hd}px, transparent ${dash.hd}px ${dash.hd + dash.hg}px)`,
+          `repeating-linear-gradient(to bottom, ${edge} 0 ${dash.vd}px, transparent ${dash.vd}px ${dash.vd + dash.vg}px)`,
+          `repeating-linear-gradient(to right, ${edge} 0 ${dash.hd}px, transparent ${dash.hd}px ${dash.hd + dash.hg}px)`,
+          `repeating-linear-gradient(to bottom, ${edge} 0 ${dash.vd}px, transparent ${dash.vd}px ${dash.vd + dash.vg}px)`,
         ].join(", "),
         backgroundSize: "100% 2px, 2px 100%, 100% 2px, 2px 100%",
         backgroundPosition: "0 0, 100% 0, 0 100%, 0 0",
@@ -1483,7 +1530,7 @@ function BringYourFile({
             Find this file on your device
           </div>
           <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 10, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
-            Drop a file or a whole folder. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
+            Drag in a file or a whole folder, or click to choose files. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
           </div>
           <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
             Nothing is uploaded. The search runs in your browser.
