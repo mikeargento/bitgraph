@@ -5,7 +5,7 @@ import { proofPage, blockTimeFromHeader, type ExportProof, type AnchorSide } fro
 import { useParams } from "next/navigation";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
-import { findMatchInDrop, findMatchInFiles } from "@/lib/folder-check";
+import { findMatchInDrop, findMatchInFiles, supportsDirectoryPicker, pickDirectory } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
@@ -1319,6 +1319,24 @@ function BringYourFile({
    * every edge therefore land ON a dash, and since each edge is measured
    * separately the dashes stay ~9px whether the edge is 348px or 960px.
    */
+  // Feature detection after mount: the server renders neither answer.
+  const [needsUploadWarning, setNeedsUploadWarning] = useState(false);
+  useEffect(() => { setNeedsUploadWarning(!supportsDirectoryPicker()); }, []);
+
+  /** Prefer the picker that asks to VIEW files over the input that makes the
+   *  browser ask to UPLOAD them. Cancelling is silent. */
+  async function chooseFolder() {
+    if (supportsDirectoryPicker()) {
+      setState("reading");
+      setReadCount(0);
+      const walked = await pickDirectory((n) => setReadCount(n));
+      if (!walked) { setState("idle"); return; }
+      void check(walked.map((w) => w.file));
+      return;
+    }
+    folderInputRef.current?.click();
+  }
+
   const [dash, setDash] = useState({ hd: 9, hg: 7, vd: 9, vg: 7 });
   useEffect(() => {
     const el = boxRef.current;
@@ -1539,7 +1557,7 @@ function BringYourFile({
               folder. This is how you hand over a whole one without dragging. */}
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
+            onClick={(e) => { e.stopPropagation(); void chooseFolder(); }}
             style={{
               marginTop: 12, background: "none", border: "none", padding: 0,
               cursor: "pointer", color: "#0065A4", fontWeight: 500,
@@ -1548,6 +1566,14 @@ function BringYourFile({
           >
             or choose a folder
           </button>
+          {/* Shown only where the fallback input will open, i.e. where the
+              browser is about to say "upload" about a page that uploads
+              nothing. Saying it first is the only control we have. */}
+          {needsUploadWarning && (
+            <div style={{ marginTop: 6, color: "#6b7280", fontSize: "clamp(11px, 2.6vw, 12px)", lineHeight: 1.5, textWrap: "balance" }}>
+              Your browser will say “upload”. Nothing is sent; it is read here.
+            </div>
+          )}
         </>
       )}
     </div>

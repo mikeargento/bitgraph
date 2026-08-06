@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { formatFileSize } from "@/lib/bitgraph";
-import { entriesFromDataTransfer, walkEntries, walkedFromPicker, type WalkedFile } from "@/lib/folder-check";
+import {
+  entriesFromDataTransfer, walkEntries, walkedFromPicker,
+  supportsDirectoryPicker, pickDirectory, type WalkedFile,
+} from "@/lib/folder-check";
 
 /* Creating a BitGraph is always a SELECTION of a file that already exists —
    no step in the process may create anything (doctrine, 2026-07-31). Two
@@ -84,6 +87,26 @@ export function FileDrop({
   // selects a folder and returns everything under it. Dragging always allowed
   // both; choosing did not, which made the picker feel broken.
   const folderInputRef = useRef<HTMLInputElement>(null);
+  // Feature detection has to happen after mount: the server renders neither
+  // branch's answer, and guessing would hydrate wrong.
+  const [needsUploadWarning, setNeedsUploadWarning] = useState(false);
+  useEffect(() => { setNeedsUploadWarning(!supportsDirectoryPicker()); }, []);
+
+  // Prefer the picker that asks to VIEW files over the input that makes the
+  // browser ask to UPLOAD them. Cancelling is silent, as it should be.
+  const chooseFolder = useCallback(async () => {
+    if (supportsDirectoryPicker()) {
+      // ⚠️ No progress is reported until the first file arrives. The dialog
+      // is open until then and nothing is happening; announcing a read that
+      // has not started would strand the caller's spinner if they cancel.
+      const walked = await pickDirectory((n) => onFolderScan?.(n, false));
+      if (!walked) return; // cancelled: nothing was ever raised
+      onFolderScan?.(walked.length, true);
+      onFolder?.(walked);
+      return;
+    }
+    folderInputRef.current?.click();
+  }, [onFolder, onFolderScan]);
   // Set when an intake refused an ephemeral blob (see selectExisting).
   const [refusedEphemeral, setRefusedEphemeral] = useState(false);
 
@@ -441,19 +464,33 @@ export function FileDrop({
               folder. This is the way to hand over a whole one without
               dragging. A text link, not a button. */}
           {onFolder && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
-              disabled={disabled}
-              className="mt-2 relative z-[2]"
-              style={{
-                background: "none", border: "none", padding: 0, cursor: "pointer",
-                color: "#0065A4", fontWeight: 500, fontFamily: "inherit",
-                fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
-              }}
-            >
-              or choose a folder
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); void chooseFolder(); }}
+                disabled={disabled}
+                className="mt-2 relative z-[2]"
+                style={{
+                  background: "none", border: "none", padding: 0, cursor: "pointer",
+                  color: "#0065A4", fontWeight: 500, fontFamily: "inherit",
+                  fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
+                }}
+              >
+                or choose a folder
+              </button>
+              {/* Only where the fallback input is what will open, i.e. where
+                  the browser is about to say "upload" about a page that
+                  uploads nothing. Saying it first is the only control we
+                  have over that dialog. */}
+              {needsUploadWarning && (
+                <div
+                  className="mt-1 text-center"
+                  style={{ color: "#6b7280", fontSize: "var(--fd-subhint-size, min(11px, 2.6vw))", lineHeight: 1.5 }}
+                >
+                  Your browser will say “upload”. Nothing is sent; it is read here.
+                </div>
+              )}
+            </>
           )}
           {refusalNote}
         </div>

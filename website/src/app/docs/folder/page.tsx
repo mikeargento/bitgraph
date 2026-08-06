@@ -88,8 +88,13 @@ export default function FolderPage() {
           link at the bottom; this page only has to show how little there is
           to do. */}
       <FolderProcess />
+      {/* "its own folder", because the word is doing two jobs within a few
+          inches: the diagram's middle panel is THE FOLDER you installed, and
+          this is the export it writes for each recording. Without the
+          possessive a reader can take them for the same object, which makes
+          the diagram's "=" look like it points at the same thing twice. */}
       <p className="text-[#1f2937] mb-14">
-        Your file is now BitGraphed, wrapped in a folder containing everything needed to
+        Your file is now BitGraphed, wrapped in its own folder containing everything needed to
         verify it.
       </p>
 

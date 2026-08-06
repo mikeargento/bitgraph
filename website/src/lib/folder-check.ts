@@ -178,6 +178,64 @@ export function walkedFromPicker(files: File[]): WalkedFile[] {
   return out;
 }
 
+/* ── Choosing a folder without the word "upload" ──
+ *
+ * A webkitdirectory input makes the browser put up its own confirmation, and
+ * that dialog says UPLOAD: "Upload N files to this site?" in Chrome, the same
+ * word in Safari and Firefox. It is the browser's wording for reading a
+ * directory and it cannot be suppressed or reworded, which is intolerable on
+ * a page whose entire claim is that nothing is uploaded. The browser
+ * contradicts the product in the browser's own voice.
+ *
+ * showDirectoryPicker asks a different question: "Let this site view files?"
+ * That is what actually happens. So it is used wherever it exists (Chromium),
+ * and the input stays as the fallback (Safari, Firefox) where the wording is
+ * out of our hands and the copy warns about it instead.
+ */
+
+type DirHandle = {
+  kind: "file" | "directory";
+  name: string;
+  entries: () => AsyncIterableIterator<[string, DirHandle]>;
+  getFile: () => Promise<File>;
+};
+
+export const supportsDirectoryPicker = () =>
+  typeof window !== "undefined" &&
+  typeof (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === "function";
+
+/**
+ * Read a directory the person chooses, no upload wording anywhere.
+ * Returns null when they cancel. Same prunes and same shape as the walk.
+ */
+export async function pickDirectory(onProgress?: (files: number) => void): Promise<WalkedFile[] | null> {
+  const show = (window as unknown as { showDirectoryPicker: () => Promise<DirHandle> }).showDirectoryPicker;
+  let root: DirHandle;
+  try {
+    root = await show();
+  } catch {
+    return null; // cancelled, or permission refused
+  }
+  const out: WalkedFile[] = [];
+  let lastTick = 0;
+  const visit = async (dir: DirHandle, path: string[]): Promise<void> => {
+    for await (const [name, handle] of dir.entries()) {
+      if (name.startsWith(".")) continue;
+      const here = [...path, name];
+      if (handle.kind === "file") {
+        try { out.push({ file: await handle.getFile(), path: here }); } catch { continue; }
+        const now = Date.now();
+        if (onProgress && now - lastTick >= 120) { lastTick = now; onProgress(out.length); }
+      } else {
+        await visit(handle, here);
+      }
+    }
+  };
+  await visit(root, [root.name]);
+  onProgress?.(out.length);
+  return out;
+}
+
 /* ── Discovery by content ── */
 
 export interface ExportCandidate {
