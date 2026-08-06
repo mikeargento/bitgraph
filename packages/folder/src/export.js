@@ -833,6 +833,23 @@ function epochToUrlSafe(e) {
   return String(e || '').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+/* "On record" means on the chain this tool can verify. The ledger is
+ * append-only and still answers with pre-cutover occ/1 proofs for bytes
+ * recorded before 2026-05-15; every verifier in the product is bitgraph/1
+ * only, so treating those as "on record" produced exports that can never
+ * check out (16 of them, found 2026-08-05). Filtered HERE, at the response
+ * edge, so every consumer — the drop gate, recovery, the export builder's
+ * position pick — agrees on what exists. The ledger's earliest-first order
+ * is preserved within the filter: the earliest bitgraph/1 proof is the
+ * canonical one, and bytes with only occ/1 proofs are simply not on record,
+ * so dropping them records them properly. */
+function currentChainProofs(proofs) {
+  return (proofs || []).filter(function (e) {
+    var p = (e && e.proof) || e;
+    return p && p.version === 'bitgraph/1';
+  });
+}
+
 /**
  * Batch-check response to `yes\t<counter>\t<epoch>` / `no` / `error`.
  * Reports the EARLIEST position so an already-on-record drop is exported from
@@ -843,7 +860,7 @@ function parseBatch(body) {
     var results = JSON.parse(body).results || {};
     var keys = Object.keys(results);
     if (!keys.length) return 'no';
-    var proofs = results[keys[0]].proofs || [];
+    var proofs = currentChainProofs(results[keys[0]].proofs);
     if (!proofs.length) return 'no';
 
     // ⚠️ TAKE THE SERVER'S FIRST. This used to pick the numerically smallest
@@ -886,7 +903,7 @@ function parseBatchMany(body) {
     var results = JSON.parse(body).results || {};
     var lines = [];
     Object.keys(results).forEach(function (key) {
-      var proofs = (results[key] && results[key].proofs) || [];
+      var proofs = currentChainProofs(results[key] && results[key].proofs);
       if (!proofs.length) return;
       // proofs[0] is the ledger's earliest, by write times this does not have.
       // Never re-derive it; see parseBatch.
@@ -2213,7 +2230,7 @@ function recoverInto(source, destFolder) {
       // cannot silently drop a result on the floor.
       var positions = {};
       Object.keys(data.results).forEach(function (key) {
-        var proofs = (data.results[key] && data.results[key].proofs) || [];
+        var proofs = currentChainProofs(data.results[key] && data.results[key].proofs);
         proofs.forEach(function (entry) {
           var p = (entry && entry.proof) || entry;
           if (!p || !p.commit || !p.artifact || !p.artifact.digestB64) return;

@@ -234,6 +234,14 @@ if [ ! -d "$SEAL_LOCK" ] && { compgen -G "$FOLDER"/Recordings/*/.bitgraph-pendin
   "$OSASCRIPT" -l JavaScript "$EXPORTER" --complete "$FOLDER" 0 >/dev/null 2>&1 || true
 fi
 
+# ⚠️ Layout hygiene runs BEFORE collection, and the order is what makes a
+# user's index.html recordable (1.9.2). A pre-1.9 install's leftover sheet is
+# a top-level index.html; --tidy deletes it only when it is provably OURS
+# (content check), and a person's own index.html is untouched. Purging it here
+# means the collection below can take every file by name with no exception:
+# anything named index.html that survives this call is the user's.
+tuck_strays
+
 # ---------------------------------------------------------------------------
 # A drop is handled in PHASES, not one file at a time.
 #
@@ -267,14 +275,17 @@ keep_paths=(); keep_digests=(); keep_before=()
 
 while IFS= read -r -d '' f; do
   name=$(basename "$f")
-  # index.html is written BY the exporter into this very folder, so recording
-  # it would be a feedback loop: writing it trips the watch, the watch records
-  # it, recording rewrites it. It cannot self-limit through the digest state
-  # either, because each rewrite changes the row count and so produces new
-  # bytes and a new digest every pass. This minted six permanent proofs on
-  # 2026-08-04 before the watch was stopped. The exporter's own output must
-  # never be one of its inputs.
-  case "$name" in .*|index.html) continue ;; esac
+  # index.html was skipped BY NAME until 1.9.2, a scar from the 2026-08-04
+  # feedback loop: the exporter's contact sheet lived at this folder's top
+  # level, writing it tripped the watch, the watch recorded it, recording
+  # rewrote it, and six permanent proofs were minted. The rule stands — the
+  # exporter's own output must never be one of its inputs — but the sheet is
+  # gone (1.9.0) and the protections are structural now: receipts live only
+  # inside export dirs, which droppable() prunes; tuck_strays above removes a
+  # legacy sheet (content-checked) before this loop ever sees it; and
+  # rebuildPage refuses to overwrite an artifact named index.html. So a
+  # person's own index.html is a recordable file like any other.
+  case "$name" in .*) continue ;; esac
 
   # Everything present is processed, and deliberately WITHOUT consulting the
   # digest state (1.8.0): bytes already on the ledger deserve their "Already

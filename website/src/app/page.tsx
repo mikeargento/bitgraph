@@ -728,6 +728,10 @@ export default function BitGraphPage() {
     // already a link away. Same rule the BitGraph Folder applies.
     const wantsIndex = built.length > 1;
     for (const b of built) {
+      // A recording named index.html gets no page: the zip entry would
+      // collide with the artifact and the archive would carry the page
+      // instead of the recorded bytes. Same rule the Folder applies.
+      if (b.fileName === "index.html") continue;
       try {
         addText(b.dir ? `${b.dir}/index.html` : "index.html", proofPage({
           fileName: b.fileName,

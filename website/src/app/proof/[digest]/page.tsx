@@ -642,18 +642,23 @@ export default function ProofPage() {
 
     // The export opens as a page rather than as a pile of JSON. hasIndex is
     // false: a single export has no contact sheet to go back to, which is the
-    // same rule the Folder applies.
-    try {
-      files["index.html"] = strToU8(proofPage({
-        fileName: cachedFile?.name ?? null,
-        fileSize: cachedFile ? cachedFile.data.byteLength : null,
-        proof: proof as ExportProof,
-        before: sides.before,
-        after: sides.after,
-        proofRaw: JSON.stringify(proof, null, 2),
-        hasIndex: false,
-      }));
-    } catch (e) { console.error("[bitgraph] export page failed:", e); }
+    // same rule the Folder applies. An export whose recorded file is itself
+    // named index.html gets NO page — the entry would replace the artifact in
+    // the files map, and the zip would ship the page instead of the very
+    // bytes the proof describes. Same rule the Folder's generator applies.
+    if (cachedFile?.name !== "index.html") {
+      try {
+        files["index.html"] = strToU8(proofPage({
+          fileName: cachedFile?.name ?? null,
+          fileSize: cachedFile ? cachedFile.data.byteLength : null,
+          proof: proof as ExportProof,
+          before: sides.before,
+          after: sides.after,
+          proofRaw: JSON.stringify(proof, null, 2),
+          hasIndex: false,
+        }));
+      } catch (e) { console.error("[bitgraph] export page failed:", e); }
+    }
 
     const zipped = zipSync(files, { level: 0 });
     const blob = new Blob([zipped as unknown as BlobPart], { type: "application/zip" });

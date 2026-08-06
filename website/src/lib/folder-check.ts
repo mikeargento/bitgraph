@@ -143,6 +143,11 @@ export interface ExportCandidate {
   /** Files directly in the export dir that are not machinery — normally
    *  exactly one, the artifact. */
   artifactCandidates: File[];
+  /** The export's own index.html, held aside rather than discarded: when it
+   *  is the ONLY file beside proof.json it may BE the artifact — an export
+   *  whose recorded file is itself named index.html carries no receipt (the
+   *  generator refuses to overwrite the very bytes the proof describes). */
+  receipt?: File;
   anchors: {
     before?: File;
     after?: File;
@@ -218,7 +223,8 @@ export function discoverDrop(walked: WalkedFile[]): DropScan {
 
     if (rel.length === 1) {
       if (rel[0] === "proof.json") cand.proofFile = w.file;
-      else if (rel[0] !== "index.html") cand.artifactCandidates.push(w.file);
+      else if (rel[0] === "index.html") cand.receipt = w.file;
+      else cand.artifactCandidates.push(w.file);
     } else if (rel.length === 2 && rel[0] === "ethereum-anchors") {
       if (rel[1] === "anchor-before.json") cand.anchors.before = w.file;
       else if (rel[1] === "anchor-after.json") cand.anchors.after = w.file;
@@ -383,12 +389,38 @@ const stripWorking = (w: Working): ExportCheckResult => ({
   failure: w.failure,
 });
 
+/* Both page generators (the Folder's export.js and this site's
+ * export-pages.ts) emit exactly this head, byte for byte, and a hand-written
+ * page is vanishingly unlikely to. What it decides: an export whose only file
+ * beside proof.json is an index.html holds either a recorded file that
+ * happens to be named index.html (no receipt is written for those — writing
+ * one would overwrite the artifact) or an orphaned receipt whose artifact
+ * went missing. Bytes that match this signature are machinery, so the export
+ * is missing its file; bytes that do not are the artifact. */
+const RECEIPT_PREFIX =
+  '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+  '<meta name="viewport" content="width=device-width,initial-scale=1"><title>';
+const RECEIPT_CACHE_META =
+  '</title><meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">';
+
+async function looksLikeReceipt(f: File): Promise<boolean> {
+  const head = await f.slice(0, 400).text().catch(() => "");
+  return head.startsWith(RECEIPT_PREFIX) && head.includes(RECEIPT_CACHE_META);
+}
+
 /** The fast half: everything the roll needs to render, no hashing and no
  *  network. Structural failures (unreadable proof, no file at all) are
  *  verdicts already; everything else is pending (`ok: null`). */
 async function scanExportsLocal(candidates: ExportCandidate[]): Promise<Working[]> {
   const working: Working[] = [];
   for (const cand of candidates) {
+    // A sole index.html beside proof.json is the artifact unless it is
+    // provably a receipt; see RECEIPT_PREFIX. Promoted before the row is
+    // built so fileName and the thumbnail read from it like any other file.
+    if (cand.artifactCandidates.length === 0 && cand.receipt &&
+        !(await looksLikeReceipt(cand.receipt))) {
+      cand.artifactCandidates.push(cand.receipt);
+    }
     const w: Working = {
       cand,
       dirName: cand.dirName,
