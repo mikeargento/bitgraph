@@ -1319,10 +1319,6 @@ function BringYourFile({
    * every edge therefore land ON a dash, and since each edge is measured
    * separately the dashes stay ~9px whether the edge is 348px or 960px.
    */
-  // Feature detection after mount: the server renders neither answer.
-  const [needsUploadWarning, setNeedsUploadWarning] = useState(false);
-  useEffect(() => { setNeedsUploadWarning(!supportsDirectoryPicker()); }, []);
-
   /** Prefer the picker that asks to VIEW files over the input that makes the
    *  browser ask to UPLOAD them. Cancelling is silent. */
   async function chooseFolder() {
@@ -1548,7 +1544,7 @@ function BringYourFile({
             Find this file on your device
           </div>
           <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 10, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
-            Drag in a file or a whole folder, or click to choose files. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
+            Drag a folder. Choose files. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
           </div>
           <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
             Nothing is uploaded. The search runs in your browser.
@@ -1566,14 +1562,6 @@ function BringYourFile({
           >
             or choose a folder
           </button>
-          {/* Shown only where the fallback input will open, i.e. where the
-              browser is about to say "upload" about a page that uploads
-              nothing. Saying it first is the only control we have. */}
-          {needsUploadWarning && (
-            <div style={{ marginTop: 6, color: "#6b7280", fontSize: "clamp(11px, 2.6vw, 12px)", lineHeight: 1.5, textWrap: "balance" }}>
-              Your browser will say “upload”. Nothing is sent; it is read here.
-            </div>
-          )}
         </>
       )}
     </div>

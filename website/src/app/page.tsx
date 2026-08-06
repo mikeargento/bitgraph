@@ -953,12 +953,13 @@ export default function BitGraphPage() {
                   onFiles={handleFiles}
                   onFolder={handleFolder}
                   onFolderScan={handleFolderScan}
-                  // The three ways in are not equivalent, so the words say
-                  // which is which: dragging takes a file OR a whole folder,
-                  // clicking the box opens the FILE picker (a file input
-                  // cannot select a folder), and the link below opens the
-                  // folder picker.
-                  hint="Drag in a file or a whole folder, or click to choose files."
+                  // Four words for the one asymmetry that matters: a folder
+                  // has to be dragged (a file input cannot select one), a
+                  // file can be chosen. The link below is the escape hatch
+                  // for choosing a folder anyway. An earlier version
+                  // explained the browser's "upload" dialog here and that
+                  // paragraph confused people more than the dialog did.
+                  hint="Drag a folder. Choose files."
                   subhint="Your file never leaves your device."
                 />
               </div>

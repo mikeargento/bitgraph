@@ -87,10 +87,6 @@ export function FileDrop({
   // selects a folder and returns everything under it. Dragging always allowed
   // both; choosing did not, which made the picker feel broken.
   const folderInputRef = useRef<HTMLInputElement>(null);
-  // Feature detection has to happen after mount: the server renders neither
-  // branch's answer, and guessing would hydrate wrong.
-  const [needsUploadWarning, setNeedsUploadWarning] = useState(false);
-  useEffect(() => { setNeedsUploadWarning(!supportsDirectoryPicker()); }, []);
 
   // Prefer the picker that asks to VIEW files over the input that makes the
   // browser ask to UPLOAD them. Cancelling is silent, as it should be.
@@ -478,18 +474,6 @@ export function FileDrop({
               >
                 or choose a folder
               </button>
-              {/* Only where the fallback input is what will open, i.e. where
-                  the browser is about to say "upload" about a page that
-                  uploads nothing. Saying it first is the only control we
-                  have over that dialog. */}
-              {needsUploadWarning && (
-                <div
-                  className="mt-1 text-center"
-                  style={{ color: "#6b7280", fontSize: "var(--fd-subhint-size, min(11px, 2.6vw))", lineHeight: 1.5 }}
-                >
-                  Your browser will say “upload”. Nothing is sent; it is read here.
-                </div>
-              )}
             </>
           )}
           {refusalNote}
