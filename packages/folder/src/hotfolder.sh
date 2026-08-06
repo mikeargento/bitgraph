@@ -151,13 +151,13 @@ clear_husks() {
   find "$FOLDER" -mindepth 1 \
     \( -path "$FOLDER/Recordings" \
        -o \( -name '.*' ! -name '.DS_Store' \) \
-       -o -name files \
+       -o -path "$FOLDER/files" \
        -o \( -type d -exec test -e '{}/proof.json' ';' \) \
     \) -prune -o \
     -type f -name '.DS_Store' ! -path "$FOLDER/.DS_Store" \
     -exec rm -f {} ';' 2>/dev/null || true
-  find "$FOLDER" -mindepth 1 -depth -type d -empty ! -name '.*' ! -name files \
-    ! -path "$FOLDER/Recordings" \
+  find "$FOLDER" -mindepth 1 -depth -type d -empty ! -name '.*' \
+    ! -path "$FOLDER/Recordings" ! -path "$FOLDER/files" \
     -exec rmdir {} ';' 2>/dev/null || true
 }
 
@@ -199,13 +199,17 @@ handled() { grep -qxF "$1" "$STATE" 2>/dev/null || echo "$1" >> "$STATE"; }
 # generated, and any directory carrying a proof.json is an export. Recursive,
 # because a folder of folders of photos is still a folder of photos.
 droppable() {
-  # Recordings/ is pruned by its exact top-level path, which both skips every
-  # export in one test instead of one per directory and keeps a USER folder
-  # that happens to be called Recordings, dragged in deeper down, recordable.
+  # Recordings/ and the legacy files/ are pruned by their exact top-level
+  # paths, which both skips them in one test and keeps a USER folder that
+  # happens to carry either name, dragged in deeper down, recordable.
+  # ⚠️ files/ was pruned BY NAME until 1.9.2, and that was a real loss: a
+  # dropped folder containing a subfolder named "files" had that subfolder
+  # silently skipped — never recorded, never moved, and its parent chain
+  # never emptied, so the husk sat at the top level looking stuck.
   find "$FOLDER" -mindepth 1 \
     \( -path "$FOLDER/Recordings" \
        -o -name '.*' \
-       -o -name files \
+       -o -path "$FOLDER/files" \
        -o \( -type d -exec test -e '{}/proof.json' ';' \) \
     \) -prune -o -type f -print0
 }

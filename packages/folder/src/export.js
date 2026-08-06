@@ -2137,10 +2137,18 @@ function buildDrop(manifestPath, folder, responsesDir) {
  */
 function droppableUnder(dir) {
   var list = tempPath();
+  // The legacy files/ is pruned by its exact top-level path, not by name: a
+  // user's own subfolder named "files" deeper down holds recordings worth
+  // recovering (pruning it by name is the bug that left a dropped folder
+  // stuck in the hot folder, fixed in 1.9.2). Hard links under a top-level
+  // files/ would only be found twice anyway, and dedup-by-digest absorbs
+  // even that. ethereum-anchors/ stays name-based on purpose: it is proof
+  // material wherever it sits, because exports are deliberately descended.
+  var top = String(dir).replace(/\/+$/, '');
   try {
-    sh('find ' + quote(dir) + ' -mindepth 1 ' +
+    sh('find ' + quote(top) + ' -mindepth 1 ' +
       '\\( -name ' + quote('.*') +
-      ' -o -name ' + quote(FILES_DIR) +
+      ' -o -path ' + quote(top + '/' + FILES_DIR) +
       ' -o -name ' + quote(ANCHOR_DIR) + ' \\) -prune -o ' +
       '-type f ! -name ' + quote('index.html') +
       ' ! -name ' + quote('proof.json') +
