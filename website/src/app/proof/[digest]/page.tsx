@@ -1398,8 +1398,8 @@ function BringYourFile({
       ) : state === "checking" ? (
         <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
           {progress.total > 1
-            ? `Looking for the match… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`
-            : "Looking for the match…"}
+            ? `Searching… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`
+            : "Searching…"}
         </div>
       ) : mismatch ? (
         <>
@@ -1427,14 +1427,19 @@ function BringYourFile({
           {/* text-wrap: balance on every line, the same treatment the hero and
               the camera page use: centered copy with one short trailing line
               reads as a mistake. */}
+          {/* The headline names the job and says WHICH file ("this file",
+              the one this page is about); the body names the actor and the
+              method; the last line says where the work happens. Each line has
+              one job, and "your device" is not repeated: the headline places
+              the file, the last line places the computation. */}
           <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: "#111827", letterSpacing: "-0.01em", textWrap: "balance" }}>
-            Have the file? Drop it here.
+            Find this file on your device
           </div>
           <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 10, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
-            Drop one file, or a whole folder, and the matching file is found for you by its hash. You do not have to know which file it is.
+            Drop a file or a whole folder. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
           </div>
           <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
-            Nothing is uploaded. The check runs on your device.
+            Nothing is uploaded. The search runs in your browser.
           </div>
         </>
       )}
