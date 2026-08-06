@@ -5,6 +5,7 @@ import { proofPage, blockTimeFromHeader, type ExportProof, type AnchorSide } fro
 import { useParams } from "next/navigation";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
+import { findMatchInDrop, findMatchInFiles } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
@@ -1288,14 +1289,34 @@ function BringYourFile({
 }) {
   const [state, setState] = useState<"idle" | "checking" | "mismatch">("idle");
   const [dragOver, setDragOver] = useState(false);
+  // How many files the last run hashed (for the mismatch wording) and live
+  // progress while a multi-file or folder drop is being searched.
+  const [checkedCount, setCheckedCount] = useState(0);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function check(file: File | undefined | null) {
-    if (!file) return;
+  // The drop may be many files, or whole folders, and the matching file is
+  // FOUND by hashing rather than the person knowing which it is: drop your
+  // Pictures folder and the box answers "this one". A browser cannot search
+  // the machine, but it can search whatever it is handed. `source` is the
+  // DataTransfer itself (captured synchronously) or a picked file list.
+  async function check(source: DataTransfer | File[]) {
     setState("checking");
+    setProgress({ done: 0, total: 0 });
     try {
-      const digest = await hashFile(file);
-      if (digest !== proof.artifact.digestB64) { setState("mismatch"); return; }
+      const { match, checked } = Array.isArray(source)
+        ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }))
+        : await findMatchInDrop(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }));
+      setCheckedCount(checked);
+      if (!match) { setState("mismatch"); return; }
+      await accept(match);
+    } catch {
+      setState("mismatch");
+    }
+  }
+
+  async function accept(file: File) {
+    try {
       const data = await file.arrayBuffer();
       let c2pa: C2PAReadResult | null = null;
       try {
@@ -1327,7 +1348,7 @@ function BringYourFile({
       onClick={() => inputRef.current?.click()}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => { e.preventDefault(); setDragOver(false); check(e.dataTransfer.files?.[0]); }}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(e.dataTransfer); }}
       style={{
         background: "#fff",
         border: `2px dashed ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c4c9d0"}`,
@@ -1337,18 +1358,24 @@ function BringYourFile({
         transition: "border-color .15s",
       }}
     >
-      <input ref={inputRef} type="file" style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ""; check(f); }} />
+      <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
       {state === "checking" ? (
-        <div style={{ fontSize: 15, fontWeight: 600, color: "#4b5563" }}>Checking…</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "#4b5563" }}>
+          {progress.total > 1 ? `Checking ${progress.done} of ${progress.total}…` : "Checking…"}
+        </div>
       ) : mismatch ? (
         <>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>These bytes don&rsquo;t match this BitGraph</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>
+            {checkedCount > 1
+              ? `None of the ${checkedCount.toLocaleString()} files match this BitGraph`
+              : "These bytes don’t match this BitGraph"}
+          </div>
           <div style={{ fontSize: 13, color: "#4b5563", marginTop: 6 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
         </>
       ) : (
         <>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>Have the file? Check it against this BitGraph.</div>
-          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 6 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
+          <div style={{ fontSize: 13, color: "#4b5563", marginTop: 6 }}>Drop files or a whole folder and the match is found by hash. In your browser; nothing is uploaded.</div>
         </>
       )}
     </div>

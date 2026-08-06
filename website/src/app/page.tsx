@@ -17,7 +17,7 @@ import {
   type BitGraphProof,
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
-import { discoverDrop, checkExports, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
+import { discoverDrop, checkExports, findMatchInDrop, findMatchInFiles, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
@@ -1313,15 +1313,22 @@ async function cacheArtifactToIDB(file: File, proofDigest: string) {
 function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched: (file: File) => void }) {
   const [state, setState] = useState<"idle" | "checking" | "mismatch">("idle");
   const [dragOver, setDragOver] = useState(false);
+  const [checkedCount, setCheckedCount] = useState(0);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function check(file: File | undefined | null) {
-    if (!file) return;
+  // Many files or whole folders in one drop; the match is found by hashing.
+  // Same behavior as the proof page's BringYourFile.
+  async function check(source: DataTransfer | File[]) {
     setState("checking");
+    setProgress({ done: 0, total: 0 });
     try {
-      const digest = await hashFile(file);
-      if (digest !== proof.artifact.digestB64) { setState("mismatch"); return; }
-      onMatched(file);
+      const { match, checked } = Array.isArray(source)
+        ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }))
+        : await findMatchInDrop(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }));
+      setCheckedCount(checked);
+      if (!match) { setState("mismatch"); return; }
+      onMatched(match);
     } catch {
       setState("mismatch");
     }
@@ -1333,7 +1340,7 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
       onClick={() => inputRef.current?.click()}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => { e.preventDefault(); setDragOver(false); check(e.dataTransfer.files?.[0]); }}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(e.dataTransfer); }}
       style={{
         marginTop: 8,
         background: "#fff",
@@ -1344,18 +1351,24 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
         transition: "border-color .15s",
       }}
     >
-      <input ref={inputRef} type="file" style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ""; check(f); }} />
+      <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
       {state === "checking" ? (
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#4b5563" }}>Checking…</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#4b5563" }}>
+          {progress.total > 1 ? `Checking ${progress.done} of ${progress.total}…` : "Checking…"}
+        </div>
       ) : mismatch ? (
         <>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#dc2626" }}>These bytes don&rsquo;t match this proof</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#dc2626" }}>
+            {checkedCount > 1
+              ? `None of the ${checkedCount.toLocaleString()} files match this proof`
+              : "These bytes don’t match this proof"}
+          </div>
           <div style={{ fontSize: 12.5, color: "#4b5563", marginTop: 5 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
         </>
       ) : (
         <>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>Have the file? Check it matches this proof.</div>
-          <div style={{ fontSize: 12.5, color: "#4b5563", marginTop: 5 }}>Drop it here or click to choose. Hashed in your browser, nothing is uploaded.</div>
+          <div style={{ fontSize: 12.5, color: "#4b5563", marginTop: 5 }}>Drop files or a whole folder and the match is found by hash. In your browser; nothing is uploaded.</div>
         </>
       )}
     </div>

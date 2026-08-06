@@ -234,6 +234,43 @@ export function discoverDrop(walked: WalkedFile[]): DropScan {
   return { exports: [...byDir.values()], strays };
 }
 
+/* ── Find a file by digest in a drop ── */
+
+/** Hash files until one matches `digestB64`. Short-circuits on the match;
+ *  yields between files so the UI paints and Safari reclaims buffers. */
+export async function findMatchInFiles(
+  files: File[],
+  digestB64: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ match: File | null; checked: number }> {
+  let done = 0;
+  for (const f of files) {
+    const d = await hashFile(f).catch(() => null);
+    done++;
+    onProgress?.(done, files.length);
+    if (d === digestB64) return { match: f, checked: done };
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  return { match: null, checked: done };
+}
+
+/** The "find it for me" version of the file-match check: a drop may hold many
+ *  files AND folders, and the matching file is found by hashing, not by the
+ *  person knowing which one it is. MUST be called synchronously from the drop
+ *  handler (the entry capture dies after the first await). A browser cannot
+ *  search the machine — but it can search whatever the person hands it. */
+export async function findMatchInDrop(
+  dt: DataTransfer,
+  digestB64: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ match: File | null; checked: number }> {
+  const entries = entriesFromDataTransfer(dt);
+  const files = entries
+    ? (await walkEntries(entries)).map((w) => w.file)
+    : Array.from(dt.files);
+  return findMatchInFiles(files, digestB64, onProgress);
+}
+
 /* ── The check itself ── */
 
 export interface ExportCheckResult {

@@ -119,20 +119,18 @@ export default function SubjectsPage() {
           heading became the page's opener, the label promised a list of
           applications while the page delivered an argument. No subtitle: the
           first paragraph scopes the page.
-          Caps at the DOCS h1 size (36px), not the Roll's 20px: /subjects is a prose
-          page like the docs, not a stream page with search chrome, and the
-          line's turn ("Proof isn't") needs air to land while carrying the top
-          of the page alone. Deliberately NOT the home hero's up-to-54px: that
-          scale belongs to "A camera for bits." and is locked to the /camera
-          morph; matching it would set the two pages shouting.
-          The line must NEVER wrap: split across two lines the turn reads as a
-          subtitle instead of a reversal. So the middle term is sized the way
-          home's tagline is, from the line's own measure: in Acumin Pro 800 at
-          -0.03em it needs 13.48x the font size and the column gives 0.9vw, so
-          6.68vw is the wrap point and 6.4vw leaves margin for font-load
-          variance. The 18px floor cannot bind above a ~281px viewport, below
-          any real device. Re-measure if the words, weight, or tracking change. */}
-      <h1 style={{ fontSize: "clamp(18px, 6.4vw, 36px)", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, color: "#111827", marginBottom: 24 }}>
+          Deliberately NOT the home hero's up-to-54px: that scale belongs to
+          "A camera for bits." and is locked to the /camera morph; matching it
+          would set the two pages shouting.
+          The docs h1 treatment exactly (text-3xl sm:text-4xl, 600, -0.03em):
+          this page sits in the Docs menu now and its title must carry the
+          same weight as its shelf-mates (Mike, 2026-08-05: "should match
+          boldness of other docs titles"). That supersedes an earlier
+          never-wrap sizing (clamp to 6.4vw at weight 800, measured so the
+          line stayed whole on phones): at the docs size a phone breaks the
+          line at the period, "Trust is expensive. / Proof isn't.", which
+          stacks the reversal rather than reducing it to a subtitle. */}
+      <h1 className="text-3xl sm:text-4xl" style={{ fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1.15, color: "#111827", marginBottom: 24 }}>
         Trust is expensive. Proof isn&rsquo;t.
       </h1>
 
