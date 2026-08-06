@@ -119,22 +119,35 @@ export default function FolderPage() {
         verify it.
       </p>
 
-      {/* Three claims, in the order the questions arrive: what the thing is,
-          then what it does not send, then who can read the result. */}
+      {/* Five claims, in the order the questions arrive: what the thing is,
+          where my file went, what it does not send, who can read the result,
+          what a recording is for, and where to see them all. Each one is an
+          h2 that states the claim and a couple of plain sentences that earn
+          it; anyone who wants the protocol follows a link at the bottom. */}
       <h2 className="text-xl font-semibold mt-12 mb-4">A folder, not an app</h2>
       {/* The batch line lives here rather than in the lede. Pluralising the
           lede would have contradicted the diagram below it, which states the
           singular equation, but the page never said anywhere that the folder
           takes more than one file at a time. That is the whole advantage over
-          the one-file flow on the home page, and a 500-file drop is tested. */}
+          the one-file flow on the home page, and a 500-file drop is tested.
+
+          "settles into Recordings" is load-bearing: drops MOVE (1.8, drops
+          absorb; the export holds the only copy), and the page previously
+          never said where a dropped file goes, which is the first thing a
+          person looks for after their first drop. */}
       <p className="text-[#1f2937] mb-14">
         The installer puts a BitGraph folder on your Desktop and watches it. You never
-        open anything. Drop files in one at a time or in batches.
+        open anything. Drop files in one at a time or in batches; each one settles
+        into Recordings, in a folder named after it, next to its BitGraph.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Nothing leaves your Mac</h2>
+      {/* One clause teaches what a hash is without a lesson: 64 characters,
+          identifies the bytes, reveals nothing. That is the whole privacy
+          model, and the reader should not need another page for it. */}
       <p className="text-[#1f2937] mb-14">
-        Your file is hashed where it sits. Only the hash is sent.
+        Your file is hashed where it sits. Only the hash is sent: 64 characters that
+        identify the bytes without revealing them.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Your file is the key</h2>
@@ -143,7 +156,29 @@ export default function FolderPage() {
         private, the proof remains private.
       </p>
 
+      {/* The beat the page was missing: what a recording is FOR. The whole
+          point of the export is the skeptic who receives one, and the page
+          never said so. */}
+      <h2 className="text-xl font-semibold mt-12 mb-4">Made to change hands</h2>
+      <p className="text-[#1f2937] mb-14">
+        A recording is a folder you can send. Hand it to anyone and they can drop it
+        on bitgraph.ing: the check runs in their browser, against the public ledger,
+        and they see for themselves that the bytes match. Nothing to install, no
+        account.
+      </p>
+
+      <h2 className="text-xl font-semibold mt-12 mb-4">Your roll, on the site</h2>
+      {/* The sync vocabulary is /folder's, verbatim: drag Recordings, read on
+          your device, nothing is uploaded, remembered for next time. */}
+      <p className="text-[#1f2937] mb-14">
+        bitgraph.ing/folder shows everything you have recorded. Drag Recordings onto
+        it and every recording appears, newest first, checked against the ledger.
+        The page remembers your roll for next time. Read on your device; nothing is
+        uploaded.
+      </p>
+
       <h2 className="text-xl font-semibold mt-12 mb-4">More</h2>
+      <p className="mb-2"><Action href="/folder">See your folder on the site</Action></p>
       <p className="mb-2"><Action href={SOURCE}>Read the source</Action></p>
       <p className="mb-2"><Action href="/docs/overview">How BitGraph works</Action></p>
       <p className="mb-2"><Action href="/docs/mcp">Connect an AI agent instead</Action></p>
