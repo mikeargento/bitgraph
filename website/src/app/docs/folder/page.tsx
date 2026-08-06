@@ -87,9 +87,17 @@ export default function FolderPage() {
           line above it, so it had no rank at all: brand blue on a page whose
           other actions are also brand blue links, at body size. It now sits
           between the h1 and the subtitle in the type scale, which is where
-          the page's one job belongs, and the air around it does the rest. */}
+          the page's one job belongs, and the air around it does the rest.
+
+          ⚠️ 22px, not 26px, and the difference is not size but COLOUR. This
+          is saturated blue and semibold against an h1 that is near-black, and
+          a saturated 26px out-weighed a near-black 32px: the eye reached the
+          action before the title, which inverts what the page is for. At 22
+          it still clears the 18px subtitle by a full step and reads second,
+          which is the job. Do not push it back up without accounting for the
+          fact that blue is already spending weight that black is not. */}
       <p className="text-lg bg-dl-line">
-        <span className="bg-dl-mac" style={{ fontSize: "clamp(21px, 4.6vw, 26px)", letterSpacing: "-0.015em" }}>
+        <span className="bg-dl-mac" style={{ fontSize: "clamp(19px, 4.2vw, 22px)", letterSpacing: "-0.015em" }}>
           <Action href={DOWNLOAD}>Download for macOS</Action>
         </span>
         <span className="bg-dl-touch text-base text-[#1f2937]">
