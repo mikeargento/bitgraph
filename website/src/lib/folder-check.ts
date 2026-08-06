@@ -152,6 +152,32 @@ export async function walkEntries(
   return out;
 }
 
+/**
+ * The same shape walkEntries produces, from a folder chosen in the file
+ * PICKER rather than dragged in.
+ *
+ * A file input can offer one or the other: plain `multiple` selects files and
+ * refuses to select a folder (opening it instead, which is the whole
+ * complaint), while `webkitdirectory` selects a folder and hands back every
+ * file under it at once. The picked files carry webkitRelativePath, whose
+ * segments are exactly the `path` the walk builds, so everything downstream
+ * (export discovery, the roll, the stray split) is identical either way.
+ *
+ * Dot-named segments are pruned here because the walk prunes them there: a
+ * picked folder otherwise arrives carrying .DS_Store and every export's
+ * internal machinery, which the drag path would never have shown.
+ */
+export function walkedFromPicker(files: File[]): WalkedFile[] {
+  const out: WalkedFile[] = [];
+  for (const file of files) {
+    const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+    const path = rel ? rel.split("/").filter(Boolean) : [file.name];
+    if (path.some((seg) => seg.startsWith("."))) continue;
+    out.push({ file, path });
+  }
+  return out;
+}
+
 /* ── Discovery by content ── */
 
 export interface ExportCandidate {

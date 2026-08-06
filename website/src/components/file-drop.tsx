@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { formatFileSize } from "@/lib/bitgraph";
-import { entriesFromDataTransfer, walkEntries, type WalkedFile } from "@/lib/folder-check";
+import { entriesFromDataTransfer, walkEntries, walkedFromPicker, type WalkedFile } from "@/lib/folder-check";
 
 /* Creating a BitGraph is always a SELECTION of a file that already exists —
    no step in the process may create anything (doctrine, 2026-07-31). Two
@@ -79,6 +79,11 @@ export function FileDrop({
 }: FileDropProps) {
   const [dragover, setDragover] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // A SECOND input, because one cannot do both jobs: `multiple` selects files
+  // and will not select a folder (it opens it instead), `webkitdirectory`
+  // selects a folder and returns everything under it. Dragging always allowed
+  // both; choosing did not, which made the picker feel broken.
+  const folderInputRef = useRef<HTMLInputElement>(null);
   // Set when an intake refused an ephemeral blob (see selectExisting).
   const [refusedEphemeral, setRefusedEphemeral] = useState(false);
 
@@ -213,6 +218,29 @@ export function FileDrop({
       }
     >
       {/* File input covers the entire drop zone when no files are selected */}
+      {/* Folder picker. webkitdirectory hands back every file under the
+          chosen folder at once, with webkitRelativePath, which
+          walkedFromPicker turns into exactly what a dragged folder produces. */}
+      {onFolder && (
+        <input
+          ref={folderInputRef}
+          type="file"
+          title=""
+          // React does not know this attribute; the DOM does.
+          {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+          multiple
+          onChange={(e) => {
+            const picked = Array.from(e.target.files || []);
+            e.target.value = "";
+            if (!picked.length) return;
+            const walked = walkedFromPicker(picked);
+            onFolderScan?.(walked.length, true);
+            onFolder(walked);
+          }}
+          disabled={disabled}
+          style={{ position: "absolute", width: 1, height: 1, opacity: 0, top: -9999, fontSize: 0 }}
+        />
+      )}
       <input
         ref={inputRef}
         type="file"
@@ -403,6 +431,24 @@ export function FileDrop({
             >
               {subhint}
             </div>
+          )}
+          {/* Clicking the box opens the FILE picker, which cannot select a
+              folder. This is the way to hand over a whole one without
+              dragging. A text link, not a button. */}
+          {onFolder && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
+              disabled={disabled}
+              className="mt-2 relative z-[2]"
+              style={{
+                background: "none", border: "none", padding: 0, cursor: "pointer",
+                color: "#0065A4", fontWeight: 500, fontFamily: "inherit",
+                fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
+              }}
+            >
+              or choose a folder
+            </button>
           )}
           {refusalNote}
         </div>

@@ -1294,12 +1294,14 @@ function BringYourFile({
 }) {
   const [state, setState] = useState<"idle" | "reading" | "checking" | "mismatch">("idle");
   const [dragOver, setDragOver] = useState(false);
+  const [hover, setHover] = useState(false);
   // How many files the last run hashed (for the mismatch wording) and live
   // progress while a multi-file or folder drop is being searched.
   const [checkedCount, setCheckedCount] = useState(0);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [readCount, setReadCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // The drop may be many files, or whole folders, and the matching file is
   // FOUND by hashing rather than the person knowing which it is: drop your
@@ -1358,6 +1360,9 @@ function BringYourFile({
   }
 
   const mismatch = state === "mismatch";
+  // The edges are painted, so hover has to be state rather than a style
+  // mutation on the node.
+  const edge = mismatch ? "#dc2626" : dragOver || hover ? "#0065A4" : "#c3c8cf";
   return (
     <div
       onClick={() => inputRef.current?.click()}
@@ -1375,10 +1380,25 @@ function BringYourFile({
          absent. This box is the opposite. It stands for a file that is NOT
          here, and the broken line is what says so before a word is read
          (Mike, 2026-08-06: "it feels more like something is missing"). Solid
-         made it look like a finished panel rather than a gap to fill. */
+         made it look like a finished panel rather than a gap to fill.
+
+         ⚠️ The dashes are DRAWN, not a border-style: dashed. A CSS dashed
+         border gives each side its own dash run and then fills the mitre
+         where they meet, so every corner came out as a solid L-shaped blob
+         thicker than the line itself. These are four backgrounds, one per
+         edge, 2px thin: each edge starts its pattern AT the corner, so the
+         corners meet as a clean right angle with no join to fill. */
       style={{
-        background: dragOver ? "#f0f6ff" : "#fff",
-        border: `2px dashed ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c3c8cf"}`,
+        backgroundColor: dragOver ? "#f0f6ff" : "#fff",
+        backgroundImage: [
+          `repeating-linear-gradient(to right, ${edge} 0 9px, transparent 9px 16px)`,
+          `repeating-linear-gradient(to bottom, ${edge} 0 9px, transparent 9px 16px)`,
+          `repeating-linear-gradient(to right, ${edge} 0 9px, transparent 9px 16px)`,
+          `repeating-linear-gradient(to bottom, ${edge} 0 9px, transparent 9px 16px)`,
+        ].join(", "),
+        backgroundSize: "100% 2px, 2px 100%, 100% 2px, 2px 100%",
+        backgroundPosition: "0 0, 100% 0, 0 100%, 0 0",
+        backgroundRepeat: "no-repeat",
         // Height, not padding: the box then holds ONE size across all four
         // states, so it does not jump when a drop starts reading or a miss
         // comes back with two lines of explanation.
@@ -1390,12 +1410,32 @@ function BringYourFile({
         padding: "28px clamp(20px, 5vw, 34px)",
         textAlign: "center",
         cursor: "pointer",
-        transition: "border-color .15s, background-color .15s",
+        transition: "background-color .15s",
       }}
-      onMouseEnter={(e) => { if (!mismatch) e.currentTarget.style.borderColor = "#0065A4"; }}
-      onMouseLeave={(e) => { if (!mismatch && !dragOver) e.currentTarget.style.borderColor = "#c3c8cf"; }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
       <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
+      {/* The folder picker, which the file picker cannot be: `multiple`
+          refuses to select a folder and opens it instead. Hidden files are
+          dropped so a picked folder searches the same set a dragged one does
+          (a picker hands back .DS_Store and every export's machinery). */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+        multiple
+        style={{ display: "none" }}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          const fs = Array.from(e.currentTarget.files || []).filter((f) => {
+            const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+            return !rel.split("/").some((seg) => seg.startsWith("."));
+          });
+          e.currentTarget.value = "";
+          if (fs.length) void check(fs);
+        }}
+      />
       {state === "reading" ? (
         <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
           {readCount > 0
@@ -1448,6 +1488,19 @@ function BringYourFile({
           <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
             Nothing is uploaded. The search runs in your browser.
           </div>
+          {/* Clicking the box opens the file picker, which cannot select a
+              folder. This is how you hand over a whole one without dragging. */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); folderInputRef.current?.click(); }}
+            style={{
+              marginTop: 12, background: "none", border: "none", padding: 0,
+              cursor: "pointer", color: "#0065A4", fontWeight: 500,
+              fontFamily: "inherit", fontSize: "clamp(12px, 2.8vw, 13px)",
+            }}
+          >
+            or choose a folder
+          </button>
         </>
       )}
     </div>
