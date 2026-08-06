@@ -376,7 +376,7 @@ export function FileDrop({
             </span>
           </button>
           {hint && (
-            <div className="mt-4 text-center" style={{ color: "#4b5563", fontSize: "min(12.5px, 2.9vw)", lineHeight: 1.5, whiteSpace: "pre-line" }}>{hint}</div>
+            <div className="mt-4 text-center" style={{ color: "#4b5563", fontSize: "min(12.5px, 2.9vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{hint}</div>
           )}
           {refusalNote}
         </div>
@@ -395,10 +395,10 @@ export function FileDrop({
             {buttonLabel}
           </button>
           {hint && (
-            <div className="mt-4 text-center" style={{ color: "#111827", fontSize: "min(13px, 3vw)", lineHeight: 1.5, whiteSpace: "pre-line" }}>{hint}</div>
+            <div className="mt-4 text-center" style={{ color: "#111827", fontSize: "min(13px, 3vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{hint}</div>
           )}
           {subhint && (
-            <div className="mt-1.5 text-center" style={{ color: "#4b5563", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5, whiteSpace: "pre-line" }}>{subhint}</div>
+            <div className="mt-1.5 text-center" style={{ color: "#4b5563", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{subhint}</div>
           )}
           {refusalNote}
         </div>
@@ -449,6 +449,7 @@ export function FileDrop({
                 fontSize: "var(--fd-hint-size, min(13px, 3vw))",
                 lineHeight: 1.5,
                 whiteSpace: "pre-line",
+                textWrap: "balance",
               }}
             >
               {hint}
@@ -462,6 +463,7 @@ export function FileDrop({
                 fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
                 lineHeight: 1.5,
                 whiteSpace: "pre-line",
+                textWrap: "balance",
               }}
             >
               {subhint}

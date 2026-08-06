@@ -87,6 +87,14 @@ export default function FolderPage() {
   // drag or pick. Held in state so "Sync again" can use it; null everywhere
   // the browser cannot produce one, and syncing there stays a drag.
   const dirHandleRef = useRef<DirHandle | null>(null);
+  // ⚠️ Thumbnails outrun the rows. A thumb generated mid-sync went straight
+  // to writeCachedThumb, which attaches to a STORED row — and rows are only
+  // stored once the last verdict lands, minutes later on a big folder. So
+  // most thumbs made during a sync were silently dropped, and every later
+  // visit showed the same gaps ("the thumb issue persists"). They wait here
+  // until the rows are down, then flush.
+  const pendingThumbs = useRef<Map<string, Blob>>(new Map());
+  const rowsPersisted = useRef(false);
 
   useEffect(() => () => { for (const u of thumbUrls.current) URL.revokeObjectURL(u); }, []);
 
@@ -141,6 +149,8 @@ export default function FolderPage() {
     const scan = discoverDrop(walked);
     setWalkCount(null);
     if (!scan.exports.length) { setChecking(false); return; }
+    rowsPersisted.current = false;
+    pendingThumbs.current.clear();
     setFromCache(false);
     setChecking(true);
     const { done } = startFolderCheck(scan.exports, {
@@ -150,8 +160,14 @@ export default function FolderPage() {
         setRows(r);
         setChecking(false);
         // Remembered only once every verdict is in, so a half-checked pass
-        // cannot be what the page opens with next time.
-        void writeCachedRows(r.map(cacheFromRow).filter((x): x is CachedRow => !!x));
+        // cannot be what the page opens with next time. The thumbs that were
+        // generated while the verdicts streamed flush right behind the rows
+        // they belong to.
+        void writeCachedRows(r.map(cacheFromRow).filter((x): x is CachedRow => !!x)).then(() => {
+          rowsPersisted.current = true;
+          for (const [d, b] of pendingThumbs.current) void writeCachedThumb(d, b);
+          pendingThumbs.current.clear();
+        });
       },
     });
     void done.catch(() => setChecking(false));
@@ -250,7 +266,7 @@ export default function FolderPage() {
                 headline="Sync your folder"
                 hint={walkCount !== null
                   ? `Reading… ${walkCount.toLocaleString()} file${walkCount === 1 ? "" : "s"}`
-                  : "Open the BitGraph folder on your Desktop\nand drag Recordings here."}
+                  : "Open the BitGraph folder on your Desktop and drag Recordings here."}
                 subhint="Read on your device. Nothing is uploaded."
               />
             </div>
@@ -309,7 +325,10 @@ export default function FolderPage() {
         onOpen={openRow}
         heading={null}
         cachedThumbs={thumbs}
-        onThumb={(digest, blob) => void writeCachedThumb(digest, blob)}
+        onThumb={(digest, blob) => {
+          if (rowsPersisted.current) void writeCachedThumb(digest, blob);
+          else pendingThumbs.current.set(digest, blob);
+        }}
       />
     </div>
   );
