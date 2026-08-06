@@ -1366,12 +1366,19 @@ function BringYourFile({
       onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(e.dataTransfer); }}
       /* The same instrument as the home page's, not a footnote to the proof:
          this box is how a stranger who was handed a file actually uses the
-         page. Solid square border (a dashed one was retired product-wide),
-         the same blue on hover and drag, and enough height to read as the
-         thing you are meant to do. */
+         page. Same mark, same blue on hover and drag, and enough height to
+         read as the thing you are meant to do.
+
+         ⚠️ DASHED HERE ON PURPOSE, and it is the one place that is. A dashed
+         border was retired from the home drop zone and should stay retired
+         there: that box is the instrument itself, always ready, nothing
+         absent. This box is the opposite. It stands for a file that is NOT
+         here, and the broken line is what says so before a word is read
+         (Mike, 2026-08-06: "it feels more like something is missing"). Solid
+         made it look like a finished panel rather than a gap to fill. */
       style={{
         background: dragOver ? "#f0f6ff" : "#fff",
-        border: `2px solid ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c3c8cf"}`,
+        border: `2px dashed ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c3c8cf"}`,
         // Height, not padding: the box then holds ONE size across all four
         // states, so it does not jump when a drop starts reading or a miss
         // comes back with two lines of explanation.
