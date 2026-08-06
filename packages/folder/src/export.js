@@ -2339,6 +2339,7 @@ var SHEET_CSS =
   '.dn{display:flex;align-items:center;justify-content:space-between;gap:16px;' +
   'margin:-26px 0 40px;white-space:nowrap}' +
   '.dn a{color:#0065A4;font-weight:600;font-size:13.5px;text-decoration:none}' +
+  '.dn .dnl{display:flex;gap:20px}' +
   '.dn .dnr{margin-left:auto}' +
   '@media (hover:hover){.dn a:hover .a{transform:translateX(3px)}}' +
   '.ds{display:none}' +
@@ -2559,12 +2560,10 @@ function writeIndex(folder) {
   // too, because a recovered archive can reach back further than the ledger's
   // shelf ever needs to.
   var stepLong = function (g) {
-    var l = MONTHS_LONG[g.when.getMonth()] + ' ' + g.when.getDate();
-    return g.when.getFullYear() === new Date().getFullYear() ? l : l + ', ' + g.when.getFullYear();
+    return MONTHS_LONG[g.when.getMonth()] + ' ' + g.when.getDate() + ', ' + g.when.getFullYear();
   };
   var stepShort = function (g) {
-    var l = MONTHS[g.when.getMonth()] + ' ' + g.when.getDate();
-    return g.when.getFullYear() === new Date().getFullYear() ? l : l + ', ' + g.when.getFullYear();
+    return MONTHS[g.when.getMonth()] + ' ' + g.when.getDate() + ', ' + g.when.getFullYear();
   };
   var longDate = function (g) {
     return MONTHS_LONG[g.when.getMonth()] + ' ' + g.when.getDate() + ', ' + g.when.getFullYear();
@@ -2591,14 +2590,16 @@ function writeIndex(folder) {
       wanted[g.iso + '.html'] = true;
       var older = groups[i + 1] || null;   // previous recorded day
       var newer = groups[i - 1] || null;   // next recorded day
-      var nav = '<nav class="dn"><span>' +
+      var dayHref = function (iso) { return encodePath(STATE_DIR + '/days') + '/' + iso + '.html'; };
+      var nav = '<nav class="dn"><span class="dnl">' +
         (older
-          ? '<a href="' + older.iso + '.html"><span aria-hidden>&larr;</span> ' + stepSpans(older) + '</a>'
+          ? '<a href="' + dayHref(older.iso) + '"><span aria-hidden>&larr;</span> ' + stepSpans(older) + '</a>'
           : '') +
-        '</span><span class="dnr">' +
         (newer
-          ? '<a href="' + newer.iso + '.html">' + stepSpans(newer) + ' <span class="a">&rarr;</span></a>'
-          : '<a href="../../index.html">All recordings <span class="a">&rarr;</span></a>') +
+          ? '<a href="' + dayHref(newer.iso) + '">' + stepSpans(newer) + ' <span class="a">&rarr;</span></a>'
+          : '<a href="index.html">All recordings <span class="a">&rarr;</span></a>') +
+        '</span><span class="dnr">' +
+        '<a href="' + encodePath(STATE_DIR + '/days') + '/index.html">All days <span class="a">&rarr;</span></a>' +
         '</span></nav>';
       writeFile(daysDir + '/' + g.iso + '.html', pageShell(
         'BitGraph Folder',
