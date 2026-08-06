@@ -14,9 +14,11 @@
  *
  * ⚠️ Local only, and it has to stay that way. This is a store of the user's
  * own thumbnails on the user's own machine; nothing here is ever sent, and
- * nothing here is authoritative. Every verdict is recomputed from the bytes
- * when the folder is handed over again, because a cached "matches the
- * ledger" is a claim about a file this code can no longer see.
+ * nothing here is authoritative. A cached verdict is re-presented on the
+ * next sync ONLY when the export's fingerprint (artifact and proof.json,
+ * name+size+mtime each) proves nothing changed — see RowMemo in
+ * folder-check for why that is sound on an append-only ledger. Anything
+ * changed, failed, unchecked, or unsealed is recomputed from the bytes.
  */
 
 const DB = "bitgraph-folder";
@@ -45,12 +47,15 @@ export interface CachedRow {
    *  never re-presented as a fresh check; see the note above. */
   ok: boolean | null;
   failure: string | null;
-  /** The matched file's identity when the verdict was ok: name is in
-   *  fileName, these two complete the (name, size, mtime) fingerprint that
-   *  lets the next sync skip re-hashing a file that demonstrably has not
-   *  changed. Absent on rows that never matched. */
+  /** The export's fingerprint when the verdict was ok: the matched file's
+   *  name is in fileName, size/mtime are its walk-time identity, and
+   *  proofSize/proofMtime are proof.json's own. Together (with dirName) they
+   *  are the memo key that lets the next sync skip an unchanged export
+   *  entirely — zero reads. Absent on rows that never matched. */
   size?: number | null;
   mtime?: number | null;
+  proofSize?: number | null;
+  proofMtime?: number | null;
   thumb?: Blob;
   /** A ~512px JPEG of the artifact, made in the same decode as the thumb.
    *  What a proof page opened from /folder shows when the bytes themselves

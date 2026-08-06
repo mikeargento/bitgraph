@@ -412,6 +412,10 @@ export interface ExportCheckResult {
   ok: boolean | null;
   /** The specific failing side, factual, one line. Null when ok/pending. */
   failure: string | null;
+  /** proof.json's walk-time size and mtime — half of the export fingerprint
+   *  the sync memo keys on (the artifact's half rides on matchedFile). */
+  proofSize: number | null;
+  proofMtime: number | null;
 }
 
 /**
@@ -503,6 +507,8 @@ const stripWorking = (w: Working): ExportCheckResult => ({
   onLedger: w.onLedger,
   ok: w.ok,
   failure: w.failure,
+  proofSize: w.proofSize,
+  proofMtime: w.proofMtime,
 });
 
 /* Both page generators (the Folder's export.js and this site's
@@ -526,10 +532,45 @@ async function looksLikeReceipt(f: File): Promise<boolean> {
 
 /** The fast half: everything the roll needs to render, no hashing and no
  *  network. Structural failures (unreadable proof, no file at all) are
- *  verdicts already; everything else is pending (`ok: null`). */
-async function scanExportsLocal(candidates: ExportCandidate[]): Promise<Working[]> {
+ *  verdicts already; everything else is pending (`ok: null`) — except memo
+ *  hits, which arrive as settled ok rows having read NOTHING. */
+async function scanExportsLocal(candidates: ExportCandidate[], memo?: Map<string, RowMemo>): Promise<Working[]> {
   const working: Working[] = [];
   for (const cand of candidates) {
+    // The memo gate, before any read touches this export. Metadata alone
+    // (walk-time name/size/mtime of the artifact AND of proof.json) proves
+    // the export is the one already verified; the cached row fields carry
+    // everything the roll renders. See the RowMemo note above for why this
+    // is sound and what is deliberately excluded.
+    if (memo && cand.artifactCandidates.length === 1) {
+      const f = cand.artifactCandidates[0];
+      const m = memo.get(exportMemoKey(cand.dirName, f.name, f.size, f.lastModified, cand.proofFile.size, cand.proofFile.lastModified));
+      if (m) {
+        working.push({
+          cand,
+          dirName: cand.dirName,
+          fileName: f.name,
+          matchedFile: f,
+          artifactFile: f,
+          block: m.block,
+          ts: m.ts,
+          proof: null,
+          counter: m.counter,
+          epochUrlSafe: m.epochUrlSafe,
+          digestUrlSafe: m.digestUrlSafe,
+          writeTime: m.writeTime,
+          onLedger: true,
+          ok: true,
+          failure: null,
+          proofSize: cand.proofFile.size,
+          proofMtime: cand.proofFile.lastModified,
+          claimedDigest: null,
+          epochId: null,
+          ledgerProof: null,
+        });
+        continue;
+      }
+    }
     // A sole index.html beside proof.json is the artifact unless it is
     // provably a receipt; see RECEIPT_PREFIX. Promoted before the row is
     // built so fileName and the thumbnail read from it like any other file.
@@ -553,6 +594,8 @@ async function scanExportsLocal(candidates: ExportCandidate[]): Promise<Working[
       onLedger: false,
       ok: null,
       failure: null,
+      proofSize: cand.proofFile.size,
+      proofMtime: cand.proofFile.lastModified,
       claimedDigest: null,
       epochId: null,
       ledgerProof: null,
@@ -600,46 +643,55 @@ export interface FolderCheckCallbacks {
   onDone?: (rows: ExportCheckResult[]) => void;
 }
 
-/** What an earlier sync remembers about a recording that MATCHED. The name,
- *  size and mtime identify the artifact file that was hashed then; writeTime
- *  is carried so the row renders the same moment it did. */
-export interface VerdictMemo {
-  name: string;
-  size: number;
-  mtime: number;
+/** What an earlier sync remembers about one EXPORT whose verdict was ok. The
+ *  memo key (see exportMemoKey) proves by metadata alone that nothing in the
+ *  export changed; the remaining fields are everything the row needs to
+ *  render, so a memo hit costs ZERO file reads and zero network. */
+export interface RowMemo {
+  digestUrlSafe: string;
+  counter: string | null;
+  epochUrlSafe: string | null;
+  block: number | null;
+  ts: number | null;
   writeTime: number | null;
 }
 
-/* A memo hit skips the whole verification for one row: no hash, no signature,
- * no ledger round-trips. Sound on two grounds, one per side. The ledger side:
- * the ledger is append-only (Object Lock COMPLIANCE), so a proof that was ON
- * it at its claimed position cannot later be off it — an ok verdict's ledger
- * half cannot rot. The bytes side CAN rot (the file on disk can change), and
- * name+size+mtime is the change detector, the same identity every sync tool
- * uses. Only rows whose last verdict was ok are ever memoized; failures and
- * unchecked rows re-verify in full, every time. */
-const memoMatches = (m: VerdictMemo | undefined, f: File | null): m is VerdictMemo =>
-  !!m && !!f && f.name === m.name && f.size === m.size && f.lastModified === m.mtime;
+/* A memo hit skips the whole check for one export: no reads (not even
+ * proof.json), no hash, no signature, no ledger round-trips. Sound on two
+ * grounds, one per side. The ledger side: the ledger is append-only (Object
+ * Lock COMPLIANCE), so a proof that was ON it at its claimed position cannot
+ * later be off it — an ok verdict's ledger half cannot rot. The local side
+ * CAN rot (the artifact or the proof.json itself can change), and the key
+ * fingerprints BOTH by name+size+mtime — the same identity every sync tool
+ * uses, and stronger than the earlier digest-keyed memo, which could not see
+ * a swapped proof.json. Applied only to single-candidate exports (the normal
+ * shape); anything else re-verifies in full, as do failures and unchecked
+ * rows, every time. Callers must also never memoize a row cached while
+ * UNSEALED (block null): the anchors arrive later without touching
+ * proof.json, and a memo hit would leave the row in "today" forever. */
+export const exportMemoKey = (
+  dirName: string,
+  artifactName: string, artifactSize: number, artifactMtime: number,
+  proofSize: number, proofMtime: number,
+): string => [dirName, artifactName, artifactSize, artifactMtime, proofSize, proofMtime].join(" ");
 
 export function startFolderCheck(
   candidates: ExportCandidate[],
   cb: FolderCheckCallbacks = {},
   apiBase = "",
-  memo?: Map<string, VerdictMemo>,
+  memo?: Map<string, RowMemo>,
 ): { done: Promise<ExportCheckResult[]> } {
   const done = (async () => {
-    const working = await scanExportsLocal(candidates);
+    const working = await scanExportsLocal(candidates, memo);
     cb.onRows?.(working.map(stripWorking));
 
-    /* Ledger prefetch: every digest, 50 per request, three in flight. Each
-     * row awaits only its own digest's promise. null = the lookup FAILED,
-     * kept distinct from an empty answer: an unreachable ledger is our gap,
-     * "not on the ledger" is a verdict about the folder. Digests a memo will
-     * answer are not asked about at all — on a settled folder that turns the
-     * whole prefetch into nothing. */
-    const memoized = (w: Working) =>
-      !!w.digestUrlSafe && w.ok === null && memoMatches(memo?.get(w.digestUrlSafe), w.artifactFile);
-    const keys = [...new Set(working.filter((w) => !memoized(w)).map((w) => w.digestUrlSafe).filter((k): k is string => !!k))];
+    /* Ledger prefetch: every digest still needing a verdict, 50 per request,
+     * three in flight. Each row awaits only its own digest's promise. null =
+     * the lookup FAILED, kept distinct from an empty answer: an unreachable
+     * ledger is our gap, "not on the ledger" is a verdict about the folder.
+     * Memo-settled rows (ok already true) are not asked about at all — on a
+     * settled folder the whole prefetch is nothing. */
+    const keys = [...new Set(working.filter((w) => w.ok === null).map((w) => w.digestUrlSafe).filter((k): k is string => !!k))];
     const resolvers = new Map<string, (v: LedgerEntry[] | null) => void>();
     const ledgerFor = new Map<string, Promise<LedgerEntry[] | null>>();
     for (const k of keys) ledgerFor.set(k, new Promise((res) => resolvers.set(k, res)));
@@ -702,19 +754,6 @@ export function startFolderCheck(
 
     async function verifyOne(w: Working): Promise<void> {
       if (!w.proof || !w.digestUrlSafe) return;
-
-      // The remembered verdict, honored when the file it was about is
-      // demonstrably the same file (see the memo note above). This is what
-      // makes re-syncing a settled folder seconds instead of minutes: the
-      // expensive work below runs only for what is new or changed.
-      const m = memo?.get(w.digestUrlSafe);
-      if (memoMatches(m, w.artifactFile)) {
-        w.matchedFile = w.artifactFile;
-        w.fileName = w.artifactFile!.name;
-        w.onLedger = true;
-        w.writeTime = m.writeTime;
-        return;
-      }
 
       const sig = await verifyProofSignature(w.proof).catch(() => ({ valid: false }));
       if (!sig.valid) { w.failure = "proof signature does not verify"; return; }
@@ -845,7 +884,11 @@ export function startFolderCheck(
     }
 
     /* The verdict pool: five rows in flight. Each row's verdict lands the
-     * moment its own work is done, in whatever order that happens. */
+     * moment its own work is done, in whatever order that happens. Only rows
+     * verified THIS pass emit an update — memo rows and structural verdicts
+     * were already whole in onRows, and emitting 2,000 no-op updates cloned
+     * the row array 2,000 times for nothing (the render cost then rivaled
+     * the checking it was reporting on). */
     let next = 0;
     await Promise.all(Array.from({ length: Math.min(5, working.length) }, async () => {
       while (next < working.length) {
@@ -858,8 +901,8 @@ export function startFolderCheck(
             if (!w.failure) w.failure = "check did not complete";
           }
           w.ok = !w.failure;
+          cb.onUpdate?.(i, stripWorking(w));
         }
-        cb.onUpdate?.(i, stripWorking(w));
       }
     }));
 

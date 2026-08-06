@@ -23,8 +23,8 @@ import Link from "next/link";
 import { FileDrop } from "@/components/file-drop";
 import { CheckedRoll } from "@/components/folder-roll";
 import {
-  discoverDrop, startFolderCheck, walkDirectoryHandle,
-  type WalkedFile, type ExportCheckResult, type DirHandle, type VerdictMemo,
+  discoverDrop, startFolderCheck, walkDirectoryHandle, exportMemoKey,
+  type WalkedFile, type ExportCheckResult, type DirHandle, type RowMemo,
 } from "@/lib/folder-check";
 import {
   readCachedRows, writeCachedRows, writeCachedThumb, clearCachedRows,
@@ -54,6 +54,8 @@ function rowFromCache(c: CachedRow): ExportCheckResult {
     onLedger: c.ok === true,
     ok: c.ok,
     failure: c.failure,
+    proofSize: c.proofSize ?? null,
+    proofMtime: c.proofMtime ?? null,
   };
 }
 
@@ -70,21 +72,34 @@ const cacheFromRow = (r: ExportCheckResult): CachedRow | null =>
         writeTime: r.writeTime,
         ok: r.ok,
         failure: r.failure,
-        // The matched file's fingerprint, which is what lets the NEXT sync
-        // skip re-hashing this recording (see VerdictMemo). Only a matched
-        // file's identity is worth remembering.
+        // The export's fingerprint, which is what lets the NEXT sync skip it
+        // entirely when nothing changed (see RowMemo). Only a matched file's
+        // identity is worth remembering.
         size: r.matchedFile?.size ?? null,
         mtime: r.matchedFile?.lastModified ?? null,
+        proofSize: r.proofSize,
+        proofMtime: r.proofMtime,
       }
     : null;
 
-/** The remembered verdicts a sync may honor: ok rows with a full fingerprint. */
-const memoFromCache = (cached: CachedRow[]): Map<string, VerdictMemo> => {
-  const memo = new Map<string, VerdictMemo>();
+/** The remembered rows a sync may honor: ok rows with a full fingerprint AND
+ *  a sealed position. Unsealed rows (block null) are excluded on purpose —
+ *  their anchors arrive later without touching proof.json, so a memo hit
+ *  would pin them in "today" forever. An ambiguous key (two cached rows,
+ *  one fingerprint) is dropped so both re-verify rather than guess. */
+const memoFromCache = (cached: CachedRow[]): Map<string, RowMemo> => {
+  const memo = new Map<string, RowMemo>();
+  const ambiguous = new Set<string>();
   for (const c of cached) {
-    if (c.ok === true && c.fileName && typeof c.size === "number" && typeof c.mtime === "number") {
-      memo.set(c.digest, { name: c.fileName, size: c.size, mtime: c.mtime, writeTime: c.writeTime });
-    }
+    if (c.ok !== true || c.block === null || !c.fileName) continue;
+    if (typeof c.size !== "number" || typeof c.mtime !== "number") continue;
+    if (typeof c.proofSize !== "number" || typeof c.proofMtime !== "number") continue;
+    const key = exportMemoKey(c.dirName, c.fileName, c.size, c.mtime, c.proofSize, c.proofMtime);
+    if (memo.has(key) || ambiguous.has(key)) { memo.delete(key); ambiguous.add(key); continue; }
+    memo.set(key, {
+      digestUrlSafe: c.digest, counter: c.counter, epochUrlSafe: c.epochUrlSafe,
+      block: c.block, ts: c.ts, writeTime: c.writeTime,
+    });
   }
   return memo;
 };
@@ -116,7 +131,7 @@ export default function FolderPage() {
   // is known), and the digests whose pictures are already stored in full.
   // Together they are why re-syncing a settled folder is seconds, not
   // minutes: unchanged files are neither re-hashed nor re-decoded.
-  const memoRef = useRef<Map<string, VerdictMemo>>(new Map());
+  const memoRef = useRef<Map<string, RowMemo>>(new Map());
   const cachedCompleteRef = useRef<Set<string>>(new Set());
 
   useEffect(() => () => { for (const u of thumbUrls.current) URL.revokeObjectURL(u); }, []);
@@ -237,9 +252,11 @@ export default function FolderPage() {
     // the proof page the same way the home drop does, so it opens WITH the
     // picture. Only the matched file: caching a non-matching candidate under
     // the digest would just make the proof page hash it and throw it out.
+    // The digest comes from the url-safe form (memo rows carry no proof).
     // Fire-and-forget: navigation does not wait, the page polls briefly.
-    const digestB64 = r.proof?.artifact.digestB64;
-    if (r.matchedFile && digestB64) {
+    if (r.matchedFile) {
+      let digestB64 = r.digestUrlSafe.replace(/-/g, "+").replace(/_/g, "/");
+      while (digestB64.length % 4 !== 0) digestB64 += "=";
       void cacheArtifactToIDB(r.matchedFile, digestB64).catch(() => { /* preview covers it */ });
     }
     const q = r.counter

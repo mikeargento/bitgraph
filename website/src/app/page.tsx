@@ -828,86 +828,33 @@ export default function BitGraphPage() {
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
-        /* Drop step: the hero (tagline + box + "see an example") is centered in
-           the space below the sticky nav. Subtracting ~72px (roughly the nav's
-           height) makes the centering region the visible area under the nav, so
-           the group sits balanced — equal air above and below — on both mobile
-           and desktop. (An earlier bigger subtraction lifted it too high once
-           the example link was added below the box.) The results view
-           (bitgraph-results) overrides to top-aligned. */
-        /* The hero's top offset is a FORMULA, not content-centering, and it is
-           the SAME formula /camera uses for its headline: the tagline and "The
-           frame exists first." land in the identical spot on every machine by
-           construction (content-centering drifted with font metrics).
-
-           The 318px constant is tied to the mobile camera height and is not free
-           to move on its own. Because the offset rises at half the rate of the
-           viewport, a constant-height box stays centered at every screen size,
-           and 318 = (44px nav + 339px of hero that is not the box + 254px box)/2
-           is what centers it. It was 306 when the box was 230. Change one, change
-           the other, and change it in camera/page.tsx too or the morph drifts.
-           Derivation and measurements live with .bitgraph-camera in globals.css. */
-        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: max(52px, calc(50dvh - 318px)) 0 32px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; min-height: calc(100dvh - 72px); }
-        @media (min-width: 769px) { .bitgraph-wrap { padding-top: max(52px, calc(50dvh - 386px)); } }
-        .bitgraph-wrap.bitgraph-results { justify-content: flex-start; padding-top: 32px !important; padding-bottom: 48px; min-height: 0; }
-        /* Drop step hero: the concept line ("A camera for bits.") stands alone,
-           then the box (the tool), then the why/mechanics below it. This gap sits
-           BETWEEN the tagline and the box, so give it real breathing room (the
-           tagline is on its own now, no subhead bridging it) and let it scale. */
-        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; gap: clamp(26px, 4.5vw, 40px); }
-        /* Sizing is driven by /camera's LONGER headline, never this one: "The
-           frame exists first." must NEVER wrap, or it goes to two lines while
-           this stays at one and the morph jumps. 9.3vw alone never wraps (the
-           line needs ~9.17x the font size, the column gives 9.68x), so the only
-           hazard was the old 36px floor, which overrode vw scaling below a 387px
-           viewport and pushed 360px phones to two lines. The floor is now 24px,
-           low enough that it cannot bind above a ~262px viewport, so vw governs
-           on every real device and nothing above 387px changed at all.
-           Keep /camera's h1 identical; re-measure at 320 and 360 if this or the
-           weight or tracking ever moves. */
-        .bitgraph-tagline { text-align: center; font-size: clamp(24px, 9.3vw, 54px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02; color: #111827; }
+        /* Drop step: the same column as /folder and /roll, to the pixel —
+           90% up to 800, 40px under the nav, top-aligned. The centered-hero
+           formula (and its /camera morph pairing) is RETIRED with the hero:
+           the page is a tool that starts at the top, like every other page.
+           Mike: "less flashy, more utilitarian". */
+        .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0 80px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; }
+        .bitgraph-wrap.bitgraph-results { padding-top: 32px; padding-bottom: 48px; }
+        .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; }
+        /* The title, at the one size every page title on the site uses (docs
+           h1, /roll, /folder). Still the quiet door to /camera: plain at
+           rest, brand blue on hover. */
+        .bitgraph-tagline { font-size: clamp(26px, 6vw, 32px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; color: #111827; margin: 0 0 4px; }
         .bitgraph-tagline .accent { color: inherit; }
-        /* The tagline is a quiet door to the /camera explainer: a plain
-           headline at rest that sweeps to brand blue on hover, so it never
-           competes with the drop box for attention. */
         .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
-        /* The hero is two paired lines: the tagline (metaphor) and the "why" hook
-           (promise) nested tight beneath it as a subhead, above the box. Keep the
-           hook clearly subordinate to the tagline in size so it supports rather
-           than competes. */
-        .hero-head { display: flex; flex-direction: column; align-items: stretch; gap: clamp(12px, 2.5vw, 16px); }
-        .hero-why { max-width: 600px; margin: 0 auto; text-align: center; font-size: clamp(15px, 3.6vw, 18px); line-height: 1.4; color: #1f2937; font-weight: 500; letter-spacing: -0.012em; text-wrap: balance; }
+        /* The promise line, styled exactly like /folder's subtitle. */
+        .hero-why { font-size: 14px; line-height: 1.6; color: #4b5563; margin: 0 0 18px; }
         .hero-why p { margin: 0; }
-        /* ── "See a BitGraph" — a quiet link to a real example proof (an
-           OpenAI-generated image whose C2PA credentials the proof page shows).
-           A door to the output, not an explainer. ── */
-        /* Explainer under the box: the one place the film/photograph metaphor is
-           spelled out. Readable medium-gray, narrow measure, the quoted terms
-           carry the emphasis (the blue accent stays reserved for "bits"). */
-        /* One centered paragraph; text-wrap: balance equalizes the line
-           lengths so the centered block reads symmetric, not ragged. */
-        /* 15px matches the site's reading size (/subjects body prose) — this is
-           the most load-bearing paragraph on the site and was set below it.
-           15px also lands the 640px column at ~75 chars/line. Not 16px: that
-           competes with the drop-zone hint and reads bloggy. */
-        .hero-explainer { max-width: 640px; margin: 0 auto; text-align: center; font-size: 15px; line-height: 1.65; color: #374151; font-weight: 500; letter-spacing: -0.006em; }
-        /* The one full-bleed text block on the page: without its own inset
-           its balanced lines run closer to the glass than anything else on
-           screen. 12px each side brings it to ~32px effective margin and a
-           ~50-char mobile measure. */
-        @media (max-width: 768px) { .hero-explainer { font-size: 13.5px; padding: 0 12px; } }
-        /* Balance the line lengths so a centered paragraph breaks into roughly
-           equal ragged lines at any width (mobile and desktop), not long-then-
-           short. Recomputed per viewport by the browser. */
-        .hero-explainer p { margin: 0; text-wrap: balance; }
-        .see-example { text-align: center; }
-        /* Enough space to read as a second offer rather than a second line of
-           the first, without opening a gap the eye has to cross. */
-        .see-example-second { margin-top: 10px; }
-        .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; display: inline-flex; align-items: center; gap: 7px; padding: 4px 6px; }
-        .see-example-link .arrow { transition: transform .18s ease; }
-        @media (hover: hover) { .see-example-link:hover .arrow { transform: translateX(3px); } }
+        /* Explainer under the box: the one place the film/photograph metaphor
+           is spelled out. Left-aligned reading prose now, capped at a
+           readable measure inside the 800 column. */
+        .hero-explainer { max-width: 640px; margin: 18px 0 0; font-size: 14px; line-height: 1.65; color: #374151; }
+        .hero-explainer p { margin: 0; }
+        /* The two offers, styled exactly like /folder's stacked links. */
+        .see-example { text-align: left; margin-top: 18px; }
+        .see-example-second { margin-top: 6px; }
+        .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 500; color: #0065A4; display: inline-flex; align-items: center; gap: 5px; padding: 0; text-decoration: none; }
         .see-example-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
         /* Waiting states (read/check/prove/export) all pin their center to the
            SAME viewport point the success checkmark uses (fixed, 44% down,
@@ -933,56 +880,48 @@ export default function BitGraphPage() {
 
       <div className={`bitgraph-wrap${step !== "drop" ? " bitgraph-results" : ""}`}>
 
-        {/* ── Drop step: the hero. A concept line ("A camera for bits.") over
-            the camera itself. Centered as one group by the wrap. The Roll lives
-            on its own /roll page, linked from the nav. ── */}
+        {/* ── Drop step: /folder's exact shape, pointed at the ledger — title,
+            promise line, the box first thing, then the mechanics and the two
+            offers as plain links. The Roll lives on its own /roll page. ── */}
         {step === "drop" && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
-            {/* The two poetic lines pair as the hero: the metaphor, then the
-                promise, tight together as a headline + subhead above the box. */}
-            <div className="hero-head">
-              <div className="bitgraph-tagline">
-                <a href="/camera">A camera for <span className="accent">bits</span>.</a>
-              </div>
-              <div className="hero-why">
-                <p>Give your data a place in space and time.</p>
-              </div>
+            <h1 className="bitgraph-tagline">
+              <a href="/camera">A camera for <span className="accent">bits</span>.</a>
+            </h1>
+            <div className="hero-why">
+              <p>Give your data a place in space and time.</p>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "clamp(26px, 4.5vw, 40px)" }}>
-              <div className="bitgraph-camera">
-                <FileDrop
-                  multiple
-                  onFile={(f) => handleFiles([f])}
-                  onFiles={handleFiles}
-                  onFolder={handleFolder}
-                  onFolderScan={handleFolderScan}
-                  // Four words for the one asymmetry that matters: a folder
-                  // has to be dragged (a file input cannot select one), a
-                  // file can be chosen. The link below is the escape hatch
-                  // for choosing a folder anyway. An earlier version
-                  // explained the browser's "upload" dialog here and that
-                  // paragraph confused people more than the dialog did.
-                  hint="Drag a folder. Choose files."
-                  subhint="Your file never leaves your device."
-                />
-              </div>
-              {/* Mechanics below the box: how a frame is created, exposed once,
-                  and later verified. */}
-              <div className="hero-explainer">
-                <p>Digital files have no unique place in space or time. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits are the light that exposes that frame. Your data itself never appears in it. Each frame can be exposed only once. The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
-              </div>
-              {/* Two offers, stacked, in the order of commitment: the thing you
-                  install to keep recording without coming back here, then the
-                  thing you can just look at. The example spent a day on
-                  /subjects and came back; a real BitGraph is worth more beside
-                  the download than buried mid-page in an argument. */}
-              <div className="see-example">
-                <Link href="/docs/folder" className="see-example-link">
-                  Download BitGraph Folder for macOS <span className="arrow" aria-hidden="true">&rarr;</span>
-                </Link>
-                <div className="see-example-second">
-                  <SeeExample />
-                </div>
+            <div className="bitgraph-camera">
+              <FileDrop
+                multiple
+                onFile={(f) => handleFiles([f])}
+                onFiles={handleFiles}
+                onFolder={handleFolder}
+                onFolderScan={handleFolderScan}
+                // Four words for the one asymmetry that matters: a folder
+                // has to be dragged (a file input cannot select one), a
+                // file can be chosen. The link below is the escape hatch
+                // for choosing a folder anyway. An earlier version
+                // explained the browser's "upload" dialog here and that
+                // paragraph confused people more than the dialog did.
+                hint="Drag a folder. Choose files."
+                subhint="Your file never leaves your device."
+              />
+            </div>
+            {/* Mechanics below the box: how a frame is created, exposed once,
+                and later verified. */}
+            <div className="hero-explainer">
+              <p>Digital files have no unique place in space or time. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits are the light that exposes that frame. Your data itself never appears in it. Each frame can be exposed only once. The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
+            </div>
+            {/* Two offers, stacked, in the order of commitment: the thing you
+                install to keep recording without coming back here, then the
+                thing you can just look at. */}
+            <div className="see-example">
+              <Link href="/docs/folder" className="see-example-link">
+                Download BitGraph Folder for macOS <span aria-hidden="true">&rarr;</span>
+              </Link>
+              <div className="see-example-second">
+                <SeeExample />
               </div>
             </div>
           </div>

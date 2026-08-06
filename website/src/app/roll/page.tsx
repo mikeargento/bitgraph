@@ -80,10 +80,12 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
           }
           title={
             <div>
-              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
+              {/* One title size across the product's pages: docs h1 (2rem),
+                  /folder and this Roll all read at the same weight and scale. */}
+              <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827" }}>
                 BitGraph Roll
               </div>
-              <div style={{ fontSize: 13, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>
+              <div style={{ fontSize: 14, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>
                 {day ? `The roll for ${longLabel(day)} (UTC).` : "Every recording, newest first."}
               </div>
             </div>

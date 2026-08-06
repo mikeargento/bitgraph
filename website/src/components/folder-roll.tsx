@@ -193,12 +193,14 @@ export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, cachedComp
           day-view line survives regardless, because only this component
           knows which day is open. */}
       {heading && (
-        <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827" }}>
+        /* The Roll's own title, at the one size every page title on the site
+           uses (docs h1, /roll, /folder). */
+        <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827" }}>
           {heading}
         </div>
       )}
       {(heading || view) && (
-        <div style={{ fontSize: 13, color: "#4b5563", marginTop: 2, marginBottom: 10 }}>
+        <div style={{ fontSize: 14, color: "#4b5563", marginTop: 2, marginBottom: 10 }}>
           {view
             ? `The recordings for ${view.label}.`
             : `${checked.length.toLocaleString()} recording${checked.length === 1 ? "" : "s"} from your folder, newest first.`}
