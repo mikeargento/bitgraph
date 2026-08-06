@@ -14,9 +14,12 @@ const nextConfig: NextConfig = {
       { source: "/uses", destination: "/subjects", permanent: false },
       { source: "/why", destination: "/subjects", permanent: false },
       { source: "/docs", destination: "/docs/overview", permanent: true },
-      // The explainer's early per-orientation URLs; one responsive page now.
-      { source: "/camera/desktop", destination: "/camera", permanent: false },
-      { source: "/camera/mobile", destination: "/camera", permanent: false },
+      // The explainer moved to the top of /docs/overview (2026-08-06); the
+      // standalone page is gone. TEMPORARY (307) like /uses: a 308 bakes into
+      // browser caches indefinitely, so it stays 307 until the home settles.
+      { source: "/camera", destination: "/docs/overview", permanent: false },
+      { source: "/camera/desktop", destination: "/docs/overview", permanent: false },
+      { source: "/camera/mobile", destination: "/docs/overview", permanent: false },
       // The uses page was briefly live under two earlier names on 2026-07-27
       // while the label was being settled. Both were deployed, so they redirect
       // rather than 404 for anyone who copied a link in that window.

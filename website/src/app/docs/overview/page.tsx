@@ -1,28 +1,55 @@
 import type { Metadata } from "next";
+import { CameraExplainer } from "@/components/camera-explainer";
 
 export const metadata: Metadata = {
   title: "Overview",
   description:
-    "BitGraph — what it is, how it works, and why it is different.",
+    "How a BitGraph is made — the digital frame exists first, and the file exposes it once — and why that is different.",
 };
 
 export default function OverviewPage() {
   return (
     <article className="overview" style={{ padding: "0 0 80px", maxWidth: "none" }}>
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] text-[#111827] mb-6">
-        Overview
-      </h1>
-
-      {/* The axiom as the lede, the same pattern /docs/folder opens with
-          ("Drop a file. Get a BitGraph."): the page's thesis in one short
-          semibold line before the prose earns it. It also leads /camera,
-          which shows the same idea as a picture; this page argues it. */}
-      {/* Inline size, not text-lg: this page's own p rules are unlayered and
-          eat Tailwind utilities (the same trap as .prose-doc, see the
-          2026-08-03 handoff). 18px semibold is /docs/folder's lede exactly. */}
-      <p className="font-semibold" style={{ fontSize: 18, lineHeight: 1.45, color: "#1f2937", marginBottom: 32 }}>
+      {/* ── The camera explainer, whole, moved here from /camera (2026-08-06,
+          Mike: "this whole thing to the top of overview left aligned"). The
+          axiom is the page's headline, the diagram shows it, the film pair
+          closes it, and only then does the prose Overview begin. /camera now
+          redirects here and home's title links here. ── */}
+      <h1 style={{
+        fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600,
+        letterSpacing: "-0.03em", lineHeight: 1.1, color: "#111827",
+        margin: "0 0 4px",
+      }}>
         The frame exists first.
+      </h1>
+      {/* Inline styles throughout this block: .overview's own h1/p rules are
+          unlayered and would otherwise restyle it (the same trap family as
+          .prose-doc, see the 2026-08-03 handoff). */}
+      <p style={{ fontSize: 14, lineHeight: 1.6, color: "#4b5563", margin: "0 0 18px" }}>
+        An exposure cannot come before its frame.
       </p>
+      <CameraExplainer />
+      {/* The closing pair: a definition, then the same claim for data. Both
+          take a flat "is" so the two lines rhyme structurally; a simile
+          hedges the punchline and was refused. */}
+      <p style={{
+        margin: "40px 0 0",
+        fontSize: 15, fontWeight: 500, lineHeight: 1.6, letterSpacing: "-0.012em", color: "#374151",
+      }}>
+        <span style={{ display: "block" }}>Film is the recording medium for light.</span>
+        <span style={{ display: "block" }}><strong style={{ color: "#111827", fontWeight: 700 }}>BitGraph is film for data.</strong></span>
+      </p>
+
+      {/* ── The prose Overview, exactly as it was, a beat down the page. An
+          h2 element (one h1 per page) wearing the h1's exact clothes inline,
+          because .overview h2 would otherwise shrink it to 1.25rem. ── */}
+      <h2 style={{
+        fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600,
+        letterSpacing: "-0.03em", lineHeight: 1.1, color: "#111827",
+        margin: "72px 0 24px",
+      }}>
+        Overview
+      </h2>
 
       <p>
         BitGraphs are not labels or metadata added after the fact. They are new computations created when your file&rsquo;s hash <em>fills</em> a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof file permanently bound to the original.

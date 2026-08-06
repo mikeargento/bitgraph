@@ -837,8 +837,8 @@ export default function BitGraphPage() {
         .bitgraph-wrap.bitgraph-results { padding-top: 32px; padding-bottom: 48px; }
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; }
         /* The title, at the one size every page title on the site uses (docs
-           h1, /roll, /folder). Still the quiet door to /camera: plain at
-           rest, brand blue on hover. */
+           h1, /roll, /folder). A quiet door to the overview (where the
+           camera explainer now lives): plain at rest, brand blue on hover. */
         .bitgraph-tagline { font-size: clamp(26px, 6vw, 32px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; color: #111827; margin: 0 0 4px; }
         .bitgraph-tagline .accent { color: inherit; }
         .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
@@ -893,7 +893,7 @@ export default function BitGraphPage() {
         {step === "drop" && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
             <h1 className="bitgraph-tagline">
-              <a href="/camera">A camera for <span className="accent">bits</span>.</a>
+              <a href="/docs/overview">A camera for <span className="accent">bits</span>.</a>
             </h1>
             <div className="hero-why">
               <p>Give your data a place in space and time.</p>
