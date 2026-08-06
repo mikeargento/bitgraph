@@ -63,9 +63,16 @@ export default function FolderPage() {
           colour must not be spent on a platform fact. */}
       <style>{`
         .bg-dl-touch { display: none; }
+        /* The space above is sized for whatever is actually there. On a Mac
+           that is a 26px action and it wants room; on touch it is one small
+           sentence, and the same gap left it stranded in the middle of
+           nowhere. Specificity beats .prose-doc p, which is why this is a
+           rule rather than an inline style or an mt-* utility. */
+        .prose-doc p.bg-dl-line { margin-top: 52px; margin-bottom: 8px; }
         @media (hover: none) and (pointer: coarse) {
           .bg-dl-mac { display: none; }
           .bg-dl-touch { display: block; }
+          .prose-doc p.bg-dl-line { margin-top: 22px; margin-bottom: 0; }
         }
       `}</style>
       {/* The margin is inline, not `mt-*`. `.prose-doc p` in globals.css sets
@@ -81,7 +88,7 @@ export default function FolderPage() {
           other actions are also brand blue links, at body size. It now sits
           between the h1 and the subtitle in the type scale, which is where
           the page's one job belongs, and the air around it does the rest. */}
-      <p className="text-lg" style={{ marginTop: 52, marginBottom: 8 }}>
+      <p className="text-lg bg-dl-line">
         <span className="bg-dl-mac" style={{ fontSize: "clamp(21px, 4.6vw, 26px)", letterSpacing: "-0.015em" }}>
           <Action href={DOWNLOAD}>Download for macOS</Action>
         </span>
