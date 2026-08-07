@@ -30,21 +30,24 @@ export function FolderProcess() {
         /* The row is the page's one picture, so it gets room on all four sides
            rather than sitting tight against the copy above and below it. */
         .bgq { margin: 3.5rem 0 3.75rem; }
-        /* Every column sized to its own content and packed from the left, so
-           the first glyph starts on the page's text rail. Distributing them
-           across the measure (1fr auto 1fr auto 1fr) centred each glyph in its
-           own third and set the figure in from the rail by ~60px. */
+        /* Full width of the content column (2026-08-07): columns still size
+           to content, but space-between spreads them so the FIRST glyph sits
+           on the text rail and the LAST lands on the right edge, operators
+           centered in the gaps. This is not the rejected 1fr-thirds layout,
+           which centered every glyph and floated the figure ~60px off the
+           rail; the rail alignment survives the spread. Glyphs scale up to
+           carry the wider stance. */
         .bgq .row {
           display: grid;
           grid-template-columns: repeat(5, auto);
-          justify-content: start;
+          justify-content: space-between;
           align-items: center;
-          gap: 34px;
+          gap: 24px;
         }
         .bgq .bgq-term { display: flex; flex-direction: column; align-items: center; gap: 16px; }
         /* An explicit width, not 100%: the columns size to content now, and a
            percentage against a content-sized track has nothing to resolve to. */
-        .bgq .bgq-term svg { width: 116px; max-width: 100%; height: auto; }
+        .bgq .bgq-term svg { width: 180px; max-width: 100%; height: auto; }
         .bgq .bgq-term span {
           font-family: IBM Plex Mono, monospace;
           font-size: 11px;
