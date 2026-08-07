@@ -308,13 +308,12 @@ export default function OverviewPage() {
         A measured TEE creates a random unused slot before the artifact hash arrives. The hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, sealing everything before it in a public timeline.
       </p>
 
+      {/* No page-local footer: the site footer already says Patent Pending,
+          and this was the one docs page repeating it. The closing line above
+          is the page's last word. */}
       <p>
         The result is a provenance system that does not say &ldquo;someone signed this.&rdquo; It says: this exact artifact occupied this origin coordinate.
       </p>
-
-      <footer className="overview-footer">
-        <em>BitGraph, Patent Pending</em>
-      </footer>
     </article>
   );
 }

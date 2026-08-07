@@ -316,13 +316,6 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   padding-right: 1.5rem;
   white-space: nowrap;
 }
-.overview-footer {
-  margin-top: 5rem;
-  padding-top: 2rem;
-  border-top: 1px solid #d0d5dd;
-  font-size: 0.875rem;
-  color: #4b5563;
-}
 @media (max-width: 640px) {
   .overview { padding: 40px 20px 80px; }
   .overview p, .overview li { font-size: 1rem; }
