@@ -195,7 +195,13 @@ export function CameraExplainer() {
   return (
     <section className="bgx">
       <style>{`
-        .bgx .pair { display: grid; grid-template-columns: 1fr 44px 1fr; padding: 22px 0; }
+        /* Each pair in its own white cell, the roll-row idiom: white, 1px
+           hairline, square corners, stacked with gaps. The glyphs use pure
+           white fills, which read as cutouts against the page's off-white;
+           the cell puts them on the ground they were drawn for, and gives
+           each film-equals-bit statement its own frame. */
+        .bgx { display: flex; flex-direction: column; gap: 10px; }
+        .bgx .pair { display: grid; grid-template-columns: 1fr 44px 1fr; padding: 24px 20px; background: #fff; border: 1px solid #d0d5dd; border-radius: 0; }
         .bgx .glyph { display: flex; align-items: center; justify-content: center; min-height: 96px; }
         .bgx .glyph svg { width: min(100%, 264px); height: auto; display: block; }
         .bgx .mid { align-self: center; text-align: center; color: #c9ced6; font-size: 22px; font-weight: 600; line-height: 1; }
@@ -212,7 +218,7 @@ export function CameraExplainer() {
         }
       `}</style>
       {PAIRS.map((p, i) => (
-        <div className="pair" key={i} style={i === 0 ? { paddingTop: 0 } : undefined}>
+        <div className="pair" key={i}>
           <div className="glyph">{p.film.art}</div>
           <div className="mid"></div>
           <div className="glyph">{p.bit.art}</div>
