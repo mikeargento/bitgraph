@@ -84,6 +84,9 @@ export function FolderProcess() {
           .bgq .row { gap: min(10px, 2.6vw); }
           .bgq .bgq-term { gap: 10px; }
           .bgq .bgq-term svg { width: 22vw; max-width: 90px; }
+          /* Stroke units were thinned for the 180px desktop render; at the
+             phone's ~82px they would draw ~1.2px, so restore weight here. */
+          .bgq .bgq-term svg [stroke] { stroke-width: 2.4; }
           .bgq .bgq-term span { font-size: 10px; letter-spacing: 0.1em; }
           .bgq .op { font-size: 17px; margin-bottom: 22px; }
         }
@@ -91,8 +94,8 @@ export function FolderProcess() {
 
       <div className="row">
         <Term label="a file">
-          <rect x="3" y="3" width="104" height="94" fill="#FFFFFF" stroke={INERT} strokeWidth="2.5" />
-          <rect x="13" y="13" width="84" height="58" fill="#F3F4F6" stroke={INERT} strokeWidth="2" />
+          <rect x="3" y="3" width="104" height="94" fill="#FFFFFF" stroke={INERT} strokeWidth="1.6" />
+          <rect x="13" y="13" width="84" height="58" fill="#F3F4F6" stroke={INERT} strokeWidth="1.3" />
           <path d="M21 71 L41 43 L53 57 L61 48 L75 71 Z" fill={INERT} />
           <circle cx="83" cy="27" r="6" fill={INERT} />
         </Term>
@@ -107,7 +110,7 @@ export function FolderProcess() {
             d="M4 88 V14 h38 l9 11 h55 v63 z"
             fill={ACCENT}
             stroke={BRAND}
-            strokeWidth="2.5"
+            strokeWidth="1.6"
             strokeLinejoin="round"
           />
         </Term>
@@ -115,10 +118,10 @@ export function FolderProcess() {
         <div className="op" aria-hidden="true">=</div>
 
         <Term label="a BitGraph">
-          <rect x="3" y="3" width="104" height="94" fill="#FFFFFF" stroke={BRAND} strokeWidth="2.5" />
-          <rect x="13" y="13" width="84" height="58" fill={ACCENT} stroke={BRAND} strokeWidth="2" />
+          <rect x="3" y="3" width="104" height="94" fill="#FFFFFF" stroke={BRAND} strokeWidth="1.6" />
+          <rect x="13" y="13" width="84" height="58" fill={ACCENT} stroke={BRAND} strokeWidth="1.3" />
           <circle cx="83" cy="27" r="6" fill={BRAND} />
-          <path d="M80.2 27.2 L82.3 29.3 L86 24.8" fill="none" stroke="#FFFFFF" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M80.2 27.2 L82.3 29.3 L86 24.8" fill="none" stroke="#FFFFFF" strokeWidth="1.05" strokeLinecap="round" strokeLinejoin="round" />
           <text x="45" y="35" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="9.5" letterSpacing="0.08em" fill={BRAND} opacity="0.5">10110010</text>
           <text x="55" y="56" textAnchor="middle" fontFamily="IBM Plex Mono, monospace" fontSize="14" fontWeight="600" fill={BRAND}>#3f9c…</text>
         </Term>
