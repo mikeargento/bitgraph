@@ -499,17 +499,22 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    745px an iPhone 14/15 shows with the Safari toolbar up. 254 is the largest box
    that still centers on that phone. Measured there: 54px above, 54px below.
    Re-measure at 393x745 before moving any of it. ── */
-.bitgraph-camera { width: 100%; height: 254px; max-height: calc(100dvh - 180px); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
+/* THE FRAME'S OWN PROPORTIONS (2026-08-06; hero retired, pages top-aligned,
+   so the old fit-one-phone-screen heights are free to go). The box is the
+   frame, so it wears the 35mm frame ratio: 3:2 on desktop, where the column
+   gives it a real stage; near-square on phones, where the column is narrow
+   and 3:2 would be SHORTER than before. Guards both ways: never below the
+   heights the boxes had, never so tall the title loses the fold. The
+   254-centering arithmetic in the note above is history. */
+.bitgraph-camera { width: 100%; height: auto; aspect-ratio: 1 / 1; min-height: 254px; max-height: min(420px, calc(100dvh - 320px)); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
 /* Stroke weight in user units per render size so it draws 2.25 screen px in
    every engine (vector-effect support differs across browsers; geometry
    scaling does not): 2.25 / (44/24) mobile, 2.25 / (52/24) desktop. */
 .bitgraph-camera .fd-icon { width: 44px; height: 44px; stroke-width: 1.227; }
 @media (min-width: 769px) {
-  /* Full column width and generous height: the camera is the instrument and
-     should visually hold the page (the text tapers beneath it). The height
-     keeps the proportion stage-like rather than letterbox. Mobile stays
-     full-width at 254px. */
-  .bitgraph-camera { height: 380px; --fd-headline: 26px; --fd-hint-size: 13px; --fd-subhint-size: 13px; }
+  /* Desktop: the 35mm frame, 3:2 of the 800 column (~533px tall), floored
+     at the 380 it used to be and capped so the title keeps the fold. */
+  .bitgraph-camera { aspect-ratio: 3 / 2; min-height: 380px; max-height: min(560px, calc(100dvh - 280px)); --fd-headline: 26px; --fd-hint-size: 13px; --fd-subhint-size: 13px; }
   .bitgraph-camera .fd-icon { width: 52px; height: 52px; stroke-width: 1.038; }
 }
 /* Suppress the iOS long-press callout/preview (the dark rounded blob that

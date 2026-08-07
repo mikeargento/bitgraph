@@ -133,6 +133,9 @@ export default function FolderPage() {
   // minutes: unchanged files are neither re-hashed nor re-decoded.
   const memoRef = useRef<Map<string, RowMemo>>(new Map());
   const cachedCompleteRef = useRef<Set<string>>(new Set());
+  // Digests whose rows are already banked THIS pass (see bank() below): their
+  // thumbs write straight through instead of waiting in pendingThumbs.
+  const persistedDigests = useRef<Set<string>>(new Set());
 
   useEffect(() => () => { for (const u of thumbUrls.current) URL.revokeObjectURL(u); }, []);
 
@@ -191,23 +194,46 @@ export default function FolderPage() {
     if (!scan.exports.length) { setChecking(false); return; }
     rowsPersisted.current = false;
     pendingThumbs.current.clear();
+    persistedDigests.current = new Set();
     setFromCache(false);
     setChecking(true);
+
+    // Bank verdicts AS THEY LAND, in batches. A 2,000-export cold pass runs
+    // for minutes, and persisting only at the end meant a closed tab lost
+    // the whole pass and paid it again from zero. Each banked row is
+    // individually FINAL (its own verdicts are all in), so a partial set is
+    // honest; the next sync memo-skips whatever was banked and re-verifies
+    // only the rest. Interrupting a cold pass now costs the tail, not the
+    // pass.
+    let unsaved: ExportCheckResult[] = [];
+    const bank = (batch: ExportCheckResult[]) => {
+      const cacheRows = batch.map(cacheFromRow).filter((x): x is CachedRow => !!x);
+      if (!cacheRows.length) return;
+      void writeCachedRows(cacheRows).then(() => {
+        for (const c of cacheRows) {
+          persistedDigests.current.add(c.digest);
+          const t = pendingThumbs.current.get(c.digest);
+          if (t) { void writeCachedThumb(c.digest, t.thumb, t.preview); pendingThumbs.current.delete(c.digest); }
+        }
+      });
+    };
+
     const { done } = startFolderCheck(scan.exports, {
       onRows: (r) => setRows(r),
-      onUpdate: (i, row) => setRows((prev) => (prev ? prev.map((x, n) => (n === i ? row : x)) : prev)),
+      onUpdate: (i, row) => {
+        setRows((prev) => (prev ? prev.map((x, n) => (n === i ? row : x)) : prev));
+        if (row.ok !== null) {
+          unsaved.push(row);
+          if (unsaved.length >= 50) { bank(unsaved); unsaved = []; }
+        }
+      },
       onDone: (r) => {
         setRows(r);
         setChecking(false);
-        // Remembered only once every verdict is in, so a half-checked pass
-        // cannot be what the page opens with next time. The thumbs that were
-        // generated while the verdicts streamed flush right behind the rows
-        // they belong to.
-        void writeCachedRows(r.map(cacheFromRow).filter((x): x is CachedRow => !!x)).then(() => {
-          rowsPersisted.current = true;
-          for (const [d, b] of pendingThumbs.current) void writeCachedThumb(d, b.thumb, b.preview);
-          pendingThumbs.current.clear();
-        });
+        // The full final write: covers the last partial batch AND the memo
+        // rows (which emit no per-row update), refreshing every fingerprint.
+        bank(r);
+        rowsPersisted.current = true;
         // The verdicts that just landed are next sync's memo.
         memoRef.current = memoFromCache(r.map(cacheFromRow).filter((x): x is CachedRow => !!x));
       },
@@ -354,7 +380,7 @@ export default function FolderPage() {
             cachedThumbs={thumbs}
             cachedComplete={cachedCompleteRef.current}
             onThumb={(digest, blob, preview) => {
-              if (rowsPersisted.current) void writeCachedThumb(digest, blob, preview);
+              if (rowsPersisted.current || persistedDigests.current.has(digest)) void writeCachedThumb(digest, blob, preview);
               else pendingThumbs.current.set(digest, { thumb: blob, preview });
             }}
           />

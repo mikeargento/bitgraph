@@ -1436,10 +1436,13 @@ function BringYourFile({
       style={{
         backgroundColor: dragOver ? "#f0f6ff" : "#fff",
         ...edges.edgeStyle(edge),
-        // Height, not padding: the box then holds ONE size across all four
-        // states, so it does not jump when a drop starts reading or a miss
-        // comes back with two lines of explanation.
-        minHeight: "clamp(268px, 46vw, 348px)",
+        // One size across all four states (idle, reading, checking, miss),
+        // so the box never jumps mid-flow. Same frame family as the camera
+        // boxes: 3:2 of the card on desktop, and on phones the ratio falls
+        // below the floor so the floor rules, near the old height.
+        aspectRatio: "3 / 2",
+        minHeight: 268,
+        maxHeight: "min(560px, calc(100dvh - 280px))",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",

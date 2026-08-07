@@ -883,14 +883,15 @@ export function startFolderCheck(
       }
     }
 
-    /* The verdict pool: five rows in flight. Each row's verdict lands the
-     * moment its own work is done, in whatever order that happens. Only rows
-     * verified THIS pass emit an update — memo rows and structural verdicts
-     * were already whole in onRows, and emitting 2,000 no-op updates cloned
-     * the row array 2,000 times for nothing (the render cost then rivaled
-     * the checking it was reporting on). */
+    /* The verdict pool: eight rows in flight (was five; a cold pass over a
+     * big folder ran ~2.5 rows a second and each row's wall time is mostly
+     * awaited network, so width is nearly free throughput). Each row's
+     * verdict lands the moment its own work is done, in whatever order that
+     * happens. Only rows verified THIS pass emit an update — memo rows and
+     * structural verdicts were already whole in onRows, and emitting 2,000
+     * no-op updates cloned the row array 2,000 times for nothing. */
     let next = 0;
-    await Promise.all(Array.from({ length: Math.min(5, working.length) }, async () => {
+    await Promise.all(Array.from({ length: Math.min(8, working.length) }, async () => {
       while (next < working.length) {
         const i = next++;
         const w = working[i];

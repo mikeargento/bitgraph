@@ -41,6 +41,7 @@ export const metadata: Metadata = {
 };
 
 import { SiteNav } from "@/components/site-nav";
+import { Footer } from "@/components/footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -67,6 +68,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ScrollToTop />
         <SiteNav />
         <main>{children}</main>
+        {/* The one legal marking, on every page: the official tagline as a
+            quiet in-flow last line (never a fixed bar). Added back site-wide
+            when the overview's page-local copy retired and the site was left
+            with no marking anywhere. */}
+        <Footer />
       </body>
     </html>
   );
