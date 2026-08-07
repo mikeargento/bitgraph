@@ -143,6 +143,25 @@ export default function FolderPage() {
         private, the proof remains private.
       </p>
 
+      {/* ⚠️ This section is not optional colour. The Folder builds NO index
+          across recordings by design (1.9.0, Mike: "no index file at all.
+          instead, you drag and drop the whole folder into the camera and it
+          loads the Roll"), so without this the page never tells anyone how to
+          see their own archive. A version of it lived here while /folder
+          existed and went out with that page on 2026-08-07; the browser page
+          was removed, the capability was not. Do not drop it again.
+
+          Accurate as written: discovery is by content at any depth, so
+          Recordings or the whole BitGraph folder both work, and the roll
+          renders the moment the local scan finishes with verdicts streaming
+          in per row behind it. */}
+      <h2 className="text-xl font-semibold">Your whole archive, one drop</h2>
+      <p className="text-[#1f2937]">
+        Each recording carries its own page, but the Folder builds no index across them.
+        Drag Recordings onto bitgraph.ing and the archive opens as a roll, every recording
+        checked against the public ledger as the rows fill in.
+      </p>
+
       {/* The payoff, and the reason the export is a folder rather than a
           database row: the skeptic who receives one. */}
       <h2 className="text-xl font-semibold">Made to change hands</h2>

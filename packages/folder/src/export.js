@@ -1057,7 +1057,13 @@ function pageShell(title, extraCss, bodyHtml, baseHref) {
     // whole product is light only, so say so.
     ':root{color-scheme:light}' +
     'body{margin:0;padding:48px 24px 80px;background:#f5f5f5;color:#111827;' +
-    'font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;' +
+    // The site's --font-sans, minus nothing. acumin-pro is NAMED but never
+    // fetched: this page must read months later on a machine with no network,
+    // so it cannot pull Typekit. Naming it costs nothing and means a machine
+    // that already has Acumin (any Adobe Fonts subscriber, including the one
+    // who built the folder) renders exactly what bitgraph.ing renders, while
+    // everyone else falls through the same chain the site falls through.
+    'font:15px/1.6 acumin-pro,-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;' +
     '-webkit-font-smoothing:antialiased}' +
     '.wrap{max-width:800px;margin:0 auto}' +
     'h1{margin:0 0 4px;font-size:28px;font-weight:800;letter-spacing:-.03em;overflow-wrap:anywhere}' +
@@ -1758,10 +1764,18 @@ function proofPageCss() {
     '.hm.bk:hover .arrow{transform:translateX(-3px)}}' +
     '.nn{color:#4b5563;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;' +
     'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-    // The proof page's own values for this heading, which is a 20px/800 line
-    // rather than the shell's 28px/600 page title: it asserts the recording
-    // happened, it does not name the document.
-    'h1{margin:0 0 10px;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}' +
+    // ⚠️ THE SITE'S .bg-page-title, copied exactly. "BitGraph Recorded" is a
+    // page title on bitgraph.ing and it has to be one here, or a reader
+    // holding both sees two different products.
+    //
+    // These were 20px/800/-.02em, lifted from the proof page back when that
+    // heading really was a 20px line. The site then went to one title size
+    // everywhere (1ad65403, "One page title, one definition, twenty pages")
+    // and this copy did not follow, which is exactly the drift the "lifted
+    // from the proof page" note was supposed to prevent. If .bg-page-title
+    // moves again in globals.css, move this with it.
+    'h1{margin:0 0 10px;font-size:clamp(26px,6vw,32px);font-weight:600;' +
+    'letter-spacing:-.03em;line-height:1.1;color:#111827}' +
     '.when{display:flex;flex-direction:column;gap:5px;padding:14px 16px;' +
     'border-bottom:1px solid #e2e5e9}' +
     '.wd{font-size:14px;font-weight:700;color:#111827;letter-spacing:-.01em}' +

@@ -170,7 +170,12 @@ function pageShell(title: string, extraCss: string, body: string): string {
     // whole product is light only, so say so.
     ":root{color-scheme:light}" +
     "body{margin:0;padding:48px 24px 80px;background:#f5f5f5;color:#111827;" +
-    'font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;' +
+    // The site's --font-sans. acumin-pro is NAMED but never fetched: an export
+    // page has to read on a machine with no network, so it cannot pull
+    // Typekit. Naming it costs nothing and a machine that already has Acumin
+    // renders exactly what bitgraph.ing renders. Same rule in
+    // packages/folder/src/export.js — CHANGE ONE, CHANGE BOTH.
+    'font:15px/1.6 acumin-pro,-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;' +
     "-webkit-font-smoothing:antialiased}" +
     ".wrap{max-width:800px;margin:0 auto}" +
     ".s{margin:0 0 40px;color:#4b5563;font-size:14px}" +
@@ -456,7 +461,14 @@ const PROOF_CSS =
   // leftward pull and appeared to retreat into the page.
   "@media (hover:hover){.hm:hover .arrow{transform:translateX(3px)}" +
   ".hm.bk:hover .arrow{transform:translateX(-3px)}}" +
-  "h1{margin:0 0 10px;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#111827}" +
+  // ⚠️ THE SITE'S .bg-page-title, copied exactly, and the same rule lives in
+  // packages/folder/src/export.js — CHANGE ONE, CHANGE BOTH. These were
+  // 20px/800/-.02em, lifted from the proof page when that heading really was
+  // a 20px line; the site then went to one title size everywhere (1ad65403)
+  // and both copies were left behind. If .bg-page-title moves in globals.css,
+  // move both of these with it.
+  "h1{margin:0 0 10px;font-size:clamp(26px,6vw,32px);font-weight:600;" +
+  "letter-spacing:-.03em;line-height:1.1;color:#111827}" +
   ".cd{background:#fff;border:1px solid #d0d5dd;overflow:hidden;margin:0 0 10px}" +
   ".hd{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;" +
   "font-size:14px;font-weight:700;letter-spacing:.04em;color:#0065A4;padding:14px 16px;" +
