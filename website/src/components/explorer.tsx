@@ -75,6 +75,9 @@ export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNod
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  // The form owns the field's border (the action sits inside it), so focus
+  // has to be lifted to state for the border to answer it.
+  const [searchFocus, setSearchFocus] = useState(false);
   const runSearch = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     const q = query.trim();
@@ -405,20 +408,39 @@ export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNod
           row from last week names a different recording today. For anyone
           holding the file, dropping it is still the better path; this is for
           anyone holding only a hash, out of a proof.json or a proof page. */}
-      <form onSubmit={runSearch} style={{ display: "flex", gap: 8, marginBottom: searchError ? 6 : 12 }}>
+      {/* One full-width field, the action INSIDE it on the right as the
+          site's arrow-link idiom — this was the last filled button on the
+          site, retired 2026-08-06 with Mike's sign-off ("search bar full
+          width though with that change inside and to the right"). The form
+          owns the border; the input is borderless within it. */}
+      <form
+        onSubmit={runSearch}
+        style={{
+          display: "flex", alignItems: "center", marginBottom: searchError ? 6 : 12,
+          background: "#fff", border: `1px solid ${searchFocus ? "#0065A4" : "#d0d5dd"}`, borderRadius: 0,
+        }}
+      >
         <input
           value={query}
           onChange={(e) => { setQuery(e.target.value); setSearchError(null); }}
+          onFocus={() => setSearchFocus(true)}
+          onBlur={() => setSearchFocus(false)}
           placeholder="Search by hash"
           aria-label="Search by hash"
-          style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 14, color: "#111827", background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, outline: "none" }}
+          style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 14, color: "#111827", background: "transparent", border: "none", borderRadius: 0, outline: "none" }}
         />
         <button
           type="submit"
           disabled={searching || !query.trim()}
-          style={{ flexShrink: 0, padding: "10px 18px", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#fff", background: "#0065A4", border: "none", borderRadius: 0, cursor: searching || !query.trim() ? "default" : "pointer", opacity: searching || !query.trim() ? 0.55 : 1 }}
+          className="bg-arrow-link"
+          style={{
+            flexShrink: 0, padding: "10px 14px", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em",
+            color: "#0065A4", background: "none", border: "none", borderRadius: 0, fontFamily: "inherit",
+            cursor: searching || !query.trim() ? "default" : "pointer",
+            opacity: searching || !query.trim() ? 0.45 : 1, whiteSpace: "nowrap",
+          }}
         >
-          {searching ? "Searching…" : "Search"}
+          {searching ? "Searching…" : <>Search <span className="arrow" aria-hidden>&rarr;</span></>}
         </button>
       </form>
       {searchError && (
