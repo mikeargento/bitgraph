@@ -499,22 +499,23 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    745px an iPhone 14/15 shows with the Safari toolbar up. 254 is the largest box
    that still centers on that phone. Measured there: 54px above, 54px below.
    Re-measure at 393x745 before moving any of it. ── */
-/* THE FRAME'S OWN PROPORTIONS (2026-08-06; hero retired, pages top-aligned,
-   so the old fit-one-phone-screen heights are free to go). The box is the
-   frame, so it wears the 35mm frame ratio: 3:2 on desktop, where the column
-   gives it a real stage; near-square on phones, where the column is narrow
-   and 3:2 would be SHORTER than before. Guards both ways: never below the
-   heights the boxes had, never so tall the title loses the fold. The
-   254-centering arithmetic in the note above is history. */
-.bitgraph-camera { width: 100%; height: auto; aspect-ratio: 1 / 1; min-height: 254px; max-height: min(420px, calc(100dvh - 320px)); align-self: center; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
+/* 3:2 LANDSCAPE, EVERY DROP BOX, EVERY VIEWPORT (Mike, 2026-08-07: the
+   photo-frame ratio for all dropboxes; "2:3" was a slip, corrected to 3:2).
+   The box is the 35mm frame. Width fills the column up to what the height
+   budget allows (viewport minus nav + title, capped at 640 tall), and the
+   min-height floors phones at the height they always had, where strict 3:2
+   of a narrow column would be SHORTER. Width-driven on purpose: a
+   height-driven aspect let WebKit derive width from CONTENT height and the
+   box overflowed its card on iPhone. */
+.bitgraph-camera { width: min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2)); aspect-ratio: 3 / 2; height: auto; min-height: 254px; align-self: center; margin: 0 auto; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
 /* Stroke weight in user units per render size so it draws 2.25 screen px in
    every engine (vector-effect support differs across browsers; geometry
    scaling does not): 2.25 / (44/24) mobile, 2.25 / (52/24) desktop. */
 .bitgraph-camera .fd-icon { width: 44px; height: 44px; stroke-width: 1.227; }
 @media (min-width: 769px) {
-  /* Desktop: the 35mm frame, 3:2 of the 800 column (~533px tall), floored
-     at the 380 it used to be and capped so the title keeps the fold. */
-  .bitgraph-camera { aspect-ratio: 3 / 2; min-height: 380px; max-height: min(560px, calc(100dvh - 280px)); --fd-headline: 26px; --fd-hint-size: 13px; --fd-subhint-size: 13px; }
+  /* Desktop keeps only its type scale; the 2:3 frame rule above is one
+     definition for every viewport. */
+  .bitgraph-camera { --fd-headline: 26px; --fd-hint-size: 13px; --fd-subhint-size: 13px; }
   .bitgraph-camera .fd-icon { width: 52px; height: 52px; stroke-width: 1.038; }
 }
 /* Suppress the iOS long-press callout/preview (the dark rounded blob that

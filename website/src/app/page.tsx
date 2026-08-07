@@ -1044,7 +1044,8 @@ export default function BitGraphPage() {
                   column's 24px gap applies below the card, not under the title. */}
               {items.length > 0 && (<>
               <div>
-              <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 10 }}>
+              {/* The one title size every page header uses. */}
+              <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827", marginBottom: 10 }}>
                 BitGraph{items.length === 1 ? "" : "s"} Recorded
               </div>
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>

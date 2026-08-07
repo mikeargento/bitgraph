@@ -792,7 +792,8 @@ export default function ProofPage() {
               in hand (or the bring-your-file dropzone), then the file hash. */}
           {!isEth && !isInterval && (
             <>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 10 }}>
+            {/* The one title size every page header uses. */}
+            <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827", marginBottom: 10 }}>
               BitGraph Recorded
             </div>
             <CollapsibleCard title="BitGraph Recorded" plain>
@@ -840,7 +841,8 @@ export default function ProofPage() {
               proofs, titled to match. */}
           {isEth && attr?.title && (
             <>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", marginBottom: 10 }}>
+            {/* The one title size every page header uses. */}
+            <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827", marginBottom: 10 }}>
               BitGraphed Ethereum Block
             </div>
             <CollapsibleCard title="BitGraphed Ethereum Block" plain>
@@ -1437,12 +1439,14 @@ function BringYourFile({
         backgroundColor: dragOver ? "#f0f6ff" : "#fff",
         ...edges.edgeStyle(edge),
         // One size across all four states (idle, reading, checking, miss),
-        // so the box never jumps mid-flow. Same frame family as the camera
-        // boxes: 3:2 of the card on desktop, and on phones the ratio falls
-        // below the floor so the floor rules, near the old height.
+        // so the box never jumps mid-flow. The 3:2 frame, same rule as every
+        // drop box: width DERIVES from the height budget (never from content
+        // height, which is what let WebKit overflow the card on iPhone), and
+        // never exceeds the card.
+        width: "min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2))",
+        margin: "0 auto",
         aspectRatio: "3 / 2",
         minHeight: 268,
-        maxHeight: "min(560px, calc(100dvh - 280px))",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
