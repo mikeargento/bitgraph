@@ -27,9 +27,13 @@ export function FolderProcess() {
   return (
     <section className="bgq" aria-label="A file dropped in the folder equals a BitGraph">
       <style>{`
-        /* The row is the page's one picture, so it gets room on all four sides
-           rather than sitting tight against the copy above and below it. */
-        .bgq { margin: 3.5rem 0 3.75rem; }
+        /* The row is the page's one picture, and it sits in its own white
+           cell, the same ground the overview's explainer pairs stand on
+           (roll-row idiom: white, 1px hairline, square corners). The file
+           frame and the BitGraph print use white fills, which read as
+           cutouts against the page's off-white; the cell is the ground they
+           were drawn for. */
+        .bgq { margin: 3rem 0 3.25rem; background: #fff; border: 1px solid #d0d5dd; border-radius: 0; padding: 32px 28px; }
         /* Full width of the content column (2026-08-07): columns still size
            to content, but space-between spreads them so the FIRST glyph sits
            on the text rail and the LAST lands on the right edge, operators
@@ -80,10 +84,14 @@ export function FolderProcess() {
            artwork: "THE FOLDER" and "A BITGRAPH" are 82px at the desktop
            11px/0.14em, so they drop to 10px/0.1em to sit inside the glyph. */
         @media (max-width: 640px) {
-          .bgq { margin: 2.75rem 0 3rem; }
+          /* The cell's padding comes out of the width the vw sizing below was
+             tuned against (the 90% column: 338px at 375px, 288px at 320px),
+             so the inset shrinks here and the glyphs step down with it, or
+             the last label runs past the right edge. */
+          .bgq { margin: 2.75rem 0 3rem; padding: 22px 14px; }
           .bgq .row { gap: min(10px, 2.6vw); }
           .bgq .bgq-term { gap: 10px; }
-          .bgq .bgq-term svg { width: 22vw; max-width: 90px; }
+          .bgq .bgq-term svg { width: 20vw; max-width: 80px; }
           /* Stroke units were thinned for the 180px desktop render; at the
              phone's ~82px they would draw ~1.2px, so restore weight here. */
           .bgq .bgq-term svg [stroke] { stroke-width: 2.4; }
