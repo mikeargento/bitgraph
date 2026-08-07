@@ -1414,11 +1414,9 @@ function BringYourFile({
       style={{
         backgroundColor: dragOver ? "#f0f6ff" : "#fff",
         ...edges.edgeStyle(edge),
-        // One size across all four states (idle, reading, checking, miss),
-        // so the box never jumps mid-flow. The frame geometry rides on
-        // .bg-frame (globals): portrait 2:3 on phones, landscape 3:2 on
-        // desktop, the same rotating frame every drop box wears.
-        minHeight: 268,
+        // The frame geometry rides on .bg-frame (globals): 3 wide, 2 high,
+        // the same frame every drop box wears; content is the only floor,
+        // so the box holds one size across all four states regardless.
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
