@@ -33,7 +33,16 @@ export function FolderProcess() {
            frame and the BitGraph print use white fills, which read as
            cutouts against the page's off-white; the cell is the ground they
            were drawn for. */
-        .bgq { margin: 3rem 0 3.25rem; background: #fff; border: 1px solid #d0d5dd; border-radius: 0; padding: 32px 28px; }
+        /* No chrome of its own any more: this now sits INSIDE the hero panel,
+           and a white bordered card on a white bordered panel reads as a
+           rendering mistake rather than as two things. The panel carries the
+           surface; the diagram just occupies it. */
+        /* NO top margin. The panel's own padding is the space above the
+           diagram, and a margin here stacked on top of it: 26 + 30 above
+           against 24 below, which pushed the whole exhibit 16px below the
+           panel's middle. What is left is the internal gap down to the
+           caption, which belongs to the block, not around it. */
+        .bgq { margin: 0 0 22px; background: transparent; border: 0; border-radius: 0; padding: 0; }
         /* Full width of the content column (2026-08-07): columns still size
            to content, but space-between spreads them so the FIRST glyph sits
            on the text rail and the LAST lands on the right edge, operators
@@ -44,14 +53,25 @@ export function FolderProcess() {
         .bgq .row {
           display: grid;
           grid-template-columns: repeat(5, auto);
-          justify-content: space-between;
+          /* Centred as a group, not stretched edge to edge. space-between let
+             the panel's width set the spacing, so the three terms drifted
+             apart as the column grew and the equation stopped reading as one
+             expression. The gap is a fixed rhythm now and the whole thing
+             sits in the middle of its panel. */
+          justify-content: center;
           align-items: center;
-          gap: 24px;
+          gap: 34px;
         }
         .bgq .bgq-term { display: flex; flex-direction: column; align-items: center; gap: 16px; }
         /* An explicit width, not 100%: the columns size to content now, and a
-           percentage against a content-sized track has nothing to resolve to. */
-        .bgq .bgq-term svg { width: 180px; max-width: 100%; height: auto; }
+           percentage against a content-sized track has nothing to resolve to.
+           142, down from 180 by way of 158: inside the panel the glyphs no
+           longer have to carry a card of their own, and centring the row
+           removed the need for them to fill the width. The labels are the
+           floor — "A BITGRAPH" is 82px at 11px/0.14em — so this is close to
+           as small as the artwork goes before the type under it is wider
+           than the thing it names. */
+        .bgq .bgq-term svg { width: 142px; max-width: 100%; height: auto; }
         .bgq .bgq-term span {
           font-family: IBM Plex Mono, monospace;
           font-size: 11px;
@@ -84,11 +104,11 @@ export function FolderProcess() {
            artwork: "THE FOLDER" and "A BITGRAPH" are 82px at the desktop
            11px/0.14em, so they drop to 10px/0.1em to sit inside the glyph. */
         @media (max-width: 640px) {
-          /* The cell's padding comes out of the width the vw sizing below was
-             tuned against (the 90% column: 338px at 375px, 288px at 320px),
-             so the inset shrinks here and the glyphs step down with it, or
-             the last label runs past the right edge. */
-          .bgq { margin: 2.75rem 0 3rem; padding: 22px 14px; }
+          /* The vw sizing below was tuned against the 90% column (338px at
+             375px, 288px at 320px) MINUS the inset it used to carry. The
+             inset now belongs to the enclosing panel, so only the rhythm is
+             set here; the glyph steps below are unchanged. */
+          .bgq { margin: 0 0 18px; padding: 0; }
           .bgq .row { gap: min(10px, 2.6vw); }
           .bgq .bgq-term { gap: 10px; }
           .bgq .bgq-term svg { width: 20vw; max-width: 80px; }
