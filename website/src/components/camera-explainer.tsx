@@ -9,7 +9,12 @@ export function CameraExplainer() {
   return (
     <section className="bgx">
       <style>{`
-        .bgx .cell { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; position: relative; z-index: 1; }
+        /* Left rail, like everything else (the 08-03 rule, re-affirmed
+           2026-08-06 for this diagram: "left align the graphics"): glyphs
+           and captions flush to each cell's left edge, on phone and desktop
+           alike. The artwork keeps its internal composition; only the
+           blocks stop centering. */
+        .bgx .cell { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 8px; position: relative; z-index: 1; }
         .bgx .cell h3 { font-size: 18px; font-weight: 700; margin: 0; }
         .bgx .cell p { font-size: 15px; line-height: 1.5; color: #374151; max-width: 100%; text-wrap: balance; margin: 0; }
         .bgx .film h3 .n { color: #8F5F2F; }
@@ -17,8 +22,12 @@ export function CameraExplainer() {
         .bgx .pair { display: grid; grid-template-columns: 1fr 44px 1fr; align-items: start; padding: 26px 0; }
         .bgx .mid { align-self: center; margin-top: -40px; text-align: center; color: #c9ced6; font-size: 22px; font-weight: 600; line-height: 1; }
         .bgx .mid::after { content: "="; }
-        .bgx .icon { height: auto; min-height: 96px; display: flex; align-items: center; justify-content: center; }
-        .bgx .icon svg { width: 100%; max-width: 240px; height: auto; }
+        .bgx .icon { height: auto; min-height: 96px; display: flex; align-items: center; justify-content: flex-start; width: 100%; }
+        /* No width cap: the glyph fills its half of the body (Mike: "make
+           them bigger to fill the whole body"). The 240px ceiling left a
+           dead margin beside every desktop glyph; phones were already under
+           it and do not change. */
+        .bgx .icon svg { width: 100%; height: auto; }
         @media (max-width: 560px) {
           .bgx .pair { grid-template-columns: 1fr 24px 1fr; }
           .bgx .cell h3 { font-size: min(18px, calc((45vw - 12px) / 11.2)); white-space: nowrap; }
