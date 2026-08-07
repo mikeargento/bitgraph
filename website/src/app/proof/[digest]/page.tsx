@@ -1454,27 +1454,22 @@ function BringYourFile({
               both gestures and the method; the last says where the work
               happens. "your device" is not repeated: the title places the
               file, the last line places the computation. */}
-          {/* Three rows, 1fr / auto / 1fr, exactly as the home box: the outer
-              two take equal shares of the leftover space, so the TITLE lands
-              dead centre of the frame rather than the group of text doing so.
-              Centring the group instead puts the title high by half the
-              height of the copy beneath it, and moves it again whenever that
-              copy changes length. The container's padding is symmetric, so it
-              cannot pull the middle row off centre. */}
-          <div style={{ alignSelf: "stretch", flex: 1, minHeight: 0, display: "grid", gridTemplateRows: "1fr auto 1fr", justifyItems: "center" }}>
-            {/* Black at rest, brand blue on hover, off the same state the
-                dashed edges use, so title and frame light up together. */}
-            <div style={{ gridRow: 2, fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: hover ? "#0065A4" : "#111827", transition: "color .2s", letterSpacing: "-0.01em", textWrap: "balance" }}>
-              Find this file on your device
-            </div>
-            <div style={{ gridRow: 3, alignSelf: "start", paddingTop: 10 }}>
-              <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
-                Choose files, or drag in a whole folder. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
-              </div>
-              <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
-                Nothing is uploaded. The search runs in your browser.
-              </div>
-            </div>
+          {/* The whole block is weighed as one thing and centered in the
+              frame, exactly as the home box: title plus both lines under it,
+              their combined height split evenly above and below. The
+              container is already a centered flex column with symmetric
+              padding, so plain flow does it; anything that stretches a child
+              or pads one side would break it. */}
+          {/* Black at rest, brand blue on hover, off the same state the
+              dashed edges use, so title and frame light up together. */}
+          <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: hover ? "#0065A4" : "#111827", transition: "color .2s", letterSpacing: "-0.01em", textWrap: "balance" }}>
+            Find this file on your device
+          </div>
+          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 10, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
+            Choose files, or drag in a whole folder. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
+          </div>
+          <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
+            Nothing is uploaded. The search runs in your browser.
           </div>
           {/* ⚠️ No "choose a folder" link here either, in any browser: every
               click path to a folder raises a view-files or upload-files

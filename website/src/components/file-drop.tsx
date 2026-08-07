@@ -408,41 +408,26 @@ export function FileDrop({
           {refusalNote}
         </div>
       ) : (
-        /* THE TITLE IS THE CENTER OF THE BOX, exactly: the instruction sits
-           above it, the quiet lines below. No mark: the drawn box is already
-           the picture of where a file goes, so an icon inside it was saying
-           the same thing a second time, quieter.
+        /* THE WHOLE BLOCK OF TEXT is centered in the frame, weighed as one
+           thing: title plus every line under it, their combined height split
+           evenly above and below. No mark: the drawn box is already the
+           picture of where a file goes, so an icon inside it was saying the
+           same thing a second time, quieter.
 
-           Three grid rows, 1fr / auto / 1fr. The outer two claim equal shares
-           of whatever is left over, so the middle row lands dead center no
-           matter how many lines of copy a caller passes, and the two halves
-           of the copy stay balanced around it. Stacking everything in one
-           centered column (what this was) centers the GROUP instead, which
-           pushed the title off center by half the height of the text under
-           it, and moved it again whenever the copy changed length.
+           An earlier pass centered the TITLE exactly and let the copy hang
+           below it. That put the title at the frame's midpoint but left the
+           block itself bottom-heavy, since everything else sat underneath.
+           Centering the block is the composition; the title's own position
+           falls out of it.
 
-           Rows are assigned explicitly, not by source order: they carry
-           meaning here (only row 2 is dead center), so a caller passing no
-           hint must not shift what is in the others. */
-        <div
-          className="w-full self-stretch px-4 sm:px-6"
-          style={{
-            display: "grid",
-            gridTemplateRows: "1fr auto 1fr",
-            justifyItems: "center",
-            height: "100%",
-            // Symmetric, so it cannot shift the middle row off center.
-            paddingTop: 20,
-            paddingBottom: 20,
-          }}
-        >
+           The mechanism is the parent's align-items: center against a child
+           of natural height, so nothing here may set a height or stretch.
+           Padding stays symmetric for the same reason: an uneven pad would
+           shift the block off the middle just as surely. */
+        <div className="w-full px-4 sm:px-6 py-5 flex flex-col items-center">
           <div
             className="fd-headline tracking-tight text-center"
             style={{
-              // Placed explicitly rather than by source order: the rows carry
-              // meaning here (only row 2 is dead center), so nothing should
-              // move just because a caller passes no hint.
-              gridRow: 2,
               /* Black at rest, brand blue on hover or keyboard focus, driven
                  by the SAME state that turns the dashed edges blue, so the
                  title and the frame light up together and the box reads as
@@ -464,8 +449,11 @@ export function FileDrop({
             {headline}
           </div>
 
-          {/* Below the title: the instruction, then the privacy fact. */}
-          <div style={{ gridRow: 3, alignSelf: "start", paddingTop: "var(--fd-copy-gap, 20px)" }}>
+          {/* Below the title: the instruction, then the privacy fact. The gap
+              is applied only when there is something to separate, so a caller
+              passing neither line cannot leave a phantom margin behind and
+              push the block off center. */}
+          <div style={{ marginTop: hint || subhint ? "var(--fd-copy-gap, 20px)" : 0 }}>
             {hint && (
               <div
                 className="text-center"
