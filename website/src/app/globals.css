@@ -499,18 +499,18 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    745px an iPhone 14/15 shows with the Safari toolbar up. 254 is the largest box
    that still centers on that phone. Measured there: 54px above, 54px below.
    Re-measure at 393x745 before moving any of it. ── */
-/* THE FRAME, per device (settled 2026-08-07 after three fits: portrait
-   phones rejected, all-landscape rendered short on phones): SQUARE on
-   mobile, where the column is narrow and a square is the tallest frame
-   that still reads as a frame; landscape 3:2 on desktop, the 35mm
-   proportion on a column wide enough to carry it. Width fills the column
-   up to what the height budget allows; content is the only floor.
-   Width-driven on purpose: a height-driven aspect let WebKit derive width
-   from CONTENT height and the box overflowed its card on iPhone. Shared by
-   every drop box: .bitgraph-camera mirrors it, the proof page's checker
-   wears .bg-frame directly. */
-.bg-frame { width: min(100%, calc(min(480px, 100dvh - 320px))); aspect-ratio: 1 / 1; height: auto; margin: 0 auto; }
-.bitgraph-camera { width: min(100%, calc(min(480px, 100dvh - 320px))); aspect-ratio: 1 / 1; height: auto; align-self: center; margin: 0 auto; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
+/* THE FRAME, per device (settled 2026-08-07, fourth fit: portrait
+   rejected, all-landscape short, square "a tad" too tall): two REAL print
+   formats. Phones hold 5:4, the 8x10's proportion — a tad shorter than
+   square, still framed; desktop holds landscape 3:2, the 35mm frame, on a
+   column wide enough to carry it. Width fills the column up to what the
+   height budget allows; content is the only floor. Width-driven on
+   purpose: a height-driven aspect let WebKit derive width from CONTENT
+   height and the box overflowed its card on iPhone. Shared by every drop
+   box: .bitgraph-camera mirrors it, the proof page's checker wears
+   .bg-frame directly. */
+.bg-frame { width: min(100%, calc(min(520px, 100dvh - 320px) * 5 / 4)); aspect-ratio: 5 / 4; height: auto; margin: 0 auto; }
+.bitgraph-camera { width: min(100%, calc(min(520px, 100dvh - 320px) * 5 / 4)); aspect-ratio: 5 / 4; height: auto; align-self: center; margin: 0 auto; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
 @media (min-width: 769px) {
   .bg-frame, .bitgraph-camera { width: min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2)); aspect-ratio: 3 / 2; }
 }
