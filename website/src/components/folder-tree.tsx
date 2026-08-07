@@ -23,7 +23,7 @@ export function FolderTree() {
         <li className="d2"><span className="bgt-path bgt-dir">BitGraph (sunset.jpg)/</span><span className="bgt-note">one folder per file</span></li>
         <li className="d3"><span className="bgt-path bgt-you">sunset.jpg</span><span className="bgt-note">your file, moved in</span></li>
         <li className="d3"><span className="bgt-path">proof.json</span><span className="bgt-note">the recording</span></li>
-        <li className="d3"><span className="bgt-path">index.html</span><span className="bgt-note">its own page, readable offline</span></li>
+        {/* No index.html. The Folder writes no HTML at all as of 1.12.0. */}
         <li className="d3"><span className="bgt-path bgt-dir">ethereum-anchors/</span><span className="bgt-note">the public timeline it sits in</span></li>
       </ul>
       <style>{`

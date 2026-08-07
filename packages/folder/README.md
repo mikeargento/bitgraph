@@ -12,7 +12,6 @@ BitGraph/
         BitGraph (sunset.jpg)/
             proof.json
             sunset.jpg
-            index.html
             ethereum-anchors/
                 anchor-before.json    anchor-before-witness.json
                 anchor-after.json     anchor-after-witness.json
@@ -26,8 +25,7 @@ in there on the next pass.
 To browse your recordings, drag the whole folder onto
 [bitgraph.ing](https://bitgraph.ing): it loads as a roll, day by day, with
 thumbnails, and every recording is checked against the ledger as it renders.
-The folder generates no pages of its own beyond each export's receipt, and
-browsing uploads nothing, the same as recording: the files are read in your
+The folder generates no HTML at all, and browsing uploads nothing, the same as recording: the files are read in your
 browser and only digests are looked up.
 
 One thing worth knowing about the drag itself: on macOS, dragging a file into
@@ -44,9 +42,11 @@ it redundant, and it is dissolved safely on the first pass after updating.
 Since the export now holds this folder's only copy, deleting an export sends
 the file inside it to the Trash with it.)
 
-Each folder inside `Recordings/` is the same thing you would get by recording
-the file on [bitgraph.ing](https://bitgraph.ing) and downloading the export
-from its proof page. Identical layout, so the two are interchangeable.
+Each folder inside `Recordings/` holds the same evidence you would get by
+recording the file on [bitgraph.ing](https://bitgraph.ing) and downloading the
+export from its proof page. The site's download adds an `index.html` so it can
+be read straight out of the zip; the folder writes none, because the whole
+archive is one drop away from being read on the site.
 
 ## No dependencies
 

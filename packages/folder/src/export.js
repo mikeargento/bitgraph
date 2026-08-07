@@ -746,11 +746,11 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, kee
   // Moved in last, so a failure above never strands the file.
   placeArtifact(filePath, r.dir + '/' + fileName, keepSource);
 
-  // The receipt, written by the same hand that wrote the evidence and the
-  // artifact. The sheet pass used to write it; there is no sheet pass (1.9.0:
-  // browsing happens on the site, the export carries only its own page).
+  // No receipt is written (1.12.0: the folder writes no HTML). This drops one
+  // an older version left behind, so a folder cleans itself out as it is used
+  // rather than needing a migration.
   try {
-    rebuildPage(r.dir, true);
+    dropPage(r.dir);
   } catch (e) {
     /* the evidence stands; the next completion pass rebuilds the page */
   }
@@ -790,9 +790,10 @@ function completePending(folder, waitMs) {
     var dir = folder + '/' + name;
     // Witness self-repair used to ride the sheet pass; with no sheet pass it
     // rides here. Narrow as ever: fires only when an anchor sits without its
-    // witness, and the page is rebuilt so "sealing" closes into a window.
+    // witness. It no longer has a page to rebuild afterwards, but the repair
+    // itself is the point: the witness file is evidence, not chrome.
     try {
-      if (repairWitnesses(dir) > 0) rebuildPage(dir, true);
+      repairWitnesses(dir);
     } catch (e) {
       /* tried again next pass */
     }
@@ -815,7 +816,7 @@ function completePending(folder, waitMs) {
       var sealed = writeExportContents(dir, meta, proof, wait);
       wait = 0;
       markPending(dir, meta, sealed);
-      rebuildPage(dir, true);
+      dropPage(dir);
       if (sealed) sealedCount++;
     } catch (e) {
       /* leave it pending; the next run tries again */
@@ -1023,81 +1024,6 @@ var AUDIO_EXT = ['mp3', 'm4a', 'aac', 'wav', 'aiff', 'aif', 'flac', 'oga', 'ogg'
 // an application. Ampersands are escaped because this goes in an attribute.
 var PDF_VIEW = '#toolbar=0&amp;navpanes=0&amp;scrollbar=0&amp;view=FitH';
 
-/**
- * One document, shared by the contact sheet and the per-export pages so they
- * cannot drift apart.
- *
- * Square corners, brand blue reserved for actions, no button slabs: the site's
- * rules, restated here because these files ship alone and can never reach a
- * stylesheet. The wrapper class is `wrap` rather than `w`, which previously
- * collided with the time line's class and silently cancelled the page's
- * `margin:0 auto`.
- */
-function pageShell(title, extraCss, bodyHtml, baseHref) {
-  return (
-    '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
-    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-    // These pages are rewritten in place at the same path every time a file is
-    // dropped, which is the case a browser cache gets wrong: you reload and see
-    // the sheet as it was before the drop. Nothing here is worth caching, and a
-    // stale contact sheet is worse than no contact sheet.
-    '<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">' +
-    '<meta http-equiv="pragma" content="no-cache"><meta http-equiv="expires" content="0">' +
-    '<title>' + esc(title) + '</title>' +
-    // Day pages live two levels down in .bitgraph/days/ and reuse the sheet's
-    // cell HTML verbatim; the base is what makes those folder-relative links
-    // resolve. Absent everywhere else.
-    (baseHref ? '<base href="' + esc(baseHref) + '">' : '') +
-    '<style>' +
-    '*{box-sizing:border-box}' +
-    // color-scheme, because this page frames content the BROWSER styles: a
-    // recorded .txt in an <iframe> is rendered by the UA, which follows the
-    // viewer's OS preference unless told otherwise. On a dark-mode Mac that
-    // thumbnail came out white-on-black inside an otherwise light page. The
-    // whole product is light only, so say so.
-    ':root{color-scheme:light}' +
-    'body{margin:0;padding:48px 24px 80px;background:#f5f5f5;color:#111827;' +
-    // The site's --font-sans, minus nothing. acumin-pro is NAMED but never
-    // fetched: this page must read months later on a machine with no network,
-    // so it cannot pull Typekit. Naming it costs nothing and means a machine
-    // that already has Acumin (any Adobe Fonts subscriber, including the one
-    // who built the folder) renders exactly what bitgraph.ing renders, while
-    // everyone else falls through the same chain the site falls through.
-    'font:15px/1.6 acumin-pro,-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;' +
-    '-webkit-font-smoothing:antialiased}' +
-    '.wrap{max-width:800px;margin:0 auto}' +
-    'h1{margin:0 0 4px;font-size:28px;font-weight:800;letter-spacing:-.03em;overflow-wrap:anywhere}' +
-    '.s{margin:0 0 40px;color:#4b5563;font-size:14px}' +
-    // Sits inline at the end of the count, not in a banner or a bar. It is a
-    // fact about the software, worth one sentence and no furniture, and it is
-    // the only link on this page that leaves the machine.
-    '.up{margin-left:10px;color:#0065A4;font-weight:600;text-decoration:none}' +
-    '.l{margin:8px 0 0}' +
-    '.l a{color:#0065A4;font-weight:600;font-size:14px;text-decoration:none}' +
-    '.sep{display:inline-block;width:18px}' +
-    '.a{display:inline-block;transition:transform .18s ease}' +
-    '@media (hover:hover){.l a:hover .a{transform:translateX(3px)}}' +
-    '@media (max-width:520px){body{padding:32px 16px 64px}}' +
-    extraCss +
-    '</style></head><body><div class="wrap">' +
-    bodyHtml +
-    '</div></body></html>\n'
-  );
-}
-
-function esc(s) {
-  return String(s)
-    .split('&').join('&amp;')
-    .split('<').join('&lt;')
-    .split('>').join('&gt;')
-    .split('"').join('&quot;');
-}
-
-/** Percent-encode each path segment, leaving the separators intact. */
-function encodePath(p) {
-  return String(p).split('/').map(encodeURIComponent).join('/');
-}
-
 function extOf(name) {
   var i = String(name).lastIndexOf('.');
   return i === -1 ? '' : String(name).slice(i + 1).toLowerCase();
@@ -1132,68 +1058,6 @@ var MIME = {
   webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', avif: 'image/avif',
   bmp: 'image/bmp', tiff: 'image/tiff', tif: 'image/tiff', svg: 'image/svg+xml',
 };
-
-/**
- * A file as a data: URI, read in process.
- *
- * Never through a shell pipe. doShellScript carries output through one, and a
- * photo is hundreds of kilobytes of base64, which is exactly the ceiling the
- * response files at the top of this script exist to avoid.
- */
-function dataUri(path, ext) {
-  var mime = MIME[ext];
-  if (!mime || !exists(path)) return null;
-  try {
-    // An ObjC nil is truthy here (it arrives as a function), so the result is
-    // checked for being a real string rather than for being falsy.
-    var b64 = ObjC.unwrap($.NSData.dataWithContentsOfFile(path)
-      .base64EncodedStringWithOptions(0));
-    if (typeof b64 !== 'string' || !b64.length) return null;
-    return { uri: 'data:' + mime + ';base64,' + b64, len: b64.length };
-  } catch (e) {
-    return null;
-  }
-}
-
-/** The picture as a data: URI, or null to fall back to a plain relative src. */
-function embedImage(dir, file, digestB64) {
-  var ext = extOf(file);
-  var src = dir + '/' + file;
-  var direct = dataUri(src, ext);
-  if (direct && direct.len <= EMBED_BUDGET) return direct.uri;
-  // SVG is text, already small, and sips cannot rasterise it usefully here.
-  if (ext === 'svg') return direct ? direct.uri : null;
-
-  var tmp = '/tmp/bitgraph-embed-' + toUrlSafe(String(digestB64)).slice(0, 16) + '.jpg';
-  var best = null;
-  for (var i = 0; i < EMBED_WIDTHS.length; i++) {
-    // `-s format jpeg` is NOT optional. With `-Z` alone sips infers the output
-    // format from the .jpg extension for some inputs and not others: a PNG
-    // converts, a WEBP silently writes nothing at all and the budget is then
-    // quietly skipped. Naming the output format explicitly makes every input
-    // sips can read behave the same way.
-    sh('sips -s format jpeg -Z ' + EMBED_WIDTHS[i] +
-      ' --out ' + quote(tmp) + ' ' + quote(src) + ' >/dev/null 2>&1');
-    var small = dataUri(tmp, 'jpg');
-    if (!small) break;
-    best = small;
-    if (small.len <= EMBED_BUDGET) break;
-  }
-  sh('rm -f ' + quote(tmp));
-  if (best) return best.uri;
-
-  // sips produced nothing, so the budget cannot be met by shrinking. ⚠️ THIS
-  // HAPPENS: sips cannot read WebP at all, silently writing no output file, and
-  // the same is true of any format ImageIO does not decode. Falling through to
-  // the original was the old behaviour and it made the budget a lie.
-  //
-  // Embedding oversize still beats not embedding, because not embedding is the
-  // bug this whole thing exists to fix: no picture at all in a sandboxed
-  // viewer. So the original goes in, up to a hard ceiling that keeps one page
-  // from becoming tens of megabytes.
-  if (direct && direct.len <= EMBED_HARD_MAX) return direct.uri;
-  return null;
-}
 
 // ---- Thumbnails -----------------------------------------------------------
 //
@@ -1264,87 +1128,6 @@ function repairWitnesses(dir) {
 
 var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// ---- Time ------------------------------------------------------------------
-//
-// A BitGraph proof carries no clock reading. Its time statement is the pair of
-// Ethereum anchors that bracket it, so the only honest rendering is a window:
-// recorded after one block was mined and before the next. Printing a single
-// instant would be the "proves when it was taken" claim this project refuses to
-// make, which is why the row says "between ... and ..." and never "at".
-//
-// The block times are not stored as fields anywhere in the export. They live
-// inside headerRlpHex in ethereum-anchors/*-witness.json, as field 12 of the
-// RLP block header, so getting them means decoding the header here. That is
-// what the three functions below do, walking only as far as item 11 rather
-// than decoding the whole structure.
-//
-// Deriving it from the witness rather than trusting a stored number is also
-// the stronger construction: the witness is the block header itself, and its
-// hash is the anchor the proof commits to.
-
-function hexToBytes(hex) {
-  var s = String(hex).replace(/^0x/, '');
-  if (s.length % 2 !== 0) return null;
-  var out = [];
-  for (var i = 0; i < s.length; i += 2) {
-    var b = parseInt(s.substr(i, 2), 16);
-    if (isNaN(b)) return null;
-    out.push(b);
-  }
-  return out;
-}
-
-/**
- * Bounds of the RLP item starting at i: where its payload begins, how long it
- * is, and where the next item starts. A byte under 0x80 encodes itself, so its
- * payload is the byte at i and its length is 1, which lets callers read every
- * item the same way.
- */
-function rlpItemAt(b, i) {
-  var p = b[i];
-  if (p === undefined) return null;
-  if (p < 0x80) return { start: i, len: 1, next: i + 1, list: false };
-  if (p <= 0xb7) return { start: i + 1, len: p - 0x80, next: i + 1 + (p - 0x80), list: false };
-  if (p <= 0xbf) {
-    var n = p - 0xb7, len = 0;
-    for (var k = 0; k < n; k++) len = len * 256 + b[i + 1 + k];
-    return { start: i + 1 + n, len: len, next: i + 1 + n + len, list: false };
-  }
-  if (p <= 0xf7) return { start: i + 1, len: p - 0xc0, next: i + 1 + (p - 0xc0), list: true };
-  var m = p - 0xf7, plen = 0;
-  for (var j = 0; j < m; j++) plen = plen * 256 + b[i + 1 + j];
-  return { start: i + 1 + m, len: plen, next: i + 1 + m + plen, list: true };
-}
-
-/**
- * Unix seconds from an RLP-encoded Ethereum block header, or 0.
- *
- * Header field order is fixed and the first twelve have never changed across
- * forks: parentHash, uncleHash, coinbase, stateRoot, txRoot, receiptRoot,
- * logsBloom, difficulty, number, gasLimit, gasUsed, timestamp. So walk eleven
- * items and read the twelfth. A timestamp is about 1.7e9, far inside the
- * range JavaScript integers hold exactly.
- */
-function rlpHeaderTimestamp(hex) {
-  var b = hexToBytes(hex);
-  if (!b) return 0;
-  var outer = rlpItemAt(b, 0);
-  if (!outer || !outer.list) return 0;
-
-  var i = outer.start;
-  for (var idx = 0; idx < 11; idx++) {
-    var it = rlpItemAt(b, i);
-    if (!it) return 0;
-    i = it.next;
-  }
-  var ts = rlpItemAt(b, i);
-  if (!ts || ts.len > 8) return 0;
-
-  var v = 0;
-  for (var q = 0; q < ts.len; q++) v = v * 256 + b[ts.start + q];
-  return v;
-}
-
 /** The recorded file in an export: not the proof, the anchors, or a marker. */
 function artifactIn(dir) {
   var listing = sh('ls -1 ' + quote(dir) + ' 2>/dev/null');
@@ -1361,99 +1144,10 @@ function artifactIn(dir) {
   return null;
 }
 
-/**
- * True when this export's page is already current.
- *
- * ⚠️ Regenerating every page on every index pass is what made a drop slow, and
- * it grows with the folder: measured 19.5 seconds on 44 exports with nothing
- * pending. The expensive part is per page, not per pass, because the artifact
- * is re-encoded into a data: URI each time.
- *
- * A page is derived from exactly two things on disk, proof.json and the anchor
- * files, so it is current when it is newer than both. Being wrong here would
- * show a stale page, so the test is deliberately conservative: any doubt, any
- * missing timestamp, and it regenerates.
- */
-function pageIsCurrent(dir, file) {
-  // The artifact is statted WITH the page and proof: its mtime is an input
-  // too, and the one that moves when a file is edited in place. See the note
-  // at the snapshot-driven test in sheetRow, which learned this the hard way.
-  var out = sh('cd ' + quote(dir) + ' && stat -f %m index.html proof.json' +
-    (file ? ' ' + quote(file) : '') + ' 2>/dev/null');
-  if (!out) return false;
-  var t = out.split('\r').join('\n').split('\n').filter(Boolean);
-  if (t.length < (file ? 3 : 2)) return false;
-  var page = parseInt(t[0], 10);
-  var proof = parseInt(t[1], 10);
-  if (!page || !proof || page < proof) return false;
-  if (file) {
-    // Strict: see the granularity note in sheetRow's test. Equal seconds must
-    // read as stale for the artifact.
-    var art = parseInt(t[2], 10);
-    if (!art || page <= art) return false;
-  }
-  // The anchors are the other input, and they arrive later than the proof.
-  var anchors = sh('cd ' + quote(dir) + ' && stat -f %m ' + quote(ANCHOR_DIR) + ' 2>/dev/null');
-  if (anchors) {
-    var a = parseInt(String(anchors).trim(), 10);
-    if (!a || page < a) return false;
-  }
-  return true;
-}
-
-/**
- * The anchors bracketing this export: block time and block number for each.
- * Either side may be absent, which is what a pending seal looks like.
- *
- * The time is decoded from the witness header rather than read from a field,
- * because the witness IS the block header and its hash is what the proof
- * commits to. The block number is taken from the witness too, so both numbers
- * on a row come from the same artifact.
- */
-function anchorInfo(dir) {
-  function read(which) {
-    var raw = readFile(dir + '/' + ANCHOR_DIR + '/anchor-' + which + '-witness.json');
-    if (raw === null) return { ts: 0, block: 0 };
-    try {
-      var w = JSON.parse(raw);
-      return {
-        ts: w && w.headerRlpHex ? rlpHeaderTimestamp(w.headerRlpHex) : 0,
-        block: (w && w.blockNumber) || 0,
-      };
-    } catch (e) {
-      return { ts: 0, block: 0 };
-    }
-  }
-  return { before: read('before'), after: read('after') };
-}
-
-function clockOf(d) {
-  var h = d.getHours();
-  var h12 = h % 12 === 0 ? 12 : h % 12;
-  var mm = d.getMinutes() < 10 ? '0' + d.getMinutes() : String(d.getMinutes());
-  // Seconds are not optional. Anchors land every 12 seconds, so both bounds of
-  // a window usually fall inside the same minute and would print identically
-  // without them, making a real interval look like a rendering fault.
-  var ss = d.getSeconds() < 10 ? '0' + d.getSeconds() : String(d.getSeconds());
-  return h12 + ':' + mm + ':' + ss + (h >= 12 ? 'pm' : 'am');
-}
-
 // The site prints "12:54:11 PM EDT": uppercase meridiem, spaced, with the
 // zone named. clockOf's compact "12:54:11pm" is for the contact sheet's cells,
 // where the row has to fit on one line.
 var TZ = sh('date +%Z') || '';
-
-function clock12(d) {
-  var h = d.getHours();
-  var h12 = h % 12 === 0 ? 12 : h % 12;
-  var mm = d.getMinutes() < 10 ? '0' + d.getMinutes() : String(d.getMinutes());
-  var ss = d.getSeconds() < 10 ? '0' + d.getSeconds() : String(d.getSeconds());
-  return h12 + ':' + mm + ':' + ss + ' ' + (h >= 12 ? 'PM' : 'AM');
-}
-
-function dateOf(d) {
-  return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
-}
 
 // The row carried a date and a counter here too. A cell is three things now:
 // the picture, its filename, and the two ways to open it. Everything else was
@@ -1463,429 +1157,46 @@ function dateOf(d) {
 
 
 /**
- * Rebuild one export's receipt page from what is on disk. The one writer of
- * pages since the sheet pass died: build, completion, witness repair and
- * --tidy all come through here.
+ * Remove one export's receipt page. THE FOLDER WRITES NO HTML (1.12.0, Mike's
+ * call). Every caller that used to rebuild a page now drops it instead: build,
+ * completion, witness repair and --tidy all come through here, so a folder
+ * cleans itself out on the next pass over it rather than needing a migration.
+ *
+ * Why the page went: it was a SECOND implementation of the proof page, and it
+ * drifted. Its own comment said the type was "lifted from the proof page so
+ * the two read as one design"; the site later moved to one title size
+ * everywhere and this copy sat at the old values until someone noticed the
+ * mismatch. That is the standing cost of a duplicate, and the page was not
+ * buying enough to keep paying it: the binding verdict it displayed was
+ * computed HERE, on the machine that wrote the folder, so a recipient opening
+ * it was reading the sender's own assertion rather than performing a check.
+ * The check that means something is dropping the folder on bitgraph.ing,
+ * which re-hashes in the reader's browser and goes to the ledger.
+ *
+ * ⚠️ The artifact guard is the same one writeProofPage carried and must stay.
+ * A recording whose file is genuinely NAMED index.html keeps it: deleting
+ * that would destroy the very bytes the proof describes. Only a page whose
+ * hash differs from the proof's digest is ours to remove.
  */
-function rebuildPage(dir, force) {
+function dropPage(dir) {
+  var page = dir + '/index.html';
+  if (!exists(page)) return;
   var raw = readFile(dir + '/proof.json');
   if (raw === null) return;
   var digest = null;
-  var counter = null;
   try {
     var p = JSON.parse(raw);
     digest = p && p.artifact && p.artifact.digestB64;
-    counter = p && p.commit && p.commit.counter;
   } catch (e) {
     return;
   }
+  // No proof digest to compare against means we cannot prove the page is
+  // ours, so it stays. A stray index.html costs nothing; a deleted artifact
+  // is unrecoverable.
   if (!digest) return;
-  writeProofPage(dir, artifactIn(dir), digest, counter, anchorInfo(dir), force);
-}
-
-function writeProofPage(dir, file, digest, counter, info, force) {
-  var name = baseName(dir);
-
-  // `force` covers the cases where the page's INPUTS did
-  // not move but the page is wrong anyway: a freshly landed witness, or a
-  // migration, which changes where the sheet lives relative to this page (the
-  // back link) while mv leaves every mtime untouched.
-  if (!force && pageIsCurrent(dir, file)) return;
-
-  // NEVER write over the artifact. The page has to be called index.html, since
-  // that is what makes a browser render it instead of generating its own
-  // directory listing, so an export whose recorded file is itself named
-  // index.html cannot have one: writing it would destroy the very bytes the
-  // proof describes. The 2026-08-04 feedback loop recorded the sheet six times
-  // and this function overwrote all six artifacts before the collision was
-  // noticed. The hot folder now skips index.html so nothing new can land in
-  // that state, and this guard means the generator cannot do the damage even
-  // if something does.
-  if (exists(dir + '/index.html')) {
-    var existingHash = digestOfFile(dir + '/index.html');
-    if (existingHash && existingHash === String(digest).trim()) return;
-  }
-
-  var proofRaw = readFile(dir + '/proof.json');
-  var proof = null;
-  try { proof = proofRaw ? JSON.parse(proofRaw) : null; } catch (e) { proof = null; }
-
-  var ext = file ? extOf(file) : '';
-  var isImage = file && IMAGE_EXT.indexOf(ext) !== -1;
-  var isPdf = file && ext === 'pdf';
-  var isVideo = file && VIDEO_EXT.indexOf(ext) !== -1;
-  var isAudio = file && AUDIO_EXT.indexOf(ext) !== -1;
-  var isText = file && TEXT_EXT.indexOf(ext) !== -1;
-
-  // Answered here rather than by sending someone to the site to drop the file
-  // in by hand: this script has the bytes, so it hashes them and compares
-  // against what the proof commits to. Silent when they match, which is every
-  // normal page; announcing a match would promise a contrast the page cannot
-  // show and train the reader to skim past the one time it mattered.
-  var binding = null;
-  if (file) {
-    var got = digestOfFile(dir + '/' + file);
-    if (got) binding = got === String(digest).trim();
-  }
-
-  var sizeStr = '';
-  if (file) {
-    var b = parseInt(sh('stat -f%z ' + quote(dir + '/' + file) + ' 2>/dev/null'), 10);
-    if (isFinite(b) && b > 0) {
-      sizeStr = b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB'
-        : b >= 1024 ? Math.round(b / 1024) + ' KB' : b + ' bytes';
-    }
-  }
-
-  /* ---- the proof page's own components, rebuilt in plain HTML ---- */
-
-  // Every field is tap-to-copy and swaps its value for "Copied!", which is what
-  // that page does and the reason neither has a copy button.
-  function field(label, value, opts) {
-    if (value === undefined || value === null || value === '') return '';
-    opts = opts || {};
-    var cls = 'f' + (opts.mono ? ' mono' : '') + (opts.hl ? ' hl' : '');
-    if (opts.link) {
-      return '<div class="f"><span class="fl">' + esc(label) + '</span>' +
-        '<a class="fv lnk" href="' + esc(value) + '" target="_blank" rel="noopener noreferrer">' +
-        esc(value) + '</a></div>';
-    }
-    return '<div class="' + cls + '" data-copy="' + esc(value) + '">' +
-      '<span class="fl">' + esc(label) + '</span>' +
-      '<span class="fv">' + esc(value) + '</span></div>';
-  }
-
-  function card(title, inner, plain) {
-    if (!inner) return '';
-    // A plain card has NO header. The proof page passes a title and then
-    // renders nothing for it, because the h1 above already says it and the
-    // card's contents are the point of the page. Drawing the header here
-    // printed "BitGraph Recorded" twice, once as the heading and once in blue
-    // inside the box beneath it.
-    if (plain) return '<section class="cd">' + inner + '</section>';
-    return '<section class="cd"><details><summary class="hd">' +
-      '<span>' + esc(title) + '</span>' +
-      '<span class="chev" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" ' +
-      'fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square" ' +
-      'stroke-linejoin="miter"><path d="M9 6 L15 12 L9 18"/></svg></span>' +
-      '</summary><div class="bd">' + inner + '</div></details></section>';
-  }
-
-  var rel = file ? encodePath(file) : null;
-  // The src is embedded where it can be; the href stays the real file, which is
-  // what a browser that can reach it should open. In a sandbox that link is
-  // blocked either way, and the embedded src is what carries the page.
-  var src = isImage ? (embedImage(dir, file, digest) || rel) : rel;
-  var media = isImage
-    ? '<div class="hero"><a href="' + rel + '"><img src="' + src + '" alt=""></a></div>'
-    : isPdf
-      ? '<div class="hero"><embed class="doc" src="' + rel + '" type="application/pdf"></div>'
-      : isVideo
-        ? '<div class="hero"><video class="av" src="' + rel + '" controls preload="metadata" playsinline></video></div>'
-        : isAudio
-          ? '<div class="hero"><audio class="au" src="' + rel + '" controls preload="metadata"></audio></div>'
-          : isText
-            ? '<div class="hero"><iframe class="doc" src="' + rel + '" sandbox></iframe></div>'
-            : '';
-
-  // "BitGraph Recorded", the page's one always-open card, exactly as the proof
-  // page treats it: the artifact, what it is called, and the hash that binds
-  // them. Everything else is collapsed beneath it.
-  // The window, written the way that page writes it: the date as the heading,
-  // the interval beneath it in the data font. It leads the card rather than
-  // being a section of its own, because it is what the recording IS.
-  var whenRow = '';
-  if (info.before.ts && info.after.ts) {
-    var wb = new Date(info.before.ts * 1000);
-    var wa = new Date(info.after.ts * 1000);
-    whenRow = '<div class="when"><div class="wd">' + dateOf(wb) + '</div>' +
-      '<div class="wt">between ' + clock12(wb) + ' and ' + clock12(wa) + ' ' + TZ + '</div></div>';
-  } else if (info.before.ts) {
-    var wo = new Date(info.before.ts * 1000);
-    whenRow = '<div class="when"><div class="wd">' + dateOf(wo) + '</div>' +
-      '<div class="wt">after ' + clock12(wo) + ' ' + TZ + ', sealing</div></div>';
-  }
-
-  var head =
-    whenRow +
-    media +
-    '<div class="fn">' +
-    '<span>' + esc(file || name) + (sizeStr ? ' &middot; ' + esc(sizeStr) : '') + '</span>' +
-    (rel ? '<a class="op" href="' + rel + '">Open <span class="arrow">&rarr;</span></a>' : '') +
-    '</div>' +
-    field('File Hash', digest, { mono: true });
-
-  var slot = (proof && proof.slotAllocation) || null;
-  var commit = (proof && proof.commit) || {};
-  var signer = (proof && proof.signer) || {};
-  var env = (proof && proof.environment) || {};
-  var attr = (proof && proof.attribution) || null;
-
-  function anchorCard(title, side) {
-    if (!side.block && !side.ts) return '';
-    var inner = field('Block', side.block ? '#' + side.block : '', { hl: true });
-    if (side.ts) {
-      var d = new Date(side.ts * 1000);
-      inner += field('Block Time', clockOf(d) + ' on ' + dateOf(d));
-    }
-    if (side.block) inner += field('Etherscan', 'https://etherscan.io/block/' + side.block, { link: true });
-    return card(title, inner);
-  }
-
-  // The proof page's order, which is the construction's order: what was
-  // reserved, what was committed into it, who signed it, where it ran, and only
-  // then the blocks that bracket it. The anchors are a bound placed on the
-  // whole thing afterwards, so they come after the thing they bound, not first.
-  //
-  // Two of that page's cards cannot exist here: Content Credentials needs the
-  // C2PA toolkit, and Recordings needs the ledger to know the other positions.
-  var body =
-    card('BitGraph Recorded', head, true) +
-    (slot
-      ? card('Reserved Slot',
-          field('Slot Counter', slot.counter ? '#' + slot.counter : '', { hl: true }) +
-          field('Nonce', slot.nonceB64, { mono: true }) +
-          field('Slot Signature', slot.signatureB64, { mono: true }) +
-          field('Epoch ID', slot.epochId, { mono: true }))
-      : '') +
-    card('Artifact Commit',
-      field('Artifact Counter', commit.counter ? '#' + commit.counter : '', { hl: true }) +
-      field('Epoch ID', slot ? '' : commit.epochId, { mono: true }) +
-      field('Previous Hash', commit.prevB64, { mono: true }) +
-      field('Slot Hash', commit.slotHashB64, { mono: true })) +
-    card('Signature',
-      field("This BitGraph's Hash", proof && proof.proofHash, { mono: true }) +
-      field('Signature', signer.signatureB64, { mono: true }) +
-      field('Public Key', signer.publicKeyB64, { mono: true })) +
-    card(env.enforcement === 'software' ? 'Software' : 'Hardware Enclave',
-      field('PCR0 Measurement', env.measurement, { mono: true }) +
-      field('Attestation Format', env.attestation && env.attestation.format)) +
-    anchorCard('Recorded after this block', info.before) +
-    anchorCard('Recorded before this block', info.after) +
-    (attr
-      ? card("Submitter's Note",
-          field('Submitted by', attr.name) +
-          field('Note', attr.message, { mono: true }))
-      : '') +
-    (proofRaw ? card('Raw JSON', '<pre class="copy" title="Click to copy">' + esc(proofRaw) + '</pre>') : '');
-
-  writeFile(
-    dir + '/index.html',
-    pageShell(
-      file || name,
-      proofPageCss(),
-      // ❄️ There is no link to the site here, and there should not be one.
-      //
-      // It was tried, moved twice, and cut. Two reasons. The site is already
-      // reachable by the thing the reader is holding: dropping a recorded file
-      // on bitgraph.ing goes straight to its proof, and the file is right here
-      // in this folder and again in files/. A link is a second way to do what
-      // the product's one gesture already does.
-      //
-      // And it was quietly wrong. Pinning a causal position needs counter and
-      // epoch in the query; the link carried neither, so on the second
-      // recording of the same bytes it opened the first one. A link that can
-      // point at a different recording than the page it sits on is worse than
-      // no link.
-      //
-      // No way-back navigation: the folder carries no sheet to go back to
-      // (1.9.0 - browsing happens on the site, by dropping the folder in).
-      '<h1>BitGraph Recorded</h1>' +
-        (binding === false
-          ? '<p class="bind"><b>This file does not match the proof.</b> Its SHA-256 differs from the ' +
-            'file hash below, so these are not the same bytes. Either the file changed after it was ' +
-            'recorded, or it is not the file this proof describes.' +
-            '<span class="audit">' + esc(auditCommand(name)) + '</span></p>'
-          : '') +
-        body +
-        // ❄️ An "audit this yourself" block sat here and was CUT. Do not add it
-        // back. The page already re-hashes the artifact and says so in red when
-        // the bytes disagree, which is the check anyone actually needs, so a
-        // standing note telling the reader not to trust the page taxes every
-        // reader to serve a rare adversarial one who can find the command in
-        // the README. Mike: "its like not trusting something you dont have to
-        // trust". It also failed in practice: the command it printed was
-        // relative to the parent folder, and following it landed you in
-        // ~/BitGraph where bitgraph-audit writes audit-report.json and
-        // audit-report.md, which the watcher would then record. Two permanent
-        // proofs for reading a page.
-        //
-        // The command still appears on a MISMATCH, which is the one moment the
-        // reader has a reason to want it.
-        '<div id="c">Copied!</div>' +
-        copyScript()
-    )
-  );
-}
-
-/** "In this folder", as one more card in the stack. */
-function filesCard(dir, artifact) {
-  var listed = [];
-  var seen = {};
-  function add(rel) {
-    if (seen[rel] || !exists(dir + '/' + rel)) return;
-    seen[rel] = true;
-    listed.push(rel);
-  }
-  // Ordered by what each thing IS, not by name: the recorded file, then its
-  // proof, then the anchor evidence, lower bound first with each witness after
-  // the anchor it witnesses.
-  if (artifact) add(artifact);
-  add('proof.json');
-  ['anchor-before.json', 'anchor-before-witness.json', 'anchor-after.json', 'anchor-after-witness.json']
-    .forEach(function (a) { add(ANCHOR_DIR + '/' + a); });
-
-  var out = listed.map(function (rel) {
-    return '<div class="f"><span class="fl">' + esc(rel) + '</span>' +
-      '<a class="fv lnk" href="' + encodePath(rel) + '">Open</a></div>';
-  }).join('');
-  return out ? cardStatic('In this folder', out) : '';
-}
-
-function cardStatic(title, inner) {
-  return '<section class="cd"><details><summary class="hd">' +
-    '<span>' + esc(title) + '</span>' +
-    '<span class="chev" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" ' +
-    'fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square" ' +
-    'stroke-linejoin="miter"><path d="M9 6 L15 12 L9 18"/></svg></span>' +
-    '</summary><div class="bd">' + inner + '</div></details></section>';
-}
-
-/** Values lifted from the proof page so the two read as one design. */
-function proofPageCss() {
-  return (
-    '.nv{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 34px}' +
-    '.hm{color:#0065A4;font-weight:600;font-size:14px;text-decoration:none}' +
-    // An arrow leans the way it points, always outward. .hm carries both the
-    // back link and the forward one now, so the direction cannot sit on .hm:
-    // it was written when .hm was only the way out, and the forward arrow
-    // inherited the leftward pull and appeared to retreat into the page.
-    '@media (hover:hover){.hm:hover .arrow{transform:translateX(3px)}' +
-    '.hm.bk:hover .arrow{transform:translateX(-3px)}}' +
-    '.nn{color:#4b5563;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;' +
-    'overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
-    // ⚠️ THE SITE'S .bg-page-title, copied exactly. "BitGraph Recorded" is a
-    // page title on bitgraph.ing and it has to be one here, or a reader
-    // holding both sees two different products.
-    //
-    // These were 20px/800/-.02em, lifted from the proof page back when that
-    // heading really was a 20px line. The site then went to one title size
-    // everywhere (1ad65403, "One page title, one definition, twenty pages")
-    // and this copy did not follow, which is exactly the drift the "lifted
-    // from the proof page" note was supposed to prevent. If .bg-page-title
-    // moves again in globals.css, move this with it.
-    'h1{margin:0 0 10px;font-size:clamp(26px,6vw,32px);font-weight:600;' +
-    'letter-spacing:-.03em;line-height:1.1;color:#111827}' +
-    '.when{display:flex;flex-direction:column;gap:5px;padding:14px 16px;' +
-    'border-bottom:1px solid #e2e5e9}' +
-    '.wd{font-size:14px;font-weight:700;color:#111827;letter-spacing:-.01em}' +
-    '.wt{font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#1f2937}' +
-    '.cd{background:#fff;border:1px solid #d0d5dd;overflow:hidden;margin:0 0 10px}' +
-    '.hd{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;' +
-    'font-size:14px;font-weight:700;letter-spacing:.04em;color:#0065A4;padding:14px 16px;' +
-    'background:#fff;cursor:pointer;list-style:none}' +
-    '.hd::-webkit-details-marker{display:none}' +
-    '.hd.plain{cursor:default}' +
-    'details[open]>.hd{background:rgba(0,101,164,.07);border-bottom:1px solid #e2e5e9}' +
-    '@media (hover:hover){summary.hd:hover{background:rgba(0,101,164,.07)}}' +
-    '.chev{flex-shrink:0;display:inline-flex;transition:transform .18s}' +
-    'details[open]>.hd .chev{transform:rotate(90deg)}' +
-    '.f{display:flex;flex-direction:column;gap:5px;padding:14px 16px;' +
-    'border-bottom:1px solid #e2e5e9;cursor:pointer}' +
-    '.f:last-child{border-bottom:0}' +
-    '.fl{font-size:14px;color:#374151;font-weight:700}' +
-    '.fv{font-size:14px;color:#1f2937;line-height:1.6;word-break:break-all}' +
-    // Long fixed-length strings stay on one line and scroll, rather than being
-    // shredded across ragged wrapped lines. Still tap-to-copy, so nobody has to
-    // scroll to grab one.
-    '.mono .fv{font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;' +
-    'white-space:nowrap;overflow-x:auto;word-break:normal}' +
-    '.hl .fv{color:#0065A4;font-weight:700}' +
-    '.lnk{color:#0065A4;text-decoration:none;font-size:13px}' +
-    // The proof page's PhotoCard, values and all: 20px of padding inside the
-    // card, the artwork centred in it, and a min(70vh,640px) ceiling with
-    // object-fit contain. Edge-to-edge at a smaller cap was the difference
-    // that made this look like a different page.
-    '.hero{background:#fff;padding:20px;display:flex;align-items:center;justify-content:center}' +
-    '.hero img{max-width:100%;max-height:min(70vh,640px);width:auto;height:auto;' +
-    'display:block;object-fit:contain}' +
-    '.hero .doc{width:100%;height:min(70vh,640px);border:0;display:block;background:#fff}' +
-    '.hero .av{max-width:100%;max-height:min(70vh,640px);display:block;background:#111827}' +
-    '.hero .au{width:100%;display:block}' +
-    '.fn{display:flex;align-items:center;justify-content:space-between;gap:12px;' +
-    'padding:14px 16px;border-top:1px solid #e2e5e9;font-size:14px;font-weight:600;color:#111827}' +
-    '.op{color:#0065A4;font-weight:600;text-decoration:none;flex-shrink:0}' +
-    '.arrow{display:inline-block;transition:transform .18s}' +
-    '@media (hover:hover){.op:hover .arrow{transform:translateX(3px)}}' +
-    '.bd pre.copy{margin:0;padding:14px 16px;background:#fff;border:0;' +
-    'font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#374151;' +
-    'white-space:pre-wrap;word-break:break-all;cursor:pointer;max-height:420px;overflow:auto}' +
-    '.bind{margin:0 0 16px;padding:14px 16px;border:1px solid #dc2626;font-size:14px;color:#111827}' +
-    '.bind b{font-weight:600;color:#dc2626}' +
-    '.bind .audit{display:block;margin-top:8px;color:#4b5563;' +
-    'font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}' +
-    '#c{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;' +
-    'padding:10px 22px;font-size:14px;font-weight:700;color:#fff;background:#0065A4;' +
-    'pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.22)}'
-  );
-}
-
-/**
- * The command that checks an export without trusting the page inside it.
- *
- * ⚠️ The folder name is SHELL-QUOTED. Exports are called `BitGraph (sunset.jpg)`,
- * and both the parentheses and the space are shell syntax: pasted bare, as the
- * mismatch warning used to print it, that line is a syntax error in bash and
- * zsh rather than an audit. `quote` is the same single-quoting doShellScript
- * gets, because it is the same job, one string into one shell word.
- */
-function auditCommand(name) {
-  return 'npx @mikeargento/bitgraph-audit ' + quote(name);
-}
-
-/** Tap a field or a JSON block to copy it, the proof page's own affordance. */
-function copyScript() {
-  return '<script>(function(){var c=document.getElementById("c");' +
-    'function ok(){c.style.display="block";setTimeout(function(){c.style.display="none"},1500)}' +
-    'function put(t){if(navigator.clipboard&&navigator.clipboard.writeText){' +
-    'navigator.clipboard.writeText(t).then(ok,function(){ok()})}else{ok()}}' +
-    'Array.prototype.forEach.call(document.querySelectorAll("[data-copy]"),function(f){' +
-    'f.addEventListener("click",function(){var v=f.querySelector(".fv");var o=v.textContent;' +
-    'put(f.getAttribute("data-copy"));v.textContent="Copied!";v.style.color="#0065A4";' +
-    'setTimeout(function(){v.textContent=o;v.style.color=""},1500)})});' +
-    'Array.prototype.forEach.call(document.querySelectorAll("pre.copy"),function(p){' +
-    'p.addEventListener("click",function(){put(p.textContent)})});' +
-    '})();</script>';
-}
-
-/**
- * "A newer version exists", when one does, as one sentence on the sheet.
- *
- * There is no update check here and there must never be one. A folder-watching
- * tool has no business phoning home on a schedule, which is the reason
- * auto-update was declined in the first place and the reason the download page
- * can say nothing leaves your Mac. What happens instead is that the site states
- * its current release in a header on the commit you already asked for by
- * dropping a file; hotfolder.sh stashes that string, and this compares it to
- * the installed version. Nothing about this machine is sent upward, no timer
- * runs, and no host is contacted that was not already being contacted.
- *
- * Silent unless there is genuinely something newer. An unknown version, an
- * unreadable file, or a match all render nothing: a folder that has never
- * recorded anything must not accuse itself of being out of date.
- *
- * The comparison is numeric per component, so 1.3.10 correctly beats 1.3.9,
- * which a string compare gets backwards.
- */
-function newerThan(a, b) {
-  var x = String(a).split('.');
-  var y = String(b).split('.');
-  for (var i = 0; i < Math.max(x.length, y.length); i++) {
-    var p = parseInt(x[i], 10) || 0;
-    var q = parseInt(y[i], 10) || 0;
-    if (p !== q) return p > q;
-  }
-  return false;
+  var existing = digestOfFile(page);
+  if (existing && existing === String(digest).trim()) return; // it IS the file
+  sh('rm -f ' + quote(page));
 }
 
 /**
@@ -2002,9 +1313,8 @@ function tidyFolder(folder) {
       var ok = sh('mv ' + quote(folder + '/' + name) + ' ' +
         quote(folder + '/' + REC_DIR + '/' + dest) + ' 2>/dev/null && echo ok');
       if (ok === 'ok') {
-        // mv keeps every mtime, so the page must be forced: its old location
-        // may be baked into stale chrome.
-        try { rebuildPage(folder + '/' + REC_DIR + '/' + dest, true); } catch (e) { /* next pass */ }
+        // A tucked export may still carry a page an older version wrote.
+        try { dropPage(folder + '/' + REC_DIR + '/' + dest); } catch (e) { /* next pass */ }
         did.push('tucked ' + name);
       }
     });
@@ -2082,33 +1392,34 @@ function tidyFolder(folder) {
       (reclaimed === 1 ? 'export' : 'exports'));
   }
 
-  // 3. Purge the browsing layer a pre-1.9 install generated. The top-level
-  //    index.html is deleted only when it is provably OURS (the sheet named
-  //    the product; a person's own index.html dropped at the top level is a
-  //    recorded file and untouchable). When any of it existed, every receipt
-  //    is rebuilt once, because the old pages carry a back link into the
-  //    sheet that no longer exists.
-  var hadLegacy = false;
+  // 3. Purge every page an older install generated: the pre-1.9 top-level
+  //    sheet, and since 1.12.0 the per-export receipts too. Both are deleted
+  //    only when provably OURS (the sheet named the product; a receipt hashes
+  //    differently from the artifact beside it). A person's own index.html,
+  //    dropped in and recorded, is a recorded file and untouchable.
   var sheet = folder + '/index.html';
   if (exists(sheet)) {
     var head = String(readFile(sheet) || '').slice(0, 2000);
     if (head.indexOf('BitGraph Folder') !== -1) {
       sh('rm -f ' + quote(sheet));
-      hadLegacy = true;
       did.push('removed the sheet');
     }
   }
   if (exists(folder + '/' + STATE_DIR)) {
     sh('rm -rf ' + quote(folder + '/' + STATE_DIR));
-    hadLegacy = true;
     did.push('purged ' + STATE_DIR + '/');
   }
-  if (hadLegacy) {
-    exportDirsUnder(folder).forEach(function (name) {
-      try { rebuildPage(folder + '/' + name, true); } catch (e) { /* next pass */ }
-    });
-    did.push('rebuilt receipts');
-  }
+  // Sweep the per-export receipts unconditionally, not just when a legacy
+  // sheet turned up: an install that upgraded straight from 1.9 to 1.12 has
+  // no sheet to find but a page in every export. dropPage is a no-op where
+  // there is nothing to drop, so this costs a stat per export.
+  var dropped = 0;
+  exportDirsUnder(folder).forEach(function (name) {
+    var d = folder + '/' + name;
+    if (!exists(d + '/index.html')) return;
+    try { dropPage(d); if (!exists(d + '/index.html')) dropped++; } catch (e) { /* next pass */ }
+  });
+  if (dropped) did.push('removed ' + dropped + ' receipt' + (dropped === 1 ? '' : 's'));
 
   return did.length ? 'ok: ' + did.join(', ') : 'ok: nothing to tidy';
 }

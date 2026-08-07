@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { FolderProcess } from "@/components/folder-process";
 import { FolderTree } from "@/components/folder-tree";
 
 export const metadata: Metadata = {
@@ -22,9 +21,9 @@ function Action({ href, children }: { href: string; children: React.ReactNode })
 }
 
 /* ── The page follows one file: what happens to it, where it lands, what
-      leaves the machine, and what you can hand to someone else. Two exhibits
-      carry it — the equation and the tree — and the prose between them is
-      four claims, each an h2 that states it and two sentences that earn it.
+      leaves the machine, and what you can hand to someone else. ONE exhibit
+      carries it, the tree, and the prose around it is four claims, each an h2
+      that states it and two sentences that earn it.
 
    ⚠️ CSS RULE FOR THIS WHOLE FILE: every selector below is written as
       `.prose-doc <sel>`. `.prose-doc`'s p rules in globals.css are NOT inside
@@ -35,28 +34,16 @@ function Action({ href, children }: { href: string; children: React.ReactNode })
 export default function FolderPage() {
   return (
     <article className="prose-doc">
-      {/* One left rail for the page's TYPE, every element, every width.
-          Centring the hero on phones was tried on 2026-08-03 and reverted:
-          the page has one axis and the diagram was moved onto it rather than
-          the type off it. The exhibits centre their own contents INSIDE their
-          panels, which is a different thing and is not a re-pitch of this. */}
+      {/* One left rail, every element, every width. Centring the hero on
+          phones was tried on 2026-08-03 and reverted: the page has one axis
+          and everything sits on it. */}
       <h1 className="mb-5">BitGraph Folder</h1>
 
-      {/* ── Promise and action share a line: two halves of one sentence,
-          "here is what it does" and "here it is". Stacked, they spent two of
-          the hero's beats saying that plus a 52px gap between them.
-
-          ⚠️ The promise deliberately does NOT restate the equation below it.
-          "Drop a file. Get a BitGraph." was the old line and it said exactly
-          what the diagram says three inches lower, in words — and it would
-          have read the same on the home page, which is the tell that it was
-          not about the Folder. What the diagram cannot show is that there is
-          nothing to open, ever, which is the entire reason to install a
-          folder rather than visit a site. ── */}
+      {/* ── No promise line. It said what the first section says, one screen
+          earlier and worse: "A folder, not an app" is the sharpest sentence
+          on the page and it can carry the pitch on its own. The hero is the
+          title and the one action, and nothing else. ── */}
       <div className="bg-hero-row">
-        <p className="bg-hero-promise text-lg font-semibold text-[#1f2937]" style={{ lineHeight: 1.45 }}>
-          Drop files in. Never open anything.
-        </p>
         {/* On touch the download is replaced by the reason it is missing, and
             by nothing else. The sentence stays because a phone visitor
             otherwise never learns this is Mac software; its companion link was
@@ -89,30 +76,20 @@ export default function FolderPage() {
         </p>
       </div>
 
-      {/* ── Exhibit one: the equation. The caption used to sit outside the old
-          card, orphaned from the thing it describes. ── */}
-      <section className="bg-panel bg-panel-lead">
-        <FolderProcess />
-        {/* "its own folder" is load-bearing: the diagram's middle panel is THE
-            FOLDER you installed, and this is the export written for each
-            recording. Without the possessive a reader takes them for one
-            object, which makes the "=" look like it points at the same thing
-            twice. Two lines on a phone, which is why "wrapped in … containing"
-            became "in … with": two verbs doing one job cost a third line. */}
-        <p className="bg-panel-caption text-[#1f2937]">
-          Your file is now BitGraphed, in its own folder with everything needed to verify it.
-        </p>
-      </section>
+      {/* ❄️ The file/folder/BitGraph equation panel was CUT (Mike: "too
+          saasy"). It was a picture of a thing the very next sentence says in
+          words, and a decorative panel is what a product page does when it
+          does not trust its own copy. The tree below is the exhibit that
+          survives, because it shows something no sentence does: what is
+          actually on your disk afterwards. */}
 
       {/* Four claims, in the order the questions arrive: what the thing is and
           where my file went, what it does not send, what that means for me,
           and what a recording is finally for. */}
       <h2 className="text-xl font-semibold">A folder, not an app</h2>
       {/* "settles into Recordings" is load-bearing: drops MOVE (1.8.0, drops
-          absorb, the export holds the only copy). The batch line lives here
-          rather than in the promise, because pluralising the promise would
-          contradict the diagram's singular equation — and taking more than one
-          file at a time is the whole advantage over the home page's flow. A
+          absorb, the export holds the only copy). Taking more than one file at
+          a time is the whole advantage over the home page's flow, and a
           500-file drop is tested. */}
       <p className="text-[#1f2937]">
         The installer puts a BitGraph folder on your Desktop and watches it. Drop files in
@@ -120,9 +97,9 @@ export default function FolderPage() {
         after it, next to its BitGraph.
       </p>
 
-      {/* ── Exhibit two: the receipt. Placed under the claim it proves rather
-          than in a section of its own, so the tree reads as the evidence for
-          "a folder, not an app" instead of as a second topic. ── */}
+      {/* ── The exhibit: what is actually on disk. Placed under the claim it
+          proves rather than in a section of its own, so the tree reads as
+          evidence for "a folder, not an app", not as a second topic. ── */}
       <FolderTree />
       <p className="bg-panel-caption bg-panel-caption-under text-[#1f2937]">
         The top level stays empty. It is the drop zone; Recordings is the archive.
@@ -157,9 +134,9 @@ export default function FolderPage() {
           in per row behind it. */}
       <h2 className="text-xl font-semibold">Your whole archive, one drop</h2>
       <p className="text-[#1f2937]">
-        Each recording carries its own page, but the Folder builds no index across them.
-        Drag Recordings onto bitgraph.ing and the archive opens as a roll, every recording
-        checked against the public ledger as the rows fill in.
+        The Folder writes no pages to browse. Drag Recordings onto bitgraph.ing and the
+        archive opens as a roll, every recording checked against the public ledger as the
+        rows fill in.
       </p>
 
       {/* The payoff, and the reason the export is a folder rather than a
@@ -201,16 +178,6 @@ export default function FolderPage() {
           .bg-dl-touch { display: block; }
         }
 
-        /* ── Exhibit panels ──
-           Vertically SYMMETRIC padding, deliberately: a panel hugs its
-           content, so equal padding is what centres the exhibit inside it.
-           Any uneven pad, or a stray margin on a child, shows up directly as
-           the block sitting off the middle. */
-        .prose-doc .bg-panel {
-          background: #fff; border: 1px solid #d0d5dd; border-radius: 0;
-          padding: 28px; margin: 0 0 1rem;
-        }
-        .prose-doc .bg-panel-lead { margin-bottom: 3.5rem; }
         /* ⚠️ Centred, which is a deliberate exception to this page's
            one-left-rail rule and NOT an oversight. That rule is about the
            page's TYPE having a single axis: the h1, the promise, the download
@@ -247,8 +214,6 @@ export default function FolderPage() {
 
         @media (max-width: 640px) {
           .prose-doc .bg-hero-row { gap: 10px 20px; margin-bottom: 1.75rem; }
-          .prose-doc .bg-panel { padding: 22px 14px; }
-          .prose-doc .bg-panel-lead { margin-bottom: 3rem; }
           .prose-doc .bg-panel-caption-under { margin-bottom: 3rem; }
           .prose-doc h2 { margin-top: 2.5rem; }
           .prose-doc h2 + p { margin-bottom: 3rem; }
