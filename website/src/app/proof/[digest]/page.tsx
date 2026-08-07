@@ -5,7 +5,7 @@ import { proofPage, blockTimeFromHeader, type ExportProof, type AnchorSide } fro
 import { useParams } from "next/navigation";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
-import { findMatchInDrop, findMatchInFiles, supportsDirectoryPicker, pickDirectory } from "@/lib/folder-check";
+import { findMatchInDrop, findMatchInFiles } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
@@ -1317,23 +1317,6 @@ function BringYourFile({
      home instead of a copy per box. */
   const edges = useDashedEdges();
 
-  /* ⚠️ Offered ONLY where showDirectoryPicker exists. A webkitdirectory
-     input makes the browser ask to UPLOAD the folder ("Only do this if you
-     trust the site"), which is intolerable here; explaining that dialog in
-     advance confused people, and showing it alarms them. So it is never
-     triggered: dragging a folder works everywhere and raises nothing. Brave
-     is the case that proves it (Chromium, but the API is off for privacy). */
-  const [canPickFolder, setCanPickFolder] = useState(false);
-  useEffect(() => { setCanPickFolder(supportsDirectoryPicker()); }, []);
-
-  async function chooseFolder() {
-    setState("reading");
-    setReadCount(0);
-    const picked = await pickDirectory((n) => setReadCount(n));
-    if (!picked) { setState("idle"); return; }
-    void check(picked.walked.map((w) => w.file));
-  }
-
   // The drop may be many files, or whole folders, and the matching file is
   // FOUND by hashing rather than the person knowing which it is: drop your
   // Pictures folder and the box answers "this one". A browser cannot search
@@ -1455,48 +1438,49 @@ function BringYourFile({
         </>
       ) : (
         <>
-          {/* Same document-plus mark as the home drop zone: this is the same
-              instrument, pointed at one recording instead of the ledger. */}
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.227" aria-hidden>
-              <path d="M5 2 H14 L19 7 V22 H5 Z" />
-              <path d="M14 2 V7 H19" />
-              <line x1="12" y1="12" x2="12" y2="18" />
-              <line x1="9" y1="15" x2="15" y2="15" />
-            </svg>
+          {/* No mark, matching the home drop zone (2026-08-07): the drawn box
+              is already the picture of where a file goes, so a document glyph
+              inside it said the same thing a second time, quieter. This is
+              the same instrument as the home box, pointed at one recording
+              instead of the whole ledger, so it wears the same face: blue
+              title, one instruction line, one quiet line under it.
+
+              text-wrap: balance on every line, the treatment the hero and the
+              camera page use: centered copy with one short trailing line
+              reads as a mistake.
+
+              Each line has one job. The title names it and says WHICH file
+              ("this file", the one this page is about); the middle line names
+              both gestures and the method; the last says where the work
+              happens. "your device" is not repeated: the title places the
+              file, the last line places the computation. */}
+          {/* Three rows, 1fr / auto / 1fr, exactly as the home box: the outer
+              two take equal shares of the leftover space, so the TITLE lands
+              dead centre of the frame rather than the group of text doing so.
+              Centring the group instead puts the title high by half the
+              height of the copy beneath it, and moves it again whenever that
+              copy changes length. The container's padding is symmetric, so it
+              cannot pull the middle row off centre. */}
+          <div style={{ alignSelf: "stretch", flex: 1, minHeight: 0, display: "grid", gridTemplateRows: "1fr auto 1fr", justifyItems: "center" }}>
+            {/* Black at rest, brand blue on hover, off the same state the
+                dashed edges use, so title and frame light up together. */}
+            <div style={{ gridRow: 2, fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: hover ? "#0065A4" : "#111827", transition: "color .2s", letterSpacing: "-0.01em", textWrap: "balance" }}>
+              Find this file on your device
+            </div>
+            <div style={{ gridRow: 3, alignSelf: "start", paddingTop: 10 }}>
+              <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
+                Choose files, or drag in a whole folder. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
+              </div>
+              <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
+                Nothing is uploaded. The search runs in your browser.
+              </div>
+            </div>
           </div>
-          {/* text-wrap: balance on every line, the same treatment the hero and
-              the camera page use: centered copy with one short trailing line
-              reads as a mistake. */}
-          {/* The headline names the job and says WHICH file ("this file",
-              the one this page is about); the body names the actor and the
-              method; the last line says where the work happens. Each line has
-              one job, and "your device" is not repeated: the headline places
-              the file, the last line places the computation. */}
-          <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: "#111827", letterSpacing: "-0.01em", textWrap: "balance" }}>
-            Find this file on your device
-          </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 10, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
-            Drag a folder. Choose files. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
-          </div>
-          <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
-            Nothing is uploaded. The search runs in your browser.
-          </div>
-          {/* Clicking the box opens the file picker, which cannot select a
-              folder. This is how you hand over a whole one without dragging. */}
-          {canPickFolder && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); void chooseFolder(); }}
-              style={{
-                marginTop: 12, background: "none", border: "none", padding: 0,
-                cursor: "pointer", color: "#0065A4", fontWeight: 500,
-                fontFamily: "inherit", fontSize: "clamp(12px, 2.8vw, 13px)",
-              }}
-            >
-              or choose a folder
-            </button>
-          )}
+          {/* ⚠️ No "choose a folder" link here either, in any browser: every
+              click path to a folder raises a view-files or upload-files
+              warning, which is intolerable on a box whose own copy promises
+              nothing is uploaded. Folders arrive by dragging. The long note
+              in file-drop.tsx has the full reasoning. */}
         </>
       )}
     </div>

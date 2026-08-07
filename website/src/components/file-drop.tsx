@@ -4,8 +4,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { formatFileSize } from "@/lib/bitgraph";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import {
-  entriesFromDataTransfer, walkEntries,
-  supportsDirectoryPicker, pickDirectory, type WalkedFile, type DirHandle,
+  entriesFromDataTransfer, walkEntries, type WalkedFile, type DirHandle,
 } from "@/lib/folder-check";
 
 /* Creating a BitGraph is always a SELECTION of a file that already exists —
@@ -97,34 +96,23 @@ export function FileDrop({
   // and will not select a folder (it opens it instead), `webkitdirectory`
   // selects a folder and returns everything under it. Dragging always allowed
   // both; choosing did not, which made the picker feel broken.
-  /* ⚠️ The folder link EXISTS ONLY where showDirectoryPicker does, and that
-     is deliberate: it is the difference between a browser asking to "view
-     files" and a browser asking to UPLOAD them.
+  /* ⚠️ THERE IS NO "choose a folder" LINK, in any browser (Mike, 2026-08-07,
+     after seeing both paths). Folders arrive by DRAGGING, full stop, which is
+     why the copy says so out loud.
 
-     A webkitdirectory input makes the browser put up "Upload 4 files to this
-     site? ... Only do this if you trust the site." on a page whose whole
-     claim is that nothing is uploaded. Explaining that dialog in advance was
-     tried and confused people more than the dialog did; showing the dialog
-     confused them too. So it is never triggered. Dragging a folder in works
-     in every browser and raises nothing, which is why the copy leads with
-     "Drag a folder".
+     Both ways of clicking to a folder were built and both were rejected on
+     the same grounds. showDirectoryPicker (Chrome, Edge) raises "Let site
+     view files?"; a webkitdirectory input (everyone else, including Brave,
+     which is Chromium with the File System Access API off) raises "Upload N
+     files to this site? ... Only do this if you trust the site." Nothing is
+     ever uploaded, the files are read locally and only digests leave, but the
+     browser picks that wording, not us, and an upload warning on a page whose
+     whole claim is that nothing is uploaded costs more than the link is
+     worth. Dragging raises no dialog anywhere.
 
-     Brave is the case that proves it matters: Chromium, but the File System
-     Access API is off for privacy, so it takes this path. Detection runs
-     after mount because the server cannot know the answer. */
-  const [canPickFolder, setCanPickFolder] = useState(false);
-  useEffect(() => { setCanPickFolder(supportsDirectoryPicker()); }, []);
-
-  const chooseFolder = useCallback(async () => {
-    // No progress is reported until the first file arrives: the dialog is
-    // open until then and nothing is happening, so announcing a read that
-    // has not started would strand the caller's spinner on cancel.
-    const picked = await pickDirectory((n) => onFolderScan?.(n, false));
-    if (!picked) return; // cancelled: nothing was ever raised
-    onFolderScan?.(picked.walked.length, true);
-    onFolderHandle?.(picked.handle);
-    onFolder?.(picked.walked);
-  }, [onFolder, onFolderScan, onFolderHandle]);
+     So: do not reintroduce the link, and do not reach for webkitdirectory to
+     "fix" the file picker's inability to select a folder. That inability is
+     the design. */
   // Set when an intake refused an ephemeral blob (see selectExisting).
   const [refusedEphemeral, setRefusedEphemeral] = useState(false);
 
@@ -308,6 +296,7 @@ export function FileDrop({
         }}
       />
 
+
       {/* ── Multi-file mode: file list ── */}
       {multiple && files && files.length > 0 ? (
         <div className="w-full px-4 py-3">
@@ -419,28 +408,51 @@ export function FileDrop({
           {refusalNote}
         </div>
       ) : (
-        <div className="flex flex-col items-center py-8 px-4 sm:px-6 w-full">
-          {/* Icon: a document with a plus — "select a file". Square corners, no
-              round caps. The stroke must read 2.25 SCREEN px at every render
-              size, matching the chevrons; vector-effect: non-scaling-stroke was
-              tried and browsers disagreed (Chromium honored it and drew thin,
-              others scaled the stroke fat). So the weight is baked into user
-              units instead — geometry scaling is identical in every engine:
-              1.227 here covers the 44px mobile size (2.25 / (44/24)), and
-              .fd-icon's desktop media query overrides to 1.038 for 52px.
-              Not a download/upload arrow: the file never leaves the device. */}
-          <div className="mb-4">
-            <svg className="fd-icon" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#0065A4" strokeWidth="1.227">
-              <path d="M5 2 H14 L19 7 V22 H5 Z" />
-              <path d="M14 2 V7 H19" />
-              <line x1="12" y1="12" x2="12" y2="18" />
-              <line x1="9" y1="15" x2="15" y2="15" />
-            </svg>
-          </div>
+        /* THE TITLE IS THE CENTER OF THE BOX, exactly: the instruction sits
+           above it, the quiet lines below. No mark: the drawn box is already
+           the picture of where a file goes, so an icon inside it was saying
+           the same thing a second time, quieter.
+
+           Three grid rows, 1fr / auto / 1fr. The outer two claim equal shares
+           of whatever is left over, so the middle row lands dead center no
+           matter how many lines of copy a caller passes, and the two halves
+           of the copy stay balanced around it. Stacking everything in one
+           centered column (what this was) centers the GROUP instead, which
+           pushed the title off center by half the height of the text under
+           it, and moved it again whenever the copy changed length.
+
+           Rows are assigned explicitly, not by source order: they carry
+           meaning here (only row 2 is dead center), so a caller passing no
+           hint must not shift what is in the others. */
+        <div
+          className="w-full self-stretch px-4 sm:px-6"
+          style={{
+            display: "grid",
+            gridTemplateRows: "1fr auto 1fr",
+            justifyItems: "center",
+            height: "100%",
+            // Symmetric, so it cannot shift the middle row off center.
+            paddingTop: 20,
+            paddingBottom: 20,
+          }}
+        >
           <div
             className="fd-headline tracking-tight text-center"
             style={{
-              color: "#111827",
+              // Placed explicitly rather than by source order: the rows carry
+              // meaning here (only row 2 is dead center), so nothing should
+              // move just because a caller passes no hint.
+              gridRow: 2,
+              /* Black at rest, brand blue on hover or keyboard focus, driven
+                 by the SAME state that turns the dashed edges blue, so the
+                 title and the frame light up together and the box reads as
+                 one object rather than two. It has to be state rather than a
+                 :hover rule because the edges are painted, not bordered, and
+                 the two must not be able to disagree. */
+              color: (hovered || focused) && !disabled
+                ? "var(--fd-title-hover, #0065A4)"
+                : "var(--fd-title, #111827)",
+              transition: "color .2s",
               // Size/weight are overridable per-breakpoint via CSS custom
               // properties (the home hero bumps both on desktop); fall back to
               // the prop size and medium weight elsewhere.
@@ -451,61 +463,42 @@ export function FileDrop({
           >
             {headline}
           </div>
-          {/* Supporting copy under the action: the privacy line first (the
-              file stays local), then a smaller, quieter line about automatic
-              recognition of files already on record. */}
-          {hint && (
-            <div
-              className="mt-4 text-center"
-              style={{
-                // Color and size are overridable per-instance (the home box grays
-                // both lines and matches them to the explainer's size). Defaults
-                // unchanged for the maker/proof FileDrops.
-                color: "var(--fd-hint, #111827)",
-                fontSize: "var(--fd-hint-size, min(13px, 3vw))",
-                lineHeight: 1.5,
-                whiteSpace: "pre-line",
-                textWrap: "balance",
-              }}
-            >
-              {hint}
-            </div>
-          )}
-          {subhint && (
-            <div
-              className="mt-1.5 text-center"
-              style={{
-                color: "var(--fd-subhint, #4b5563)",
-                fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
-                lineHeight: 1.5,
-                whiteSpace: "pre-line",
-                textWrap: "balance",
-              }}
-            >
-              {subhint}
-            </div>
-          )}
-          {/* Clicking the box opens the FILE picker, which cannot select a
-              folder. This is the way to hand over a whole one without
-              dragging. A text link, not a button. */}
-          {onFolder && canPickFolder && (
-            <>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); void chooseFolder(); }}
-                disabled={disabled}
-                className="mt-2 relative z-[2]"
+
+          {/* Below the title: the instruction, then the privacy fact. */}
+          <div style={{ gridRow: 3, alignSelf: "start", paddingTop: "var(--fd-copy-gap, 20px)" }}>
+            {hint && (
+              <div
+                className="text-center"
                 style={{
-                  background: "none", border: "none", padding: 0, cursor: "pointer",
-                  color: "#0065A4", fontWeight: 500, fontFamily: "inherit",
-                  fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
+                  // Color and size are overridable per-instance (the home box grays
+                  // both lines and matches them to the explainer's size). Defaults
+                  // unchanged for the maker/proof FileDrops.
+                  color: "var(--fd-hint, #111827)",
+                  fontSize: "var(--fd-hint-size, min(13px, 3vw))",
+                  lineHeight: 1.5,
+                  whiteSpace: "pre-line",
+                  textWrap: "balance",
                 }}
               >
-                or choose a folder
-              </button>
-            </>
-          )}
-          {refusalNote}
+                {hint}
+              </div>
+            )}
+            {subhint && (
+              <div
+                className="mt-1.5 text-center"
+                style={{
+                  color: "var(--fd-subhint, #4b5563)",
+                  fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
+                  lineHeight: 1.5,
+                  whiteSpace: "pre-line",
+                  textWrap: "balance",
+                }}
+              >
+                {subhint}
+              </div>
+            )}
+            {refusalNote}
+          </div>
         </div>
       )}
     </div>

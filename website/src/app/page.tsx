@@ -951,13 +951,20 @@ export default function BitGraphPage() {
                 onFiles={handleFiles}
                 onFolder={handleFolder}
                 onFolderScan={handleFolderScan}
-                // Four words for the one asymmetry that matters: a folder
-                // has to be dragged (a file input cannot select one), a
-                // file can be chosen. The link below is the escape hatch
-                // for choosing a folder anyway. An earlier version
-                // explained the browser's "upload" dialog here and that
-                // paragraph confused people more than the dialog did.
-                hint="Drag a folder. Choose files."
+                // The title names BOTH functions, because the box is one
+                // gesture with two outcomes: a file not on the ledger gets
+                // recorded, one already on it gets looked up, and the user
+                // never picks which. Naming only the first ("Record a
+                // BitGraph") read as though an already-recorded file had no
+                // business here. Plural because a folder makes many at once.
+                // The line under it names both gestures.
+                // The folder half of that line is load-bearing: dragging is
+                // the ONLY way a folder can arrive, since every browser's
+                // click path to one raises a view-files or upload-files
+                // warning on a page whose whole claim is that nothing is
+                // uploaded. See the note in file-drop.tsx before cutting it.
+                headline="Record or check BitGraphs"
+                hint="Choose files, or drag in a whole folder."
                 subhint="Your file never leaves your device."
               />
             </div>
