@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function VerificationPage() {
   return (
     <article className="prose-doc">
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">Verification</h1>
+      <h1 className="mb-6">Verification</h1>
       <p className="text-[#1f2937] mb-10">
         BitGraph verification is deterministic and runs offline. No network calls, no API keys, no accounts.
       </p>

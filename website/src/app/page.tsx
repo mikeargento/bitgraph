@@ -841,10 +841,11 @@ export default function BitGraphPage() {
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0 80px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; }
         .bitgraph-wrap.bitgraph-results { padding-top: 32px; padding-bottom: 48px; }
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; }
-        /* The title, at the one size every page title on the site uses (docs
-           h1, /roll, /folder). A quiet door to the overview (where the
-           camera explainer now lives): plain at rest, brand blue on hover. */
-        .bitgraph-tagline { font-size: clamp(26px, 6vw, 32px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; color: #111827; margin: 0 0 4px; }
+        /* The title takes its type from .bg-page-title (globals), the one
+           page-title definition on the site. What is left here is what is
+           unique to this one: a quiet door to the overview, plain at rest
+           and brand blue on hover. */
+        .bitgraph-tagline { margin: 0 0 4px; }
         .bitgraph-tagline .accent { color: inherit; }
         .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
@@ -897,7 +898,7 @@ export default function BitGraphPage() {
             offers as plain links. The Roll lives on its own /roll page. ── */}
         {step === "drop" && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
-            <h1 className="bitgraph-tagline">
+            <h1 className="bg-page-title bitgraph-tagline">
               <a href="/docs/overview">A camera for <span className="accent">bits</span>.</a>
             </h1>
             <div className="hero-why">
@@ -1050,7 +1051,7 @@ export default function BitGraphPage() {
               {items.length > 0 && (<>
               <div>
               {/* The one title size every page header uses. */}
-              <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827", marginBottom: 10 }}>
+              <div className="bg-page-title" style={{ marginBottom: 10 }}>
                 BitGraph{items.length === 1 ? "" : "s"} Recorded
               </div>
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>

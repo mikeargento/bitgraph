@@ -15,7 +15,7 @@ export default function WhitepaperPage() {
   return (
     <article className="prose-doc">
       <div className="mb-2">
-        <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-3">
+        <h1 className="mb-3">
           BitGraph
         </h1>
         <p className="text-lg text-[#1f2937] mb-1">

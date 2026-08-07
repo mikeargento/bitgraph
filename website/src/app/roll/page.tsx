@@ -80,9 +80,8 @@ export default async function RollPage({ searchParams }: { searchParams: Promise
           }
           title={
             <div>
-              {/* One title size across the product's pages: docs h1 (2rem),
-                  /folder and this Roll all read at the same weight and scale. */}
-              <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827" }}>
+              {/* .bg-page-title: the one page-title size, site-wide. */}
+              <div className="bg-page-title">
                 BitGraph Roll
               </div>
               <div style={{ fontSize: 14, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>

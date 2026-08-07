@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function TrustModelPage() {
   return (
     <article className="prose-doc">
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">Trust Model</h1>
+      <h1 className="mb-6">Trust Model</h1>
 
       <div className="border-l-2 border-l-[#d0d5dd] pl-6 mb-8">
         <p className="text-sm text-[#111827] italic leading-relaxed">

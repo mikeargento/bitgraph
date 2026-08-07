@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 export default function IntegrationPage() {
   return (
     <article className="prose-doc">
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">Integration Guide</h1>
+      <h1 className="mb-6">Integration Guide</h1>
       <p className="text-[#1f2937] mb-10">
         How to commit artifacts, verify proofs, and integrate BitGraph into your application.
         Connecting an AI agent instead? See <a href="/docs/mcp">MCP</a>. Building a no-code

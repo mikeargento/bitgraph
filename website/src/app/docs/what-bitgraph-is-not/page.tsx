@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function WhatBitGraphIsNotPage() {
   return (
     <article className="prose-doc">
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">What BitGraph is Not</h1>
+      <h1 className="mb-6">What BitGraph is Not</h1>
       <p className="text-[#1f2937] mb-10">
         Precise distinctions matter for a protocol that makes specific
         cryptographic claims. Here is what BitGraph does not claim and does not do.

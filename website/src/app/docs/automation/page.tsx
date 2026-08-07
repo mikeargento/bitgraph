@@ -45,7 +45,7 @@ const ZAPIER_INVITE =
 export default function AutomationPage() {
   return (
     <article className="prose-doc">
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">Zapier and Make</h1>
+      <h1 className="mb-6">Zapier and Make</h1>
       <p className="text-[#1f2937]" style={{ marginBottom: 36 }}>
         BitGraph as a step in an ordinary business workflow. A file arrives somewhere, it gets
         recorded, and the proof goes wherever the rest of your process needs it. No code, and

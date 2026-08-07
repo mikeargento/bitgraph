@@ -27,7 +27,7 @@ export default function FolderPage() {
           phones was tried on 2026-08-03 and reverted: the page has exactly one
           axis and the diagram was moved onto it rather than the type off it.
           Do not re-pitch a centred hero. */}
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-5">BitGraph Folder</h1>
+      <h1 className="mb-5">BitGraph Folder</h1>
       {/* One line at every width: 219px at 18px semibold, against a 338px
           column on a 375px phone and 288px on a 320px one. The longer lede it
           replaced needed 415px and had to be broken by hand. "A folder on your

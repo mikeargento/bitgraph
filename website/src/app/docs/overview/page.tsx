@@ -15,11 +15,7 @@ export default function OverviewPage() {
           axiom is the page's headline, the diagram shows it, the film pair
           closes it, and only then does the prose Overview begin. /camera now
           redirects here and home's title links here. ── */}
-      <h1 style={{
-        fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600,
-        letterSpacing: "-0.03em", lineHeight: 1.1, color: "#111827",
-        margin: "0 0 4px",
-      }}>
+      <h1 style={{ margin: "0 0 4px" }}>
         The frame exists first.
       </h1>
       {/* Inline styles throughout this block: .overview's own h1/p rules are
@@ -43,11 +39,7 @@ export default function OverviewPage() {
       {/* ── The prose Overview, exactly as it was, a beat down the page. An
           h2 element (one h1 per page) wearing the h1's exact clothes inline,
           because .overview h2 would otherwise shrink it to 1.25rem. ── */}
-      <h2 style={{
-        fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600,
-        letterSpacing: "-0.03em", lineHeight: 1.1, color: "#111827",
-        margin: "72px 0 24px",
-      }}>
+      <h2 className="bg-page-title" style={{ margin: "72px 0 24px" }}>
         Overview
       </h2>
 

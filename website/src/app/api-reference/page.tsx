@@ -54,7 +54,7 @@ export default function APIReferencePage() {
         <span className="inline-block text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-4">
           API Reference
         </span>
-        <h1 className="text-3xl font-semibold tracking-[-0.03em] mb-4">
+        <h1 className="bg-page-title mb-4">
           BitGraph Protocol API
         </h1>
         <p className="text-lg leading-relaxed text-text-secondary max-w-xl">

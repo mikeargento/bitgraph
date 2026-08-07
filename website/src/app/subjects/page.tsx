@@ -132,7 +132,7 @@ export default function SubjectsPage() {
           h1's own line-height and margin. Supersedes the earlier never-wrap
           clamp; on phones the line breaks at the period, which stacks the
           reversal rather than reducing it to a subtitle. */}
-      <h1 style={{ fontSize: "2rem", fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1.11, color: "#111827", marginBottom: "1.25rem" }}>
+      <h1 className="bg-page-title" style={{ marginBottom: "1.25rem" }}>
         Trust is expensive. Proof isn&rsquo;t.
       </h1>
 

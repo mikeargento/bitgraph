@@ -76,7 +76,7 @@ const faqs = [
 export default function FAQPage() {
   return (
     <article className="prose-doc">
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">FAQ</h1>
+      <h1 className="mb-6">FAQ</h1>
       <p className="text-[#1f2937] mb-10">
         Common questions about the BitGraph Protocol.
       </p>

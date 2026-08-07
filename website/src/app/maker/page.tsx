@@ -342,7 +342,7 @@ export default function MakerPage() {
 
       <div style={{ maxWidth: 1120, margin: "0 auto", padding: "60px 36px" }}>
         {/* Header */}
-        <h1 style={{ fontSize: 36, fontWeight: 700, letterSpacing: "-0.03em", marginBottom: 8 }}>
+        <h1 className="bg-page-title" style={{ marginBottom: 8 }}>
           Maker
         </h1>
         <p style={{ fontSize: 16, color: "var(--c-text-secondary)", marginBottom: 32, lineHeight: 1.5 }}>

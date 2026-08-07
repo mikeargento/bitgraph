@@ -54,7 +54,7 @@ export default function RollsPage() {
       `}</style>
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
         {/* The one title size every page header uses. */}
-        <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827" }}>Rolls</div>
+        <div className="bg-page-title">Rolls</div>
         <div style={{ fontSize: 14, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>
           One roll per day (UTC). Today&rsquo;s is still open.
         </div>

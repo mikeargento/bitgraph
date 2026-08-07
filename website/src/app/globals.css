@@ -135,13 +135,35 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* ── Site-wide utilities ── */
 
-/* Docs prose typography */
-.prose-doc h1 {
-  font-size: 2rem;
+/* ── THE PAGE TITLE. One definition, every page (2026-08-07). ──
+   Home's "A camera for bits." is the reference, and every other title on
+   the site is the same type: the docs h1s, the Roll, Rolls, Subjects, the
+   proof pages' "BitGraph Recorded", Maker. It scales with the viewport
+   (26px floor on phones, 32px cap) so mobile and desktop may differ from
+   each other but never from each other's peers.
+
+   ⚠️ .prose-doc h1 / .overview h1 are folded in here on purpose. Those
+   rules are UNLAYERED, so they beat every Tailwind utility no matter how
+   specific: the `text-3xl sm:text-4xl` classes the thirteen docs pages
+   carried were dead the whole time and rendered a flat 2rem — 32px on a
+   phone where every other title was 26px. The dead classes are gone from
+   the pages; this rule is the only lever. Add a title, add this class.
+
+   Margins stay with each caller: the size is shared, the spacing is the
+   page's own business. */
+.bg-page-title,
+.prose-doc h1,
+.overview h1 {
+  font-size: clamp(26px, 6vw, 32px);
   font-weight: 600;
   letter-spacing: -0.03em;
-  margin-bottom: 1.25rem;
+  line-height: 1.1;
   color: #111827;
+}
+
+/* Docs prose typography */
+.prose-doc h1 {
+  margin-bottom: 1.25rem;
 }
 /* In @layer base so a utility class on the anchor can override it. Tailwind's
    utilities live in a cascade layer, and an unlayered rule beats a layered one
@@ -240,12 +262,8 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   color: #1f2937;
 }
 .overview h1 {
-  font-size: 2rem;
-  font-weight: 600;
-  letter-spacing: -0.03em;
   margin-top: 0;
   margin-bottom: 1.25rem;
-  color: #111827;
 }
 .overview h2 {
   margin-top: 3rem;

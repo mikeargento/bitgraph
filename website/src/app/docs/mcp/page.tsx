@@ -31,7 +31,7 @@ function Ui({ children }: { children: React.ReactNode }) {
 export default function McpPage() {
   return (
     <article className="prose-doc">
-      <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] mb-6">MCP</h1>
+      <h1 className="mb-6">MCP</h1>
       <p className="text-[#1f2937] mb-10">
         BitGraph is an MCP server. Any AI agent that speaks the Model Context Protocol can
         record files, check whether bytes are on record, and fetch proofs with one URL.
