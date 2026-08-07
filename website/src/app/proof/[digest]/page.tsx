@@ -84,29 +84,11 @@ export default function ProofPage() {
   // zipping, so it is a real wait, not an instant download. The link reports it.
   const [exporting, setExporting] = useState(false);
 
-  // The /folder fallback: when the bytes are NOT in hand but this recording is
-  // in the remembered folder, its ~512px preview stands in for the picture.
-  // This is what makes a proof page opened from /folder open populated instead
-  // of asking you to go find the file you were just looking at. Local like
-  // everything else — the preview was made on this device from the real bytes,
-  // and a digest can never be reversed into a picture by anyone who has only
-  // the digest.
-  const [folderPreview, setFolderPreview] = useState<{ url: string; name: string | null; size: number | null } | null>(null);
-  useEffect(() => {
-    let dead = false;
-    let revoke: (() => void) | null = null;
-    void (async () => {
-      try {
-        const { readCachedRow } = await import("@/lib/folder-cache");
-        const row = await readCachedRow(decodeURIComponent(digestParam));
-        if (dead || !row?.preview) return;
-        const url = URL.createObjectURL(row.preview);
-        revoke = () => URL.revokeObjectURL(url);
-        setFolderPreview({ url, name: row.fileName, size: row.size ?? null });
-      } catch { /* the bring-your-file box stands */ }
-    })();
-    return () => { dead = true; revoke?.(); };
-  }, [digestParam]);
+  /* The /folder browser's preview fallback lived here 2026-08-06 to
+     2026-08-07 (a cached ~512px stand-in for remembered recordings) and was
+     removed with the browser itself. The bytes handoff through
+     bitgraph-files still populates the picture for any row clicked while
+     the bytes are in hand. */
 
   // The curated example is the one artifact BitGraph hosts publicly, so its
   // proof page can show the photo to anyone — a shared link or a cold device,
@@ -802,11 +784,6 @@ export default function ProofPage() {
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
               ) : cachedFile ? (
                 <FileCard cachedFile={cachedFile} />
-              ) : folderPreview ? (
-                /* The remembered folder's preview: the picture without the
-                   bytes. The find-this-file box would be absurd here — the
-                   page knows exactly which folder the file is in. */
-                <FolderPreviewCard preview={folderPreview} />
               ) : (
                 <div style={{ padding: 16 }}>
                   <BringYourFile proof={proof} onMatch={(rec) => setCachedFile(rec)} />
@@ -826,9 +803,7 @@ export default function ProofPage() {
                 </button>
                 {!cachedFile && (
                   <div style={{ fontSize: 12.5, color: "#4b5563", paddingBottom: 6 }}>
-                    {folderPreview
-                      ? "BitGraph only: the original file stays in your folder"
-                      : "BitGraph only: the original file is not on this device"}
+                    BitGraph only: the original file is not on this device
                   </div>
                 )}
               </div>
@@ -1435,17 +1410,14 @@ function BringYourFile({
          read as the thing you are meant to do. Dashed edges from the shared
          hook, like every drop target. */
       ref={edges.ref}
+      className="bg-frame"
       style={{
         backgroundColor: dragOver ? "#f0f6ff" : "#fff",
         ...edges.edgeStyle(edge),
         // One size across all four states (idle, reading, checking, miss),
-        // so the box never jumps mid-flow. The 3:2 frame, same rule as every
-        // drop box: width DERIVES from the height budget (never from content
-        // height, which is what let WebKit overflow the card on iPhone), and
-        // never exceeds the card.
-        width: "min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2))",
-        margin: "0 auto",
-        aspectRatio: "3 / 2",
+        // so the box never jumps mid-flow. The frame geometry rides on
+        // .bg-frame (globals): portrait 2:3 on phones, landscape 3:2 on
+        // desktop, the same rotating frame every drop box wears.
         minHeight: 268,
         display: "flex",
         flexDirection: "column",
@@ -1677,39 +1649,6 @@ function PhotoCard({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-/* ── Folder preview — the ~512px JPEG /folder remembered for this digest,
-   shown when the bytes themselves are not in hand. Same frame as PhotoCard,
-   with a caption naming where it came from instead of an Open link (there is
-   no full-resolution file to open — that is the point of the caption). ── */
-
-function FolderPreviewCard({ preview }: { preview: { url: string; name: string | null; size: number | null } }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) return null;
-  return (
-    <div style={{ background: "#ffffff", border: "none", borderRadius: 0 }}>
-      <div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={preview.url}
-          alt={preview.name ?? "Recording preview"}
-          onError={() => setFailed(true)}
-          style={{ display: "block", maxWidth: "100%", maxHeight: "min(70vh, 640px)", width: "auto", height: "auto", objectFit: "contain", borderRadius: 0 }}
-        />
-      </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid #eef0f1" }}>
-        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "#4b5563" }}>
-          {preview.name && <span style={{ fontWeight: 600, color: "#111827" }}>{preview.name}</span>}
-          {preview.name && preview.size != null && " · "}
-          {preview.size != null && fmtBytes(preview.size)}
-        </span>
-        <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>
-          From your BitGraph folder
-        </span>
-      </div>
     </div>
   );
 }

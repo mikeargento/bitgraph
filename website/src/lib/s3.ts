@@ -307,11 +307,16 @@ export async function getProofsByDigest(digestB64: string): Promise<DigestProofE
         const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key! }));
         const body = await result.Body?.transformToString();
         if (!body) return null;
-        // Backfilled entries were legacy-only records copied into the index at
-        // some later commit; they predate every genuinely indexed entry, so
-        // they order like the legacy key (before any write time).
+        // Backfilled entries were records copied into the index after the
+        // fact, so their OWN LastModified is the copy's moment, not the
+        // recording's. When the true write time was recoverable at backfill
+        // time it rides in bg-writetime (ms) and is the honest answer; a
+        // backfill without one predates every indexed entry and orders like
+        // the legacy key (no write time at all).
         const backfilled = result.Metadata?.["bg-backfill"] === "1";
-        return { proof: JSON.parse(body) as Record<string, unknown>, writeTime: backfilled ? null : obj.LastModified?.getTime() ?? null };
+        const stamped = parseInt(result.Metadata?.["bg-writetime"] ?? "", 10);
+        const writeTime = Number.isFinite(stamped) ? stamped : backfilled ? null : obj.LastModified?.getTime() ?? null;
+        return { proof: JSON.parse(body) as Record<string, unknown>, writeTime };
       } catch (err) {
         // A position that was LISTED but could not be read is a hole in the
         // answer, not a position that does not exist.

@@ -22,25 +22,62 @@ export const fmtRowWhen = (ms?: number | null) =>
 
 const IMAGE_THUMB_EXT = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "svg"];
 
-export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, cachedComplete, heading = "BitGraph Roll" }: {
+/** Tiny thumbs from in-hand bytes, for any list of dropped files: decode
+ *  once, draw at 96px (2x the 48px cell), keep only the few-KB blob's object
+ *  URL. Keyed by the FILE (stable across re-renders); URLs revoked on
+ *  unmount. Four decodes in flight, in the caller's given order — pass files
+ *  in render order so pictures fill from the top of what is on screen. */
+export function useFileThumbs(files: Array<File | null | undefined>): Map<File, string> {
+  const [thumbs, setThumbs] = useState<Map<File, string>>(() => new Map());
+  const mapRef = useRef<Map<File, string>>(new Map());
+  useEffect(() => () => { for (const u of mapRef.current.values()) URL.revokeObjectURL(u); }, []);
+  // Re-run when the SET of files changes, not the array identity: result
+  // arrays are rebuilt per verdict and restarting the loop each time is the
+  // old 24-restarts bug.
+  const key = files.filter(Boolean).length;
+  useEffect(() => {
+    let dead = false;
+    const list = files.filter((f): f is File => !!f);
+    let next = 0;
+    const worker = async () => {
+      while (!dead) {
+        const i = next++;
+        if (i >= list.length) return;
+        const f = list[i];
+        if (mapRef.current.has(f)) continue;
+        const ext = f.name.slice(f.name.lastIndexOf(".") + 1).toLowerCase();
+        if (!IMAGE_THUMB_EXT.includes(ext)) continue;
+        try {
+          const bmp = await createImageBitmap(f);
+          const w = Math.min(96, bmp.width);
+          const h = Math.max(1, Math.round((bmp.height / bmp.width) * w));
+          const c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          c.getContext("2d")?.drawImage(bmp, 0, 0, w, h);
+          bmp.close();
+          const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.75));
+          if (!blob || dead || mapRef.current.has(f)) continue;
+          mapRef.current.set(f, URL.createObjectURL(blob));
+          setThumbs(new Map(mapRef.current));
+        } catch { /* a row without a thumb shows its type label */ }
+      }
+    };
+    void Promise.all(Array.from({ length: 4 }, worker));
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return thumbs;
+}
+
+/* The cachedThumbs / onThumb / cachedComplete plumbing that fed the /folder
+   browser's IndexedDB memory was removed with that page (2026-08-07). This
+   list renders drops whose bytes are in hand; thumbs are generated from
+   those bytes and live for the visit. */
+export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll" }: {
   checked: ExportCheckResult[];
   onOpen: (r: ExportCheckResult) => void;
-  /** The list's own title. null on /folder, where the page's h1 already
-   *  names it: two headings called "BitGraph Roll" and "Your BitGraph
-   *  Folder", stacked, made one thing look like two. */
+  /** The list's own title. null lets a caller's page header own the top. */
   heading?: string | null;
-  /** digestUrlSafe -> object URL, for rows whose bytes are not in hand
-   *  (a remembered folder renders from these until it is re-read). */
-  cachedThumbs?: Map<string, string>;
-  /** Emitted once per thumbnail generated from real bytes, so a caller can
-   *  keep it. `blob` is the few-KB JPEG for the 48px cell; `preview` is the
-   *  ~512px JPEG a proof page shows when the bytes are not in hand. Neither
-   *  is the original. */
-  onThumb?: (digestUrlSafe: string, blob: Blob, preview?: Blob) => void;
-  /** Digests whose thumb AND preview are already remembered. Decoding a
-   *  2,000-photo folder again to remake pictures we have is most of what
-   *  made a re-sync feel endless, so these are skipped entirely. */
-  cachedComplete?: Set<string>;
 }) {
   // Causal order, newest first: lower-bound block, then counter; unsealed
   // (no block) lead. The same sort every surface in the product uses.
@@ -103,78 +140,9 @@ export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, cachedComp
 
   const stepLink: React.CSSProperties = { color: "#0065A4", fontWeight: 600, fontSize: 13.5, textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" };
 
-  // Real small thumbnails, generated from the dropped bytes: decode once,
-  // draw at 96px (2x the 48px box), keep only the few-KB blob. An object URL
-  // straight over the original was tried and was wrong twice over — a 26MB
-  // photo per 48px cell, and the full-res decode never even started under
-  // loading="lazy" here.
-  //
-  // Keyed by the FILE, not the row: verdicts stream in and replace the row
-  // array many times per drop, and a [checked]-owned map restarted the whole
-  // generation on every verdict (24 restarts for 24 exports — thumbs never
-  // finished until the last one). The File objects are stable across
-  // updates, so each thumb is made once, whichever rerun gets to it; URLs
-  // are revoked only on unmount.
-  const [thumbs, setThumbs] = useState<Map<File, string>>(() => new Map());
-  const thumbMapRef = useRef<Map<File, string>>(new Map());
-  useEffect(() => () => { for (const u of thumbMapRef.current.values()) URL.revokeObjectURL(u); }, []);
-  // The caller's onThumb and cachedComplete in refs, so an inline lambda or a
-  // rebuilt Set cannot restart the generation loop every render.
-  const onThumbRef = useRef(onThumb);
-  onThumbRef.current = onThumb;
-  const cachedCompleteRef = useRef(cachedComplete);
-  cachedCompleteRef.current = cachedComplete;
-
-  useEffect(() => {
-    let dead = false;
-    // ⚠️ VISIBLE-FIRST, FOUR AT A TIME. This ran one file at a time in
-    // DISCOVERY order, and on a 2,000-photo folder that is minutes of
-    // decoding delivered in an order nobody is looking at: thumbs landed
-    // scattered down the page while the rows on screen sat as type labels
-    // (which read as "unpopulated", and got asked about). The queue is now
-    // the exact order the roll renders, so pictures fill from the top of
-    // what you see, and a small pool cuts the total wait without pinning
-    // the main thread the way unlimited decodes would.
-    let next = 0;
-    const worker = async () => {
-      while (!dead) {
-        const i = next++;
-        if (i >= ordered.length) return;
-        const r = ordered[i];
-        const f = r.artifactFile;
-        if (!f || thumbMapRef.current.has(f)) continue;
-        // Already remembered in full (cell thumb + proof-page preview): the
-        // cachedThumbs URL renders the cell, so decoding again buys nothing.
-        if (r.digestUrlSafe && cachedCompleteRef.current?.has(r.digestUrlSafe)) continue;
-        const ext = f.name.slice(f.name.lastIndexOf(".") + 1).toLowerCase();
-        if (!IMAGE_THUMB_EXT.includes(ext)) continue;
-        try {
-          const bmp = await createImageBitmap(f);
-          // One decode, two sizes: the 96px cell thumb (2x the 48px box) and
-          // a ~512px preview for the proof page. The bitmap is the expensive
-          // part; the second draw is nearly free next to it.
-          const drawScaled = async (w: number, q: number): Promise<Blob | null> => {
-            const width = Math.min(w, bmp.width);
-            const h = Math.max(1, Math.round((bmp.height / bmp.width) * width));
-            const c = document.createElement("canvas");
-            c.width = width; c.height = h;
-            c.getContext("2d")?.drawImage(bmp, 0, 0, width, h);
-            return new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", q));
-          };
-          const blob = await drawScaled(96, 0.75);
-          const preview = (await drawScaled(512, 0.72)) ?? undefined;
-          bmp.close();
-          if (!blob || dead) continue;
-          if (thumbMapRef.current.has(f)) continue; // a racing rerun got here first
-          thumbMapRef.current.set(f, URL.createObjectURL(blob));
-          setThumbs(new Map(thumbMapRef.current));
-          if (r.digestUrlSafe) onThumbRef.current?.(r.digestUrlSafe, blob, preview);
-        } catch { /* a row without a thumb shows its type label */ }
-      }
-    };
-    void Promise.all(Array.from({ length: 4 }, worker));
-    return () => { dead = true; };
-  }, [ordered]);
+  // Thumbs from the dropped bytes, in the roll's render order so pictures
+  // fill from the top of what is on screen (see useFileThumbs).
+  const thumbs = useFileThumbs(ordered.map((r) => r.artifactFile));
 
   const okCount = checked.filter((c) => c.ok === true).length;
   const pending = checked.filter((c) => c.ok === null).length;
@@ -267,8 +235,7 @@ export function CheckedRoll({ checked, onOpen, cachedThumbs, onThumb, cachedComp
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {g.rows.map((r, i) => {
               const clickable = r.onLedger && !!r.digestUrlSafe;
-              const thumb = (r.artifactFile ? thumbs.get(r.artifactFile) : undefined)
-                ?? (r.digestUrlSafe ? cachedThumbs?.get(r.digestUrlSafe) : undefined);
+              const thumb = r.artifactFile ? thumbs.get(r.artifactFile) : undefined;
               const ext = r.fileName ? r.fileName.slice(r.fileName.lastIndexOf(".") + 1).toUpperCase() : "";
               return (
                 <div key={r.dirName + i} className="bitgraph-file-card" data-clickable={clickable} style={{ border: "1px solid #d0d5dd", animation: `slideIn 0.2s ease-out ${Math.min(i, 12) * 0.03}s both` }}>

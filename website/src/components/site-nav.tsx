@@ -96,19 +96,19 @@ export function SiteNav() {
             onMouseEnter={warmRoll}
             onFocus={warmRoll}
             onTouchStart={warmRoll}
-            style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+            style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
           >
             Roll
           </Link>
-          {/* Folder — YOUR recordings, as against the Roll's everyone's. The
-              pair is the point: the ledger stream and the folder on your own
-              disk, named for exactly what each one is. It shares a name with
-              the Mac app on purpose, because this page IS that folder,
-              viewed. */}
+          {/* Folder — the Mac software's page. The /folder BROWSER (your
+              recordings, remembered in the browser) was removed 2026-08-07
+              ("causing more bugs than its worth"); the link survives it and
+              points at the story instead. Browsing = drop Recordings on the
+              home camera. */}
           <Link
-            href="/folder"
-            aria-current={pathname === "/folder" ? "page" : undefined}
-            style={{ fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+            href="/docs/folder"
+            aria-current={pathname === "/docs/folder" ? "page" : undefined}
+            style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
           >
             Folder
           </Link>
@@ -134,7 +134,7 @@ export function SiteNav() {
               style={{
                 display: "flex", alignItems: "center", gap: 4,
                 padding: 0, margin: 0, border: "none", background: "none",
-                fontSize: 14, fontWeight: 600,
+                fontSize: 14, fontWeight: 700,
                 fontFamily: "inherit", letterSpacing: "inherit", cursor: "pointer",
               }}
             >

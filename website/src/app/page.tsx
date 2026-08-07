@@ -18,7 +18,7 @@ import {
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
 import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
-import { CheckedRoll, fmtRowWhen } from "@/components/folder-roll";
+import { CheckedRoll, fmtRowWhen, useFileThumbs } from "@/components/folder-roll";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
@@ -180,6 +180,11 @@ export default function BitGraphPage() {
   // is represented by the count banner and the "BitGraph N remaining" button,
   // never a blank pending row.
   const shown = items.filter(i => i.status === "found" || i.status === "proved" || i.status === "error");
+  // Tiny thumbs from the dropped bytes, for recognition in the results list
+  // (record and check alike): you dropped forty photos, the rows should look
+  // like your photos, not forty filenames. For a dropped proof.json the
+  // artifact is the matched file, when one was found.
+  const resultThumbs = useFileThumbs(shown.map((it) => (it.fromProofJson ? it.matchedFile : it.file)));
   const allDone = items.length > 0 && items.every(i => i.status === "found" || i.status === "proved");
 
   /* ── Drop → Scan ── */
@@ -1162,6 +1167,24 @@ export default function BitGraphPage() {
                       cursor: clickable ? "pointer" : "default",
                     }}
                   >
+                    {/* The file's tiny thumb (or its type label), once per
+                        card on the first row — recognition for a forty-photo
+                        drop, same cell the checked roll uses. Later rows of a
+                        multi-recording card keep a spacer so the #s align. */}
+                    {(() => {
+                      const f = item.fromProofJson ? item.matchedFile : item.file;
+                      if (k > 0) return <span style={{ width: 48, flexShrink: 0 }} aria-hidden />;
+                      const thumb = f ? resultThumbs.get(f) : undefined;
+                      const name = f?.name ?? item.file.name;
+                      const ext = name.slice(name.lastIndexOf(".") + 1).toUpperCase().slice(0, 4);
+                      return thumb ? (
+                        <img src={thumb} alt="" style={{ width: 48, height: 48, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e5e9", display: "block" }} />
+                      ) : (
+                        <span style={{ width: 48, height: 48, flexShrink: 0, border: "1px solid #e2e5e9", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#6b7280", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                          {ext}
+                        </span>
+                      );
+                    })()}
                     {/* Left — the position number (or the pending state for rows
                         not yet BitGraphed). No "BitGraph" prefix: everything on
                         this card is one, the # carries it. */}

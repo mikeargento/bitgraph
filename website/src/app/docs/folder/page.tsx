@@ -119,11 +119,11 @@ export default function FolderPage() {
         verify it.
       </p>
 
-      {/* Five claims, in the order the questions arrive: what the thing is,
-          where my file went, what it does not send, who can read the result,
-          what a recording is for, and where to see them all. Each one is an
-          h2 that states the claim and a couple of plain sentences that earn
-          it; anyone who wants the protocol follows a link at the bottom. */}
+      {/* Four claims, in the order the questions arrive: what the thing is
+          (and where my file went), what it does not send, who can read the
+          result, and what a recording is for. Each one is an h2 that states
+          the claim and a couple of plain sentences that earn it; anyone who
+          wants the protocol follows a link at the bottom. */}
       <h2 className="text-xl font-semibold mt-12 mb-4">A folder, not an app</h2>
       {/* The batch line lives here rather than in the lede. Pluralising the
           lede would have contradicted the diagram below it, which states the
@@ -167,18 +167,10 @@ export default function FolderPage() {
         account.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Your roll, on the site</h2>
-      {/* The sync vocabulary is /folder's, verbatim: drag Recordings, read on
-          your device, nothing is uploaded, remembered for next time. */}
-      <p className="text-[#1f2937] mb-14">
-        bitgraph.ing/folder shows everything you have recorded. Drag Recordings onto
-        it and every recording appears, newest first, checked against the ledger.
-        The page remembers your roll for next time. Read on your device; nothing is
-        uploaded.
-      </p>
-
+      {/* "Your roll, on the site" lived here while /folder existed; the
+          browser page was removed 2026-08-07 and the section went with it.
+          Browsing is a drop: Recordings onto the home camera. */}
       <h2 className="text-xl font-semibold mt-12 mb-4">More</h2>
-      <p className="mb-2"><Action href="/folder">See your folder on the site</Action></p>
       <p className="mb-2"><Action href={SOURCE}>Read the source</Action></p>
       <p className="mb-2"><Action href="/docs/overview">How BitGraph works</Action></p>
       <p className="mb-2"><Action href="/docs/mcp">Connect an AI agent instead</Action></p>

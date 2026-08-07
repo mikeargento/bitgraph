@@ -83,7 +83,7 @@ export function FileDrop({
   buttonLabel,
   shutter,
   browseLabel = "browse",
-  headline = "Take a BitGraph",
+  headline = "Record a BitGraph",
   headlineSize = "clamp(20px, 6vw, 24px)",
 }: FileDropProps) {
   const [dragover, setDragover] = useState(false);

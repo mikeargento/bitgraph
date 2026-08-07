@@ -499,15 +499,20 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    745px an iPhone 14/15 shows with the Safari toolbar up. 254 is the largest box
    that still centers on that phone. Measured there: 54px above, 54px below.
    Re-measure at 393x745 before moving any of it. ── */
-/* 3:2 LANDSCAPE, EVERY DROP BOX, EVERY VIEWPORT (Mike, 2026-08-07: the
-   photo-frame ratio for all dropboxes; "2:3" was a slip, corrected to 3:2).
-   The box is the 35mm frame. Width fills the column up to what the height
-   budget allows (viewport minus nav + title, capped at 640 tall), and the
-   min-height floors phones at the height they always had, where strict 3:2
-   of a narrow column would be SHORTER. Width-driven on purpose: a
-   height-driven aspect let WebKit derive width from CONTENT height and the
-   box overflowed its card on iPhone. */
-.bitgraph-camera { width: min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2)); aspect-ratio: 3 / 2; height: auto; min-height: 254px; align-self: center; margin: 0 auto; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
+/* THE FRAME ROTATES WITH THE DEVICE (Mike, 2026-08-07: the photo-frame
+   ratio for all dropboxes; a phone column at landscape 3:2 renders SHORT,
+   which he flagged). One frame, two orientations: portrait 2:3 on phones,
+   landscape 3:2 on desktop, exactly how a photo is held. Width DERIVES from
+   the height budget (viewport minus nav + title) and never exceeds the
+   column. Width-driven on purpose: a height-driven aspect let WebKit derive
+   width from CONTENT height and the box overflowed its card on iPhone.
+   Shared by every drop box: .bitgraph-camera composes it, the proof page's
+   checker wears .bg-frame directly. */
+.bg-frame { width: min(100%, calc(min(560px, 100dvh - 320px) * 2 / 3)); aspect-ratio: 2 / 3; height: auto; margin: 0 auto; }
+@media (min-width: 769px) {
+  .bg-frame { width: min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2)); aspect-ratio: 3 / 2; }
+}
+.bitgraph-camera { width: min(100%, calc(min(560px, 100dvh - 320px) * 2 / 3)); aspect-ratio: 2 / 3; height: auto; min-height: 254px; align-self: center; margin: 0 auto; --fd-headline: 22px; --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 11.5px; --fd-subhint-size: 11.5px; }
 /* Stroke weight in user units per render size so it draws 2.25 screen px in
    every engine (vector-effect support differs across browsers; geometry
    scaling does not): 2.25 / (44/24) mobile, 2.25 / (52/24) desktop. */

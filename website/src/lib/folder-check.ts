@@ -412,8 +412,7 @@ export interface ExportCheckResult {
   ok: boolean | null;
   /** The specific failing side, factual, one line. Null when ok/pending. */
   failure: string | null;
-  /** proof.json's walk-time size and mtime — half of the export fingerprint
-   *  the sync memo keys on (the artifact's half rides on matchedFile). */
+  /** proof.json's walk-time size and mtime, facts about the export. */
   proofSize: number | null;
   proofMtime: number | null;
 }
@@ -532,45 +531,10 @@ async function looksLikeReceipt(f: File): Promise<boolean> {
 
 /** The fast half: everything the roll needs to render, no hashing and no
  *  network. Structural failures (unreadable proof, no file at all) are
- *  verdicts already; everything else is pending (`ok: null`) — except memo
- *  hits, which arrive as settled ok rows having read NOTHING. */
-async function scanExportsLocal(candidates: ExportCandidate[], memo?: Map<string, RowMemo>): Promise<Working[]> {
+ *  verdicts already; everything else is pending (`ok: null`). */
+async function scanExportsLocal(candidates: ExportCandidate[]): Promise<Working[]> {
   const working: Working[] = [];
   for (const cand of candidates) {
-    // The memo gate, before any read touches this export. Metadata alone
-    // (walk-time name/size/mtime of the artifact AND of proof.json) proves
-    // the export is the one already verified; the cached row fields carry
-    // everything the roll renders. See the RowMemo note above for why this
-    // is sound and what is deliberately excluded.
-    if (memo && cand.artifactCandidates.length === 1) {
-      const f = cand.artifactCandidates[0];
-      const m = memo.get(exportMemoKey(cand.dirName, f.name, f.size, f.lastModified, cand.proofFile.size, cand.proofFile.lastModified));
-      if (m) {
-        working.push({
-          cand,
-          dirName: cand.dirName,
-          fileName: f.name,
-          matchedFile: f,
-          artifactFile: f,
-          block: m.block,
-          ts: m.ts,
-          proof: null,
-          counter: m.counter,
-          epochUrlSafe: m.epochUrlSafe,
-          digestUrlSafe: m.digestUrlSafe,
-          writeTime: m.writeTime,
-          onLedger: true,
-          ok: true,
-          failure: null,
-          proofSize: cand.proofFile.size,
-          proofMtime: cand.proofFile.lastModified,
-          claimedDigest: null,
-          epochId: null,
-          ledgerProof: null,
-        });
-        continue;
-      }
-    }
     // A sole index.html beside proof.json is the artifact unless it is
     // provably a receipt; see RECEIPT_PREFIX. Promoted before the row is
     // built so fileName and the thumbnail read from it like any other file.
@@ -643,46 +607,17 @@ export interface FolderCheckCallbacks {
   onDone?: (rows: ExportCheckResult[]) => void;
 }
 
-/** What an earlier sync remembers about one EXPORT whose verdict was ok. The
- *  memo key (see exportMemoKey) proves by metadata alone that nothing in the
- *  export changed; the remaining fields are everything the row needs to
- *  render, so a memo hit costs ZERO file reads and zero network. */
-export interface RowMemo {
-  digestUrlSafe: string;
-  counter: string | null;
-  epochUrlSafe: string | null;
-  block: number | null;
-  ts: number | null;
-  writeTime: number | null;
-}
-
-/* A memo hit skips the whole check for one export: no reads (not even
- * proof.json), no hash, no signature, no ledger round-trips. Sound on two
- * grounds, one per side. The ledger side: the ledger is append-only (Object
- * Lock COMPLIANCE), so a proof that was ON it at its claimed position cannot
- * later be off it — an ok verdict's ledger half cannot rot. The local side
- * CAN rot (the artifact or the proof.json itself can change), and the key
- * fingerprints BOTH by name+size+mtime — the same identity every sync tool
- * uses, and stronger than the earlier digest-keyed memo, which could not see
- * a swapped proof.json. Applied only to single-candidate exports (the normal
- * shape); anything else re-verifies in full, as do failures and unchecked
- * rows, every time. Callers must also never memoize a row cached while
- * UNSEALED (block null): the anchors arrive later without touching
- * proof.json, and a memo hit would leave the row in "today" forever. */
-export const exportMemoKey = (
-  dirName: string,
-  artifactName: string, artifactSize: number, artifactMtime: number,
-  proofSize: number, proofMtime: number,
-): string => [dirName, artifactName, artifactSize, artifactMtime, proofSize, proofMtime].join(" ");
-
+/* The fingerprint memo (skip unchanged exports having read nothing) lived
+ * here 2026-08-06 to 2026-08-07 for the /folder browser's remembered syncs
+ * and was removed with that page: every drop is now checked in full, from
+ * the bytes in hand. */
 export function startFolderCheck(
   candidates: ExportCandidate[],
   cb: FolderCheckCallbacks = {},
   apiBase = "",
-  memo?: Map<string, RowMemo>,
 ): { done: Promise<ExportCheckResult[]> } {
   const done = (async () => {
-    const working = await scanExportsLocal(candidates, memo);
+    const working = await scanExportsLocal(candidates);
     cb.onRows?.(working.map(stripWorking));
 
     /* Ledger prefetch: every digest still needing a verdict, 50 per request,
