@@ -497,6 +497,46 @@ export default function BitGraphPage() {
       const valid = entries.filter((e) => e.counter > 0);
       if (valid.length) window.dispatchEvent(new CustomEvent("bitgraph:recorded", { detail: valid }));
     } catch { /* display-only, never block the prove flow */ }
+    void fillRecordedTimes(proofs);
+  }
+
+  // A just-minted row had no "when" while every row around it did, which read
+  // as missing data. The reason is real: the times these rows show are the
+  // LEDGER's write moment, and a fresh proof came back from the boundary, not
+  // from a ledger read, so there was nothing to show. The commit route writes
+  // the by-digest entry before it answers, so one lookup right after recording
+  // fills the slot with the same fact the neighbouring rows carry. Deliberately
+  // NOT this browser's clock: the product does not assert time from an
+  // untrusted source, and a row whose time came from the machine that made it
+  // would be a different claim wearing the same clothes.
+  async function fillRecordedTimes(proofs: BitGraphProof[]) {
+    try {
+      const digests = [...new Set(proofs.filter(Boolean).map((p) => toUrlSafeB64(p.artifact.digestB64)))];
+      if (!digests.length) return;
+      const r = await fetch("/api/proofs/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ digests }),
+      });
+      if (!r.ok) return;
+      const results = ((await r.json()) as {
+        results?: Record<string, { proofs?: Array<{ proof: BitGraphProof; writeTime?: number | null }> }>;
+      }).results || {};
+      setItems((prev) => prev.map((it) => {
+        if (!it.digestB64) return it;
+        const entry = results[toUrlSafeB64(it.digestB64)];
+        if (!entry?.proofs?.length) return it;
+        // Align to the rows actually rendered: each row's own position gets
+        // its own write time, so a file recorded twice keeps them distinct.
+        const rendered = it.proofs.length ? it.proofs : it.proof ? [it.proof] : [];
+        const times = rendered.map((p) => {
+          const c = p?.commit?.counter;
+          const hit = entry.proofs?.find((e) => String(e.proof?.commit?.counter) === String(c));
+          return hit?.writeTime ?? null;
+        });
+        return times.some((t) => t !== null) ? { ...it, times } : it;
+      }));
+    } catch { /* the row simply keeps its blank when */ }
   }
 
   // Retry a commit through the daily rotation window. Only the typed
@@ -1050,8 +1090,12 @@ export default function BitGraphPage() {
                   column's 24px gap applies below the card, not under the title. */}
               {items.length > 0 && (<>
               <div>
-              {/* The one title size every page header uses. */}
-              <div className="bg-page-title" style={{ marginBottom: 10 }}>
+              {/* The one title size every page header uses. 20px, not 10:
+                  the proof page's identical title sits in a 10px-gap grid AND
+                  carries a 10px margin, so it clears its card by 20. Here the
+                  wrapper below deliberately absorbs the column gap, so the
+                  margin has to carry the whole distance itself. */}
+              <div className="bg-page-title" style={{ marginBottom: 20 }}>
                 BitGraph{items.length === 1 ? "" : "s"} Recorded
               </div>
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
