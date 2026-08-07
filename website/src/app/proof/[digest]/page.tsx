@@ -5,7 +5,7 @@ import { proofPage, blockTimeFromHeader, type ExportProof, type AnchorSide } fro
 import { useParams } from "next/navigation";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
-import { findMatchInDrop, findMatchInFiles } from "@/lib/folder-check";
+import { findMatchInDrop, findMatchInFiles, captureDrop, type CapturedDrop } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
@@ -1322,7 +1322,7 @@ function BringYourFile({
   // Pictures folder and the box answers "this one". A browser cannot search
   // the machine, but it can search whatever it is handed. `source` is the
   // DataTransfer itself (captured synchronously) or a picked file list.
-  async function check(source: DataTransfer | File[]) {
+  async function check(source: CapturedDrop | File[]) {
     setState("checking");
     setProgress({ done: 0, total: 0 });
     setReadCount(0);
@@ -1386,7 +1386,12 @@ function BringYourFile({
       onClick={() => inputRef.current?.click()}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(e.dataTransfer); }}
+      /* ⚠️ captureDrop runs HERE, synchronously, not inside check(): the item
+         list dies when this handler returns, and a capture that happens one
+         await later reports "no directories" and quietly searches only the
+         loose files. One big mixed dump — files, folders, folders with
+         subfolders — is the case this box is for. */
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(captureDrop(e.dataTransfer)); }}
       /* The same instrument as the home page's, not a footnote to the proof:
          this box is how a stranger who was handed a file actually uses the
          page. Same mark, same blue on hover and drag, and enough height to
@@ -1416,8 +1421,12 @@ function BringYourFile({
       {state === "reading" ? (
         <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
           {readCount > 0
-            ? `Reading your folder… ${readCount.toLocaleString()} file${readCount === 1 ? "" : "s"}`
-            : "Reading your folder…"}
+            /* Not "your folder": a drop may be several folders at once, and
+               the walk handles that, so the singular was quietly wrong every
+               time someone used the capability. The count says what is
+               happening without claiming how many roots it came from. */
+            ? `Reading… ${readCount.toLocaleString()} file${readCount === 1 ? "" : "s"}`
+            : "Reading…"}
         </div>
       ) : state === "checking" ? (
         <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>

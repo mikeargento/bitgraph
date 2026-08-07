@@ -364,8 +364,39 @@ export async function findMatchInFiles(
  *  person knowing which one it is. MUST be called synchronously from the drop
  *  handler (the entry capture dies after the first await). A browser cannot
  *  search the machine — but it can search whatever the person hands it. */
+/** A drop, read out of the DataTransfer while that is still legal. */
+export interface CapturedDrop {
+  /** Directory entries, when the drop held any. Null means plain files. */
+  entries: EntryLike[] | null;
+  /** dataTransfer.files, the fallback when no directory was in the drop. */
+  files: File[];
+}
+
+/**
+ * Read a drop into something that survives an await. MUST be called
+ * synchronously inside the drop handler.
+ *
+ * This exists as its own function so the rule cannot be broken by accident.
+ * findMatchInDrop used to take the DataTransfer itself and do this on its
+ * first line, which was correct but only as long as every caller kept it out
+ * of an async tail — and the failure is silent and awful when someone does
+ * not: DataTransferItemList is neutered once the handler returns, so
+ * webkitGetAsEntry starts answering null, entriesFromDataTransfer reports "no
+ * directories here", and the whole thing degrades to dataTransfer.files.
+ *
+ * That fallback is not merely smaller, it is misleading. A mixed drop's
+ * .files holds the loose files PLUS one 0-byte pseudo-file per folder, so a
+ * dump of six files and three folders looks like nine files, hashes nine
+ * things, finds nothing, and reports that it searched everything you gave it.
+ * The folders' actual contents are never read. Taking the captured drop as a
+ * parameter makes the capture the caller's visible job.
+ */
+export function captureDrop(dt: DataTransfer): CapturedDrop {
+  return { entries: entriesFromDataTransfer(dt), files: Array.from(dt.files) };
+}
+
 export async function findMatchInDrop(
-  dt: DataTransfer,
+  captured: CapturedDrop,
   digestB64: string,
   onProgress?: (done: number, total: number) => void,
   /** Running file count while the folder is being READ, before hashing can
@@ -373,10 +404,9 @@ export async function findMatchInDrop(
    *  the read is the longest silent stretch of it. */
   onWalk?: (files: number) => void,
 ): Promise<{ match: File | null; checked: number }> {
-  const entries = entriesFromDataTransfer(dt);
-  const files = entries
-    ? (await walkEntries(entries, onWalk)).map((w) => w.file)
-    : Array.from(dt.files);
+  const files = captured.entries
+    ? (await walkEntries(captured.entries, onWalk)).map((w) => w.file)
+    : captured.files;
   return findMatchInFiles(files, digestB64, onProgress);
 }
 

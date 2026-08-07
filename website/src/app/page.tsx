@@ -17,7 +17,7 @@ import {
   type BitGraphProof,
 } from "@/lib/bitgraph";
 import { toUrlSafeB64 } from "@/lib/explorer";
-import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
+import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, captureDrop, type CapturedDrop, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
 import { CheckedRoll, fmtRowWhen, useFileThumbs } from "@/components/folder-roll";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
@@ -433,10 +433,14 @@ export default function BitGraphPage() {
     // in per row behind it. No full-screen wait at all: browsing must be
     // instant, verification merely prompt.
     setFolderChecking(true);
+    // Cleared ONCE, here, rather than inside onRows. Both halves of a mixed
+    // drop are in flight at the same time, and onRows fires whenever the
+    // export scan happens to finish — so clearing there raced the stray scan
+    // and silently ate every loose file whenever the strays landed first.
+    setItems([]);
     const { done } = startFolderCheck(scan.exports, {
       onRows: (rows) => {
         setChecked(rows);
-        setItems([]);
         setStep("results");
       },
       onUpdate: (index, row) => {
@@ -1316,7 +1320,7 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
 
   // Many files or whole folders in one drop; the match is found by hashing.
   // Same behavior as the proof page's BringYourFile.
-  async function check(source: DataTransfer | File[]) {
+  async function check(source: CapturedDrop | File[]) {
     setState("checking");
     setProgress({ done: 0, total: 0 });
     try {
@@ -1337,7 +1341,9 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
       onClick={() => inputRef.current?.click()}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(e.dataTransfer); }}
+      /* captureDrop synchronously, same rule as the proof page's box: one
+         await later and the folders in a mixed drop are silently invisible. */
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(captureDrop(e.dataTransfer)); }}
       style={{
         marginTop: 8,
         background: "#fff",
