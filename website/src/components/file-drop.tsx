@@ -449,11 +449,17 @@ export function FileDrop({
             {headline}
           </div>
 
-          {/* Below the title: the instruction, then the privacy fact. The gap
-              is applied only when there is something to separate, so a caller
-              passing neither line cannot leave a phantom margin behind and
-              push the block off center. */}
-          <div style={{ marginTop: hint || subhint ? "var(--fd-copy-gap, 20px)" : 0 }}>
+          {/* Below the title: the instruction, then the privacy fact. 12px,
+              not the 20 this used to be: the copy belongs TO the title, and
+              at 20 it read as a separate paragraph that happened to sit
+              nearby. Twice the 6px holding the two grey lines together, so
+              the nesting is legible — title, then its copy, then that copy's
+              own aside.
+
+              The gap is applied only when there is something to separate, so
+              a caller passing neither line cannot leave a phantom margin
+              behind and push the block off center. */}
+          <div style={{ marginTop: hint || subhint ? "var(--fd-copy-gap, 12px)" : 0 }}>
             {hint && (
               <div
                 className="text-center"

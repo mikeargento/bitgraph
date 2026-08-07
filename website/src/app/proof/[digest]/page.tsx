@@ -1465,7 +1465,7 @@ function BringYourFile({
           <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: hover ? "#0065A4" : "#111827", transition: "color .2s", letterSpacing: "-0.01em", textWrap: "balance" }}>
             Find this file on your device
           </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 10, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
+          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 12, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
             Choose files, or drag in a whole folder. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
           </div>
           <div style={{ fontSize: "clamp(12px, 2.8vw, 13px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
