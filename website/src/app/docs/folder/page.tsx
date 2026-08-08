@@ -39,10 +39,55 @@ export default function FolderPage() {
           and everything sits on it. */}
       <h1 className="mb-5">BitGraph Folder</h1>
 
-      {/* ── No promise line. It said what the first section says, one screen
-          earlier and worse: "A folder, not an app" is the sharpest sentence
-          on the page and it can carry the pitch on its own. The hero is the
-          title and the one action, and nothing else. ── */}
+      {/* ── The download sits BELOW the first section, not in the hero.
+          ⚠️ This is placement, not demotion, and it is still the page's one
+          action. Read it before moving it back up.
+
+          With the promise line cut, a download directly under the title asked
+          a stranger to install something the page had not yet described: the
+          first sentence explaining what it is sat below the ask. The fix is
+          not a third promise line — two have already been cut for saying what
+          the sections say — because the four h2s already cover every angle
+          one could take, which is exactly why both predecessors were
+          redundant. So the explanation goes first and the offer follows it:
+          the sharpest sentence on the page, the paragraph that earns it, and
+          then the installer.
+
+          The cost is a call to action that is no longer above the fold. It is
+          cheap here: this page is reached from the nav or from the home
+          page's own download link, so most arrivals already intend to
+          install, and it is a screen down rather than buried. ── */}
+
+      {/* Four claims, in the order the questions arrive: what the thing is and
+          where my file went, what it does not send, what that means for me,
+          and what a recording is finally for. */}
+      <h2 className="text-xl font-semibold bg-first-h2">A folder, not an app</h2>
+      {/* "settles into Recordings" is load-bearing: drops MOVE (1.8.0, drops
+          absorb, the export holds the only copy). Taking more than one file at
+          a time is the whole advantage over the home page's flow, and a
+          500-file drop is tested. */}
+      <p className="text-[#1f2937] bg-lede">
+        The installer puts a BitGraph folder on your Desktop and watches it. Drop files in
+        one at a time or in batches; each one settles into Recordings, in a folder named
+        after it, next to its BitGraph.
+      </p>
+
+
+      {/* ❄️ The file/folder/BitGraph equation panel was CUT (Mike: "too
+          saasy"). It was a picture of a thing the very next sentence says in
+          words, and a decorative panel is what a product page does when it
+          does not trust its own copy. The tree below is the exhibit that
+          survives, because it shows something no sentence does: what is
+          actually on your disk afterwards. */}
+
+      {/* ── The exhibit: what is actually on disk. Placed under the claim it
+          proves rather than in a section of its own, so the tree reads as
+          evidence for "a folder, not an app", not as a second topic. ── */}
+      <FolderTree />
+      <p className="bg-panel-caption bg-panel-caption-under text-[#1f2937]">
+        The top level stays empty. It is the drop zone; Recordings is the archive.
+      </p>
+
       <div className="bg-hero-row">
         {/* On touch the download is replaced by the reason it is missing, and
             by nothing else. The sentence stays because a phone visitor
@@ -84,35 +129,6 @@ export default function FolderPage() {
           </span>
         </p>
       </div>
-
-      {/* ❄️ The file/folder/BitGraph equation panel was CUT (Mike: "too
-          saasy"). It was a picture of a thing the very next sentence says in
-          words, and a decorative panel is what a product page does when it
-          does not trust its own copy. The tree below is the exhibit that
-          survives, because it shows something no sentence does: what is
-          actually on your disk afterwards. */}
-
-      {/* Four claims, in the order the questions arrive: what the thing is and
-          where my file went, what it does not send, what that means for me,
-          and what a recording is finally for. */}
-      <h2 className="text-xl font-semibold">A folder, not an app</h2>
-      {/* "settles into Recordings" is load-bearing: drops MOVE (1.8.0, drops
-          absorb, the export holds the only copy). Taking more than one file at
-          a time is the whole advantage over the home page's flow, and a
-          500-file drop is tested. */}
-      <p className="text-[#1f2937]">
-        The installer puts a BitGraph folder on your Desktop and watches it. Drop files in
-        one at a time or in batches; each one settles into Recordings, in a folder named
-        after it, next to its BitGraph.
-      </p>
-
-      {/* ── The exhibit: what is actually on disk. Placed under the claim it
-          proves rather than in a section of its own, so the tree reads as
-          evidence for "a folder, not an app", not as a second topic. ── */}
-      <FolderTree />
-      <p className="bg-panel-caption bg-panel-caption-under text-[#1f2937]">
-        The top level stays empty. It is the drop zone; Recordings is the archive.
-      </p>
 
       <h2 className="text-xl font-semibold">Nothing leaves your Mac</h2>
       {/* One clause teaches what a hash is without a lesson: 64 characters,
@@ -171,23 +187,30 @@ export default function FolderPage() {
       </ul>
 
       <style>{`
-        /* ── The hero: the title and its one action.
-           NOT a flex row any more. It was built to hold the promise on the
-           left and the download on the right, and the promise is gone, so
-           space-between, the gap and the wrap were all inert properties
-           describing a layout with one child in it.
+        /* ── The download, which no longer lives in the hero.
+           It sits after the whole first section: the claim, the paragraph that
+           earns it, and the tree that proves it. The explanation comes first
+           and the offer follows, so nobody is asked to install a thing the
+           page has not described yet.
 
-           The bottom margin is deliberately LARGER than the gap between
-           sections (4rem against h2's 3rem). At the same value the hero never
-           closed: the download sat exactly as far from "A folder, not an app"
-           as that section sits from the next one, so the page read as four
-           equal blocks instead of an identity followed by its documentation.
-           Margins collapse here, so this number is the one that wins. ── */
-        .prose-doc .bg-hero-row { margin: 0 0 4rem; }
+           It is placed AFTER the exhibit rather than between the paragraph and
+           the exhibit, because the tree is the evidence for that paragraph and
+           an action wedged between them separates a claim from its proof.
+
+           Top margin groups it with the section it closes; the bottom is the
+           full 3rem section gap, so the next h2 starts cleanly. Margins
+           collapse against that h2's own top margin, and the larger wins. ── */
+        .prose-doc .bg-hero-row { margin: 1.75rem 0 3rem; }
         .prose-doc .bg-hero-row p { margin: 0; }
-        /* The download keeps its size rank but not the 52px of air it used to
-           need: inside the row, adjacency does that work. */
         .prose-doc .bg-hero-row p.bg-dl-line { margin: 0; }
+
+        /* The opening h2 follows the title directly now, so it does not take
+           the 3rem that separates one section from the next: that gap is for
+           a section that has ENDED, and nothing has ended above this one. */
+        .prose-doc h2.bg-first-h2 { margin-top: 1.75rem; }
+        /* The lede keeps its exhibit close; the tree is its evidence. */
+        .prose-doc p.bg-lede { margin-bottom: 1.25rem; }
+
         .bg-dl-touch { display: none; }
         @media (hover: none) and (pointer: coarse) {
           .bg-dl-mac { display: none; }
@@ -212,7 +235,7 @@ export default function FolderPage() {
         /* The tree's caption sits OUTSIDE its panel, on the page's rail: it is
            a note about the exhibit rather than a reading of it. */
         .prose-doc .bg-panel-caption-under {
-          text-align: left; margin: 0 0 3.5rem;
+          text-align: left; margin: 0;
           font-size: clamp(13px, 4vw, 14px); color: #4b5563;
         }
 
@@ -231,8 +254,7 @@ export default function FolderPage() {
         @media (max-width: 640px) {
           /* Same rule on the phone: still clear of the 2.5rem between
              sections there, so the hero still closes. */
-          .prose-doc .bg-hero-row { margin-bottom: 3.25rem; }
-          .prose-doc .bg-panel-caption-under { margin-bottom: 3rem; }
+          .prose-doc .bg-hero-row { margin: 1.5rem 0 2.5rem; }
           .prose-doc h2 { margin-top: 2.5rem; }
           .prose-doc h2 + p { margin-bottom: 3rem; }
         }
