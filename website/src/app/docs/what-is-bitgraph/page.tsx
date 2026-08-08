@@ -3,7 +3,7 @@ import { CommitPathDiagram } from "@/components/commit-path-diagram";
 
 export const metadata: Metadata = {
   title: "What is BitGraph",
-  description: "BitGraph is a protocol for portable cryptographic proof caused by system structure.",
+  description: "BitGraph is a protocol for portable cryptographic proof of place, not time: one position in a sequence, reserved before the file's hash was known.",
 };
 
 export default function WhatIsBitGraphPage() {
@@ -12,11 +12,11 @@ export default function WhatIsBitGraphPage() {
       <h1 className="mb-6">What is BitGraph</h1>
 
       <p className="text-[#1f2937] leading-relaxed mb-10">
-        BitGraph is a protocol that produces portable
-        cryptographic proof when bytes are committed through an authorized
-        execution boundary. The proof attests that a specific digital state was
-        demonstrably possessed and committed in a specific form, by a specific
-        boundary, no later than a specific moment.
+        BitGraph is a protocol that produces portable cryptographic proof when
+        a file is committed through an authorized execution boundary. The proof
+        does not assert a time. It asserts a place: this exact file, in this
+        exact form, at one position in a sequence, reserved before the
+        file&apos;s hash was known and never occupied by anything else.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">The core idea</h2>
@@ -26,10 +26,9 @@ export default function WhatIsBitGraphPage() {
         entries after the fact.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-4">
-        BitGraph inverts this. Valid proof can only exist if the artifact was
-        committed through a protected path. The proof is not added to the
-        artifact. It is caused by the act of committing through the
-        authorized boundary.
+        BitGraph inverts this. Valid proof can only exist if the file was
+        committed through the authorized commit path. The proof is not added to
+        the file. It is caused by the act of committing through that path.
       </p>
 
       <div className="border-l-2 border-l-[#d0d5dd] pl-6 my-8">
@@ -46,8 +45,8 @@ export default function WhatIsBitGraphPage() {
       <ol className="space-y-3 mb-6">
         <li className="text-[#1f2937] leading-relaxed">
           <strong className="text-text">1. Allocate</strong> - The enclave pre-allocates a
-          causal slot (nonce + counter) before the artifact hash is known,
-          proving the commitment position was reserved independently.
+          causal slot (nonce + counter) before the artifact hash is known. The
+          place exists before the file that will occupy it.
         </li>
         <li className="text-[#1f2937] leading-relaxed">
           <strong className="text-text">2. Bind</strong> - The artifact&apos;s SHA-256 digest is
@@ -55,9 +54,9 @@ export default function WhatIsBitGraphPage() {
           and signed with Ed25519 inside the TEE.
         </li>
         <li className="text-[#1f2937] leading-relaxed">
-          <strong className="text-text">3. Commit</strong> - The artifact and its proof are
-          produced together. Fail-closed: if any step fails, nothing is
-          produced. The proof includes the signed slot record as causal evidence.
+          <strong className="text-text">3. Commit</strong> - The slot is consumed and the
+          proof is produced. Fail-closed: if any step fails, no proof exists.
+          The proof includes the signed slot record as causal evidence.
         </li>
       </ol>
 
@@ -71,9 +70,9 @@ export default function WhatIsBitGraphPage() {
         <li className="text-[#1f2937]"><strong className="text-text">signer</strong> - Ed25519 public key and signature over the canonical signed body</li>
         <li className="text-[#1f2937]"><strong className="text-text">environment</strong> - enforcement tier, platform measurement (PCR0), hardware attestation</li>
         <li className="text-[#1f2937]"><strong className="text-text">slotAllocation</strong> - the pre-allocated causal slot record, independently signed by the enclave</li>
-        <li className="text-[#1f2937]"><strong className="text-text">agency</strong> - optional actor-bound proof via device biometrics (passkey/WebAuthn), with batch support</li>
+        <li className="text-[#1f2937]"><strong className="text-text">agency</strong> - optional actor-bound proof via device biometrics (passkey/WebAuthn)</li>
         <li className="text-[#1f2937]"><strong className="text-text">attribution</strong> - optional signed creator metadata (name, title, message)</li>
-        <li className="text-[#1f2937]"><strong className="text-text">timestamps</strong> - optional, advisory-only timestamp field. Primary external time anchoring is provided by periodic Ethereum block anchors of the enclave&apos;s counter chain, not by this field.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">timestamps</strong> - optional and advisory only. A proof&apos;s place comes from its slot and counter. External time bounds come from periodic Ethereum anchors of the counter chain, never from this field.</li>
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Key properties</h2>
@@ -81,7 +80,7 @@ export default function WhatIsBitGraphPage() {
         <li className="text-[#1f2937]"><strong className="text-text">Portable</strong> — a self-contained JSON object. Any verifier can check it offline with only the public key and the original bytes.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Atomic</strong> — fail-closed. Either a complete, valid proof is produced, or nothing is.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Causal</strong> — every proof is bound to a pre-allocated slot created before the artifact hash was known.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Ordered</strong> — monotonic counter within its epoch. Counter + epoch + chain link establish sequencing.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Ordered</strong> — one place in a sequence, fixed by a monotonic counter within its epoch. Counter, epoch, and chain link establish sequencing.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Measured</strong> — binds to a specific execution environment via measurement (PCR0 on Nitro, MRENCLAVE on SGX).</li>
         <li className="text-[#1f2937]"><strong className="text-text">Verifiable</strong> — Ed25519 signature, SHA-256 digest, canonical serialization. Standard cryptographic primitives.</li>
       </ul>

@@ -15,7 +15,7 @@ const properties = [
   },
   {
     label: "Uniqueness",
-    note: "Each authorization event produces a distinct authenticated artifact. No two commits collide, and replays of the same input bytes through the commit path produce distinct proofs.",
+    note: "Each authorization event produces a distinct proof. No two commits collide, and the same bytes committed twice occupy two different places.",
   },
 ];
 
