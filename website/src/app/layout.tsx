@@ -53,8 +53,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             pages grow after paint (skeleton, then payload, then a full-size
             photo), so a refresh landed part-way down at whatever height existed
             at that instant. A React effect is too late to stop it — hydration
-            has already happened. Back/forward still restores: only reloads are
-            taken over, and ScrollToTop hands restoration back once settled. */}
+            has already happened. Only reloads are taken over: a plain load has
+            no saved offset to suppress, and flipping restoration to manual
+            there would stop the browser recording this entry's offset at all,
+            so pressing Back later would land at the top instead of where the
+            reader left. Plain loads are held by ScrollToTop's pin instead.
+            ScrollToTop hands restoration back once the document settles. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
