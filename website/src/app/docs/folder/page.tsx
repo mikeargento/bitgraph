@@ -62,12 +62,21 @@ export default function FolderPage() {
             here and every use of it means a proof did not verify, so the
             failure colour must not be spent on a platform fact.
 
-            ⚠️ 22px, not 26px, and the difference is not size but COLOUR. This
-            is saturated blue and semibold against an h1 that is near-black, and
-            a saturated 26px out-weighed a near-black 32px: the eye reached the
-            action before the title, which inverts what the page is for. */}
+            ⚠️ SIZE IS ABOUT COLOUR HERE, not about rank. Saturated blue and
+            semibold weigh more than the same size in near-black, which is why
+            26px once out-weighed the 32px h1 and the eye reached the action
+            before the title, inverting what the page is for.
+
+            19px, down from 22. The 22 was chosen when a subtitle sat between
+            this and the h1 and the brief was to land BETWEEN them in the type
+            scale. That subtitle is gone, so the number was describing a rank
+            defined by a missing element, and with nothing separating them the
+            same argument bites harder: 22px of saturated blue immediately
+            under 32px of near-black races the title. 19 still clears body
+            text by a full step and is still the only action on the page,
+            which is all the rank it needs. */}
         <p className="text-lg bg-dl-line">
-          <span className="bg-dl-mac" style={{ fontSize: "clamp(19px, 4.2vw, 22px)", letterSpacing: "-0.015em" }}>
+          <span className="bg-dl-mac" style={{ fontSize: "clamp(17.5px, 4vw, 19px)", letterSpacing: "-0.015em" }}>
             <Action href={DOWNLOAD}>Download for macOS</Action>
           </span>
           <span className="bg-dl-touch text-base text-[#1f2937]">
