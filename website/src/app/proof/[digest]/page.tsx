@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { proofPage, blockTimeFromHeader, type ExportProof, type AnchorSide } from "@/lib/export-pages";
+import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams } from "next/navigation";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
@@ -1670,9 +1671,14 @@ function looksLikeText(buffer: ArrayBuffer): boolean {
   return ok / b.length > 0.97;
 }
 
-function fileKind(name: string, data: ArrayBuffer): { kind: "pdf" | "video" | "audio" | "text" | "other"; mime: string } {
+function fileKind(name: string, data: ArrayBuffer): { kind: "pdf" | "video" | "audio" | "text" | "docx" | "other"; mime: string } {
   const n = name.toLowerCase();
   if (n.endsWith(".pdf")) return { kind: "pdf", mime: "application/pdf" };
+  // Before the text sniff: a .docx is a zip, so looksLikeText would call it
+  // binary and it would fall through to "other" and show nothing.
+  if (isDocx(n)) {
+    return { kind: "docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+  }
   if (VIDEO_EXT.test(n)) {
     const mime = n.endsWith(".webm") ? "video/webm" : n.endsWith(".mov") ? "video/quicktime" : n.endsWith(".ogv") ? "video/ogg" : "video/mp4";
     return { kind: "video", mime };
@@ -1688,6 +1694,26 @@ function fileKind(name: string, data: ArrayBuffer): { kind: "pdf" | "video" | "a
 function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffer } }) {
   const { kind, mime } = fileKind(cachedFile.name, cachedFile.data);
   const [url, setUrl] = useState<string | null>(null);
+
+  /* The .docx words, pulled out of the zip. In an effect and in state rather
+     than computed inline like the text excerpt, because this one inflates a
+     file: doing it during render would block the first paint of the whole
+     proof page on a document nobody has asked to read yet. null means either
+     "not a docx" or "could not read it", and both land on the identity row,
+     which is a fine answer. */
+  const [docx, setDocx] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    // Everything, including the clear, happens after a yield: the inflate must
+    // not block the card's first paint, and setting state synchronously inside
+    // an effect cascades a render for no reason. Nothing reads `docx` unless
+    // the kind is docx, so clearing a beat late is invisible.
+    const t = setTimeout(() => {
+      if (!live) return;
+      setDocx(kind === "docx" ? docxText(cachedFile.data) : null);
+    }, 0);
+    return () => { live = false; clearTimeout(t); };
+  }, [cachedFile, kind]);
 
   useEffect(() => {
     if (kind === "other") { setUrl(null); return; }
@@ -1712,14 +1738,34 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
   // browsers / for odd bytes, and a broken-looking preview is the wrong thing
   // on a proof page. It gets the identity row + Open →, which hands the file to
   // the browser's own full PDF viewer in a new tab.
+  /* .docx is deliberately NOT openable. A browser cannot render one, so the
+     link would say Open and perform a download, and a link that lies about
+     what it does is worse than no link. The file is already on this device;
+     the reader can open it where it lives. */
   const openable = kind === "text" || kind === "pdf";
-  const hasPreviewAbove = kind === "text" || kind === "video" || kind === "audio";
+  const hasPreviewAbove = kind === "text" || kind === "video" || kind === "audio" || (kind === "docx" && !!docx);
   return (
     <div style={{ background: "#ffffff" }}>
       {kind === "text" && excerpt && (
         <pre style={{ margin: 0, padding: 16, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12.5, lineHeight: 1.6, color: "#374151", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
           {excerpt.text}{excerpt.truncated ? "\n…" : ""}
         </pre>
+      )}
+      {/* ⚠️ The label is not decoration. This is the document's TEXT, not the
+          document: no fonts, no layout, no images, headings flattened to plain
+          lines. On a page whose claim is "these exact bytes", an unlabelled
+          approximation would read as the artifact itself. Saying what it is
+          costs one quiet line and makes the preview honest. */}
+      {kind === "docx" && docx && (
+        <div style={{ padding: "14px 16px 16px" }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "#6b7280", marginBottom: 8 }}>
+            Text from this document
+          </div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: "#374151", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
+            {docx.split("\n").slice(0, 24).join("\n").slice(0, 3000)}
+            {docx.length > 3000 || docx.split("\n").length > 24 ? "\n…" : ""}
+          </div>
+        </div>
       )}
       {kind === "video" && url && (
         <div style={{ padding: 20, display: "flex", justifyContent: "center" }}>
