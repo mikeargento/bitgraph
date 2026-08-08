@@ -18,13 +18,13 @@ export function FolderTree() {
   return (
     <section className="bgt" aria-label="What the folder writes to your disk">
       <ul className="bgt-tree">
-        <li><span className="bgt-path bgt-dir">BitGraph/</span><span className="bgt-note">on your Desktop</span></li>
-        <li className="d1"><span className="bgt-path bgt-dir">Recordings/</span><span className="bgt-note">the archive</span></li>
-        <li className="d2"><span className="bgt-path bgt-dir">BitGraph (sunset.jpg)/</span><span className="bgt-note">one folder per file</span></li>
-        <li className="d3"><span className="bgt-path bgt-you">sunset.jpg</span><span className="bgt-note">your file, moved in</span></li>
-        <li className="d3"><span className="bgt-path">proof.json</span><span className="bgt-note">the recording</span></li>
+        <li><span className="bgt-path bgt-dir">BitGraph/</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">on your Desktop</span></li>
+        <li className="d1"><span className="bgt-path bgt-dir">Recordings/</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">the archive</span></li>
+        <li className="d2"><span className="bgt-path bgt-dir">BitGraph (sunset.jpg)/</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">one folder per file</span></li>
+        <li className="d3"><span className="bgt-path bgt-you">sunset.jpg</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">your file, moved in</span></li>
+        <li className="d3"><span className="bgt-path">proof.json</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">the recording</span></li>
         {/* No index.html. The Folder writes no HTML at all as of 1.12.0. */}
-        <li className="d3"><span className="bgt-path bgt-dir">ethereum-anchors/</span><span className="bgt-note">the public timeline it sits in</span></li>
+        <li className="d3"><span className="bgt-path bgt-dir">ethereum-anchors/</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">the public timeline it sits in</span></li>
       </ul>
       <style>{`
         .bgt { background: #fff; border: 1px solid #d0d5dd; border-radius: 0; padding: 26px 28px; margin: 0 0 1rem; }
@@ -58,6 +58,24 @@ export function FolderTree() {
            "this one is yours". Adjacency needs no new colour at all. */
         .bgt .bgt-note {
           font-size: 12.5px; color: #6b7280; white-space: nowrap;
+          margin-left: auto; text-align: right;
+        }
+        /* The leader: the table-of-contents answer to a wide gap. It is the
+           only thing that keeps the notes in a tidy right-hand column AND
+           lets the eye cross to them, because it gives the eye a rail to run
+           along instead of a row to count.
+
+           A real element, not a pseudo: ::before and ::after on these rows are
+           already spent on the tree guides. flex: 1 makes it eat exactly the
+           gap, whatever the path's length, so nothing needs measuring.
+
+           Nudged up off the baseline to sit at the optical middle of the
+           line rather than under it, and dotted rather than solid so it reads
+           as a rail and not as a rule dividing one thing from another. */
+        .bgt .bgt-lead {
+          flex: 1; min-width: 24px; margin: 0 10px;
+          border-bottom: 1px dotted #d7dbe0;
+          transform: translateY(-4px);
         }
         .bgt .d1 { padding-left: 22px; }
         .bgt .d2 { padding-left: 44px; }
@@ -122,6 +140,9 @@ export function FolderTree() {
           .bgt .d2::before, .bgt .d2::after { left: 20px; }
           .bgt .d3::before, .bgt .d3::after { left: 34px; }
           .bgt .d1::after, .bgt .d2::after, .bgt .d3::after { width: 6px; }
+          /* No leader here: the note wraps under its path, so there is no gap
+             left to bridge and a rail would just be a stray line. */
+          .bgt .bgt-lead { display: none; }
           .bgt .bgt-tree li {
             flex-wrap: wrap; gap: 0;
             padding-top: 0; padding-bottom: 12px;
@@ -134,6 +155,9 @@ export function FolderTree() {
           .bgt .bgt-note {
             white-space: normal; flex-basis: 100%;
             font-size: 11.5px; line-height: 1.45;
+            /* Undo the desktop right-column: on its own line it reads from
+               the left like everything else. */
+            margin-left: 0; text-align: left;
           }
           .bgt .d1 { padding-left: 14px; }
           .bgt .d2 { padding-left: 28px; }
