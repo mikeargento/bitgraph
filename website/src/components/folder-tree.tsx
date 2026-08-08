@@ -55,6 +55,44 @@ export function FolderTree() {
         .bgt .d1 { padding-left: 22px; }
         .bgt .d2 { padding-left: 44px; }
         .bgt .d3 { padding-left: 66px; }
+
+        /* ── Guides: the strokes that let the eye follow a column.
+           Indentation alone asks the reader to measure whitespace, and by the
+           fourth level they are counting pixels to work out what belongs to
+           what. A rule down each level and a stub into each name says it.
+
+           DRAWN, not typed: box-drawing characters would ride the text
+           baseline, inherit the mono metrics and break the moment a note
+           wraps under its path on a phone. These are absolutely positioned
+           against the row, so they are unaffected by what the row contains.
+
+           Geometry: each level's rule sits 12px left of that level's own
+           indent, which is inside the parent's text column, and the stub runs
+           from the rule to 4px short of the name. --guide-mid is the distance
+           from the top of the row to the middle of the PATH line, not to the
+           middle of the row: on a phone the note sits underneath and the row
+           is twice as tall, so a 50% elbow would point at empty space. ── */
+        .bgt .bgt-tree { --guide-mid: 13px; }
+        .bgt .bgt-tree li { position: relative; }
+        .bgt .d1::before, .bgt .d2::before, .bgt .d3::before {
+          content: ""; position: absolute; top: 0; width: 1px;
+          height: var(--guide-mid); background: #d7dbe0;
+        }
+        .bgt .d1::after, .bgt .d2::after, .bgt .d3::after {
+          content: ""; position: absolute; top: var(--guide-mid);
+          height: 1px; background: #d7dbe0;
+        }
+        .bgt .d1::before { left: 10px; }
+        .bgt .d1::after  { left: 10px; width: 8px; }
+        .bgt .d2::before { left: 32px; }
+        .bgt .d2::after  { left: 32px; width: 8px; }
+        .bgt .d3::before { left: 54px; }
+        .bgt .d3::after  { left: 54px; width: 8px; }
+        /* The three leaves are siblings, so the rule has to CARRY DOWN past
+           each of them to reach the next. Only the last one stops at its own
+           elbow, which is what closes the branch. */
+        .bgt .d3::before { height: 100%; }
+        .bgt .d3:last-child::before { height: var(--guide-mid); }
         /* Under ~620px the two columns cannot both hold their line, and a
            nowrap note would push the panel into a horizontal scroll. The note
            drops beneath its path instead, still right of the indent so the
@@ -71,6 +109,12 @@ export function FolderTree() {
            the seven entries still read as seven. */
         @media (max-width: 620px) {
           .bgt { padding: 20px 16px; }
+          /* Smaller path type here, so the middle of that line moves up. */
+          .bgt .bgt-tree { --guide-mid: 9px; }
+          .bgt .d1::before, .bgt .d1::after { left: 6px; }
+          .bgt .d2::before, .bgt .d2::after { left: 20px; }
+          .bgt .d3::before, .bgt .d3::after { left: 34px; }
+          .bgt .d1::after, .bgt .d2::after, .bgt .d3::after { width: 6px; }
           .bgt .bgt-tree li {
             flex-wrap: wrap; gap: 0;
             padding-top: 0; padding-bottom: 12px;

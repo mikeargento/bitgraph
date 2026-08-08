@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { proofPage, indexPage, blockTimeFromHeader, type ExportProof, type AnchorSide } from "@/lib/export-pages";
+import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FileDrop } from "@/components/file-drop";
@@ -793,34 +793,14 @@ export default function BitGraphPage() {
     // Every proof folder gets its own page; only a collection gets the index
     // over them. A single recording has nothing to index, and the proof page is
     // already a link away. Same rule the BitGraph Folder applies.
-    const wantsIndex = built.length > 1;
-    for (const b of built) {
-      // A recording named index.html gets no page: the zip entry would
-      // collide with the artifact and the archive would carry the page
-      // instead of the recorded bytes. Same rule the Folder applies.
-      if (b.fileName === "index.html") continue;
-      try {
-        addText(b.dir ? `${b.dir}/index.html` : "index.html", proofPage({
-          fileName: b.fileName,
-          proof: b.proof as ExportProof,
-          before: b.sides.before,
-          after: b.sides.after,
-          proofRaw: JSON.stringify(b.proof, null, 2),
-          hasIndex: wantsIndex && !!b.dir,
-        }));
-      } catch (e) { console.error("[bitgraph] export page failed:", e); }
-    }
-    if (wantsIndex) {
-      try {
-        addText("index.html", indexPage(built.filter((b) => b.dir).map((b) => ({
-          dir: b.dir,
-          fileName: b.fileName,
-          counter: (b.proof as ExportProof).commit?.counter ?? null,
-          before: b.sides.before,
-          after: b.sides.after,
-        }))));
-      } catch (e) { console.error("[bitgraph] export index failed:", e); }
-    }
+    // ❄️ NO index.html, and no contact sheet across the batch. A batch export
+    // used to carry a page per recording plus a sheet linking them; both are
+    // gone, the same cut the Folder took in 1.12.0 and for the same reasons.
+    // They were a second implementation of the proof page that drifted from
+    // it, and the verdict they showed was computed by whoever built the
+    // export rather than by the person reading it. Browsing a batch is a
+    // drop: the whole folder onto bitgraph.ing, checked against the ledger in
+    // the reader's own browser.
 
     setExportProgress({ current: totalSteps - 1, total: totalSteps });
     await tick();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { proofPage, blockTimeFromHeader, type ExportProof, type AnchorSide } from "@/lib/export-pages";
+import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams } from "next/navigation";
 // Nav is in root layout
@@ -648,25 +648,19 @@ export default function ProofPage() {
       }
     } catch (_) { /* ignore */ }
 
-    // The export opens as a page rather than as a pile of JSON. hasIndex is
-    // false: a single export has no contact sheet to go back to, which is the
-    // same rule the Folder applies. An export whose recorded file is itself
-    // named index.html gets NO page — the entry would replace the artifact in
-    // the files map, and the zip would ship the page instead of the very
-    // bytes the proof describes. Same rule the Folder's generator applies.
-    if (cachedFile?.name !== "index.html") {
-      try {
-        files["index.html"] = strToU8(proofPage({
-          fileName: cachedFile?.name ?? null,
-          fileSize: cachedFile ? cachedFile.data.byteLength : null,
-          proof: proof as ExportProof,
-          before: sides.before,
-          after: sides.after,
-          proofRaw: JSON.stringify(proof, null, 2),
-          hasIndex: false,
-        }));
-      } catch (e) { console.error("[bitgraph] export page failed:", e); }
-    }
+    // ❄️ NO index.html. An export carries evidence, not a rendering of it.
+    //
+    // This zip used to open as a page rather than as a pile of JSON, and the
+    // Folder wrote the same page beside every recording. Both are gone
+    // (Folder 1.12.0): it was a second implementation of this very proof page
+    // and it drifted from it, and what it displayed was not a check anyone
+    // could rely on — the match verdict was computed by whoever built the
+    // export, so a recipient opening it was reading the sender's assertion.
+    // The check that means something is dropping the folder on bitgraph.ing,
+    // which re-hashes in the reader's own browser against the ledger.
+    //
+    // The two must not diverge: a zip from here and a folder from the Folder
+    // are meant to be the same object, and they now are.
 
     const zipped = zipSync(files, { level: 0 });
     const blob = new Blob([zipped as unknown as BlobPart], { type: "application/zip" });
