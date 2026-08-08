@@ -8,7 +8,7 @@ import TocDropdown from "./toc-dropdown";
 export const metadata: Metadata = {
   title: "Whitepaper",
   description:
-    "BitGraph whitepaper: Proof as a Reachability Property. Formal model, security game, and architecture for authenticated digital state creation.",
+    "BitGraph whitepaper: formal model, security game, and architecture for authenticated digital state creation.",
 };
 
 export default function WhitepaperPage() {
@@ -18,9 +18,6 @@ export default function WhitepaperPage() {
         <h1 className="mb-3">
           BitGraph
         </h1>
-        <p className="text-lg text-[#1f2937] mb-1">
-          Proof as a Reachability Property
-        </p>
         <p className="text-xs text-[#4b5563] mb-8">
           Michael James Argento &middot; Patent Pending
         </p>
