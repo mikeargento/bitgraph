@@ -98,10 +98,10 @@ export default function WhatIsBitGraphPage() {
           </thead>
           <tbody className="text-[#1f2937]">
             <tr className="border-b border-[#e5e7eb]">
-              <td className="py-2 pr-4"><code className="text-xs font-mono">stub</code></td>
-              <td className="py-2 pr-4">Process memory</td>
-              <td className="py-2 pr-4">Software</td>
-              <td className="py-2">Development, testing</td>
+              <td className="py-2 pr-4"><code className="text-xs font-mono">measured-tee</code></td>
+              <td className="py-2 pr-4">TEE memory</td>
+              <td className="py-2 pr-4">Hardware enclave</td>
+              <td className="py-2">Production, highest assurance</td>
             </tr>
             <tr className="border-b border-[#e5e7eb]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">hw-key</code></td>
@@ -110,14 +110,28 @@ export default function WhatIsBitGraphPage() {
               <td className="py-2">Key custody</td>
             </tr>
             <tr>
-              <td className="py-2 pr-4"><code className="text-xs font-mono">measured-tee</code></td>
-              <td className="py-2 pr-4">TEE memory</td>
-              <td className="py-2 pr-4">Hardware enclave</td>
-              <td className="py-2">Production, highest assurance</td>
+              <td className="py-2 pr-4"><code className="text-xs font-mono">stub</code></td>
+              <td className="py-2 pr-4">Process memory</td>
+              <td className="py-2 pr-4">Software</td>
+              <td className="py-2">Development, testing</td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <p className="text-[#1f2937] leading-relaxed mb-4">
+        bitgraph.ing issues <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">measured-tee</code> proofs
+        only. If the enclave is unreachable, no proof is produced. The other
+        tiers exist for local development and for integrations that keep keys
+        in an HSM.
+      </p>
+      <p className="text-[#1f2937] leading-relaxed mb-4">
+        <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">enforcement</code> is signed, but it is
+        self-reported. A verifier that needs enclave guarantees pins <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">measurement</code> to
+        a known enclave image and validates the attestation, which a software
+        tier cannot produce. See <a href="/docs/verification" className="text-[#0065A4] underline underline-offset-2">Verification</a> for
+        the algorithm.
+      </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Structural properties</h2>
       <p className="text-[#1f2937] leading-relaxed mb-4">
