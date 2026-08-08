@@ -76,15 +76,34 @@ pkgbuild \
   --install-location "/" \
   "$OUT/component.pkg" >/dev/null
 
+# --- Name the installer ---------------------------------------------------
+#
+# `productbuild --package` synthesizes a distribution with no <title>, and the
+# Installer window then falls back to the file name: a person who double-clicks
+# the download is told they are installing "BitGraphFolder-1.12.0.pkg". So
+# synthesize the distribution, name it, and build from that instead.
+#
+# The version rides in the title because the Installer has nowhere else to put
+# it: there is no version field in the standard UI, so "BitGraph Folder 1.12.0"
+# is the only place the reader learns which one they are about to install. Both
+# halves come from VERSION, so the title cannot drift from the payload.
+DIST="$OUT/distribution.xml"
+productbuild --synthesize --package "$OUT/component.pkg" "$DIST" >/dev/null 2>&1
+/usr/bin/sed -i '' \
+  "s|<installer-gui-script\([^>]*\)>|<installer-gui-script\1>\\
+    <title>BitGraph Folder $VERSION</title>|" "$DIST"
+say "installer name  BitGraph Folder $VERSION"
+
 if [ "$SIGN" = "1" ]; then
   IDENTITY="$(security find-identity -v | grep "Developer ID Installer" | head -1 | sed 's/.*"\(.*\)"/\1/')"
   [ -n "$IDENTITY" ] || { echo "No Developer ID Installer identity found." >&2; exit 1; }
   say "signing as    $IDENTITY"
-  productbuild --package "$OUT/component.pkg" --sign "$IDENTITY" "$PKG" >/dev/null
+  productbuild --distribution "$DIST" --package-path "$OUT" --sign "$IDENTITY" "$PKG" >/dev/null
 else
   say "signing       skipped (--no-sign)"
-  productbuild --package "$OUT/component.pkg" "$PKG" >/dev/null
+  productbuild --distribution "$DIST" --package-path "$OUT" "$PKG" >/dev/null
 fi
+rm -f "$DIST"
 rm -f "$OUT/component.pkg"
 rm -rf "$SCRIPTS"
 say "built         $PKG"
