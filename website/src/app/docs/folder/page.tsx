@@ -162,12 +162,19 @@ export default function FolderPage() {
       </ul>
 
       <style>{`
-        /* ── The hero row ── */
-        .prose-doc .bg-hero-row {
-          display: flex; flex-wrap: wrap; align-items: baseline;
-          justify-content: space-between; gap: 4px 28px;
-          margin: 0 0 2.25rem;
-        }
+        /* ── The hero: the title and its one action.
+           NOT a flex row any more. It was built to hold the promise on the
+           left and the download on the right, and the promise is gone, so
+           space-between, the gap and the wrap were all inert properties
+           describing a layout with one child in it.
+
+           The bottom margin is deliberately LARGER than the gap between
+           sections (4rem against h2's 3rem). At the same value the hero never
+           closed: the download sat exactly as far from "A folder, not an app"
+           as that section sits from the next one, so the page read as four
+           equal blocks instead of an identity followed by its documentation.
+           Margins collapse here, so this number is the one that wins. ── */
+        .prose-doc .bg-hero-row { margin: 0 0 4rem; }
         .prose-doc .bg-hero-row p { margin: 0; }
         /* The download keeps its size rank but not the 52px of air it used to
            need: inside the row, adjacency does that work. */
@@ -213,7 +220,9 @@ export default function FolderPage() {
         .prose-doc .bg-more li { margin: 0 0 0.6rem; }
 
         @media (max-width: 640px) {
-          .prose-doc .bg-hero-row { gap: 10px 20px; margin-bottom: 1.75rem; }
+          /* Same rule on the phone: still clear of the 2.5rem between
+             sections there, so the hero still closes. */
+          .prose-doc .bg-hero-row { margin-bottom: 3.25rem; }
           .prose-doc .bg-panel-caption-under { margin-bottom: 3rem; }
           .prose-doc h2 { margin-top: 2.5rem; }
           .prose-doc h2 + p { margin-bottom: 3rem; }

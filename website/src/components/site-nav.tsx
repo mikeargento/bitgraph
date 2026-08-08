@@ -45,6 +45,13 @@ export function SiteNav() {
       borderBottom: "none",
       background: "#f5f5f5",
       position: "sticky", top: 0, zIndex: 50,
+      // The 44px bar centres a 36px wordmark, which left it 4px off the top of
+      // the window: the logo looked pinned to the edge rather than placed on
+      // the page. This is padding on the STICKY element, not a margin on the
+      // page, so the air survives scrolling. It is invisible when stuck
+      // because the bar has no border and the same background as the page, so
+      // it simply seats the wordmark lower instead of opening a gap.
+      paddingTop: 14,
     }}>
       <div style={{
         width: "90%", maxWidth: 800, margin: "0 auto", padding: 0,
