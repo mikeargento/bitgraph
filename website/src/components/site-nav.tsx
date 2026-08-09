@@ -282,6 +282,16 @@ export function SiteNav() {
               <div role="group" aria-label="Reference" className="docs-panel-group">
                 {renderHeading("Reference")}
                 {DOCS_TAIL.map(renderItem)}
+                {/* The one row of sixteen that leaves the site, and the only one
+                    that opens a new tab. It behaved differently from its
+                    neighbours and looked identical to them, so it now carries a
+                    ↗. Not the → the action links use, which means go forward
+                    within the site; this one means the destination is
+                    elsewhere. It stays quiet: 10px, the row's own colour, no
+                    weight of its own.
+
+                    The glyph is decoration to a screen reader, which gets the
+                    same fact as words instead. */}
                 <a
                   href={DOCS_REPO}
                   target="_blank"
@@ -290,11 +300,14 @@ export function SiteNav() {
                   className="docs-menu-item"
                   onClick={() => setDocsOpen(false)}
                   style={{
-                    display: "block", padding: "7px 10px", fontSize: 14,
+                    display: "flex", alignItems: "baseline", gap: 5,
+                    padding: "7px 10px", fontSize: 14,
                     fontWeight: 400, textDecoration: "none",
                   }}
                 >
                   GitHub
+                  <span aria-hidden="true" style={{ fontSize: 10, lineHeight: 1 }}>&#8599;</span>
+                  <span className="sr-only">(opens in a new tab)</span>
                 </a>
               </div>
             </div>

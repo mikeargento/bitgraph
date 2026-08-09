@@ -715,11 +715,18 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 @media (hover: hover) { .wp-toc-row:hover { color: #0065A4; } }
 .wp-toc-row:focus-visible { outline: 2px solid #0065A4; outline-offset: 2px; }
 
-/* Jumping to a section must not park it under the sticky bar. The old contents
-   did this in JavaScript with a hard-coded 80px against a 58px bar; in CSS it
-   works for every anchor into the paper, including one pasted from someone
-   else's email. */
-.prose-doc section[id^="sec-"] { scroll-margin-top: 74px; }
+/* Jumping to a section must not park it under what is stuck above it, and on
+   this page that is TWO things: the site bar (58px) and then the Contents
+   control stuck directly beneath it (46px). 58 + 46 + 16 of air = 120.
+
+   It was 74 for a few minutes, which cleared the site bar and put every heading
+   30px underneath the Contents control, so following a link from the contents
+   hid the section it went to. The old JavaScript version had the same class of
+   bug from the other direction: a hard-coded 80px against a 58px bar.
+
+   In CSS it holds for every anchor into the paper, including one pasted from
+   someone else's email. */
+.prose-doc section[id^="sec-"] { scroll-margin-top: 120px; }
 
 /* ── Nav links. The gap is here rather than inline on the element so it can
    tighten on narrow phones: at 320px, "Applications" plus a 24px gap left only
