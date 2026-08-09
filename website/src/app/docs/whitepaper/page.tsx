@@ -14,15 +14,19 @@ export const metadata: Metadata = {
 export default function WhitepaperPage() {
   return (
     <article className="prose-doc">
-      {/* No "BitGraph" heading. It sat 40px under a wordmark that says the same
-          word, which is the same repetition the docs section bar was deleted for
-          in July (a control whose label repeated the h1 beneath it). The
-          wordmark is the title.
+      {/* "Whitepaper", not "BitGraph". The heading said BitGraph for months, 40px
+          under a wordmark that says the same word, which is the repetition the
+          docs section bar was deleted for in July. Naming the page instead of
+          the product fixes that and puts this page back in line with every other
+          one in the docs, where the h1 is the menu label (Mike, 2026-08-09).
+          Dropping the h1 altogether was tried first and left the paper with no
+          heading element at all.
 
-          The byline stays. It is not a repeat of anything, it is who wrote the
-          paper and the patent marking, and a technical paper that people
+          The byline stays under it. It is not a repeat of anything: it is who
+          wrote the paper and the patent marking, and a technical paper people
           download and cite should carry both. */}
-      <p className="text-xs text-[#4b5563]" style={{ margin: "0 0 22px" }}>
+      <h1 style={{ margin: "0 0 6px" }}>Whitepaper</h1>
+      <p className="text-xs text-[#4b5563]" style={{ margin: "0 0 26px" }}>
         Michael James Argento &middot; Patent Pending
       </p>
 
