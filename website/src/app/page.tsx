@@ -981,15 +981,24 @@ export default function BitGraphPage() {
            and at 32px it lost the room to the drop box's own 26px headline,
            which is longer and sits in a white field.
 
-           Only the cap moves, 32 to 40. Below a 533px viewport this computes
-           identically to the shared rule, so phones are untouched and no page
-           shows a title smaller than its peers.
-
            40, not 48. 48 cleared the drop box's headline easily but read as
            marketing-page big, which is the opposite of what this page is. At
            40 it outranks that headline by type size (40 against 26) and sits
-           near parity with it in width, without shouting. */
-        .bitgraph-tagline { font-size: clamp(26px, 6vw, 40px); }
+           near parity with it in width, without shouting.
+
+           The FLOOR moves too, 26 to 34, and this is the part that costs
+           something. Raising only the cap fixed desktop and left the phone
+           worse than before: the drop box's headline barely shrinks (26 to
+           22), so at a 26px title the ratio fell to 1.18 and the title was
+           NARROWER than the headline beneath it (189 against 257). 34 puts the
+           phone at 1.55 and 0.96, matching desktop.
+
+           The cost is real: home's title is now larger than its peers on
+           phones as well as desktops, so the one-size rule is excepted at the
+           size where pages are most often compared, not just where the shared
+           rule had already flatlined. Deliberate, and the number to dial if it
+           ever reads as too much. */
+        .bitgraph-tagline { font-size: clamp(34px, 6vw, 40px); }
         .bitgraph-tagline .accent { color: inherit; }
         .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
