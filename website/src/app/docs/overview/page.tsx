@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { CameraExplainer } from "@/components/camera-explainer";
-import { SeeExample } from "@/components/see-example";
 
 export const metadata: Metadata = {
   title: "Overview",
@@ -19,31 +18,32 @@ export default function OverviewPage() {
       <h1 style={{ margin: "0 0 4px" }}>
         The frame exists first.
       </h1>
-      {/* Inline styles throughout this block: .overview's own h1/p rules are
+      {/* The deck used to read "An exposure cannot come before its frame."
+          It was cut once the mechanics moved here: the h1 already makes that
+          claim, and the paragraph below makes it again with the substance to
+          back it, so the line was the same idea a third time before the reader
+          reached anything new.
+
+          Inline styles throughout this block: .overview's own h1/p rules are
           unlayered and would otherwise restyle it (the same trap family as
           .prose-doc, see the 2026-08-03 handoff). */}
-      <p style={{ fontSize: 14, lineHeight: 1.6, color: "#4b5563", margin: "0 0 18px" }}>
-        An exposure cannot come before its frame.
+      <p style={{ fontSize: 17, lineHeight: 1.7, color: "#1f2937", margin: "18px 0 24px", textWrap: "pretty" }}>
+        Digital files have no unique place in space or time. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits are the light, and the fingerprint they condense to is what exposes that frame. Your data itself never appears in it. Each frame can be exposed only once. The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.
       </p>
       <CameraExplainer />
-      {/* The closing pair: a definition, then the same claim for data. Both
-          take a flat "is" so the two lines rhyme structurally; a simile
-          hedges the punchline and was refused. */}
-      <p style={{
-        margin: "40px 0 0",
-        fontSize: 15, fontWeight: 500, lineHeight: 1.6, letterSpacing: "-0.012em", color: "#374151",
-      }}>
-        <span style={{ display: "block" }}>Film is the recording medium for light.</span>
-        <span style={{ display: "block" }}><strong style={{ color: "#111827", fontWeight: 700 }}>BitGraph is film for data.</strong></span>
-      </p>
+      {/* No closing couplet under the diagram. The film pair that used to be
+          here now sits inside the two result cells, each half under its own
+          subject, so the diagram ends on its own payoff. A line beneath it
+          would be the same comparison a second time.
 
-      {/* The one thing to go and look at, placed where the metaphor lands
-          rather than under the home page's drop box. The Folder download that
-          used to sit beside it is gone: the nav carries that now. */}
-      <div style={{ marginTop: 18 }}>
-        <SeeExample />
-      </div>
-
+          The prose line that also said it ("Just as a photograph captures
+          photons through the constraint of a single frame of film...") was
+          removed with it. */}
+      {/* The example link lived here briefly and moved to the home page,
+          under the drop box: it is the no-commitment alternative to the box's
+          ask, so it belongs beside the action it substitutes for. Here it sat
+          between the closer and the prose and pulled the reader away exactly
+          where the diagram had just paid off. */}
       {/* ── The prose Overview, exactly as it was, a beat down the page. An
           h2 element (one h1 per page) wearing the h1's exact clothes inline,
           because .overview h2 would otherwise shrink it to 1.25rem. ── */}
@@ -53,10 +53,6 @@ export default function OverviewPage() {
 
       <p>
         BitGraphs are not labels or metadata added after the fact. They are new computations created when your file&rsquo;s hash <em>fills</em> a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof file permanently bound to the original.
-      </p>
-
-      <p>
-        Just as a photograph captures photons through the constraint of a single frame of film, a BitGraph captures bits through the constraint of a single mathematical slot.
       </p>
 
       <p>
@@ -116,7 +112,7 @@ export default function OverviewPage() {
       <h2>What a BitGraph proof contains</h2>
 
       <p>
-        A BitGraph proof is a portable proof object, typically JSON, that travels with the artifact. It can include:
+        A BitGraph proof is a portable proof object, a JSON document, that travels with the artifact. It can include:
       </p>
 
       <table>
@@ -128,7 +124,7 @@ export default function OverviewPage() {
         </thead>
         <tbody>
           <tr><td>Artifact hash</td><td>Identifies the exact file or digital state</td></tr>
-          <tr><td>Nonce</td><td>The pre-existing causal slot</td></tr>
+          <tr><td>Nonce</td><td>Hardware entropy giving the slot an identity nobody could precompute</td></tr>
           <tr><td>Slot counter</td><td>Shows the slot was allocated before the commit</td></tr>
           <tr><td>Commit counter</td><td>Shows the artifact consumed the slot later</td></tr>
           <tr><td>Epoch ID</td><td>Groups an ordered run of commitments</td></tr>
@@ -151,7 +147,7 @@ export default function OverviewPage() {
         Every proof has order. Every slot and commit has a position. The system can prove that this happened after that, that this slot existed before this hash was bound, that this proof came before the next, that this epoch has an internal cryptographic history.
       </p>
 
-      <p>BitGraph proves causal order first. Clock time is optional.</p>
+      <p>BitGraph proves causal order. It does not assert a clock time.</p>
 
       <h2>Ethereum: the backward seal</h2>
 

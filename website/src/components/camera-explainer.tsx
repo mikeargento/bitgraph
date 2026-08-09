@@ -175,7 +175,7 @@ const S = {
   ),
 };
 
-interface Half { n: string; title: string; text: string; art: React.ReactNode }
+interface Half { n: string; title: string; text: string; art: React.ReactNode; note?: string }
 
 const PAIRS: Array<{ film: Half; bit: Half }> = [
   {
@@ -199,8 +199,15 @@ const PAIRS: Array<{ film: Half; bit: Half }> = [
     bit: { n: "5 · ", title: "The exposed BitGraph frame", text: "The fingerprint exposes the waiting frame once. The chain advances. There is no going back.", art: S.exposedChain },
   },
   {
-    film: { n: "= ", title: "A photograph", text: "This scene, in this frame, at this moment.", art: S.photograph },
-    bit: { n: "= ", title: "A BitGraph", text: "This file, in this frame, at this moment.", art: S.bitgraph },
+    // The film pair, split across the two result cells. It used to be a
+    // standalone couplet under the whole diagram, and briefly sat on the home
+    // page, where it made no sense with nothing to set it up. Each half now
+    // sits under the thing it is about, which is also what keeps "film for
+    // data" honest: by this cell the reader has watched five panels establish
+    // that only the fingerprint enters, so it reads as the role film plays
+    // rather than as a claim that the data is stored inside.
+    film: { n: "= ", title: "A photograph", text: "This scene, in this frame, at this moment.", art: S.photograph, note: "Film is the recording medium for light." },
+    bit: { n: "= ", title: "A BitGraph", text: "This file, in this frame, at this moment.", art: S.bitgraph, note: "BitGraph is film for data." },
   },
 ];
 
@@ -222,6 +229,10 @@ export function CameraExplainer() {
         .bgx .cap { margin-top: 10px; text-align: center; }
         .bgx .cap h3 { font-size: 17px; font-weight: 700; margin: 0 0 6px; color: #111827; }
         .bgx .cap p { font-size: 14px; line-height: 1.55; color: #374151; text-wrap: balance; margin: 0; }
+        /* The closing note, only on the last row. Divided from the caption by
+           the same hairline the cards use between fields, so it reads as a
+           statement about the cell rather than more caption. */
+        .bgx .cap .note { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e5e9; font-size: 15px; font-weight: 700; line-height: 1.5; letter-spacing: -0.012em; color: #111827; text-wrap: balance; }
         .bgx .film h3 .n { color: #6b7280; }
         .bgx .bit h3 .n { color: #0065A4; }
         @media (max-width: 560px) {
@@ -256,9 +267,9 @@ export function CameraExplainer() {
           <div className="glyph">{p.film.art}</div>
           <div className="mid"></div>
           <div className="glyph">{p.bit.art}</div>
-          <div className="cap film"><h3><span className="n">{p.film.n}</span>{p.film.title}</h3><p>{p.film.text}</p></div>
+          <div className="cap film"><h3><span className="n">{p.film.n}</span>{p.film.title}</h3><p>{p.film.text}</p>{p.film.note && <p className="note">{p.film.note}</p>}</div>
           <div></div>
-          <div className="cap bit"><h3><span className="n">{p.bit.n}</span>{p.bit.title}</h3><p>{p.bit.text}</p></div>
+          <div className="cap bit"><h3><span className="n">{p.bit.n}</span>{p.bit.title}</h3><p>{p.bit.text}</p>{p.bit.note && <p className="note">{p.bit.note}</p>}</div>
         </div>
       ))}
     </section>
