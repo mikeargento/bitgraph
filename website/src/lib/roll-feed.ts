@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 
 /* The Roll feed, shared by the API route and the server-rendered /roll page.
@@ -279,9 +280,7 @@ async function splitSegs(
   return merged;
 }
 
-async function daySegments(day: string): Promise<DaySeg[]> {
-  const cached = daySegCache.get(day);
-  if (cached) return cached;
+async function computeDaySegments(day: string): Promise<DaySeg[]> {
   const prefix = "anchors-by-time/";
   const endExcl = `${prefix}${nextDayStr(day)}T`;
   const keys: string[] = [];
@@ -302,12 +301,60 @@ async function daySegments(day: string): Promise<DaySeg[]> {
     token = r.NextContinuationToken;
     if (past || !token) break;
   }
-  if (keys.length === 0) { daySegCache.set(day, []); return []; }
+  if (keys.length === 0) return [];
   const [first, last] = await Promise.all([getAnchorRef(keys[0]), getAnchorRef(keys[keys.length - 1])]);
   if (!first || !last) return [];
-  const segs = keys.length === 1 || first.epoch === last.epoch
+  return keys.length === 1 || first.epoch === last.epoch
     ? [{ epoch: first.epoch, min: first.counter, max: last.counter }]
     : await splitSegs(keys, 0, keys.length - 1, first, last);
+}
+
+/* A sealed day's segments are a fixed fact, but computeDaySegments rederived
+   them from scratch on every cold instance: a dozen keys-only LISTs plus a
+   recursive binary partition, and it is the reason a cold day roll cost ~3.8s
+   while a warm one cost ~100ms. The in-process Map above only ever helped an
+   instance that had already answered for that day.
+
+   So the derived map goes in the Data Cache, which outlives an instance.
+   revalidate: false because the input cannot change: the day is sealed, its
+   anchors are written, and epoch keys are never reused. Bump the key suffix
+   rather than trying to invalidate if the segment shape ever changes.
+
+   Deliberately NOT written to the ledger bucket. That would be durable across
+   deploys too, but the bucket is Object Lock COMPLIANCE, so a map derived by a
+   buggy version could never be deleted. A cache that can be thrown away is the
+   right home for a derived value. */
+const cachedDaySegments = unstable_cache(
+  async (day: string): Promise<DaySeg[]> => {
+    const segs = await computeDaySegments(day);
+    // Never let an empty answer become durable. A day that genuinely has no
+    // anchors and a day whose index read failed are indistinguishable here, and
+    // persisting the second would turn one bad read into a permanent "nothing
+    // was recorded that day". Throwing leaves nothing cached, so the next
+    // request tries again.
+    if (segs.length === 0) throw new Error(EMPTY_DAY);
+    return segs;
+  },
+  ["roll-day-segments-v1"],
+  { revalidate: false },
+);
+
+const EMPTY_DAY = "roll-feed: day resolved to no segments";
+
+async function daySegments(day: string): Promise<DaySeg[]> {
+  const cached = daySegCache.get(day);
+  if (cached) return cached;
+  let segs: DaySeg[];
+  try {
+    segs = await cachedDaySegments(day);
+  } catch (e) {
+    // Empty is the one throw this layer invents, and the answer it stands for
+    // is []: no recompute needed. Anything else is a real read failure and has
+    // to stay one, so it travels up rather than being flattened into an empty
+    // roll.
+    if ((e as Error)?.message !== EMPTY_DAY) throw e;
+    segs = [];
+  }
   if (daySegCache.size > 64) daySegCache.clear();
   daySegCache.set(day, segs);
   return segs;
