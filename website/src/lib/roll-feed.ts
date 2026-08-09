@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
+import { dayIndexKey, pageKey, type DayIndex, type DayPage, type RollFilter } from "./roll-archive";
 
 /* The Roll feed, shared by the API route and the server-rendered /roll page.
 
@@ -77,7 +78,16 @@ async function getCurrentEpoch(now: number): Promise<string | null> {
    crossover is around 20,000 objects, far above a day's recordings, but the
    search stays as the fallback: pre-rotation epochs spanned months, and an
    unbounded walk over one of those would be worse than what it replaced. */
-const HEAD_WALK_PAGES = 12;
+/* 40, not 12. At 12 the walk covered 12,000 objects, and on 2026-08-09 the
+   day's epoch passed that: the walk then read 12 pages, never set `exhausted`,
+   THREW AWAY the head it had already computed and paid for the ~20-probe
+   binary search on top. 3,261ms measured, to learn one number.
+
+   40 pages is 40,000 objects, comfortably past a day at the current rate, and
+   the search below stays as the fallback for a pre-rotation epoch. This is a
+   constant that went stale rather than a design that failed, and the lesson is
+   in the fallback's favour: getting it wrong cost double, not nothing. */
+const HEAD_WALK_PAGES = 40;
 
 async function getHead(epoch: string, now: number): Promise<number> {
   const cached = headCache.get(epoch);
@@ -186,7 +196,17 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
  *  fetched. Scans at most SCAN_BUDGET counters per request and returns
  *  `floor`, the lowest counter scanned, as the resume cursor: on an
  *  anchor-only stretch a page may carry zero entries while paging continues. */
-const SCAN_BUDGET = 4000;
+/* 40,000, not 4,000. Recordings arrive in bursts and anchors do not, so a quiet
+   stretch is anchor-only for thousands of counters at a time. On 2026-08-09 the
+   top 4,000 counters held no recordings at all, so this budget expired before
+   finding one and the live Roll answered a 5.2s request with ZERO rows and
+   hasMore — a page that looks exactly like an empty ledger.
+
+   The budget is cheap to raise because the scan itself is cheap: anchor
+   counters come from the anchors/ index, so a skipped counter costs no GET,
+   and only rows that will actually be shown are fetched. What it bounds is
+   LISTs, at two per 1,000 counters. */
+const SCAN_BUDGET = 40_000;
 async function listRecentFiles(epoch: string, top: number, limit: number, lowBound = 1): Promise<{ entries: Entry[]; floor: number }> {
   const proofsPrefix = `proofs/${epoch}/`;
   const anchorsPrefix = `anchors/${epoch}/`;
@@ -425,6 +445,91 @@ async function daySegments(day: string): Promise<DaySeg[]> {
   return segs;
 }
 
+// ── The sealed-day archive ──────────────────────────────────────────────────
+/* A sealed day is written history: it cannot gain, lose or reorder an entry, so
+   it is materialised once into display pages by scripts/build-roll-archive.mjs
+   and read back by name. Everything below replaces, for archived days only, the
+   derivation this file does otherwise — a dozen LISTs over anchors-by-time, a
+   recursive binary partition to find epoch boundaries, then window scans with a
+   GET per row, repeated on every cold instance for a day frozen a week ago.
+   Measured on three days: 1.10s → 250ms, 3.64s → 145ms, 2.98s → 119ms.
+
+   The live epoch is deliberately NOT archived. It is the one range that can
+   still change, and leaving it on the ledger read keeps the only place drift is
+   possible free of a second source of truth.
+
+   PAGING. Archived days are paged by page NUMBER, not by counter: the pages are
+   the pagination. The cursor field is shared with the live feed, so `before`
+   carries a page number here and a counter there. A cursor from an old link
+   would be a counter, which is why an out-of-range cursor falls back to the
+   derivation below rather than being clamped — clamping would answer a stale
+   link with an empty page, and an empty page is the one answer this feed must
+   never invent. */
+
+async function getArchiveJson<T>(key: string): Promise<T | null> {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const body = await r.Body?.transformToString();
+    return body ? (JSON.parse(body) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function entryFromRow(r: DayPage["rows"][number]): Entry {
+  const type = r.t === "a" ? "anchor" : r.t === "i" ? "interval" : "proof";
+  return {
+    counter: r.c,
+    type,
+    digest: r.d,
+    hashShort: r.h,
+    blockNumber: r.b ?? null,
+    etherscanUrl: r.b != null ? `https://etherscan.io/block/${r.b}` : null,
+    ...(r.at ? { at: r.at } : {}),
+    ...(r.ep ? { ep: r.ep } : {}),
+  };
+}
+
+/**
+ * One page of an archived day, or null to say "not archived, derive it".
+ *
+ * NULL IS THE ONLY FAILURE ANSWER. A missing manifest, an unreadable page, a
+ * schema this build does not understand and an out-of-range cursor all return
+ * null, and the caller then does exactly what it did before this existed. What
+ * none of them do is return an empty page: a Roll that under-reports is
+ * indistinguishable from a ledger that never recorded the thing you came to
+ * look for, and every shortcut here has to fail towards the slow answer rather
+ * than towards the empty one.
+ */
+async function archivedDayPage(
+  day: string, beforeParam: string | null, filesOnly: boolean,
+): Promise<{ entries: Entry[]; nextBefore: number | null; hasMore: boolean; total: number } | null> {
+  const index = await getArchiveJson<DayIndex>(dayIndexKey(day));
+  if (!index || index.v !== 1) return null;
+  const filter: RollFilter = filesOnly ? "f" : "a";
+  const pageCount = index.pages?.[filter];
+  const rowTotal = index.rows?.[filter];
+  if (typeof pageCount !== "number" || typeof rowTotal !== "number") return null;
+
+  const n = beforeParam ? parseInt(beforeParam, 10) : 0;
+  if (isNaN(n) || n < 0) return null;
+  // Out of range: either a genuine end or a counter cursor from an older link.
+  // The archive cannot tell them apart, so it declines and lets the derivation
+  // answer, which understands both.
+  if (n >= pageCount) return null;
+
+  const page = await getArchiveJson<DayPage>(pageKey(day, filter, n));
+  if (!page || !Array.isArray(page.rows) || page.n !== n) return null;
+
+  const hasMore = n + 1 < pageCount;
+  return {
+    entries: page.rows.map(entryFromRow),
+    nextBefore: hasMore ? n + 1 : null,
+    hasMore,
+    total: rowTotal,
+  };
+}
+
 export type RollFeedBody = {
   epoch?: string;
   day?: string;
@@ -433,6 +538,14 @@ export type RollFeedBody = {
   nextBefore: number | null;
   nextEpoch?: string | null;
   hasMore: boolean;
+  /* Rows the archive DECLARES this day holds, for the active filter. Present
+     only for archived days, where it is what makes a short list detectably
+     short: a client that has loaded three pages can compare what it holds
+     against what the day says it has, instead of inferring completeness from a
+     response that happened to be short. Absent on the live feed and on derived
+     days, where no such declaration exists and the client must not pretend one
+     does. */
+  total?: number;
 };
 
 export type RollFeedResult =
@@ -459,9 +572,30 @@ async function computeRollFeed(opts: {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dayParam) || dayParam >= todayUTC) {
       return { status: 400, body: { error: "bad day" } };
     }
+    const sealedCache = "public, s-maxage=86400, stale-while-revalidate=2592000";
+
+    // The archive first, always. It answers by name in two reads, and declines
+    // (null) for anything it cannot answer with certainty, so the derivation
+    // below stays the fallback rather than the fast path.
+    const archived = await archivedDayPage(dayParam, beforeParam, filesOnly);
+    if (archived) {
+      return {
+        status: 200,
+        body: {
+          day: dayParam,
+          entries: archived.entries,
+          nextBefore: archived.nextBefore,
+          hasMore: archived.hasMore,
+          total: archived.total,
+        },
+        // A materialised page of a sealed day cannot change, so it caches hard.
+        // The day is history and the page is named for its exact position in it.
+        cacheControl: "public, max-age=31536000, s-maxage=31536000, immutable",
+      };
+    }
+
     // Newest segment first: the roll reads newest-first within the day too.
     const ordered = [...await daySegments(dayParam)].reverse();
-    const sealedCache = "public, s-maxage=86400, stale-while-revalidate=2592000";
     if (ordered.length === 0) {
       return {
         status: 200,
