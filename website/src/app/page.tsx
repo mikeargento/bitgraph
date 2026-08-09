@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
 import { FileDrop } from "@/components/file-drop";
+import { SeeExample } from "@/components/see-example";
 // Footer is in root layout
 import {
   hashFile,
@@ -120,6 +121,87 @@ export default function BitGraphPage() {
 
   useEffect(() => {
     if (step !== "drop") window.scrollTo(0, 0);
+  }, [step]);
+
+  /* Size the frame to whatever height is actually left, so the page fills the
+     viewport and never scrolls.
+
+     The CSS rule used to solve this with a constant: 100dvh - 280px on desktop,
+     - 320px on phones, standing in for "the nav, title, deck, gap and link".
+     A constant is only right for the layout it was measured against, and this
+     page's chrome has changed repeatedly, so it drifts into either a scrollbar
+     or a box smaller than it needs to be.
+
+     Measured instead: everything in the wrap except the frame is invariant to
+     the frame's own size, so (viewport - wrapTop - everythingElse) is the
+     height the frame may occupy, and one pass settles. Width is still derived
+     FROM that height rather than the other way round, which the globals.css
+     note is emphatic about: a height-driven aspect-ratio once let WebKit take
+     the width from content height and overflow the box on iPhone.
+
+     The CSS keeps the old constants as the var's fallback, so the frame is
+     sensibly sized on the first paint before this runs, and if JS never runs
+     the page behaves exactly as it did. */
+  useEffect(() => {
+    if (step !== "drop") return;
+    const wrap = document.querySelector<HTMLElement>(".bitgraph-wrap");
+    const cam = document.querySelector<HTMLElement>(".bitgraph-camera");
+    if (!wrap || !cam) return;
+
+    const box = (el: Element) => {
+      const cs = getComputedStyle(el);
+      return (el as HTMLElement).offsetHeight
+        + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+    };
+
+    const fit = () => {
+      const top = wrap.getBoundingClientRect().top + window.scrollY;
+      const room = Math.round(window.innerHeight - top);
+
+      /* Summed from the siblings, NOT from (wrap.height - cam.height). Once
+         the wrap has a min-height it stays that tall no matter how small the
+         frame gets, so the subtraction would count the leftover whitespace as
+         chrome, shrink the frame, create more whitespace, and settle on
+         whatever size it happened to start at. These parts do not depend on
+         the frame's size, so this cannot feed itself. */
+      const hero = cam.parentElement;
+      const wcs = getComputedStyle(wrap);
+      let other = parseFloat(wcs.paddingTop) + parseFloat(wcs.paddingBottom) + box(cam) - cam.offsetHeight;
+      if (hero) {
+        for (const el of Array.from(hero.children)) if (el !== cam) other += box(el);
+      }
+
+      // 180px floor: below that the headline and hints stop fitting, and a
+      // cramped box that still scrolls is worse than a short page that does.
+      const avail = Math.max(180, Math.round(room - other));
+      wrap.style.setProperty("--bg-cam-avail", `${avail}px`);
+      wrap.style.setProperty("--bg-wrap-min", `${room}px`);
+    };
+
+    fit();
+    window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", fit);
+
+    /* A window resize is not the only thing that moves the remainder. The
+       title and the link row change height when their text wraps or when the
+       webfont lands, and neither event reaches a resize listener.
+
+       Observed rather than polled, and only these two: both are invariant to
+       the frame's size, so re-measuring cannot feed itself. Observing the wrap
+       or the html element instead would loop, since the value we set changes
+       their height. */
+    const ro = new ResizeObserver(fit);
+    const title = wrap.querySelector(".bitgraph-tagline");
+    const more = wrap.querySelector(".hero-more");
+    if (title) ro.observe(title);
+    if (more) ro.observe(more);
+    document.fonts?.ready.then(fit).catch(() => {});
+
+    return () => {
+      window.removeEventListener("resize", fit);
+      window.removeEventListener("orientationchange", fit);
+      ro.disconnect();
+    };
   }, [step]);
 
   // Cleanup rAF on unmount only
@@ -861,31 +943,86 @@ export default function BitGraphPage() {
            the page is a tool that starts at the top, like every other page.
            Mike: "less flashy, more utilitarian". */
         .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0 80px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 24px; }
+        /* The drop step fills the space under the nav and centres in it, so
+           whatever the frame cannot use (the aspect ratio caps it whenever
+           width binds) is split above and below instead of all falling to the
+           bottom. Symmetric padding, or the content sits 20px high of centre.
+           Scoped off the results view, which is a scrolling list and wants to
+           start at the top. */
+        .bitgraph-wrap:not(.bitgraph-results) { justify-content: center; min-height: var(--bg-wrap-min, auto); padding-bottom: 40px; }
         .bitgraph-wrap.bitgraph-results { padding-top: 32px; padding-bottom: 48px; }
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; }
         /* The title takes its type from .bg-page-title (globals), the one
            page-title definition on the site. What is left here is what is
            unique to this one: a quiet door to the overview, plain at rest
            and brand blue on hover. */
-        .bitgraph-tagline { margin: 0 0 4px; }
+        /* Centred (2026-08-09). The column stays 800px; only the alignment
+           of what sits in it changed, so the card and frame are untouched. */
+        .bitgraph-hero { text-align: center; }
+        .bitgraph-hero .bg-action-link { text-align: center; }
+        /* 12px, not 4. At a 32px title over a 14px deck the old value left
+           three optical pixels between the descenders and the deck's cap
+           height, which reads as a collision rather than a pair. This still
+           binds them as one block against the 44px below. */
+        .bitgraph-tagline { margin: 0 0 12px; }
         .bitgraph-tagline .accent { color: inherit; }
         .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
-        /* The promise line, styled exactly like /folder's subtitle. */
-        .hero-why { font-size: 14px; line-height: 1.6; color: #4b5563; margin: 0 0 18px; }
-        .hero-why p { margin: 0; }
+        /* The band is a pair, exactly as a proof's is: gap 5 inside 14px 16px,
+           a bold line then a regular one under it. */
+        /* Hairline ABOVE: the band sits under the frame, where a proof puts
+           File Hash under its photo. */
+        /* The example link under the box. The film pair briefly sat here and
+           was cut: it was written as the payoff to the overview diagram, and
+           with no diagram above it on this page it asked the reader to accept
+           an analogy nothing had set up.
+
+           The gap is set here, not inherited. .bg-action-link carries 14px of
+           its own padding and .bg-arrow-link carries none, so when this row
+           changed from one to the other the spacing silently collapsed to 3px.
+
+           40px because the box directly above is one big click target and a
+           stray hit on it opens a file dialog. At 20px the buffer was about
+           4mm on a phone, under what adjacent tap targets want; this is closer
+           to 7mm. */
+        .hero-more { margin-top: 42px; }
+        .hero-more { }
+        /* The deck, back under the title where it started: regular weight and
+           muted, so the headline stays the loudest thing on the page.
+
+           No terminal periods on either line, matching the tagline as it
+           already renders in the tab title, the OpenGraph title and the
+           Twitter card ("BitGraph | A camera for bits"). Docs pages keep
+           theirs: those are prose, this is the app surface.
+
+           The gap below it matches the one under the box, so the frame sits
+           evenly between the two lines of text. The size is set by the lower
+           gap, which has a job: the box is one big click target and a stray
+           hit opens a file dialog, so it needs more room than typography would
+           ask for. This one just follows it. */
+        /* Deliberately SMALLER than the 44 below, though both were equal for
+           a while. Matching margins did not even match gaps (the deck carries
+           ~2px of leading below its text, the link ~2px above its), and once
+           those were corrected to a true 44/44 the top still read as the wider
+           of the two. The deck works as a caption for the frame, and a caption
+           sits nearer the thing it labels; the gap above is also bounded by a
+           short centred line while the one below meets the frame's full-width
+           dashed edge, so identical whitespace does not read identically.
+
+           36 gives 38 optical. The 44 below is not free to move with it: that
+           one is keeping stray taps off a box that opens a file dialog. */
+        .hero-why { margin: 0 0 36px; }
+        .hero-why p { margin: 0; font-size: 14px; line-height: 1.6; color: #4b5563; text-wrap: pretty; }
         /* Explainer under the box: the one place the film/photograph metaphor
            is spelled out. Left-aligned reading prose, spanning the full
            column like every other line on the page (the 640px cap was the
            old centered hero's measure and read as a mistake beside the
            full-width box above it). */
-        .hero-explainer { margin: 18px 0 0; font-size: 14px; line-height: 1.65; color: #374151; }
         /* pretty, not balance: balance is for short blocks (browsers cap it
            around six lines, so the 8-line phone rendering would silently get
            nothing), while pretty fixes exactly what a long ragged paragraph
            suffers: orphaned last words and lines that break one word early.
            Applies at every width; browsers without it just wrap greedily. */
-        .hero-explainer p { margin: 0; text-wrap: pretty; }
         /* The example link left this page for /docs/overview and now wears the
            site's shared .bg-arrow-link, so nothing is needed here. */
         /* Waiting states (read/check/prove/export) all pin their center to the
@@ -918,10 +1055,15 @@ export default function BitGraphPage() {
         {step === "drop" && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
             <h1 className="bg-page-title bitgraph-tagline">
-              <a href="/docs/overview">A camera for <span className="accent">bits</span>.</a>
+              <a href="/docs/overview">A camera for <span className="accent">bits</span></a>
             </h1>
+            {/* The deck to that headline. It was tried inside the card, in the
+                slot a proof uses for its date and time window, and it did not
+                belong: that band carries facts about the thing in the card,
+                and an empty frame has none yet. This is the page's claim, so
+                it sits with the title. */}
             <div className="hero-why">
-              <p>Give your data a place in space and time.</p>
+              <p>Give your data a place in space and time</p>
             </div>
             <div className="bitgraph-camera">
               <FileDrop
@@ -947,10 +1089,12 @@ export default function BitGraphPage() {
                 subhint="Your file never leaves your device."
               />
             </div>
-            {/* Mechanics below the box: how a frame is created, exposed once,
-                and later verified. */}
-            <div className="hero-explainer">
-              <p>Digital files have no unique place in space or time. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits are the light that exposes that frame. Your data itself never appears in it. Each frame can be exposed only once. The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
+            {/* Floated under the card, not inside it. The card's bottom slot is
+                where a proof puts Export, an action on the thing in the card;
+                this is a way out to the explanation, so it sits clear of the
+                border. */}
+            <div className="hero-more">
+              <SeeExample />
             </div>
           </div>
         )}

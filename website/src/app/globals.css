@@ -528,9 +528,16 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    box: .bitgraph-camera mirrors it, the proof page's checker wears
    .bg-frame directly. */
 .bg-frame { width: min(100%, calc(min(520px, 100dvh - 320px) * 5 / 4)); aspect-ratio: 5 / 4; height: auto; margin: 0 auto; }
-.bitgraph-camera { width: min(100%, calc(min(520px, 100dvh - 320px) * 5 / 4)); aspect-ratio: 5 / 4; height: auto; align-self: center; margin: 0 auto; --fd-headline: min(22px, 5.9vw); --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #4b5563; --fd-hint-size: 12px; --fd-subhint-size: 11px; }
+.bitgraph-camera { width: min(100%, calc(var(--bg-cam-avail, min(520px, 100dvh - 320px)) * 5 / 4)); aspect-ratio: 5 / 4; height: auto; align-self: center; margin: 0 auto; --fd-headline: min(22px, 5.9vw); --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #4b5563; --fd-hint-size: 12px; --fd-subhint-size: 11px; }
 @media (min-width: 769px) {
-  .bg-frame, .bitgraph-camera { width: min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2)); aspect-ratio: 3 / 2; }
+  .bg-frame { width: min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2)); aspect-ratio: 3 / 2; }
+  /* The home frame takes its height from a measured remainder (see the effect
+     in app/page.tsx) rather than the constant beside it, so it fills whatever
+     the viewport leaves and the page never scrolls. The constant stays as the
+     fallback for first paint and for no-JS. .bg-frame, the proof page's
+     checker, is deliberately left on the constant: it sits in a page that
+     scrolls anyway, so there is no remainder to fill. */
+  .bitgraph-camera { width: min(100%, calc(var(--bg-cam-avail, min(640px, 100dvh - 280px)) * 3 / 2)); aspect-ratio: 3 / 2; }
 }
 @media (min-width: 769px) {
   /* Desktop keeps only its type scale; the 2:3 frame rule above is one
