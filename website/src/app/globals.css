@@ -671,7 +671,10 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   position: absolute; top: 100%; left: 0; right: 0; z-index: 1;
   background: #fff; border: 1px solid #d0d5dd; border-radius: 0;
   box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  padding: 16px 18px; margin-top: 2px;
+  /* More at the foot than at the head, deliberately. The card scrolls, and at
+     the end of a scroll 16px reads as the list being cut off by the border
+     rather than as the list finishing. The extra air is the full stop. */
+  padding: 16px 18px 28px; margin-top: 2px;
   max-height: calc(100dvh - 130px); overflow-y: auto; overscroll-behavior: contain;
 }
 /* The columns are an INNER element, and the height cap is on the card outside
