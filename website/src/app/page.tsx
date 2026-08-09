@@ -179,9 +179,12 @@ export default function BitGraphPage() {
         for (const el of Array.from(hero.children)) if (el !== cam) other += box(el);
       }
 
-      // 180px floor: below that the headline and hints stop fitting, and a
-      // cramped box that still scrolls is worse than a short page that does.
-      const avail = Math.max(180, Math.round(room - other));
+      /* The floor drops on a short viewport, matching the CSS min-height for
+         the same range. 180px is what the headline and two hint lines need
+         before they crowd, but holding it on a landscape phone is what forced
+         the page to scroll; 120 still carries the copy. */
+      const floor = window.innerHeight <= 520 ? 120 : 180;
+      const avail = Math.max(floor, Math.round(room - other));
       wrap.style.setProperty("--bg-cam-avail", `${avail}px`);
       wrap.style.setProperty("--bg-wrap-min", `${room}px`);
     };
@@ -1020,6 +1023,7 @@ export default function BitGraphPage() {
            4mm on a phone, under what adjacent tap targets want; this is closer
            to 7mm. */
         .hero-more { margin-top: 42px; }
+
         .hero-more { }
         /* The deck, back under the title where it started: regular weight and
            muted, so the headline stays the loudest thing on the page.
@@ -1087,6 +1091,22 @@ export default function BitGraphPage() {
            canonical "done" cue — while the count tallies up beside it. */
         @keyframes headerReveal { from { opacity: 0 } to { opacity: 1 } }
         @keyframes checkDraw { from { stroke-dashoffset: 26 } to { stroke-dashoffset: 0 } }
+        /* Short viewports: a phone in landscape. At ~380px of height the page
+           broke its own no-scroll promise badly, 121px of overflow with the
+           example link entirely below the fold, because the type and gaps are
+           sized for a tall window and the frame's floor did the rest.
+
+           Everything that is generous at full height gets tightened here, and
+           the title switches from a vw basis to vh, since on a landscape phone
+           the constraint is height, not width. Nothing is hidden: the whole
+           composition still fits, just closer together. */
+        @media (max-height: 520px) {
+          .bitgraph-wrap:not(.bitgraph-results) { padding-top: 12px; padding-bottom: 12px; }
+          .bitgraph-tagline { font-size: clamp(20px, 4.5vh, 30px); margin: 0 0 6px; }
+          .hero-why p { font-size: 13px; }
+          .hero-why { margin: 0 0 14px; }
+          .hero-more { margin-top: 14px; }
+        }
       `}</style>
       {/* Nav is in root layout */}
 
