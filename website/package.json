@@ -9,7 +9,7 @@
     "build": "npm run copy-c2pa-assets && next build",
     "start": "next start",
     "lint": "eslint",
-    "test:roll": "node --test src/lib/__tests__/roll-chunks.test.ts"
+    "test:roll": "node --test src/lib/__tests__/roll-archive.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.81.0",
