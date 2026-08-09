@@ -62,8 +62,25 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-wrap: pretty;
 }
+
+/* ── text-wrap, and why it is NOT on body ───────────────────────────────────
+   `text-wrap: pretty` used to sit on body and inherit everywhere. It is built
+   for SHORT display text, where a one-word last line looks bad, and it is
+   actively wrong for long body copy.
+
+   The engines differ, which is what hid it. Chromium only optimises the last
+   few lines, so paragraphs there break identically with pretty and with greedy
+   (measured: same breaks, character for character). Safari applies it across
+   the whole paragraph, sacrificing fill on early lines to even out the shape,
+   so a word that would have fit gets pushed to the next line. Reported from an
+   iPhone: "Digital files have no unique place in space" with "or" left off a
+   line it fits on. Greedy wrapping never does that, which is what identified
+   the cause.
+
+   So long prose wraps greedily and fills its measure. pretty is applied where
+   it earns its keep, on the short blocks it was designed for. ── */
+.bitgraph-tagline, .hero-why p { text-wrap: pretty; }
 
 h1 {
   text-shadow: none;
