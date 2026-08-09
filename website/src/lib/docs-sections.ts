@@ -30,10 +30,14 @@
  * it is a thing you consult, which is exactly what it now sits with.
  *
  * Proof Format opens BUILD (moved from just after Whitepaper, 2026-08-09).
- * The four ways to use it still run easiest-to-hardest within the group, but
- * the canonical schema now anchors the start of BUILD instead of the end of
- * the conceptual run, where it read as the last thing to understand rather
- * than the first thing to build against.
+ * The canonical schema anchors the start of BUILD instead of the end of the
+ * conceptual run, where it read as the last thing to understand rather than
+ * the first thing to build against.
+ *
+ * USE and BUILD divide on one question: does this require engineering. Every
+ * no-code surface is in USE, in rising order of setup, and BUILD is the spec,
+ * the code and the infrastructure. The four ways in still run easiest to
+ * hardest, they just no longer run across a column boundary.
  *
  * REFERENCE is the fourth column: the whitepaper, the FAQ, the repo. The three
  * things you look something up in rather than read through. GitHub is appended
@@ -60,14 +64,26 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/trust-model", label: "Trust Model" },
     ],
   },
+  // USE is everything with nothing to write, in rising order of setup: run a
+  // CLI, install an app, configure a GUI, point a client at a URL. Zapier/Make
+  // and MCP moved here from BUILD (2026-08-09, Mike: "zapier make and MCP could
+  // be under USE right?"). They could and they should: BUILD was holding a
+  // no-code connector next to running your own enclave, which meant the line
+  // between the two columns was not a line at all. It is now a single test,
+  // does this require engineering, and both of these fail it. Configuring a Zap
+  // is not building any more than installing the Folder is.
   {
     label: "Use",
     items: [
       { href: "/docs/verification", label: "Verification" },
       { href: "/docs/audit", label: "Audit a Bundle" },
       { href: "/docs/folder", label: "BitGraph Folder" },
+      { href: "/docs/automation", label: "Zapier and Make" },
+      { href: "/docs/mcp", label: "MCP" },
     ],
   },
+  // BUILD is what is left once that test is applied, and it reads as one line
+  // now: the contract, the code that meets it, the infrastructure under it.
   {
     label: "Build",
     items: [
@@ -77,9 +93,12 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       // was the one label that wrapped to two lines in the foot-of-page trail
       // on a phone. The page's own h1 still reads "Proof Format: bitgraph/1",
       // which is where the version belongs. A menu names places.
+      //
+      // It stays in BUILD rather than REFERENCE, which was the other candidate
+      // once REFERENCE became a real category: a spec is consult-material, but
+      // this one is NORMATIVE, and what it governs is what you build. REFERENCE
+      // holds the things that explain.
       { href: "/docs/proof-format", label: "Proof Format" },
-      { href: "/docs/automation", label: "Zapier and Make" },
-      { href: "/docs/mcp", label: "MCP" },
       { href: "/docs/integration", label: "Integration Guide" },
       { href: "/docs/self-host-tee", label: "Self-Host TEE" },
     ],
