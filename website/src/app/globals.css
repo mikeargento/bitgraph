@@ -675,7 +675,15 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
      the end of a scroll 16px reads as the list being cut off by the border
      rather than as the list finishing. The extra air is the full stop. */
   padding: 16px 18px 28px; margin-top: 2px;
-  max-height: calc(100dvh - 130px); overflow-y: auto; overscroll-behavior: contain;
+  /* No overscroll-behavior: contain here, though it is right for the Docs menu
+     in the nav. Contain stops the card handing the scroll back to the page when
+     it reaches its end, so a reader who scrolls over the contents hits a dead
+     stop and has to start a second gesture to move the document, and a third.
+     Worse, a container with overflow:auto is a scroll container even when its
+     content fits, so on a tall desktop window the card swallowed the gesture
+     while having nothing of its own to scroll. Chaining is the correct
+     behaviour for something that sits in the middle of a page being read. */
+  max-height: calc(100dvh - 130px); overflow-y: auto;
 }
 /* The columns are an INNER element, and the height cap is on the card outside
    them. A multi-column box with a height constraint does not scroll, it
