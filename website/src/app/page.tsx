@@ -156,7 +156,15 @@ export default function BitGraphPage() {
 
     const fit = () => {
       const top = wrap.getBoundingClientRect().top + window.scrollY;
-      const room = Math.round(window.innerHeight - top);
+
+      /* Twice the nav, not once. Subtracting it once gives the region BELOW
+         the nav, and centring in that region lands the composition half a nav
+         height below the middle of the screen: with a 58px nav the hero sat at
+         529 against a viewport centre of 500. Taking it off both ends puts the
+         wrap's centre on the viewport's centre while it still starts under the
+         nav. Costs the frame one nav height of maximum size, which only shows
+         on windows short enough for height to be the binding constraint. */
+      const room = Math.round(window.innerHeight - top * 2);
 
       /* Summed from the siblings, NOT from (wrap.height - cam.height). Once
          the wrap has a min-height it stays that tall no matter how small the
@@ -1029,7 +1037,16 @@ export default function BitGraphPage() {
            36 gives 38 optical. The 44 below is not free to move with it: that
            one is keeping stray taps off a box that opens a file dialog. */
         .hero-why { margin: 0 0 36px; }
-        .hero-why p { margin: 0; font-size: 14px; line-height: 1.6; color: #4b5563; text-wrap: pretty; }
+        /* The deck scales too, on the same vw basis as the title, so the two
+           hold a similar relationship at both ends instead of the title
+           growing away from a fixed 14px. Both reach their caps at about the
+           same viewport (deck at 640, title at 667).
+
+           It cannot be a true ratio. Matching the desktop 40/14 on a phone
+           would put the deck at 9px, so the floor is legibility, not
+           proportion; this narrows the drift from 1.86-vs-2.86 to
+           1.86-vs-2.50 rather than removing it. */
+        .hero-why p { margin: 0; font-size: clamp(14px, 2.5vw, 16px); line-height: 1.6; color: #4b5563; text-wrap: pretty; }
         /* Explainer under the box: the one place the film/photograph metaphor
            is spelled out. Left-aligned reading prose, spanning the full
            column like every other line on the page (the 640px cap was the
