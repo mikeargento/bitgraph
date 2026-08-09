@@ -29,15 +29,14 @@
  * it instead of splitting it. The whitepaper is not a step in an orientation,
  * it is a thing you consult, which is exactly what it now sits with.
  *
- * Proof Format opens BUILD (moved from just after Whitepaper, 2026-08-09).
- * The canonical schema anchors the start of BUILD instead of the end of the
- * conceptual run, where it read as the last thing to understand rather than
- * the first thing to build against.
+ * Proof Format left the conceptual run for BUILD (2026-08-09), where it sits
+ * second: it read as the last thing to understand rather than as something you
+ * build against, and inside BUILD the quickstart comes before the schema.
  *
- * USE and BUILD divide on one question: does this require engineering. Every
- * no-code surface is in USE, in rising order of setup, and BUILD is the spec,
- * the code and the infrastructure. The four ways in still run easiest to
- * hardest, they just no longer run across a column boundary.
+ * TOOLS and BUILD divide on one question: does this require engineering. Every
+ * no-code surface is in TOOLS, and BUILD is the guide, the spec and the
+ * infrastructure. The four ways in still run easiest to hardest, they just no
+ * longer run across a column boundary.
  *
  * REFERENCE is the fourth column: the whitepaper, the FAQ, the repo. The three
  * things you look something up in rather than read through. GitHub is appended
@@ -64,16 +63,27 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/trust-model", label: "Trust Model" },
     ],
   },
-  // USE is everything with nothing to write, in rising order of setup: run a
-  // CLI, install an app, configure a GUI, point a client at a URL. Zapier/Make
-  // and MCP moved here from BUILD (2026-08-09, Mike: "zapier make and MCP could
-  // be under USE right?"). They could and they should: BUILD was holding a
-  // no-code connector next to running your own enclave, which meant the line
-  // between the two columns was not a line at all. It is now a single test,
+  // TOOLS is everything with nothing to write: two CLIs, a Mac app, two
+  // connectors, a server. It was called USE until 2026-08-09 and that was the
+  // weakest of the four labels, being the only one that could sit above any
+  // column on the page: you use BitGraph by building on it, and by
+  // understanding it first. Tools names what is actually in the column. The set
+  // reads Understand / Tools / Build / Reference, two things you do and two
+  // things you reach for.
+  //
+  // Zapier/Make and MCP moved here from BUILD the same day (Mike: "zapier make
+  // and MCP could be under USE right?"). They could and they should: BUILD was
+  // holding a no-code connector next to running your own enclave, which meant
+  // the line between the columns was not a line at all. It is one test now,
   // does this require engineering, and both of these fail it. Configuring a Zap
   // is not building any more than installing the Folder is.
+  //
+  // The order is two runs, not one: CHECK something you were handed
+  // (Verification, Audit), then RECORD things yourself (Folder, Zapier, MCP).
+  // That is a truer account than the rising-setup-effort story told at first,
+  // and it happens to produce the same five.
   {
-    label: "Use",
+    label: "Tools",
     items: [
       { href: "/docs/verification", label: "Verification" },
       { href: "/docs/audit", label: "Audit a Bundle" },
@@ -82,8 +92,8 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/mcp", label: "MCP" },
     ],
   },
-  // BUILD is what is left once that test is applied, and it reads as one line
-  // now: the contract, the code that meets it, the infrastructure under it.
+  // BUILD is what is left once that test is applied: do it, look the details
+  // up, then run your own.
   {
     label: "Build",
     items: [
@@ -98,8 +108,16 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       // once REFERENCE became a real category: a spec is consult-material, but
       // this one is NORMATIVE, and what it governs is what you build. REFERENCE
       // holds the things that explain.
-      { href: "/docs/proof-format", label: "Proof Format" },
+      //
+      // It sits SECOND, not first. Heading the column was right while BUILD was
+      // five mixed items and the spec was the one thing anchoring them; once
+      // the no-code surfaces left for TOOLS, BUILD became a three-page
+      // engineering run that a developer reads top down, and the order for that
+      // is the quickstart, then the schema, then the infrastructure. Nobody
+      // arrives at a docs column wanting the wire format before they have seen
+      // a request.
       { href: "/docs/integration", label: "Integration Guide" },
+      { href: "/docs/proof-format", label: "Proof Format" },
       { href: "/docs/self-host-tee", label: "Self-Host TEE" },
     ],
   },
