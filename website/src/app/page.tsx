@@ -3,9 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { FileDrop } from "@/components/file-drop";
-import { SeeExample } from "@/components/see-example";
 // Footer is in root layout
 import {
   hashFile,
@@ -888,11 +886,9 @@ export default function BitGraphPage() {
            suffers: orphaned last words and lines that break one word early.
            Applies at every width; browsers without it just wrap greedily. */
         .hero-explainer p { margin: 0; text-wrap: pretty; }
-        /* The two offers, styled exactly like /folder's stacked links. */
-        .see-example { text-align: left; margin-top: 18px; }
-        .see-example-second { margin-top: 6px; }
-        .see-example-link { appearance: none; border: none; background: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 500; color: #0065A4; display: inline-flex; align-items: center; gap: 5px; padding: 0; text-decoration: none; }
-        .see-example-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
+        /* .see-example-link moved to globals.css when the example link left
+           this page for /docs/overview: the component carries the class, so
+           the style has to live somewhere every page can see. */
         /* Waiting states (read/check/prove/export) all pin their center to the
            SAME viewport point the success checkmark uses (fixed, 44% down,
            horizontally centered), so every wait and the capture moment share
@@ -956,17 +952,6 @@ export default function BitGraphPage() {
                 and later verified. */}
             <div className="hero-explainer">
               <p>Digital files have no unique place in space or time. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits are the light that exposes that frame. Your data itself never appears in it. Each frame can be exposed only once. The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.</p>
-            </div>
-            {/* Two offers, stacked, in the order of commitment: the thing you
-                install to keep recording without coming back here, then the
-                thing you can just look at. */}
-            <div className="see-example">
-              <Link href="/docs/folder" className="see-example-link">
-                Download BitGraph Folder for macOS <span aria-hidden="true">&rarr;</span>
-              </Link>
-              <div className="see-example-second">
-                <SeeExample />
-              </div>
             </div>
           </div>
         )}

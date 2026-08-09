@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CameraExplainer } from "@/components/camera-explainer";
+import { SeeExample } from "@/components/see-example";
 
 export const metadata: Metadata = {
   title: "Overview",
@@ -35,6 +36,13 @@ export default function OverviewPage() {
         <span style={{ display: "block" }}>Film is the recording medium for light.</span>
         <span style={{ display: "block" }}><strong style={{ color: "#111827", fontWeight: 700 }}>BitGraph is film for data.</strong></span>
       </p>
+
+      {/* The one thing to go and look at, placed where the metaphor lands
+          rather than under the home page's drop box. The Folder download that
+          used to sit beside it is gone: the nav carries that now. */}
+      <div style={{ marginTop: 18 }}>
+        <SeeExample />
+      </div>
 
       {/* ── The prose Overview, exactly as it was, a beat down the page. An
           h2 element (one h1 per page) wearing the h1's exact clothes inline,
