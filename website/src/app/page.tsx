@@ -965,6 +965,23 @@ export default function BitGraphPage() {
            height, which reads as a collision rather than a pair. This still
            binds them as one block against the 44px below. */
         .bitgraph-tagline { margin: 0 0 12px; }
+        /* The one place on the site that departs from the shared title size.
+           .bg-page-title is clamp(26px, 6vw, 32px), which stops growing at a
+           533px viewport, so on every desktop it is a flat 32px. That was fine
+           while the page was fixed too. It is not now: the frame scales with
+           the window, so the title shrank against it on every larger screen,
+           and at 32px it lost the room to the drop box's own 26px headline,
+           which is longer and sits in a white field.
+
+           Only the cap moves, 32 to 40. Below a 533px viewport this computes
+           identically to the shared rule, so phones are untouched and no page
+           shows a title smaller than its peers.
+
+           40, not 48. 48 cleared the drop box's headline easily but read as
+           marketing-page big, which is the opposite of what this page is. At
+           40 it outranks that headline by type size (40 against 26) and sits
+           near parity with it in width, without shouting. */
+        .bitgraph-tagline { font-size: clamp(26px, 6vw, 40px); }
         .bitgraph-tagline .accent { color: inherit; }
         .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
