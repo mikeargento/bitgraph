@@ -81,7 +81,7 @@ export default function WhatIsBitGraphPage() {
         <li className="text-[#1f2937]"><strong className="text-text">Atomic</strong> — fail-closed. Either a complete, valid proof is produced, or nothing is.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Causal</strong> — every proof is bound to a pre-allocated slot created before the artifact hash was known.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Ordered</strong> — one place in a sequence, fixed by a monotonic counter within its epoch. Counter, epoch, and chain link establish sequencing.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Measured</strong> — binds to a specific execution environment via measurement (PCR0 on Nitro, MRENCLAVE on SGX).</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Measured</strong> — binds to a specific execution environment via its platform measurement. Production is AWS Nitro, where that measurement is PCR0; the schema names no platform, so another TEE&rsquo;s would fit it.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Verifiable</strong> — Ed25519 signature, SHA-256 digest, canonical serialization. Standard cryptographic primitives.</li>
       </ul>
 

@@ -545,6 +545,13 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
      letterbox. */
   .bitgraph-camera { width: 100%; aspect-ratio: 3 / 2; max-height: var(--bg-cam-avail, calc(100dvh - 280px)); }
 }
+/* The frame's floor drops on a landscape phone. 180px is the height its
+   headline and two hint lines need before they crowd, but holding it at
+   ~380px of viewport is what pushed the page into a scrollbar; 120 still
+   carries the copy and lets everything fit. */
+@media (max-height: 520px) {
+  .bitgraph-camera { min-height: 120px; }
+}
 @media (min-width: 769px) {
   /* Desktop keeps only its type scale; the 2:3 frame rule above is one
      definition for every viewport. */
@@ -562,6 +569,18 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    hover, matching the home page's "See an example →" / "Record N files →".
    Wrap the arrow in <span class="arrow">→</span> and put .bg-arrow-link on the
    link. inline-block so the transform applies. */
+/* The hit area, grown without moving anything. The class had no box of its
+   own, so its tappable region was exactly the text: 18px tall, well under the
+   ~44px both Apple and Google ask for, and a tap landing slightly high or low
+   hit nothing at all and read as a broken link.
+
+   Padding grows the region; the matching negative margin cancels it in
+   layout, so the nine places this class is used (home, the Roll's day
+   steppers and "All rolls", proof pages' Etherscan and causal actions, the
+   docs Action links, the explorer) render exactly as before. Vertical only:
+   horizontal growth would let adjacent links in the Roll's nav line overlap
+   each other's targets. */
+.bg-arrow-link { padding: 13px 0; margin: -13px 0; }
 .bg-arrow-link .arrow { display: inline-block; transition: transform .18s ease; }
 @media (hover: hover) { .bg-arrow-link:hover .arrow { transform: translateX(3px); } }
 
