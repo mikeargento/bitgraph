@@ -188,41 +188,43 @@ export function SiteNav() {
           replaced: you can no longer take in the shape of the docs at a
           glance, which is the whole point of grouping them.
 
-          The white is full-bleed, edge to edge, but the COLUMNS are not: they
-          sit in the same 90%/800px measure as the wordmark above them and the
-          page below, so the panel reads as the page opening rather than as an
-          app's mega menu landing on top of it. Square corners, one hairline
-          under it, no side borders, per the site.
+          It is the width of the CONTENT, not of the window. The white went
+          full-bleed first and was pulled back the same day: edge to edge it is
+          a mega menu landing on the page, which is the app-shaped thing this
+          site keeps refusing to be. At the 90%/800px measure it is a card in
+          the column, its edges under the wordmark and over the page's own,
+          which is how every other surface here behaves. Square corners, 1px
+          #d0d5dd, per the cards.
 
           Absolute against #site-nav, which is sticky and therefore already a
-          containing block. top:100% puts it exactly under the bar with no gap
-          to fall through on the way to it. ── */}
+          containing block; centred on it rather than hung off the Docs link,
+          so the edges land on the measure and not near it. ── */}
       {docsOpen && (
         <div
           ref={panelRef}
           role="menu"
           aria-label="Docs sections"
           style={{
-            position: "absolute", top: "100%", left: 0, right: 0,
-            background: "#fff", borderTop: "1px solid #e5e7eb",
-            borderBottom: "1px solid #d0d5dd", borderRadius: 0,
+            position: "absolute", top: "calc(100% + 8px)",
+            left: "50%", transform: "translateX(-50%)",
+            width: "90%", maxWidth: 800,
+            background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0,
             boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
             // A backstop, not the layout: the columns fit a phone in portrait
             // with room to spare. It is landscape, where the viewport is 375
             // tall, that would otherwise clip.
-            maxHeight: "calc(100dvh - 58px)", overflowY: "auto",
+            maxHeight: "calc(100dvh - 74px)", overflowY: "auto",
             overscrollBehavior: "contain",
+            padding: "22px 14px 20px",
           }}
         >
-          <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "22px 0 20px" }}>
+          <div>
             {/* Multi-column rather than a grid: the groups are 6, 3 and 5 rows,
                 and column balancing lays them out on its own at whatever count
                 fits, three across on a laptop and two on a phone. break-inside
                 keeps a group whole, so a heading can never end up at the foot
-                of one column with its items at the head of the next. The -10px
-                pulls the rows' own padding back so their text lines up with the
-                wordmark above. */}
-            <div className="docs-panel-cols" style={{ margin: "0 -10px" }}>
+                of one column with its items at the head of the next. */}
+            <div className="docs-panel-cols">
               {DOCS_GROUPS.map((g) => (
                 <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group">
                   {/* Small, tracked-out, uppercase, 800, near-black. These
@@ -262,7 +264,7 @@ export function SiteNav() {
                 reading sequence, GitHub is a destination outside it. */}
             <div style={{
               display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-              margin: "34px -10px 0",
+              marginTop: 30,
             }}>
               {DOCS_TAIL.map(renderItem)}
               <a
