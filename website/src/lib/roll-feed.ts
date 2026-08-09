@@ -377,7 +377,7 @@ export type RollFeedResult =
 /** One page of the Roll. `day` selects a sealed UTC day; omit it for the live
  *  feed. `before`/`bepoch` are the paging cursor (counters repeat across
  *  epochs, so a day cursor is scoped by epoch). */
-export async function rollFeed(opts: {
+async function computeRollFeed(opts: {
   day?: string | null;
   before?: string | null;
   bepoch?: string | null;
@@ -493,4 +493,81 @@ export async function rollFeed(opts: {
       ? "public, s-maxage=3600, stale-while-revalidate=86400"
       : "public, s-maxage=15, stale-while-revalidate=3600",
   };
+}
+
+/* ── The assembled page, cached ─────────────────────────────────────────────
+   Caching the parts (the epoch, the head, a day's segments) only ever helped
+   the instance that computed them, and the expensive work is the assembly
+   itself: the LISTs and the 25 GETs behind every page. So the finished body is
+   cached too, in the Data Cache, which outlives the instance.
+
+   The revalidate windows deliberately MIRROR the Cache-Control this same
+   function hands the CDN. That is the safety argument: an answer served from
+   here can never be staler than one the edge was already allowed to serve for
+   the same URL, so this changes how often the work is done, never how fresh
+   the roll is allowed to be.
+
+     sealed day    a day/counter range that cannot change. Matches s-maxage=86400.
+     live cursor   older counters never change. Matches s-maxage=3600.
+     live head     the only one that must stay current. Matches s-maxage=15.
+
+   Why it matters more than the CDN already caching: the edge cache is per-URL
+   per-region and this site's traffic is sparse, so cold edges are the common
+   case, not the rare one. This layer sits behind all of them. */
+
+// Non-200s ride out as a thrown message so nothing is cached and the caller
+// still gets the real answer without recomputing it.
+const STATUS_PREFIX = "roll-feed-status:";
+
+async function computeOrThrow(opts: Parameters<typeof computeRollFeed>[0]): Promise<RollFeedResult> {
+  const result = await computeRollFeed(opts);
+  if (result.status !== 200) throw new Error(`${STATUS_PREFIX}${result.status}:${result.body.error}`);
+  return result;
+}
+
+const cachedDayFeed = unstable_cache(
+  (day: string, before: string | null, bepoch: string | null, filesOnly: boolean) =>
+    computeOrThrow({ day, before, bepoch, filesOnly }),
+  ["roll-feed-day-v1"],
+  { revalidate: 86400 },
+);
+
+const cachedLiveCursor = unstable_cache(
+  (before: string, filesOnly: boolean) => computeOrThrow({ before, filesOnly }),
+  ["roll-feed-live-cursor-v1"],
+  { revalidate: 3600 },
+);
+
+const cachedLiveHead = unstable_cache(
+  (filesOnly: boolean) => computeOrThrow({ filesOnly }),
+  ["roll-feed-live-head-v1"],
+  { revalidate: 15 },
+);
+
+/** One page of the Roll. `day` selects a sealed UTC day; omit it for the live
+ *  feed. `before`/`bepoch` are the paging cursor (counters repeat across
+ *  epochs, so a day cursor is scoped by epoch). */
+export async function rollFeed(opts: {
+  day?: string | null;
+  before?: string | null;
+  bepoch?: string | null;
+  filesOnly?: boolean;
+}): Promise<RollFeedResult> {
+  const filesOnly = !!opts.filesOnly;
+  try {
+    if (opts.day) return await cachedDayFeed(opts.day, opts.before ?? null, opts.bepoch ?? null, filesOnly);
+    if (opts.before) return await cachedLiveCursor(opts.before, filesOnly);
+    return await cachedLiveHead(filesOnly);
+  } catch (e) {
+    const message = (e as Error)?.message ?? "";
+    if (message.startsWith(STATUS_PREFIX)) {
+      const rest = message.slice(STATUS_PREFIX.length);
+      const split = rest.indexOf(":");
+      const status = parseInt(rest.slice(0, split), 10);
+      return { status: status as 400 | 404, body: { error: rest.slice(split + 1) } };
+    }
+    // A real read failure. It stays a failure: the caller turns it into a 500
+    // and the Roll says so, rather than showing an empty ledger.
+    throw e;
+  }
 }
