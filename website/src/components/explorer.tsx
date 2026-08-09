@@ -30,12 +30,24 @@ const fmtWhen = (ms?: number) =>
 
 const fmt = (n: number) => n.toLocaleString();
 
-export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNode; day?: string; aside?: React.ReactNode; subnav?: React.ReactNode }) {
-  // Seed first paint from a warm Roll feed if the nav warmed one on hover/focus.
-  // Only the default view (files only, no cursor) is warmed, so this seeds just
-  // the initial render; the effect below reconciles against a live fetch.
-  // Day rolls (sealed past days) never seed from the live warm slot.
-  const seeded = (() => { if (day) return null; const w = takeWarm<FeedResp>(ROLL_FEED_KEY); return w && "data" in w ? w.data : null; })();
+export function Explorer({ title, day, aside, subnav, initial }: { title?: React.ReactNode; day?: string; aside?: React.ReactNode; subnav?: React.ReactNode; initial?: FeedResp | null }) {
+  // Seed first paint, in order of preference:
+  //
+  //   initial   the first page rendered into the HTML by the server. Removes
+  //             the whole client waterfall (JS, hydrate, then fetch) for anyone
+  //             arriving cold, and is the only seed a sealed day roll can get.
+  //             Absent when the server read was slow or failed, in which case
+  //             this falls back to exactly the old behaviour rather than
+  //             showing an empty roll: a failed read is not an empty ledger.
+  //   warm      a feed the nav prefetched on hover/focus. Live view only.
+  //
+  // Either way the effect below still reconciles against a live fetch.
+  const seeded = (() => {
+    if (initial) return initial;
+    if (day) return null;
+    const w = takeWarm<FeedResp>(ROLL_FEED_KEY);
+    return w && "data" in w ? w.data : null;
+  })();
   const [entries, setEntries] = useState<Entry[]>(() => seeded?.entries ?? []);
   // Counters that arrived via the live poll (not the initial load), so only
   // those rows get the arrival flash. Grows slowly; the animation runs once.
@@ -58,7 +70,7 @@ export function Explorer({ title, day, aside, subnav }: { title?: React.ReactNod
   const [nextBefore, setNextBefore] = useState<number | null>(() => seeded?.nextBefore ?? null);
   // Day-roll cursor scope: counters repeat across epochs, so the resume point
   // is (epoch, counter). Null outside day mode.
-  const [nextEpoch, setNextEpoch] = useState<string | null>(null);
+  const [nextEpoch, setNextEpoch] = useState<string | null>(() => seeded?.nextEpoch ?? null);
   const [hasMore, setHasMore] = useState(() => seeded ? !!seeded.hasMore : true);
   const [loading, setLoading] = useState(() => !seeded);
   const [loadingMore, setLoadingMore] = useState(false);
