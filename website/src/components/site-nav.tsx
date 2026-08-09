@@ -235,7 +235,8 @@ export function SiteNav() {
                   <div
                     aria-hidden="true"
                     style={{
-                      padding: "0 10px 8px",
+                      padding: "0 10px 8px", marginBottom: 6,
+                      borderBottom: "1px solid #e5e7eb",
                       fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
                       textTransform: "uppercase", color: "#111827",
                     }}
