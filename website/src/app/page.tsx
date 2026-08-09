@@ -208,9 +208,31 @@ export default function BitGraphPage() {
     if (more) ro.observe(more);
     document.fonts?.ready.then(fit).catch(() => {});
 
+    /* Launched from a Home Screen bookmark there is no browser chrome, and
+       that is the problem: the page mounts behind the splash screen, when
+       innerHeight can still be a pre-layout value, and afterwards NOTHING
+       fires. In a normal tab the URL bar collapsing sends a resize that
+       quietly corrects the first measurement; standalone has no chrome to
+       collapse, so a bad first read would stand for the whole session and the
+       composition would sit off centre until the app was killed.
+
+       pageshow covers the standalone launch and a bfcache restore, load covers
+       a late layout, and visualViewport is the surface iOS actually updates
+       when the visible area changes (window.innerHeight can lag it). A frame
+       later catches the case where all three fire before layout settles. */
+    const onShow = () => { fit(); requestAnimationFrame(fit); };
+    window.addEventListener("pageshow", onShow);
+    window.addEventListener("load", onShow);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", fit);
+    requestAnimationFrame(fit);
+
     return () => {
       window.removeEventListener("resize", fit);
       window.removeEventListener("orientationchange", fit);
+      window.removeEventListener("pageshow", onShow);
+      window.removeEventListener("load", onShow);
+      vv?.removeEventListener("resize", fit);
       ro.disconnect();
     };
   }, [step]);
