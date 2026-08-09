@@ -164,7 +164,24 @@ export default function BitGraphPage() {
          wrap's centre on the viewport's centre while it still starts under the
          nav. Costs the frame one nav height of maximum size, which only shows
          on windows short enough for height to be the binding constraint. */
-      const room = Math.round(window.innerHeight - top * 2);
+      /* Standalone has a third band to account for, and it is invisible to
+         every viewport API: the status bar sits at the top of the SCREEN but
+         outside the viewport, so centring on innerHeight lands the whole
+         composition half a status bar low on the glass. Same class of error as
+         the nav one below, one level up.
+
+         screen.height minus innerHeight is that band. The assumption is that
+         in standalone the web view runs to the bottom edge with the home
+         indicator overlaying it, so the difference is top inset only; capped
+         at 80 so a wrong assumption cannot throw the layout far. Zero in a
+         normal tab, where the browser's own chrome is already excluded from
+         both numbers. */
+      const standalone = window.matchMedia("(display-mode: standalone)").matches
+        || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+      const statusBar = standalone && window.screen?.height
+        ? Math.min(80, Math.max(0, Math.round(window.screen.height - window.innerHeight)))
+        : 0;
+      const room = Math.round(window.innerHeight - top * 2 - statusBar);
 
       /* Summed from the siblings, NOT from (wrap.height - cam.height). Once
          the wrap has a min-height it stays that tall no matter how small the
