@@ -30,7 +30,7 @@ export function CommitPathDiagram() {
           <div className="text-[10px] font-medium uppercase tracking-wider text-[#111827] mb-3">
             {p.label}
           </div>
-          <p className="text-sm text-[#1f2937] leading-relaxed">
+          <p className="text-base text-[#1f2937] leading-relaxed">
             {p.note}
           </p>
         </div>

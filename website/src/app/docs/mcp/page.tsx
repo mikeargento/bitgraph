@@ -44,7 +44,7 @@ export default function McpPage() {
         </div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{MCP_URL}</pre>
       </div>
-      <p className="text-sm text-[#4b5563] mt-3 mb-10">
+      <p className="text-base text-[#4b5563] mt-3 mb-10">
         The same URL serves both audiences: an MCP client gets the protocol, a browser gets
         this page.
       </p>
@@ -57,7 +57,7 @@ export default function McpPage() {
       </p>
 
       <h3 className="text-base font-semibold mt-8 mb-3">Claude</h3>
-      <p className="text-sm text-[#4b5563] mb-3">
+      <p className="text-base text-[#4b5563] mb-3">
         claude.ai, Claude Desktop, and the mobile apps.
       </p>
       <Steps
@@ -68,7 +68,7 @@ export default function McpPage() {
           <>In a conversation, open the <Ui>+</Ui> menu at the lower left, choose <Ui>Connectors</Ui>, and switch BitGraph on.</>,
         ]}
       />
-      <p className="text-sm text-[#4b5563] mb-8">
+      <p className="text-base text-[#4b5563] mb-8">
         Step 4 is the one people miss: adding a connector does not turn it on, each
         conversation opts in. Free accounts can hold one custom connector. On Team and
         Enterprise an Owner adds it once under <Ui>Organization settings</Ui>,
@@ -81,13 +81,13 @@ export default function McpPage() {
         <div className="code-block-header"><span>Shell</span></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`claude mcp add --transport http bitgraph ${MCP_URL}`}</pre>
       </div>
-      <p className="text-sm text-[#4b5563] mb-8">
+      <p className="text-base text-[#4b5563] mb-8">
         Run <code>claude mcp list</code> to confirm, or <code>/mcp</code> inside a session.
         BitGraph should read Connected.
       </p>
 
       <h3 className="text-base font-semibold mt-8 mb-3">ChatGPT</h3>
-      <p className="text-sm text-[#4b5563] mb-3">
+      <p className="text-base text-[#4b5563] mb-3">
         Needs developer mode, which is a beta feature on Plus, Pro, Business, Enterprise, and
         Education accounts, on the web.
       </p>
@@ -100,7 +100,7 @@ export default function McpPage() {
           <>In a new chat, open the <Ui>+</Ui> menu, choose <Ui>Developer mode</Ui>, and select BitGraph.</>,
         ]}
       />
-      <p className="text-sm text-[#4b5563] mb-8">
+      <p className="text-base text-[#4b5563] mb-8">
         ChatGPT treats recording as a write action and asks you to confirm each one, showing
         the digest it is about to send. Checking and fetching proofs are read-only. Every new
         conversation starts from the same cautious default.
@@ -112,7 +112,7 @@ export default function McpPage() {
         <code> streamable-http</code> and some label it <code>http</code>; they are the same
         thing, and BitGraph speaks it. No key, no configuration.
       </p>
-      <p className="text-sm text-[#4b5563] mb-8">
+      <p className="text-base text-[#4b5563] mb-8">
         Client menus get renamed and moved. If a label above does not match what is in front
         of you, the URL is the part that matters: find wherever your client keeps remote MCP
         servers and paste it there.

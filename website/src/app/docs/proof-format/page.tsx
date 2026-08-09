@@ -160,7 +160,7 @@ export default function ProofFormatPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-sm text-[#4b5563] mb-8">
+      <p className="text-base text-[#4b5563] mb-8">
         The slot has its own Ed25519 signature proving the enclave created it. The commit signature includes <code className="text-xs font-mono">slotHashB64</code>, cryptographically binding the proof to that exact slot.
       </p>
 
@@ -182,7 +182,7 @@ export default function ProofFormatPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Field classification</h2>
       <h3 className="text-base font-semibold mt-6 mb-3">Signed (security-critical)</h3>
-      <p className="text-sm text-[#1f2937] mb-2">
+      <p className="text-base text-[#1f2937] mb-2">
         These fields are in the SignedBody. Tampering invalidates the signature:
       </p>
       <div className="text-sm text-[#1f2937] mb-6">
@@ -190,7 +190,7 @@ export default function ProofFormatPage() {
       </div>
 
       <h3 className="text-base font-semibold mt-6 mb-3">Self-authenticating</h3>
-      <p className="text-sm text-[#1f2937] mb-2">
+      <p className="text-base text-[#1f2937] mb-2">
         Not in the signed body, but independently verifiable:
       </p>
       <div className="text-sm text-[#1f2937] mb-6">
@@ -198,7 +198,7 @@ export default function ProofFormatPage() {
       </div>
 
       <h3 className="text-base font-semibold mt-6 mb-3">Advisory (unsigned)</h3>
-      <p className="text-sm text-[#1f2937] mb-6">
+      <p className="text-base text-[#1f2937] mb-6">
         Not signed. Must not be used for security decisions: <code className="font-mono text-xs">timestamps</code>, <code className="font-mono text-xs">metadata</code>, <code className="font-mono text-xs">claims</code>.
       </p>
 

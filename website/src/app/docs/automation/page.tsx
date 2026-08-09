@@ -125,7 +125,7 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
           against the deployed definition. If the field ever goes back to
           required, this paragraph has to say so again, because nothing else
           on the page warns anyone. */}
-      <p className="text-sm text-[#4b5563]" style={{ marginBottom: 36 }}>
+      <p className="text-base text-[#4b5563]" style={{ marginBottom: 36 }}>
         The source is in <code>packages/zapier/</code> in the{" "}
         <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
       </p>
@@ -156,7 +156,7 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
   "chainId": "bitgraph:main"
 }`}</pre>
       </div>
-      <p className="text-sm text-[#4b5563]" style={{ marginBottom: 36 }}>
+      <p className="text-base text-[#4b5563]" style={{ marginBottom: 36 }}>
         Exact module settings for all three operations, the URL-safe digest expression the
         proof links need, and importable scenario blueprints are in{" "}
         <code>packages/make/</code> in the <a href="https://github.com/mikeargento/bitgraph" target="_blank" rel="noopener noreferrer">repository</a>.
@@ -171,7 +171,7 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
         <li>• <strong className="text-text">artifactBinding</strong> is reported separately from <span className="font-mono text-xs">verified</span>, because &ldquo;this proof is genuine&rdquo; and &ldquo;this file is the one the proof describes&rdquo; are different claims. <span className="font-mono text-xs">checked</span> means the file was hashed and matches. <span className="font-mono text-xs">not-checked</span> means the proof is sound but nothing tied it to a file. <span className="font-mono text-xs">mismatch</span> means the proof is genuine and is for different bytes.</li>
         <li>• <strong className="text-text">bitgraphedAfter</strong> and <strong className="text-text">bitgraphedBefore</strong> are the two Ethereum blocks that bracket the recording. A proof carries no clock reading of its own, so this pair is the time statement, and it is a window rather than an instant.</li>
       </ul>
-      <p className="text-sm text-[#4b5563] mt-8 mb-8">
+      <p className="text-base text-[#4b5563] mt-8 mb-8">
         A freshly created proof has the lower bound but not yet the upper one: the later anchor
         lands with the next Ethereum block BitGraph anchors to, usually within a minute. If a
         step posts a time somewhere, either say &ldquo;after&rdquo; and use the lower bound, or

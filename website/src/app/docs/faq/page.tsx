@@ -85,7 +85,7 @@ export default function FAQPage() {
         {faqs.map((faq) => (
           <div key={faq.q} className="border-b border-[#e5e7eb] pb-8">
             <h2 className="text-lg font-semibold mb-3">{renderInline(faq.q)}</h2>
-            <p className="text-sm text-[#1f2937] leading-relaxed">{renderInline(faq.a)}</p>
+            <p className="text-base text-[#1f2937] leading-relaxed">{renderInline(faq.a)}</p>
           </div>
         ))}
       </div>

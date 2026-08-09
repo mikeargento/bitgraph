@@ -27,7 +27,7 @@ export default function TrustModelPage() {
           observed both branches (verifyEpochLink keeps its single-successor
           registry in memory, per process). Saying so here costs nothing and
           keeps the page from claiming more than the code does. */}
-      <p className="text-sm text-[#4b5563] leading-relaxed mb-8">
+      <p className="text-base text-[#4b5563] leading-relaxed mb-8">
         Read precisely: the boundary <em>enforces</em> this within an epoch, and a
         fork across epochs is <em>detected</em> rather than prevented. Detection
         requires a verifier that has observed both branches, so an auditor holding

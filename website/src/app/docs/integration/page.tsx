@@ -144,7 +144,7 @@ curl -X POST https://bitgraph.ing/api/verify \\
         file. Add <code>allowedMeasurements</code> to reject anything not signed by a specific
         enclave build. The digest may be hex or base64, either form.
       </p>
-      <p className="text-sm text-[#4b5563] mb-8">
+      <p className="text-base text-[#4b5563] mb-8">
         <strong className="text-text">Read <code>artifactBinding</code>, not just <code>verified</code>.</strong>{" "}
         <code>checked</code> means the digest you sent matches the one inside the proof.
         <code> not-checked</code> means the proof is sound but nothing tied it to a file, which

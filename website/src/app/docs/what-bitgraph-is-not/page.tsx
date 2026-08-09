@@ -52,7 +52,7 @@ export default function WhatBitGraphIsNotPage() {
         ].map((item) => (
           <div key={item.title} className="border-l-2 border-l-[#d0d5dd] pl-6">
             <h2 className="text-base font-semibold mb-3">{item.title}</h2>
-            <p className="text-sm text-[#1f2937] leading-relaxed">{renderInline(item.body)}</p>
+            <p className="text-base text-[#1f2937] leading-relaxed">{renderInline(item.body)}</p>
           </div>
         ))}
       </div>

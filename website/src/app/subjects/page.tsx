@@ -136,7 +136,7 @@ export default function SubjectsPage() {
         Trust is expensive. Proof isn&rsquo;t.
       </h1>
 
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", marginBottom: 14 }}>
         {/* No comma before "but". With one, "but" attaches to "BitGraph is
             useful" and reads as though the problem undercuts BitGraph. Without
             it, "wherever" scopes both conditions and the contrast lands where
@@ -151,7 +151,7 @@ export default function SubjectsPage() {
         sequence: its metadata is editable, its timestamp is asserted, and a copy
         is indistinguishable from the original.
       </p>
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 14 }}>
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", marginBottom: 14 }}>
         A BitGraph gives a file a position. The slot is reserved from hardware
         entropy before the file&apos;s hash is known, the hash is bound to that slot
         inside a measured boundary, and the sequence is anchored to a public
@@ -166,7 +166,7 @@ export default function SubjectsPage() {
           another page's question. The two paragraphs above give a buyer the
           operative fact, that the slot is reserved before the hash is known.
           /camera remains the place for the analogy. */}
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", marginBottom: 40 }}>
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", marginBottom: 40 }}>
         {/* Says what the public record reveals, not that recording is private.
             "BitGraphing is completely private" was considered and is false: the
             Roll publishes every digest, position and time, permanently and
@@ -185,16 +185,16 @@ export default function SubjectsPage() {
           the seven entries instances of one thing rather than a list. Both stop
           short of the truth claim on purpose: the authority's ability to go on
           asserting is preserved, the truth of what it asserts is not. */}
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 14px" }}>
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 14px" }}>
         Two conditions usually hold where recording a BitGraph makes sense.
       </p>
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 14px" }}>
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 14px" }}>
         <strong style={{ color: "#111827", fontWeight: 700 }}>The trust gap is frequent and expensive.</strong>{" "}
         Someone pays repeatedly, in staff time or in liability, to re-establish
         something that was settled once already. A problem that comes up once a
         year and is settled by one email does not need a protocol.
       </p>
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "#1f2937", margin: "0 0 40px" }}>
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 40px" }}>
         <strong style={{ color: "#111827", fontWeight: 700 }}>There is an authority behind the artifact, or a position to defend.</strong>{" "}
         Where an authority issues something, a BitGraph preserves a verifiable
         record of the exact bits it asserted, so what it issued stays
@@ -219,8 +219,8 @@ export default function SubjectsPage() {
           }}>
             {c.who}
           </div>
-          <p style={{ fontSize: 14, lineHeight: 1.65, color: "#1f2937", margin: "0 0 12px" }}>{c.body}</p>
-          <p style={{ fontSize: 14, lineHeight: 1.65, color: "#1f2937", margin: 0 }}>
+          <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 12px" }}>{c.body}</p>
+          <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: 0 }}>
             <strong style={{ color: "#111827", fontWeight: 700 }}>What a BitGraph changes.</strong>{" "}
             {c.changes}
           </p>
@@ -230,17 +230,17 @@ export default function SubjectsPage() {
       {/* Stating the neighboring claims and ruling them out is the point of
           this section: they are exactly what a reader assumes on their own. */}
       <div style={{ marginTop: 52 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: "0 0 12px" }}>
+        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: "0 0 12px" }}>
           The edge of the claim
         </h2>
-        <p style={{ fontSize: 14, lineHeight: 1.65, color: "#1f2937", margin: "0 0 16px" }}>
+        <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 16px" }}>
           Every case above rests on one narrow claim: these exact bytes occupied
           this position in this sequence, and the position was fixed before the
           anchor that follows it. Three neighboring claims are the ones a reader
           tends to assume, and none of them follow.
         </p>
         {limits.map((l) => (
-          <p key={l.label} style={{ fontSize: 14, lineHeight: 1.65, color: "#1f2937", margin: "0 0 10px" }}>
+          <p key={l.label} style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 10px" }}>
             <strong style={{ color: "#111827", fontWeight: 700 }}>{l.label}.</strong> {l.text}
           </p>
         ))}
@@ -250,10 +250,10 @@ export default function SubjectsPage() {
       </div>
 
       <div style={{ marginTop: 44 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: "0 0 12px" }}>
+        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: "0 0 12px" }}>
           Applying it
         </h2>
-        <p style={{ fontSize: 14, lineHeight: 1.65, color: "#1f2937", margin: "0 0 4px" }}>
+        <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 4px" }}>
           Recording a file needs no integration. The home page hashes the file
           locally and returns a portable proof without uploading the file itself.
           Everything past that, issuing in volume or recording from inside your

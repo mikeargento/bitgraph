@@ -25,7 +25,7 @@ function Endpoint({
         <code className="text-sm font-mono text-text">{path}</code>
       </div>
       <div className="px-6 py-6">
-        <p className="text-sm text-text-secondary mb-4">{description}</p>
+        <p className="text-base text-text-secondary mb-4">{description}</p>
         {children}
       </div>
     </div>
@@ -57,7 +57,7 @@ export default function APIReferencePage() {
         <h1 className="bg-page-title mb-4">
           BitGraph Protocol API
         </h1>
-        <p className="text-lg leading-relaxed text-text-secondary max-w-xl">
+        <p className="text-base leading-relaxed text-text-secondary max-w-xl">
           REST API for committing artifacts and verifying proofs. The commit
           endpoint runs inside an AWS Nitro Enclave.
         </p>
@@ -73,8 +73,8 @@ export default function APIReferencePage() {
 
       {/* Authentication */}
       <div className="mb-12">
-        <h2 className="text-xl font-semibold mb-4">Authentication</h2>
-        <p className="text-sm text-text-secondary mb-4">
+        <h2 className="text-[1.375rem] font-semibold mb-4">Authentication</h2>
+        <p className="text-base text-text-secondary mb-4">
           Authentication is optional. If the server is configured with API keys,
           include a Bearer token:
         </p>
@@ -82,7 +82,7 @@ export default function APIReferencePage() {
           title="Authorization header"
           code={`Authorization: Bearer <your-api-key>`}
         />
-        <p className="text-sm text-text-secondary">
+        <p className="text-base text-text-secondary">
           If no API keys are configured on the server, all endpoints are open.
           The public demo endpoint does not require authentication.
         </p>
@@ -90,7 +90,7 @@ export default function APIReferencePage() {
 
       {/* Endpoints */}
       <div className="space-y-10">
-        <h2 className="text-xl font-semibold mb-4">Endpoints</h2>
+        <h2 className="text-[1.375rem] font-semibold mb-4">Endpoints</h2>
 
         {/* POST /commit */}
         <Endpoint
@@ -333,7 +333,7 @@ const proofs = await resp.json();
       {/* Types */}
       <div className="section-divider mt-16 mb-16" />
       <div className="pt-0">
-        <h2 className="text-xl font-semibold mb-6">Type definitions</h2>
+        <h2 className="text-[1.375rem] font-semibold mb-6">Type definitions</h2>
 
         <h3 className="text-lg font-semibold mb-3">BitGraphProof</h3>
         <CodeBlock
@@ -446,7 +446,7 @@ const proofs = await resp.json();
 
       {/* Error codes */}
       <div className="mt-12 border-t border-border-subtle pt-12">
-        <h2 className="text-xl font-semibold mb-6">Error responses</h2>
+        <h2 className="text-[1.375rem] font-semibold mb-6">Error responses</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
