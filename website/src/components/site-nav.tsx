@@ -41,6 +41,15 @@ export function SiteNav() {
   // from DOCS_GROUPS, and the first thing that happened when these were two
   // copies was that an underline went on three of the four.
   //
+  // No rule of any kind on it now, and none anywhere inside the panel. Three
+  // placements were tried on 2026-08-09 and all three are gone: vertical
+  // between the columns (a rule has to pick a height, and a grid with ragged
+  // bottoms offers none), a cap above each heading (floats, unattached to
+  // anything, and breaks into two segments at two columns), and this underline
+  // (which did work, and was still one more element than the headings needed).
+  // Four near-black bold labels against 14px grey rows separate the columns on
+  // their own. The panel is type and the card's edge.
+  //
   // Small, tracked-out, uppercase, 800, near-black. These shipped grey twice
   // (600/#9ca3af, then 700/#6b7280) and read as faded rows both times: a label
   // in a value between the rows' grey and the panel's white cannot be told from
@@ -53,8 +62,7 @@ export function SiteNav() {
     <div
       aria-hidden="true"
       style={{
-        padding: "0 10px 8px", marginBottom: 6,
-        borderBottom: "1px solid #e5e7eb",
+        padding: "0 10px 8px",
         fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
         textTransform: "uppercase", color: "#111827",
       }}
