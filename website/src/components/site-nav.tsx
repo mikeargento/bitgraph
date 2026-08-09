@@ -37,6 +37,32 @@ export function SiteNav() {
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
   }, [docsOpen]);
 
+  // One column heading. Shared, because Reference is built by hand rather than
+  // from DOCS_GROUPS, and the first thing that happened when these were two
+  // copies was that an underline went on three of the four.
+  //
+  // Small, tracked-out, uppercase, 800, near-black. These shipped grey twice
+  // (600/#9ca3af, then 700/#6b7280) and read as faded rows both times: a label
+  // in a value between the rows' grey and the panel's white cannot be told from
+  // a row at a glance, whatever its weight. The value has to LEAD the items it
+  // heads. Size is what keeps it quiet, 11px against their 14px.
+  //
+  // aria-hidden because the enclosing role="group" already carries the name to
+  // assistive tech, and it would otherwise be announced twice.
+  const renderHeading = (label: string) => (
+    <div
+      aria-hidden="true"
+      style={{
+        padding: "0 10px 8px", marginBottom: 6,
+        borderBottom: "1px solid #e5e7eb",
+        fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
+        textTransform: "uppercase", color: "#111827",
+      }}
+    >
+      {label}
+    </div>
+  );
+
   // One row, whether it comes from a group or from the loose tail below them.
   const renderItem = (s: DocsSection) => (
     <Link
@@ -224,25 +250,7 @@ export function SiteNav() {
             <div className="docs-panel-cols">
               {DOCS_GROUPS.map((g) => (
                 <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group">
-                  {/* Small, tracked-out, uppercase, 800, near-black. These
-                      shipped grey twice (600/#9ca3af, then 700/#6b7280) and
-                      read as faded rows both times: a label in a value between
-                      the rows' grey and the panel's white cannot be told from a
-                      row at a glance, whatever its weight. The value has to
-                      LEAD the items it heads. Size is what keeps it quiet, 11px
-                      against their 14px. aria-hidden because role="group"
-                      already carries the name to assistive tech. */}
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      padding: "0 10px 8px", marginBottom: 6,
-                      borderBottom: "1px solid #e5e7eb",
-                      fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
-                      textTransform: "uppercase", color: "#111827",
-                    }}
-                  >
-                    {g.label}
-                  </div>
+                  {renderHeading(g.label)}
                   {g.items.map(renderItem)}
                 </div>
               ))}
@@ -264,16 +272,7 @@ export function SiteNav() {
                   thing a label here could get wrong, since FAQ closes that
                   sequence and the repo sits outside it. */}
               <div role="group" aria-label="Reference" className="docs-panel-group">
-                <div
-                  aria-hidden="true"
-                  style={{
-                    padding: "0 10px 8px",
-                    fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
-                    textTransform: "uppercase", color: "#111827",
-                  }}
-                >
-                  Reference
-                </div>
+                {renderHeading("Reference")}
                 {DOCS_TAIL.map(renderItem)}
                 <a
                   href={DOCS_REPO}
