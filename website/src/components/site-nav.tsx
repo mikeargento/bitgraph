@@ -219,11 +219,8 @@ export function SiteNav() {
           }}
         >
           <div>
-            {/* Multi-column rather than a grid: the groups are 6, 3 and 5 rows,
-                and column balancing lays them out on its own at whatever count
-                fits, three across on a laptop and two on a phone. break-inside
-                keeps a group whole, so a heading can never end up at the foot
-                of one column with its items at the head of the next. */}
+            {/* Four cells, tops aligned, bottoms wherever each group ends. See
+                globals.css for why this is a grid and not balanced columns. */}
             <div className="docs-panel-cols">
               {DOCS_GROUPS.map((g) => (
                 <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group">
@@ -248,39 +245,46 @@ export function SiteNav() {
                   {g.items.map(renderItem)}
                 </div>
               ))}
-            </div>
-            {/* FAQ and the repo, under the columns, held apart by air alone.
-                A hairline ran here first and was cut (Mike, 2026-08-09, asking
-                whether whitespace could do it): the row already sits under all
-                three columns and outside every heading, so the rule was saying
-                a second time what the position had said, and it was the only
-                horizontal line in the panel.
+              {/* The fourth cell: FAQ and the repo. They ran as a row beneath
+                  the columns first, first with a rule over them and then
+                  without, and neither held. Without one they read as "lost
+                  floating there" (Mike); with one, the rule was a piece of
+                  furniture doing a job the grid does for free.
 
-                Not a fourth COLUMN either, which was the other half of the same
-                question. Columns read as peer categories, and a fourth would
-                give two loose links the weight of Understand's six. It would
-                also need a heading to sit there, and any heading invented for
-                it would be wrong about one of them: FAQ is the last stop in the
-                reading sequence, GitHub is a destination outside it. */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-              marginTop: 30,
-            }}>
-              {DOCS_TAIL.map(renderItem)}
-              <a
-                href={DOCS_REPO}
-                target="_blank"
-                rel="noopener"
-                role="menuitem"
-                className="docs-menu-item"
-                onClick={() => setDocsOpen(false)}
-                style={{
-                  display: "block", padding: "7px 10px", fontSize: 14,
-                  fontWeight: 400, textDecoration: "none",
-                }}
-              >
-                GitHub
-              </a>
+                  No heading, because there is no honest word for these two:
+                  FAQ closes the reading sequence and the repo is outside it
+                  entirely, so any label would be wrong about one of them. The
+                  space where the other three carry theirs is held open by a
+                  hidden copy, so its first row starts level with Overview,
+                  Verification and Proof Format. That blank IS the statement:
+                  aligned with the groups, named like none of them. */}
+              <div role="group" className="docs-panel-group">
+                <div
+                  aria-hidden="true"
+                  style={{
+                    padding: "0 10px 8px", visibility: "hidden",
+                    fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
+                    textTransform: "uppercase", color: "#111827",
+                  }}
+                >
+                  &nbsp;
+                </div>
+                {DOCS_TAIL.map(renderItem)}
+                <a
+                  href={DOCS_REPO}
+                  target="_blank"
+                  rel="noopener"
+                  role="menuitem"
+                  className="docs-menu-item"
+                  onClick={() => setDocsOpen(false)}
+                  style={{
+                    display: "block", padding: "7px 10px", fontSize: 14,
+                    fontWeight: 400, textDecoration: "none",
+                  }}
+                >
+                  GitHub
+                </a>
+              </div>
             </div>
           </div>
         </div>

@@ -673,17 +673,27 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .bg-nav-links > a,
 .bg-nav-links > div > button { color: #111827; }
 
-/* ── The docs panel's columns. Two on a phone, three from 640px up: the three
-   groups are 6, 3 and 5 rows, so at three columns the tallest is 6 and the
-   panel is about 250px tall, which is a shape you can read at a glance instead
-   of a fifteen-row scroll. Balancing is the browser's; break-inside keeps each
-   group whole so a heading is never orphaned at the foot of a column. ── */
-.docs-panel-cols { column-count: 2; column-gap: 24px; }
-@media (min-width: 640px) { .docs-panel-cols { column-count: 3; column-gap: 32px; } }
-.docs-panel-group { break-inside: avoid; page-break-inside: avoid; display: block; }
-/* Every group after the first opens with air above it, except where a column
-   break has already put it at the top of its own column. */
-.docs-panel-group + .docs-panel-group { margin-top: 22px; }
+/* ── The docs panel's columns: a fixed grid of four, one cell per group, tops
+   aligned and bottoms ragged. Understand is 6 rows, Use is 3, so Use simply
+   ends early and leaves white under itself.
+
+   This started as balanced multi-column, which packed the groups to even out
+   the height and put two of them in one column. Mike, 2026-08-09: "an equal
+   grid of 4 with the lists just producing white space if shorter than the
+   tallest one". He is right that the grid is the truer structure: four peers
+   read as four peers, and the ragged bottom is information (this group is
+   short) rather than a gap to be tidied away.
+
+   Four needs about 800px of column to hold "What BitGraph is Not" on one line,
+   so the switch waits for a 880px viewport. Below that it is two, where the
+   same rule produces the same ragged bottoms a row at a time. ── */
+.docs-panel-cols {
+  display: grid; grid-template-columns: 1fr 1fr;
+  align-items: start; column-gap: 24px; row-gap: 28px;
+}
+@media (min-width: 880px) {
+  .docs-panel-cols { grid-template-columns: repeat(4, 1fr); column-gap: 20px; }
+}
 
 /* The menu's own rows, where hover DOES go blue. Fifteen of them, so the row
    under the cursor has to be findable, and inside an open menu every row is
