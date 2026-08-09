@@ -27,9 +27,7 @@ const toSafe = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").repl
 
 // ── tiny in-memory caches (warm-instance scoped) ───────────────────────────
 let epochCache: { epoch: string; at: number } | null = null;
-const headCache = new Map<string, { head: number; at: number }>();
 const EPOCH_TTL = 60_000;
-const HEAD_TTL = 12_000;
 
 /** Current epoch: ask the enclave (it mints epochs; one call), fall back to a
  *  PAGINATED newest-born scan of the ledger while the boundary is rotating.
@@ -67,69 +65,13 @@ async function getCurrentEpoch(now: number): Promise<string | null> {
   return best.epoch;
 }
 
-/* Highest counter under proofs/{epoch}/.
-
-   Two algorithms, because the right one depends on how big an epoch is, and
-   epoch size changed under this code. Binary search costs ~log2(head) probes
-   and does not care about object count. Walking keys-only LIST pages costs
-   ceil(count / 1000) and does not care how large the counters are. Since the
-   23:59 UTC rotation an epoch is a single calendar day, a few thousand objects
-   at most, so the walk is 1-4 round trips where the search was ~13. The
-   crossover is around 20,000 objects, far above a day's recordings, but the
-   search stays as the fallback: pre-rotation epochs spanned months, and an
-   unbounded walk over one of those would be worse than what it replaced. */
-/* 40, not 12. At 12 the walk covered 12,000 objects, and on 2026-08-09 the
-   day's epoch passed that: the walk then read 12 pages, never set `exhausted`,
-   THREW AWAY the head it had already computed and paid for the ~20-probe
-   binary search on top. 3,261ms measured, to learn one number.
-
-   40 pages is 40,000 objects, comfortably past a day at the current rate, and
-   the search below stays as the fallback for a pre-rotation epoch. This is a
-   constant that went stale rather than a design that failed, and the lesson is
-   in the fallback's favour: getting it wrong cost double, not nothing. */
-const HEAD_WALK_PAGES = 40;
-
-async function getHead(epoch: string, now: number): Promise<number> {
-  const cached = headCache.get(epoch);
-  if (cached && now - cached.at < HEAD_TTL) return cached.head;
-  const prefix = `proofs/${epoch}/`;
-
-  // Keys-only walk to the last page. S3 lists lexicographically and counters
-  // are zero-padded, so the final key of the final page is the head.
-  let token: string | undefined;
-  let lastKey: string | undefined;
-  let exhausted = false;
-  for (let page = 0; page < HEAD_WALK_PAGES; page++) {
-    const r = await s3.send(new ListObjectsV2Command({
-      Bucket: bucket, Prefix: prefix, MaxKeys: 1000,
-      ...(token ? { ContinuationToken: token } : {}),
-    }));
-    const contents = r.Contents || [];
-    if (contents.length) lastKey = contents[contents.length - 1].Key || lastKey;
-    token = r.NextContinuationToken;
-    if (!token) { exhausted = true; break; }
-  }
-  if (exhausted && lastKey) {
-    const n = parseInt((lastKey.split("/").pop() || "").split("-")[0], 10);
-    if (!isNaN(n) && n > 0) {
-      headCache.set(epoch, { head: n, at: now });
-      return n;
-    }
-  }
-
-  // Too many objects to walk (a pre-rotation epoch): fall back to the search.
-  const has = async (n: number) => {
-    const r = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(n)}`, MaxKeys: 1 }));
-    return (r.Contents?.length ?? 0) > 0;
-  };
-  let lo = 0, cur = 1024, hi = 1_000_000_000;
-  while (cur < hi && (await has(cur))) { lo = cur; cur *= 4; }
-  hi = Math.min(hi, cur);
-  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (await has(mid)) lo = mid; else hi = mid; }
-  const head = Math.max(lo, 1);
-  headCache.set(epoch, { head, at: now });
-  return head;
-}
+/* getHead() lived here. It walked keys-only LIST pages to find the epoch's
+   highest counter and, when the walk hit its page cap, fell through to a
+   ~20-probe binary search — and on 2026-08-09 the day's epoch outgrew the cap,
+   so it did BOTH: 3,261ms to learn one number, the answer from the walk thrown
+   away first. Nothing calls it now. The live path takes the head from the same
+   cached pass that produces its rows, and the day path takes its bounds from
+   the anchors-by-time segments. */
 
 type Entry = {
   counter: number;
@@ -530,6 +472,94 @@ async function archivedDayPage(
   };
 }
 
+// ── The live epoch, in one pass ─────────────────────────────────────────────
+/* The sealed days are archived; today is the one range that can still change,
+   so it is still read from the ledger. What it is NOT any more is scanned.
+
+   The scan walked down from the head in 1000-counter windows, two LISTs each,
+   stopping when it had 25 recordings. That is fine when recordings are spread
+   evenly and catastrophic when they are not: recordings arrive in bursts and
+   anchors arrive every 12 seconds, so by mid-afternoon the top of the epoch is
+   tens of thousands of anchor-only counters and filling one page meant ~60
+   LISTs. Measured at 7-10s, after the budget was raised far enough to return
+   any rows at all.
+
+   Two LISTs of the whole epoch cost less than sixty LISTs of part of it. The
+   proofs prefix gives every counter and the anchors prefix gives the ones to
+   skip; the difference is the file list, in order, and the last key is the
+   head. One pass answers both questions the feed used to ask separately, and
+   the answer is cached, so the paging that follows costs nothing but the GETs
+   for the rows actually shown.
+
+   revalidate 15 matches the s-maxage this same function hands the CDN for the
+   live head, so this changes how often the work is done and never how fresh
+   the Roll is allowed to be. */
+
+type EpochIndex = { head: number; files: Array<{ key: string; counter: number; lm?: number }> };
+
+async function listAllCounters(prefix: string): Promise<Array<{ key: string; counter: number; lm?: number }>> {
+  const out: Array<{ key: string; counter: number; lm?: number }> = [];
+  let token: string | undefined;
+  // 60 pages is 60,000 objects: far past a day at the current rate, and a rail
+  // rather than a budget. Running short yields FEWER rows, never wrong ones,
+  // and the head it implies is a floor, so the client reads as behind.
+  for (let page = 0; page < 60; page++) {
+    const r = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket, Prefix: prefix, MaxKeys: 1000, ...(token ? { ContinuationToken: token } : {}),
+    }));
+    for (const o of r.Contents || []) {
+      const n = parseInt(((o.Key || "").split("/").pop() || "").split("-")[0], 10);
+      if (!isNaN(n)) out.push({ key: o.Key!, counter: n, lm: o.LastModified?.getTime() });
+    }
+    token = r.NextContinuationToken;
+    if (!token) break;
+  }
+  return out;
+}
+
+async function computeEpochIndex(epoch: string): Promise<EpochIndex> {
+  const [proofs, anchors] = await Promise.all([
+    listAllCounters(`proofs/${epoch}/`),
+    listAllCounters(`anchors/${epoch}/`),
+  ]);
+  const anchorCounters = new Set(anchors.map((a) => a.counter));
+  const head = proofs.reduce((m, p) => (p.counter > m ? p.counter : m), 0);
+  const files = proofs
+    .filter((p) => !anchorCounters.has(p.counter))
+    .sort((a, b) => b.counter - a.counter);
+  return { head, files };
+}
+
+const cachedEpochIndex = unstable_cache(
+  (epoch: string) => computeEpochIndex(epoch),
+  ["roll-live-epoch-index-v1"],
+  { revalidate: 15 },
+);
+
+/** The `limit` highest-counter recordings at or below `top`, from the cached
+ *  index. No scan, no window, no budget: a slice and the GETs for the rows that
+ *  will actually be shown. */
+async function liveFiles(epoch: string, top: number, limit: number): Promise<{ entries: Entry[]; floor: number }> {
+  const { files } = await cachedEpochIndex(epoch);
+  const slice = files.filter((f) => f.counter <= top).slice(0, limit);
+  const objs = await Promise.all(slice.map(async ({ key, lm }) => {
+    try {
+      const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      const body = await r.Body?.transformToString();
+      return body ? { json: JSON.parse(body) as Record<string, unknown>, lm } : null;
+    } catch { return null; }
+  }));
+  const entries = objs
+    .map((o) => (o ? toEntry(o.json, o.lm) : null))
+    .filter((e): e is Entry => e !== null && e.type === "proof")
+    .sort((a, b) => b.counter - a.counter);
+  // The cursor is the next unshown recording, so an anchor-only stretch is
+  // skipped in one step instead of being paged through.
+  const lowest = slice.length ? slice[slice.length - 1].counter : 1;
+  const more = files.some((f) => f.counter < lowest);
+  return { entries, floor: more ? lowest : 1 };
+}
+
 export type RollFeedBody = {
   epoch?: string;
   day?: string;
@@ -650,7 +680,11 @@ async function computeRollFeed(opts: {
   const epoch = await getCurrentEpoch(now);
   if (!epoch) return { status: 404, body: { error: "no epoch" } };
 
-  const head = await getHead(epoch, now);
+  /* The head comes from the same cached pass as the rows. It used to be its own
+     LIST walk that, once the epoch outgrew 12,000 objects, discarded its answer
+     and paid for a binary search on top: 3,261ms to learn one number. The walk
+     is gone; the head is a by-product of listing the epoch once. */
+  const { head } = await cachedEpochIndex(epoch);
   let top = head;
   if (beforeParam) {
     const b = parseInt(beforeParam, 10);
@@ -663,7 +697,7 @@ async function computeRollFeed(opts: {
   if (filesOnly) {
     // The cursor is the scan floor, not the last entry: an anchor-only stretch
     // legitimately yields an empty page that still advances.
-    const r = top < 1 ? { entries: [], floor: 1 } : await listRecentFiles(epoch, top, PAGE);
+    const r = top < 1 ? { entries: [], floor: 1 } : await liveFiles(epoch, top, PAGE);
     entries = r.entries;
     nextBefore = r.floor > 1 ? r.floor : null;
   } else {
