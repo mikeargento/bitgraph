@@ -268,14 +268,18 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .overview h2 {
   margin-top: 3rem;
   margin-bottom: 1rem;
-  font-size: 1.25rem;
+  /* 1.375rem, matching .prose-doc h2. This page is one of thirteen in the
+     Docs menu and was the only one on its own scale: 20px against everyone
+     else's 22px, and 17px body against 16px. Reading Overview then
+     Verification then FAQ changed the type size twice. */
+  font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: -0.015em;
   color: #111827;
 }
 .overview p {
-  font-size: 1.0625rem;
-  line-height: 1.7;
+  font-size: 1rem;
+  line-height: 1.75;
   margin-bottom: 1.25rem;
   color: #1f2937;
 }
@@ -283,7 +287,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   border-left: 2px solid #d0d5dd;
   padding-left: 1.25rem;
   margin: 1.5rem 0;
-  font-size: 1.0625rem;
+  font-size: 1rem;
   line-height: 1.6;
   color: #111827;
 }
@@ -292,8 +296,8 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   padding: 0;
 }
 .overview li {
-  font-size: 1.0625rem;
-  line-height: 1.7;
+  font-size: 1rem;
+  line-height: 1.75;
   margin-bottom: 0.5rem;
   color: #1f2937;
 }
@@ -336,7 +340,8 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 @media (max-width: 640px) {
   .overview { padding: 40px 20px 80px; }
-  .overview p, .overview li { font-size: 1rem; }
+  /* The font-size override that lived here is gone: it existed only to pull
+     the desktop 1.0625rem back to 1rem on phones, and the base is 1rem now. */
   .overview td:first-child { white-space: normal; }
 }
 

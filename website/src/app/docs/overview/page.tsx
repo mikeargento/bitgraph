@@ -27,7 +27,7 @@ export default function OverviewPage() {
           Inline styles throughout this block: .overview's own h1/p rules are
           unlayered and would otherwise restyle it (the same trap family as
           .prose-doc, see the 2026-08-03 handoff). */}
-      <p style={{ fontSize: 17, lineHeight: 1.7, color: "#1f2937", margin: "18px 0 24px", textWrap: "pretty" }}>
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 24px", textWrap: "pretty" }}>
         Digital files have no unique place in space or time. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits are the light, and the fingerprint they condense to is what exposes that frame. Your data itself never appears in it. Each frame can be exposed only once. The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that frame.
       </p>
       <CameraExplainer />
