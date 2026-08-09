@@ -245,29 +245,33 @@ export function SiteNav() {
                   {g.items.map(renderItem)}
                 </div>
               ))}
-              {/* The fourth cell: FAQ and the repo. They ran as a row beneath
-                  the columns first, first with a rule over them and then
-                  without, and neither held. Without one they read as "lost
-                  floating there" (Mike); with one, the rule was a piece of
-                  furniture doing a job the grid does for free.
+              {/* The fourth cell: FAQ and the repo, under REFERENCE.
 
-                  No heading, because there is no honest word for these two:
-                  FAQ closes the reading sequence and the repo is outside it
-                  entirely, so any label would be wrong about one of them. The
-                  space where the other three carry theirs is held open by a
-                  hidden copy, so its first row starts level with Overview,
-                  Verification and Proof Format. That blank IS the statement:
-                  aligned with the groups, named like none of them. */}
-              <div role="group" className="docs-panel-group">
+                  They ran as a row beneath the columns first, under a rule and
+                  then under air, and neither held: without the rule they read
+                  as "lost floating there" (Mike), and with it the rule was
+                  furniture doing what the grid does for free. Then the cell
+                  carried a blank where the other three carry a heading, which
+                  aligned the rows but left a hole for the reader to wonder at.
+
+                  "More" was the alternative and is the word you reach for when
+                  you have not decided what a group is. Reference is true of
+                  both without claiming they are a section of the docs: the FAQ
+                  is what you look an answer up in, and the repo is the
+                  reference implementation the proof format is derived from.
+                  It says nothing about the reading sequence, which is the one
+                  thing a label here could get wrong, since FAQ closes that
+                  sequence and the repo sits outside it. */}
+              <div role="group" aria-label="Reference" className="docs-panel-group">
                 <div
                   aria-hidden="true"
                   style={{
-                    padding: "0 10px 8px", visibility: "hidden",
+                    padding: "0 10px 8px",
                     fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
                     textTransform: "uppercase", color: "#111827",
                   }}
                 >
-                  &nbsp;
+                  Reference
                 </div>
                 {DOCS_TAIL.map(renderItem)}
                 <a

@@ -691,6 +691,14 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   display: grid; grid-template-columns: 1fr 1fr;
   align-items: start; column-gap: 24px; row-gap: 28px;
 }
+/* A hairline capping each cell, over the heading. Vertical strokes between the
+   columns were the other option and were declined: a vertical rule has to pick
+   a height, and every choice is wrong here. Full height runs a line down the
+   empty space under a short group, and content height gives four rules of four
+   different lengths. These four are equal, sit at one y, and give the grid the
+   top edge its ragged bottoms deliberately lack. On two columns they also mark
+   where the second row starts. */
+.docs-panel-group { border-top: 1px solid #e5e7eb; padding-top: 13px; }
 @media (min-width: 880px) {
   .docs-panel-cols { grid-template-columns: repeat(4, 1fr); column-gap: 20px; }
 }
