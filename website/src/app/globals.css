@@ -654,6 +654,62 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    are already at half the column. */
 @media (max-width: 480px) { .bg-page-nav { gap: 16px; } }
 
+/* ── The whitepaper's contents list. Fifty-nine entries, so two columns from
+   640px: one column runs about 1500px and turns the contents of a paper into a
+   scroll of their own, where two fit the whole structure on a laptop screen at
+   once. Multi-column, not a grid, because this is one ordered list that should
+   fill the first column and continue into the second. Each top-level section
+   travels with its subsections, so a break cannot separate "10 Related Work"
+   from 10.1. ── */
+/* A card floating under the Contents control, the width of the reading column.
+   The 14px of padding plus the control's own bottom padding is the air under
+   the word that opens it: without it the first entry sat directly beneath that
+   word and read as its second line rather than as the start of the contents.
+   Height-capped because 59 entries in one column on a phone is taller than any
+   phone; it scrolls inside itself rather than off the screen. */
+.wp-toc {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 1;
+  background: #fff; border: 1px solid #d0d5dd; border-radius: 0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  padding: 16px 18px; margin-top: 2px;
+  max-height: calc(100dvh - 130px); overflow-y: auto; overscroll-behavior: contain;
+}
+/* The columns are an INNER element, and the height cap is on the card outside
+   them. A multi-column box with a height constraint does not scroll, it
+   fragments: the overflow becomes further columns to the right, off the edge of
+   the card. On a phone that showed six sections and a lot of white, with 7 to
+   19 parked out of sight beside them. Unconstrained columns inside a scrolling
+   card behave the way the eye expects. */
+.wp-toc-cols { column-count: 1; column-gap: 40px; }
+@media (min-width: 640px) { .wp-toc-cols { column-count: 2; } }
+.wp-toc-group { break-inside: avoid; page-break-inside: avoid; }
+/* 10px, not 14. The difference is 19 gaps and about 80px, which is what puts a
+   59-section contents inside one laptop screen instead of just over it. */
+.wp-toc-group + .wp-toc-group { margin-top: 10px; }
+
+/* A row is a number in a fixed gutter and a title beside it, so the titles line
+   up whatever the number's width, and a title that wraps wraps against its own
+   left edge rather than under the number. */
+.wp-toc-row {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 3px 0; font-size: 14px; line-height: 1.45;
+  color: #111827; font-weight: 600; text-decoration: none;
+}
+.wp-toc-sub { color: #4b5563; font-weight: 400; padding-left: 22px; }
+.wp-toc-num {
+  flex: 0 0 34px; font-size: 12px; color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+.wp-toc-sub .wp-toc-num { flex-basis: 32px; }
+@media (hover: hover) { .wp-toc-row:hover { color: #0065A4; } }
+.wp-toc-row:focus-visible { outline: 2px solid #0065A4; outline-offset: 2px; }
+
+/* Jumping to a section must not park it under the sticky bar. The old contents
+   did this in JavaScript with a hard-coded 80px against a 58px bar; in CSS it
+   works for every anchor into the paper, including one pasted from someone
+   else's email. */
+.prose-doc section[id^="sec-"] { scroll-margin-top: 74px; }
+
 /* ── Nav links. The gap is here rather than inline on the element so it can
    tighten on narrow phones: at 320px, "Applications" plus a 24px gap left only
    7px of air between the wordmark and the first link. 16px restores roughly
