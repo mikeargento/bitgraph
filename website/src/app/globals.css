@@ -691,14 +691,22 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   display: grid; grid-template-columns: 1fr 1fr;
   align-items: start; column-gap: 24px; row-gap: 28px;
 }
-/* A hairline capping each cell, over the heading. Vertical strokes between the
-   columns were the other option and were declined: a vertical rule has to pick
-   a height, and every choice is wrong here. Full height runs a line down the
-   empty space under a short group, and content height gives four rules of four
-   different lengths. These four are equal, sit at one y, and give the grid the
-   top edge its ragged bottoms deliberately lack. On two columns they also mark
-   where the second row starts. */
-.docs-panel-group { border-top: 1px solid #e5e7eb; padding-top: 13px; }
+/* No strokes, in either direction. Both were tried on 2026-08-09 and both were
+   wrong for the same underlying reason: a grid with ragged bottoms has no edge
+   for a rule to follow.
+
+   Vertical, between the columns: a rule has to pick a height. Full height draws
+   a line down the empty space under a short group; content height gives four
+   rules of four different lengths.
+
+   Horizontal, capping each cell over its heading: fine on four columns, and
+   "kinda weird especially on mobile" (Mike), which is where it breaks. At two
+   columns the second row's caps are two separate segments with the column gap
+   punched between them, so what should read as a cap reads as a broken rule
+   across the middle of the panel.
+
+   The four headings and the gaps do the separating. The panel has no lines in
+   it at all now, which is the site's own voice: type, and the card's edge. */
 @media (min-width: 880px) {
   .docs-panel-cols { grid-template-columns: repeat(4, 1fr); column-gap: 20px; }
 }

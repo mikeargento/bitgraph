@@ -21,9 +21,13 @@
  * "Self-Host TEE" closes BUILD. It is the rarest thing anyone will do, and it
  * used to sit mid-list splitting Trust Model from the integration docs.
  *
- * Whitepaper closes UNDERSTAND rather than leading it: high placement is a
- * credibility signal, but the third thing a curious reader meets should not be
- * the most demanding document.
+ * Whitepaper moved out of UNDERSTAND and into REFERENCE (2026-08-09, Mike:
+ * "maybe whitepaper should be under reference?"). It spent months closing the
+ * conceptual run as a compromise between two things that were both true: high
+ * placement is a credibility signal, and the most demanding document on the
+ * site should not be the sixth thing a curious reader meets. Reference settles
+ * it instead of splitting it. The whitepaper is not a step in an orientation,
+ * it is a thing you consult, which is exactly what it now sits with.
  *
  * Proof Format opens BUILD (moved from just after Whitepaper, 2026-08-09).
  * The four ways to use it still run easiest-to-hardest within the group, but
@@ -31,9 +35,10 @@
  * the conceptual run, where it read as the last thing to understand rather
  * than the first thing to build against.
  *
- * FAQ sits outside the groups, and GitHub is appended in the menu itself,
- * always last, as the one external link. Only FAQ is part of the reading
- * sequence; GitHub is a destination, not a section.
+ * REFERENCE is the fourth column: the whitepaper, the FAQ, the repo. The three
+ * things you look something up in rather than read through. GitHub is appended
+ * in the menu itself, always last; it is the only entry on this page that is
+ * NOT in the reading sequence, being a destination rather than a section.
  */
 export type DocsSection = { href: string; label: string };
 
@@ -53,7 +58,6 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/what-is-bitgraph", label: "What is BitGraph" },
       { href: "/docs/what-bitgraph-is-not", label: "What BitGraph is Not" },
       { href: "/docs/trust-model", label: "Trust Model" },
-      { href: "/docs/whitepaper", label: "Whitepaper" },
     ],
   },
   {
@@ -82,8 +86,14 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
   },
 ];
 
-/** Below the groups in the menu, and the last stop in the reading sequence. */
+/**
+ * REFERENCE, the fourth column, rendered by the menu after the three groups
+ * above (it appends GitHub to these, which is external and stays out of the
+ * sequence). These two ARE in the sequence, and they close it: the trail runs
+ * Self-Host TEE → Whitepaper → FAQ and stops.
+ */
 export const DOCS_TAIL: DocsSection[] = [
+  { href: "/docs/whitepaper", label: "Whitepaper" },
   { href: "/docs/faq", label: "FAQ" },
 ];
 
