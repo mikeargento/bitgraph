@@ -38,7 +38,12 @@ export function SeeExample() {
   return (
     <Link
       href={`/proof/${digest}?counter=${counter}&epoch=${epoch}`}
-      className="see-example-link"
+      // The site's one link shape: .bg-arrow-link plus the arrow in its own
+      // span, which is what earns the hover nudge. It wore a bespoke home-page
+      // class until it moved to /docs/overview, where sitting beside ordinary
+      // docs links made the difference obvious.
+      className="bg-arrow-link"
+      style={{ fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none" }}
       onMouseEnter={prime}
       onFocus={prime}
       onTouchStart={prime}

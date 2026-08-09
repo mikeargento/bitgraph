@@ -607,15 +607,3 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    need the most air between them to stay countable. ── */
 .bg-case { margin-bottom: 38px; }
 @media (max-width: 640px) { .bg-case { margin-bottom: 56px; } }
-
-/* ── The example-BitGraph link. Lived in the home page's inline <style> while
-   it sat under the drop box; it now closes /docs/overview instead, under the
-   film lines, so the style has to be somewhere both pages can see. Styled like
-   /folder's stacked links. ── */
-.see-example-link {
-  appearance: none; border: none; background: none; cursor: pointer;
-  font-family: inherit; font-size: 13px; font-weight: 500; color: #0065A4;
-  display: inline-flex; align-items: center; gap: 5px; padding: 0;
-  text-decoration: none;
-}
-.see-example-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }

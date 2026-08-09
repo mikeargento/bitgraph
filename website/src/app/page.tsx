@@ -886,9 +886,8 @@ export default function BitGraphPage() {
            suffers: orphaned last words and lines that break one word early.
            Applies at every width; browsers without it just wrap greedily. */
         .hero-explainer p { margin: 0; text-wrap: pretty; }
-        /* .see-example-link moved to globals.css when the example link left
-           this page for /docs/overview: the component carries the class, so
-           the style has to live somewhere every page can see. */
+        /* The example link left this page for /docs/overview and now wears the
+           site's shared .bg-arrow-link, so nothing is needed here. */
         /* Waiting states (read/check/prove/export) all pin their center to the
            SAME viewport point the success checkmark uses (fixed, 44% down,
            horizontally centered), so every wait and the capture moment share
