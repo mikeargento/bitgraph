@@ -66,11 +66,48 @@ async function getCurrentEpoch(now: number): Promise<string | null> {
   return best.epoch;
 }
 
-/** Highest counter under proofs/{epoch}/ via StartAfter binary search (~log2, bounded). */
+/* Highest counter under proofs/{epoch}/.
+
+   Two algorithms, because the right one depends on how big an epoch is, and
+   epoch size changed under this code. Binary search costs ~log2(head) probes
+   and does not care about object count. Walking keys-only LIST pages costs
+   ceil(count / 1000) and does not care how large the counters are. Since the
+   23:59 UTC rotation an epoch is a single calendar day, a few thousand objects
+   at most, so the walk is 1-4 round trips where the search was ~13. The
+   crossover is around 20,000 objects, far above a day's recordings, but the
+   search stays as the fallback: pre-rotation epochs spanned months, and an
+   unbounded walk over one of those would be worse than what it replaced. */
+const HEAD_WALK_PAGES = 12;
+
 async function getHead(epoch: string, now: number): Promise<number> {
   const cached = headCache.get(epoch);
   if (cached && now - cached.at < HEAD_TTL) return cached.head;
   const prefix = `proofs/${epoch}/`;
+
+  // Keys-only walk to the last page. S3 lists lexicographically and counters
+  // are zero-padded, so the final key of the final page is the head.
+  let token: string | undefined;
+  let lastKey: string | undefined;
+  let exhausted = false;
+  for (let page = 0; page < HEAD_WALK_PAGES; page++) {
+    const r = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket, Prefix: prefix, MaxKeys: 1000,
+      ...(token ? { ContinuationToken: token } : {}),
+    }));
+    const contents = r.Contents || [];
+    if (contents.length) lastKey = contents[contents.length - 1].Key || lastKey;
+    token = r.NextContinuationToken;
+    if (!token) { exhausted = true; break; }
+  }
+  if (exhausted && lastKey) {
+    const n = parseInt((lastKey.split("/").pop() || "").split("-")[0], 10);
+    if (!isNaN(n) && n > 0) {
+      headCache.set(epoch, { head: n, at: now });
+      return n;
+    }
+  }
+
+  // Too many objects to walk (a pre-rotation epoch): fall back to the search.
   const has = async (n: number) => {
     const r = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(n)}`, MaxKeys: 1 }));
     return (r.Contents?.length ?? 0) > 0;
@@ -172,25 +209,53 @@ async function listRecentFiles(epoch: string, top: number, limit: number, lowBou
       .map((o) => ({ key: o.Key!, counter: parseInt((o.Key!.split("/").pop() || "").split("-")[0], 10), lm: o.LastModified?.getTime() }))
       .filter((x) => inWindow(x.counter) && !anchorCounters.has(x.counter))
       .sort((a, b) => b.counter - a.counter);
-    const objs = await Promise.all(fileKeys.map(async ({ key, lm }) => {
-      try {
-        const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-        const body = await r.Body?.transformToString();
-        return body ? { json: JSON.parse(body) as Record<string, unknown>, lm } : null;
-      } catch { return null; }
-    }));
-    for (const o of objs) {
-      const e = o ? toEntry(o.json, o.lm) : null;
-      // Belt and suspenders: the anchors/ index is authoritative for skipping,
-      // but if an index write ever went missing the proof itself still says
-      // what it is.
-      if (e && e.type === "proof") found.push(e);
+    /* Fetch newest-first, in batches, only as far as the page needs.
+       fileKeys covers a window of up to 1000 counters, and this used to GET
+       every key in it to render 25 rows: on a busy stretch, hundreds of round
+       trips thrown away. The sibling listRecent always sliced to `limit`
+       before fetching; this path never did, and it was the bulk of a cold
+       page's time.
+
+       Batched rather than a flat slice because a key can still turn out to be
+       an anchor (see the belt-and-suspenders check below) or fail to load, and
+       stopping at exactly `limit` keys would silently short the page. The loop
+       keeps drawing from the same window until the page is full or the window
+       is spent, so nothing inside a window is ever skipped unexamined. In
+       practice that is one batch. */
+    let idx = 0;
+    while (idx < fileKeys.length && found.length < limit) {
+      const batch = fileKeys.slice(idx, idx + (limit - found.length) + 4);
+      idx += batch.length;
+      const objs = await Promise.all(batch.map(async ({ key, lm }) => {
+        try {
+          const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+          const body = await r.Body?.transformToString();
+          return body ? { json: JSON.parse(body) as Record<string, unknown>, lm } : null;
+        } catch { return null; }
+      }));
+      for (const o of objs) {
+        const e = o ? toEntry(o.json, o.lm) : null;
+        // Belt and suspenders: the anchors/ index is authoritative for
+        // skipping, but if an index write ever went missing the proof itself
+        // still says what it is.
+        if (e && e.type === "proof") found.push(e);
+      }
     }
     scanned += cursor - start;
     cursor = start;
   }
   found.sort((a, b) => b.counter - a.counter);
-  return { entries: found.slice(0, limit), floor: cursor + 1 };
+  const entries = found.slice(0, limit);
+  /* Resume just below the last row actually shown, not at the bottom of the
+     window we happened to be scanning. A full page nearly always ends partway
+     through its window, and reporting the window's floor told the next page to
+     start below everything in between, so those recordings were never shown at
+     all. Only when the page did not fill is the window floor the right answer:
+     there, everything above it really has been accounted for. */
+  return {
+    entries,
+    floor: entries.length >= limit ? entries[entries.length - 1].counter : cursor + 1,
+  };
 }
 
 /** The `limit` highest-counter proofs at or below `top`. One LIST + `limit` GETs.
