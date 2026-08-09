@@ -17,13 +17,19 @@ export function SiteNav() {
   const pathname = usePathname();
   const [docsOpen, setDocsOpen] = useState(false);
   const docsRef = useRef<HTMLDivElement>(null);
+  // The panel spans the bar rather than hanging off the button, so it is no
+  // longer inside docsRef and needs its own: a mousedown on the panel's own
+  // padding would otherwise read as a click outside and shut it.
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Close on a click outside and on Escape. The menu hangs off a sticky bar, so
   // it can otherwise sit open over content the reader has scrolled to.
   useEffect(() => {
     if (!docsOpen) return;
     const away = (e: MouseEvent) => {
-      if (docsRef.current && !docsRef.current.contains(e.target as Node)) setDocsOpen(false);
+      const t = e.target as Node;
+      if (docsRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setDocsOpen(false);
     };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setDocsOpen(false); };
     document.addEventListener("mousedown", away);
@@ -41,9 +47,9 @@ export function SiteNav() {
       aria-current={pathname === s.href ? "page" : undefined}
       onClick={() => setDocsOpen(false)}
       style={{
-        display: "block", padding: "8px 12px", fontSize: 14,
+        display: "block", padding: "7px 10px", fontSize: 14,
         fontWeight: pathname === s.href ? 600 : 400,
-        textDecoration: "none", whiteSpace: "nowrap",
+        textDecoration: "none",
       }}
     >
       {s.label}
@@ -149,7 +155,7 @@ export function SiteNav() {
               Click, not hover: hover menus have no touch equivalent, and this
               has to work on a phone. Visually it stays a nav link, with only a
               chevron to say it opens something. */}
-          <div ref={docsRef} style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <div ref={docsRef} style={{ display: "flex", alignItems: "center" }}>
             <button
               onClick={() => setDocsOpen(o => !o)}
               aria-expanded={docsOpen}
@@ -171,75 +177,112 @@ export function SiteNav() {
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
-            {docsOpen && (
-              // Right-aligned and width-capped so it cannot push past the
-              // viewport on a phone, where Docs is the last item in the bar.
-              // Height-capped too, and for the same reason: the group labels
-              // added three rows' worth of height to a list that was already
-              // 16 rows, which overflowed the bottom of a small phone. 82px is
-              // the sticky bar (14 + 44) plus the 8px offset plus a little air,
-              // and dvh rather than vh so mobile browser chrome counts.
-              <div role="menu" style={{
-                position: "absolute", top: "calc(100% + 8px)", right: 0,
-                minWidth: 240, maxWidth: "min(320px, calc(100vw - 24px))",
-                maxHeight: "calc(100dvh - 82px)", overflowY: "auto",
-                overscrollBehavior: "contain",
-                padding: 8, background: "#fff", border: "1px solid #d0d5dd",
-                borderRadius: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-              }}>
-                {/* Three named groups, then FAQ and GitHub loose at the bottom.
-                    The labels were implicit before 2026-08-09 (the order was
-                    grouped, nothing said so). Small, tracked-out, uppercase,
-                    800, near-black. They went out at 600/#9ca3af first and
-                    then 700/#6b7280, and both read as faded rows rather than
-                    as headings (Mike, same day, twice). A label in a grey
-                    between the rows' grey and the menu's white cannot be told
-                    from a row at a glance whatever its weight: the value has
-                    to LEAD the items it heads, not trail them. Size is what
-                    keeps it quiet, 11px against their 14px.
-                    role="group" + aria-label carries the same structure to
-                    assistive tech; the visible label is hidden from it so the
-                    name is not announced twice. */}
-                {DOCS_GROUPS.map((g, i) => (
-                  <div key={g.label} role="group" aria-label={g.label}>
-                    <div
-                      aria-hidden="true"
-                      style={{
-                        padding: i === 0 ? "2px 12px 6px" : "18px 12px 6px",
-                        fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
-                        textTransform: "uppercase", color: "#111827",
-                      }}
-                    >
-                      {g.label}
-                    </div>
-                    {g.items.map(renderItem)}
-                  </div>
-                ))}
-                {/* FAQ sits outside the groups. The hairline is what says so,
-                    since it has no label of its own to separate it from the
-                    last Build row. */}
-                <div style={{ borderTop: "1px solid #e5e7eb", margin: "8px 12px 6px" }} />
-                {DOCS_TAIL.map(renderItem)}
-                {/* The one external link, always last. */}
-                <a
-                  href={DOCS_REPO}
-                  target="_blank"
-                  rel="noopener"
-                  role="menuitem"
-                  className="docs-menu-item"
-                  onClick={() => setDocsOpen(false)}
-                  style={{
-                    display: "block", padding: "8px 12px", fontSize: 14,
-                    fontWeight: 400, textDecoration: "none",
-                  }}
-                >
-                  GitHub
-                </a>
-              </div>
-            )}
           </div>
         </div>
       </div>
+      {/* ── The section panel. It spans the bar rather than hanging off the
+          Docs link, which is what lets the fifteen places sit in columns
+          instead of one column fifteen long. As a narrow dropdown the grouped
+          list had become a scroll (Mike, 2026-08-09: "a long scroll now"), and
+          a menu you have to scroll to see is worse than the ungrouped list it
+          replaced: you can no longer take in the shape of the docs at a
+          glance, which is the whole point of grouping them.
+
+          The white is full-bleed, edge to edge, but the COLUMNS are not: they
+          sit in the same 90%/800px measure as the wordmark above them and the
+          page below, so the panel reads as the page opening rather than as an
+          app's mega menu landing on top of it. Square corners, one hairline
+          under it, no side borders, per the site.
+
+          Absolute against #site-nav, which is sticky and therefore already a
+          containing block. top:100% puts it exactly under the bar with no gap
+          to fall through on the way to it. ── */}
+      {docsOpen && (
+        <div
+          ref={panelRef}
+          role="menu"
+          aria-label="Docs sections"
+          style={{
+            position: "absolute", top: "100%", left: 0, right: 0,
+            background: "#fff", borderTop: "1px solid #e5e7eb",
+            borderBottom: "1px solid #d0d5dd", borderRadius: 0,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
+            // A backstop, not the layout: the columns fit a phone in portrait
+            // with room to spare. It is landscape, where the viewport is 375
+            // tall, that would otherwise clip.
+            maxHeight: "calc(100dvh - 58px)", overflowY: "auto",
+            overscrollBehavior: "contain",
+          }}
+        >
+          <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "22px 0 20px" }}>
+            {/* Multi-column rather than a grid: the groups are 6, 3 and 5 rows,
+                and column balancing lays them out on its own at whatever count
+                fits, three across on a laptop and two on a phone. break-inside
+                keeps a group whole, so a heading can never end up at the foot
+                of one column with its items at the head of the next. The -10px
+                pulls the rows' own padding back so their text lines up with the
+                wordmark above. */}
+            <div className="docs-panel-cols" style={{ margin: "0 -10px" }}>
+              {DOCS_GROUPS.map((g) => (
+                <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group">
+                  {/* Small, tracked-out, uppercase, 800, near-black. These
+                      shipped grey twice (600/#9ca3af, then 700/#6b7280) and
+                      read as faded rows both times: a label in a value between
+                      the rows' grey and the panel's white cannot be told from a
+                      row at a glance, whatever its weight. The value has to
+                      LEAD the items it heads. Size is what keeps it quiet, 11px
+                      against their 14px. aria-hidden because role="group"
+                      already carries the name to assistive tech. */}
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      padding: "0 10px 8px",
+                      fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
+                      textTransform: "uppercase", color: "#111827",
+                    }}
+                  >
+                    {g.label}
+                  </div>
+                  {g.items.map(renderItem)}
+                </div>
+              ))}
+            </div>
+            {/* FAQ and the repo, under the columns, held apart by air alone.
+                A hairline ran here first and was cut (Mike, 2026-08-09, asking
+                whether whitespace could do it): the row already sits under all
+                three columns and outside every heading, so the rule was saying
+                a second time what the position had said, and it was the only
+                horizontal line in the panel.
+
+                Not a fourth COLUMN either, which was the other half of the same
+                question. Columns read as peer categories, and a fourth would
+                give two loose links the weight of Understand's six. It would
+                also need a heading to sit there, and any heading invented for
+                it would be wrong about one of them: FAQ is the last stop in the
+                reading sequence, GitHub is a destination outside it. */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+              margin: "34px -10px 0",
+            }}>
+              {DOCS_TAIL.map(renderItem)}
+              <a
+                href={DOCS_REPO}
+                target="_blank"
+                rel="noopener"
+                role="menuitem"
+                className="docs-menu-item"
+                onClick={() => setDocsOpen(false)}
+                style={{
+                  display: "block", padding: "7px 10px", fontSize: 14,
+                  fontWeight: 400, textDecoration: "none",
+                }}
+              >
+                GitHub
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

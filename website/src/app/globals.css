@@ -673,6 +673,18 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .bg-nav-links > a,
 .bg-nav-links > div > button { color: #111827; }
 
+/* ── The docs panel's columns. Two on a phone, three from 640px up: the three
+   groups are 6, 3 and 5 rows, so at three columns the tallest is 6 and the
+   panel is about 250px tall, which is a shape you can read at a glance instead
+   of a fifteen-row scroll. Balancing is the browser's; break-inside keeps each
+   group whole so a heading is never orphaned at the foot of a column. ── */
+.docs-panel-cols { column-count: 2; column-gap: 24px; }
+@media (min-width: 640px) { .docs-panel-cols { column-count: 3; column-gap: 32px; } }
+.docs-panel-group { break-inside: avoid; page-break-inside: avoid; display: block; }
+/* Every group after the first opens with air above it, except where a column
+   break has already put it at the top of its own column. */
+.docs-panel-group + .docs-panel-group { margin-top: 22px; }
+
 /* The menu's own rows, where hover DOES go blue. Fifteen of them, so the row
    under the cursor has to be findable, and inside an open menu every row is
    something you are about to click: blue reads as live there rather than as
