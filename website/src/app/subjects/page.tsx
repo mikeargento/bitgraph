@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { DocsPageNav } from "@/components/docs-page-nav";
 
 export const metadata: Metadata = {
   title: "Subjects",
@@ -276,6 +277,11 @@ export default function SubjectsPage() {
           </Link>
         </div>
       </div>
+      {/* This page is the second stop in the docs sequence but lives outside
+          /docs, so the docs layout does not wrap it and it mounts the trail
+          itself. Without this the sequence would break in the middle: Overview
+          points here, and there would be nothing pointing on. */}
+      <DocsPageNav />
     </div>
   );
 }

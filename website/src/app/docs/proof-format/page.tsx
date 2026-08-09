@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Proof Format (bitgraph/1)",
+  // Colon, matching the h1 below. The parenthesised form was the last place
+  // that spelling survived after the nav label shortened to "Proof Format"
+  // (2026-08-09); the tab and the heading it opens should read alike.
+  title: "Proof Format: bitgraph/1",
   description: "Wire format specification for the bitgraph/1 proof schema.",
 };
 

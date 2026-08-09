@@ -622,8 +622,37 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 .bg-action-link .arrow { display: inline-block; transition: transform .18s ease; }
 @media (hover: hover) { .bg-action-link:hover .arrow { transform: translateX(3px); } }
+/* Backwards links (the previous-section half of .bg-page-nav) travel the way
+   they point. */
+@media (hover: hover) { .bg-action-link.back:hover .arrow { transform: translateX(-3px); } }
 .bg-action-link:disabled { color: #9ca3af; cursor: default; }
 .bg-action-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
+
+/* ── Page-to-page nav, at the foot of every docs page. Two .bg-action-links
+   pushed to the edges of the reading column, under a hairline: the same rule
+   and the same link idiom the rest of the site already uses, so nothing new is
+   introduced for it. The labels are the adjacent sections' titles, which can be
+   long ("Proof Format (bitgraph/1)"), so each half is capped near half the
+   column and wraps rather than colliding with the other.
+
+   The two halves stay side by side at every width, back on the left and
+   forward on the right (Mike, 2026-08-09: "almost as if they are back next
+   buttons"). They were stacked below 480px for a beat, which read as two
+   unrelated links in a list rather than as a pair. A long title simply wraps
+   inside its half instead, and the tops stay aligned so the row reads as one
+   thing. ── */
+.bg-page-nav {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 24px; margin-top: 56px; padding-top: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+/* Baseline, not centre: when a title wraps to two lines the arrow would
+   otherwise float at the middle of the block, beside neither line. */
+.bg-page-nav > .bg-action-link { max-width: calc(50% - 12px); align-items: baseline; }
+.bg-page-nav > .bg-action-link:not(.back) { text-align: right; }
+/* Narrow phones: the gap is the only thing that can give, since both halves
+   are already at half the column. */
+@media (max-width: 480px) { .bg-page-nav { gap: 16px; } }
 
 /* ── Nav links. The gap is here rather than inline on the element so it can
    tighten on narrow phones: at 320px, "Applications" plus a 24px gap left only

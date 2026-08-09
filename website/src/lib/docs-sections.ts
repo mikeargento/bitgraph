@@ -5,58 +5,92 @@
  *
  * Lived in `app/docs/layout.tsx` until the section menu moved into the site
  * nav. It sits here now because the nav renders it on every route, while the
- * docs layout only wraps the ones under /docs.
+ * docs layout only wraps the ones under /docs. The same order drives the
+ * previous/next pair at the foot of each page (`components/docs-page-nav.tsx`),
+ * so the menu and the trail through the docs can never disagree.
  *
- * Four groups, deliberately not labelled: understand it, check it, use it,
- * run your own. Reordered 2026-08-03; the previous order had accumulated
- * rather than been chosen.
+ * The groups were implicit until 2026-08-09 and are now named: understand it,
+ * use it, build on it. The order inside each one is unchanged from the
+ * 2026-08-03 pass, and the reasoning behind it still holds:
  *
- * Three things it fixes:
- *
- * "What BitGraph is Not" was at 13, eleven slots from its definitional pair
- * at 2 and buried behind every integration doc. This product is heavily
+ * "What BitGraph is Not" sits next to its definitional pair rather than
+ * eleven slots away behind every integration doc. This product is heavily
  * defined by negation (not a blockchain, not a watermark, not DRM, not proof
  * of authorship), so that page does positioning work nobody was finding.
  *
- * "Self-Host TEE" was at 8, the rarest thing anyone will do sitting mid-list
- * and splitting Trust Model from the integration docs. It now closes the
- * how-to run, where someone who actually wants it will still look.
+ * "Self-Host TEE" closes BUILD. It is the rarest thing anyone will do, and it
+ * used to sit mid-list splitting Trust Model from the integration docs.
  *
- * The four ways to use it ran hardest-to-easiest: write code, then agents,
- * then no-code, then download-and-drop. Reversed, so the surface with the
- * largest audience leads and the canonical API anchors the end. The
- * connectors are conveniences over that API, so it reads as a progression
- * rather than a demotion.
+ * Whitepaper closes UNDERSTAND rather than leading it: high placement is a
+ * credibility signal, but the third thing a curious reader meets should not be
+ * the most demanding document.
  *
- * Whitepaper moved 3 → 5 on the same reasoning: high placement is a
- * credibility signal, but the third thing a curious reader meets should not
- * be the most demanding document. It still sits inside the conceptual run.
+ * Proof Format opens BUILD (moved from just after Whitepaper, 2026-08-09).
+ * The four ways to use it still run easiest-to-hardest within the group, but
+ * the canonical schema now anchors the start of BUILD instead of the end of
+ * the conceptual run, where it read as the last thing to understand rather
+ * than the first thing to build against.
  *
- * GitHub is appended in the menu itself, always last, as the one external
- * link.
+ * FAQ sits outside the groups, and GitHub is appended in the menu itself,
+ * always last, as the one external link. Only FAQ is part of the reading
+ * sequence; GitHub is a destination, not a section.
  */
-export const DOCS_SECTIONS: { href: string; label: string }[] = [
-  { href: "/docs/overview", label: "Overview" },
-  // Use cases moved in from the top nav (2026-08-05, Mike's call after the
-  // label had already gone Subjects → Applications → Use cases that same
-  // day). Second, right after Overview: orient first, then motivate, then
-  // the definitional pair. The one entry here that lives outside /docs; the
-  // route stays /subjects because /uses and /applications are both burned as
-  // permanently cached redirects.
-  { href: "/subjects", label: "Use cases" },
-  { href: "/docs/what-is-bitgraph", label: "What is BitGraph" },
-  { href: "/docs/what-bitgraph-is-not", label: "What BitGraph is Not" },
-  { href: "/docs/trust-model", label: "Trust Model" },
-  { href: "/docs/whitepaper", label: "Whitepaper" },
-  { href: "/docs/proof-format", label: "Proof Format (bitgraph/1)" },
-  { href: "/docs/verification", label: "Verification" },
-  { href: "/docs/audit", label: "Audit a Bundle" },
-  { href: "/docs/folder", label: "BitGraph Folder" },
-  { href: "/docs/automation", label: "Zapier and Make" },
-  { href: "/docs/mcp", label: "MCP" },
-  { href: "/docs/integration", label: "Integration Guide" },
-  { href: "/docs/self-host-tee", label: "Self-Host TEE" },
+export type DocsSection = { href: string; label: string };
+
+export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
+  {
+    label: "Understand",
+    items: [
+      { href: "/docs/overview", label: "Overview" },
+      // Use cases moved in from the top nav (2026-08-05, Mike's call after the
+      // label had already gone Subjects → Applications → Use cases that same
+      // day). Second, right after Overview: orient first, then motivate, then
+      // the definitional pair. The one entry here that lives outside /docs; the
+      // route stays /subjects because /uses and /applications are both burned as
+      // permanently cached redirects. Being outside /docs is also why the page
+      // renders its own <DocsPageNav />: the docs layout does not wrap it.
+      { href: "/subjects", label: "Use cases" },
+      { href: "/docs/what-is-bitgraph", label: "What is BitGraph" },
+      { href: "/docs/what-bitgraph-is-not", label: "What BitGraph is Not" },
+      { href: "/docs/trust-model", label: "Trust Model" },
+      { href: "/docs/whitepaper", label: "Whitepaper" },
+    ],
+  },
+  {
+    label: "Use",
+    items: [
+      { href: "/docs/verification", label: "Verification" },
+      { href: "/docs/audit", label: "Audit a Bundle" },
+      { href: "/docs/folder", label: "BitGraph Folder" },
+    ],
+  },
+  {
+    label: "Build",
+    items: [
+      // Just "Proof Format". The schema id was in the label for months, first
+      // as "(bitgraph/1)" and then as ": bitgraph/1", and it was the longest
+      // string in the menu either way: it set the menu's minimum width, and it
+      // was the one label that wrapped to two lines in the foot-of-page trail
+      // on a phone. The page's own h1 still reads "Proof Format: bitgraph/1",
+      // which is where the version belongs. A menu names places.
+      { href: "/docs/proof-format", label: "Proof Format" },
+      { href: "/docs/automation", label: "Zapier and Make" },
+      { href: "/docs/mcp", label: "MCP" },
+      { href: "/docs/integration", label: "Integration Guide" },
+      { href: "/docs/self-host-tee", label: "Self-Host TEE" },
+    ],
+  },
+];
+
+/** Below the groups in the menu, and the last stop in the reading sequence. */
+export const DOCS_TAIL: DocsSection[] = [
   { href: "/docs/faq", label: "FAQ" },
+];
+
+/** Every section, flat, in reading order. The previous/next sequence. */
+export const DOCS_SECTIONS: DocsSection[] = [
+  ...DOCS_GROUPS.flatMap((g) => g.items),
+  ...DOCS_TAIL,
 ];
 
 export const DOCS_REPO = "https://github.com/mikeargento/bitgraph";

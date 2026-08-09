@@ -10,7 +10,14 @@
  *
  * The sections themselves, and the reasoning behind their order, live in
  * `lib/docs-sections.ts`.
+ *
+ * What it does add is the previous/next pair at the foot of the column. It
+ * belongs here rather than in fifteen pages: the layout wraps every docs route,
+ * and the component works out where it is from the pathname. A docs route that
+ * is not a listed section renders nothing.
  */
+import { DocsPageNav } from "@/components/docs-page-nav";
+
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
     // 40px, matching /subjects. It was 32px, which read as docs starting
@@ -18,6 +25,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
     // visible once the section bar stopped occupying that space.
     <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
       {children}
+      <DocsPageNav />
     </div>
   );
 }

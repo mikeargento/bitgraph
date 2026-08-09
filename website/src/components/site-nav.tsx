@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { warm, ROLL_FEED_KEY } from "@/lib/warm";
-import { DOCS_SECTIONS, DOCS_REPO } from "@/lib/docs-sections";
+import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-sections";
 
 // Warm the Roll feed the moment the user signals intent to open it, so the page
 // paints filled-in instead of spinning. Fires on hover / focus / touch — only
@@ -30,6 +30,25 @@ export function SiteNav() {
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
   }, [docsOpen]);
+
+  // One row, whether it comes from a group or from the loose tail below them.
+  const renderItem = (s: DocsSection) => (
+    <Link
+      key={s.href}
+      href={s.href}
+      role="menuitem"
+      className="docs-menu-item"
+      aria-current={pathname === s.href ? "page" : undefined}
+      onClick={() => setDocsOpen(false)}
+      style={{
+        display: "block", padding: "8px 12px", fontSize: 14,
+        fontWeight: pathname === s.href ? 600 : 400,
+        textDecoration: "none", whiteSpace: "nowrap",
+      }}
+    >
+      {s.label}
+    </Link>
+  );
 
   return (
     // The nav shares the page background on purpose. A white bar was tried on
@@ -155,29 +174,52 @@ export function SiteNav() {
             {docsOpen && (
               // Right-aligned and width-capped so it cannot push past the
               // viewport on a phone, where Docs is the last item in the bar.
+              // Height-capped too, and for the same reason: the group labels
+              // added three rows' worth of height to a list that was already
+              // 16 rows, which overflowed the bottom of a small phone. 82px is
+              // the sticky bar (14 + 44) plus the 8px offset plus a little air,
+              // and dvh rather than vh so mobile browser chrome counts.
               <div role="menu" style={{
                 position: "absolute", top: "calc(100% + 8px)", right: 0,
                 minWidth: 240, maxWidth: "min(320px, calc(100vw - 24px))",
+                maxHeight: "calc(100dvh - 82px)", overflowY: "auto",
+                overscrollBehavior: "contain",
                 padding: 8, background: "#fff", border: "1px solid #d0d5dd",
                 borderRadius: 0, boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
               }}>
-                {DOCS_SECTIONS.map((s) => (
-                  <Link
-                    key={s.href}
-                    href={s.href}
-                    role="menuitem"
-                    className="docs-menu-item"
-                    aria-current={pathname === s.href ? "page" : undefined}
-                    onClick={() => setDocsOpen(false)}
-                    style={{
-                      display: "block", padding: "8px 12px", fontSize: 14,
-                      fontWeight: pathname === s.href ? 600 : 400,
-                      textDecoration: "none", whiteSpace: "nowrap",
-                    }}
-                  >
-                    {s.label}
-                  </Link>
+                {/* Three named groups, then FAQ and GitHub loose at the bottom.
+                    The labels were implicit before 2026-08-09 (the order was
+                    grouped, nothing said so). Small, tracked-out, uppercase,
+                    800, near-black. They went out at 600/#9ca3af first and
+                    then 700/#6b7280, and both read as faded rows rather than
+                    as headings (Mike, same day, twice). A label in a grey
+                    between the rows' grey and the menu's white cannot be told
+                    from a row at a glance whatever its weight: the value has
+                    to LEAD the items it heads, not trail them. Size is what
+                    keeps it quiet, 11px against their 14px.
+                    role="group" + aria-label carries the same structure to
+                    assistive tech; the visible label is hidden from it so the
+                    name is not announced twice. */}
+                {DOCS_GROUPS.map((g, i) => (
+                  <div key={g.label} role="group" aria-label={g.label}>
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        padding: i === 0 ? "2px 12px 6px" : "18px 12px 6px",
+                        fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
+                        textTransform: "uppercase", color: "#111827",
+                      }}
+                    >
+                      {g.label}
+                    </div>
+                    {g.items.map(renderItem)}
+                  </div>
                 ))}
+                {/* FAQ sits outside the groups. The hairline is what says so,
+                    since it has no label of its own to separate it from the
+                    last Build row. */}
+                <div style={{ borderTop: "1px solid #e5e7eb", margin: "8px 12px 6px" }} />
+                {DOCS_TAIL.map(renderItem)}
                 {/* The one external link, always last. */}
                 <a
                   href={DOCS_REPO}
