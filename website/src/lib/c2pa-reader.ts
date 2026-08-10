@@ -145,7 +145,23 @@ export async function readC2PA(file: File | Blob): Promise<C2PAReadResult | null
 
     const assertions = active.assertions ?? [];
 
-    // Creator → first author of a schema.org CreativeWork assertion.
+    /* Creator, from EITHER place the creator's name is written.
+
+       ⚠️ Two assertions carry it and a reader that knows only the older one
+       silently reports no creator for current exports. Lightroom Classic 15.4.1
+       wrote `stds.schema-org.CreativeWork` with an `author` array; 15.5 moved to
+       c2pa_rs 0.85 / spec 2.4.0 and writes `cawg.metadata` with a Dublin Core
+       `dc:creator` instead. Both were measured on real exports, a month apart,
+       from the same application. Nothing was deprecated loudly; the field just
+       moved, so this failed silently and looked like Lightroom had stopped
+       recording the name at all.
+
+       CreativeWork is tried first so files that carry both keep the name they
+       have always shown here. Neither shape is verified by the signature: this
+       is a self-asserted string that the signer's certificate covers only in
+       the sense that it covers every byte. Rendering it as "Creator" would
+       overstate it, which is why the proof page files it under the submitter's
+       note rather than presenting it as established identity. */
     let creator: string | undefined;
     const creativeWork = assertions.find((a) => a.label?.startsWith("stds.schema-org.CreativeWork"));
     if (creativeWork) {
@@ -154,6 +170,22 @@ export async function readC2PA(file: File | Blob): Promise<C2PAReadResult | null
         creator = data.author.find((a) => a?.name)?.name;
       } else if (data.author && typeof data.author === "object" && "name" in data.author) {
         creator = (data.author as { name?: string }).name;
+      }
+    }
+    if (!creator) {
+      const cawg = assertions.find((a) => a.label?.startsWith("cawg.metadata"));
+      if (cawg) {
+        // dc:creator is formally an ordered sequence, so a bare string, an
+        // array of strings, and an array of {name} objects all occur in the
+        // wild. Take the first non-empty name in any of those shapes.
+        const raw = ((cawg.data ?? {}) as Record<string, unknown>)["dc:creator"];
+        const first = Array.isArray(raw) ? raw.find((v) => v) : raw;
+        if (typeof first === "string") {
+          creator = first.trim() || undefined;
+        } else if (first && typeof first === "object" && "name" in first) {
+          const n = (first as { name?: unknown }).name;
+          if (typeof n === "string") creator = n.trim() || undefined;
+        }
       }
     }
 
