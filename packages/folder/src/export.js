@@ -1285,15 +1285,31 @@ function artifactIn(dir) {
   var listing = sh('ls -1 ' + quote(dir) + ' 2>/dev/null');
   if (!listing) return null;
   var names = listing.split('\r').join('\n').split('\n').filter(Boolean);
+  /* index.html was written BY this script until 1.12, so it must not be
+     mistaken for the thing that was recorded. HELD ASIDE, NOT DISCARDED: a
+     recording whose file is genuinely named index.html is a real recording,
+     and skipping it outright made --verify report "no file" for an export
+     whose 27MB artifact was sitting right there. Found on this machine's own
+     folder, 2026-08-10, and it predates day filing: it fails identically in
+     the old flat layout.
+     
+     dropPage already had this right on the deletion side, where it hashes the
+     page and removes it only when the hash DIFFERS from the proof's digest.
+     This is the same rule on the discovery side, done by preference rather
+     than by hashing: a real artifact beside a generated page still wins,
+     because it is returned first. Only when index.html is the sole candidate
+     is it offered, and the caller's own digest comparison is what decides. No
+     page is generated at all since 1.12, so that case is a real artifact
+     nearly every time now. */
+  var heldAside = null;
   for (var i = 0; i < names.length; i++) {
     var n = names[i];
-    // index.html is written BY this script, so it must never be mistaken for
-    // the thing that was recorded. Held aside rather than discarded: see below.
-    if (n === 'proof.json' || n === ANCHOR_DIR || n === PENDING || n === 'index.html') continue;
+    if (n === 'proof.json' || n === ANCHOR_DIR || n === PENDING) continue;
     if (n.charAt(0) === '.' || n.indexOf('Icon') === 0) continue;
+    if (n === 'index.html') { heldAside = n; continue; }
     return n;
   }
-  return null;
+  return heldAside;
 }
 
 // The site prints "12:54:11 PM EDT": uppercase meridiem, spaced, with the
