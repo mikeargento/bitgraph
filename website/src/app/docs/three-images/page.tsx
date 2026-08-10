@@ -528,17 +528,20 @@ export default function ThreeImagesPage() {
         countersigned by DigiCert, which has no stake in any of this.
       </p>
 
-      {/* The field is shown with its real prefix, because a reader who decodes
-          the file has to find exactly this string. But "dc:" unglossed is just
-          noise in a callout, so the vocabulary gets named in the line before it
-          rather than left for the reader to wonder about. */}
-      <p style={BODY}>
-        Now look at what the manifest says about who made it. One line, written
-        in Dublin Core, the vocabulary photo metadata has used for years.
-      </p>
+      <p style={BODY}>Now look at what the manifest says about who made it.</p>
 
+      {/* The field in the file is `dc:creator`, inside a `cawg.metadata`
+          assertion. The namespace prefix is dropped here on purpose. Shown raw
+          it stops a careful reader to wonder what "dc" is, at exactly the
+          moment the page wants them thinking "that is a field someone typed",
+          and explaining it costs a sentence of Dublin Core history that does no
+          work for the argument. Both were tried and both came out.
+
+          This is the same register the captions already use: "created, no
+          parents" and "opened, one parent" are glosses too. A skeptic who
+          decodes the file finds dc:creator and recognises it as this. */}
       <p style={{ ...BODY, margin: "0 0 18px" }}>
-        <code>dc:creator: Mike Argento</code>
+        <code>creator: Mike Argento</code>
       </p>
 
       <p style={BODY}>
