@@ -1883,6 +1883,27 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
       {generator && <Field label="Made with" value={generator} />}
       {c2pa.creator && <Field label="Creator" value={c2pa.creator} />}
       {c2pa.signatureIssuer && <Field label="Signed by" value={c2pa.signatureIssuer} />}
+      {/* The ancestors the file carries, one row each, nearest first. Until now
+          the card showed a four-manifest file exactly as it showed a
+          one-manifest file: the toolkit decoded every ancestor and the reader
+          kept only a count, which was never rendered.
+
+          The relationship is printed AS DECLARED rather than flattened to
+          "Parent". `parentOf` and `inputTo` are different claims and the
+          difference is load bearing: an ancestor attached as an input is not
+          reached by walking parents, so a chain can look complete while its
+          real source sits off to the side.
+
+          Nothing here is a verdict. These rows say what the file carries and
+          who signed each part, which is exactly what lets a reader see that an
+          ancestor was signed with a throwaway local certificate. */}
+      {c2pa.chain?.map((link, i) => (
+        <Field
+          key={i}
+          label={i === 0 ? "Chain" : ""}
+          value={`${link.relationship ?? "ancestor"} · ${link.signer ?? "unknown signer"}`}
+        />
+      ))}
       {isOpenAI && (
         <div style={{ padding: "0 16px", borderBottom: "1px solid #e2e5e9" }}>
           <a href="https://openai.com/research/verify/" target="_blank" rel="noopener" className="bg-action-link">

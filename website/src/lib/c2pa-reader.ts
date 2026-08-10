@@ -42,6 +42,23 @@ export interface C2PAReadResult {
   thumbnailDataUrl?: string;
   /** Count of ingredient parent manifests (derived / edited from …). */
   ingredientCount?: number;
+  /**
+   * The ancestor manifests carried inside the same file, walked outward from
+   * the active one, nearest first. Each entry is one edge: how the referring
+   * manifest described the ancestor, and who signed the ancestor.
+   *
+   * A file's chain is the most informative thing in its credential and it was
+   * being thrown away: the toolkit decodes every ancestor manifest, and this
+   * reader kept only a COUNT of the active manifest's own ingredients, which
+   * was then never rendered anywhere. A four-manifest file looked identical to
+   * a one-manifest file on screen.
+   *
+   * Relationships are reported as declared, not normalised into "parent".
+   * `inputTo` and `parentOf` are different claims and the difference is the
+   * whole point: an ancestor attached as an input is not reached by walking
+   * parents at all.
+   */
+  chain?: Array<{ relationship?: string; signer?: string }>;
   /** Validation failures from the toolkit (empty = signature validated cleanly). */
   validationStatus?: Array<{ code?: string; url?: string; explanation?: string }>;
   /** Whether the manifest's active signature validated cleanly. */
@@ -67,7 +84,7 @@ interface RawManifest {
   format?: string;
   signature_info?: { issuer?: string; time?: string };
   assertions?: Array<{ label?: string; data?: unknown }>;
-  ingredients?: unknown[];
+  ingredients?: Array<{ relationship?: string; active_manifest?: string }>;
 }
 
 // Cached promise of the initialized toolkit so the ~6 MB WASM loads once.
@@ -205,9 +222,35 @@ export async function readC2PA(file: File | Blob): Promise<C2PAReadResult | null
       if (raw) digitalSourceType = raw.split("/").pop() || raw;
     }
 
+    /* Walk the ancestors the file actually carries, breadth first from the
+       active manifest, recording each edge as the REFERRING manifest declared
+       it. Cycles are impossible in a well formed store but a `seen` set and a
+       depth cap keep a malformed one from hanging the page. */
+    const chain: Array<{ relationship?: string; signer?: string }> = [];
+    {
+      const seen = new Set<string>(ms.active_manifest ? [ms.active_manifest] : []);
+      let frontier: RawManifest[] = [active];
+      for (let depth = 0; frontier.length && depth < 8; depth++) {
+        const next: RawManifest[] = [];
+        for (const m of frontier) {
+          for (const ing of m.ingredients ?? []) {
+            const label = ing?.active_manifest;
+            if (!label || seen.has(label)) continue;
+            seen.add(label);
+            const ancestor = ms.manifests?.[label];
+            if (!ancestor) continue;
+            chain.push({ relationship: ing.relationship, signer: ancestor.signature_info?.issuer });
+            next.push(ancestor);
+          }
+        }
+        frontier = next;
+      }
+    }
+
     const failures = ms.validation_results?.activeManifest?.failure ?? [];
 
     return {
+      chain: chain.length ? chain : undefined,
       present: true,
       claimGenerator: active.claim_generator,
       claimGeneratorInfo: active.claim_generator_info,
