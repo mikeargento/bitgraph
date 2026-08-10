@@ -77,6 +77,7 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   "XWWLhzD5efJ5FIukRTCGcOmWupaW2lELFzI1dPyX078": { path: "/example/two-images/grok.jpg", name: "grok.jpg", mime: "image/jpeg" },
   "ngeTOzgjwu_2x2pQyLG3lbhFPFHLkF8JKdETlZyvcyY": { path: "/example/two-images/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   "1nyxWqQNa3KsIwo7i7kfHlyMqwh1_776Ht7ZjJU1W70": { path: "/example/two-images/gemini.png", name: "gemini.png", mime: "image/png" },
+  "vT7YbZArhPWqFMLHh_bRLT-_SwQ30uDM33B5pAFLY_U": { path: "/example/two-images/mikeargento.jpg", name: "mikeargento.jpg", mime: "image/jpeg" },
 };
 
 export default function ProofPage() {

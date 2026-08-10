@@ -98,9 +98,17 @@ export default function ThreeImagesPage() {
           picks up the verb from the line immediately above. The demo sentence
           further down keeps "recorded" deliberately: by that point the contrast
           it draws is explicit and the word is doing no ambiguous work. */}
+      {/* Three lines, not one wrapping sentence. Run together they wrapped so
+          that "3rd." fell alone on the second line at desktop width, and an
+          orphan is worse here than anywhere else on the page because the three
+          ordinals ARE the content. As a stanza they cannot orphan at any width,
+          they scan as a list, and they match the other <br/> stanzas. */}
       <p style={BODY}>
-        The Grok copy was BitGraphed 1st. The ChatGPT original was BitGraphed
-        2nd. The Gemini copy was BitGraphed 3rd.
+        The Grok copy was BitGraphed 1st.
+        <br />
+        The ChatGPT original was BitGraphed 2nd.
+        <br />
+        The Gemini copy was BitGraphed 3rd.
       </p>
 
       <p style={BODY}>
@@ -442,58 +450,176 @@ export default function ThreeImagesPage() {
         8,664
       </p>
 
-      {/* The turn to the reader, and the reason this page sits one click from
-          /subjects. Everything above is a protocol demonstration; the buyer's
-          question is what it costs THEM, and the answer is that signing is not
-          enough. OpenAI signed correctly and still could not establish which
-          came first, which is precisely the position an issuing authority is in.
-          The inference lands here rather than in the title: put it first and it
-          is spent before the evidence arrives. */}
-      {/* "A signature says who" was the earlier line and this page refutes it
-          three cells to the left: Grok's signature is valid and says whatever
-          its issuer typed. Granting the signature everything it can legitimately
-          provide, and only then naming what is missing, is the stronger move.
-          The reader cannot answer "but that signature proved nothing" because
-          the sentence already conceded the trusted case. */}
+      {/* THE CLOSE, and it is a fifth record rather than an inference.
+
+          This replaced four abstract paragraphs ("Any authority that signs and
+          stops is in the same position…"). The abstraction was correct and it
+          asked the reader to take the last step alone. A picture with my own
+          name on it, recorded last, makes the same argument out of evidence the
+          reader can check, and it moves the page from a protocol demonstration
+          to the buyer's own problem.
+
+          ⚠️ This file is NOT a forgery and must never be written up as one.
+          Measured before a word of this was drafted: Lightroom Classic 15.5
+          declared the ChatGPT original as `parentOf`, carried its manifest, and
+          the file holds a two-manifest chain that leads back correctly. Its
+          only action is `c2pa.opened`; it claims no creation. The whole point
+          is that everything here was done properly and the name still is not
+          established. */}
+      <p style={BODY}>There is a fifth record. This one is mine.</p>
+
+      {/* Full column width, alone. The 2x2 grid is the comparison; this one is
+          the turn, and putting it in a fifth cell would file it as another
+          specimen. Same three caption lines as the grid so it is legible as the
+          same kind of object. */}
+      <figure style={{ margin: "34px 0 40px" }}>
+        <Link
+          href="/proof/vT7YbZArhPWqFMLHh_bRLT-_SwQ30uDM33B5pAFLY_U?counter=9510&epoch=2bx9IFX9ZOoY5HSwlZstSEGx1PWv8DncGofdK5v93jQ"
+          className="bg-arrow-link"
+          style={{ textDecoration: "none", display: "block" }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/example/two-images/mikeargento.jpg"
+            width={1536}
+            height={1024}
+            loading="lazy"
+            alt=""
+            style={{ width: "100%", height: "auto", display: "block", border: "1px solid #d0d5dd" }}
+          />
+          <figcaption style={{ fontSize: 12.5, marginTop: 6, lineHeight: 1.5 }}>
+            <span style={{ fontWeight: 700, color: "#111827" }}>Mike Argento</span>
+            <span style={{ color: "#4b5563" }}>{"  ·  "}a Lightroom export of the original</span>
+            <br />
+            <span style={{ color: "#0065A4", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+              BitGraph #9,510 <span className="arrow" aria-hidden>&rarr;</span>
+            </span>
+            <span style={{ display: "block", marginTop: 10, fontSize: 12, color: "#4b5563", lineHeight: 1.7 }}>
+              <span style={{ display: "block" }}>opened, one parent</span>
+              <span style={{ display: "block" }}>chain leads to the ChatGPT original</span>
+              <span style={{ display: "block" }}>signed by Adobe Inc.</span>
+            </span>
+          </figcaption>
+        </Link>
+      </figure>
+
       <p style={BODY}>
-        A trusted signature can say <strong>who</strong>.
+        I opened the ChatGPT original in Lightroom and exported it with Content
+        Credentials turned on.
       </p>
 
       <p style={BODY}>
-        It still cannot, by itself, say <strong>which came first</strong>.
+        Lightroom did everything correctly. It declared the ChatGPT image as the
+        parent, carried its manifest inside the file, and had Adobe sign the
+        result.
       </p>
 
-      {/* "companies with enormous reputations at stake" is load-bearing: it
-          pre-empts the dismissal that these signatures were somehow shoddy.
-          They were not, which is the whole point. */}
+      <p style={BODY}>Follow this chain and it ends where it should.</p>
+
+      {/* Measured, not characterised: the timestamp really is the most rigorous
+          on the page. OpenAI's countersignature comes from OpenAI's own TSA and
+          Google's from Google's; Adobe's comes from DigiCert, an independent
+          timestamp authority with no stake in the file. Which is the point of
+          the sentence it appears in: best pedigree, least believed. */}
       <p style={BODY}>
-        Three valid signatures can sit on three files, including signatures from
-        companies with enormous reputations at stake, and the order still has to
-        come from somewhere else.
+        Its signature is the most rigorous on this page. Adobe founded the
+        standard the other two are following, and where OpenAI and Google each
+        stamped the time with their own timestamp authority, Adobe&apos;s was
+        countersigned by DigiCert, which has no stake in any of this.
       </p>
 
-      {/* "it can prove that it signed two things" rather than "who signed
-          something": the authority's identity is not in question in this
-          scenario, it is the authority. What it cannot establish is the order
-          of its own two signatures, and stating the limit that precisely is
-          what makes the next line land. */}
-      <p style={BODY}>
-        Any authority that signs and stops is in the same position: it can prove
-        that it signed two things, but it cannot independently prove which one
-        it signed first.
+      <p style={BODY}>Now look at what the manifest says about who made it.</p>
+
+      <p style={{ ...BODY, margin: "0 0 18px" }}>
+        <code>dc:creator: Mike Argento</code>
       </p>
 
       <p style={BODY}>
-        For that, it needs a <strong>where</strong>.
+        That is a text field. I typed it. The signature proves it has not been
+        altered since Adobe signed it, and nothing whatsoever about whether it
+        is true.
       </p>
 
-      {/* "All three images" against four visible cells was a loose end a
-          careful reader would catch on the last line of the page. Naming the
-          fourth here closes it, and repeats the one fact about that cell that
-          matters. */}
       <p style={BODY}>
-        All three distinct images above are the exact bytes that were recorded.
-        The fourth entry is the ChatGPT file again, byte for byte.
+        Nobody checked that I am Mike Argento. Nobody checked that I made
+        anything.
+      </p>
+
+      <p style={BODY}>And you did not believe it.</p>
+
+      {/* The hinge of the whole page. The reader has just performed the failure
+          rather than been told about it, so this names what they did. */}
+      <p style={BODY}>
+        Notice what did that. Not the cryptography, which is the strongest here.
+        You discounted my claim because you have never heard of me, and you
+        accepted the other two because you have.
+      </p>
+
+      <p style={BODY}>
+        Here is the part that should trouble an authority.{" "}
+        <strong>
+          If I had actually taken this photograph, the file would look exactly
+          the same.
+        </strong>{" "}
+        Same field, same Adobe signature, same independent timestamp, same
+        validation. And you would discount it just as fast.
+      </p>
+
+      <p style={BODY}>
+        A signature does not create authority. It carries authority that already
+        exists somewhere else.
+      </p>
+
+      {/* The buyer, named without naming them. This is the /subjects audience:
+          a real authority inside a domain, with no reputation outside it. */}
+      <p style={BODY}>
+        Survivable if you are Google. Fatal if you are a county clerk, a testing
+        lab, a claims adjuster, or a photographer, each a real authority inside
+        their own domain with no reputation outside it.
+      </p>
+
+      <p style={SEQ}>8,034 &rarr; 8,038 &rarr; 8,146 &rarr; 8,664 &rarr; 9,510</p>
+
+      <p style={BODY}>My record is last.</p>
+
+      <p style={BODY}>
+        Not because anyone weighed my claim against theirs, and not because
+        BitGraph decided I was not the creator. It is last because it arrived
+        last, hours after this picture had already been recorded four times.
+      </p>
+
+      <p style={BODY}>
+        That does not need me to be believed. It does not need Adobe or OpenAI
+        or Google to be believed either.
+      </p>
+
+      <p style={BODY}>
+        <strong>
+          A label needs you to trust whoever applied it.
+          <br />
+          A place is still there when nobody trusts anyone.
+        </strong>
+      </p>
+
+      {/* Mike's own phrase, near-verbatim, and the title's callback. "Somewhere
+          to point" is what an authority is actually short of; it is not short
+          of ways to say who it is. */}
+      <p style={BODY}>
+        That is what an authority needs from a record. Not a louder way to say
+        who it is. Somewhere to point.
+      </p>
+
+      <p style={BODY}>
+        It needs a <strong>where</strong>.
+      </p>
+
+      {/* The count has to be right or a careful reader catches it on the last
+          line of the page. FIVE records, FOUR distinct files: Grok, ChatGPT,
+          Gemini, mine, and the ChatGPT file a second time. Recount this line
+          whenever a record is added. */}
+      <p style={BODY}>
+        Every image on this page is the exact bytes that were recorded. Two of
+        the five records are the same ChatGPT file, byte for byte.
       </p>
 
       <p style={BODY}>
