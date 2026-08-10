@@ -127,25 +127,10 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
  * REFERENCE, the fourth column, rendered by the menu after the three groups
  * above (it appends GitHub to these, which is external and stays out of the
  * sequence). These ARE in the sequence, and they close it: the trail runs
- * Self-Host TEE → Whitepaper → Where, not when → FAQ and stops. The FAQ stays
- * last because it is where a trail should end; the worked example goes ahead of
- * it, being something to send someone rather than something to reach last.
+ * Self-Host TEE → Whitepaper → FAQ and stops.
  */
 export const DOCS_TAIL: DocsSection[] = [
   { href: "/docs/whitepaper", label: "Whitepaper" },
-  /* A worked example with live proofs. Reference is the right shelf for it:
-     source material someone arrives at deliberately, and a URL they can cite.
-
-     BEFORE the FAQ, not after it. The FAQ closes the trail, so anything placed
-     under it reads as an appendix to the appendix; this is a thing to send
-     someone, not a thing to reach last.
-
-     The label matches the page's own h1 so arriving from the nav lands on the
-     same phrase. "Three Images" was the label for a few minutes and is a trap:
-     the page shows FOUR cells, and "Four Images" would be worse still, because
-     three of them are files and the fourth is one of those files again, which
-     is the whole reason it is there. */
-  { href: "/docs/three-images", label: "Where, not when" },
   { href: "/docs/faq", label: "FAQ" },
 ];
 

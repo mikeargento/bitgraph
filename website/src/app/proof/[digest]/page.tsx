@@ -69,9 +69,13 @@ function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certi
    wrong path or a re-encoded file shows nothing rather than the wrong picture.
    Do not remove that check on the grounds that the mapping is already correct.
 
-   The three two-images files are the C2PA demo on /subjects and must stay
-   byte-identical to what was recorded: re-encoding one silently breaks both its
-   proof page and the claim on that page that these are the recorded bytes. */
+   ⚠️ The four two-images files outlived the page they were made for. The
+   /docs/three-images worked example was removed 2026-08-10; these entries were
+   kept deliberately, because each digest is a real permanent record and a
+   shared proof link should still show its picture. Re-encoding one silently
+   breaks its proof page, since the guard refuses bytes that do not hash to the
+   digest in the URL. If the images are ever dropped from public/, drop these
+   four rows in the same commit. */
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
   [EXAMPLE_PROOF.digest]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
   "XWWLhzD5efJ5FIukRTCGcOmWupaW2lELFzI1dPyX078": { path: "/example/two-images/grok.jpg", name: "grok.jpg", mime: "image/jpeg" },
