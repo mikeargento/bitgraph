@@ -70,6 +70,21 @@ export default function ThreeImagesPage() {
           C2PA, no signature. Those words all arrive later, once the pictures
           have given them something to attach to.
 
+          ⚠️ "credential", never "record", for the C2PA thing. This said "a
+          small record inside the file" and "those records label the files",
+          which collided head on with the noun the rest of the page uses for a
+          BitGraph: "there is a fifth record", "my record is last", "two of the
+          five records". The page would have taught the reader that a record is
+          the thing INSIDE the file, then used the same word for the thing
+          BitGraph creates, and telling those two apart is the entire point.
+          Worse, the collision sat in the sentence that ends "label the files",
+          and label is the word the close uses for the opposite of a place.
+
+          "Credential" is also already the page's own word for a manifest ("
+          nothing inside the credential itself gives you a reason to believe the
+          claim"), and it primes Content Credentials, which is the name the
+          reader meets a few lines down. Keep record for BitGraph alone.
+
           It carries no device at all. ❄️ Three were tried and
           all three came off: larger type competed with the argument, a white
           fill read as a card (this site's treatment for DATA, so it made an
@@ -93,8 +108,8 @@ export default function ThreeImagesPage() {
           announced, so the close still has work to do. */}
       {[
         "The pictures below look almost the same. Each was made by a different AI company. The first was generated from a prompt; each one after that was generated from the picture before it.",
-        "Every one carries a small record inside the file, signed by the company that made it, describing where the picture came from and what happened to it.",
-        "Those records label the files.",
+        "Every one carries a small credential inside the file, signed by the company that made it, describing where the picture came from and what happened to it.",
+        "Those credentials label the files.",
         "BitGraph does something different. It gives each recording a place.",
         "This page shows the difference.",
       ].map((text, i, all) => (
