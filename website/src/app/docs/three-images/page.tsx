@@ -403,9 +403,9 @@ export default function ThreeImagesPage() {
 
       <p style={BODY}>They do not answer order.</p>
 
-      <p style={BODY}>
-        The files cannot reliably be put into sequence from what they carry.
-      </p>
+      {/* MERGED. These were two paragraphs opening "The files … The files …",
+          which was both an anaphora nobody chose and a split down the middle of
+          one thought: the first line is the claim and the second is why. */}
 
       {/* Measured, and the mechanism is worth knowing before this line is ever
           edited. Both signed files carry a real RFC 3161 timestamp token in a
@@ -424,8 +424,9 @@ export default function ThreeImagesPage() {
           the time. "Independent" is the load-bearing word and a real RFC 3161
           token from the signer's own root does not weaken it. */}
       <p style={BODY}>
-        The files do not share an independent clock. Any time they carry is part
-        of what a signer asserts, and one carries no useful time at all.
+        The files cannot reliably be put into sequence from what they carry.
+        They do not share an independent clock. Any time they carry is part of
+        what a signer asserts, and one carries no useful time at all.
       </p>
 
       {/* The line the page exists for. */}
@@ -472,11 +473,17 @@ export default function ThreeImagesPage() {
         entered the sequence.
       </p>
 
+      {/* ⚠️ From here to "So the Gemini recording happened between them" is the
+          most technical stretch on the page, and it is EXPLANATORY rather than
+          argumentative: one mechanism in steps, not a list of separate claims.
+          Broken into eleven one-line paragraphs at a uniform gap it read as
+          eleven unrelated facts and left the reader to reassemble the machine.
+          It is grouped into four now. The staccato is kept for the beats around
+          it, which is what makes them beats. */}
       <p style={BODY}>
-        A place is useful only if it cannot be rearranged afterward.
+        A place is useful only if it cannot be rearranged afterward. That is
+        what the anchors are for.
       </p>
-
-      <p style={BODY}>That is what the anchors are for.</p>
 
       {/* "Anchored to Ethereum" was a phrase dropped in as though the reader
           already knew what it bought them. It is the load-bearing claim of the
@@ -488,14 +495,9 @@ export default function ThreeImagesPage() {
       <p style={BODY}>
         Every few seconds, the sequence records an Ethereum block hash exactly as
         it records an image: the hash occupies the next position in the same
-        chain.
-      </p>
-
-      <p style={BODY}>A block hash cannot be known before that block exists.</p>
-
-      <p style={BODY}>
-        So anything occupying an earlier BitGraph position must have been
-        recorded before that particular block hash was available.
+        chain. A block hash cannot be known before that block exists, so
+        anything occupying an earlier BitGraph position must have been recorded
+        before that particular block hash was available.
       </p>
 
       {/* The other half, and the reason the anchor is a BitGraph OF a block
@@ -511,8 +513,6 @@ export default function ThreeImagesPage() {
 
       <p style={SEQ}>8,144 &rarr; 8,146 &rarr; 8,148</p>
 
-      <p style={BODY}>There is no time inside those numbers.</p>
-
       {/* The hash, not the timestamp, is what does the cryptographic work, and
           this sentence has to say so. Named only as "a public time", a technical
           reader can come away thinking the security claim rests on Ethereum's
@@ -520,29 +520,26 @@ export default function ThreeImagesPage() {
           latitude over. It does not: unpredictability is the whole mechanism
           and the timestamp only attaches a wall clock to it. */}
       <p style={BODY}>
-        But an Ethereum block carries a public consensus timestamp and, more
-        importantly, a hash that could not have been known before the block
-        existed.
+        There is no time inside those numbers. But an Ethereum block carries a
+        public consensus timestamp and, more importantly, a hash that could not
+        have been known before the block existed.
       </p>
 
+      {/* The single derivation on the page: anchor, position, published times,
+          conclusion. It was four separate paragraphs, which is four apparently
+          unrelated numbers; as one it is an argument the reader can follow in a
+          breath, and every figure in it is checkable on Etherscan. */}
       <p style={BODY}>
         A BitGraph of block{" "}
         <a href="https://etherscan.io/block/25725064" target="_blank" rel="noopener noreferrer" style={LINK}>25,725,064</a>{" "}
-        therefore fixes one position in the sequence against a public event.
-      </p>
-
-      <p style={BODY}>
-        The Gemini image occupies <strong>8,146</strong>, between that anchor and
+        therefore fixes one position in the sequence against a public event. The
+        Gemini image occupies <strong>8,146</strong>, between that anchor and
         another containing block{" "}
         <a href="https://etherscan.io/block/25725065" target="_blank" rel="noopener noreferrer" style={LINK}>25,725,065</a>.
-      </p>
-
-      <p style={BODY}>
         Those blocks were published at <strong>14:02:23 UTC</strong> and{" "}
-        <strong>14:02:35 UTC</strong>.
+        <strong>14:02:35 UTC</strong>, so the Gemini recording happened between
+        them.
       </p>
-
-      <p style={BODY}>So the Gemini recording happened between them.</p>
 
       {/* Three refusals in one breath, so they are one paragraph broken by line
           breaks rather than three paragraphs. Split them and the parallel that
@@ -574,11 +571,8 @@ export default function ThreeImagesPage() {
 
       <p style={BODY}>
         So the place can be checked by someone who believes none of the
-        manifests.
-      </p>
-
-      <p style={BODY}>
-        It can also be checked by someone who does not trust BitGraph.
+        manifests. It can also be checked by someone who does not trust
+        BitGraph.
       </p>
 
       {/* The fourth cell explained, once, after the reader has already seen it
