@@ -17,15 +17,27 @@
 // schema shape rather than by filename), and deletable with nothing lost.
 //
 //   Recordings/
-//       BitGraph (random-494.txt)/
-//           proof.json
-//           random-494.txt                      the original bytes, moved in
-//           index.html                          the recording's own page
-//           ethereum-anchors/
-//               anchor-before.json              lower bound
-//               anchor-before-witness.json      its block header
-//               anchor-after.json               upper bound, the seal
-//               anchor-after-witness.json       its block header
+//       2026-08-09/                             the UTC day the chain sealed it
+//           BitGraph (random-494.txt)/
+//               proof.json
+//               random-494.txt                  the original bytes, moved in
+//               ethereum-anchors/
+//                   anchor-before.json          lower bound
+//                   anchor-before-witness.json  its block header
+//                   anchor-after.json           upper bound, the seal
+//                   anchor-after-witness.json   its block header
+//       BitGraph (just-dropped.jpg)/            no seal yet, so no day yet
+//
+//   DAY FOLDERS EXIST SO A DROP CAN BE SCOPED (1.13.0). Browsing is dropping
+//   the folder on the site, and that was all or nothing: the whole archive or
+//   one export. Drag one date on instead and you get that day's roll. It also
+//   bounds drop time, which otherwise grows with the folder forever, and makes
+//   a single day shareable without handing over everything.
+//
+//   The day comes from the CHAIN, never the filesystem: field 11 of the RLP
+//   header in anchor-after-witness.json is the sealed block's timestamp. See
+//   dayOfExport. An export with no seal yet has no day and waits at the
+//   Recordings/ root until a tidy pass files it.
 //
 //   The top level is the drop zone and stays empty at rest: the shutter and
 //   the archive are different places. Exports found flat at the top level
