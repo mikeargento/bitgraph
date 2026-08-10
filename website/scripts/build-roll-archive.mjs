@@ -25,9 +25,19 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-for (const line of readFileSync(resolve(here, "../.env.local"), "utf8").split("\n")) {
-  const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "").trim();
+/* website/.env.local is a CONVENIENCE, not a requirement. It is gitignored, so
+   it exists on a laptop and nowhere else, and reading it unconditionally made
+   this script runnable only by a person sitting in front of one. That is the
+   reason nothing archived a day until someone remembered to. Anywhere else
+   (the nightly workflow), the same names arrive as real environment
+   variables. */
+try {
+  for (const line of readFileSync(resolve(here, "../.env.local"), "utf8").split("\n")) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "").trim();
+  }
+} catch (e) {
+  if (e.code !== "ENOENT") throw e;
 }
 const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = await import(
   resolve(here, "../node_modules/@aws-sdk/client-s3/dist-cjs/index.js")
@@ -47,6 +57,20 @@ const ARCHIVE_PREFIX = "roll/v1/day";
 
 const BUCKET = (process.env.LEDGER_BUCKET || "occ-ledger-prod").trim();
 const s3 = new S3Client({ region: (process.env.LEDGER_REGION || "us-east-2").trim() });
+/* Resolve credentials before doing anything, and say so plainly if they are
+   absent. Asked of the SDK rather than guessed at from environment variables,
+   so a profile, an instance role or a web identity all count. Without this the
+   first failure is an S3 error thrown from inside a day build, which reads as
+   "the ledger is broken" rather than "this run has no keys". */
+try {
+  await s3.config.credentials();
+} catch {
+  console.error("\nNo AWS credentials could be resolved.");
+  console.error("Locally: website/.env.local supplies them. In CI: set the");
+  console.error("AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY repository secrets.\n");
+  process.exit(1);
+}
+
 const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
 const arg = (f) => { const i = args.indexOf(f); return i >= 0 ? args[i + 1] : null; };
