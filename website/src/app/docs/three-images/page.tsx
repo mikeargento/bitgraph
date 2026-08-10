@@ -927,29 +927,30 @@ export default function ThreeImagesPage() {
         It needs a <strong>where</strong>.
       </p>
 
-      {/* ONE colophon line, down from three, because anything after "it needs a
-          where" is a comedown and three paragraphs of housekeeping is a long
-          one.
+      {/* ❄️ THE PAGE ENDS ON "IT NEEDS A WHERE." Nothing goes after it.
 
-          ❄️ Cut: "Two of the five records are the same ChatGPT file, byte for
-          byte." The fourth image section spends nine lines on precisely that.
-          It existed to fix a count error in a sentence that no longer makes a
-          count claim, so the problem went with the claim.
+          Three colophon paragraphs stood here, then one, then none, and each
+          cut was the same argument applied one step further: anything after
+          that line is a comedown.
 
-          ❄️ Cut: "Each image above also links directly to its own record."
-          Pure UI instruction, and every caption already carries a blue
-          "BitGraph #8,034 →" with an arrow, five times over.
+          What went, and why none of it is missed:
+          · "Two of the five records are the same ChatGPT file, byte for byte."
+            The fourth image section spends nine lines on precisely that.
+          · "Each image above also links directly to its own record." Pure UI
+            instruction; every caption carries a blue "BitGraph #8,034 →" with
+            an arrow, five times over.
+          · "Every image on this page is the exact bytes that were recorded.
+            Download any one of them and drop it on the home page…" An
+            invitation the page has already issued five times, since every
+            image IS a link to its proof. A reader who wants to check does not
+            need permission, and a skeptic who downloads and hashes will find
+            the bytes match whether or not they were promised it.
 
-          Kept, and joined into one sentence, because the guarantee is the
-          precondition for the invitation: previews would make the invitation a
-          lie. This is the line that turns a reader into someone who can check
-          the page without trusting it. */}
-      <p style={{ ...BODY, margin: "0 0 40px" }}>
-        Every image on this page is the exact bytes that were recorded. Download
-        any one of them and drop it on the{" "}
-        <Link href="/" style={LINK}>home page</Link>, and the same proof comes
-        back.
-      </p>
+          ⚠️ The exact-bytes CONSTRAINT still holds absolutely, it just is not
+          announced: re-encoding any of these files breaks its proof page,
+          because the hash guard stops showing a picture whose bytes do not
+          hash to the digest in the URL. That is recorded on EXAMPLE_FILES in
+          proof/[digest]/page.tsx and on the grid above. Do not relax it. */}
     </article>
   );
 }
