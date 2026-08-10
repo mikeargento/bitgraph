@@ -65,20 +65,12 @@ export default function ThreeImagesPage() {
           clauses of equal weight and had no turn in it. */}
       <h1 className="mb-6">Where, not when.</h1>
 
-      {/* A PREFACE, not a summary, and the distinction is the settled rule that
-          an inference put first is spent before the evidence arrives. This says
-          what the reader is about to look at and why it matters, then stops.
-          The last sentence is a promise, not the finding: "checks what they can
-          actually tell you", never "and they cannot".
+      {/* THE WAY IN. Written for someone with no technical background, so
+          nothing in it may be jargon: no manifest, no provenance, no hash, no
+          C2PA, no signature. Those words all arrive later, once the pictures
+          have given them something to attach to.
 
-          Written for someone with no technical background at all, so nothing in
-          it may be jargon. No manifest, no provenance, no hash, no C2PA, no
-          signature. Those words all arrive later, once the pictures have given
-          them something to attach to.
-
-          17px and darker than body, matching the lede on /docs/overview, so it
-          reads as a way in rather than as the first beat of the argument. */}
-      {/* THE WAY IN, and it carries no device at all. ❄️ Three were tried and
+          It carries no device at all. ❄️ Three were tried and
           all three came off: larger type competed with the argument, a white
           fill read as a card (this site's treatment for DATA, so it made an
           introductory paragraph look like a component), and even a bare
@@ -186,7 +178,7 @@ export default function ThreeImagesPage() {
       </p>
 
       <p style={BODY}>
-        An hour later, the exact same ChatGPT original was recorded again.
+        An hour later, the exact same ChatGPT original was BitGraphed again.
       </p>
 
       {/* Exact recorded bytes, not previews. A resized copy would have a
@@ -222,7 +214,7 @@ export default function ThreeImagesPage() {
              rendered instead of claimed. The caption has to say "the same file"
              out loud or a fourth picture in a section about a chain of copies
              reads as a fourth copy. */
-          { src: "/example/two-images/chatgpt.png", w: 1536, h: 1024, cap: "ChatGPT", sub: "the same file, recorded again", pos: "8,664", d: "ngeTOzgjwu_2x2pQyLG3lbhFPFHLkF8JKdETlZyvcyY", c: "8664",
+          { src: "/example/two-images/chatgpt.png", w: 1536, h: 1024, cap: "ChatGPT", sub: "the same file, BitGraphed again", pos: "8,664", d: "ngeTOzgjwu_2x2pQyLG3lbhFPFHLkF8JKdETlZyvcyY", c: "8664",
             says: ["created, no parents", "chain leads to itself", "signed by OpenAI OpCo, LLC"] },
         ].map((im) => (
           /* Keyed by POSITION, not src: two cells are the same file. */
@@ -547,7 +539,7 @@ export default function ThreeImagesPage() {
       </p>
 
       <p style={BODY}>
-        Recorded a second time at <strong>8,664</strong>.
+        BitGraphed a second time at <strong>8,664</strong>.
       </p>
 
       <p style={BODY}>
