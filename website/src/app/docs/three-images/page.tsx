@@ -153,7 +153,10 @@ export default function ThreeImagesPage() {
           { src: "/example/two-images/chatgpt.png", w: 1536, h: 1024, cap: "ChatGPT", sub: "the original", pos: "8,038", d: "ngeTOzgjwu_2x2pQyLG3lbhFPFHLkF8JKdETlZyvcyY", c: "8038",
             says: ["created, no parents", "chain leads to itself", "signed by OpenAI OpCo, LLC"] },
           { src: "/example/two-images/gemini.png", w: 1536, h: 1024, cap: "Gemini", sub: "generated from the Grok image", pos: "8,146", d: "1nyxWqQNa3KsIwo7i7kfHlyMqwh1_776Ht7ZjJU1W70", c: "8146",
-            says: ["composite, one parent", "chain leads to the Grok image", "signed by Google LLC"] },
+            /* "chain leads to the Grok image" was not what the file does: the
+               parentOf chain is Google to Google to Google, and Grok is
+               attached to the earliest of those as `inputTo`. Exact now. */
+            says: ["composite, one parent", "carries Grok's manifest as an input", "signed by Google LLC"] },
           /* THE SAME FILE AS THE SECOND CELL, byte for byte, recorded again an
              hour later. Its three lines are deliberately identical to that
              cell's, because they ARE identical: nothing about the file changed.
@@ -209,21 +212,59 @@ export default function ThreeImagesPage() {
         ))}
       </div>
 
+      {/* ⚠️ REWRITTEN to describe the file exactly. The earlier version said
+          Gemini "names a parent … follow it, and the chain ends at the Grok
+          image", which is not what the file does. Measured structure:
+
+            d9c29760  Google  opened, edited(composite), converted  parentOf->ccf3b092
+            ccf3b092  Google  opened, resized                       parentOf->ab79ace3
+            ab79ace3  Google  created(trainedAlgorithmicMedia)      inputTo ->35fc9069
+            35fc9069  Grok    created(trainedAlgorithmicMedia)      (no ingredients)
+
+          Two things the old copy got wrong. The parentOf chain is Google to
+          Google to Google and terminates: Grok hangs off the earliest Google
+          manifest as `inputTo`, so a parent walk never reaches it. And Google
+          was MORE careful than the page credited, because that earliest
+          manifest declares a creation and names its input, which is exactly
+          what happened. Grok declares a creation and names nothing. That is the
+          real contrast and it is sharper than the old one.
+
+          ChatGPT's manifest (484d86b4) is absent from the store entirely,
+          verified, not inferred. */}
       <p style={BODY}>Google did the careful thing.</p>
 
       <p style={BODY}>
-        Its manifest declares the image a composite, names a parent, and carries
-        that parent&apos;s manifest inside the file so the chain can be followed.
+        The file carries four manifests. Three are Google&apos;s own, each
+        naming the one before it as its parent. The fourth is Grok&apos;s.
       </p>
-
-      <p style={BODY}>Follow it, and the chain ends at the Grok image.</p>
 
       <p style={BODY}>
-        That is because Grok&apos;s manifest says its image was created with no
-        parents at all.
+        Google&apos;s earliest manifest says it created the image, and records
+        the Grok picture as an input to that work, which is exactly what
+        happened.
       </p>
 
-      <p style={BODY}>The ChatGPT original is not in the chain.</p>
+      <p style={BODY}>
+        Grok&apos;s manifest says it created its image too, and records no input
+        at all.
+      </p>
+
+      <p style={BODY}>
+        That is the entire difference between them. Both declare a creation. One
+        names what it was given.
+      </p>
+
+      <p style={BODY}>
+        Follow parents alone and you never reach Grok. That chain runs Google to
+        Google to Google and stops, because Google&apos;s earliest manifest
+        declares no parent either. Grok sits beside it, recorded as an input
+        rather than an ancestor.
+      </p>
+
+      <p style={BODY}>
+        Either way the trail ends at Grok, and the ChatGPT original appears
+        nowhere in the file.
+      </p>
 
       <p style={BODY}>
         Nothing inside any of the three files records the fact that the Grok
