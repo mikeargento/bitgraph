@@ -854,6 +854,30 @@ export default function ThreeImagesPage() {
         It does not require Adobe, OpenAI, Google, or Grok to be believed either.
       </p>
 
+      {/* The widening, and it sits HERE rather than at the end on purpose.
+
+          The page never says this is not about pictures, and the reader it is
+          aimed at, the clerk and the lab and the adjuster named a few lines up,
+          deals in documents. Placed immediately before the couplet, those two
+          abstract lines arrive with the frame already widened and read as
+          universal instead of as being about images. Placed after "It needs a
+          where" it would have been a second ending competing with the first.
+
+          ❄️ A closing pair went with it and came out: "Bits can be labeled. /
+          They can also be given a place." That is precisely what the couplet
+          below already does, and two label/place couplets four lines apart
+          blunt each other. The couplet absorbs it; nothing is lost. */}
+      <p style={BODY}>These happen to be images.</p>
+
+      <p style={BODY}>
+        BitGraph does not know or care what the bits represent.
+      </p>
+
+      <p style={BODY}>
+        The same logic applies to a photograph, a document, a video, a dataset,
+        a model output, a contract, or any other digital file.
+      </p>
+
       <p style={BODY}>
         <strong>
           A label needs you to trust whoever applied it.
