@@ -917,22 +917,28 @@ export default function ThreeImagesPage() {
         It needs a <strong>where</strong>.
       </p>
 
-      {/* The count has to be right or a careful reader catches it on the last
-          line of the page. FIVE records, FOUR distinct files: Grok, ChatGPT,
-          Gemini, mine, and the ChatGPT file a second time. Recount this line
-          whenever a record is added. */}
-      <p style={BODY}>
-        Every image on this page is the exact bytes that were recorded. Two of
-        the five records are the same ChatGPT file, byte for byte.
-      </p>
+      {/* ONE colophon line, down from three, because anything after "it needs a
+          where" is a comedown and three paragraphs of housekeeping is a long
+          one.
 
-      <p style={BODY}>
-        Download any one of them and drop it on the{" "}
-        <Link href="/" style={LINK}>home page</Link>. The same proof comes back.
-      </p>
+          ❄️ Cut: "Two of the five records are the same ChatGPT file, byte for
+          byte." The fourth image section spends nine lines on precisely that.
+          It existed to fix a count error in a sentence that no longer makes a
+          count claim, so the problem went with the claim.
 
+          ❄️ Cut: "Each image above also links directly to its own record."
+          Pure UI instruction, and every caption already carries a blue
+          "BitGraph #8,034 →" with an arrow, five times over.
+
+          Kept, and joined into one sentence, because the guarantee is the
+          precondition for the invitation: previews would make the invitation a
+          lie. This is the line that turns a reader into someone who can check
+          the page without trusting it. */}
       <p style={{ ...BODY, margin: "0 0 40px" }}>
-        Each image above also links directly to its own record.
+        Every image on this page is the exact bytes that were recorded. Download
+        any one of them and drop it on the{" "}
+        <Link href="/" style={LINK}>home page</Link>, and the same proof comes
+        back.
       </p>
     </article>
   );
