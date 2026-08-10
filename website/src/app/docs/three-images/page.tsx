@@ -65,6 +65,28 @@ export default function ThreeImagesPage() {
           clauses of equal weight and had no turn in it. */}
       <h1 className="mb-6">Where, not when.</h1>
 
+      {/* A PREFACE, not a summary, and the distinction is the settled rule that
+          an inference put first is spent before the evidence arrives. This says
+          what the reader is about to look at and why it matters, then stops.
+          The last sentence is a promise, not the finding: "checks what they can
+          actually tell you", never "and they cannot".
+
+          Written for someone with no technical background at all, so nothing in
+          it may be jargon. No manifest, no provenance, no hash, no C2PA, no
+          signature. Those words all arrive later, once the pictures have given
+          them something to attach to.
+
+          17px and darker than body, matching the lede on /docs/overview, so it
+          reads as a way in rather than as the first beat of the argument. */}
+      <p style={{ fontSize: 17, lineHeight: 1.7, color: "#111827", margin: "0 0 26px" }}>
+        The three pictures below look almost the same. Each was made by a
+        different company&apos;s AI, each one from the picture before it. Every
+        one carries a small record inside the file, signed by the company that
+        made it, saying where the picture came from. Those records are what the
+        industry is building to tell real from fake. This page checks what they
+        can actually tell you.
+      </p>
+
       {/* "from nothing" was the first draft and came out. It is vivid and it
           hands a reader an argument about training data that has nothing to do
           with this demo. "No parent image" is the claim actually being made,
