@@ -619,7 +619,17 @@ async function computeRollFeed(opts: {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dayParam) || dayParam >= todayUTC) {
       return { status: 400, body: { error: "bad day" } };
     }
-    const sealedCache = "public, s-maxage=86400, stale-while-revalidate=2592000";
+    /* A sealed day cannot change, but the ANSWER for one can: the moment its
+       pages are built, the derivation stops being the best source. So a derived
+       day is only cached briefly, while an archived page keeps the immutable
+       header it sets for itself further down.
+
+       This was s-maxage=86400, reasoning from the day rather than the answer,
+       and it made the backfill invisible: a day anyone had already opened kept
+       serving the slow derived answer for a full day after its pages landed.
+       The long stale-while-revalidate stays, so the edge still paints instantly
+       and corrects itself behind the request. */
+    const derivedCache = "public, s-maxage=60, stale-while-revalidate=86400";
 
     // The archive first, always. It answers by name in two reads, and declines
     // (null) for anything it cannot answer with certainty, so the derivation
@@ -648,7 +658,7 @@ async function computeRollFeed(opts: {
       return {
         status: 200,
         body: { day: dayParam, entries: [], nextBefore: null, hasMore: false },
-        cacheControl: sealedCache,
+        cacheControl: derivedCache,
       };
     }
     // Cursor: before=<counter> scoped by bepoch=<epoch>, since counters repeat
@@ -691,7 +701,7 @@ async function computeRollFeed(opts: {
     return {
       status: 200,
       body: { day: dayParam, entries, nextBefore, nextEpoch, hasMore: nextBefore != null },
-      cacheControl: sealedCache,
+      cacheControl: derivedCache,
     };
   }
 
@@ -776,11 +786,47 @@ async function computeOrThrow(opts: Parameters<typeof computeRollFeed>[0]): Prom
   return result;
 }
 
-const cachedDayFeed = unstable_cache(
+/* Is this day archived? Asked OUTSIDE the feed cache, and it has to be.
+   The feed cache held a day for 24 hours on the reasoning that a sealed day
+   cannot change. The day cannot, but which source answers for it can, and the
+   builder flips that at an arbitrary moment. The result was a backfill that ran
+   correctly and changed nothing anyone could see: every day that had already
+   been opened kept serving its derived answer for a day after its pages landed,
+   and the days people open are exactly the ones that had been.
+
+   One small GET, cached 60s, which is now the longest a freshly archived day
+   stays slow. */
+const cachedIsArchived = unstable_cache(
+  async (day: string): Promise<boolean> => {
+    const index = await getArchiveJson<DayIndex>(dayIndexKey(day));
+    return !!index && index.v === 1;
+  },
+  ["roll-day-archived-v1"],
+  { revalidate: 60 },
+);
+
+/* Two wrappers, because the two answers have different lifetimes and
+   unstable_cache fixes revalidate per wrapper rather than per result.
+
+     archived   materialised pages, addressed by name. Cannot change, so it is
+                held for a day exactly as before.
+     derived    the ledger walk, correct but supersedable. Held only until the
+                archive check would notice a manifest.
+
+   Keyed apart as well as timed apart, so a day crossing from one to the other
+   never reads a body the other wrote. */
+const cachedArchivedDayFeed = unstable_cache(
   (day: string, before: string | null, bepoch: string | null, page: string | null, filesOnly: boolean) =>
     computeOrThrow({ day, before, bepoch, page, filesOnly }),
-  ["roll-feed-day-v2"],
+  ["roll-feed-day-archived-v1"],
   { revalidate: 86400 },
+);
+
+const cachedDerivedDayFeed = unstable_cache(
+  (day: string, before: string | null, bepoch: string | null, page: string | null, filesOnly: boolean) =>
+    computeOrThrow({ day, before, bepoch, page, filesOnly }),
+  ["roll-feed-day-derived-v1"],
+  { revalidate: 60 },
 );
 
 const cachedLiveCursor = unstable_cache(
@@ -808,7 +854,11 @@ export async function rollFeed(opts: {
 }): Promise<RollFeedResult> {
   const filesOnly = !!opts.filesOnly;
   try {
-    if (opts.day) return await cachedDayFeed(opts.day, opts.before ?? null, opts.bepoch ?? null, opts.page ?? null, filesOnly);
+    if (opts.day) {
+      // Which cache, decided before either is consulted.
+      const run = (await cachedIsArchived(opts.day)) ? cachedArchivedDayFeed : cachedDerivedDayFeed;
+      return await run(opts.day, opts.before ?? null, opts.bepoch ?? null, opts.page ?? null, filesOnly);
+    }
     if (opts.before) return await cachedLiveCursor(opts.before, filesOnly);
     return await cachedLiveHead(filesOnly);
   } catch (e) {
