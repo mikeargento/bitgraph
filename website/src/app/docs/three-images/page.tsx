@@ -78,14 +78,45 @@ export default function ThreeImagesPage() {
 
           17px and darker than body, matching the lede on /docs/overview, so it
           reads as a way in rather than as the first beat of the argument. */}
-      <p style={{ fontSize: 17, lineHeight: 1.7, color: "#111827", margin: "0 0 26px" }}>
-        The three pictures below look almost the same. Each was made by a
-        different company&apos;s AI, each one from the picture before it. Every
-        one carries a small record inside the file, signed by the company that
-        made it, saying where the picture came from. Those records are what the
-        industry is building to tell real from fake. This page checks what they
-        can actually tell you.
-      </p>
+      {/* THE WAY IN, boxed rather than sized up. The type is the body's own
+          16px so it does not compete with the argument, and a hairline rule is
+          all that sets it apart. ❄️ A WHITE FILL was tried and rejected: on the
+          #f5f5f5 page it read as a card, which is the treatment this site uses
+          for data (proof fields, result rows), and it made an introductory
+          paragraph look like a component. The outline alone frames without
+          promoting. Square corners are a site-wide rule; do not round this.
+
+          "The pictures below", not "the three pictures": there are four images
+          and five records down there, and a count in the first sentence is a
+          promise the page then breaks twice on purpose.
+
+          ⚠️ This names the label/place frame UP FRONT, which reverses the rule
+          that an inference put first is spent before the evidence arrives. It
+          was a deliberate call: a cold visitor arriving from a link had no idea
+          what BitGraph even is until halfway down, and the frame is a lens
+          rather than the finding. The finding, that the chain breaks and no
+          signature can establish order, is still discovered rather than
+          announced, so the close still has work to do. */}
+      <div
+        style={{
+          border: "1px solid #d0d5dd",
+          borderRadius: 0,
+          padding: "22px 24px",
+          margin: "0 0 30px",
+        }}
+      >
+        {[
+          "The pictures below look almost the same. Each was made by a different AI company. The first was generated from a prompt; each one after that was generated from the picture before it.",
+          "Every one carries a small record inside the file, signed by the company that made it, describing where the picture came from and what happened to it.",
+          "Those records label the files.",
+          "BitGraph does something different. It gives each recording a place.",
+          "This page shows the difference.",
+        ].map((text, i, all) => (
+          <p key={i} style={{ ...BODY, margin: i === all.length - 1 ? 0 : "0 0 14px" }}>
+            {text}
+          </p>
+        ))}
+      </div>
 
       {/* "from nothing" was the first draft and came out. It is vivid and it
           hands a reader an argument about training data that has nothing to do
