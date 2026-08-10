@@ -169,6 +169,27 @@ export default function ThreeImagesPage() {
         the files.
       </p>
 
+      {/* The differences are checkable by looking, which is this page's whole
+          standard, so they are named specifically rather than gestured at. All
+          three verified against the files: the framing pulls back in Grok's,
+          the street holds one car, then two, then one again, and the arcade
+          behind her is different architecture in each.
+
+          The second line is why this is here at all. Seeing that the pictures
+          are related is exactly the thing a reader CAN do unaided, and it still
+          yields no order, which is the page's argument stated in the one
+          register the reader can check for themselves before any cryptography
+          is mentioned. */}
+      <p style={BODY}>
+        Look closely and the differences are obvious. The framing pulls back,
+        the cars in the street change, the buildings behind her are not the same
+        ones.
+      </p>
+
+      <p style={BODY}>
+        You can see that they are related. You cannot see which came first.
+      </p>
+
       <p style={BODY}>
         Three files. Three different sets of bits. Three Content Credentials
         manifests written by three different companies.
