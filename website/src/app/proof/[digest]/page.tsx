@@ -69,19 +69,16 @@ function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certi
    wrong path or a re-encoded file shows nothing rather than the wrong picture.
    Do not remove that check on the grounds that the mapping is already correct.
 
-   ⚠️ The four two-images files outlived the page they were made for. The
-   /docs/three-images worked example was removed 2026-08-10; these entries were
-   kept deliberately, because each digest is a real permanent record and a
-   shared proof link should still show its picture. Re-encoding one silently
-   breaks its proof page, since the guard refuses bytes that do not hash to the
-   digest in the URL. If the images are ever dropped from public/, drop these
-   four rows in the same commit. */
+   ❄️ The four two-images files (grok, chatgpt, gemini, mikeargento) were hosted
+   here for the /docs/three-images demo. The page was removed 2026-08-10 and the
+   images were deleted from public/ so they could no longer be opened in a
+   browser, so their rows came out with them. Those five proof pages now show
+   the bring-your-file box, which is the same thing every other user's proof
+   page shows: a deliberate trade, not a regression. Do not re-add a row without
+   putting the file back in the same commit, or the page fetches a 404 on every
+   load. */
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
   [EXAMPLE_PROOF.digest]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
-  "XWWLhzD5efJ5FIukRTCGcOmWupaW2lELFzI1dPyX078": { path: "/example/two-images/grok.jpg", name: "grok.jpg", mime: "image/jpeg" },
-  "ngeTOzgjwu_2x2pQyLG3lbhFPFHLkF8JKdETlZyvcyY": { path: "/example/two-images/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
-  "1nyxWqQNa3KsIwo7i7kfHlyMqwh1_776Ht7ZjJU1W70": { path: "/example/two-images/gemini.png", name: "gemini.png", mime: "image/png" },
-  "vT7YbZArhPWqFMLHh_bRLT-_SwQ30uDM33B5pAFLY_U": { path: "/example/two-images/mikeargento.jpg", name: "mikeargento.jpg", mime: "image/jpeg" },
 };
 
 export default function ProofPage() {
