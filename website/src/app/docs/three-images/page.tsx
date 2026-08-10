@@ -672,8 +672,8 @@ export default function ThreeImagesPage() {
       </p>
 
       <p style={BODY}>
-        It is last because it arrived last, hours after this picture had already
-        been recorded four times.
+        It is last because it was BitGraphed last, hours after this picture had
+        already been recorded four times.
       </p>
 
       <p style={BODY}>That fact does not require me to be believed.</p>
