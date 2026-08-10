@@ -85,6 +85,19 @@ export default function ThreeImagesPage() {
           claim"), and it primes Content Credentials, which is the name the
           reader meets a few lines down. Keep record for BitGraph alone.
 
+          ⚠️ "recording", never "file" or "image", as the thing that gets a
+          place, and the page itself is the proof. The fourth image section
+          exists to show ONE file holding TWO places, 8,038 and 8,664, and the
+          close turns on it: "a label belongs to the file … this file now
+          occupies two places". Say BitGraph gives each FILE a place and the
+          ending contradicts the opening. "Image" is wrong twice over, since
+          BitGraph records any file at all.
+
+          "Recording" is the only accurate noun and it is also the one the
+          reader has not met yet, so the sentence defines it in passing rather
+          than assuming it: a file is recorded, and THAT recording is the thing
+          with a place. Do not shorten this back to "each recording a place".
+
           It carries no device at all. ❄️ Three were tried and
           all three came off: larger type competed with the argument, a white
           fill read as a card (this site's treatment for DATA, so it made an
@@ -110,7 +123,7 @@ export default function ThreeImagesPage() {
         "The pictures below look almost the same. Each was made by a different AI company. The first was generated from a prompt; each one after that was generated from the picture before it.",
         "Every one carries a small credential inside the file, signed by the company that made it, describing where the picture came from and what happened to it.",
         "Those credentials label the files.",
-        "BitGraph does something different. It gives each recording a place.",
+        "BitGraph does something different. Each time a file is recorded, that recording gets a place in a sequence.",
         "This page shows the difference.",
       ].map((text, i, all) => (
         /* The only thing separating the preface from the narrative is the gap
@@ -409,14 +422,20 @@ export default function ThreeImagesPage() {
       <p style={SEQ}>8,034 &rarr; 8,038 &rarr; 8,146</p>
 
       <p style={BODY}>
-        {/* ⚠️ This was "The copy comes before the original because the copy was
-            recorded first", which Mike called the demo and asked to keep. It had
-            to change anyway: nothing on this page is a copy, and leaving the word
-            here would have contradicted the paragraph that now says so. The
-            paradox is what makes the line, so the shape and the doubling are
-            preserved exactly and only the noun moves. */}
+        {/* ⚠️ THE DEMO SENTENCE. It began as "The copy comes before the original
+            because the copy was recorded first" and has been edited exactly
+            twice, both times under protest and both times correctly.
+
+            "Copy" had to go because nothing on this page is a copy, and leaving
+            it would have contradicted the paragraph that says so. "Recorded"
+            had to go because the page now uses BitGraphed as the verb wherever
+            recorded could be misread as made, and this is the sentence where
+            that confusion would cost the most.
+
+            The paradox is what makes the line, so the shape and the doubling
+            are preserved exactly. Only the two words move. */}
         The derivative comes before the original because the derivative was
-        recorded first.
+        BitGraphed first.
       </p>
 
       {/* The objection, answered in the reader's own terms. Left unsaid, a
