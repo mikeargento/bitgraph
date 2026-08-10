@@ -592,6 +592,22 @@ function resolveDir(folder, counter, epochUrlSafe, digestB64, fileName) {
       return { dir: known[i], alreadyBuilt: true };
     }
   }
+  /* Then the day folders. A new export cannot know its day (the seal lands
+     ~40s later), so it is always BUILT at the Recordings/ root and FILED by a
+     later tidy pass. That means a re-fire after filing would look at the root,
+     find nothing, and build a second copy of a recording that already exists.
+     Checked after the direct paths so the ordinary re-fire still costs one
+     read, and only the names a day folder could hold are considered. */
+  var days = sh('ls -1 ' + quote(folder + '/' + REC_DIR) + ' 2>/dev/null');
+  if (days) {
+    var names = days.split('\r').join('\n').split('\n').filter(isDayName);
+    for (var d = names.length - 1; d >= 0; d--) {
+      var filed = folder + '/' + REC_DIR + '/' + names[d] + '/BitGraph' + suffix;
+      if (builtHere(filed, digestB64, counter, epochUrlSafe)) {
+        return { dir: filed, alreadyBuilt: true };
+      }
+    }
+  }
   if (!exists(base + '/proof.json')) return { dir: base, alreadyBuilt: false };
 
   // The name is taken by a different recording. Two distinct files are both
@@ -633,6 +649,97 @@ var FILES_DIR = 'files';
 // is the one structural asymmetry between the two implementations, and it is
 // documented in both headers.
 var REC_DIR = 'Recordings';
+
+// ---- The day an export belongs to -----------------------------------------
+//
+// Recordings/ went flat and stayed flat, and a flat folder is a wall: this
+// machine holds 2,261 exports in one directory. Filing them by day is not
+// housekeeping, it is what lets a DROP BE SCOPED — drag one date onto
+// bitgraph.ing and you get that day's roll, without the Folder growing a
+// browsing layer it deliberately does not have (1.9.0). Finder is the browser.
+//
+// THE DATE COMES FROM THE CHAIN, NOT THE FILESYSTEM. mtime is the filesystem's
+// opinion and orders nothing (see listExports), and a system clock at export
+// time cannot date the 2,261 recordings already on disk. Every export carries
+// ethereum-anchors/anchor-after-witness.json, whose headerRlpHex is the sealed
+// block header, and field 11 of an Ethereum header is its timestamp. Verified
+// against this machine's folder: 2,261 of 2,261 exports carry that witness, so
+// every recording that exists can be filed by what Ethereum says rather than
+// by a guess.
+//
+// UTC, and not as a preference: an epoch IS a UTC calendar day, so a date
+// folder is the protocol's own partition made visible. A local date would cut
+// across a boundary the protocol does not have.
+//
+// ⚠️ APPROXIMATELY, NOT EXACTLY, AN EPOCH. Rotation is at 23:59 UTC, not
+// midnight, so a UTC date catches a one-minute sliver of the next epoch. Every
+// day in the site's archive spans two epochs for this reason. Date is still the
+// right unit because epochs have no names to put on a folder, but do not read
+// "one folder, one epoch" into this.
+var ANCHOR_DIR_NAME = 'ethereum-anchors';
+
+/**
+ * Field `want` of an RLP list, as bytes. Enough of RLP to walk a header and no
+ * more: headers are a flat list of byte strings, so there is no nesting to
+ * recurse into and nothing here needs to encode.
+ *
+ * Deliberately not a verifier. bitgraph-verify and the proof page already
+ * recompute the header hash and check it against the signed block hash; this
+ * only needs to know which day to file a folder under, and a wrong answer files
+ * a recording under the wrong date rather than asserting anything false about
+ * it.
+ */
+function rlpField(bytes, want) {
+  var i = 0;
+  var p = bytes[0];
+  if (p >= 0xf8) i = 1 + (p - 0xf7);
+  else if (p >= 0xc0) i = 1;
+  else return null; /* not a list */
+  for (var n = 0; i < bytes.length; n++) {
+    var h = bytes[i], start, len;
+    if (h < 0x80) { start = i; len = 1; }
+    else if (h < 0xb8) { start = i + 1; len = h - 0x80; }
+    else {
+      var k = h - 0xb7, size = 0;
+      for (var j = 0; j < k; j++) size = size * 256 + bytes[i + 1 + j];
+      start = i + 1 + k; len = size;
+    }
+    if (n === want) return bytes.slice(start, start + len);
+    i = start + len;
+  }
+  return null;
+}
+
+function hexToBytes(hex) {
+  var h = String(hex || '').replace(/^0x/, '');
+  if (h.length % 2) h = '0' + h;
+  var out = [];
+  for (var i = 0; i < h.length; i += 2) out.push(parseInt(h.substr(i, 2), 16));
+  return out;
+}
+
+/** UTC `YYYY-MM-DD` for an export, or null when it cannot be known yet.
+ *
+ *  NULL IS A REAL ANSWER. The seal lands about forty seconds after the drop, so
+ *  a just-recorded export has no anchor-after witness and genuinely has no day
+ *  yet. It waits at the Recordings/ root and the next tidy pass files it, which
+ *  is the same shape as the flat-export tuck that already lives there. Guessing
+ *  a date from the clock would file it under the wrong day whenever a drop
+ *  straddles 23:59 UTC. */
+function dayOfExport(dir) {
+  var raw = readFileUtf8(dir + '/' + ANCHOR_DIR_NAME + '/anchor-after-witness.json');
+  if (!raw) return null;
+  var hex;
+  try { hex = JSON.parse(raw).headerRlpHex; } catch (e) { return null; }
+  if (!hex) return null;
+  var ts = rlpField(hexToBytes(hex), 11);
+  if (!ts || !ts.length) return null;
+  var secs = 0;
+  for (var i = 0; i < ts.length; i++) secs = secs * 256 + ts[i];
+  if (!secs) return null;
+  return new Date(secs * 1000).toISOString().slice(0, 10);
+}
+
 
 function dirName(p) {
   var parts = String(p).split('/');
@@ -1217,11 +1324,15 @@ function dropPage(dir) {
  * so the two cannot disagree about what counts as an export.
  */
 function exportDirs(folder) {
-  // Recordings/ first, then any flat stragglers at the top level, so --verify
-  // covers an old folder, a new one, and the mixed moment in between. Names
-  // keep their prefix; every caller joins them onto `folder`.
+  // THREE depths, because three layouts are legitimately live at once:
+  // Recordings/<day>/<export> (filed), Recordings/<export> (recorded but not
+  // yet sealed, so it has no day), and <export> flat at the top (pre-1.7, or an
+  // old export dragged back in). Missing the day depth made --verify answer "no
+  // exports" for a folder that had just been filed, which is the worst possible
+  // answer from a tool whose entire job is saying what is there.
+  // Names keep their prefix; every caller joins them onto `folder`.
   var listing = sh('cd ' + quote(folder) +
-    ' && for d in ' + REC_DIR + '/*/ */; do if [ -f "$d/proof.json" ]; then stat -f "%m %N" "$d"; fi; done 2>/dev/null; true');
+    ' && for d in ' + REC_DIR + '/*/*/ ' + REC_DIR + '/*/ */; do if [ -f "$d/proof.json" ]; then stat -f "%m %N" "$d"; fi; done 2>/dev/null; true');
   var lines = listing ? listing.split('\r').join('\n').split('\n').filter(Boolean) : [];
 
   var entries = [];
@@ -1250,14 +1361,32 @@ function exportDirs(folder) {
 
 function exportDirsUnder(folder) {
   var dirs = [];
-  [[folder + '/' + REC_DIR, REC_DIR + '/'], [folder, '']].forEach(function (pair) {
-    var listing = sh('ls -1 ' + quote(pair[0]) + ' 2>/dev/null');
-    if (!listing) return;
-    listing.split('\r').join('\n').split('\n').filter(Boolean).forEach(function (n) {
+  var roots = [[folder + '/' + REC_DIR, REC_DIR + '/'], [folder, '']];
+  // Day folders are a third place an export can be, so Recordings/ is walked
+  // one deeper. Everything is still identified by holding a proof.json, never
+  // by its name, so a hand-renamed day folder keeps working.
+  var listing = sh('ls -1 ' + quote(folder + '/' + REC_DIR) + ' 2>/dev/null');
+  if (listing) {
+    listing.split('\r').join('\n').split('\n').filter(Boolean).forEach(function (d) {
+      if (isDayName(d) && !exists(folder + '/' + REC_DIR + '/' + d + '/proof.json')) {
+        roots.push([folder + '/' + REC_DIR + '/' + d, REC_DIR + '/' + d + '/']);
+      }
+    });
+  }
+  roots.forEach(function (pair) {
+    var l = sh('ls -1 ' + quote(pair[0]) + ' 2>/dev/null');
+    if (!l) return;
+    l.split('\r').join('\n').split('\n').filter(Boolean).forEach(function (n) {
       if (exists(pair[0] + '/' + n + '/proof.json')) dirs.push(pair[1] + n);
     });
   });
   return dirs;
+}
+
+/** `2026-08-09`. Shape only: a day folder is recognised by looking like one,
+ *  so nothing has to be recorded anywhere about which folders are days. */
+function isDayName(n) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(n));
 }
 
 /**
@@ -1280,8 +1409,10 @@ function exportDirsUnder(folder) {
  * ordinary answer of "nothing to reclaim" stays cheap.
  */
 function staleExportProofs(folder) {
+  // maxdepth 3: Recordings/<day>/<export>/proof.json is one deeper than
+  // Recordings/<export>/proof.json, and both layouts coexist during filing.
   var roots = quote(folder + '/' + REC_DIR) + ' ' + quote(folder) +
-    ' -mindepth 2 -maxdepth 2 -name ' + quote('proof.json');
+    ' -mindepth 2 -maxdepth 3 -name ' + quote('proof.json');
   var pattern = quote('"version": "bitgraph/1"');
 
   var any = sh('find ' + roots + ' -exec grep -L ' + pattern + ' {} + 2>/dev/null | head -c 1');
@@ -1319,6 +1450,33 @@ function tidyFolder(folder) {
       }
     });
   }
+
+  // 1b. File exports under the day the CHAIN says they were sealed. Undated
+  //     ones (seal not landed yet) stay at the Recordings/ root and are filed
+  //     by a later pass, which is the same shape as the tuck above.
+  //
+  //     Moves one at a time with an existence check before each, so an
+  //     interrupted run leaves a folder half-filed rather than damaged, and the
+  //     next run continues. An export holds the ONLY copy of its file (1.8.0),
+  //     so nothing here deletes and nothing overwrites: a name already taken in
+  //     the destination is skipped for the next pass to disambiguate.
+  var loose = exportDirsUnder(folder).filter(function (n) {
+    return n.indexOf(REC_DIR + '/') === 0 && n.slice(REC_DIR.length + 1).indexOf('/') < 0;
+  });
+  var filed = 0;
+  for (var li = 0; li < loose.length; li++) {
+    var src = folder + '/' + loose[li];
+    var day = dayOfExport(src);
+    if (!day) continue; /* no seal yet: it has no day, so it does not get one */
+    var destDir = folder + '/' + REC_DIR + '/' + day;
+    var destName = baseName(loose[li]);
+    if (exists(destDir + '/' + destName)) continue; /* next pass disambiguates */
+    mkdirp(destDir);
+    var moved = sh('mv ' + quote(src) + ' ' + quote(destDir + '/' + destName) +
+      ' 2>/dev/null && echo ok');
+    if (moved === 'ok') filed++;
+  }
+  if (filed) did.push('filed ' + filed + ' by day');
 
   // 2. files/ dissolves, once (1.8.0). An entry with more than one link is a
   //    second name for bytes still safe inside an export and is removed. An
