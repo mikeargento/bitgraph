@@ -516,16 +516,48 @@ export default function ThreeImagesPage() {
 
       <p style={BODY}>Follow this chain and it ends where it should.</p>
 
+      {/* ⚠️ The page used to stop at the line above, which credited the chain as
+          established fact. It is not one, and the distinction was measured:
+          the ingredient carries `relationship: parentOf` and the parent's
+          manifest label, and the ChatGPT manifest really is embedded and really
+          does validate (claimSignature.validated, timeStamp.validated, OCSP not
+          revoked). What is absent is any binding between this file's pixels and
+          that file's pixels, and there structurally cannot be one, because
+          editing changes the bytes. So the derivation is Lightroom's assertion,
+          countersigned by Adobe.
+
+          This matters more than it looks. It means the chain and the creator
+          field are the same kind of object, which is what makes the creator
+          paragraph below a second instance rather than a special case, and it
+          is why Grok belongs in the callback: identical mechanism, opposite
+          honesty. */}
+      <p style={BODY}>
+        Or rather, it ends where Lightroom says it should. Nothing in the file
+        proves this picture came from that one. The ChatGPT manifest is carried
+        inside mine and OpenAI&apos;s signature on it is genuine, so you can
+        check that a file OpenAI signed was involved. That mine was made from it
+        is the software&apos;s word, and Adobe signed the software&apos;s word.
+      </p>
+
+      <p style={BODY}>
+        Grok&apos;s manifest was made the same way, and it said the picture had
+        no parent at all.
+      </p>
+
       {/* Measured, not characterised: the timestamp really is the most rigorous
           on the page. OpenAI's countersignature comes from OpenAI's own TSA and
           Google's from Google's; Adobe's comes from DigiCert, an independent
           timestamp authority with no stake in the file. Which is the point of
           the sentence it appears in: best pedigree, least believed. */}
+      {/* "Its signature" opened this paragraph until the Grok sentence landed
+          in front of it, at which point the pronoun reached back one sentence
+          too far and read as Grok's. Named explicitly instead. */}
       <p style={BODY}>
-        Its signature is the most rigorous on this page. Adobe founded the
-        standard the other two are following, and where OpenAI and Google each
-        stamped the time with their own timestamp authority, Adobe&apos;s was
-        countersigned by DigiCert, which has no stake in any of this.
+        The signature on my file is the most rigorous on this page. Adobe
+        founded the standard the other two are following, and where OpenAI and
+        Google each stamped the time with their own timestamp authority,
+        Adobe&apos;s was countersigned by DigiCert, which has no stake in any of
+        this.
       </p>
 
       <p style={BODY}>Now look at what the manifest says about who made it.</p>
