@@ -401,11 +401,20 @@ async function daySegments(day: string): Promise<DaySeg[]> {
    possible free of a second source of truth.
 
    PAGING. Archived days are paged by page NUMBER, not by counter: the pages are
-   the pagination. The cursor field is shared with the live feed, so `before`
-   carries a page number here and a counter there. A cursor from an old link
-   would be a counter, which is why an out-of-range cursor falls back to the
-   derivation below rather than being clamped — clamping would answer a stale
-   link with an empty page, and an empty page is the one answer this feed must
+   the pagination. That cursor gets its OWN field, `page`/`nextPage`, rather than
+   riding on `before`.
+
+   It rode on `before` first, and the two meanings could not be told apart at the
+   one place it mattered. The archive declines mid-run whenever a page read
+   fails, and the derivation then received a page number and read it as a
+   counter: `before=3` meant "page 3" to the reader that wrote it and "everything
+   below counter 3" to the one that answered, which is the end of the day. With
+   the fields split, a declined page leaves `before` unset, so the derivation
+   falls back to the day's top and walks down by counter, re-deriving rows the
+   client already holds and deduping them away. Slower, and correct.
+
+   An out-of-range page still declines rather than clamping: clamping would
+   answer with an empty page, and an empty page is the one answer this feed must
    never invent. */
 
 async function getArchiveJson<T>(key: string): Promise<T | null> {
@@ -444,8 +453,8 @@ function entryFromRow(r: DayPage["rows"][number]): Entry {
  * than towards the empty one.
  */
 async function archivedDayPage(
-  day: string, beforeParam: string | null, filesOnly: boolean,
-): Promise<{ entries: Entry[]; nextBefore: number | null; hasMore: boolean; total: number } | null> {
+  day: string, pageParam: string | null, filesOnly: boolean,
+): Promise<{ entries: Entry[]; nextPage: number | null; hasMore: boolean; total: number } | null> {
   const index = await getArchiveJson<DayIndex>(dayIndexKey(day));
   if (!index || index.v !== 1) return null;
   const filter: RollFilter = filesOnly ? "f" : "a";
@@ -453,11 +462,11 @@ async function archivedDayPage(
   const rowTotal = index.rows?.[filter];
   if (typeof pageCount !== "number" || typeof rowTotal !== "number") return null;
 
-  const n = beforeParam ? parseInt(beforeParam, 10) : 0;
+  const n = pageParam ? parseInt(pageParam, 10) : 0;
   if (isNaN(n) || n < 0) return null;
-  // Out of range: either a genuine end or a counter cursor from an older link.
-  // The archive cannot tell them apart, so it declines and lets the derivation
-  // answer, which understands both.
+  // Past the end. Only reachable from a hand-made or stale request, since the
+  // last page reports no next page at all. Declining sends it to the derivation,
+  // which answers from the ledger; clamping would answer with an empty page.
   if (n >= pageCount) return null;
 
   const page = await getArchiveJson<DayPage>(pageKey(day, filter, n));
@@ -466,7 +475,7 @@ async function archivedDayPage(
   const hasMore = n + 1 < pageCount;
   return {
     entries: page.rows.map(entryFromRow),
-    nextBefore: hasMore ? n + 1 : null,
+    nextPage: hasMore ? n + 1 : null,
     hasMore,
     total: rowTotal,
   };
@@ -565,8 +574,14 @@ export type RollFeedBody = {
   day?: string;
   head?: number;
   entries: Entry[];
+  /** Counter cursor. Always a counter, on every path that sets it. */
   nextBefore: number | null;
   nextEpoch?: string | null;
+  /* Page cursor, archived days only. Its own field rather than a second meaning
+     for `before`, so that when the archive declines mid-run the derivation is
+     handed no cursor at all instead of a page number it would read as a
+     counter. Exactly one of the two is ever set. */
+  nextPage?: number | null;
   hasMore: boolean;
   /* Rows the archive DECLARES this day holds, for the active filter. Present
      only for archived days, where it is what makes a short list detectably
@@ -583,12 +598,14 @@ export type RollFeedResult =
   | { status: 400 | 404; body: { error: string }; cacheControl?: undefined };
 
 /** One page of the Roll. `day` selects a sealed UTC day; omit it for the live
- *  feed. `before`/`bepoch` are the paging cursor (counters repeat across
- *  epochs, so a day cursor is scoped by epoch). */
+ *  feed. Paging takes one of two cursors and never both: `page` for an archived
+ *  day, `before`/`bepoch` for everything else (counters repeat across epochs, so
+ *  a counter cursor is scoped by epoch). */
 async function computeRollFeed(opts: {
   day?: string | null;
   before?: string | null;
   bepoch?: string | null;
+  page?: string | null;
   filesOnly?: boolean;
 }): Promise<RollFeedResult> {
   const now = Date.now();
@@ -607,14 +624,15 @@ async function computeRollFeed(opts: {
     // The archive first, always. It answers by name in two reads, and declines
     // (null) for anything it cannot answer with certainty, so the derivation
     // below stays the fallback rather than the fast path.
-    const archived = await archivedDayPage(dayParam, beforeParam, filesOnly);
+    const archived = await archivedDayPage(dayParam, opts.page ?? null, filesOnly);
     if (archived) {
       return {
         status: 200,
         body: {
           day: dayParam,
           entries: archived.entries,
-          nextBefore: archived.nextBefore,
+          nextBefore: null,
+          nextPage: archived.nextPage,
           hasMore: archived.hasMore,
           total: archived.total,
         },
@@ -759,9 +777,9 @@ async function computeOrThrow(opts: Parameters<typeof computeRollFeed>[0]): Prom
 }
 
 const cachedDayFeed = unstable_cache(
-  (day: string, before: string | null, bepoch: string | null, filesOnly: boolean) =>
-    computeOrThrow({ day, before, bepoch, filesOnly }),
-  ["roll-feed-day-v1"],
+  (day: string, before: string | null, bepoch: string | null, page: string | null, filesOnly: boolean) =>
+    computeOrThrow({ day, before, bepoch, page, filesOnly }),
+  ["roll-feed-day-v2"],
   { revalidate: 86400 },
 );
 
@@ -778,17 +796,19 @@ const cachedLiveHead = unstable_cache(
 );
 
 /** One page of the Roll. `day` selects a sealed UTC day; omit it for the live
- *  feed. `before`/`bepoch` are the paging cursor (counters repeat across
- *  epochs, so a day cursor is scoped by epoch). */
+ *  feed. Paging takes one of two cursors and never both: `page` for an archived
+ *  day, `before`/`bepoch` for everything else (counters repeat across epochs, so
+ *  a counter cursor is scoped by epoch). */
 export async function rollFeed(opts: {
   day?: string | null;
   before?: string | null;
   bepoch?: string | null;
+  page?: string | null;
   filesOnly?: boolean;
 }): Promise<RollFeedResult> {
   const filesOnly = !!opts.filesOnly;
   try {
-    if (opts.day) return await cachedDayFeed(opts.day, opts.before ?? null, opts.bepoch ?? null, filesOnly);
+    if (opts.day) return await cachedDayFeed(opts.day, opts.before ?? null, opts.bepoch ?? null, opts.page ?? null, filesOnly);
     if (opts.before) return await cachedLiveCursor(opts.before, filesOnly);
     return await cachedLiveHead(filesOnly);
   } catch (e) {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { takeWarm, ROLL_FEED_KEY } from "@/lib/warm";
+import { endOfRollClaim } from "@/lib/roll-archive";
 
 type Entry = {
   counter: number;
@@ -17,7 +18,18 @@ type Entry = {
   ep?: string;
 };
 
-type FeedResp = { entries?: Entry[]; nextBefore?: number | null; nextEpoch?: string | null; hasMore?: boolean };
+type FeedResp = {
+  entries?: Entry[];
+  nextBefore?: number | null;
+  nextEpoch?: string | null;
+  // Archived days page by page number, in its own field. Exactly one of
+  // nextBefore / nextPage is ever set, and this component never reads either as
+  // anything but "hand it back to get the next page".
+  nextPage?: number | null;
+  hasMore?: boolean;
+  // Rows the day DECLARES it holds, for the active filter. Archived days only.
+  total?: number;
+};
 
 // Row identity that survives epoch boundaries (day rolls). Live-feed rows are
 // all one epoch, where this degrades to the counter as before.
@@ -71,6 +83,21 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   // Day-roll cursor scope: counters repeat across epochs, so the resume point
   // is (epoch, counter). Null outside day mode.
   const [nextEpoch, setNextEpoch] = useState<string | null>(() => seeded?.nextEpoch ?? null);
+  // Archived-day cursor. Separate from nextBefore because the server keeps them
+  // separate; both are opaque here.
+  const [nextPage, setNextPage] = useState<number | null>(() => seeded?.nextPage ?? null);
+  /* Rows the day says it holds, once it has said so. THE POINT OF THIS FIELD IS
+     THAT A SHORT LIST MUST BE DETECTABLY SHORT. Without it a client holding
+     three pages cannot tell "that was the whole day" from "the fourth request
+     failed", and a roll that under-reports looks exactly like a ledger that
+     never recorded the thing you came to look for.
+
+     Only archived days declare one. Null means no declaration exists, and the
+     client then says nothing about completeness rather than inventing a claim.
+     Sticky once set: a later page that arrives without a total (the archive
+     declining mid-run, the derivation answering) does not retract what the day
+     already declared, and holding onto it is what makes the shortfall visible. */
+  const [total, setTotal] = useState<number | null>(() => seeded?.total ?? null);
   const [hasMore, setHasMore] = useState(() => seeded ? !!seeded.hasMore : true);
   const [loading, setLoading] = useState(() => !seeded);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -124,13 +151,18 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   // tags settle a moment after the seeded paint.
   const firstRunRef = useRef(true);
 
-  const feedUrl = useCallback((before?: number | null, bepoch?: string | null) => {
+  const feedUrl = useCallback((before?: number | null, bepoch?: string | null, page?: number | null) => {
     // The no-cursor live files URL must stay byte-identical to ROLL_FEED_KEY
     // (warm slots key by URL string), so the live path keeps its exact shape.
     if (!day) return `/api/explorer?${showAnchors ? "" : "files=1"}${before != null ? `${showAnchors ? "" : "&"}before=${before}` : ""}`;
     const p = new URLSearchParams({ day });
     if (!showAnchors) p.set("files", "1");
-    if (before != null) {
+    // At most one cursor, and the server decides which kind it handed out. A
+    // page number sent as `before` would read as a counter, which is how the
+    // end of a day gets mistaken for the rest of it.
+    if (page != null) {
+      p.set("page", String(page));
+    } else if (before != null) {
       p.set("before", String(before));
       if (bepoch) p.set("bepoch", bepoch);
     }
@@ -143,24 +175,28 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   // either rows or a real end — chaining must not depend on the scroll
   // sentinel's IntersectionObserver, which won't fire in a hidden tab.
   const fetchChain = useCallback(async (
-    before?: number | null, bepoch?: string | null, signal?: AbortSignal,
+    before?: number | null, bepoch?: string | null, page?: number | null, signal?: AbortSignal,
   ): Promise<FeedResp> => {
     const acc: Entry[] = [];
     let nb: number | null = before ?? null;
     let ne: string | null = bepoch ?? null;
+    let np: number | null = page ?? null;
+    let tot: number | undefined;
     let hm = true;
     for (let hop = 0; hop < 12; hop++) {
-      const url = hop === 0 ? feedUrl(before, bepoch) : feedUrl(nb, ne);
+      const url = hop === 0 ? feedUrl(before, bepoch, page) : feedUrl(nb, ne, np);
       const r = await fetch(url, signal ? { signal } : undefined);
       if (!r.ok) throw new Error(`feed ${r.status}`);
       const j: FeedResp = await r.json();
       acc.push(...(j.entries || []));
       nb = j.nextBefore ?? null;
       ne = j.nextEpoch ?? null;
+      np = j.nextPage ?? null;
+      if (typeof j.total === "number") tot = j.total;
       hm = !!j.hasMore;
-      if (acc.length > 0 || !hm || nb == null) break;
+      if (acc.length > 0 || !hm || (nb == null && np == null)) break;
     }
-    return { entries: acc, nextBefore: nb, nextEpoch: ne, hasMore: hm };
+    return { entries: acc, nextBefore: nb, nextEpoch: ne, nextPage: np, hasMore: hm, total: tot };
   }, [feedUrl]);
 
   // Initial load, re-run when the anchors toggle flips the feed mode. A cold
@@ -182,6 +218,8 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
       setNewIds(new Set());
       setNextBefore(null);
       setNextEpoch(null);
+      setNextPage(null);
+      setTotal(null);
       setHasMore(true);
       setLoading(true);
       setError(false);
@@ -200,6 +238,8 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
             noteNew(j.entries || []);
             setNextBefore(j.nextBefore ?? null);
             setNextEpoch(j.nextEpoch ?? null);
+            setNextPage(j.nextPage ?? null);
+            if (typeof j.total === "number") setTotal(j.total);
             setHasMore(!!j.hasMore);
             topRef.current = j.entries?.[0]?.counter ?? 0;
             setLoading(false);
@@ -211,13 +251,15 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
         try {
           const ctrl = new AbortController();
           const to = setTimeout(() => ctrl.abort(), 20000);
-          const j = await fetchChain(undefined, undefined, ctrl.signal);
+          const j = await fetchChain(undefined, undefined, undefined, ctrl.signal);
           clearTimeout(to);
           if (cancelled) return;
           setEntries(j.entries || []);
           noteNew(j.entries || []);
           setNextBefore(j.nextBefore ?? null);
           setNextEpoch(j.nextEpoch ?? null);
+          setNextPage(j.nextPage ?? null);
+          if (typeof j.total === "number") setTotal(j.total);
           setHasMore(!!j.hasMore);
           topRef.current = j.entries?.[0]?.counter ?? 0;
           setLoading(false);
@@ -332,21 +374,26 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   }, [feedUrl, day, noteNew]);
 
   const loadMore = useCallback(async () => {
-    if (busyRef.current || nextBefore == null || !hasMore) return;
+    if (busyRef.current || (nextBefore == null && nextPage == null) || !hasMore) return;
     busyRef.current = true;
     setLoadingMore(true);
     try {
-      const j = await fetchChain(nextBefore, nextEpoch);
+      const j = await fetchChain(nextBefore, nextEpoch, nextPage);
       setEntries((prev) => {
         const seen = new Set(prev.map(rowId));
         return [...prev, ...(j.entries || []).filter((e: Entry) => !seen.has(rowId(e)))];
       });
       setNextBefore(j.nextBefore ?? null);
       setNextEpoch(j.nextEpoch ?? null);
+      setNextPage(j.nextPage ?? null);
+      // Sticky: a page arriving without a declaration cannot revoke one the day
+      // already made. That is what leaves the shortfall visible when the archive
+      // declines partway and the derivation finishes the job.
+      if (typeof j.total === "number") setTotal(j.total);
       setHasMore(!!j.hasMore);
     } catch { /* keep what we have */ }
     finally { busyRef.current = false; setLoadingMore(false); }
-  }, [nextBefore, nextEpoch, hasMore, fetchChain]);
+  }, [nextBefore, nextEpoch, nextPage, hasMore, fetchChain]);
 
   // Infinite scroll.
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -359,6 +406,28 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   }, [loadMore]);
 
   const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
+
+  /* What is on screen, measured against what the day says exists.
+
+     `shown` is the rendered count for the active filter, so it is the number a
+     reader could sit and count. `declared` is the day's OWN statement of how
+     many rows it holds, and it is the only thing on this page that can justify
+     the word "all": every other end-of-list signal is an inference from a
+     response that happened to be short, and short is exactly what a page that
+     failed to load also looks like.
+
+     So when the two disagree and there is nothing left to fetch, the roll says
+     so. And when there is no declaration at all (the live feed, a day not yet
+     archived) it claims nothing, because a client must not invent a
+     declaration that was never made. */
+  const visible = showAnchors ? entries : entries.filter((e) => e.type === "proof");
+  const shown = visible.length;
+  // A day declaring zero rows is a real declaration, but the empty-state message
+  // below already says so in words, so the tail treats it as nothing to report
+  // rather than printing "All 0".
+  const declared = total != null && total > 0 ? total : null;
+  const claim = endOfRollClaim(shown, declared, hasMore);
+  const noun = showAnchors ? "entries" : "recordings";
 
   return (
     <div>
@@ -484,7 +553,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
         )}
         {error && !loading && <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Ledger unavailable right now.</div>}
 
-        {!loading && !error && (showAnchors ? entries : entries.filter((e) => e.type === "proof")).map((e) => {
+        {!loading && !error && visible.map((e) => {
           const isAnchor = e.type === "anchor";
           const isInterval = e.type === "interval";
           // Interval recurrences are the same bytes as an anchor 25 anchors
@@ -521,14 +590,27 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
           );
         })}
 
-        {!loading && !error && day && entries.filter((e) => showAnchors || e.type === "proof").length === 0 && !hasMore && (
+        {!loading && !error && day && shown === 0 && !hasMore && (
           <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
             {showAnchors ? "No recordings on this day." : "No files recorded on this day."}
           </div>
         )}
         {!loading && !error && (
-          <div ref={sentinel} style={{ padding: 16, textAlign: "center", color: "#9ca3af", fontSize: 12 }}>
-            {loadingMore ? "Loading…" : hasMore ? " " : day ? (entries.length ? "End of this day's roll" : " ") : "Beginning of epoch"}
+          <div ref={sentinel} style={{ padding: 16, textAlign: "center", color: claim === "short" ? "#dc2626" : "#9ca3af", fontSize: 12 }}>
+            {loadingMore ? "Loading…"
+              // Paging has stopped and the day declares more rows than are on
+              // screen. This is the whole reason the day declares a total.
+              : claim === "short" ? `Showing ${fmt(shown)} of ${fmt(declared!)} ${noun}. The rest did not load.`
+              // Backed by the manifest, so "all" is a claim that can be made.
+              : claim === "complete" ? `All ${fmt(declared!)} ${declared === 1 ? noun.slice(0, -1) : noun} from this day.`
+              // Mid-scroll: progress against the declaration, not a guess.
+              : claim === "paging" ? `${fmt(shown)} of ${fmt(declared!)} ${noun}`
+              // No declaration to measure against. Blank while there is more to
+              // come, and otherwise only that this walk ran out of ledger, which
+              // is an end but not an audited one.
+              : hasMore ? " "
+              : day ? (entries.length ? "End of this day's roll" : " ")
+              : "Beginning of epoch"}
           </div>
         )}
       </div>

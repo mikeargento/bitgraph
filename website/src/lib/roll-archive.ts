@@ -152,6 +152,38 @@ export function coverageOf(heldPages: number[], index: DayIndex, filter: RollFil
   return { loaded: held.size, total, rowsLoaded, rowsTotal, missing, behind: missing.length > 0, complete };
 }
 
+/** What the end of a roll is allowed to say about itself. */
+export type RollClaim =
+  /** More pages to fetch. Report progress against the declaration, not an end. */
+  | "paging"
+  /** Every declared row is on screen. The only state that may say "all". */
+  | "complete"
+  /** Paging has stopped and the day declares more rows than are held. */
+  | "short"
+  /** No declaration exists. Nothing may be claimed about completeness. */
+  | "undeclared";
+
+/**
+ * The render-time half of coverageOf, for a reader that pages strictly in order.
+ *
+ * coverageOf answers for a client that can hold arbitrary pages and therefore
+ * arbitrary holes. The Roll is not that client: it fetches page n+1 only after
+ * page n has landed and stops at the first failure, so a hole cannot form and
+ * the row count carries the whole answer. This is the same rule reduced to the
+ * two numbers that reader actually has.
+ *
+ * The asymmetry is deliberate. "complete" requires a declaration to match;
+ * everything else, including every uncertain case, resolves to a state that
+ * claims nothing. A roll that under-reports is indistinguishable from a ledger
+ * that never recorded the thing you came to look for, so a short list has to be
+ * detectably short rather than quietly plausible.
+ */
+export function endOfRollClaim(shown: number, declared: number | null, hasMore: boolean): RollClaim {
+  if (declared == null) return "undeclared";
+  if (hasMore) return "paging";
+  return shown < declared ? "short" : "complete";
+}
+
 /**
  * Contiguity, at the level this archive actually has one: page numbers must run
  * 0..total-1 with nothing skipped. A hole is surfaced rather than rendered

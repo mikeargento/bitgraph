@@ -15,6 +15,10 @@ export async function GET(req: NextRequest) {
       day: p.get("day"),
       before: p.get("before"),
       bepoch: p.get("bepoch"),
+      // Archived days page by page NUMBER, and it is a separate parameter from
+      // `before` on purpose: the two cursors mean different things and must
+      // never be handed to the reader that understands the other one.
+      page: p.get("page"),
       filesOnly: p.get("files") === "1",
     });
     return NextResponse.json(result.body, {

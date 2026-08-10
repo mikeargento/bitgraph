@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   PAGE_ROWS, pageKey, dayIndexKey, paginate, isSealedDay,
-  coverageOf, findPageGaps, mergeRows, type DayIndex, type RollRow,
+  coverageOf, findPageGaps, mergeRows, endOfRollClaim, type DayIndex, type RollRow,
 } from "../roll-archive.ts";
 
 const row = (c: number, t: RollRow["t"] = "p", ep?: string): RollRow => ({ c, t, d: `d${c}`, h: `h${c}`, ...(ep ? { ep } : {}) });
@@ -127,4 +127,39 @@ test("the same counter in two epochs is two rows, not a duplicate", () => {
   // restart with each epoch, so identity is (epoch, counter).
   const out = mergeRows([row(5, "p", "EPOCH_A")], [row(5, "p", "EPOCH_B")]);
   assert.equal(out.length, 2, "deduping on counter alone would erase a real recording");
+});
+
+// ── what the end of the list may say ───────────────────────────────────────
+// The rendered half of coverageOf. Only "complete" licenses the word "all", and
+// every case that cannot prove completeness has to land somewhere else.
+
+test("a matched declaration is the only way to claim completeness", () => {
+  assert.equal(endOfRollClaim(250, 250, false), "complete");
+});
+
+test("paging stopped short of the declaration reports the shortfall", () => {
+  // The archive declined a page and the derivation ended early. The list is
+  // short, and short must be visible rather than plausible.
+  assert.equal(endOfRollClaim(200, 250, false), "short");
+});
+
+test("one missing row is still short", () => {
+  assert.equal(endOfRollClaim(249, 250, false), "short");
+});
+
+test("mid-scroll is progress, never an end", () => {
+  assert.equal(endOfRollClaim(100, 250, true), "paging");
+});
+
+test("holding every declared row while more is promised is still paging", () => {
+  // hasMore outranks the count: the server says the walk is unfinished, and a
+  // count that happens to line up is not permission to stop believing it.
+  assert.equal(endOfRollClaim(250, 250, true), "paging");
+});
+
+test("no declaration claims nothing, however the paging ended", () => {
+  // The live feed and any day not yet archived. There is no manifest to check
+  // against, so completeness is not a statement this client gets to make.
+  assert.equal(endOfRollClaim(25, null, false), "undeclared");
+  assert.equal(endOfRollClaim(0, null, true), "undeclared");
 });
