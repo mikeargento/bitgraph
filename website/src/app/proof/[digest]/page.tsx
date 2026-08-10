@@ -59,6 +59,26 @@ function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certi
   return <svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
 }
 
+/* Files the site hosts, so a shared proof link shows the picture instead of an
+   empty "bring your file" box. Keyed by digest so an ordinary proof page
+   fetches nothing: without the key there is one entry to try, and with it
+   exactly one, never a list.
+
+   ⚠️ THE HASH GUARD BELOW IS WHAT MAKES THIS SAFE, not this table. Whatever is
+   fetched is displayed only if its bytes hash to the digest in the URL, so a
+   wrong path or a re-encoded file shows nothing rather than the wrong picture.
+   Do not remove that check on the grounds that the mapping is already correct.
+
+   The three two-images files are the C2PA demo on /subjects and must stay
+   byte-identical to what was recorded: re-encoding one silently breaks both its
+   proof page and the claim on that page that these are the recorded bytes. */
+const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
+  [EXAMPLE_PROOF.digest]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
+  "XWWLhzD5efJ5FIukRTCGcOmWupaW2lELFzI1dPyX078": { path: "/example/two-images/grok.jpg", name: "grok.jpg", mime: "image/jpeg" },
+  "ngeTOzgjwu_2x2pQyLG3lbhFPFHLkF8JKdETlZyvcyY": { path: "/example/two-images/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
+  "1nyxWqQNa3KsIwo7i7kfHlyMqwh1_776Ht7ZjJU1W70": { path: "/example/two-images/gemini.png", name: "gemini.png", mime: "image/png" },
+};
+
 export default function ProofPage() {
   const params = useParams();
   const digestParam = params.digest as string;
@@ -91,21 +111,37 @@ export default function ProofPage() {
      bitgraph-files still populates the picture for any row clicked while
      the bytes are in hand. */
 
-  // The curated example is the one artifact BitGraph hosts publicly, so its
-  // proof page can show the photo to anyone — a shared link or a cold device,
-  // with nothing in IndexedDB. Every other proof stays device-only by design:
-  // user files are never uploaded, so a stranger sees the bring-your-file box.
+  // The hosted examples are the only artifacts BitGraph serves publicly, so
+  // their proof pages can show the picture to anyone — a shared link or a cold
+  // device, with nothing in IndexedDB. Every other proof stays device-only by
+  // design: user files are never uploaded, so a stranger sees the
+  // bring-your-file box.
+  //
+  // This was gated on the single curated digest and had to learn a set when the
+  // /subjects C2PA demo added three more. Gating on a constant rather than on
+  // the table is why hosting those files did nothing at first: the table was
+  // never consulted.
   const examplePulled = useRef(false);
   useEffect(() => {
-    // Guard with a ref, not on cachedFile: depending on it would tear this
-    // effect down the moment we set the bytes, cancelling the C2PA parse that
-    // follows and leaving a shared link with a photo but no credentials card.
-    if (digestParam !== EXAMPLE_PROOF.digest || examplePulled.current) return;
+    /* Guard with a ref, not on cachedFile: depending on it would tear this
+       effect down the moment we set the bytes, cancelling the C2PA parse that
+       follows and leaving a shared link with a photo but no credentials card.
+   
+       ⚠️ A CANCELLED RUN MUST RELEASE THE CLAIM. React invokes effects twice in
+       development, and the ref made that non-idempotent: the first run took the
+       ref and started fetching, its cleanup cancelled it, and the second run saw
+       the ref already taken and did nothing at all. The picture never appeared,
+       but only when arriving by client-side navigation, which is exactly how a
+       reader arrives from the /subjects demo. A hard load ran once and worked,
+       so it looked fine everywhere it was tested. */
+    if (!EXAMPLE_FILES[decodeURIComponent(digestParam)] || examplePulled.current) return;
     examplePulled.current = true;
     let cancelled = false;
+    let settled = false;
     void (async () => {
       try {
-        const r = await fetch("/example/preston.jpg");
+        const example = EXAMPLE_FILES[decodeURIComponent(digestParam)];
+        const r = await fetch(example.path);
         if (!r.ok || cancelled) return;
         const data = await (await r.blob()).arrayBuffer();
         // Same guard the IDB path uses: only show bytes that hash to this proof.
@@ -113,17 +149,22 @@ export default function ProofPage() {
         while (digestB64.length % 4 !== 0) digestB64 += "=";
         if ((await hashBytes(new Uint8Array(data))) !== digestB64) return;
         if (cancelled) return;
-        setCachedFile({ name: "preston.jpg", data });
+        settled = true;
+        setCachedFile({ name: example.name, data });
         // Parse the embedded credentials too, or a shared link would show the
         // photo but not the Content Credentials card that is half its point.
         try {
           const { readC2PA } = await import("@/lib/c2pa-reader");
-          const c2pa = await readC2PA(new Blob([new Uint8Array(data)], { type: "image/jpeg" }));
-          if (!cancelled) setCachedFile({ name: "preston.jpg", data, c2pa, c2paChecked: true });
+          const c2pa = await readC2PA(new Blob([new Uint8Array(data)], { type: example.mime }));
+          if (!cancelled) setCachedFile({ name: example.name, data, c2pa, c2paChecked: true });
         } catch { /* the photo still shows without the card */ }
       } catch { /* falls back to the bring-your-file box */ }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Hand the claim back if this run never delivered, so the next one can.
+      if (!settled) examplePulled.current = false;
+    };
   }, [digestParam]);
 
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"

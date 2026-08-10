@@ -800,5 +800,18 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    The gap therefore grows as the viewport shrinks, which is the opposite of
    the usual instinct: it is precisely where the blocks are tallest that they
    need the most air between them to stay countable. ── */
+/* The C2PA comparison on /subjects. Side by side is the whole point (the files
+   are meant to look identical), and 2x2 rather than 4-across because four
+   across an 800px column is 190px each, which shows nothing. Two columns give
+   ~390px and put the ChatGPT original directly above its own second recording,
+   in the right-hand column, where the only difference between the two cells is
+   the number. Stacks below 640: on a phone, scrolling is cheaper than
+   squinting. */
+/* Rows need more air than columns: a caption sits between one image and the
+   next one down, so an equal gap reads as crowded vertically while looking
+   fine horizontally. */
+.bg-c2pa-grid { display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 26px; row-gap: 36px; }
+@media (max-width: 640px) { .bg-c2pa-grid { grid-template-columns: 1fr; row-gap: 30px; } }
+
 .bg-case { margin-bottom: 38px; }
 @media (max-width: 640px) { .bg-case { margin-bottom: 56px; } }

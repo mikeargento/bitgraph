@@ -167,7 +167,7 @@ export default function SubjectsPage() {
           another page's question. The two paragraphs above give a buyer the
           operative fact, that the slot is reserved before the hash is known.
           /camera remains the place for the analogy. */}
-      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", marginBottom: 40 }}>
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", marginBottom: 14 }}>
         {/* Says what the public record reveals, not that recording is private.
             "BitGraphing is completely private" was considered and is false: the
             Roll publishes every digest, position and time, permanently and
@@ -178,6 +178,33 @@ export default function SubjectsPage() {
         Only the hash of a file is committed. The file itself is never handed to
         the protocol, so material that cannot be disclosed can still be recorded.
         The record shows that some exact bits took a position, not what they were.
+      </p>
+
+      {/* ⚠️ A diagram sat here, then a link, then an inline expander, and the
+          comment above the paragraphs records all three being removed as the
+          same mistake: this page answers whether BitGraph applies to you, and
+          how it WORKS is another page's question.
+
+          This is a fourth thing at the same spot, so it is deliberately the
+          smallest one that can exist: two sentences and a link, pointing at
+          EVIDENCE for the sentence this page already makes, not at a mechanism.
+          The worked example itself lives at /docs/three-images, which is where
+          it belongs anyway, being a thing people will want to cite. If this
+          also comes out, the pattern is real and nothing goes here again.
+
+          It also carries the 40px that used to sit on the paragraph above it.
+          That gap was the seam between the intro and the two conditions, and the
+          pointer now occupies the seam: 40 above AND below left it floating as
+          its own island, when it is the closing beat of the intro and evidence
+          for the claim the first paragraph makes. */}
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 40px" }}>
+        That a copy is indistinguishable from the original is not a claim you
+        have to take on faith. Three AI images, one copied from another, signed
+        by three companies, and not one of those signatures can put them in
+        order.{" "}
+        <Link href="/docs/three-images" className="bg-arrow-link" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>
+          See the example <span className="arrow" aria-hidden>&rarr;</span>
+        </Link>
       </p>
 
       {/* The two conditions are the page's spine. The first is a selection
