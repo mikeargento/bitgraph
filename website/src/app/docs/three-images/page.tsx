@@ -70,7 +70,7 @@ export default function ThreeImagesPage() {
           with this demo. "No parent image" is the claim actually being made,
           and it is the same claim the manifests make in c2pa terms. */}
       <p style={BODY}>
-        On 10 August 2026, an image was generated with ChatGPT from a prompt,
+        On August 10, 2026, an image was generated with ChatGPT from a prompt,
         with no parent image. That image was given to Grok, which generated its
         own version of it. That version was given to Gemini, which generated
         another.
