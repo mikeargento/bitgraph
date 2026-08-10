@@ -89,10 +89,18 @@ export default function ThreeImagesPage() {
           place on the page where the three are enumerated as a sequence, and
           set as figures they pre-echo the 8,034 / 8,038 / 8,146 line the whole
           argument turns on. Every other "first" here is comparative ("which
-          came first", "recorded first"), where a numeral would be wrong. */}
+          came first", "recorded first"), where a numeral would be wrong.
+
+          "BitGraphed", not "recorded", and only here. The reader has just been
+          told how these images were made, so "recorded 1st" three lines later
+          can be read as "made first", which is the exact confusion the
+          paragraph exists to dispel. "BitGraphed" cannot be misread, and it
+          picks up the verb from the line immediately above. The demo sentence
+          further down keeps "recorded" deliberately: by that point the contrast
+          it draws is explicit and the word is doing no ambiguous work. */}
       <p style={BODY}>
-        The Grok copy was recorded 1st. The ChatGPT original was recorded 2nd.
-        The Gemini copy was recorded 3rd.
+        The Grok copy was BitGraphed 1st. The ChatGPT original was BitGraphed
+        2nd. The Gemini copy was BitGraphed 3rd.
       </p>
 
       <p style={BODY}>
