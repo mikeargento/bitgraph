@@ -730,6 +730,33 @@ function hexToBytes(hex) {
   return out;
 }
 
+/**
+ * Move an export under the day the chain sealed it. Returns the new path, or
+ * the old one when it did not move.
+ *
+ * THIS IS WHERE FILING HAS TO HAPPEN, not only in --tidy. The hot folder runs
+ * tidy on a narrow trigger (an export flat at the TOP level), because tidy ends
+ * up grepping every export and that is a third of a drop on a large folder. A
+ * newly recorded export never lands at the top level, so widening the trigger
+ * to catch it would have made every drop pay that grep. Sealing is the honest
+ * moment anyway: the day is unknowable before it and exact after it, and this
+ * costs one witness read on an export already open in front of us.
+ *
+ * Never overwrites and never deletes: an export holds the ONLY copy of its file
+ * (1.8.0), so a name already taken in the destination is left for --tidy to
+ * disambiguate rather than resolved by clobbering.
+ */
+function fileUnderDay(folder, dir) {
+  var day = dayOfExport(dir);
+  if (!day) return dir;
+  var destDir = folder + '/' + REC_DIR + '/' + day;
+  var dest = destDir + '/' + baseName(dir);
+  if (dest === dir || exists(dest)) return dir;
+  mkdirp(destDir);
+  var moved = sh('mv ' + quote(dir) + ' ' + quote(dest) + ' 2>/dev/null && echo ok');
+  return moved === 'ok' ? dest : dir;
+}
+
 /** UTC `YYYY-MM-DD` for an export, or null when it cannot be known yet.
  *
  *  NULL IS A REAL ANSWER. The seal lands about forty seconds after the drop, so
@@ -936,7 +963,13 @@ function completePending(folder, waitMs) {
       wait = 0;
       markPending(dir, meta, sealed);
       dropPage(dir);
-      if (sealed) sealedCount++;
+      if (sealed) {
+        sealedCount++;
+        // The anchor just landed, so the day is knowable for the first time.
+        // File it now rather than leaving it for a tidy pass that the hot
+        // folder has no reason to run.
+        dir = fileUnderDay(folder, dir);
+      }
     } catch (e) {
       /* leave it pending; the next run tries again */
     }
@@ -1478,15 +1511,7 @@ function tidyFolder(folder) {
   var filed = 0;
   for (var li = 0; li < loose.length; li++) {
     var src = folder + '/' + loose[li];
-    var day = dayOfExport(src);
-    if (!day) continue; /* no seal yet: it has no day, so it does not get one */
-    var destDir = folder + '/' + REC_DIR + '/' + day;
-    var destName = baseName(loose[li]);
-    if (exists(destDir + '/' + destName)) continue; /* next pass disambiguates */
-    mkdirp(destDir);
-    var moved = sh('mv ' + quote(src) + ' ' + quote(destDir + '/' + destName) +
-      ' 2>/dev/null && echo ok');
-    if (moved === 'ok') filed++;
+    if (fileUnderDay(folder, src) !== src) filed++;
   }
   if (filed) did.push('filed ' + filed + ' by day');
 
