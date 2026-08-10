@@ -909,9 +909,19 @@ export default function ThreeImagesPage() {
           somewhere. */}
       <p style={BODY}>That is what an authority needs from a record.</p>
 
-      <p style={BODY}>Not a louder way to say who it is.</p>
+      {/* Joined, and joining these is what protects the ender. They are a
+          not-X-but-Y: "somewhere to point" is the answer to "not a louder way
+          to say who it is", so split they read as two fragments and together
+          they read as one move.
 
-      <p style={BODY}>Somewhere to point.</p>
+          The alternative was joining "somewhere to point" to "it needs a
+          where", and that is the wrong cut. Four one-line paragraphs in a row
+          made the last one merely the fourth isolated beat rather than THE
+          isolated beat; putting the ender in company would have cost it the
+          only thing it has. It stands completely alone now. Leave it there. */}
+      <p style={BODY}>
+        Not a louder way to say who it is. Somewhere to point.
+      </p>
 
       <p style={BODY}>
         It needs a <strong>where</strong>.
