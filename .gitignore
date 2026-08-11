@@ -19,6 +19,7 @@ CLAUDE.md
 
 # Working handoffs stay local: internal notes, public repo.
 HANDOFF-*.md
+packages/player/PLAN.md
 
 # IAM notes: internal security reasoning, kept local.
 docs/iam/
