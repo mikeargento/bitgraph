@@ -37,10 +37,10 @@ export default function PlayerPage() {
       <h1 className="mb-2">BitGraph Player</h1>
       {/* Subtitle, Mike's line. Heading furniture, not body copy: no
           terminal period, grey, one step above body in the ladder. */}
-      <p style={{ color: "#4b5563", fontSize: 18, margin: "0 0 24px" }}>
+      <p style={{ color: "#1f2937", fontSize: 18, margin: "0 0 24px" }}>
         A Programmable Layer for BitGraph
       </p>
-      <p style={{ color: "#4b5563", marginBottom: 32 }}>
+      <p style={{ color: "#1f2937", marginBottom: 32 }}>
         BitGraph records. Player executes. A recording establishes that these bytes existed at this causal position; Player evaluates a rule over a set of recordings and produces a verdict. The verdict is a plain file anyone can reproduce from the same rule and the same bundle, on their own machine, offline: no network, no clock, no account, and no trust in whoever ran it first.
       </p>
 
