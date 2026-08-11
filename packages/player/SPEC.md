@@ -232,3 +232,8 @@ bundle contents MUST be byte-identical.
     0 TRUE     1 FALSE     2 UNDETERMINED     3 error
 
 Diagnostics go to stderr. Stdout carries verdict bytes only.
+
+These requirements govern evaluation invocations. A command-line Player
+MAY offer authoring conveniences (such as rule scaffolding) as distinct
+subcommands; those are outside this specification and MUST NOT change
+the behavior of evaluation invocations.

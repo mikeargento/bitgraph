@@ -30,9 +30,13 @@ export type {
 export { basisTier, meetsFloor } from "./types.js";
 
 export { parseRule, normalizeDigest, RuleError } from "./rule.js";
+export { play, playAudit, PlayError } from "./play.js";
+export type { PlayResult, PlayStage } from "./play.js";
+export { scaffoldRule, roleNameForFile, ORDERING_PLACEHOLDER } from "./init.js";
+export type { ScaffoldEntry } from "./init.js";
 export { resolveCast, resolveRole } from "./cast.js";
 export { compare } from "./order.js";
 export { kleeneAll, kleeneAny, kleeneNot } from "./logic.js";
 export { evaluate } from "./evaluate.js";
 export type { Evaluation } from "./evaluate.js";
-export { buildVerdict, serializeVerdict, playerVersion } from "./verdict.js";
+export { buildVerdict, serializeVerdict, playerVersion, PLAYER_VERSION } from "./verdict.js";

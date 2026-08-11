@@ -17,21 +17,25 @@
  * from passing the first off as the second.
  */
 
-import { readFileSync } from "node:fs";
 import type { AuditResult } from "@mikeargento/bitgraph-audit";
 import type { Evaluation } from "./evaluate.js";
 import { normalizeDigest } from "./rule.js";
 import type { DeclaredEntry, Resolution, Rule, Verdict } from "./types.js";
 
-let cachedVersion: string | undefined;
+/**
+ * The player package's own version, as a source constant rather than a
+ * runtime package.json read. The read had two failure modes in bundled
+ * embedders (esbuild/webpack output): a foreign package.json one level
+ * up supplies the WRONG version, changing verdict bytes against the
+ * reference CLI, or no package.json at all throws ENOENT mid-evaluation.
+ * A unit test asserts this equals package.json's version, so the
+ * constant cannot drift silently across releases.
+ */
+export const PLAYER_VERSION = "0.2.0";
 
-/** The player package's own version, read once from its package.json. */
+/** The player package's own version. */
 export function playerVersion(): string {
-  if (cachedVersion === undefined) {
-    const raw = readFileSync(new URL("../package.json", import.meta.url), "utf8");
-    cachedVersion = (JSON.parse(raw) as { version: string }).version;
-  }
-  return cachedVersion;
+  return PLAYER_VERSION;
 }
 
 function resolutionLabel(res: Resolution): string {

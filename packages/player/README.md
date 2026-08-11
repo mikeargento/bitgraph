@@ -25,6 +25,24 @@ folders the BitGraph Folder writes). Exit codes: `0` TRUE, `1` FALSE,
 `2` UNDETERMINED, `3` error. `--out file` writes the verdict to a file;
 `--summary` prints a bundle reconnaissance to stderr.
 
+## Start a rule
+
+    bitgraph-play init po.pdf delivery.jpg approval.pdf --out rule.json
+
+`init` hashes the files you name and writes a rule skeleton with the
+cast filled in: one role per file, digests computed, role names from
+filenames. The skeleton does not run as written — `requires.ordering`
+is a placeholder you must replace, because the trust floor is the
+rule's own security policy and has no default, from the scaffolder or
+anywhere else. Choose the floor, say what each digest means, refine the
+claim, then run it.
+
+`init` is a reserved first word as of 0.2.0. A rule file literally
+named `init` is still reachable: write it as `./init`, or after `--`,
+which ends option parsing (`bitgraph-play -- init bundle/`). When a
+file named `init` exists in the working directory, the bare spelling is
+refused as ambiguous rather than silently picking a mode.
+
 ## A rule
 
 ```json
@@ -78,6 +96,18 @@ reference implementation, and a conforming Player in any language must
 agree with it.
 
 ## API
+
+One call runs the whole pipeline — the CLI is built on the same
+function, so embedding Player cannot drift from it:
+
+```ts
+import { play } from "@mikeargento/bitgraph-player";
+
+const { verdict, bytes, exitCode } = await play("rule.json", "bundle/");
+```
+
+The pieces are exported individually for callers that already hold an
+`AuditResult` or want to intercept a stage:
 
 ```ts
 import { runAudit } from "@mikeargento/bitgraph-audit";
