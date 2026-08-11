@@ -876,6 +876,15 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, kee
     // deletion) is made whole by the next drop of the same bytes, and a
     // duplicate of bytes already inside is cleaned up as litter.
     placeArtifact(filePath, r.dir + '/' + fileName, keepSource);
+    // The second half of the same 2026-08-11 fix. An export left unfiled by
+    // the bug below is not filed by re-dropping it either, because this path
+    // returns before anything looks at the day. fileUnderDay is a no-op when
+    // the export is already under its day, so this costs one witness read.
+    try {
+      fileUnderDay(folder, r.dir);
+    } catch (e) {
+      /* a later pass files it */
+    }
     return 'ok: already exported';
   }
   mkdirp(r.dir);
@@ -899,6 +908,34 @@ function buildExport(filePath, digestB64, counter, epochUrlSafe, destFolder, kee
     dropPage(r.dir);
   } catch (e) {
     /* the evidence stands; the next completion pass rebuilds the page */
+  }
+
+  /* ⚠️ FILE IT HERE WHEN THE SEAL IS ALREADY LANDED (fixed 2026-08-11).
+   *
+   * A drop of bytes that were recorded BEFORE gets back a proof whose anchor
+   * was mined long ago, so writeExportContents returns sealed on the very
+   * first try and markPending writes no .bitgraph-pending.json. That left the
+   * export with nothing to file it:
+   *
+   *   - the watcher only runs `--complete` while a pending marker exists, so
+   *     completePending (which files at the moment a seal lands) never ran;
+   *   - `--tidy` only runs from tuck_strays(), whose guard is legacy-only and
+   *     false in normal operation.
+   *
+   * So a re-dropped file built a correct export that sat at the Recordings/
+   * root forever, while a FIRST recording filed fine because it is pending for
+   * the ~40s until its seal lands. 54 of them had accumulated.
+   *
+   * This is the same call completePending makes, at the same moment: the day
+   * is knowable, so use it. Deliberately not a widened shell guard on loose
+   * exports, which would force the full folder walk on every drop, and that
+   * walk is exactly what tuck_strays() is written to avoid paying each time. */
+  if (sealed) {
+    try {
+      r.dir = fileUnderDay(folder, r.dir);
+    } catch (e) {
+      /* stays at the Recordings/ root; a later pass files it */
+    }
   }
 
   return 'ok: ' + baseName(r.dir) + (sealed ? '' : ' (pending seal)');
