@@ -550,7 +550,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    box: .bitgraph-camera mirrors it, the proof page's checker wears
    .bg-frame directly. */
 .bg-frame { width: min(100%, calc(min(520px, 100dvh - 320px) * 5 / 4)); aspect-ratio: 5 / 4; height: auto; margin: 0 auto; }
-.bitgraph-camera { width: 100%; aspect-ratio: 5 / 4; height: auto; max-height: var(--bg-cam-avail, calc(100dvh - 320px)); min-height: 180px; align-self: center; margin: 0 auto; --fd-headline: min(22px, 5.9vw); --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #4b5563; --fd-hint-size: 12px; --fd-subhint-size: 11px; }
+.bitgraph-camera { width: 100%; aspect-ratio: 5 / 4; height: auto; max-height: var(--bg-cam-avail, calc(100dvh - 320px)); min-height: 180px; align-self: center; margin: 0 auto; --fd-headline: min(22px, 5.9vw); --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 12px; --fd-subhint-size: 12px; }
 @media (min-width: 769px) {
   .bg-frame { width: min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2)); aspect-ratio: 3 / 2; }
   /* The home frame is always the full column and never narrows (2026-08-09).
@@ -581,7 +581,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
      how you use the box, the privacy line is an aside about it. Matching
      them (which this did) flattened both into one block of grey and left the
      eye no order to read them in. A single step apart is enough. */
-  .bitgraph-camera { --fd-headline: 26px; --fd-hint-size: 13.5px; --fd-subhint-size: 12px; }
+  .bitgraph-camera { --fd-headline: 26px; --fd-hint-size: 13.5px; --fd-subhint-size: 13.5px; }
 }
 /* Suppress the iOS long-press callout/preview (the dark rounded blob that
    flashed up on tap once the box grew to a large centered target) and the grey
