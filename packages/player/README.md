@@ -5,7 +5,7 @@ Deterministic evaluation of causal rules over BitGraph proof bundles.
 BitGraph records. Player executes.
 
 A BitGraph proof bundle establishes facts: these bits were recorded at
-these causal positions, bracketed by these Ethereum anchors. Player
+these causal positions, anchored to a public timeline. Player
 evaluates a rule over those facts and produces a verdict anyone can
 reproduce from the bundle alone — no network, no clock, no account, no
 trust in the machine that ran it first.
