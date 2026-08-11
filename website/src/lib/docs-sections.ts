@@ -87,11 +87,6 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
     items: [
       { href: "/docs/verification", label: "Verification" },
       { href: "/docs/audit", label: "Audit a Bundle" },
-      // Player extends the CHECK run rather than opening a third one: it
-      // consumes the audit pipeline's output (a rule evaluated over a bundle),
-      // so it reads Verification → Audit → Player, then the RECORD run. It is
-      // a CLI over JSON files, not engineering, which is the column test.
-      { href: "/docs/player", label: "BitGraph Player" },
       { href: "/docs/folder", label: "BitGraph Folder" },
       { href: "/docs/automation", label: "Zapier and Make" },
       { href: "/docs/mcp", label: "MCP" },
@@ -123,6 +118,11 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       // a request.
       { href: "/docs/integration", label: "Integration Guide" },
       { href: "/docs/proof-format", label: "Proof Format" },
+      // Player sat in TOOLS for a day (2026-08-11) as an extension of the
+      // check run; Mike moved it here: writing rules and embedding the SDK is
+      // building against BitGraph, not using a finished surface. It follows
+      // the schema it consumes and Self-Host TEE still closes the column.
+      { href: "/docs/player", label: "BitGraph Player" },
       { href: "/docs/self-host-tee", label: "Self-Host TEE" },
     ],
   },
