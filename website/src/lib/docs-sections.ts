@@ -87,6 +87,11 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
     items: [
       { href: "/docs/verification", label: "Verification" },
       { href: "/docs/audit", label: "Audit a Bundle" },
+      // Player extends the CHECK run rather than opening a third one: it
+      // consumes the audit pipeline's output (a rule evaluated over a bundle),
+      // so it reads Verification → Audit → Player, then the RECORD run. It is
+      // a CLI over JSON files, not engineering, which is the column test.
+      { href: "/docs/player", label: "BitGraph Player" },
       { href: "/docs/folder", label: "BitGraph Folder" },
       { href: "/docs/automation", label: "Zapier and Make" },
       { href: "/docs/mcp", label: "MCP" },
