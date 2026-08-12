@@ -64,10 +64,18 @@ export function takeWarm<T = unknown>(key: string): { data: T } | { promise: Pro
 // enclave is next rebuilt, re-record an example under the new measurement and
 // update this constant in the same motion as PINS.md and the docs page.
 export const EXAMPLE_PROOF = {
-  digest: "mYNezUiNnzhS3V0xqDsGUWCg2ZsKshiftAI016JPBUc",
-  counter: "7910",
-  epoch: "EQmlm7sZsGZeYmKlgVU6k0qd6cj79bsmhzhlzxlMF7o",
+  // The ChatGPT original from the three-images research (2026-08-10):
+  // OpenAI-signed C2PA with an RFC 3161 token, zero parents, recorded at
+  // #8,038. Replaced preston.jpg as the front-door example 2026-08-12
+  // (Mike's call); preston stays hosted so existing links keep their photo.
+  digest: "ngeTOzgjwu_2x2pQyLG3lbhFPFHLkF8JKdETlZyvcyY",
+  counter: "8038",
+  epoch: "2bx9IFX9ZOoY5HSwlZstSEGx1PWv8DncGofdK5v93jQ",
 };
+
+/** The previous example (a real photograph with C2PA); its proof page keeps
+ *  showing the picture for anyone holding the old link. */
+export const PRESTON_PROOF_DIGEST = "mYNezUiNnzhS3V0xqDsGUWCg2ZsKshiftAI016JPBUc";
 
 /** The exact `/api/proofs/digest/…` URL the proof page fetches for a given
  *  digest + position. Shared by the warmer and the proof page so the warm key

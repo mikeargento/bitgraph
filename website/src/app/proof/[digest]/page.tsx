@@ -11,7 +11,7 @@ import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
-import { takeWarm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
+import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
@@ -78,7 +78,9 @@ function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certi
    putting the file back in the same commit, or the page fetches a 404 on every
    load. */
 const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }> = {
-  [EXAMPLE_PROOF.digest]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
+  [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
+  // The previous front-door example; kept so old links still show the photo.
+  [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
 };
 
 export default function ProofPage() {

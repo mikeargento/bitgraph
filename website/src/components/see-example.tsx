@@ -9,9 +9,9 @@ import { warm, proofFeedKey, EXAMPLE_PROOF } from "@/lib/warm";
  * download. It lived on /subjects for a day; both actions now sit together so
  * the home page offers one thing to install and one thing to look at.
  *
- * The proof page self-seeds this one example, fetching /example/preston.jpg
+ * The proof page self-seeds this one example, fetching /example/chatgpt.png
  * itself when the digest matches (see app/proof/[digest]/page.tsx), so arriving
- * from anywhere still shows the photo and no artifact caching is needed here.
+ * from anywhere still shows the picture and no artifact caching is needed here.
  *
  * A <Link> gets route prefetch for free, so warming the proof's own response is
  * all that is left to do.
