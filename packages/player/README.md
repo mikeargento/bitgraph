@@ -2,7 +2,7 @@
 
 Deterministic evaluation of causal rules over BitGraph proof bundles.
 
-BitGraph records. Player executes.
+BitGraph records. Player evaluates.
 
 A BitGraph proof bundle establishes facts: these bits were recorded at
 these causal positions, anchored to a public timeline. Player

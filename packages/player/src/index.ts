@@ -5,7 +5,7 @@
  *
  * Deterministic evaluation of causal rules over BitGraph proof bundles.
  *
- *   BitGraph records. Player executes.
+ *   BitGraph records. Player evaluates.
  *
  * Player is a pure function over `runAudit()`'s output: same rule, same
  * bundle, same verdict, on anyone's machine, with no network access at

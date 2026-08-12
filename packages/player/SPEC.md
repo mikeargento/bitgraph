@@ -6,7 +6,7 @@ directory is the reference implementation; a conforming Player in any
 language MUST reach the same result and, for the serialization defined in
 section 7, the same bytes.
 
-BitGraph records. Player executes. Player is a pure function:
+BitGraph records. Player evaluates. Player is a pure function:
 
     evaluate(rule, verified evidence) -> verdict
 
