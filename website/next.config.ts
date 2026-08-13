@@ -1,6 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // JSX <style>{`...`}</style> blocks are opaque strings to the bundler, so
+  // unlike real CSS files they ship to production with their comments and
+  // indentation intact — in the prerendered HTML and, for client components,
+  // a second time in the JS chunk. This loader minifies those blocks at
+  // build time; the commented CSS stays in the source files, which are the
+  // documentation of record.
+  turbopack: {
+    rules: {
+      "*.tsx": {
+        loaders: ["./scripts/minify-style-blocks-loader.js"],
+      },
+    },
+  },
   async redirects() {
     return [
       { source: "/overview", destination: "/docs/overview", permanent: true },
