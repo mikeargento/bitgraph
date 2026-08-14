@@ -133,10 +133,19 @@ export type Claim =
   | { between: [string, string, string] }
   | { all: Claim[] }
   | { any: Claim[] }
-  | { not: Claim };
+  | { not: Claim }
+  /**
+   * Format 2 only: a valid bitgraph-sig/1 by the named trusted key over
+   * the role's digest is present in the supplied evidence. TRUE or
+   * UNDETERMINED, never FALSE — "this key never signed these bytes" is a
+   * negative over an open world no bundle can close.
+   */
+  | { signedBy: [string, string] };
+
+export type RuleFormat = "bitgraph-player/1" | "bitgraph-player/2";
 
 export interface Rule {
-  rule: "bitgraph-player/1";
+  rule: RuleFormat;
   id: string;
   cast: Record<string, CastEntry>;
   /** The only defined value. Absence is only ever asserted within the declared cast. */
@@ -146,6 +155,13 @@ export interface Rule {
    * the rule carries its own security policy.
    */
   requires: { ordering: EvidenceTier };
+  /**
+   * Format 2 only. Named keys the rule author trusts. The name-to-key
+   * binding is DECLARED — surfaced in the verdict, never derived. What
+   * becomes derived under format 2 is only the math: a signature by the
+   * named key material verifies over the role's digest.
+   */
+  trustedKeys?: Record<string, import("./sig.js").TrustedKey>;
   claim: Claim;
   /**
    * A label and nothing else. No field in this format is capable of
@@ -192,14 +208,15 @@ export interface DerivedStep {
 
 /** One assertion Player took on somebody's word. */
 export interface DeclaredEntry {
-  assertion: "signedBy" | "means" | "closed-world" | "pinned-occurrence";
+  assertion: "signedBy" | "means" | "closed-world" | "pinned-occurrence" | "trusted-key";
   role?: string;
   verifiedHere: false;
   [k: string]: unknown;
 }
 
 export interface Verdict {
-  verdict: "bitgraph-player-verdict/1";
+  /** Tracks the rule format: a /1 rule yields a /1 verdict, byte-identical to prior releases. */
+  verdict: "bitgraph-player-verdict/1" | "bitgraph-player-verdict/2";
   result: ThreeValued;
   rule: { id: string; sha256: string };
   then?: { label: string };

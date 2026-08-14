@@ -24,14 +24,18 @@ export type {
   OrderResult,
   Resolution,
   Rule,
+  RuleFormat,
   ThreeValued,
   Verdict,
 } from "./types.js";
 export { basisTier, meetsFloor } from "./types.js";
 
-export { parseRule, normalizeDigest, RuleError } from "./rule.js";
-export { play, playAudit, PlayError } from "./play.js";
+export { parseRule, normalizeDigest, decodeDigestBytes, RuleError } from "./rule.js";
+export { play, playAudit, claimUsesSignatures, SIG_EVIDENCE_MAX_BYTES, PlayError } from "./play.js";
 export type { PlayResult, PlayStage } from "./play.js";
+export { parseSigFile, verifySigFile, keyObjectFor, sigMessage } from "./sig.js";
+export type { SigAlg, SigFile, TrustedKey } from "./sig.js";
+export type { SigEvidence } from "./evaluate.js";
 export { scaffoldRule, roleNameForFile, ORDERING_PLACEHOLDER } from "./init.js";
 export type { ScaffoldEntry } from "./init.js";
 export { resolveCast, resolveRole } from "./cast.js";

@@ -21,9 +21,12 @@
  *   that evidence in either direction.
  */
 
+import type { KeyObject } from "node:crypto";
 import type { AuditResult, ObservedProof } from "@mikeargento/bitgraph-audit";
 import { kleeneAll, kleeneAny, kleeneNot } from "./logic.js";
 import { compare } from "./order.js";
+import { decodeDigestBytes, normalizeDigest } from "./rule.js";
+import { keyObjectFor, parseSigFile, verifySigFile } from "./sig.js";
 import { basisTier, meetsFloor } from "./types.js";
 import type {
   Claim,
@@ -41,12 +44,22 @@ export interface Evaluation {
   weakestEvidence?: EvidenceTier;
 }
 
+/**
+ * Signature evidence for format-2 signedBy claims: candidate file bytes
+ * keyed by lowercase hex SHA-256. Collected by the caller (play() streams
+ * size-capped matched artifacts from the bundle); evaluate() itself stays
+ * a pure function over its arguments.
+ */
+export type SigEvidence = ReadonlyMap<string, Uint8Array>;
+
 interface Ctx {
   rule: Rule;
   resolutions: Map<string, Resolution>;
   audit: AuditResult;
   steps: DerivedStep[];
   usedTiers: Set<EvidenceTier>;
+  sigEvidence: SigEvidence;
+  keyObjects: Map<string, KeyObject | undefined>;
 }
 
 function positionOf(proof: ObservedProof): Record<string, unknown> {
@@ -198,8 +211,91 @@ function evalPrecedes(ctx: Ctx, claim: string, x: string, y: string): ThreeValue
   });
 }
 
+/**
+ * signedBy(role, keyName): TRUE when a valid bitgraph-sig/1 by the named
+ * trusted key over the role's digest is present in the supplied evidence;
+ * UNDETERMINED otherwise, NEVER FALSE. Absence of a signature from a
+ * bundle proves nothing about the world, and `not(signedBy(...))` is
+ * therefore permanently UNDETERMINED by the Kleene table.
+ *
+ * The claim is about BITS, not occurrences: it evaluates against the
+ * declared role digest whether or not the role resolved to a recording.
+ * Only an undeclared role is UNDETERMINED for want of a digest.
+ */
+function evalSignedBy(ctx: Ctx, role: string, keyName: string): ThreeValued {
+  const claim = `signedBy(${role}, ${keyName})`;
+  const entry = ctx.rule.cast[role];
+  if (entry === undefined) {
+    return record(ctx, {
+      claim,
+      result: "UNDETERMINED",
+      because: { reason: `role "${role}" is not declared in the cast` },
+    });
+  }
+  // parseRule guarantees the key name resolves; guard for direct API use.
+  const key = ctx.rule.trustedKeys?.[keyName];
+  if (key === undefined) {
+    return record(ctx, {
+      claim,
+      result: "UNDETERMINED",
+      because: { reason: `trusted key "${keyName}" is not declared` },
+    });
+  }
+  if (!ctx.keyObjects.has(keyName)) ctx.keyObjects.set(keyName, keyObjectFor(key));
+  const keyObject = ctx.keyObjects.get(keyName);
+  if (keyObject === undefined) {
+    return record(ctx, {
+      claim,
+      result: "UNDETERMINED",
+      because: {
+        reason: `trusted key "${keyName}" is not decodable as ${key.alg} key material; no signature can verify against it`,
+      },
+    });
+  }
+
+  const digestB64 = normalizeDigest(entry.digest) as string;
+  const targetHex = (decodeDigestBytes(digestB64) as Buffer).toString("hex");
+
+  // Deterministic scan: candidates in ascending content-hash order.
+  const candidates = [...ctx.sigEvidence.keys()].sort();
+  let parsedCount = 0;
+  for (const sha256Hex of candidates) {
+    const bytes = ctx.sigEvidence.get(sha256Hex) as Uint8Array;
+    const sig = parseSigFile(bytes);
+    if (sig === undefined) continue;
+    parsedCount += 1;
+    if (verifySigFile(sig, key, keyObject, targetHex, decodeDigestBytes)) {
+      return record(ctx, {
+        claim,
+        result: "TRUE",
+        because: {
+          signatureSha256Hex: sha256Hex,
+          alg: key.alg,
+          keyName,
+          over: `sha256:${targetHex}`,
+          note: "signature math verified here; that this key belongs to the named party is declared, never derived",
+        },
+      });
+    }
+  }
+  return record(ctx, {
+    claim,
+    result: "UNDETERMINED",
+    because: {
+      reason:
+        `no valid bitgraph-sig/1 by trusted key "${keyName}" over the role digest is present in the ` +
+        `supplied evidence (${ctx.sigEvidence.size} candidate file(s), ${parsedCount} parsed as signatures); ` +
+        `absence of a signature from a bundle proves nothing`,
+    },
+  });
+}
+
 function evalClaim(ctx: Ctx, claim: Claim): ThreeValued {
   if ("exists" in claim) return evalExists(ctx, claim.exists);
+  if ("signedBy" in claim) {
+    const [role, keyName] = claim.signedBy;
+    return evalSignedBy(ctx, role, keyName);
+  }
   if ("before" in claim) {
     const [x, y] = claim.before;
     return evalPrecedes(ctx, `before(${x}, ${y})`, x, y);
@@ -224,9 +320,18 @@ function evalClaim(ctx: Ctx, claim: Claim): ThreeValued {
 export function evaluate(
   rule: Rule,
   resolutions: Map<string, Resolution>,
-  audit: AuditResult
+  audit: AuditResult,
+  sigEvidence: SigEvidence = new Map()
 ): Evaluation {
-  const ctx: Ctx = { rule, resolutions, audit, steps: [], usedTiers: new Set() };
+  const ctx: Ctx = {
+    rule,
+    resolutions,
+    audit,
+    steps: [],
+    usedTiers: new Set(),
+    sigEvidence,
+    keyObjects: new Map(),
+  };
   const result = evalClaim(ctx, rule.claim);
   const evaluation: Evaluation = { result, steps: ctx.steps };
   if (ctx.usedTiers.has("assumption-dependent")) {

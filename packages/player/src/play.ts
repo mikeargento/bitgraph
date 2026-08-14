@@ -16,12 +16,13 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { runAudit } from "@mikeargento/bitgraph-audit";
+import { runAudit, streamMatchedArtifacts } from "@mikeargento/bitgraph-audit";
 import type { AuditResult } from "@mikeargento/bitgraph-audit";
 import { resolveCast } from "./cast.js";
 import { evaluate } from "./evaluate.js";
+import type { SigEvidence } from "./evaluate.js";
 import { parseRule } from "./rule.js";
-import type { Rule, Verdict } from "./types.js";
+import type { Claim, Rule, Verdict } from "./types.js";
 import { buildVerdict, serializeVerdict } from "./verdict.js";
 
 export type PlayStage = "rule-read" | "audit";
@@ -45,10 +46,32 @@ export interface PlayResult {
   audit: AuditResult;
 }
 
+/** True when the claim tree contains a signedBy claim anywhere. */
+export function claimUsesSignatures(claim: Claim): boolean {
+  if ("signedBy" in claim) return true;
+  if ("all" in claim) return claim.all.some(claimUsesSignatures);
+  if ("any" in claim) return claim.any.some(claimUsesSignatures);
+  if ("not" in claim) return claimUsesSignatures(claim.not);
+  return false;
+}
+
+/**
+ * Ceiling on candidate signature-file bytes retained for signedBy
+ * evaluation. Signature files are a few hundred bytes; the cap only
+ * exists so a bundle full of large artifacts never inflates memory.
+ * A file above the cap is simply not signature evidence.
+ */
+export const SIG_EVIDENCE_MAX_BYTES = 1_048_576;
+
 /** The pure tail of the pipeline: no filesystem, no network. */
-export function playAudit(rule: Rule, ruleSha256Hex: string, audit: AuditResult): PlayResult {
+export function playAudit(
+  rule: Rule,
+  ruleSha256Hex: string,
+  audit: AuditResult,
+  sigEvidence: SigEvidence = new Map()
+): PlayResult {
   const resolutions = resolveCast(rule.cast, audit);
-  const evaluation = evaluate(rule, resolutions, audit);
+  const evaluation = evaluate(rule, resolutions, audit, sigEvidence);
   const verdict = buildVerdict(rule, ruleSha256Hex, resolutions, evaluation, audit);
   const exitCode = evaluation.result === "TRUE" ? 0 : evaluation.result === "FALSE" ? 1 : 2;
   return { verdict, bytes: serializeVerdict(verdict), exitCode, audit };
@@ -74,5 +97,20 @@ export async function play(rulePath: string, bundlePath: string): Promise<PlayRe
   } catch (err) {
     throw new PlayError("audit", `bundle audit failed: ${(err as Error).message}`, err);
   }
-  return playAudit(rule, ruleSha256Hex, audit);
+
+  // Format 2 with signature claims: candidate evidence is every RECORDED
+  // artifact in the bundle (matched to a proof), size-capped. A signature
+  // that was never recorded can still be supplied to playAudit directly
+  // by an embedder; the reference CLI evaluates recorded evidence, which
+  // is what a Titles thread produces by construction.
+  let sigEvidence: SigEvidence | undefined;
+  if (rule.rule === "bitgraph-player/2" && claimUsesSignatures(rule.claim)) {
+    const collected = new Map<string, Uint8Array>();
+    for await (const matched of streamMatchedArtifacts(audit.ingest)) {
+      if (matched.bytes.length > SIG_EVIDENCE_MAX_BYTES) continue;
+      if (!collected.has(matched.sha256Hex)) collected.set(matched.sha256Hex, matched.bytes);
+    }
+    sigEvidence = collected;
+  }
+  return playAudit(rule, ruleSha256Hex, audit, sigEvidence);
 }

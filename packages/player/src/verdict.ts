@@ -31,7 +31,7 @@ import type { DeclaredEntry, Resolution, Rule, Verdict } from "./types.js";
  * A unit test asserts this equals package.json's version, so the
  * constant cannot drift silently across releases.
  */
-export const PLAYER_VERSION = "0.2.1";
+export const PLAYER_VERSION = "0.3.0";
 
 /** The player package's own version. */
 export function playerVersion(): string {
@@ -110,6 +110,21 @@ export function buildVerdict(
       });
     }
   }
+  // Format 2: the name-to-key bindings are declared trust. The signature
+  // MATH is derived (it appears in `derived` steps); that key K IS the
+  // named party is taken on the rule author's word, exactly like a cast
+  // digest's meaning.
+  if (rule.trustedKeys !== undefined) {
+    for (const [keyName, key] of Object.entries(rule.trustedKeys)) {
+      declared.push({
+        assertion: "trusted-key",
+        verifiedHere: false,
+        keyName,
+        alg: key.alg,
+        publicKey: key.publicKey,
+      });
+    }
+  }
   declared.push({
     assertion: "closed-world",
     verifiedHere: false,
@@ -120,7 +135,8 @@ export function buildVerdict(
   });
 
   const verdict: Verdict = {
-    verdict: "bitgraph-player-verdict/1",
+    verdict:
+      rule.rule === "bitgraph-player/2" ? "bitgraph-player-verdict/2" : "bitgraph-player-verdict/1",
     result: evaluation.result,
     rule: { id: rule.id, sha256: ruleSha256Hex },
     cast,

@@ -14,7 +14,8 @@
  * was undeclared.
  */
 
-import type { CastEntry, CastPin, Claim, EvidenceTier, Rule } from "./types.js";
+import type { TrustedKey } from "./sig.js";
+import type { CastEntry, CastPin, Claim, EvidenceTier, Rule, RuleFormat } from "./types.js";
 
 export class RuleError extends Error {
   readonly issues: readonly string[];
@@ -171,7 +172,13 @@ function parseCastEntry(role: string, v: unknown, issues: string[]): CastEntry |
   return entry;
 }
 
-function parseClaim(v: unknown, where: string, issues: string[], depth: number): Claim | undefined {
+function parseClaim(
+  v: unknown,
+  where: string,
+  issues: string[],
+  depth: number,
+  format: RuleFormat
+): Claim | undefined {
   if (depth > 32) {
     issues.push(`${where}: claim nesting exceeds the maximum depth of 32`);
     return undefined;
@@ -220,7 +227,7 @@ function parseClaim(v: unknown, where: string, issues: string[], depth: number):
       const parsed: Claim[] = [];
       let ok = true;
       body.forEach((child, i) => {
-        const c = parseClaim(child, `${where}.${op}[${i}]`, issues, depth + 1);
+        const c = parseClaim(child, `${where}.${op}[${i}]`, issues, depth + 1, format);
         if (c === undefined) ok = false;
         else parsed.push(c);
       });
@@ -228,9 +235,20 @@ function parseClaim(v: unknown, where: string, issues: string[], depth: number):
       return op === "all" ? { all: parsed } : { any: parsed };
     }
     case "not": {
-      const inner = parseClaim(body, `${where}.not`, issues, depth + 1);
+      const inner = parseClaim(body, `${where}.not`, issues, depth + 1, format);
       if (inner === undefined) return undefined;
       return { not: inner };
+    }
+    case "signedBy": {
+      if (format !== "bitgraph-player/2") {
+        issues.push(`${where}.signedBy: requires rule format "bitgraph-player/2"`);
+        return undefined;
+      }
+      if (!Array.isArray(body) || body.length !== 2 || body.some((r) => typeof r !== "string")) {
+        issues.push(`${where}.signedBy: must be [roleName, trustedKeyName]`);
+        return undefined;
+      }
+      return { signedBy: body as [string, string] };
     }
     default:
       issues.push(`${where}: unknown operator "${op}"`);
@@ -252,10 +270,18 @@ export function parseRule(jsonText: string): Rule {
   const issues: string[] = [];
   if (!isPlainObject(raw)) throw new RuleError(["rule file must be a JSON object"]);
 
-  rejectUnknownKeys(raw, ["rule", "id", "cast", "world", "requires", "claim", "then"], "rule", issues);
+  rejectUnknownKeys(
+    raw,
+    ["rule", "id", "cast", "world", "requires", "trustedKeys", "claim", "then"],
+    "rule",
+    issues
+  );
 
-  if (raw["rule"] !== "bitgraph-player/1") {
-    issues.push(`"rule" must be exactly "bitgraph-player/1"`);
+  let format: RuleFormat = "bitgraph-player/1";
+  if (raw["rule"] === "bitgraph-player/1" || raw["rule"] === "bitgraph-player/2") {
+    format = raw["rule"];
+  } else {
+    issues.push(`"rule" must be "bitgraph-player/1" or "bitgraph-player/2"`);
   }
   if (typeof raw["id"] !== "string" || raw["id"].length === 0) {
     issues.push(`"id" is required and must be a non-empty string`);
@@ -302,11 +328,68 @@ export function parseRule(jsonText: string): Rule {
     }
   }
 
+  // trustedKeys: format 2 only. The name-to-key binding is declared, so
+  // parsing only enforces well-formedness, never meaning.
+  let trustedKeys: Record<string, TrustedKey> | undefined;
+  if ("trustedKeys" in raw) {
+    if (format !== "bitgraph-player/2") {
+      issues.push(`"trustedKeys" requires rule format "bitgraph-player/2"`);
+    } else if (!isPlainObject(raw["trustedKeys"]) || Object.keys(raw["trustedKeys"]).length === 0) {
+      issues.push(`"trustedKeys" must be an object naming at least one key`);
+    } else {
+      trustedKeys = Object.create(null) as Record<string, TrustedKey>;
+      for (const [name, entry] of Object.entries(raw["trustedKeys"])) {
+        const where = `trustedKeys.${name}`;
+        if (!/^[A-Za-z0-9_.-]+$/.test(name) || /^[0-9]+$/.test(name)) {
+          issues.push(
+            `trustedKeys: key name "${name}" must match [A-Za-z0-9_.-]+ with at least one non-digit`
+          );
+          continue;
+        }
+        if (!isPlainObject(entry)) {
+          issues.push(`${where}: must be an object`);
+          continue;
+        }
+        rejectUnknownKeys(entry, ["alg", "publicKey"], where, issues);
+        const alg = entry["alg"];
+        const publicKey = entry["publicKey"];
+        if (alg !== "ed25519" && alg !== "es256") {
+          issues.push(`${where}: "alg" must be "ed25519" or "es256"`);
+          continue;
+        }
+        if (typeof publicKey !== "string" || publicKey.length === 0) {
+          issues.push(`${where}: "publicKey" is required and must be a non-empty string`);
+          continue;
+        }
+        trustedKeys[name] = { alg, publicKey };
+      }
+    }
+  }
+
   let claim: Claim | undefined;
   if (!("claim" in raw)) {
     issues.push(`"claim" is required`);
   } else {
-    claim = parseClaim(raw["claim"], "claim", issues, 0);
+    claim = parseClaim(raw["claim"], "claim", issues, 0, format);
+  }
+
+  // Every signedBy claim must reference a declared trusted key: the
+  // reference is statically checkable, and an unresolvable key name is a
+  // rule the author believes is being enforced and is not.
+  if (claim !== undefined) {
+    const referenced: string[] = [];
+    const walk = (c: Claim): void => {
+      if ("signedBy" in c) referenced.push(c.signedBy[1]);
+      else if ("all" in c) c.all.forEach(walk);
+      else if ("any" in c) c.any.forEach(walk);
+      else if ("not" in c) walk(c.not);
+    };
+    walk(claim);
+    for (const name of referenced) {
+      if (trustedKeys === undefined || !(name in trustedKeys)) {
+        issues.push(`claim: signedBy references trusted key "${name}" which trustedKeys does not declare`);
+      }
+    }
   }
 
   let then: { label: string } | undefined;
@@ -328,13 +411,14 @@ export function parseRule(jsonText: string): Rule {
   if (issues.length > 0) throw new RuleError(issues);
 
   const rule: Rule = {
-    rule: "bitgraph-player/1",
+    rule: format,
     id: raw["id"] as string,
     cast,
     world: "closed",
     requires: { ordering: ordering as EvidenceTier },
     claim: claim as Claim,
   };
+  if (trustedKeys !== undefined) rule.trustedKeys = trustedKeys;
   if (then !== undefined) rule.then = then;
   return rule;
 }

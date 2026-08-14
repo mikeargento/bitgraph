@@ -1,7 +1,10 @@
-# BitGraph Player specification, version 1
+# BitGraph Player specification
 
-This document is the normative semantics of `bitgraph-player/1` rules and
-`bitgraph-player-verdict/1` verdicts. The TypeScript package in this
+This document is the normative semantics of `bitgraph-player/1` and
+`bitgraph-player/2` rules and their verdicts (`bitgraph-player-verdict/1`
+and `/2`). Sections 1 through 8 define format 1; section 9 defines the
+format 2 extension. A format 1 rule MUST evaluate identically under an
+evaluator that also implements format 2, to the byte. The TypeScript package in this
 directory is the reference implementation; a conforming Player in any
 language MUST reach the same result and, for the serialization defined in
 section 7, the same bytes.
@@ -41,11 +44,12 @@ A rule is a JSON object with exactly these top-level fields:
 
 | field      | required | value |
 |---|---|---|
-| `rule`     | yes | the string `"bitgraph-player/1"` |
+| `rule`     | yes | `"bitgraph-player/1"`, or `"bitgraph-player/2"` (section 9) |
 | `id`       | yes | non-empty string naming the rule |
 | `cast`     | yes | object of at least one role (section 3) |
 | `world`    | yes | the string `"closed"` (the only defined value) |
 | `requires` | yes | `{ "ordering": "hash-linked" \| "assumption-dependent" }` |
+| `trustedKeys` | no | format 2 only (section 9.1) |
 | `claim`    | yes | a claim (section 5) |
 | `then`     | no  | `{ "label": <non-empty string> }` |
 
@@ -237,3 +241,85 @@ These requirements govern evaluation invocations. A command-line Player
 MAY offer authoring conveniences (such as rule scaffolding) as distinct
 subcommands; those are outside this specification and MUST NOT change
 the behavior of evaluation invocations.
+
+## 9. Format 2: trustedKeys and signedBy
+
+Format 2 (`"rule": "bitgraph-player/2"`) is format 1 plus signature
+claims. Everything in sections 1 through 8 applies unchanged. Two
+additions:
+
+### 9.1 trustedKeys
+
+An optional top-level object naming keys the rule author trusts:
+
+    "trustedKeys": { "<name>": { "alg": "ed25519" | "es256",
+                                 "publicKey": "<base64>" } }
+
+Key names obey the role-name grammar (at least one non-digit). For
+`ed25519` the publicKey is the raw 32-byte key in standard base64 — the
+spelling bitgraph/1 proofs use for signer keys. For `es256` (ECDSA P-256
+over SHA-256) it is SPKI DER in base64.
+
+The name-to-key binding is DECLARED trust: the verdict surfaces every
+entry in `declared` as `{ assertion: "trusted-key", verifiedHere: false }`.
+Player verifies signature MATH against the key material; that the key
+belongs to the named party is the rule author's assertion, exactly like a
+cast digest's `means`. SIGNED_BY remains not a BitGraph primitive:
+format 2 does not change what the chain knows, only what a rule can
+verify about supplied evidence.
+
+### 9.2 The bitgraph-sig/1 evidence file
+
+A signature file is a JSON object:
+
+    { "sig": "bitgraph-sig/1", "over": <digest>, "alg": <alg>,
+      "publicKey": <base64>, "signature": <base64> }
+
+`over` accepts the digest spellings of section 3. The signed message is
+the UTF-8 bytes of:
+
+    "bitgraph-sig/1\n" + lowercase hex SHA-256 of the target bytes
+
+Domain separation is deliberate: a signature made in any other protocol
+over the same digest is not a bitgraph-sig. For `ed25519` the signature
+is the raw 64-byte form, base64; for `es256` it is DER-encoded ECDSA,
+base64, verified over SHA-256 of the message.
+
+### 9.3 The signedBy claim
+
+    { "signedBy": [<roleName>, <trustedKeyName>] }
+
+Valid only in format 2. The key name MUST be declared in trustedKeys;
+an unresolvable reference is a parse error. Semantics:
+
+| situation | result |
+|---|---|
+| role not declared in the cast | UNDETERMINED |
+| trusted key material not decodable | UNDETERMINED |
+| a supplied evidence file parses as bitgraph-sig/1, its `over` decodes to the role's digest bytes, its alg and publicKey equal the trusted key's, and the signature verifies | TRUE |
+| otherwise | UNDETERMINED |
+
+**signedBy is TRUE or UNDETERMINED, never FALSE.** "This key never
+signed these bytes" is a negative over an open world: signatures can
+exist outside any bundle, so absence of one proves nothing, and
+`not(signedBy(...))` is therefore permanently UNDETERMINED under the
+section 1 tables. A malformed or non-verifying signature file is not
+evidence and not an error.
+
+The claim is about BITS, not occurrences: it evaluates against the
+declared role digest whether or not the role resolved to a recording.
+Signature claims carry no ordering tier and never contribute to
+`weakestEvidence`; a signature file's own causal position, when it has
+been recorded, is claimed with the ordinary ordering predicates over a
+role declaring the signature file's digest.
+
+### 9.4 Evidence supply
+
+Evaluation is a pure function; candidate signature bytes are an input.
+A command-line Player evaluating a bundle MUST take as candidates every
+bundle artifact that is matched to an observed proof and no larger than
+1,048,576 bytes, keyed by content hash; embedders MAY supply additional
+candidates. Candidates are scanned in ascending content-hash order and
+the first verifying file decides, so the verdict is deterministic for a
+given evidence set. A format 2 verdict is `bitgraph-player-verdict/2`;
+the serialization discipline of section 7 is unchanged.
