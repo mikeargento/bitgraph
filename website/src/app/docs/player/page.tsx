@@ -44,7 +44,10 @@ export default function PlayerPage() {
         <strong>BitGraph records. Player evaluates.</strong>
       </p>
       <p style={{ color: "#1f2937", marginBottom: 16 }}>
-        A BitGraph recording establishes that particular bytes occupied a particular causal position. Player takes a set of those recordings, applies a rule to them, and produces a verdict: <strong>TRUE, FALSE, UNDETERMINED</strong>.
+        A BitGraph recording establishes that particular bytes occupied a particular causal position. Player takes a set of those recordings, applies a rule to them, and produces a verdict: {/* Deliberate break: the verdict triple always gets its own line;
+            nowrap keeps it from splitting on narrow viewports */}
+        <br />
+        <strong style={{ whiteSpace: "nowrap" }}>TRUE, FALSE, or UNDETERMINED</strong>.
       </p>
       <p style={{ color: "#1f2937", marginBottom: 16 }}>
         Anyone with the same rule and the same evidence can reproduce that verdict themselves, on their own machine, offline. No network, no clock, no account, and no trust in whoever ran Player first.
