@@ -39,6 +39,7 @@
     "packages/verify",
     "packages/audit",
     "packages/mcp",
-    "packages/player"
+    "packages/player",
+    "packages/titles"
   ]
 }
