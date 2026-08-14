@@ -34,12 +34,16 @@ type Stage =
 
 export default function CreateVersion({ fileName, data }: { fileName: string; data: ArrayBuffer }) {
   const [stage, setStage] = useState<Stage>({ kind: "collapsed" });
-  const [body, setBody] = useState("");
 
   async function run() {
     try {
       setStage({ kind: "working", step: "Minting…" });
-      const minted = await mintVersionClient(new Uint8Array(data), body.trim() || undefined);
+      // No note, no form: JUST the cryptography differentiates a version.
+      // The salt is the sole difference between siblings at the bytes
+      // level; the recording's position is the sole difference on the
+      // chain. A version says nothing except: one of one, of that work,
+      // held at minting. Words belong to the custody layer, signed.
+      const minted = await mintVersionClient(new Uint8Array(data));
 
       // Custody before permanence: the version leaves the browser first.
       const blob = new Blob([minted.bytes as BlobPart], { type: "application/json" });
@@ -83,22 +87,9 @@ export default function CreateVersion({ fileName, data }: { fileName: string; da
             The recording is public; a version is yours to hold. This mints a small one-of-a-kind
             file that references this BitGraph, then records it at its own causal position. The
             file never leaves this browser; only the version&apos;s digest is recorded, and the
-            version stays sealed until you show it.
+            version stays sealed until you show it. Versions carry no message: only the
+            cryptography differentiates them.
           </p>
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.currentTarget.value)}
-            placeholder="Say anything, or nothing. Free text, sealed inside the version."
-            rows={2}
-            style={{
-              width: "100%",
-              border: "1px solid #d0d5dd",
-              padding: "8px 10px",
-              fontSize: 14,
-              color: "#111827",
-              resize: "vertical",
-            }}
-          />
           <div style={{ display: "flex", gap: 18, marginTop: 10 }}>
             <button type="button" className="bg-action-link" style={{ padding: 0 }} onClick={() => void run()}>
               <span>Mint, download, and record it</span>
