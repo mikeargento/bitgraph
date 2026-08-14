@@ -137,6 +137,59 @@ test("identical statements with different salts are different files", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Versions (bitgraph-versions/1)
+// ---------------------------------------------------------------------------
+
+test("mint -> parse round-trips; possession is three-valued; the edge is refutable", async () => {
+  const { parseVersion, mintVersion, checkVersion } = await import("../version.js");
+  const { bytes, version } = mintVersion(WORK, { body: "for the couple" });
+  const reparsed = parseVersion(bytes);
+  assert.equal(reparsed.of, version.of);
+  assert.equal(checkVersion(reparsed, WORK).possession, "verified");
+  assert.equal(checkVersion(reparsed).possession, "unverifiable");
+  assert.equal(checkVersion(reparsed, Buffer.from("other bytes")).possession, "refuted");
+});
+
+test("two mints of the same work are distinct files: every version is one of a kind", async () => {
+  const { mintVersion } = await import("../version.js");
+  const a = mintVersion(WORK);
+  const b = mintVersion(WORK);
+  assert.notEqual(sha256HexOf(a.bytes), sha256HexOf(b.bytes));
+  assert.equal(a.version.of, b.version.of);
+});
+
+test("non-canonical version bytes are rejected: one version cannot fracture into many", async () => {
+  const { mintVersion, parseVersion } = await import("../version.js");
+  const { bytes } = mintVersion(WORK);
+  const reindented = Buffer.from(JSON.stringify(JSON.parse(bytes.toString("utf8"))) + "\n");
+  assert.throws(() => parseVersion(reindented), PmError);
+  parseVersion(bytes);
+});
+
+test("a version's recording is orderable after its work: the abstract holds via Player", async () => {
+  const { mintVersion } = await import("../version.js");
+  const { bytes } = mintVersion(WORK);
+  const rule = parseRule(
+    JSON.stringify({
+      rule: "bitgraph-player/1",
+      id: "version-postdates-work",
+      cast: {
+        work: { digest: `sha256:${sha256HexOf(WORK)}` },
+        version: { digest: `sha256:${sha256HexOf(bytes)}` },
+      },
+      world: "closed",
+      requires: { ordering: "assumption-dependent" },
+      claim: { all: [{ exists: "work" }, { exists: "version" }, { before: ["work", "version"] }] },
+    })
+  );
+  const audit = makeAudit([
+    { name: "w", digestB64: Buffer.from(sha256HexOf(WORK), "hex").toString("base64"), counter: "1" },
+    { name: "v", digestB64: Buffer.from(sha256HexOf(bytes), "hex").toString("base64"), counter: "2" },
+  ]);
+  assert.equal(playAudit(rule, "0".repeat(64), audit).verdict.result, "TRUE");
+});
+
+// ---------------------------------------------------------------------------
 // Markers
 // ---------------------------------------------------------------------------
 

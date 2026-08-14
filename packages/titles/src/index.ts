@@ -30,6 +30,14 @@ export {
 } from "./pm.js";
 export type { CreatePmInput } from "./pm.js";
 export { markerBytes, parseMarker } from "./marker.js";
+export {
+  VERSION_FORMAT,
+  mintVersion,
+  parseVersion,
+  checkVersion,
+  serializeVersion,
+} from "./version.js";
+export type { BitGraphVersion } from "./version.js";
 export { buildThread, ThreadError } from "./thread.js";
 export { buildTitleRule } from "./titlerule.js";
 export type { TitleRuleOptions } from "./titlerule.js";

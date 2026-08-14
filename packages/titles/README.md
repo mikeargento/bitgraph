@@ -2,6 +2,29 @@
 
 BitGraph records. Titles convey. Player evaluates.
 
+## Versions: the simple thing
+
+A recording is public and unownable: everyone can verify it, nobody can
+hold it. A **version** is the holdable object of the same work — a
+small one-of-a-kind salted file that references the recorded work and,
+once recorded itself, sits at its own causal position forever. The
+record is everyone's; the version is yours.
+
+```
+# mint a version of a work you hold (no keys, no setup)
+bitgraph-title mint gallery.zip --body "for the couple" --out bitgraph-version.json
+
+# then record it via an ordinary drop — that position is the version's place
+```
+
+Minting requires the work's full bytes (no file, no version), every
+mint is distinct bytes (mint twice, get two versions), and causal order
+numbers a work's versions for free: the earliest is first as a matter
+of public record. A version proves held and placed — never that its
+note is true, who minted it, or who holds it now.
+
+## Titles: when things must change hands
+
 A possession message is a small file that states a claim about another
 file, proves its author held that file, is signed by a key, and — once
 recorded — occupies a position in the BitGraph causal order. A custody

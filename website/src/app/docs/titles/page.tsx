@@ -38,13 +38,36 @@ export default function TitlesPage() {
         <strong>BitGraph records. Titles convey. Player evaluates.</strong>
       </p>
       <p style={{ color: "#1f2937", marginBottom: 16 }}>
-        A possession message is a small file that states a claim about another file, proves its author held that file, is signed by a key, and, once recorded, occupies a position in the causal order. A chain of them is a custody thread: who has held a thing, hand to hand, on a record that cannot be rewritten.
-      </p>
-      <p style={{ color: "#1f2937", marginBottom: 16 }}>
-        A title is the thread, never the bytes. The work stays freely copyable, exactly as before. What cannot be copied is the ability to sign, and that is what makes standing scarce: exactly one key can extend a thread, and it belongs to the current holder.
+        A recording is public and unownable: anyone can verify it, and nobody can hold it. A version is the holdable object of the same work. The record is everyone&apos;s; the version is yours.
       </p>
       <p style={{ color: "#1f2937", marginBottom: 32 }}>
-        A message proves what was said, what was held, and where it stands. It never proves that the statement is true, who the person behind a key is, or who holds anything now.
+        Everything on this page proves what was held and where it stands. Nothing on it proves that a statement is true, who a person is, or who holds anything now.
+      </p>
+
+      <h2>Versions</h2>
+      <p>
+        A version is a small one-of-a-kind file that references a recorded work and, once recorded itself, sits at its own causal position forever. Minting one requires holding the work&apos;s full bytes: no file, no version. Every mint is distinct, so a work can have many versions, and the causal order numbers them without anyone administering editions: the earliest is first as a matter of public record.
+      </p>
+      <p>
+        The entropy changes direction here. A recording&apos;s uniqueness comes from the enclave&apos;s randomness receiving your bytes; a version&apos;s comes from your own randomness, which the chain then places. The work is untouched, its recording unchanged: the version is a new recording that depends on it, one way, forever.
+      </p>
+      <p>
+        On any proof page, supply the original file and the card offers <strong>Create a Version</strong>: the version is minted in your browser, downloaded to your hands first, then recorded. Only its digest ever leaves the browser, and the version stays sealed, unconfirmable by anyone who does not hold it, until you choose to show it. Or mint offline:
+      </p>
+      <div className="code-block">
+        <div className="code-block-header">Shell</div>
+        <pre>{`npx @mikeargento/bitgraph-titles mint gallery.zip --body "for the couple" --out bitgraph-version.json`}</pre>
+      </div>
+      <p>
+        A version is a bearer object: whoever holds the salted file holds the version, the way whoever holds a print holds the print. When a version must provably change hands, the custody layer below carries it, because a version is a file like any other.
+      </p>
+
+      <h2>The custody layer</h2>
+      <p>
+        A possession message is a small file that states a claim about another file, proves its author held that file, is signed by a key, and, once recorded, occupies a position in the causal order. A chain of them is a custody thread: who has held a thing, hand to hand, on a record that cannot be rewritten.
+      </p>
+      <p>
+        A title is the thread, never the bytes. The work stays freely copyable, exactly as before. What cannot be copied is the ability to sign, and that is what makes standing scarce: exactly one key can extend a thread, and it belongs to the current holder.
       </p>
 
       <h2>Four properties</h2>

@@ -157,7 +157,41 @@ Markers are DISCOVERY, never VALIDITY. A recorded marker with no valid
 take behind it is a pulled fire alarm: flag and investigate, never
 invalidate. Validity is signatures.
 
-## 9. What this package never does
+## 9. Versions: bitgraph-versions/1
+
+A recording is public and unownable; a version is the holdable object
+of the same work. The record is everyone's; the version is yours.
+
+    version      "bitgraph-versions/1"
+    of           "sha256:<64 lowercase hex>" — the work's digest
+    body?        free text; sealed inside the version
+    salt         32 lowercase hex characters (128 bits), MANDATORY
+    possession   the possession hash of the work's bytes (section 4),
+                 MANDATORY: minting requires holding. No file, no version.
+
+Same canonical-serialization discipline as messages, byte-exactly
+enforced at parse: a version's identity IS its file digest, and a
+re-spelled variant would fracture one version into many.
+
+A version is a BEARER object: no signature, no key. The salt makes its
+bytes one of a kind and a sealed version unconfirmable by guessing; its
+recording gives it one first recording at one position, forever. The
+entropy changes direction here: a recording's uniqueness comes from the
+enclave's randomness receiving your bytes; a version's comes from the
+minter's randomness, which the chain then places.
+
+`of` is a one-way edge. The work is untouched, its recording unchanged,
+and the chain never learns versions exist. A version's recording
+provably postdates the work's (an ordinary ordering claim), and causal
+order numbers a work's versions with no numbering field: the earliest
+is first as a matter of public record.
+
+A version proves held and placed. It never proves that its body is
+true, who minted it, or who holds it now. When a version must provably
+change hands, it is a file like any other: the possession-message
+conveyance layer above carries it.
+
+## 10. What this package never does
 
 It never records anything: giving a file a position happens through the
 ordinary BitGraph surfaces, and authoring and placing are separate acts.

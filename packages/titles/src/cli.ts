@@ -26,6 +26,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { keyObjectFor } from "@mikeargento/bitgraph-player";
+import { mintVersion } from "./version.js";
 import { buildThread, ThreadError } from "./thread.js";
 import { buildTitleRule } from "./titlerule.js";
 import { keygen, loadKey, KeyFileError } from "./keysfile.js";
@@ -36,7 +37,8 @@ import { initVault, vaultGet, vaultPut, VaultError } from "./vault.js";
 
 function usage(): number {
   process.stderr.write(
-    "usage: bitgraph-title keygen --out <key.json>\n" +
+    "usage: bitgraph-title mint <work> [--body <text>] [--out <version.json>]\n" +
+      "       bitgraph-title keygen --out <key.json>\n" +
       "       bitgraph-title open <work> --key <key.json> [--body <text>] [--out <pm.json>]\n" +
       "       bitgraph-title give <work> --key <key.json> --re <head.pm.json> --to <pubkeyB64|key.json> [--body] [--out]\n" +
       "       bitgraph-title take <work> --key <key.json> --re <give.pm.json> [--body] [--out]\n" +
@@ -232,6 +234,23 @@ async function main(): Promise<number> {
             "validity: investigate a hit, never rely on a marker alone.\n"
         );
       }
+      return 0;
+    }
+
+    case "mint": {
+      // A VERSION: the holdable object of a recorded work. Bearer, keyless,
+      // possession-gated: minting requires the work's full bytes.
+      const workPath = positional[0];
+      if (workPath === undefined) return usage();
+      const workBytes = readFileSync(workPath);
+      const input: Parameters<typeof mintVersion>[1] = {};
+      if (body !== undefined) input.body = body;
+      const { bytes } = mintVersion(workBytes, input);
+      emit(bytes, options.get("out"));
+      process.stderr.write(
+        "note: record the version via an ordinary drop to give it its position; " +
+          "keep the file — the version IS the salted bytes, and a lost file leaves a mute digest\n"
+      );
       return 0;
     }
 
