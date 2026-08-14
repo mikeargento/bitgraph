@@ -123,10 +123,6 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       // building against BitGraph, not using a finished surface. It follows
       // the schema it consumes and Self-Host TEE still closes the column.
       { href: "/docs/player", label: "BitGraph Player" },
-      // Titles follows Player because it is Player's first product: the
-      // custody layer whose title abstract is an ordinary Player rule.
-      // Self-Host TEE still closes the column.
-      { href: "/docs/titles", label: "BitGraph Titles" },
       { href: "/docs/self-host-tee", label: "Self-Host TEE" },
     ],
   },

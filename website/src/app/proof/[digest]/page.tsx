@@ -14,7 +14,6 @@ import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
-import CreateVersion from "@/components/create-version";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
 
@@ -845,17 +844,6 @@ export default function ProofPage() {
                 {!cachedFile && (
                   <div style={{ fontSize: 12.5, color: "#4b5563", paddingBottom: 6 }}>
                     BitGraph only: the original file is not on this device
-                  </div>
-                )}
-                {/* Create a Version — present ONLY while the original bytes
-                    are in hand (cachedFile is hash-validated against this
-                    proof), so the row's existence is the possession rule as
-                    interface: a link-reached reader has no bytes and no row.
-                    Not shown for interval/anchor proofs, whose artifact is
-                    not a held file. */}
-                {!isEth && !isInterval && cachedFile && (
-                  <div style={{ borderTop: "1px solid #eef0f1", paddingTop: 8, paddingBottom: 8 }}>
-                    <CreateVersion fileName={cachedFile.name} data={cachedFile.data} />
                   </div>
                 )}
               </div>
