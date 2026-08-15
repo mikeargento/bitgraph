@@ -17,6 +17,7 @@
   },
   "files": [
     "dist",
+    "dist-web",
     "src",
     "SPEC.md",
     "README.md",
@@ -26,7 +27,9 @@
     "build": "tsc",
     "prepack": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsc && node --test \"dist/__tests__/*.test.js\""
+    "test": "tsc && node --test \"dist/__tests__/*.test.js\"",
+    "build:web": "node scripts/build-verify-html.mjs --out ../folder/src/verify.html --out ../../website/public/verify.html",
+    "typecheck:web": "tsc -p web/tsconfig.json"
   },
   "engines": {
     "node": ">=20"
@@ -37,6 +40,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "buffer": "^6.0.3",
+    "esbuild": "^0.27.0",
     "typescript": "^5.4.0"
   }
 }
