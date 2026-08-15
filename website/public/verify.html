@@ -11,7 +11,6 @@ html, body { background: #f5f5f5; color: #111827; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 .nav { max-width: 800px; margin: 0 auto; padding: 22px 16px 0; display: flex; align-items: baseline; justify-content: space-between; }
 .logo { font-weight: 900; font-size: 22px; letter-spacing: -0.02em; color: #111827; }
-.nav .right { font-size: 13px; color: #4b5563; }
 .wrap { max-width: 800px; margin: 0 auto; padding: 28px 16px 80px; }
 /* The one title size every page header uses. */
 #title { font-size: clamp(26px, 6vw, 32px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; color: #111827; margin-bottom: 10px; }
@@ -68,7 +67,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 </style>
 </head>
 <body>
-<div class="nav"><span class="logo">BitGraph</span><span class="right">Offline verifier · no network</span></div>
+<div class="nav"><span class="logo">BitGraph</span></div>
 <main class="wrap">
   <div id="title">Verify a BitGraph</div>
   <p id="lede">Drop a recording folder from your BitGraph Folder or an export from bitgraph.ing, or a <b>proof.json</b> beside the file it records. The file's hash, the signature, the enclave attestation, and the Ethereum block headers in the bundle are all checked here, on this machine. <b>Nothing is uploaded and no network request is made.</b></p>
