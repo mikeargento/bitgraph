@@ -265,7 +265,7 @@ describe("check: what evidence in hand contradicts, and what it merely leaves op
     assert.equal(report.result, "TRUE");
     assert.equal(report.recordings[0]!.bounds.status, "unanchored");
     assert.equal(report.anchors.length, 0);
-    assert.match(report.summary, /with no verified Ethereum bound in this bundle/);
+    assert.match(report.summary, /with no Ethereum bound in this bundle/);
   });
 
   it("proof alone (no file) is UNDETERMINED: signature and attestation hold, binding to bytes does not", async () => {
@@ -393,7 +393,7 @@ describe("check: CLI", () => {
       { encoding: "utf8" }
     );
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /no verified Ethereum bound in this bundle/);
+    assert.match(r.stdout, /no Ethereum bound in this bundle/);
   });
 
   it("exits 2 for UNDETERMINED (proof alone) and 3 for a missing path", () => {

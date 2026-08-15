@@ -554,6 +554,20 @@ function toBound(b: SegmentBound): CheckBound {
   };
 }
 
+/** The headline form of the bounds: one clause, no qualifiers (those live in bounds.detail). */
+function shortBoundsPhrase(b: CheckBounds): string {
+  switch (b.status) {
+    case "bracketed":
+      return `between Ethereum blocks ${blockRef(b.notBefore as CheckBound)} and ${blockRef(b.notAfter as CheckBound)}`;
+    case "lower-bounded":
+      return `after Ethereum block ${blockRef(b.notBefore as CheckBound)}`;
+    case "upper-bounded":
+      return `before Ethereum block ${blockRef(b.notAfter as CheckBound)}`;
+    default:
+      return "with no Ethereum bound in this bundle";
+  }
+}
+
 function blockRef(b: CheckBound): string {
   return b.blockNumber !== undefined ? b.blockNumber : b.blockHash;
 }
@@ -770,8 +784,7 @@ function summarize(
     const first = recordings[0];
     if (n === 1 && first !== undefined) {
       const where = first.counter !== undefined ? ` at position ${first.counter}${first.epochId !== undefined ? ` of epoch ${shortB64(first.epochId)}` : ""}` : "";
-      const b = first.bounds;
-      return `TRUE: this file was recorded${where}, ${boundsPhrase(b.status, b.notBefore, b.notAfter)}.`;
+      return `TRUE: this file was recorded${where}, ${shortBoundsPhrase(first.bounds)}.`;
     }
     return `TRUE: ${noun} verified: files match, signatures and attestations hold, enclave measurements published${anchors.length > 0 ? ", Ethereum bounds verified from block headers in the bundle" : ""}.`;
   }
