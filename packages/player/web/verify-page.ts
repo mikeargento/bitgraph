@@ -136,7 +136,9 @@ function toEntries(dropped: DroppedFile[]): BundleEntrySource[] {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering
+// Rendering: the proof page's grammar. A page title, one primary card that
+// carries the essentials, then openers (collapsible cards) for the checks,
+// each Ethereum bound, notes, what is not checked, and the raw report.
 // ---------------------------------------------------------------------------
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -153,97 +155,181 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-function markClass(r: ThreeValued): string {
-  return r === "TRUE" ? "mark true" : r === "FALSE" ? "mark false" : "mark undet";
+function markEl(r: ThreeValued): HTMLElement {
+  const cls = r === "TRUE" ? "mark true" : r === "FALSE" ? "mark false" : "mark undet";
+  return el("span", { class: cls }, [r]);
 }
 
-function markText(r: ThreeValued): string {
-  return r === "TRUE" ? "TRUE" : r === "FALSE" ? "FALSE" : "UNDETERMINED";
+/** A field row: label above value, like the proof page's Field. */
+function field(label: string, value: string, opts: { mono?: boolean; mark?: ThreeValued } = {}): HTMLElement {
+  const head = el("div", { class: "field-head" }, [el("span", { class: "field-label" }, [label])]);
+  if (opts.mark !== undefined) head.append(markEl(opts.mark));
+  return el("div", { class: "field" }, [head, el("span", { class: opts.mono ? "field-value mono" : "field-value" }, [value])]);
 }
 
-function renderLine(line: CheckLine): HTMLElement {
-  return el("div", { class: "line" }, [
-    el("span", { class: markClass(line.result) }, [markText(line.result)]),
-    el("span", { class: "line-name" }, [line.name]),
-    el("span", { class: "line-detail" }, [line.detail]),
+/** A collapsible card with the proof page's header affordance. */
+function opener(title: string, body: HTMLElement[], opts: { open?: boolean; tone?: "danger" } = {}): HTMLElement {
+  let open = opts.open === true;
+  const chev = el("span", { class: "chev", "aria-hidden": "true" });
+  chev.innerHTML =
+    '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="square" stroke-linejoin="miter"><path d="M9 6 L15 12 L9 18"/></svg>';
+  const head = el("button", { class: `opener-head${opts.tone === "danger" ? " danger" : ""}`, type: "button", "aria-expanded": String(open) }, [
+    el("span", {}, [title]),
+    chev,
   ]);
+  const content = el("div", { class: "opener-body" }, body);
+  const card = el("section", { class: "card" }, [head, content]);
+  const apply = (): void => {
+    head.classList.toggle("open", open);
+    head.setAttribute("aria-expanded", String(open));
+    content.hidden = !open;
+    chev.classList.toggle("open", open);
+  };
+  head.addEventListener("click", () => {
+    open = !open;
+    apply();
+  });
+  apply();
+  return card;
 }
 
-function renderRecording(rec: CheckRecording, index: number): HTMLElement {
-  const title = rec.filePath !== undefined ? rec.filePath : `Recording ${index + 1}`;
-  const meta: string[] = [];
-  if (rec.counter !== undefined) meta.push(`position ${rec.counter}`);
-  if (rec.epochId !== undefined) meta.push(`epoch ${rec.epochId}`);
-  return el("section", { class: "card" }, [
-    el("div", { class: "card-head" }, [
-      el("div", { class: "card-title" }, [title]),
-      el("span", { class: markClass(rec.result) }, [markText(rec.result)]),
-    ]),
-    el("div", { class: "meta" }, [meta.join(" · ")]),
-    el("div", { class: "meta mono" }, [`sha256 ${rec.digestB64}`]),
-    ...rec.lines.map(renderLine),
-    el("div", { class: "line bounds" }, [
-      el("span", { class: "mark bound" }, ["BOUNDS"]),
-      el("span", { class: "line-name" }, [rec.bounds.status]),
-      el("span", { class: "line-detail" }, [rec.bounds.detail]),
-    ]),
-  ]);
+function pageTitleFor(result: ThreeValued): string {
+  return result === "TRUE" ? "BitGraph Verified" : result === "FALSE" ? "Verification Failed" : "Not Fully Verified";
 }
 
-function renderAnchor(a: CheckAnchor, index: number): HTMLElement {
-  const title = a.blockNumber !== undefined ? `Ethereum anchor: block ${a.blockNumber}` : `Ethereum anchor ${index + 1}`;
-  const meta: string[] = [];
-  if (a.counter !== undefined) meta.push(`position ${a.counter}`);
-  if (a.blockHash !== undefined) meta.push(a.blockHash);
-  return el("section", { class: "card" }, [
-    el("div", { class: "card-head" }, [
-      el("div", { class: "card-title" }, [title]),
-      el("span", { class: markClass(a.result) }, [markText(a.result)]),
-    ]),
-    el("div", { class: "meta mono" }, [meta.join(" · ")]),
-    ...a.lines.map(renderLine),
-  ]);
+function positionText(x: { counter?: string; epochId?: string }): string {
+  const parts: string[] = [];
+  if (x.counter !== undefined) parts.push(`position ${x.counter}`);
+  if (x.epochId !== undefined) parts.push(`epoch ${x.epochId}`);
+  return parts.join("  ·  ");
 }
 
-function renderList(title: string, items: string[], cls: string): HTMLElement | null {
-  if (items.length === 0) return null;
-  return el("section", { class: `card ${cls}` }, [
-    el("div", { class: "card-title" }, [title]),
-    el("ul", {}, items.map((t) => el("li", {}, [t]))),
-  ]);
+function boundsText(rec: CheckRecording): string {
+  const b = rec.bounds;
+  if (b.status === "unanchored") return "no verified Ethereum anchor in this bundle";
+  const parts: string[] = [];
+  if (b.notBefore !== undefined) parts.push(`after block ${b.notBefore.blockNumber ?? b.notBefore.blockHash}`);
+  if (b.notAfter !== undefined) parts.push(`before block ${b.notAfter.blockNumber ?? b.notAfter.blockHash}`);
+  const weaker = (b.notBefore?.weaker ?? false) || (b.notAfter?.weaker ?? false);
+  return `${parts.join(", ")} (headers verified in this bundle${weaker ? "; ordered by counter position within the epoch" : ""})`;
 }
 
-function renderReport(report: CheckReport, root: HTMLElement): void {
+/** The essentials of one recording, as fields. */
+function recordingFields(rec: CheckRecording): HTMLElement[] {
+  const fileLine = rec.lines.find((l) => l.name === "file");
+  return [
+    field("File", rec.filePath ?? "not in this bundle", { ...(fileLine !== undefined ? { mark: fileLine.result } : {}) }),
+    field("Recorded", positionText(rec) || "no causal position", { mono: true }),
+    field("Ethereum bounds", boundsText(rec)),
+    field("File Hash", rec.digestB64, { mono: true }),
+  ];
+}
+
+/** The four checks of one recording, as marked fields. */
+function recordingChecks(rec: CheckRecording): HTMLElement[] {
+  const label: Record<string, string> = {
+    file: "File",
+    signature: "Signature",
+    attestation: "Hardware Enclave attestation",
+    enclave: "Enclave identity",
+    witness: "Block header",
+    contradiction: "Contradiction",
+  };
+  return rec.lines.map((l) => field(label[l.name] ?? l.name, l.detail, { mark: l.result }));
+}
+
+function anchorOpener(a: CheckAnchor, side: "before" | "after" | "other", index: number): HTMLElement {
+  const title =
+    side === "before" ? "Recorded after this block" : side === "after" ? "Recorded before this block" : `Ethereum anchor ${index + 1}`;
+  const body: HTMLElement[] = [];
+  if (a.blockNumber !== undefined) body.push(field("Ethereum block", a.blockNumber, { mono: true }));
+  if (a.blockHash !== undefined) body.push(field("Block hash", a.blockHash, { mono: true }));
+  body.push(field("Anchor position", positionText(a) || "no causal position", { mono: true }));
+  for (const l of a.lines) {
+    body.push(field(l.name === "witness" ? "Block header" : "Anchor signature", l.detail, { mark: l.result }));
+  }
+  if (a.witnessPath === undefined) {
+    body.push(field("Block header", "no block-header witness in this bundle, so this anchor's block hash is not verified here and it bounds nothing"));
+  }
+  return opener(`${title}  ${a.result === "TRUE" ? "" : `[${a.result}]`}`.trim(), body);
+}
+
+function renderReport(report: CheckReport, root: HTMLElement, titleEl: HTMLElement, ledeEl: HTMLElement): void {
   root.replaceChildren();
-  const summary = el("h2", { class: `summary ${report.result.toLowerCase()}` }, [report.summary]);
-  root.append(summary);
-  report.recordings.forEach((r, i) => root.append(renderRecording(r, i)));
-  report.anchors.forEach((a, i) => root.append(renderAnchor(a, i)));
-  const contradictions = renderList(
-    "Contradictions",
-    report.contradictions.map((c) => c.detail),
-    "contradictions"
-  );
-  if (contradictions !== null) root.append(contradictions);
-  const notes = renderList("Notes", report.notes, "notes");
-  if (notes !== null) root.append(notes);
-  const notChecked = renderList("Not checked: no offline check can establish these", report.notChecked, "notes");
-  if (notChecked !== null) root.append(notChecked);
+  titleEl.textContent = pageTitleFor(report.result);
+  ledeEl.hidden = true;
+
+  const one = report.recordings.length === 1 ? report.recordings[0] : undefined;
+
+  // Primary card: the summary line, then the essentials of the recording
+  // (or the list of recordings when there are several).
+  const primary = el("section", { class: "card primary" }, [
+    el("div", { class: `summary ${report.result.toLowerCase()}` }, [report.summary]),
+  ]);
+  if (one !== undefined) {
+    for (const f of recordingFields(one)) primary.append(f);
+  } else if (report.recordings.length > 1) {
+    for (const rec of report.recordings) {
+      primary.append(field(rec.filePath ?? `Recording (${rec.digestB64.slice(0, 12)}…)`, positionText(rec) || "no causal position", { mono: true, mark: rec.result }));
+    }
+  } else {
+    primary.append(field("Recordings", "no recordings in this bundle"));
+  }
+  root.append(primary);
+
+  // Openers.
+  if (one !== undefined) {
+    const passed = one.lines.filter((l) => l.result === "TRUE").length;
+    root.append(opener(`Recording checks  ${passed} of ${one.lines.length} TRUE`, recordingChecks(one), { open: report.result !== "TRUE" }));
+  } else {
+    report.recordings.forEach((rec, i) => {
+      root.append(
+        opener(`Recording ${i + 1}: ${rec.filePath ?? rec.digestB64.slice(0, 16) + "…"}  [${rec.result}]`, [
+          ...recordingFields(rec),
+          ...recordingChecks(rec),
+        ], { open: rec.result !== "TRUE" })
+      );
+    });
+  }
+
+  // Ethereum bounds: one opener per anchor, titled the way the proof page
+  // titles its bounding blocks when the anchor is a bound of the (single)
+  // recording; plain "Ethereum anchor n" otherwise.
+  report.anchors.forEach((a, i) => {
+    let side: "before" | "after" | "other" = "other";
+    if (one !== undefined) {
+      if (one.bounds.notBefore?.anchorProofHash === a.proofHash) side = "before";
+      else if (one.bounds.notAfter?.anchorProofHash === a.proofHash) side = "after";
+    }
+    root.append(anchorOpener(a, side, i));
+  });
+
+  if (report.contradictions.length > 0) {
+    root.append(
+      opener(`Contradictions  ${report.contradictions.length}`, report.contradictions.map((c) => field("FALSE", c.detail, { mark: "FALSE" })), { open: true, tone: "danger" })
+    );
+  }
+  if (report.notes.length > 0) {
+    root.append(opener(`Notes  ${report.notes.length}`, [el("ul", { class: "list" }, report.notes.map((t) => el("li", {}, [t])))]));
+  }
+  root.append(opener("Not checked", [el("ul", { class: "list" }, report.notChecked.map((t) => el("li", {}, [t])))]));
+  root.append(opener("Report JSON", [el("pre", { class: "json" }, [JSON.stringify(report, null, 2)])]));
+
+  // Actions and provenance, in the site's arrow-link voice.
+  const again = el("a", { class: "arrow-link", href: "#" }, ["Check another BitGraph ", el("span", { class: "arrow", "aria-hidden": "true" }, ["→"])]);
+  again.addEventListener("click", (e) => {
+    e.preventDefault();
+    location.reload();
+  });
+  root.append(el("div", { class: "actions" }, [again]));
   root.append(
-    el("div", { class: "foot" }, [
-      `Result: ${report.result} · bitgraph-player ${report.evaluator.version} · bitgraph-audit ${report.evaluator.audit} · network: none`,
-    ])
-  );
-  root.append(
-    el("div", { class: "foot" }, [
-      "This verifier is code that came with your BitGraph Folder or from bitgraph.ing/verify.html. The same check runs from npm as ",
+    el("p", { class: "foot" }, [
+      `bitgraph-player ${report.evaluator.version} · bitgraph-audit ${report.evaluator.audit} · network: none. `,
+      "This verifier is code that came with your BitGraph Folder or from bitgraph.ing/verify.html; the same check runs from npm as ",
       el("code", {}, ["bitgraph-play check"]),
-      ". If it matters, compare copies or run the command; they are built from the same source.",
+      ".",
     ])
   );
-  const again = el("button", { class: "again", type: "button" }, ["Check another"]);
-  again.addEventListener("click", () => location.reload());
-  root.append(again);
 }
 
 // ---------------------------------------------------------------------------
@@ -266,7 +352,7 @@ async function run(dropped: DroppedFile[]): Promise<void> {
     zone.hidden = true;
     status.textContent = "";
     results.hidden = false;
-    renderReport(report, results);
+    renderReport(report, results, document.getElementById("title") as HTMLElement, document.getElementById("lede") as HTMLElement);
     document.title = `${report.result} · BitGraph verify`;
   } catch (err) {
     status.textContent = `The check could not run: ${(err as Error).message}`;
