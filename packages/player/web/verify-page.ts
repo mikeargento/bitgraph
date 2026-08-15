@@ -322,14 +322,6 @@ function renderReport(report: CheckReport, root: HTMLElement, titleEl: HTMLEleme
     location.reload();
   });
   root.append(el("div", { class: "actions" }, [again]));
-  root.append(
-    el("p", { class: "foot" }, [
-      `bitgraph-player ${report.evaluator.version} · bitgraph-audit ${report.evaluator.audit} · network: none. `,
-      "This verifier is code that came with your BitGraph Folder or from bitgraph.ing/verify.html; the same check runs from npm as ",
-      el("code", {}, ["bitgraph-play check"]),
-      ".",
-    ])
-  );
 }
 
 // ---------------------------------------------------------------------------
