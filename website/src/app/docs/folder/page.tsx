@@ -85,7 +85,7 @@ export default function FolderPage() {
           evidence for "a folder, not an app", not as a second topic. ── */}
       <FolderTree />
       <p className="bg-panel-caption bg-panel-caption-under text-[#1f2937]">
-        The top level stays empty. It is the drop zone; Recordings is the archive.
+        The top level holds nothing at rest but the verifier. It is the drop zone; Recordings is the archive.
       </p>
 
       <div className="bg-hero-row">
@@ -171,6 +171,22 @@ export default function FolderPage() {
         A recording is a folder you can send. Hand it to anyone and they can drop it on
         bitgraph.ing: the check runs in their browser, against the public ledger, and they
         see for themselves that the bytes match. Nothing to install, no account.
+      </p>
+
+      {/* The offline half of that promise (1.14.0). The proof page checks
+          against the ledger; verify.html checks what the folder itself
+          carries, with no network at all, and says which half it is. */}
+      <h2 className="text-xl font-semibold">Verify with the machine offline</h2>
+      <p className="text-[#1f2937]">
+        Beside Recordings sits <code>verify.html</code>, one self-contained page. Open it and drop
+        any recording on it: the file is hashed against the recorded digest, the signature and
+        slot binding are checked, the enclave attestation is validated to the AWS root and
+        matched to a published BitGraph measurement, and the Ethereum block headers in the
+        folder are recomputed to place the recording between two blocks. No network request is
+        made and nothing is uploaded, so it works in a drawer, years from now. It states what
+        no offline check can establish, and it is the same check as{" "}
+        <code>bitgraph-play check</code> from npm, built from the same code. A copy lives at{" "}
+        <a href="/verify.html">bitgraph.ing/verify.html</a>.
       </p>
 
       {/* "Your roll, on the site" lived here while /folder existed; the browser

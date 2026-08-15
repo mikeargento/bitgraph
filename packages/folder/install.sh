@@ -46,6 +46,14 @@ mkdir -p "$FOLDER/Recordings" "$HOME_DIR" "$HOME/Library/LaunchAgents"
 install -m 0755 "$SRC/hotfolder.sh" "$HOME_DIR/hotfolder.sh"
 install -m 0644 "$SRC/export.js" "$HOME_DIR/export.js"
 
+# The offline verifier, beside Recordings/: one self-contained page. Open it
+# and drop any recording folder on it to check the file, the signature, the
+# enclave attestation, and the Ethereum block headers with no network at
+# all. It is the ONE file that lives at the top level at rest, and the
+# watcher prunes it by its exact path so it is never taken for a drop
+# (see droppable() in hotfolder.sh). Re-installing refreshes it.
+install -m 0644 "$SRC/verify.html" "$FOLDER/verify.html"
+
 # Installing over an older version leaves its files behind otherwise. 1.0.x
 # shipped a Node exporter that 1.1.0 replaced; a stale copy is dead weight and
 # is confusing to find later while debugging.

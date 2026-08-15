@@ -57,6 +57,9 @@ install -m 0644 "$HERE/VERSION"      "$STAGE/VERSION"
 install -m 0644 "$HERE/README.md"    "$STAGE/README.md"
 install -m 0755 "$HERE/src/hotfolder.sh" "$STAGE/src/hotfolder.sh"
 install -m 0644 "$HERE/src/export.js"    "$STAGE/src/export.js"
+# The offline verifier page, built by packages/player (npm run build:web);
+# install.sh places it at the top of the folder beside Recordings/.
+install -m 0644 "$HERE/src/verify.html"  "$STAGE/src/verify.html"
 install -m 0644 "$HERE/src/com.bitgraph.hotfolder.plist" "$STAGE/src/com.bitgraph.hotfolder.plist"
 
 SCRIPTS="$ROOT-scripts"

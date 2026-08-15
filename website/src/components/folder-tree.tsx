@@ -19,6 +19,10 @@ export function FolderTree() {
     <section className="bgt" aria-label="What the folder writes to your disk">
       <ul className="bgt-tree">
         <li><span className="bgt-path bgt-dir">BitGraph/</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">on your Desktop</span></li>
+        {/* The one file at the top level at rest (1.14.0): the offline
+            verifier. The watcher knows it by its exact path and never
+            records it. */}
+        <li className="d1"><span className="bgt-path">verify.html</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">the offline verifier</span></li>
         <li className="d1"><span className="bgt-path bgt-dir">Recordings/</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">the archive</span></li>
         <li className="d2"><span className="bgt-path bgt-dir">BitGraph (sunset.jpg)/</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">one folder per file</span></li>
         <li className="d3"><span className="bgt-path bgt-you">sunset.jpg</span><span className="bgt-lead" aria-hidden="true" /><span className="bgt-note">your file, moved in</span></li>

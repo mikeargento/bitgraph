@@ -211,17 +211,25 @@ handled() { grep -qxF "$1" "$STATE" 2>/dev/null || echo "$1" >> "$STATE"; }
 # generated, and any directory carrying a proof.json is an export. Recursive,
 # because a folder of folders of photos is still a folder of photos.
 droppable() {
-  # Recordings/ and the legacy files/ are pruned by their exact top-level
-  # paths, which both skips them in one test and keeps a USER folder that
-  # happens to carry either name, dragged in deeper down, recordable.
+  # Recordings/, the legacy files/, and the installed verify.html are pruned
+  # by their exact top-level paths, which both skips them in one test and
+  # keeps a USER folder or file that happens to carry the same name, dragged
+  # in deeper down, recordable.
   # ⚠️ files/ was pruned BY NAME until 1.9.2, and that was a real loss: a
   # dropped folder containing a subfolder named "files" had that subfolder
   # silently skipped — never recorded, never moved, and its parent chain
   # never emptied, so the husk sat at the top level looking stuck.
+  # ⚠️ verify.html (1.14.0) is the offline verifier the installer places
+  # beside Recordings/. It is the ONE file that lives at the top level at
+  # rest, and it must never be treated as a drop: the watcher fires at every
+  # login (RunAtLoad), so an unpruned copy would be hashed and committed to
+  # the permanent ledger on the first run after install. Someone's own file
+  # named verify.html, dropped inside a folder, is still a recording.
   find "$FOLDER" -mindepth 1 \
     \( -path "$FOLDER/Recordings" \
        -o -name '.*' \
        -o -path "$FOLDER/files" \
+       -o -path "$FOLDER/verify.html" \
        -o \( -type d -exec test -e '{}/proof.json' ';' \) \
     \) -prune -o -type f -print0
 }

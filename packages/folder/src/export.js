@@ -39,7 +39,8 @@
 //   dayOfExport. An export with no seal yet has no day and waits at the
 //   Recordings/ root until a tidy pass files it.
 //
-//   The top level is the drop zone and stays empty at rest: the shutter and
+//   The top level is the drop zone and holds nothing at rest but the
+//   installed verify.html (the offline verifier, 1.14.0): the shutter and
 //   the archive are different places. Exports found flat at the top level
 //   (an older layout, or an old export dragged back in) are tucked into
 //   Recordings/ by the next tidy pass; discovery is by content everywhere,
@@ -1820,11 +1821,15 @@ function droppableUnder(dir) {
   // files/ would only be found twice anyway, and dedup-by-digest absorbs
   // even that. ethereum-anchors/ stays name-based on purpose: it is proof
   // material wherever it sits, because exports are deliberately descended.
+  // The installed verify.html at the folder root (1.14.0) is pruned by its
+  // exact top-level path, like the watcher does: it is the verifier, not a
+  // recording to recover; a user's own verify.html deeper down still is.
   var top = String(dir).replace(/\/+$/, '');
   try {
     sh('find ' + quote(top) + ' -mindepth 1 ' +
       '\\( -name ' + quote('.*') +
       ' -o -path ' + quote(top + '/' + FILES_DIR) +
+      ' -o -path ' + quote(top + '/verify.html') +
       ' -o -name ' + quote(ANCHOR_DIR) + ' \\) -prune -o ' +
       '-type f ! -name ' + quote('index.html') +
       ' ! -name ' + quote('proof.json') +

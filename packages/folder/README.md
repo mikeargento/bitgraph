@@ -8,19 +8,33 @@ export folder holding its proof and the Ethereum anchors that bracket it.
 
 ```
 BitGraph/
+    verify.html                       the offline verifier (open it, drop a recording on it)
     Recordings/
-        BitGraph (sunset.jpg)/
-            proof.json
-            sunset.jpg
-            ethereum-anchors/
-                anchor-before.json    anchor-before-witness.json
-                anchor-after.json     anchor-after-witness.json
+        2026-08-12/                   the UTC day the chain sealed it
+            BitGraph (sunset.jpg)/
+                proof.json
+                sunset.jpg
+                ethereum-anchors/
+                    anchor-before.json    anchor-before-witness.json
+                    anchor-after.json     anchor-after-witness.json
 ```
 
-The top level is the place you drop things, and it stays empty: the shutter
-and the archive are different places. Recordings land in `Recordings/`, and an
-export from an older version, or one you drag back in from anywhere, is tucked
-in there on the next pass.
+The top level is the place you drop things, and it holds nothing at rest but
+`verify.html`: the shutter and the archive are different places. Recordings
+land in `Recordings/`, filed by the UTC day the chain sealed them, and an
+export from an older version, or one you drag back in from anywhere, is
+tucked in there on the next pass.
+
+`verify.html` is the offline verifier. Double-click it and drop any recording
+folder onto it: it checks that the file hashes to the recorded digest, that
+the signature and slot binding verify, that the AWS Nitro attestation
+validates and binds that exact proof, that the enclave measurement is a
+published BitGraph one, and, from the block headers in the folder, which
+Ethereum blocks the recording sits between. It runs entirely on your machine
+with no network; the machine can be offline. It is the same check as
+`bitgraph-play check` from npm, built from the same code, and it says plainly
+what no offline check can establish. It is never recorded: the watcher knows
+it by its exact path.
 
 To browse your recordings, drag the whole folder onto
 [bitgraph.ing](https://bitgraph.ing): it loads as a roll, day by day, with
@@ -240,6 +254,7 @@ anyway and marked pending, and the next folder change completes it. You will see
 | Path | What it is |
 | --- | --- |
 | `~/BitGraph` | the watched folder |
+| `~/BitGraph/verify.html` | the offline verifier |
 | `~/Desktop/BitGraph` | symlink to it |
 | `~/.bitgraph/hotfolder.sh` | the watcher |
 | `~/.bitgraph/export.js` | the exporter (JavaScript for Automation) |
