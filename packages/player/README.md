@@ -46,9 +46,11 @@ no offline check can establish, stated rather than implied. `--json`
 prints the `bitgraph-check/1` report; exit codes match evaluation.
 
 The same check runs in a browser: `verify.html`, built from this package,
-ships with the BitGraph Folder and at bitgraph.ing/verify.html. Drop a
-recording folder on it, offline, and it renders the same report from the
-same code.
+ships inside the BitGraph Folder, beside Recordings. Open it and choose or
+drop a recording folder, offline, and it renders the same report from the
+same code. It is not hosted anywhere: the site's own drop box checks a file
+against the public ledger, and a second box that could only say
+"self-consistent" would be two boxes with different meanings.
 
 ## Start a rule
 

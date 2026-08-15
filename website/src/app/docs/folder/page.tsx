@@ -179,7 +179,10 @@ export default function FolderPage() {
 
       {/* The offline half of that promise (1.14.0). The proof page checks
           against the ledger; verify.html checks what the folder itself
-          carries, with no network at all, and says which half it is. */}
+          carries, with no network at all, and says which half it is. It is
+          NOT hosted on the site: a second drop box here that could only say
+          "self-consistent" beside the one that checks the ledger would be
+          two boxes with different meanings. It lives in the Folder. */}
       <h2 className="text-xl font-semibold">Verify with the machine offline</h2>
       <p className="text-[#1f2937]">
         Beside Recordings sits <code>verify.html</code>, one self-contained page. Open it and drop
@@ -189,8 +192,7 @@ export default function FolderPage() {
         folder are recomputed to place the recording between two blocks. No network request is
         made and nothing is uploaded, so it works in a drawer, years from now. It states what
         no offline check can establish, and it is the same check as{" "}
-        <code>bitgraph-play check</code> from npm, built from the same code. A copy lives at{" "}
-        <a href="/verify.html">bitgraph.ing/verify.html</a>.
+        <code>bitgraph-play check</code> from npm, built from the same code.
       </p>
 
       {/* "Your roll, on the site" lived here while /folder existed; the browser

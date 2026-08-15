@@ -3,46 +3,60 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://use.typekit.net; font-src https://use.typekit.net https://p.typekit.net; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; img-src data: blob:; media-src blob:; connect-src 'none'; form-action 'none'; base-uri 'none';">
 <title>BitGraph | Verify a BitGraph</title>
-<link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css">
 <style>
+/* The site's data font (JetBrains Mono, latin, OFL), embedded so the page
+   loads nothing; hashes, positions, and time windows render as on the
+   proof page. */
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 100 800; font-display: swap; src: url(data:font/woff2;base64,/*__MONO_FONT_B64__*/) format("woff2"); }
 /* The home page (bitgraph.ing), measured: same nav, same title, same deck,
    same box, same column. Values are the site's computed values at desktop;
-   the box fills the viewport the way the camera does. Type falls back to the
-   system stack when the Typekit kit cannot load (offline). */
+   the box fills the viewport the way the camera does. This page lives only
+   inside the BitGraph Folder and is opened from disk, so it loads nothing:
+   the site's webfont is not fetched (the kit is domain-locked and would not
+   load from file:// anyway) and the system stack stands in for it. */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { background: #f5f5f5; color: #111827; }
 body { font-family: acumin-pro, -apple-system, system-ui, "SF Pro Text", sans-serif; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 a { color: inherit; text-decoration: none; }
-#site-nav { position: sticky; top: 0; z-index: 10; background: #f5f5f5; padding: 14px 0 0; height: 58px; }
-.nav-inner { width: 90%; max-width: 800px; margin: 0 auto; height: 44px; display: flex; align-items: center; justify-content: space-between; }
-.logo { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; line-height: 36px; color: #111827; }
 /* Wrap and frame: the site's rules verbatim. --bg-wrap-min and --bg-cam-avail
    are measured by fit() below exactly as app/page.tsx measures them (room =
    innerHeight minus the nav at both ends; the frame gets what the siblings
    leave), so the frame is the same size as the home camera at any viewport. */
 .bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: var(--bg-wrap-min, auto); }
 .bitgraph-hero { display: flex; flex-direction: column; text-align: center; animation: slideIn .3s ease-out; }
+/* Results mode: the proof page's column, not the camera's. Top-aligned with
+   the proof page's padding, and the title is the proof page's "BitGraph
+   Recorded": left, the one title size, the card directly under it. */
+.bitgraph-wrap.bitgraph-results { justify-content: flex-start; min-height: auto; padding: 40px 0 80px; }
+.bitgraph-hero.results { text-align: left; }
+.title-row { display: block; }
+.title-action:empty { display: none; }
+.bitgraph-hero.results .title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 0 20px; }
+.bitgraph-hero.results h1.bg-page-title { font-size: clamp(26px, 6vw, 32px); text-align: left; margin: 0; }
+.title-action { flex-shrink: 0; }
+.bitgraph-hero.results .hero-more { text-align: left; margin-top: 18px; }
 @keyframes slideIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
 h1.bg-page-title { font-size: clamp(26px, 6vw, 40px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; color: #111827; margin: 0 0 12px; text-align: center; }
 .hero-why { margin: 0 0 36px; }
 .hero-why p { margin: 0; font-size: clamp(14px, 2.5vw, 16px); line-height: 1.6; color: #4b5563; text-wrap: pretty; }
 .hero-why[hidden] { display: none; }
-.bitgraph-camera { width: 100%; aspect-ratio: 5 / 4; height: auto; max-height: var(--bg-cam-avail, calc(100dvh - 320px)); min-height: 180px; align-self: center; margin: 0 auto; }
-@media (min-width: 769px) { .bitgraph-camera { aspect-ratio: 3 / 2; max-height: var(--bg-cam-avail, calc(100dvh - 280px)); } }
-@media (max-height: 520px) { .bitgraph-camera { min-height: 120px; } }
+/* The one action, framed: a white card holding the choose link at the
+   Folder page's download size. A click anywhere on the card opens the folder
+   dialog; a drop on it still works. Solid card border, not the dashed drop
+   edge: the link is the affordance, the drop is a courtesy. */
+.bitgraph-camera { align-self: center; margin: 0 auto; display: flex; justify-content: center; }
 .bitgraph-camera[hidden] { display: none; }
-#drop { position: relative; width: 100%; height: 100%; background-color: #fff; border-radius: 0; cursor: pointer; display: flex; align-items: center; transition: background-color .2s; outline: none; }
-#drop:hover { background-color: #fafbfd; }
+#drop { position: relative; display: inline-block; background-color: #fff; border: 1px solid #d0d5dd; border-radius: 0; padding: 22px 32px; cursor: pointer; text-align: center; transition: background-color .2s, border-color .2s; outline: none; }
+#drop:hover, #drop.hot { background-color: #fafbfd; }
+#drop.over { background-color: #f0f6ff; border-color: #0065A4; }
 #drop.busy { opacity: 0.6; }
-#drop input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-#drop input#pick-files { display: none; }
-.fd-inner { width: 100%; padding: 20px 24px; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
-.fd-headline { font-size: min(26px, 4.25vw); font-weight: 600; letter-spacing: -0.025em; line-height: 1.5; text-align: center; color: #111827; }
-.fd-hints { margin-top: 12px; }
-.fd-hint, .fd-subhint { font-size: min(13.5px, 3vw); line-height: 1.5; color: #374151; text-align: center; text-wrap: balance; }
-.fd-subhint { margin-top: 6px; }
+#drop:focus-visible { box-shadow: 0 0 0 2px rgba(0,101,164,0.2); }
+#drop input { display: none; }
+.choose-link { color: #0065A4; font-weight: 600; font-size: clamp(17.5px, 4vw, 19px); letter-spacing: -0.015em; line-height: 1.4; display: inline; }
+.choose-link .arrow { display: inline-block; transition: transform .15s; }
+#drop:hover .choose-link .arrow, #drop.hot .choose-link .arrow { transform: translateX(3px); }
 #status { min-height: 0; font-size: 14px; color: #4b5563; text-align: center; }
 #status:empty { display: none; }
 /* Results: the proof page's card grid, in the same column. */
@@ -50,15 +64,33 @@ h1.bg-page-title { font-size: clamp(26px, 6vw, 40px); font-weight: 600; letter-s
 #results[hidden] { display: none; }
 .card { background: #fff; border: 1px solid #d0d5dd; border-radius: 0; overflow: hidden; }
 .card.primary { padding: 4px 0; }
-.summary { padding: 14px 16px; border-bottom: 1px solid #e2e5e9; font-size: 14px; font-weight: 400; line-height: 1.5; color: #111827; }
-.summary.false { color: #b42318; }
+/* The proof page's card rows. */
+.notice { padding: 14px 16px; border-bottom: 1px solid #e2e5e9; font-size: 14px; line-height: 1.5; color: #374151; }
+.notice.false { color: #b42318; }
+.when { display: flex; flex-direction: column; gap: 5px; padding: 14px 16px; border-bottom: 1px solid #e2e5e9; }
+.when-date { font-size: 14px; font-weight: 700; color: #111827; letter-spacing: -0.01em; }
+.when-line { font-size: 12px; line-height: 1.6; font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.when-grey { color: #4b5563; }
+.when-dark { color: #111827; }
+.file-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #e2e5e9; }
+.file-row.above { border-top: 1px solid #eef0f1; }
+.file-ident { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #4b5563; }
+.file-name { font-weight: 600; color: #111827; }
+.file-right { display: inline-flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.file-missing { font-size: 13px; color: #4b5563; }
+.excerpt { margin: 0; padding: 16px; font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.6; color: #374151; white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: hidden; }
+.field-link { font-size: 13px; color: #0065A4; word-break: break-all; }
+.action-box { padding: 0 16px; }
+.bg-action-link { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #0065A4; padding: 14px 0; text-decoration: none; }
+.bg-action-link .arrow { display: inline-block; transition: transform .15s; }
+.bg-action-link:hover .arrow { transform: translateX(3px); }
 .field { display: flex; flex-direction: column; gap: 5px; padding: 14px 16px; border-bottom: 1px solid #e2e5e9; }
 .card > .field:last-child, .opener-body > .field:last-child { border-bottom: none; }
 .field-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .field-label { font-size: 14px; color: #374151; font-weight: 700; }
 .field-value { font-size: 14px; color: #111827; word-break: break-word; }
-.field-value.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; word-break: break-all; }
-.mark { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; white-space: nowrap; }
+.field-value.mono, .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; word-break: break-all; }
+.mark { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; white-space: nowrap; }
 .mark.true { color: #0065A4; }
 .mark.false { color: #b42318; }
 .mark.undet { color: #6b7280; }
@@ -73,7 +105,7 @@ h1.bg-page-title { font-size: clamp(26px, 6vw, 40px); font-weight: 600; letter-s
 .opener-body[hidden] { display: none; }
 .list { padding: 12px 16px 12px 34px; font-size: 14px; color: #374151; }
 .list li { margin: 4px 0; }
-.json { padding: 12px 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; line-height: 1.45; color: #374151; white-space: pre; overflow-x: auto; }
+.json { padding: 12px 16px; font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; line-height: 1.45; color: #374151; white-space: pre; overflow-x: auto; }
 /* The link under the box, where the home page keeps "See an example". */
 .hero-more { margin-top: 42px; text-align: center; }
 .edition { font-size: 14px; line-height: 21px; color: #4b5563; margin-bottom: 4px; }
@@ -85,30 +117,21 @@ h1.bg-page-title { font-size: clamp(26px, 6vw, 40px); font-weight: 600; letter-s
 </style>
 </head>
 <body>
-<div id="site-nav"><div class="nav-inner">
-  <a class="logo" href="https://bitgraph.ing/">BitGraph</a>
-</div></div>
 <main>
   <div class="bitgraph-wrap">
     <div class="bitgraph-hero">
-      <h1 class="bg-page-title" id="title">Verify a BitGraph</h1>
+      <div class="title-row" id="title-row"><h1 class="bg-page-title" id="title">Verify a BitGraph</h1><span class="title-action" id="title-action"></span></div>
       <div class="hero-why" id="deck"><p>Verify your BitGraphs offline</p></div>
       <div class="bitgraph-camera" id="camera">
-        <div id="drop">
+        <div id="drop" role="button" tabindex="0" aria-label="Choose a BitGraph folder to verify">
           <input id="pick-folder" type="file" webkitdirectory directory multiple aria-label="Choose a folder">
           <input id="pick-files" type="file" multiple>
-          <div class="fd-inner">
-            <div class="fd-headline">Check BitGraphs</div>
-            <div class="fd-hints">
-              <div class="fd-hint">Choose a folder, or drag in files.</div>
-              <div class="fd-subhint">Your file never leaves your device.</div>
-            </div>
-          </div>
+          <span class="choose-link">Choose a BitGraph folder to verify <span class="arrow" aria-hidden="true">→</span></span>
         </div>
       </div>
       <div id="status"></div>
       <div id="results" hidden></div>
-      <div class="hero-more" id="more"><div class="edition" id="edition" data-version="/*__FOLDER_VERSION__*/">BitGraph Folder /*__FOLDER_VERSION__*/</div><a class="bg-arrow-link" id="folder-link" href="https://bitgraph.ing/docs/folder">Download for macOS <span class="arrow" aria-hidden="true">→</span></a></div>
+      <div class="hero-more" id="more"><div class="edition" id="edition" data-version="/*__FOLDER_VERSION__*/">BitGraph Folder /*__FOLDER_VERSION__*/</div><a class="bg-arrow-link" id="folder-link" href="https://bitgraph.ing/docs/folder">Check for updates <span class="arrow" aria-hidden="true">→</span></a></div>
     </div>
   </div>
 </main>
