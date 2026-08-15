@@ -17,7 +17,6 @@
  * Zero network access, as everywhere in this package.
  */
 
-import { readFileSync } from "node:fs";
 import { ingestBundle } from "./ingest.js";
 import { verifyObservedProofs } from "./verify-tiers.js";
 import { reconstructChains } from "./reconstruct.js";
@@ -27,28 +26,49 @@ import { identifyAnchors } from "./anchors.js";
 import { verifyAnchorWitnesses } from "./witness.js";
 import { deriveTemporalBounds } from "./temporal.js";
 import { validateAttestations } from "./attestation.js";
-import type { AuditOptions, AuditResult, ExitFlags } from "./types.js";
+import type { AuditOptions, AuditResult, ExitFlags, IngestResult } from "./types.js";
 
-let cachedToolVersion: string | undefined;
+/**
+ * The audit package's own version, as a source constant rather than a
+ * runtime package.json read. The read had two failure modes in bundled
+ * embedders (esbuild/webpack output, browsers): a foreign package.json one
+ * level up supplies the WRONG version into every report, or there is no
+ * package.json at all and the read throws mid-audit. A unit test asserts
+ * this equals package.json's version, so the constant cannot drift silently
+ * across releases.
+ */
+export const AUDIT_VERSION = "0.2.0";
 
-/** The audit package's own version, read once from its package.json. */
+/** The audit package's own version. */
 export function auditToolVersion(): string {
-  if (cachedToolVersion === undefined) {
-    const raw = readFileSync(new URL("../package.json", import.meta.url), "utf8");
-    cachedToolVersion = (JSON.parse(raw) as { version: string }).version;
-  }
-  return cachedToolVersion;
+  return AUDIT_VERSION;
+}
+
+/** Options for auditIngest(): the audit options plus the run stamp. */
+export interface AuditIngestOptions extends AuditOptions {
+  /**
+   * The runMetadata.startedAt value. runAudit() stamps the wall clock here;
+   * an embedder that needs a fully deterministic result supplies its own
+   * (any string, for example ""). Defaults to the wall clock when omitted.
+   */
+  startedAt?: string;
 }
 
 /**
- * Run the complete audit pipeline over a bundle (directory, .tar, .tar.gz,
- * or .tgz) and return everything every stage produced.
+ * The pure tail of the pipeline over an already-ingested bundle: every
+ * stage after ingest, in canonical order, with no filesystem access. This
+ * is how a browser or an embedder that used ingestEntries() gets the same
+ * AuditResult the CLI gets from a path. runAudit() is exactly
+ * ingestBundle() followed by this.
  */
-export async function runAudit(bundlePath: string, options?: AuditOptions): Promise<AuditResult> {
-  // The ONLY wall-clock read in the pipeline. See AuditRunMetadata.
-  const startedAt = new Date().toISOString();
+export async function auditIngest(
+  ingest: IngestResult,
+  options?: AuditIngestOptions
+): Promise<AuditResult> {
+  // The ONLY wall-clock read in the pipeline, and only when the caller did
+  // not supply the stamp. See AuditRunMetadata.
+  const startedAt = options?.startedAt ?? new Date().toISOString();
 
-  const ingest = await ingestBundle(bundlePath);
   const verification = await verifyObservedProofs(
     ingest,
     options?.trustAnchors !== undefined ? { trustAnchors: options.trustAnchors } : undefined
@@ -72,7 +92,7 @@ export async function runAudit(bundlePath: string, options?: AuditOptions): Prom
     runMetadata: {
       toolVersion: auditToolVersion(),
       startedAt,
-      bundlePath,
+      bundlePath: ingest.bundlePath,
       container: ingest.container,
     },
     ingest,
@@ -85,6 +105,15 @@ export async function runAudit(bundlePath: string, options?: AuditOptions): Prom
     temporal,
     attestations,
   };
+}
+
+/**
+ * Run the complete audit pipeline over a bundle (directory, .tar, .tar.gz,
+ * or .tgz) and return everything every stage produced.
+ */
+export async function runAudit(bundlePath: string, options?: AuditOptions): Promise<AuditResult> {
+  const ingest = await ingestBundle(bundlePath);
+  return auditIngest(ingest, options);
 }
 
 /**

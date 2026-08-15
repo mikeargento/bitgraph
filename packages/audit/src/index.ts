@@ -45,6 +45,7 @@ export type {
   ReconstructionResult,
   ChainAnomaly,
   UnexplainedPositionsDetail,
+  BoundaryEntryPoint,
   DivergenceKind,
   DivergenceParty,
   DivergenceRecord,
@@ -84,7 +85,8 @@ export type {
   AuditJsonReport,
 } from "./types.js";
 
-export { ingestBundle, streamMatchedArtifacts, DEFAULT_INGEST_LIMITS } from "./ingest.js";
+export { ingestBundle, ingestEntries, streamMatchedArtifacts, DEFAULT_INGEST_LIMITS } from "./ingest.js";
+export type { BundleEntrySource } from "./ingest.js";
 
 export { verifyObservedProofs } from "./verify-tiers.js";
 
@@ -102,7 +104,8 @@ export { deriveTemporalBounds } from "./temporal.js";
 
 export { validateAttestations, validateNitroAttestationDocument } from "./attestation.js";
 
-export { runAudit, computeExitFlags, auditToolVersion } from "./audit.js";
+export { runAudit, auditIngest, computeExitFlags, auditToolVersion, AUDIT_VERSION } from "./audit.js";
+export type { AuditIngestOptions } from "./audit.js";
 
 export { buildJsonReport } from "./report-json.js";
 

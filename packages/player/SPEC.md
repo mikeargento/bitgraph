@@ -238,9 +238,12 @@ bundle contents MUST be byte-identical.
 Diagnostics go to stderr. Stdout carries verdict bytes only.
 
 These requirements govern evaluation invocations. A command-line Player
-MAY offer authoring conveniences (such as rule scaffolding) as distinct
+MAY offer authoring conveniences (such as rule scaffolding) and reading
+conveniences (such as a bundle check that reports, in the three values,
+what a bundle establishes about the recordings it holds) as distinct
 subcommands; those are outside this specification and MUST NOT change
-the behavior of evaluation invocations.
+the behavior of evaluation invocations. The reference implementation's
+`check` subcommand uses the same exit-code mapping as evaluation.
 
 ## 9. Format 2: trustedKeys and signedBy
 

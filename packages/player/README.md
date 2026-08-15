@@ -25,6 +25,31 @@ folders the BitGraph Folder writes). Exit codes: `0` TRUE, `1` FALSE,
 `2` UNDETERMINED, `3` error. `--out file` writes the verdict to a file;
 `--summary` prints a bundle reconnaissance to stderr.
 
+## Check a bundle
+
+    bitgraph-play check "BitGraph (photo.jpg)/"
+    bitgraph-play check proof.json photo.jpg --json
+
+No rule needed. `check` reads an export (a folder or archive, or a
+proof.json beside the file it records) and says, offline, what the bundle
+establishes about each recording in it: that the file in hand hashes to
+the recorded digest, that the Ed25519 signature and slot binding verify,
+that the AWS Nitro attestation validates to the AWS root and binds this
+exact proof, that the attested PCR0 is a published BitGraph enclave
+measurement, and, from block headers in the bundle, which Ethereum blocks
+the recording sits between. Every line is TRUE, FALSE, or UNDETERMINED:
+FALSE only when evidence in hand contradicts the recording (an edited
+signature, a block header that does not hash to its anchor), UNDETERMINED
+when the evidence does not decide (the file is not in the bundle, a
+witness is missing). Absence is never a verdict. The report ends with what
+no offline check can establish, stated rather than implied. `--json`
+prints the `bitgraph-check/1` report; exit codes match evaluation.
+
+The same check runs in a browser: `verify.html`, built from this package,
+ships with the BitGraph Folder and at bitgraph.ing/verify.html. Drop a
+recording folder on it, offline, and it renders the same report from the
+same code.
+
 ## Start a rule
 
     bitgraph-play init po.pdf delivery.jpg approval.pdf --out rule.json
@@ -121,6 +146,19 @@ const resolutions = resolveCast(rule.cast, audit);
 const evaluation = evaluate(rule, resolutions, audit);
 const verdict = buildVerdict(rule, ruleSha256Hex, resolutions, evaluation, audit);
 process.stdout.write(serializeVerdict(verdict));
+```
+
+`check` is exported the same way, in two halves that the CLI and the
+browser page share:
+
+```ts
+import { ingestBundle, ingestEntries } from "@mikeargento/bitgraph-audit";
+import { checkIngest, renderCheckText } from "@mikeargento/bitgraph-player";
+
+const report = await checkIngest(await ingestBundle("BitGraph (photo.jpg)/"));
+// or, from bytes already in hand (a browser drop):
+// await checkIngest(await ingestEntries([{ path: "proof.json", open: () => bytes }]));
+process.stdout.write(renderCheckText(report));
 ```
 
 ## License

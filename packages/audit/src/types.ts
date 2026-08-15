@@ -385,7 +385,11 @@ export interface ManifestReport {
 // ---------------------------------------------------------------------------
 
 /** Accepted container forms per the bundle spec section 4. */
-export type ContainerKind = "directory" | "tar" | "tar-gz";
+/**
+ * "memory" is an ingestEntries() result: entries supplied by the caller
+ * with no container on disk. bundlePath is then the caller's label (or "").
+ */
+export type ContainerKind = "directory" | "tar" | "tar-gz" | "memory";
 
 export interface IngestCounts {
   /** Unique observed proofs by canonical identity. */

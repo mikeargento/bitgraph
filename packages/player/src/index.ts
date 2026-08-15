@@ -44,3 +44,6 @@ export { kleeneAll, kleeneAny, kleeneNot } from "./logic.js";
 export { evaluate } from "./evaluate.js";
 export type { Evaluation } from "./evaluate.js";
 export { buildVerdict, serializeVerdict, playerVersion, PLAYER_VERSION } from "./verdict.js";
+
+export { checkIngest, buildCheckReport, renderCheckText, serializeCheckReport, KNOWN_ENCLAVE_MEASUREMENTS } from "./check.js";
+export type { CheckReport, CheckRecording, CheckAnchor, CheckLine, CheckBounds, CheckBound, CheckOptions } from "./check.js";

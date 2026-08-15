@@ -160,6 +160,141 @@ export async function ingestBundle(
     strippedRootPrefix = rootTracker.commonRoot();
   }
 
+  return finalizeIngest({
+    bundlePath,
+    container,
+    scanned,
+    strippedRootPrefix,
+    findings,
+    entriesScanned,
+    skippedUnsafePaths,
+  });
+}
+
+/**
+ * One in-memory bundle entry for ingestEntries(): a bundle-root-relative
+ * path (forward slashes) and a way to open its bytes. `open` may be called
+ * more than once (once to scan and hash, again to re-read matched artifact
+ * bytes for full-tier verification), and it may return the bytes whole,
+ * a promise of them, or an async chunk stream, so a browser can hand over
+ * File objects without buffering every artifact up front.
+ */
+export interface BundleEntrySource {
+  path: string;
+  open: () => Uint8Array | Promise<Uint8Array> | AsyncIterable<Uint8Array>;
+}
+
+/**
+ * Per-result registry of entry sources for in-memory ("memory" container)
+ * ingests, so streamMatchedArtifacts can re-read artifact bytes without the
+ * IngestResult carrying functions. Keyed by identity: a structurally cloned
+ * IngestResult loses its sources and yields no artifact bytes, which
+ * downgrades every proof to the integrity tier rather than crashing.
+ */
+const memorySources = new WeakMap<IngestResult, Map<string, BundleEntrySource>>();
+
+/**
+ * Ingest a bundle from in-memory entries: the filesystem-free counterpart
+ * of ingestBundle(), for browsers and embedders that already hold the
+ * bytes. Same discovery, classification, hashing, and matching, so the
+ * result feeds the same verification and reconstruction stages. Entries
+ * are ordered by path before scanning so the result is deterministic
+ * regardless of the order the caller supplied them; paths are normalized
+ * exactly as tar entries are (unsafe paths are skipped and reported).
+ * Performs no verification and no network access.
+ */
+export async function ingestEntries(
+  entries: Iterable<BundleEntrySource>,
+  options?: { label?: string }
+): Promise<IngestResult> {
+  const findings: AuditFinding[] = [];
+  let skippedUnsafePaths = 0;
+  let entriesScanned = 0;
+  const scanned: ScannedEntry[] = [];
+  const sources = new Map<string, BundleEntrySource>();
+
+  const ordered = Array.from(entries).sort((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0
+  );
+  for (const entry of ordered) {
+    entriesScanned++;
+    const normalized = normalizeEntryPath(entry.path);
+    if (normalized.unsafe) {
+      skippedUnsafePaths++;
+      findings.push({
+        code: "unsafe-path",
+        path: entry.path,
+        message: `entry skipped: ${normalized.reason}`,
+      });
+      continue;
+    }
+    const hashed = await hashEntryStream(
+      normalized.path,
+      undefined,
+      undefined,
+      openAsChunks(entry.open())
+    );
+    scanned.push(makeScannedEntry(normalized.path, hashed));
+    sources.set(normalized.path, entry);
+  }
+
+  const result = finalizeIngest({
+    bundlePath: options?.label ?? "",
+    container: "memory",
+    scanned,
+    strippedRootPrefix: undefined,
+    findings,
+    entriesScanned,
+    skippedUnsafePaths,
+  });
+  memorySources.set(result, sources);
+  return result;
+}
+
+/** Adapt every accepted `open()` return shape to a chunk stream. */
+async function* openAsChunks(
+  opened: Uint8Array | Promise<Uint8Array> | AsyncIterable<Uint8Array>
+): AsyncGenerator<Uint8Array, void, void> {
+  const value = await Promise.resolve(opened as Uint8Array | Promise<Uint8Array>);
+  if (value instanceof Uint8Array) {
+    yield value;
+    return;
+  }
+  // Not a Uint8Array and not a promise of one: an async iterable.
+  for await (const chunk of opened as AsyncIterable<Uint8Array>) yield chunk;
+}
+
+/** Read an in-memory entry whole for artifact re-reads. */
+async function readSourceWhole(source: BundleEntrySource): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for await (const chunk of openAsChunks(source.open())) {
+    chunks.push(chunk);
+    total += chunk.length;
+  }
+  return concatBytes(chunks, total);
+}
+
+interface FinalizeParams {
+  bundlePath: string;
+  container: ContainerKind;
+  scanned: ScannedEntry[];
+  strippedRootPrefix: string | undefined;
+  findings: AuditFinding[];
+  entriesScanned: number;
+  skippedUnsafePaths: number;
+}
+
+/**
+ * The container-independent tail of ingest: path finalization, the
+ * contents hash, classification by schema shape, and content-addressed
+ * artifact matching. Both ingestBundle() and ingestEntries() end here, so
+ * a directory, an archive, and an in-memory entry set that hold the same
+ * bytes at the same paths classify identically.
+ */
+function finalizeIngest(params: FinalizeParams): IngestResult {
+  const { bundlePath, container, scanned, strippedRootPrefix, findings, entriesScanned, skippedUnsafePaths } = params;
+
   const finalByPath = new Map<string, FinalEntry>();
   for (const entry of scanned) {
     let finalPath = entry.rawPath;
@@ -317,6 +452,30 @@ export async function* streamMatchedArtifacts(
 ): AsyncGenerator<MatchedArtifactBytes, void, void> {
   const needed = ingest.artifacts.filter((a) => a.matchedProofHashes.length > 0);
   if (needed.length === 0) return;
+
+  if (ingest.container === "memory") {
+    // In-memory ingest: re-open through the registered sources. A result
+    // whose sources are unknown (cloned, or not from ingestEntries) yields
+    // nothing, so verification falls back to the integrity tier.
+    const sources = memorySources.get(ingest);
+    if (sources === undefined) return;
+    for (const artifact of needed) {
+      for (const relPath of artifact.paths) {
+        const source = sources.get(relPath);
+        if (source === undefined) continue;
+        let bytes: Uint8Array;
+        try {
+          bytes = await readSourceWhole(source);
+        } catch {
+          continue;
+        }
+        if (toHex(sha256(bytes)) !== artifact.sha256Hex) continue;
+        yield { sha256Hex: artifact.sha256Hex, path: relPath, bytes };
+        break;
+      }
+    }
+    return;
+  }
 
   if (ingest.container === "directory") {
     for (const artifact of needed) {

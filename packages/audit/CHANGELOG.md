@@ -2,6 +2,34 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## 0.2.0 (2026-08-15)
+
+The filesystem-free path. Nothing about verification, reconstruction, or
+reporting changed; every existing result is byte-identical.
+
+### Added
+
+- `ingestEntries(entries, { label? })`: ingest a bundle from in-memory
+  entries (`{ path, open }`, where `open` returns bytes, a promise of bytes,
+  or an async chunk stream). Same discovery, hashing, classification, and
+  content-addressed matching as `ingestBundle`, so a directory, an archive,
+  and an entry set holding the same bytes at the same paths classify
+  identically. Entries are ordered by path before scanning. This is what a
+  browser hands over when a bundle is dropped on a page.
+- `auditIngest(ingest, options)`: the pure tail of the pipeline over an
+  already-ingested bundle (every stage after ingest, no filesystem).
+  `runAudit(path)` is now exactly `ingestBundle` followed by this. Accepts
+  `startedAt` so an embedder can produce a fully deterministic result.
+- `ContainerKind` gains `"memory"`; `IngestResult.bundlePath` is then the
+  caller's label (or `""`).
+- `AUDIT_VERSION`: the package version as a source constant.
+  `auditToolVersion()` returns it instead of reading `package.json` from
+  disk at runtime, which broke bundled embedders (wrong version from a
+  foreign `package.json`, or ENOENT). A test pins the constant to
+  `package.json`.
+- `BoundaryEntryPoint` is now re-exported from the package index (it was
+  reachable only structurally before).
+
 ## 0.1.1 (2026-07-10)
 
 Correctness fixes found by running against a real production epoch bundle.

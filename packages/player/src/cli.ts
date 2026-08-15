@@ -4,6 +4,7 @@
 /**
  * bitgraph-play <rule.json> <bundle> [--out <file>] [--summary]
  * bitgraph-play init <file>... [--out <rule.json>]
+ * bitgraph-play check <bundle-or-file>... [--json] [--out <file>]
  *
  * Evaluate: runs a bitgraph-player/1 rule against a proof bundle
  * (directory, .tar, .tar.gz, or .tgz) and writes the verdict JSON to
@@ -15,9 +16,15 @@
  * a placeholder the author must replace — the trust floor has no
  * default, and the scaffolder must not choose it either.
  *
+ * Check: reads a bundle (a directory or archive, or a list of files such
+ * as a proof.json and the file it records) and reports, in the three
+ * values, what the bundle establishes about each recording it holds and
+ * what bounds it. Human text on stdout by default; --json for the
+ * bitgraph-check/1 report. Offline. See check.ts for the vocabulary.
+ *
  * Exit codes: 0 TRUE, 1 FALSE, 2 UNDETERMINED, 3 error (init: 0 or 3).
- * Diagnostics go to stderr; stdout carries the verdict (or skeleton)
- * bytes only.
+ * Diagnostics go to stderr; stdout carries the verdict (or skeleton, or
+ * check report) bytes only.
  *
  * The process exits by setting process.exitCode and returning, never by
  * process.exit(): exiting early would truncate output still draining to
@@ -26,9 +33,12 @@
 
 import { createHash } from "node:crypto";
 import { createReadStream, existsSync, writeFileSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { pipeline } from "node:stream/promises";
-import type { AuditResult } from "@mikeargento/bitgraph-audit";
+import type { AuditResult, BundleEntrySource } from "@mikeargento/bitgraph-audit";
+import { ingestBundle, ingestEntries } from "@mikeargento/bitgraph-audit";
+import { checkIngest, renderCheckText, serializeCheckReport } from "./check.js";
 import { scaffoldRule } from "./init.js";
 import type { ScaffoldEntry } from "./init.js";
 import { play, PlayError } from "./play.js";
@@ -38,8 +48,9 @@ function usage(): number {
   process.stderr.write(
     "usage: bitgraph-play <rule.json> <bundle> [--out <file>] [--summary]\n" +
       "       bitgraph-play init <file>... [--out <rule.json>]\n" +
-      '  "--" ends option parsing; a rule file literally named "init" is\n' +
-      "  evaluated with: bitgraph-play -- init <bundle>\n" +
+      "       bitgraph-play check <bundle-or-file>... [--json] [--out <file>]\n" +
+      '  "--" ends option parsing; a rule file literally named "init" or\n' +
+      '  "check" is evaluated with: bitgraph-play -- init <bundle>\n' +
       "  exit codes: 0 TRUE, 1 FALSE, 2 UNDETERMINED, 3 error\n"
   );
   return 3;
@@ -79,10 +90,11 @@ interface ParsedArgs {
   positional: string[];
   outFile?: string;
   summary: boolean;
+  json: boolean;
 }
 
 function parseArgs(args: string[]): ParsedArgs | undefined {
-  const parsed: ParsedArgs = { positional: [], summary: false };
+  const parsed: ParsedArgs = { positional: [], summary: false, json: false };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] as string;
     if (arg === "--") {
@@ -95,6 +107,8 @@ function parseArgs(args: string[]): ParsedArgs | undefined {
       parsed.outFile = next;
     } else if (arg === "--summary") {
       parsed.summary = true;
+    } else if (arg === "--json") {
+      parsed.json = true;
     } else if (arg.startsWith("-")) {
       return undefined;
     } else {
@@ -104,8 +118,58 @@ function parseArgs(args: string[]): ParsedArgs | undefined {
   return parsed;
 }
 
-async function runInit(args: ParsedArgs): Promise<number> {
+/**
+ * check: one directory or archive path is ingested as a bundle; any other
+ * argument list (one or more plain files, or several paths) is ingested
+ * in memory as a flat set of entries named by their basenames, so
+ * `bitgraph-play check proof.json photo.jpg` works without a folder.
+ */
+async function runCheck(args: ParsedArgs): Promise<number> {
   if (args.summary) return usage();
+  const targets = args.positional;
+  if (targets.length === 0) return usage();
+
+  let ingest;
+  try {
+    const single = targets.length === 1 ? await stat(targets[0] as string) : undefined;
+    if (single !== undefined && (single.isDirectory() || looksLikeArchive(targets[0] as string))) {
+      ingest = await ingestBundle(targets[0] as string);
+    } else {
+      const entries: BundleEntrySource[] = [];
+      for (const target of targets) {
+        const info = await stat(target);
+        if (info.isDirectory()) {
+          // A directory among several arguments: ingest it as its own
+          // bundle would be ambiguous, so refuse plainly.
+          process.stderr.write(`error: ${target} is a directory; pass one bundle path, or a list of files\n`);
+          return 3;
+        }
+        entries.push({ path: basename(target), open: () => readFile(target).then((b) => new Uint8Array(b)) });
+      }
+      ingest = await ingestEntries(entries);
+    }
+  } catch (err) {
+    process.stderr.write(`error: cannot read bundle: ${(err as Error).message}\n`);
+    return 3;
+  }
+
+  const report = await checkIngest(ingest);
+  const bytes = args.json ? serializeCheckReport(report) : renderCheckText(report);
+  if (args.outFile !== undefined) {
+    writeFileSync(args.outFile, bytes);
+  } else {
+    process.stdout.write(bytes);
+  }
+  return report.result === "TRUE" ? 0 : report.result === "FALSE" ? 1 : 2;
+}
+
+function looksLikeArchive(path: string): boolean {
+  const lower = path.toLowerCase();
+  return lower.endsWith(".tar") || lower.endsWith(".tar.gz") || lower.endsWith(".tgz");
+}
+
+async function runInit(args: ParsedArgs): Promise<number> {
+  if (args.summary || args.json) return usage();
   const files = args.positional;
   if (files.length === 0) return usage();
   if (args.outFile !== undefined && existsSync(args.outFile)) {
@@ -161,7 +225,7 @@ async function runInit(args: ParsedArgs): Promise<number> {
 }
 
 async function runEvaluate(args: ParsedArgs): Promise<number> {
-  if (args.positional.length !== 2) return usage();
+  if (args.json || args.positional.length !== 2) return usage();
   const [rulePath, bundlePath] = args.positional as [string, string];
 
   let result;
@@ -192,22 +256,24 @@ async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   // "--" as the first token forces evaluate mode: parseArgs treats
   // everything after it as positional, so a rule file literally named
-  // "init" is reachable as `bitgraph-play -- init <bundle>`.
-  const isInit = argv[0] === "init";
-  if (isInit && existsSync("init")) {
+  // "init" or "check" is reachable as `bitgraph-play -- init <bundle>`.
+  const subcommand = argv[0] === "init" || argv[0] === "check" ? argv[0] : undefined;
+  if (subcommand !== undefined && existsSync(subcommand)) {
     // Both readings are plausible here; a silent pick would hand a
     // 0.1.1 caller a skeleton with exit 0 where the published contract
     // returned a verdict. Refuse loudly instead.
     process.stderr.write(
-      'error: a file named "init" exists here, so this command is ambiguous.\n' +
-        '  to evaluate it as a rule:  bitgraph-play -- init <bundle>  (or ./init)\n' +
-        "  to scaffold a rule: rename that file or run from another directory\n"
+      `error: a file named "${subcommand}" exists here, so this command is ambiguous.\n` +
+        `  to evaluate it as a rule:  bitgraph-play -- ${subcommand} <bundle>  (or ./${subcommand})\n` +
+        `  to run the ${subcommand} subcommand: rename that file or run from another directory\n`
     );
     return 3;
   }
-  const parsed = parseArgs(isInit ? argv.slice(1) : argv);
+  const parsed = parseArgs(subcommand !== undefined ? argv.slice(1) : argv);
   if (parsed === undefined) return usage();
-  return isInit ? runInit(parsed) : runEvaluate(parsed);
+  if (subcommand === "init") return runInit(parsed);
+  if (subcommand === "check") return runCheck(parsed);
+  return runEvaluate(parsed);
 }
 
 main().then(
