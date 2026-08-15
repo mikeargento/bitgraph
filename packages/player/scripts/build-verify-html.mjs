@@ -75,7 +75,10 @@ const js = result.outputFiles[0].text;
 const safeJs = js.replace(/<\/script/gi, "<\\/script");
 const template = readFileSync(resolve(pkgRoot, "web", "template.html"), "utf8");
 if (!template.includes("/*__BUNDLE__*/")) throw new Error("template.html lacks the /*__BUNDLE__*/ marker");
-const html = template.replace("/*__BUNDLE__*/", () => safeJs);
+// The Folder edition this page ships with, from packages/folder/VERSION, so
+// the download link under the box always names the release it belongs to.
+const folderVersion = readFileSync(resolve(pkgRoot, "..", "folder", "VERSION"), "utf8").trim();
+const html = template.replace("/*__BUNDLE__*/", () => safeJs).replaceAll("/*__FOLDER_VERSION__*/", folderVersion);
 
 mkdirSync(dirname(defaultOut), { recursive: true });
 writeFileSync(defaultOut, html);

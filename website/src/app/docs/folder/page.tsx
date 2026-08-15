@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FolderTree } from "@/components/folder-tree";
+import { FOLDER_VERSION } from "@/lib/folder-version";
 
 export const metadata: Metadata = {
   title: "BitGraph Folder",
@@ -122,7 +123,10 @@ export default function FolderPage() {
             which is all the rank it needs. */}
         <p className="text-lg bg-dl-line">
           <span className="bg-dl-mac" style={{ fontSize: "clamp(17.5px, 4vw, 19px)", letterSpacing: "-0.015em" }}>
-            <Action href={DOWNLOAD}>Download for macOS</Action>
+            {/* The current release, from the same constant build-pkg.sh bumps
+                and the commit endpoint advertises, so this link and the
+                installer can never disagree about the number. */}
+            <Action href={DOWNLOAD}>Download {FOLDER_VERSION} for macOS</Action>
           </span>
           <span className="bg-dl-touch text-base text-[#1f2937]">
             Mac laptops and desktops only.

@@ -254,10 +254,9 @@ function anchorOpener(a: CheckAnchor, side: "before" | "after" | "other", index:
   return opener(`${title}  ${a.result === "TRUE" ? "" : `[${a.result}]`}`.trim(), body);
 }
 
-function renderReport(report: CheckReport, root: HTMLElement, titleEl: HTMLElement, ledeEl: HTMLElement): void {
+function renderReport(report: CheckReport, root: HTMLElement, titleEl: HTMLElement): void {
   root.replaceChildren();
   titleEl.textContent = pageTitleFor(report.result);
-  ledeEl.hidden = true;
 
   const one = report.recordings.length === 1 ? report.recordings[0] : undefined;
 
@@ -315,13 +314,17 @@ function renderReport(report: CheckReport, root: HTMLElement, titleEl: HTMLEleme
   root.append(opener("Not checked", [el("ul", { class: "list" }, report.notChecked.map((t) => el("li", {}, [t])))]));
   root.append(opener("Report JSON", [el("pre", { class: "json" }, [JSON.stringify(report, null, 2)])]));
 
-  // Actions and provenance, in the site's arrow-link voice.
-  const again = el("a", { class: "arrow-link", href: "#" }, ["Check another BitGraph ", el("span", { class: "arrow", "aria-hidden": "true" }, ["→"])]);
+  // The link under the results, in the slot the home page gives its example
+  // link: same class, same voice.
+  const more = document.getElementById("more") as HTMLElement;
+  more.replaceChildren(); // the download link gives way to "Check another"
+  const again = el("a", { class: "bg-arrow-link", href: "#" }, ["Check another BitGraph ", el("span", { class: "arrow", "aria-hidden": "true" }, ["→"])]);
   again.addEventListener("click", (e) => {
     e.preventDefault();
     location.reload();
   });
-  root.append(el("div", { class: "actions" }, [again]));
+  more.append(again);
+  more.hidden = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -341,10 +344,11 @@ async function run(dropped: DroppedFile[]): Promise<void> {
   try {
     const ingest = await ingestEntries(toEntries(dropped), { label: "dropped" });
     const report = await checkIngest(ingest, { webCryptoAvailable });
-    zone.hidden = true;
+    (document.getElementById("camera") as HTMLElement).hidden = true;
+    (document.getElementById("deck") as HTMLElement).hidden = true;
     status.textContent = "";
     results.hidden = false;
-    renderReport(report, results, document.getElementById("title") as HTMLElement, document.getElementById("lede") as HTMLElement);
+    renderReport(report, results, document.getElementById("title") as HTMLElement);
     document.title = `${report.result} · BitGraph verify`;
   } catch (err) {
     status.textContent = `The check could not run: ${(err as Error).message}`;
@@ -353,11 +357,104 @@ async function run(dropped: DroppedFile[]): Promise<void> {
   }
 }
 
+/**
+ * The site's dashed edge, ported from website/src/lib/use-dashed-edges.ts:
+ * four 2px repeating gradients whose dash and gap are fitted to each edge
+ * length so the corners land on dashes (dash:gap 9:7 at a 16px period).
+ */
+function fitDash(L: number): { d: number; g: number } {
+  const RATIO = 9 / 7;
+  const PERIOD = 16;
+  if (!L) return { d: 9, g: 7 };
+  const n = Math.max(2, Math.round((L + PERIOD / (1 + RATIO)) / PERIOD));
+  const g = L / (n * RATIO + n - 1);
+  return { d: RATIO * g, g };
+}
+
+function paintDashedEdges(box: HTMLElement, color: string): void {
+  const w = box.clientWidth;
+  const h = box.clientHeight;
+  if (!w || !h) return;
+  const H = fitDash(w);
+  const V = fitDash(h);
+  const across = `repeating-linear-gradient(to right, ${color} 0 ${H.d}px, transparent ${H.d}px ${H.d + H.g}px)`;
+  const down = `repeating-linear-gradient(to bottom, ${color} 0 ${V.d}px, transparent ${V.d}px ${V.d + V.g}px)`;
+  box.style.backgroundImage = [across, down, across, down].join(", ");
+  box.style.backgroundSize = "100% 2px, 2px 100%, 100% 2px, 2px 100%";
+  box.style.backgroundPosition = "0 0, 100% 0, 0 100%, 0 0";
+  box.style.backgroundRepeat = "no-repeat";
+}
+
+const EDGE = "#b3bac2";
+const EDGE_ACTIVE = "#0065A4";
+
+/**
+ * The home page's frame measurement (website/src/app/page.tsx), ported:
+ * the wrap is as tall as the viewport minus the nav at BOTH ends (so its
+ * centre is the viewport's centre while it still starts under the nav),
+ * and the frame gets whatever the wrap's padding and the frame's siblings
+ * leave, floored at 180 (120 on a short viewport). Summed from the
+ * siblings, never from the wrap's leftover height, so it cannot feed itself.
+ */
+function fitFrame(): void {
+  const wrap = document.querySelector(".bitgraph-wrap") as HTMLElement | null;
+  const cam = document.getElementById("camera");
+  const nav = document.getElementById("site-nav");
+  if (!wrap || !cam || !nav) return;
+  const box = (el: Element): number => {
+    const cs = getComputedStyle(el);
+    return (el as HTMLElement).offsetHeight + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+  };
+  const top = nav.offsetHeight;
+  const room = Math.round(window.innerHeight - top * 2);
+  const wcs = getComputedStyle(wrap);
+  let other = parseFloat(wcs.paddingTop) + parseFloat(wcs.paddingBottom) + box(cam) - cam.offsetHeight;
+  const hero = cam.parentElement;
+  if (hero) for (const el of Array.from(hero.children)) if (el !== cam) other += box(el);
+  const floor = window.innerHeight <= 520 ? 120 : 180;
+  const avail = Math.max(floor, Math.round(room - other));
+  wrap.style.setProperty("--bg-cam-avail", `${avail}px`);
+  wrap.style.setProperty("--bg-wrap-min", `${room}px`);
+}
+
+/**
+ * Under the frame: the Folder edition this page shipped with, and the one
+ * action that fits it. Opened from disk the page IS the copy the Folder
+ * installer placed (refreshed on every install), so the edition is the one
+ * the reader is on and the action is to check for updates; hosted, the
+ * action is to get it. Both go to the Folder page, which shows the current
+ * release.
+ */
+function labelFolderLink(): void {
+  const link = document.getElementById("folder-link");
+  if (link === null) return;
+  const local = location.protocol === "file:";
+  link.replaceChildren(
+    document.createTextNode(local ? "Check for updates " : "Download for macOS "),
+    el("span", { class: "arrow", "aria-hidden": "true" }, ["→"])
+  );
+}
+
 function wire(): void {
+  labelFolderLink();
   const zone = document.getElementById("drop") as HTMLElement;
   const status = document.getElementById("status") as HTMLElement;
   const pickFiles = document.getElementById("pick-files") as HTMLInputElement;
   const pickFolder = document.getElementById("pick-folder") as HTMLInputElement;
+
+  fitFrame();
+  window.addEventListener("resize", fitFrame);
+  window.addEventListener("orientationchange", fitFrame);
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(fitFrame);
+    const title = document.getElementById("title");
+    const more = document.getElementById("more");
+    if (title) ro.observe(title);
+    if (more) ro.observe(more);
+    new ResizeObserver(() => paintDashedEdges(zone, zone.classList.contains("over") ? EDGE_ACTIVE : EDGE)).observe(zone);
+  }
+  document.fonts?.ready.then(fitFrame).catch(() => {});
+  paintDashedEdges(zone, EDGE);
 
   if (!webCryptoAvailable) {
     status.textContent =
@@ -372,6 +469,7 @@ function wire(): void {
     zone.addEventListener(name, (e) => {
       prevent(e);
       zone.classList.add("over");
+      paintDashedEdges(zone, EDGE_ACTIVE);
     });
     document.body.addEventListener(name, prevent);
   }
@@ -379,6 +477,7 @@ function wire(): void {
     zone.addEventListener(name, (e) => {
       prevent(e);
       zone.classList.remove("over");
+      paintDashedEdges(zone, EDGE);
     });
     document.body.addEventListener(name, prevent);
   }

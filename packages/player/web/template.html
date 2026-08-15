@@ -3,34 +3,51 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none';">
-<title>BitGraph verify</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://use.typekit.net; font-src https://use.typekit.net https://p.typekit.net; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none';">
+<title>BitGraph | Verify a BitGraph</title>
+<link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css">
 <style>
+/* The home page (bitgraph.ing), measured: same nav, same title, same deck,
+   same box, same column. Values are the site's computed values at desktop;
+   the box fills the viewport the way the camera does. Type falls back to the
+   system stack when the Typekit kit cannot load (offline). */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { background: #f5f5f5; color: #111827; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
-.nav { max-width: 800px; margin: 0 auto; padding: 22px 16px 0; display: flex; align-items: baseline; justify-content: space-between; }
-.logo { font-weight: 900; font-size: 22px; letter-spacing: -0.02em; color: #111827; }
-.wrap { max-width: 800px; margin: 0 auto; padding: 28px 16px 80px; }
-/* The one title size every page header uses. */
-#title { font-size: clamp(26px, 6vw, 32px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; color: #111827; margin-bottom: 10px; }
-#lede { color: #374151; margin: 0 0 18px; max-width: 640px; font-size: 15px; }
-#lede b { color: #111827; }
-#lede[hidden] { display: none; }
-/* Drop target: dashed edge, like every drop target on the site. */
-#drop { background: #fff; border: 1.5px dashed #98a2b3; border-radius: 0; min-height: 300px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 28px 20px; gap: 6px; }
-#drop[hidden], #results[hidden] { display: none; }
-#drop.over { border-color: #0065A4; background: #f0f6ff; }
+body { font-family: acumin-pro, -apple-system, system-ui, "SF Pro Text", sans-serif; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+#site-nav { position: sticky; top: 0; z-index: 10; background: #f5f5f5; padding: 14px 0 0; height: 58px; }
+.nav-inner { width: 90%; max-width: 800px; margin: 0 auto; height: 44px; display: flex; align-items: center; justify-content: space-between; }
+.logo { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; line-height: 36px; color: #111827; }
+/* Wrap and frame: the site's rules verbatim. --bg-wrap-min and --bg-cam-avail
+   are measured by fit() below exactly as app/page.tsx measures them (room =
+   innerHeight minus the nav at both ends; the frame gets what the siblings
+   leave), so the frame is the same size as the home camera at any viewport. */
+.bitgraph-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 24px; min-height: var(--bg-wrap-min, auto); }
+.bitgraph-hero { display: flex; flex-direction: column; text-align: center; animation: slideIn .3s ease-out; }
+@keyframes slideIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+h1.bg-page-title { font-size: clamp(26px, 6vw, 40px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; color: #111827; margin: 0 0 12px; text-align: center; }
+.hero-why { margin: 0 0 36px; }
+.hero-why p { margin: 0; font-size: clamp(14px, 2.5vw, 16px); line-height: 1.6; color: #4b5563; text-wrap: pretty; }
+.hero-why[hidden] { display: none; }
+.bitgraph-camera { width: 100%; aspect-ratio: 5 / 4; height: auto; max-height: var(--bg-cam-avail, calc(100dvh - 320px)); min-height: 180px; align-self: center; margin: 0 auto; }
+@media (min-width: 769px) { .bitgraph-camera { aspect-ratio: 3 / 2; max-height: var(--bg-cam-avail, calc(100dvh - 280px)); } }
+@media (max-height: 520px) { .bitgraph-camera { min-height: 120px; } }
+.bitgraph-camera[hidden] { display: none; }
+#drop { position: relative; width: 100%; height: 100%; background-color: #fff; border-radius: 0; cursor: pointer; display: flex; align-items: center; transition: background-color .2s; outline: none; }
+#drop:hover { background-color: #fafbfd; }
 #drop.busy { opacity: 0.6; }
-#drop .big { font-size: 20px; font-weight: 600; }
-#drop .sub { font-size: 14px; color: #4b5563; }
-#drop .pickers { margin-top: 14px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
-#drop label { color: #0065A4; font-weight: 600; font-size: 14px; cursor: pointer; }
-#drop label:hover { text-decoration: underline; }
-#drop input { display: none; }
-#status { min-height: 22px; font-size: 14px; color: #4b5563; margin-top: 10px; }
-/* Results: the proof page's card grid. */
-#results { display: grid; grid-template-columns: 1fr; gap: 10px; }
+#drop input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+#drop input#pick-files { display: none; }
+.fd-inner { width: 100%; padding: 20px 24px; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.fd-headline { font-size: min(26px, 4.25vw); font-weight: 600; letter-spacing: -0.025em; line-height: 1.5; text-align: center; color: #111827; }
+.fd-hints { margin-top: 12px; }
+.fd-hint, .fd-subhint { font-size: min(13.5px, 3vw); line-height: 1.5; color: #374151; text-align: center; text-wrap: balance; }
+.fd-subhint { margin-top: 6px; }
+#status { min-height: 0; font-size: 14px; color: #4b5563; text-align: center; }
+#status:empty { display: none; }
+/* Results: the proof page's card grid, in the same column. */
+#results { display: grid; grid-template-columns: 1fr; gap: 10px; text-align: left; }
+#results[hidden] { display: none; }
 .card { background: #fff; border: 1px solid #d0d5dd; border-radius: 0; overflow: hidden; }
 .card.primary { padding: 4px 0; }
 .summary { padding: 14px 16px; border-bottom: 1px solid #e2e5e9; font-size: 14px; font-weight: 400; line-height: 1.5; color: #111827; }
@@ -45,8 +62,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 .mark.true { color: #0065A4; }
 .mark.false { color: #b42318; }
 .mark.undet { color: #6b7280; }
-/* Openers: the proof page's collapsible header. */
-.opener-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; color: #0065A4; padding: 14px 16px; background: #fff; border: none; border-bottom: none; text-align: left; font-family: inherit; cursor: pointer; transition: background .12s; }
+.opener-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; font-size: 14px; font-weight: 700; letter-spacing: 0.04em; color: #0065A4; padding: 14px 16px; background: #fff; border: none; text-align: left; font-family: inherit; cursor: pointer; transition: background .12s; }
 .opener-head.open { background: rgba(0,101,164,0.07); border-bottom: 1px solid #e2e5e9; }
 .opener-head:hover { background: rgba(0,101,164,0.07); }
 .opener-head.danger { color: #b42318; }
@@ -58,29 +74,43 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helve
 .list { padding: 12px 16px 12px 34px; font-size: 14px; color: #374151; }
 .list li { margin: 4px 0; }
 .json { padding: 12px 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; line-height: 1.45; color: #374151; white-space: pre; overflow-x: auto; }
-/* Actions and foot, in the site's arrow-link voice. */
-.actions { padding: 6px 0 0; }
-.arrow-link { color: #0065A4; font-weight: 600; font-size: 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.arrow-link:hover .arrow { transform: translateX(3px); }
-.arrow-link .arrow { display: inline-block; transition: transform .15s; font-weight: 400; }
+/* The link under the box, where the home page keeps "See an example". */
+.hero-more { margin-top: 42px; text-align: center; }
+.edition { font-size: 14px; line-height: 21px; color: #4b5563; margin-bottom: 4px; }
+.hero-more[hidden] { display: none; }
+.bg-arrow-link { color: #0065A4; font-weight: 600; font-size: 14px; line-height: 21px; padding: 13px 0; margin: -13px 0; display: inline; }
+.bg-arrow-link .arrow { display: inline-block; transition: transform .15s; }
+.bg-arrow-link:hover .arrow { transform: translateX(3px); }
 @media (max-width: 640px) { .field-head { flex-direction: column; align-items: flex-start; gap: 4px; } }
 </style>
 </head>
 <body>
-<div class="nav"><span class="logo">BitGraph</span></div>
-<main class="wrap">
-  <div id="title">Verify a BitGraph</div>
-  <p id="lede">Drop a recording folder from your BitGraph Folder or an export from bitgraph.ing, or a <b>proof.json</b> beside the file it records. The file's hash, the signature, the enclave attestation, and the Ethereum block headers in the bundle are all checked here, on this machine. <b>Nothing is uploaded and no network request is made.</b></p>
-  <div id="drop">
-    <div class="big">Drop a BitGraph export here</div>
-    <div class="sub">a recording folder, or a proof.json with its file</div>
-    <div class="pickers">
-      <label>choose a folder<input id="pick-folder" type="file" webkitdirectory directory multiple></label>
-      <label>choose files<input id="pick-files" type="file" multiple></label>
+<div id="site-nav"><div class="nav-inner">
+  <a class="logo" href="https://bitgraph.ing/">BitGraph</a>
+</div></div>
+<main>
+  <div class="bitgraph-wrap">
+    <div class="bitgraph-hero">
+      <h1 class="bg-page-title" id="title">Verify a BitGraph</h1>
+      <div class="hero-why" id="deck"><p>Verify your BitGraphs offline</p></div>
+      <div class="bitgraph-camera" id="camera">
+        <div id="drop">
+          <input id="pick-folder" type="file" webkitdirectory directory multiple aria-label="Choose a folder">
+          <input id="pick-files" type="file" multiple>
+          <div class="fd-inner">
+            <div class="fd-headline">Check BitGraphs</div>
+            <div class="fd-hints">
+              <div class="fd-hint">Choose a folder, or drag in files.</div>
+              <div class="fd-subhint">Your file never leaves your device.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="status"></div>
+      <div id="results" hidden></div>
+      <div class="hero-more" id="more"><div class="edition" id="edition" data-version="/*__FOLDER_VERSION__*/">BitGraph Folder /*__FOLDER_VERSION__*/</div><a class="bg-arrow-link" id="folder-link" href="https://bitgraph.ing/docs/folder">Download for macOS <span class="arrow" aria-hidden="true">→</span></a></div>
     </div>
   </div>
-  <div id="status"></div>
-  <div id="results" hidden></div>
 </main>
 <script>
 /*__BUNDLE__*/
