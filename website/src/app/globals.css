@@ -48,6 +48,12 @@
 
 html {
   /* overflow-x moved to body — overflow on html breaks position:sticky */
+  /* The canvas behind the page. White, to match the site bar: a rubber-band
+     scroll above the origin shows this colour, and with the bar white
+     (2026-08-16) a grey canvas would flash between the bar and the top edge.
+     The trade is a white sliver on an over-scroll past the bottom of a
+     #f5f5f5 page, which is rarer and reads as nothing. */
+  background: #ffffff;
 }
 
 /* No overscroll block here. One existed while the nav was white, painting a
@@ -58,6 +64,11 @@ html {
 
 body {
   background: var(--bg);
+  /* The body paints its own box only, and the canvas behind it is white
+     (html, above) to match the bar; so the body must always reach the bottom
+     of the window or the canvas shows as a white band under a short page
+     (seen 2026-08-16 on the home and the cassette load screen). */
+  min-height: 100dvh;
   color: var(--c-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -792,6 +803,10 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    so the two never say the same thing in the same way. */
 .docs-menu-item { color: #4b5563; background: transparent; transition: color .15s; }
 .docs-menu-item[aria-current="page"] { color: #111827; background: #f3f4f6; }
+/* The bar's own links (Roll, Folder) mark the page they are on in the brand
+   blue: colour in text, never a background (2026-08-16). Docs is a menu, not
+   a page, and keeps its own rule above. */
+#site-nav .bg-nav-links a[aria-current="page"] { color: #0065A4; }
 @media (hover: hover) { .docs-menu-item:hover { color: #0065A4; } }
 
 /* ── Applications: separation between the six entries. On a phone the column

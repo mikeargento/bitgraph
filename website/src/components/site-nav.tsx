@@ -98,28 +98,35 @@ export function SiteNav() {
     // is the cards' value too, so on the Roll and on proof pages the bar and the
     // content were the same colour anyway. If it is ever revisited, #fafafa is
     // the middle option: distinct from the page without borrowing the cards'
-    // white. Anything that makes the bar a surface also needs the overscroll
-    // block that used to live in globals.css, or pulling down shows the canvas.
+    // white. It IS a surface now (white, hairline), and the overscroll canvas
+    // is handled by the html background in globals.css.
     <div id="site-nav" style={{
-      borderBottom: "none",
-      background: "#f5f5f5",
+      // A surface, since the bar spans the window (2026-08-16): white with a
+      // hairline under it, the way an app's bar sits over its page. The
+      // canvas above the page origin is painted white too (html background in
+      // globals.css) so a rubber-band scroll shows the bar's colour, not the
+      // page's; see the note that follows.
+      borderBottom: "1px solid #e5e7eb",
+      background: "#ffffff",
       position: "sticky", top: 0, zIndex: 50,
-      // The 44px bar centres a 36px wordmark, which left it 4px off the top of
-      // the window: the logo looked pinned to the edge rather than placed on
-      // the page. This is padding on the STICKY element, not a margin on the
-      // page, so the air survives scrolling. It is invisible when stuck
-      // because the bar has no border and the same background as the page, so
-      // it simply seats the wordmark lower instead of opening a gap.
-      paddingTop: 14,
+      // One 56px row, wordmark and links centred in it. The 14px top padding
+      // that used to seat the wordmark lower belonged to an invisible bar; on
+      // a white surface it read as the row sitting low. (Mike, 2026-08-16.)
     }}>
       <div style={{
-        width: "90%", maxWidth: 800, margin: "0 auto", padding: 0,
-        // 44px matches apple.com's global nav and is the iOS minimum touch
-        // target, so it is the floor: Roll/Docs sit exactly at it, not above.
-        // The wordmark stays 24px rather than shrinking with the bar. Apple can
-        // shrink theirs because it is a glyph; here the wordmark IS the logo,
-        // and it is the only brand element in the chrome.
-        height: 44, display: "flex", alignItems: "center", justifyContent: "space-between",
+        // The bar spans the window: wordmark hard left, links hard right, the
+        // way Gmail's bar spans its pane. Site-wide since 2026-08-16 (Mike),
+        // so the chrome is one thing on every page: the reading pages keep
+        // their 800px column under it, the cassette pane fills the window,
+        // and the wordmark never jumps between the two. The 20px edge is the
+        // pane's rail edge, so the wordmark and the rail share a left line.
+        // Before this the bar sat over the 800px column (width 90%, max 800,
+        // centred); that is the one-line revert if it ever reads wrong.
+        width: "100%", maxWidth: "none", margin: 0, padding: "0 20px", boxSizing: "border-box" as const,
+        // 56px: apple.com's 44 was the floor for the touch target; a surface
+        // bar wants a little more air around a 24px wordmark. Everything in
+        // the row is centred on its middle.
+        height: 56, display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <Link
           href="/"
@@ -239,20 +246,22 @@ export function SiteNav() {
           role="menu"
           aria-label="Docs sections"
           style={{
-            position: "absolute", top: "calc(100% + 8px)",
-            left: "50%", transform: "translateX(-50%)",
-            width: "90%", maxWidth: 800,
-            background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0,
+            // A strip under the bar, the bar's own width, flush with its
+            // hairline: the sections sit in the reading column inside it. The
+            // bar spans the window, so a floating box hung from Docs related
+            // to nothing; the strip belongs to the bar (Mike, 2026-08-16).
+            position: "absolute", top: "100%", left: 0, right: 0,
+            background: "#fff", borderBottom: "1px solid #d0d5dd", borderRadius: 0,
             boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
             // A backstop, not the layout: the columns fit a phone in portrait
             // with room to spare. It is landscape, where the viewport is 375
             // tall, that would otherwise clip.
             maxHeight: "calc(100dvh - 74px)", overflowY: "auto",
             overscrollBehavior: "contain",
-            padding: "22px 14px 20px",
+            padding: "22px 0 20px",
           }}
         >
-          <div>
+          <div style={{ width: "90%", maxWidth: 800, margin: "0 auto" }}>
             {/* Four cells, tops aligned, bottoms wherever each group ends. See
                 globals.css for why this is a grid and not balanced columns. */}
             <div className="docs-panel-cols">
