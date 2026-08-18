@@ -2,6 +2,27 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## 0.2.1 (2026-08-18)
+
+### Fixed
+
+- **The attestation stage compared the wrong hash, and every DECLARED
+  recording read FALSE because of it.** `user_data` was checked against
+  `proof.proofHash` — `computeProofHash`, the frozen ledger-identity subset
+  that deliberately excludes `actor` and `policy` — while the enclave puts
+  SHA-256 of the FULL canonical signed body there. The two are identical for
+  every proof carrying neither field, which is every ordinary recording, so
+  this passed every fixture and every real bundle until the first agency proof
+  existed and was then reported as belonging to "some other proof": a valid
+  proof turned into a contradiction. Found on ledger position #12,010, the
+  first declaration made on the public chain.
+- Now uses `computeSignedBodyHash` from `@mikeargento/bitgraph-verify` 1.2.0,
+  the same reconstruction the signature check already used, so the two cannot
+  drift apart again.
+
+⚠️ Anyone auditing a declared recording with 0.2.0 sees FALSE. There is
+nothing wrong with those proofs; upgrade the reader.
+
 ## 0.2.0 (2026-08-15)
 
 The filesystem-free path. Nothing about verification, reconstruction, or

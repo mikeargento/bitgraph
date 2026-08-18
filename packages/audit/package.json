@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-audit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Offline audit of BitGraph proof bundles: ingest, tiered verification, causal reconstruction, divergence reporting.",
   "license": "MIT",
   "type": "module",
@@ -31,7 +31,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@mikeargento/bitgraph-verify": "^1.1.2",
+    "@mikeargento/bitgraph-verify": "^1.2.0",
     "@noble/hashes": "^1.4.0"
   },
   "devDependencies": {

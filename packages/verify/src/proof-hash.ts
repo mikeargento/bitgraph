@@ -173,3 +173,53 @@ function base64(hash: Uint8Array): string {
   }
   return btoa(binary);
 }
+
+/**
+ * Reconstruct the FULL canonical signed body: the bytes the Ed25519 signature
+ * actually covers, and the bytes whose SHA-256 the enclave places in the Nitro
+ * attestation's `user_data`.
+ *
+ * ⚠️ THIS IS HASH (2) IN THE LIST AT THE TOP OF THIS FILE, AND IT IS NOT
+ * computeProofHash. For a proof carrying neither `actor` nor `policy` the two
+ * coincide, which is why substituting one for the other survives every
+ * ordinary proof and fails only on agency or policy proofs — a bug that hides
+ * until the day the feature ships. That is exactly what happened: the offline
+ * auditor compared the attestation's user_data against computeProofHash and
+ * reported every declared recording as belonging to "some other proof",
+ * turning a valid proof into a FALSE (2026-08-18, found on the first real
+ * declaration, ledger position #12,010).
+ *
+ * Signature verification and attestation binding MUST both use this function
+ * so they cannot drift apart again.
+ */
+export function buildSignedBody(proof: BitGraphProof | Record<string, unknown>): Record<string, unknown> {
+  const p = proof as Record<string, unknown>;
+  const signer = p.signer as { publicKeyB64?: string } | undefined;
+  const env = p.environment as
+    | { enforcement?: string; measurement?: string; attestation?: { format?: string } }
+    | undefined;
+
+  const body: Record<string, unknown> = {
+    version: p.version,
+    artifact: p.artifact,
+    commit: p.commit,
+    publicKeyB64: signer?.publicKeyB64,
+    enforcement: env?.enforcement,
+    measurement: env?.measurement,
+  };
+  if (env?.attestation !== undefined) body.attestationFormat = env.attestation.format;
+  const agency = p.agency as { actor?: unknown } | undefined;
+  if (agency !== undefined) body.actor = agency.actor;
+  if (p.policy !== undefined) body.policy = p.policy;
+  if (p.attribution !== undefined) body.attribution = p.attribution;
+  return body;
+}
+
+/**
+ * base64(SHA-256(canonical full signed body)). The value the enclave writes
+ * into the attestation's user_data, and the digest the Ed25519 signature
+ * covers. See buildSignedBody for why this is never computeProofHash.
+ */
+export function computeSignedBodyHash(proof: BitGraphProof | Record<string, unknown>): string {
+  return base64(sha256(canonicalize(buildSignedBody(proof) as unknown as BitGraphProof)));
+}

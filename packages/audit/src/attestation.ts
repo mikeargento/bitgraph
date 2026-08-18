@@ -41,6 +41,7 @@
  */
 
 import { webcrypto } from "node:crypto";
+import { computeSignedBodyHash } from "@mikeargento/bitgraph-verify";
 import { rootCaDerBytes } from "./aws-nitro-root-ca.js";
 import type {
   AttestationAnalysis,
@@ -336,7 +337,19 @@ export async function validateAttestations(
       counts.proofsWithDocument++;
       const result = await validateNitroAttestationDocument(attestation.reportB64, {
         ...(declaredMeasurement !== undefined ? { expectedPcr0: declaredMeasurement } : {}),
-        expectedUserDataB64: proof.proofHash,
+        // ⚠️ The FULL canonical signed body, never proof.proofHash.
+        //
+        // BitGraph has three distinct proof hashes and this check needs the
+        // one the enclave actually put in user_data: SHA-256 over the whole
+        // signed body, which carries `actor` and `policy` when present.
+        // proof.proofHash is the frozen ledger-identity SUBSET, which
+        // deliberately excludes both. The two are identical for every proof
+        // that carries neither — every ordinary recording — so substituting
+        // one for the other passed every test and every real bundle until the
+        // first DECLARED recording existed, then reported it as belonging to
+        // "some other proof": a valid proof turned FALSE (found 2026-08-18 on
+        // ledger position #12,010, the first declaration ever made).
+        expectedUserDataB64: computeSignedBodyHash(proof.proof as unknown as Record<string, unknown>),
         ...(options?.trustedRootCaDer !== undefined
           ? { trustedRootCaDer: options.trustedRootCaDer }
           : {}),

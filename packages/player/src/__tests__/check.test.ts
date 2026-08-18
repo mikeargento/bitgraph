@@ -159,6 +159,40 @@ describe("check: real export fixture (disk)", () => {
   });
 });
 
+describe("check: a DECLARED recording (agency proof)", () => {
+  /* Ledger position #12,010, the first declaration ever made on the public
+     chain (2026-08-18). It is here because these packages had no real agency
+     proof to test against, and two bugs lived in that gap at once:
+
+       1. the attestation stage compared user_data against computeProofHash,
+          the FROZEN SUBSET that excludes `actor`, instead of the hash of the
+          full signed body the enclave actually attested. Identical for every
+          proof without `actor`/`policy`, so every existing fixture passed;
+       2. the browser verifier's createVerify shim THREW on P-256 rather than
+          checking it, so verify.html reported a valid declared proof as
+          contradicting itself.
+
+     Both turned a good proof FALSE — the failure mode the three-valued rule
+     exists to prevent. Keep this fixture. */
+  const DECLARED = fileURLToPath(new URL("../../src/__tests__/fixtures/declared-12010", import.meta.url));
+
+  it("verifies: signature, attestation binding, and enclave identity all TRUE", async () => {
+    const report = await checkIngest(await ingestBundle(DECLARED));
+    const rec = report.recordings[0]!;
+    assert.equal(rec.lines.find((l) => l.name === "signature")!.result, "TRUE");
+    assert.equal(rec.lines.find((l) => l.name === "attestation")!.result, "TRUE");
+    assert.equal(rec.lines.find((l) => l.name === "enclave")!.result, "TRUE");
+  });
+
+  it("is UNDETERMINED for want of the file, never FALSE", async () => {
+    const report = await checkIngest(await ingestBundle(DECLARED));
+    // The bundle holds no artifact, so the file line cannot decide. That is
+    // the only thing left open, and nothing here contradicts anything.
+    assert.equal(report.result, "UNDETERMINED");
+    assert.deepEqual(report.contradictions, []);
+  });
+});
+
 describe("check: disk and memory ingest produce byte-identical reports (the no-drift guarantee)", () => {
   it("ingestEntries over the same files equals ingestBundle over the directory", async () => {
     const fromDisk = await checkIngest(await ingestBundle(FIXTURE));
