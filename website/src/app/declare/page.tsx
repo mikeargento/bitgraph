@@ -53,6 +53,16 @@ interface Recorded {
   file: File;
   proof: BitGraphProof;
   when: number | null;
+  /** "declared" was minted by this drop; "found" was already on the ledger
+   *  and cost nothing. The row says which, because the difference is the
+   *  whole answer to what the drop did. */
+  kind: "declared" | "found";
+}
+
+/** Whose key, if any, is on a proof already. A row claims a name only when
+ *  the proof itself carries the key it belongs to. */
+function actorOf(proof: BitGraphProof): string | undefined {
+  return (proof as unknown as { agency?: { actor?: { keyId?: string } } }).agency?.actor?.keyId;
 }
 
 type Phase =
@@ -71,6 +81,48 @@ async function fetchChallenge(): Promise<string> {
     throw new Error((e as { error?: string }).error || "Could not reach the camera");
   }
   return ((await res.json()) as { challenge: string }).challenge;
+}
+
+/** What the ledger already holds for these digests, one round trip.
+ *
+ *  A recording is not owned by whoever asks about it, so this is a plain read
+ *  and costs nothing: no nonce, no signature, no position. When a digest has
+ *  several positions, prefer one already carrying the asker's key, since
+ *  "you declared this already" is a more useful answer than "somebody
+ *  recorded this once".
+ */
+async function lookup(
+  digests: string[],
+  myKeyId?: string
+): Promise<Map<string, { proof: BitGraphProof; writeTime?: number | null }>> {
+  const out = new Map<string, { proof: BitGraphProof; writeTime?: number | null }>();
+  const unique = [...new Set(digests)];
+  if (!unique.length) return out;
+  try {
+    const r = await fetch("/api/proofs/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ digests: unique.map(toUrlSafeB64) }),
+    });
+    if (!r.ok) return out;
+    const found = ((await r.json()) as {
+      results?: Record<string, {
+        proofs?: Array<{ proof: BitGraphProof; writeTime?: number | null }>;
+        unavailable?: true;
+      }>;
+    }).results || {};
+    for (const d of unique) {
+      const entry = found[toUrlSafeB64(d)];
+      // ⚠️ A failed read is never an answer about these bytes. `unavailable`
+      // means the ledger could not be read, not that nothing is recorded, and
+      // treating it as absence would mint a second position for a file that
+      // already has one.
+      if (!entry || entry.unavailable || !entry.proofs?.length) continue;
+      const mine = myKeyId ? entry.proofs.find((p) => actorOf(p.proof) === myKeyId) : undefined;
+      out.set(d, mine ?? entry.proofs[0]);
+    }
+  } catch { /* a read that failed says nothing; the drop proceeds as new */ }
+  return out;
 }
 
 export default function DeclarePage() {
@@ -162,14 +214,38 @@ export default function DeclarePage() {
       const list = files.filter((f) => f.size > 0);
       if (!list.length || !cred) return;
       try {
-        // Hash FIRST, then ask for the nonce. The challenge lives 60 seconds
-        // and the authorization's own timestamp must land inside that window;
-        // a folder can take longer to hash than the window is wide, so a nonce
-        // fetched before the hashing pass would be dead on arrival.
+        // ── Look before minting. ──
+        // Home's rule, and this page owes it more than home does: there a
+        // known file costs a lookup, here an unchecked drop would cost a
+        // biometric prompt and a permanent position for a file somebody only
+        // wanted to look at. One gesture still, two outcomes, and the results
+        // say which one happened rather than asking first.
         setPhase({ step: "working", label: list.length > 1 ? `Reading ${list.length} files` : "Reading the file" });
         const digests: string[] = [];
         for (const f of list) digests.push(await hashFile(f));
 
+        setPhase({ step: "working", label: "Checking the ledger" });
+        const known = await lookup(digests, cred.keyId);
+
+        const found: Recorded[] = [];
+        const fresh: number[] = [];
+        list.forEach((f, i) => {
+          const hit = known.get(digests[i]);
+          if (hit) found.push({ file: f, proof: hit.proof, when: hit.writeTime ?? null, kind: "found" });
+          else fresh.push(i);
+        });
+        if (found.length) setResults((prev) => [...prev, ...found]);
+
+        // Everything was already on record: nothing to sign, nothing minted,
+        // no prompt. The rows are the answer.
+        if (!fresh.length) {
+          setPhase({ step: "idle" });
+          return;
+        }
+
+        // Hash first, THEN the nonce: it lives 60 seconds and the
+        // authorization's timestamp must land inside that window, so a nonce
+        // fetched before a long hashing pass would be dead on arrival.
         setPhase({ step: "working", label: "Waiting for the camera" });
         const challenge = await fetchChallenge();
 
@@ -180,18 +256,20 @@ export default function DeclarePage() {
         setPhase({ step: "working", label: "Waiting for you" });
         const assertion = await requestAssertion(challenge, cred.credentialIdB64);
 
+        const freshDigests = fresh.map((i) => digests[i]);
         const made: Recorded[] = [];
-        for (let i = 0; i < list.length; i++) {
+        for (let n = 0; n < fresh.length; n++) {
+          const i = fresh[n];
           setPhase({
             step: "working",
-            label: list.length > 1 ? `Declaring ${i + 1} of ${list.length}` : "Declaring",
+            label: fresh.length > 1 ? `Declaring ${n + 1} of ${fresh.length}` : "Declaring",
           });
           const envelope = buildAgencyEnvelope(cred, assertion, digests[i], challenge);
-          if (list.length > 1) {
-            envelope.batchContext = { batchSize: list.length, batchIndex: i, batchDigests: digests };
+          if (fresh.length > 1) {
+            envelope.batchContext = { batchSize: fresh.length, batchIndex: n, batchDigests: freshDigests };
           }
           const proof = await commitDigest(digests[i], undefined, envelope);
-          made.push({ file: list[i], proof, when: null });
+          made.push({ file: list[i], proof, when: null, kind: "declared" });
           setResults((prev) => [...prev, made[made.length - 1]]);
         }
 
@@ -436,8 +514,19 @@ export default function DeclarePage() {
                           #{Number(row.proof.commit?.counter).toLocaleString()}
                         </span>
                       </span>
+                      {/* What this row IS, and it is never assumed. A name
+                          appears only when the proof itself carries the key it
+                          belongs to; a recording someone else declared shows
+                          their key, not a guess at who they are; and a
+                          recording with no declaration says so plainly rather
+                          than borrowing this browser's name. */}
                       <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>
-                        Declared by {cred?.name}
+                        {(() => {
+                          const actor = actorOf(row.proof);
+                          if (actor && cred && actor === cred.keyId) return `Declared by ${cred.name}`;
+                          if (actor) return `Declared by ${actor.slice(0, 12)}\u2026`;
+                          return row.kind === "found" ? "Already recorded" : "Recorded";
+                        })()}
                       </span>
                       <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#4b5563", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                         {fmtRowWhen(row.when)}
