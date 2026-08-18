@@ -951,7 +951,9 @@ export default function ProofPage() {
                   the file card. Offered on a file proof with the artifact in
                   hand. */}
               {!isEth && !isInterval && cachedFile && (
-                <div style={{ padding: "0 16px" }}>
+                /* A column: side by side they collided, and they are two
+                   choices about the same act rather than one sentence. */
+                <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
                   <BitGraphAgainButton proof={proof} digestParam={digestParam} />
                   {/* Same list, same gate, one act further: a declaration adds
                       a position too, and carries a key while it does. */}
@@ -1379,7 +1381,12 @@ function DeclareThisButton({ proof, digestParam }: { proof: BitGraphProof; diges
   return (
     <>
       <button onClick={run} disabled={state === "working"} className="bg-action-link">
-        <span>{state === "working" ? "Declaring…" : `Declare this file as ${cred.name}`}</span>
+        {/* Deliberately the SAME sentence as the action above it, plus two
+            words. Both mint a new position for these bytes; the only
+            difference is whether a key rides along, and parallel labels say
+            that where two different verbs would have hidden it (Mike,
+            2026-08-18: "Bitgraph this file again as Mike Argento"). */}
+        <span>{state === "working" ? "BitGraphing…" : `BitGraph this file again as ${cred.name}`}</span>
         {state !== "working" && <span className="arrow" aria-hidden>&rarr;</span>}
       </button>
       {state === "error" && (
