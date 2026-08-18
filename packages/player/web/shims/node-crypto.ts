@@ -100,7 +100,21 @@ export function createVerify(_algorithm: string): {
         const message = new Uint8Array(total);
         let at = 0;
         for (const c of chunks) { message.set(c, at); at += c.length; }
-        return p256.verify(signature, sha256(message), point, { format: "der", prehash: false });
+        // ⚠️ lowS: false. noble enforces low-S by DEFAULT, which rejects any
+        // signature whose s lies in the upper half of the range — about half
+        // of all real signatures, at random. That is a Bitcoin anti-malleability
+        // convention, not an ECDSA rule and not a WebAuthn one: Apple's Secure
+        // Enclave does not canonicalise s, and node:crypto (what this shim
+        // stands in for) accepts both halves. Leaving the default on made this
+        // verifier reject roughly every other valid declaration, which is
+        // worse than the throw it replaced: a coin-flip FALSE reads like
+        // evidence rather than a bug. Found on the second declaration ever
+        // made — the first had a low s and passed.
+        return p256.verify(signature, sha256(message), point, {
+          format: "der",
+          prehash: false,
+          lowS: false,
+        });
       } catch {
         // Malformed key or signature IS evidence about this proof, so false is
         // an answer here. The capability gap that used to live in this

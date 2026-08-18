@@ -31,7 +31,7 @@ import type { DeclaredEntry, Resolution, Rule, Verdict } from "./types.js";
  * A unit test asserts this equals package.json's version, so the
  * constant cannot drift silently across releases.
  */
-export const PLAYER_VERSION = "0.5.0";
+export const PLAYER_VERSION = "0.5.1";
 
 /** The player package's own version. */
 export function playerVersion(): string {
