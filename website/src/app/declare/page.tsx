@@ -320,12 +320,20 @@ export default function DeclarePage() {
            the one exception on the site. 46px to the frame, the measured gap
            that lands this composition at the same y as the home page's when
            there is no deck; re-derive if the title size or the frame changes. */
+        /* 46px only when nothing follows the title but the frame; with the
+           deck present its own 36px carries the rest, exactly as home's does.
+           ⚠️ Re-derive if the title size or the frame changes. */
         .declare-title { font-size: clamp(34px, 6vw, 40px); margin: 0 0 46px; }
+        .declare-hero:has(.declare-who) .declare-title { margin-bottom: 12px; }
         .declare-more { margin-top: 42px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
         /* The one text field in the product. Square, hairline, brand focus:
            the site has no other input to match, so it borrows the card. */
         /* The register state: no frame, because a frame here would be a
            dashed edge over something that takes no drops. */
+        /* Home's deck: same clamp, same colour, same 36px to the frame. */
+        .declare-who { margin: 0 0 36px; }
+        .declare-who p { margin: 0; font-size: clamp(14px, 2.5vw, 16px); line-height: 1.6;
+          color: #4b5563; text-wrap: pretty; }
         .declare-register { display: flex; flex-direction: column; align-items: center; gap: 22px; }
         /* balance, not pretty: pretty only rescues a single orphaned word, and
            this lead's last line is three, so it wrapped at "only / you can
@@ -353,6 +361,18 @@ export default function DeclarePage() {
       <div className="declare-hero">
         <h1 className="bg-page-title declare-title">Declared BitGraphs</h1>
 
+        {/* ── The deck, in home's slot, saying whose page this is. ──
+            It was a footnote under the box, which put the one fact that makes
+            this page different from home below the thing it qualifies. Home
+            states its claim beside its title; so does this. The box beneath is
+            then home's, word for word: the same instrument, and the page says
+            whose hands. ── */}
+        {ready && cred && (
+          <div className="declare-who">
+            <p>Declared by {cred.name}, key {cred.keyId.slice(0, 12)}&hellip;</p>
+          </div>
+        )}
+
         {/* ── Two states, and only one of them is a drop target. ──
             A dashed edge means droppable, everywhere on this site. Before a
             key exists there is nothing to drop a file into, so the register
@@ -370,9 +390,14 @@ export default function DeclarePage() {
                  described half of it. One headline in every state, because
                  the state is not what changes: the drop does the same thing
                  whether or not there are already results below it. */
-              headline={phase.step === "working" ? phase.label : "Declare or check BitGraphs"}
-              hint={`Declared by ${cred.name}.`}
-              subhint="Your files never leave your device."
+              /* ⚠️ Home's three lines, VERBATIM (Mike: "this should be exactly
+                 the same"). The instrument is the same instrument; what differs
+                 is whose key is on the result, and the deck above has already
+                 said that. Copying rather than sharing, as /c2pa did before it:
+                 the same STYLE, not a second renderer. */
+              headline={phase.step === "working" ? phase.label : "Record or check BitGraphs"}
+              hint="Choose files, or drag in a whole folder."
+              subhint="Your file never leaves your device."
             />
           </div>
         )}
@@ -442,42 +467,45 @@ export default function DeclarePage() {
               passkey cannot be renamed once created, so a typo would otherwise
               sit in the keychain forever. Renaming here changes the label
               beside the credential and leaves the key alone. ── */}
-          {ready && cred && results.length === 0 && (
-            renaming ? (
-              <div className="declare-name">
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") saveName();
-                    if (e.key === "Escape") { setRenaming(false); setName(cred.name); }
-                  }}
-                  placeholder="Name or organization"
-                  aria-label="The name this device declares under"
-                  spellCheck={false}
-                  autoFocus
-                />
-                <button type="button" className="bg-action-link" onClick={saveName} disabled={!name.trim()}>
-                  Save <span className="arrow" aria-hidden="true">&rarr;</span>
-                </button>
-              </div>
-            ) : (
-              <p className="declare-note">
-                Declared by {cred.name}, key {cred.keyId.slice(0, 12)}&hellip; on this browser.{" "}
-                <button type="button" className="declare-inline" onClick={() => { setName(cred.name); setRenaming(true); }}>
-                  Rename
-                </button>
-                {" · "}
-                <button
-                  type="button"
-                  className="declare-inline"
-                  onClick={() => { clearStoredCredential(); setCred(null); setName(""); setRenaming(false); }}
-                >
-                  Forget this device
-                </button>
-              </p>
-            )
+          {/* ── Maintenance, under the frame. ──
+              The deck states whose page this is; changing or dropping the key
+              is housekeeping, and housekeeping does not belong in a claim.
+              Home keeps its one quiet link in this same slot. ── */}
+          {ready && cred && !renaming && (
+            <p className="declare-note">
+              <button type="button" className="declare-inline" onClick={() => { setName(cred.name); setRenaming(true); }}>
+                Rename
+              </button>
+              {" · "}
+              <button
+                type="button"
+                className="declare-inline"
+                onClick={() => { clearStoredCredential(); setCred(null); setName(""); setRenaming(false); }}
+              >
+                Forget this device
+              </button>
+            </p>
+          )}
+
+          {ready && cred && renaming && (
+            <div className="declare-name">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveName();
+                  if (e.key === "Escape") { setRenaming(false); setName(cred.name); }
+                }}
+                placeholder="Name or organization"
+                aria-label="The name this device declares under"
+                spellCheck={false}
+                autoFocus
+              />
+              <button type="button" className="bg-action-link" onClick={saveName} disabled={!name.trim()}>
+                Save <span className="arrow" aria-hidden="true">&rarr;</span>
+              </button>
+            </div>
           )}
 
           {results.length > 0 && (
