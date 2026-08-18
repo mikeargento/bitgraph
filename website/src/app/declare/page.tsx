@@ -331,21 +331,20 @@ export default function DeclarePage() {
                   {phase.step === "registering" ? "Waiting for you\u2026" : "Register this device"}
                   {phase.step === "registering" ? null : <span className="arrow" aria-hidden="true">&rarr;</span>}
                 </button>
-                {/* ── The one fact that is actually new, stated once. ──
-                    The key rides in the proof and the ledger serves proofs to
-                    anyone, with no file required, so declarations made with one
-                    key are publicly linked to each other.
+                {/* ── ❄️ NOTHING under the action, deliberately. ──
+                    A line here explained that the key is public and appears on
+                    every declaration. It read as a caution (Mike: "this seems
+                    preachy") and then as clutter, and both were symptoms of the
+                    same mistake: registration is not the consequential act.
+                    Registering declares nothing — the first drop does, on a
+                    different screen — so a warning fires here at the wrong
+                    moment. The site also warns nowhere else that the ledger is
+                    public, and it is public everywhere; the Roll lists every
+                    recording anyone makes.
 
-                    ⚠️ It said "public, permanent, and linked" and read as a
-                    warning (Mike: "this seems preachy"). Permanence is not a
-                    property of DECLARING — every recording on this chain is
-                    permanent, anonymous ones included — so naming it here
-                    implied a difference that does not exist, which is what
-                    turned a fact into a caution. What is new is the key, and
-                    that the same key is on all of them. ── */}
-                <p className="declare-note">
-                  The same key appears publicly on every declaration.
-                </p>
+                    The linkability fact is real and non-obvious and should live
+                    where a reader can act on it: the docs, and the Declaration
+                    card on a proof, beside the key it is about. Not here. ── */}
               </div>
             )}
           </div>
