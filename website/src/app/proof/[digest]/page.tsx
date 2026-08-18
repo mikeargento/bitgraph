@@ -13,6 +13,9 @@ import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
+import {
+  buildAgencyEnvelope, getStoredCredential, requestAssertion, type StoredCredential,
+} from "@/lib/webauthn";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
@@ -874,6 +877,13 @@ export default function ProofPage() {
               from describing the file to placing it in the ledger. */}
           {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
 
+          {/* Declaration — the key that authorized THIS position. It sits with
+              the recording rather than with the file: the bytes are the same
+              whoever recorded them, and a second recording of them can carry a
+              different key or none. Needs no file in hand, because it is in
+              the proof rather than in the bytes. */}
+          {!isEth && <DeclarationCard proof={proof} />}
+
           {/* Recordings — every causal position these exact bytes occupy. Always
               present on a file proof (even a single position), so it is also the
               home of "BitGraph this file Again," the action that adds to this
@@ -943,6 +953,9 @@ export default function ProofPage() {
               {!isEth && !isInterval && cachedFile && (
                 <div style={{ padding: "0 16px" }}>
                   <BitGraphAgainButton proof={proof} digestParam={digestParam} />
+                  {/* Same list, same gate, one act further: a declaration adds
+                      a position too, and carries a key while it does. */}
+                  <DeclareThisButton proof={proof} digestParam={digestParam} />
                 </div>
               )}
             </CollapsibleCard>
@@ -1253,6 +1266,128 @@ const btnStyle: React.CSSProperties = {
 /* ── BitGraph again — commit the same digest into a fresh slot, then reload
    onto the new position's URL so the page shows the recording that was just
    made (with the Causal Positions card now listing every position). ── */
+
+/** This browser's passkey, if it has one. Read on mount: localStorage has no
+ *  server value to seed from. */
+function useStoredCredential(): StoredCredential | null {
+  const [cred, setCred] = useState<StoredCredential | null>(null);
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- no server value to seed from */
+    setCred(getStoredCredential());
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+  return cred;
+}
+
+/**
+ * Declaration — the key that authorized this recording.
+ *
+ * ⚠️ It looks like the Content Credentials card and stands on different
+ * ground. That one is a pass-through of what a file says about itself. This
+ * one is checked: the enclave verified this signature against its own
+ * single-use nonce before it would record anything, and bitgraph-verify
+ * re-checks it offline from the proof alone.
+ *
+ * ⚠️ And it names a KEY, never a person. BitGraph proves the act; who holds
+ * the key is resolved by whoever is reading, from a source they choose. The
+ * only name this card can honestly print is one this browser can vouch for
+ * itself, because it holds that key. Everything else is the key, said plainly,
+ * with the resolution left to the reader. When a published register exists it
+ * will be one such source, and the card will have to say so rather than
+ * quietly presenting its answer as BitGraph's.
+ */
+function DeclarationCard({ proof }: { proof: BitGraphProof }) {
+  const cred = useStoredCredential();
+  const agency = (proof as unknown as {
+    agency?: {
+      actor?: { keyId?: string; provider?: string };
+      authorization?: { format?: string; timestamp?: number };
+    };
+  }).agency;
+  const actor = agency?.actor;
+  if (!actor?.keyId) return null;
+  const mine = cred?.keyId === actor.keyId;
+
+  return (
+    <CollapsibleCard title="Declaration">
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
+        A key authorized this recording, and the boundary verified that
+        signature before recording anything. Who holds the key is not something
+        BitGraph establishes.
+      </div>
+      <Field
+        label="Declared by"
+        value={mine ? (cred as StoredCredential).name : "Not established here"}
+        highlight={!!mine}
+      />
+      <Field label="Key" value={actor.keyId} mono />
+      <Field
+        label="Signed with"
+        value={agency?.authorization?.format === "webauthn" ? "A passkey on the declarer's device" : "The declarer's own key"}
+      />
+    </CollapsibleCard>
+  );
+}
+
+/**
+ * Declare this file — record these same bytes again, under this browser's key.
+ *
+ * ⚠️ Shown only with the artifact in hand, which is the same gate
+ * BitGraphAgainButton uses and is not a formality: a declaration is a claim
+ * about bytes, and someone who reached this page by link has never held them.
+ * Nothing here is a substitute for that; the button simply is not offered.
+ *
+ * It mints a NEW position rather than amending this one. A recording is
+ * finished when it is made, and a declaration made later is a later act; the
+ * ledger shows both, in order, which is the truthful shape.
+ */
+function DeclareThisButton({ proof, digestParam }: { proof: BitGraphProof; digestParam: string }) {
+  const cred = useStoredCredential();
+  const [state, setState] = useState<"idle" | "working" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  const actorKeyId = (proof as unknown as { agency?: { actor?: { keyId?: string } } }).agency?.actor?.keyId;
+  // Nothing to offer: no key on this browser, or this recording already
+  // carries it.
+  if (!cred || actorKeyId === cred.keyId) return null;
+
+  async function run() {
+    if (state === "working" || !cred) return;
+    setState("working");
+    setMessage("");
+    try {
+      const res = await fetch("/api/challenge", { method: "POST" });
+      if (!res.ok) throw new Error("The camera is restarting; try again shortly.");
+      const { challenge } = (await res.json()) as { challenge: string };
+      const assertion = await requestAssertion(challenge, cred.credentialIdB64);
+      const envelope = buildAgencyEnvelope(cred, assertion, proof.artifact.digestB64, challenge);
+      const p = await commitDigest(proof.artifact.digestB64, undefined, envelope);
+      const counter = p.commit?.counter;
+      const epoch = p.commit?.epochId ? toSafeB64(String(p.commit.epochId)) : "";
+      window.location.href = `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1`;
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      setMessage(
+        /NotAllowed|cancel/i.test(m) ? "Nothing was recorded: the authorization was cancelled."
+        : /challenge/i.test(m) ? "That authorization expired before it reached the camera. Try again."
+        : "Could not record a declared position. Try again in a moment."
+      );
+      setState("error");
+    }
+  }
+
+  return (
+    <>
+      <button onClick={run} disabled={state === "working"} className="bg-action-link">
+        <span>{state === "working" ? "Declaring…" : `Declare this file as ${cred.name}`}</span>
+        {state !== "working" && <span className="arrow" aria-hidden>&rarr;</span>}
+      </button>
+      {state === "error" && (
+        <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>{message}</div>
+      )}
+    </>
+  );
+}
 
 function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; digestParam: string }) {
   const [state, setState] = useState<"idle" | "working" | "error">("idle");
