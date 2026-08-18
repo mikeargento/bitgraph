@@ -38,6 +38,7 @@ import { FileDrop } from "@/components/file-drop";
 import { fmtRowWhen, useFileThumbs } from "@/components/folder-roll";
 import { toUrlSafeB64 } from "@/lib/explorer";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
+import { setFreshProof } from "@/lib/fresh-proof";
 import { hashFile, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
 import {
   buildAgencyEnvelope,
@@ -209,6 +210,35 @@ export default function DeclarePage() {
     setRenaming(false);
   }, [name, cred]);
 
+  /** One file in, one page out — home's rule, and this page owes it too.
+   *
+   *  A single drop lands on its proof with no list in between: the drop is
+   *  the shutter, whether the outcome was a lookup or a declaration. Batches
+   *  keep the list, which is where you see which files were already on record
+   *  and which were just declared.
+   *
+   *  ⚠️ fresh=1 only on something actually recorded. It plays the capture
+   *  flash, and a flash over a file that was merely looked up would celebrate
+   *  an event that did not happen. */
+  const openProofPage = useCallback((proof: BitGraphProof, file: File, fresh = false) => {
+    const digest = proof.artifact.digestB64;
+    const c = proof.commit?.counter;
+    const epoch = proof.commit?.epochId ? toUrlSafeB64(proof.commit.epochId) : "";
+    const sel = c
+      ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}${fresh ? "&fresh=1" : ""}`
+      : (fresh ? "?fresh=1" : "");
+    void cacheArtifactToIDB(file, digest).catch(() => {});
+    if (fresh) {
+      setFreshProof(toUrlSafeB64(digest), {
+        proofs: [{ proof }],
+        positions: c ? [{ counter: c, epoch: epoch || null, lowerTime: null, upperTime: null }] : [],
+        causalWindow: null,
+        anchorBlock: null,
+      });
+    }
+    router.push(`/proof/${encodeURIComponent(toUrlSafeB64(digest))}${sel}`);
+  }, [router]);
+
   const handleFiles = useCallback(
     async (files: File[]) => {
       const list = files.filter((f) => f.size > 0);
@@ -234,6 +264,12 @@ export default function DeclarePage() {
           if (hit) found.push({ file: f, proof: hit.proof, when: hit.writeTime ?? null, kind: "found" });
           else fresh.push(i);
         });
+        // One file, already on record: its proof IS the answer, so go there.
+        if (list.length === 1 && found.length === 1) {
+          openProofPage(found[0].proof, found[0].file);
+          setPhase({ step: "idle" });
+          return;
+        }
         if (found.length) setResults((prev) => [...prev, ...found]);
 
         // Everything was already on record: nothing to sign, nothing minted,
@@ -269,6 +305,11 @@ export default function DeclarePage() {
             envelope.batchContext = { batchSize: fresh.length, batchIndex: n, batchDigests: freshDigests };
           }
           const proof = await commitDigest(digests[i], undefined, envelope);
+          if (list.length === 1) {
+            openProofPage(proof, list[i], true);
+            setPhase({ step: "idle" });
+            return;
+          }
           made.push({ file: list[i], proof, when: null, kind: "declared" });
           setResults((prev) => [...prev, made[made.length - 1]]);
         }
@@ -289,7 +330,7 @@ export default function DeclarePage() {
         });
       }
     },
-    [cred]
+    [cred, openProofPage]
   );
 
   const thumbs = useFileThumbs(results.map((r) => r.file));
