@@ -261,10 +261,13 @@ export default function DeclarePage() {
           width: min(320px, 100%); text-align: center;
         }
         .declare-name input:focus-visible { outline: 2px solid #0065A4; outline-offset: -2px; }
+        /* The register state's two paragraphs share one measure, so the
+           block reads as a column rather than two widths stacked. */
+        .declare-register .declare-note { max-width: 430px; }
         .declare-inline { appearance: none; border: 0; background: none; padding: 0;
           font: inherit; color: #0065A4; cursor: pointer; }
         .declare-note { font-size: 12.5px; color: #4b5563; line-height: 1.6; max-width: 460px;
-          margin: 0 auto; text-wrap: pretty; }
+          margin: 0 auto; text-wrap: balance; }
         .declare-result { border-top: 1px solid #d0d5dd; padding-top: 18px; text-align: left; width: 100%; }
         @keyframes declareRowIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
       `}</style>
@@ -328,6 +331,21 @@ export default function DeclarePage() {
                   {phase.step === "registering" ? "Waiting for you\u2026" : "Register this device"}
                   {phase.step === "registering" ? null : <span className="arrow" aria-hidden="true">&rarr;</span>}
                 </button>
+                {/* ── The one fact that is actually new, stated once. ──
+                    The key rides in the proof and the ledger serves proofs to
+                    anyone, with no file required, so declarations made with one
+                    key are publicly linked to each other.
+
+                    ⚠️ It said "public, permanent, and linked" and read as a
+                    warning (Mike: "this seems preachy"). Permanence is not a
+                    property of DECLARING — every recording on this chain is
+                    permanent, anonymous ones included — so naming it here
+                    implied a difference that does not exist, which is what
+                    turned a fact into a caution. What is new is the key, and
+                    that the same key is on all of them. ── */}
+                <p className="declare-note">
+                  The same key appears publicly on every declaration.
+                </p>
               </div>
             )}
           </div>
