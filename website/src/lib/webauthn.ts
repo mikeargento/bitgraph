@@ -18,6 +18,15 @@ export interface StoredCredential {
   publicKeyB64: string;      // base64(SPKI DER P-256)
   keyId: string;             // hex(SHA-256(SPKI DER))
   createdAt: number;
+  /** What this device calls its holder.
+   *
+   *  ⚠️ COSMETIC AND LOCAL. It labels the passkey in the keychain and gives
+   *  the page something to print. It never enters a proof: the envelope
+   *  carries keyId and provider, and the authority on "which person is this
+   *  key" is the published registry, not a string somebody typed into their
+   *  own browser. Someone typing "Adobe" here changes nothing a verifier
+   *  reads, which is the property that makes typing it harmless. */
+  name: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,9 +122,10 @@ export function clearStoredCredential(): void {
 // Registration - create a platform passkey
 // ---------------------------------------------------------------------------
 
-export async function registerPasskey(): Promise<StoredCredential> {
+export async function registerPasskey(displayName: string): Promise<StoredCredential> {
   // Random user handle (not sensitive - just for WebAuthn)
   const userId = crypto.getRandomValues(new Uint8Array(16));
+  const label = displayName.trim() || "BitGraph";
 
   const credential = (await navigator.credentials.create({
     publicKey: {
@@ -124,10 +134,12 @@ export async function registerPasskey(): Promise<StoredCredential> {
         name: "BitGraph",
         id: location.hostname,
       },
+      // What the system passkey sheet shows, and what the keychain entry is
+      // called from now on. It was hardcoded "Proof Author" for everyone.
       user: {
         id: userId,
-        name: "proof-author",
-        displayName: "Proof Author",
+        name: label,
+        displayName: label,
       },
       pubKeyCredParams: [
         { alg: -7, type: "public-key" }, // ES256 = P-256
@@ -163,6 +175,7 @@ export async function registerPasskey(): Promise<StoredCredential> {
     publicKeyB64,
     keyId,
     createdAt: Date.now(),
+    name: label,
   };
 
   storeCredential(stored);
