@@ -1312,11 +1312,13 @@ function DeclarationCard({ proof }: { proof: BitGraphProof }) {
 
   return (
     <CollapsibleCard title="Declaration">
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
-        A key authorized this recording, and the boundary verified that
-        signature before recording anything. Who holds the key is not something
-        BitGraph establishes.
-      </div>
+      {/* ❄️ No explainer paragraph. It read "A key authorized this recording,
+          and the boundary verified that signature… Who holds the key is not
+          something BitGraph establishes" — true, and doctrine, which belongs
+          in the docs rather than inside every proof (Mike, 2026-08-18: "this
+          explains something that can be explained outside of utility"). The
+          fields already say it: a key with no name beside it reads "Not
+          established here", which IS the claim, shown instead of asserted. */}
       <Field
         label="Declared by"
         value={mine ? (cred as StoredCredential).name : "Not established here"}

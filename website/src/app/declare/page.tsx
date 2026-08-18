@@ -514,8 +514,15 @@ export default function DeclarePage() {
                   happened, and the declaration is a property of each one that
                   belongs on the proof where it can be checked. One grammar for
                   every results list on the site. */}
+              {/* ⚠️ The heading states what the drop DID, which is not always
+                  recording. A drop where every file was already on the ledger
+                  mints nothing, and "BitGraphs Recorded" over rows that each
+                  say "Already recorded" contradicts them in a larger type
+                  size. */}
               <div className="bg-page-title" style={{ marginBottom: 20 }}>
-                BitGraph{results.length === 1 ? "" : "s"} Recorded
+                {results.every((r) => r.kind === "found")
+                  ? `BitGraph${results.length === 1 ? "" : "s"} Found`
+                  : `BitGraph${results.length === 1 ? "" : "s"} Recorded`}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {results.map((row, i) => (
