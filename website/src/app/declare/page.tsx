@@ -364,11 +364,13 @@ export default function DeclarePage() {
               multiple
               onFiles={handleFiles}
               disabled={working}
-              headline={
-                phase.step === "working" ? phase.label
-                : results.length ? "Declare another"
-                : "Record as yourself"
-              }
+              /* Home's own headline, in this page's verb. The box takes both
+                 outcomes now — a known file comes back as its proof, an
+                 unknown one is declared — so saying only "Record as yourself"
+                 described half of it. One headline in every state, because
+                 the state is not what changes: the drop does the same thing
+                 whether or not there are already results below it. */
+              headline={phase.step === "working" ? phase.label : "Declare or check BitGraphs"}
               hint={`Declared by ${cred.name}.`}
               subhint="Your files never leave your device."
             />
