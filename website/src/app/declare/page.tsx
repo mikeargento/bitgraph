@@ -80,6 +80,7 @@ export default function DeclarePage() {
   const [supported, setSupported] = useState(true);
   const [name, setName] = useState("");
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
+  const [renaming, setRenaming] = useState(false);
   /** Declared here, this visit. They accumulate: a second drop appends. */
   const [results, setResults] = useState<Recorded[]>([]);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -144,6 +145,17 @@ export default function DeclarePage() {
       );
     } catch { /* the rows simply keep their blank when */ }
   }
+
+  /** Rename the local label. The credential is untouched: the key is what a
+   *  proof carries, and it does not change because its owner fixed a typo. */
+  const saveName = useCallback(() => {
+    const next = name.trim();
+    if (!next || !cred) return;
+    const updated = { ...cred, name: next };
+    localStorage.setItem("bitgraph-passkey", JSON.stringify(updated));
+    setCred(updated);
+    setRenaming(false);
+  }, [name, cred]);
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -237,8 +249,11 @@ export default function DeclarePage() {
         /* The register state: no frame, because a frame here would be a
            dashed edge over something that takes no drops. */
         .declare-register { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+        /* balance, not pretty: pretty only rescues a single orphaned word, and
+           this lead's last line is three, so it wrapped at "only / you can
+           use." Balance evens the lines instead. */
         .declare-lead { font-size: clamp(14px, 2.5vw, 16px); line-height: 1.6; color: #4b5563;
-          max-width: 460px; margin: 0 auto; text-wrap: pretty; }
+          max-width: 430px; margin: 0 auto; text-wrap: balance; }
         .declare-name { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
         .declare-name input {
           font-family: inherit; font-size: 15px; color: #111827; background: #fff;
@@ -246,6 +261,8 @@ export default function DeclarePage() {
           width: min(320px, 100%); text-align: center;
         }
         .declare-name input:focus-visible { outline: 2px solid #0065A4; outline-offset: -2px; }
+        .declare-inline { appearance: none; border: 0; background: none; padding: 0;
+          font: inherit; color: #0065A4; cursor: pointer; }
         .declare-note { font-size: 12.5px; color: #4b5563; line-height: 1.6; max-width: 460px;
           margin: 0 auto; text-wrap: pretty; }
         .declare-result { border-top: 1px solid #d0d5dd; padding-top: 18px; text-align: left; width: 100%; }
@@ -281,7 +298,11 @@ export default function DeclarePage() {
           <div className="declare-register">
             <p className="declare-lead">
               {supported
-                ? "A declaration is your name on a recording, signed by a key only you can use."
+                /* "a name", not "your name": the field below takes a person
+                   or a business, and a photographer trading as a studio is
+                   exactly who declares here. "A key only you can use" already
+                   says whose it is, so the possessive was doing no work. */
+                ? "A declaration is a name on a recording, signed by a key only you can use."
                 : "A declaration needs a passkey: Touch ID, Face ID, or Windows Hello. This device has none."}
             </p>
             {supported && (
@@ -292,7 +313,7 @@ export default function DeclarePage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") void register(); }}
-                  placeholder="Your name"
+                  placeholder="Name or organization"
                   aria-label="The name this device declares under"
                   spellCheck={false}
                   autoComplete="name"
@@ -317,19 +338,49 @@ export default function DeclarePage() {
             <p style={{ color: "#dc2626", fontSize: 14, margin: 0 }}>{phase.message}</p>
           )}
 
+          {/* ── The label is correctable, and that is the answer to "should
+              you have to type it twice" (Mike, 2026-08-18). It is not worth
+              confirming: it never enters a proof, and treating it as though it
+              did would teach the wrong thing about where identity lives. But a
+              passkey cannot be renamed once created, so a typo would otherwise
+              sit in the keychain forever. Renaming here changes the label
+              beside the credential and leaves the key alone. ── */}
           {ready && cred && results.length === 0 && (
-            <p className="declare-note">
-              Key {cred.keyId.slice(0, 12)}&hellip; on this browser.{" "}
-              <button
-                type="button"
-                onClick={() => { clearStoredCredential(); setCred(null); setName(""); }}
-                style={{ appearance: "none", border: 0, background: "none", padding: 0,
-                         font: "inherit", color: "#0065A4", cursor: "pointer" }}
-              >
-                Forget it
-              </button>
-              .
-            </p>
+            renaming ? (
+              <div className="declare-name">
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveName();
+                    if (e.key === "Escape") { setRenaming(false); setName(cred.name); }
+                  }}
+                  placeholder="Name or organization"
+                  aria-label="The name this device declares under"
+                  spellCheck={false}
+                  autoFocus
+                />
+                <button type="button" className="bg-action-link" onClick={saveName} disabled={!name.trim()}>
+                  Save <span className="arrow" aria-hidden="true">&rarr;</span>
+                </button>
+              </div>
+            ) : (
+              <p className="declare-note">
+                Declared by {cred.name}, key {cred.keyId.slice(0, 12)}&hellip; on this browser.{" "}
+                <button type="button" className="declare-inline" onClick={() => { setName(cred.name); setRenaming(true); }}>
+                  Rename
+                </button>
+                {" · "}
+                <button
+                  type="button"
+                  className="declare-inline"
+                  onClick={() => { clearStoredCredential(); setCred(null); setName(""); setRenaming(false); }}
+                >
+                  Forget this device
+                </button>
+              </p>
+            )
           )}
 
           {results.length > 0 && (
