@@ -58,7 +58,9 @@ export default function BitGraphPage() {
         below={
           /* Home's ONE discoverable exit (the h1 is a link too, but it is
              colour: inherit with no underline and hover-only, so on a phone it
-             does not exist). A stranger's first question is what this is, and
+             does not exist). "How BitGraph works" (Mike, 2026-08-19 evening;
+             it was "What is a BitGraph" from the morning): the title above
+             already says what one is, so the link asks the next question, and
              /docs/overview answers it starting from a Polaroid. Real proofs
              are still one nav click away under Roll. The site's standard link
              type (14 / 600 / -0.01em, brand blue), on the layout-neutral
@@ -68,7 +70,7 @@ export default function BitGraphPage() {
             className="bg-arrow-link"
             style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
           >
-            What is a BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
+            How BitGraph works <span className="arrow" aria-hidden="true">&rarr;</span>
           </Link>
         }
       />
