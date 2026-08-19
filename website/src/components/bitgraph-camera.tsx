@@ -204,15 +204,14 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
      height: the shared title, and the page's own block under the frame.
 
      No shrinkBy. The two frames are the same size and the titles sit level
-     because the block under each frame is the SAME block: one 16px line box
-     (home's link; /actor's Rename · Forget) at the same margin (42). For a
-     day /actor carried two lines there (an identity line over its controls)
-     and the frames had to give 26px back to compensate; Mike moved that line
-     INTO the box ("under your file never leaves your device ... this way the
-     drop boxes can go back to their last size and be identical"), so the
-     compensation is gone with the cause. ⚠️ If a page ever puts a second
-     line under its frame again, that is the moment shrinkBy comes back, and
-     it comes back for BOTH pages or the titles part.
+     because the chrome around each frame is the SAME chrome: a title row
+     (the page's name, its one link on the right) over the box, and nothing
+     under it. For a day /actor carried two lines under its frame and the
+     frames had to give 26px back to compensate; Mike moved the identity line
+     INTO the box and then the link up to the title row, so the compensation
+     is gone with the cause. ⚠️ If a page ever puts a block under its frame
+     again, that is the moment shrinkBy comes back, and it comes back for BOTH
+     pages or the titles part.
 
      ⚠️ Gated on step === "drop" and it must stay so. The measurement sums
      every sibling of the frame into the chrome it has to fit around, so with
@@ -220,7 +219,10 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
      grows (that exact bug shipped on /actor). Disabled, the hook clears its
      custom properties and the frame falls back to its CSS sizing, which is
      what a page that has stopped being viewport-fitted should use. */
-  useCameraFit(step === "drop", ".bitgraph-tagline", `.${belowClassName}`);
+  // The ROW is what is observed, not the title inside it: on a narrow screen
+  // the link wraps under the title and the row grows while neither child's
+  // own height changes, and a measurement taken before the wrap would stand.
+  useCameraFit(step === "drop", ".bitgraph-title-row", `.${belowClassName}`);
 
   // Cleanup rAF on unmount only
   useEffect(() => {
@@ -275,12 +277,13 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
   // The one link on a closed results page. It sits on the right of the
   // first results heading (the folder's Roll when there is one, else the
   // files' heading) and opens the whole camera, title and full-size box,
-  // above the results. In the action-link voice; "Record or check" is the
-  // box's own headline, so the link names exactly what it reveals.
+  // above the results. In the action-link voice; "Record or check BitGraphs"
+  // is the box's own headline, so the link names exactly what it reveals
+  // (Mike, 2026-08-19: "more BitGraphs", not "more": the noun stays).
   const openLink = showingResults && !boxOpen ? (
     <button type="button" className="bg-arrow-link" onClick={() => setBoxOpen(true)}
       style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", whiteSpace: "nowrap", flexShrink: 0 }}>
-      Record or check more <span className="arrow" aria-hidden="true">&rarr;</span>
+      Record or check more BitGraphs <span className="arrow" aria-hidden="true">&rarr;</span>
     </button>
   ) : null;
 
@@ -1124,10 +1127,24 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
         /* The title takes its type from .bg-page-title (globals), the one
            page-title definition on the site. What is left here is the size
            exception below and the gap to the frame. */
-        /* Centred (2026-08-09). The column stays 800px; only the alignment
-           of what sits in it changed, so the card and frame are untouched. */
-        .bitgraph-hero { text-align: center; }
-        .bitgraph-hero .bg-action-link { text-align: center; }
+        /* ── LEFT, like every other title on the site (Mike, 2026-08-19: "is
+           the center aligned text (which is only center aligned text on whole
+           design) correct?"). It was centred from 2026-08-09 to today, the one
+           exception to a column that is left-aligned everywhere else: the
+           Roll, the docs, the proof pages, and "BitGraph Found" on this very
+           page, which sat directly under a centred title whenever the camera
+           was expanded over results. A symmetric box does not need a centred
+           title; the Roll's title sits left over a full-width list. The box's
+           OWN copy stays centred: a drop zone centres its prompt.
+
+           The page's one link moves from under the box to the TITLE ROW's
+           right, baseline-aligned: the same row as the results heading
+           ("BitGraph Found … Record or check more →") and the Roll's nav line.
+           Heading left, actions right, everywhere; and nothing sits under the
+           box any more. On a phone the link wraps under the title, both left.
+           ── */
+        .bitgraph-title-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 36px; }
+        .bitgraph-title-row .bitgraph-tagline { margin: 0; }
         /* 36px, taken over from the deck that used to sit between this title
            and the frame (removed 2026-08-18: it read "a place in space and
            time", and both halves were wrong). The 12px here before
@@ -1141,7 +1158,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            the tab title, the OpenGraph title and the Twitter card ("BitGraph |
            A camera for bits"). Docs pages keep theirs: those are prose, this
            is the app surface. */
-        .bitgraph-tagline { margin: 0 0 36px; }
+        .bitgraph-tagline { margin: 0; }
         /* The one place on the site that departs from the shared title size.
            .bg-page-title is clamp(26px, 6vw, 32px), which stops growing at a
            533px viewport, so on every desktop it is a flat 32px. That was fine
@@ -1203,9 +1220,8 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            composition still fits, just closer together. */
         @media (max-height: 520px) {
           .bitgraph-wrap:not(.bitgraph-results) { padding-top: 12px; padding-bottom: 12px; }
-          .bitgraph-tagline { font-size: clamp(20px, 4.5vh, 30px); margin: 0 0 14px; }
-          /* The page's block under the frame tightens too, in the page's own
-             style (home: .hero-more 14px; /actor: .declare-more 14px). */
+          .bitgraph-tagline { font-size: clamp(20px, 4.5vh, 30px); }
+          .bitgraph-title-row { margin-bottom: 14px; }
         }
       `}</style>
       {/* Nav is in root layout */}
@@ -1227,7 +1243,19 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
             note at the hook call. ── */}
         {(step === "drop" || (step === "results" && (!showingResults || boxOpen))) && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
-            <h1 className="bg-page-title bitgraph-tagline">{title}</h1>
+            {/* The title row: the page's name on the left, its one link on the
+                right (home's way out to the explanation, /actor's controls on
+                its key). The link's wrapper is rendered even when empty: the
+                fit measurement observes it by class.
+
+                ⚠️ Only while the page is the camera alone. Once results are
+                under the box, the page's link moves to the FOOT of the page
+                (Mike, 2026-08-19: "default these ... to the bottom when there
+                are results to keep a cleanness between results and box"). */}
+            <div className="bitgraph-title-row">
+              <h1 className="bg-page-title bitgraph-tagline">{title}</h1>
+              {!showingResults && <div className={belowClassName}>{below}</div>}
+            </div>
             <div className="bitgraph-camera">
               <FileDrop
                 multiple
@@ -1253,19 +1281,6 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                 note={frameNote}
               />
             </div>
-            {/* The page's block, floated under the card, not inside it. The
-                card's bottom slot is where a proof puts Export, an action on
-                the thing in the card; what sits here is about the page (home's
-                way out to the explanation, /actor's controls on its key), so it
-                sits clear of the border. Rendered even when empty: the fit
-                measurement observes it by class.
-
-                ⚠️ Only while the page is the camera alone. Once results are
-                under the box, this block moves to the FOOT of the page (Mike,
-                2026-08-19: "default these ... to the bottom when there are
-                results to keep a cleanness between results and box"), so the
-                box sits directly over what it produced. */}
-            {!showingResults && <div className={belowClassName}>{below}</div>}
           </div>
         )}
 
@@ -1619,11 +1634,11 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
           </div>
         )}
 
-        {/* The page's block, at the foot while results are on the page (see
-            the note in the hero). Same class, so it keeps its own margin and
-            type; centred here because it has left the centred hero. */}
+        {/* The page's link, at the foot while results are on the page (see
+            the note in the hero). Same class, so it keeps its type; left, like
+            everything above it. */}
         {showingResults && (
-          <div className={belowClassName} style={{ textAlign: "center" }}>{below}</div>
+          <div className={belowClassName}>{below}</div>
         )}
       </div>
     </div>

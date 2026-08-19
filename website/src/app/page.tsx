@@ -28,32 +28,13 @@ export default function BitGraphPage() {
            on hover. It is the one h1 on the site that is a link. */
         .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
-        /* The link under the box. The film pair briefly sat here and was cut:
-           it was written as the payoff to the overview diagram, and with no
-           diagram above it on this page it asked the reader to accept an
-           analogy nothing had set up.
-
-           The gap is set here, not inherited. .bg-action-link carries 14px of
-           its own padding and .bg-arrow-link carries none, so when this row
-           changed from one to the other the spacing silently collapsed to 3px.
-
-           42 because the box directly above is one big click target and a
-           stray hit on it opens a file dialog. At 20px the buffer was about
-           4mm on a phone, under what adjacent tap targets want; this is
-           closer to 7mm.
-
-           ⚠️ 42 is also /actor's .declare-more, and it must stay so: the two
-           pages are one composition, and the block under each frame is one
-           16px line box at this margin (home's link, /actor's Rename ·
-           Forget), which is what keeps the two frames the same size with no
-           correction in useCameraFit. It was 68 for a day, when /actor carried
-           a second line under its frame; that line now lives inside the box. */
-        .hero-more { margin-top: 42px; }
-        /* Short viewports tighten with the rest of the composition (the
-           camera's own rule does the title and padding). */
-        @media (max-height: 520px) {
-          .hero-more { margin-top: 14px; }
-        }
+        /* Home's one link. It lived under the box (42px off it, 68 for a day)
+           until 2026-08-19, when the title row took it: the camera lays it on
+           the right of the title, baseline-aligned, the same row as the
+           results heading and the Roll's nav line. Nothing to size here; the
+           class exists so the camera's fit measurement can observe the row,
+           and so /actor's .declare-more is its twin. */
+        .hero-more { }
       `}</style>
       <BitGraphCamera
         id="home"

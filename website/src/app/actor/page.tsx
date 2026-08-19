@@ -206,23 +206,19 @@ export default function ActorPage() {
         .declare-who strong { font-weight: 600; color: #111827; }
         .declare-who .declare-key { font-family: var(--font-mono); }
 
-        /* ── The block under the frame: the two controls that act on the key,
-           in exactly home's slot (Mike: "keep the Rename · Forget this device
-           in the identical position as what is a bitgraph"). ──
-           42 is home's .hero-more. ⚠️ The two are one number: the block under
-           each frame is one 16px line box at this margin, and that is what
-           keeps the frames the same size and the titles level. The p keeps
-           the page's 16px so its line box is the same height as home's link
-           row (a line box is never shorter than its block's own font strut).
-           The controls inside it are the site's standard link type, the
-           .bg-action-link numbers (14 / 600 / -0.01em, brand blue), the same
-           as home's link in the same slot (Mike, 2026-08-19: "the sites
-           standard size links"). They were 12.5 for a day. The hit area is
-           grown the way .bg-arrow-link grows its own: padding the region
-           and cancelling it in layout, so a tap near the text lands. */
-        .declare-more { margin-top: 42px; }
-        .declare-note { margin: 0; font-size: 16px; color: #4b5563; }
-        .declare-note-controls { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+        /* ── The two controls that act on the key, in exactly home's slot
+           (Mike: "keep the Rename · Forget this device in the identical
+           position as what is a bitgraph"): the right of the title row since
+           2026-08-19, under the box for the day before. ──
+           The controls are the site's standard link type, the .bg-action-link
+           numbers (14 / 600 / -0.01em, brand blue), the same as home's link in
+           the same slot (Mike: "the sites standard size links"). The p keeps
+           the page's 16px so its line box matches home's link row. The hit
+           area is grown the way .bg-arrow-link grows its own: padding the
+           region and cancelling it in layout, so a tap near the text lands. */
+        .declare-more { }
+        .declare-note { margin: 0; font-size: 16px; color: #4b5563; white-space: nowrap; }
+        .declare-note-controls { display: inline-flex; gap: 20px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
         .declare-inline { appearance: none; border: 0; background: none; padding: 13px 0; margin: -13px 0;
           font: inherit; color: #0065A4; cursor: pointer; }
 
@@ -231,7 +227,6 @@ export default function ActorPage() {
         @media (max-height: 520px) {
           .declare-register-wrap { padding-top: 12px; padding-bottom: 12px; }
           .declare-title { font-size: clamp(20px, 4.5vh, 30px); margin: 0 0 14px; }
-          .declare-more { margin-top: 14px; }
         }
       `}</style>
 
@@ -285,12 +280,17 @@ export default function ActorPage() {
                 </button>
               </div>
             ) : (
+              /* Two actions on one line, separated by space alone, as the
+                 Roll's nav line separates its steppers and "All rolls →":
+                 20px, no glyph. It was "Rename · Forget this device" for a
+                 day (Mike: "is there a better way to separate these
+                 links?"); the dot was the one separator of its kind on the
+                 site. */
               <p className="declare-note">
                 <span className="declare-note-controls">
                   <button type="button" className="declare-inline" onClick={() => { setName(cred.name); setRenaming(true); }}>
                     Rename
                   </button>
-                  {" · "}
                   <button type="button" className="declare-inline" onClick={forget}>
                     Forget this device
                   </button>
