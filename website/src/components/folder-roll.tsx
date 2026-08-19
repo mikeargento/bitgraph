@@ -74,11 +74,14 @@ export function useFileThumbs(files: Array<File | null | undefined>): Map<File, 
    browser's IndexedDB memory was removed with that page (2026-08-07). This
    list renders drops whose bytes are in hand; thumbs are generated from
    those bytes and live for the visit. */
-export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll" }: {
+export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll", aside }: {
   checked: ExportCheckResult[];
   onOpen: (r: ExportCheckResult) => void;
   /** The list's own title. null lets a caller's page header own the top. */
   heading?: string | null;
+  /** Something for the right of the heading row (the camera's "Record or
+   *  check more →" when this Roll is the first thing on a results page). */
+  aside?: React.ReactNode;
 }) {
   // Causal order, newest first: lower-bound block, then counter; unsealed
   // (no block) lead. The same sort every surface in the product uses.
@@ -163,9 +166,12 @@ export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll" }: {
           knows which day is open. */}
       {heading && (
         /* The Roll's own title, at the one size every page title on the site
-           uses (docs h1, /roll, /folder). */
-        <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827" }}>
-          {heading}
+           uses (docs h1, /roll, /folder), with the caller's aside on its right. */
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16 }}>
+          <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827" }}>
+            {heading}
+          </div>
+          {aside}
         </div>
       )}
       {(heading || view) && (

@@ -153,6 +153,13 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
   // The strategy's sentence about a failed run, shown in the receipt card
   // until the next run or drop. Home's strategy has none; its rows say Error.
   const [recordMessage, setRecordMessage] = useState<string | null>(null);
+  // On a results page the box is CLOSED behind one link until asked for
+  // (Mike, 2026-08-19: "what if there IS a link, and it says something like
+  // make more, and it EXPANDS the dropbox full size"). Opened by the link, or
+  // by a file drag entering the window, since a drag cannot click first and
+  // dragging is the only way a folder arrives. Closes again when the next
+  // drop starts, so every results page begins the same way.
+  const [boxOpen, setBoxOpen] = useState(false);
   const [proveAnimCount, setProveAnimCount] = useState(0);
   const proveAnimRef = useRef(0);
   const [, setExportProgress] = useState({ current: 0, total: 0 });
@@ -260,9 +267,34 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
     return () => cancelAnimationFrame(raf);
   }, [proveProgress.current]);
 
-  // Results are on the page: the camera stays above them, and the page's
-  // block under the frame moves to the foot of the page (see the render).
+  // Results are on the page: the camera is closed behind its link above
+  // them, and the page's block under the frame moves to the foot of the page
+  // (see the render).
   const showingResults = step === "results" && (items.length > 0 || checked.length > 0);
+
+  // The one link on a closed results page. It sits on the right of the
+  // first results heading (the folder's Roll when there is one, else the
+  // files' heading) and opens the whole camera, title and full-size box,
+  // above the results. In the action-link voice; "Record or check" is the
+  // box's own headline, so the link names exactly what it reveals.
+  const openLink = showingResults && !boxOpen ? (
+    <button type="button" className="bg-arrow-link" onClick={() => setBoxOpen(true)}
+      style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", whiteSpace: "nowrap", flexShrink: 0 }}>
+      Record or check more <span className="arrow" aria-hidden="true">&rarr;</span>
+    </button>
+  ) : null;
+
+  // A file drag entering the window opens the box, so a folder (or anything)
+  // dragged at a results page finds its target without a click it cannot
+  // make mid-drag. Files only: a dragged text selection is not a drop.
+  useEffect(() => {
+    if (!showingResults || boxOpen) return;
+    const onDragEnter = (e: DragEvent) => {
+      if (e.dataTransfer?.types?.includes("Files")) setBoxOpen(true);
+    };
+    window.addEventListener("dragenter", onDragEnter);
+    return () => window.removeEventListener("dragenter", onDragEnter);
+  }, [showingResults, boxOpen]);
   const found = items.filter(i => i.status === "found" || i.status === "proved");
   // Files the Record row offers: never recorded, or recorded and failed (an
   // errored file is still an unrecorded file; see proveRemaining).
@@ -426,6 +458,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
     setStep("scanning");
     // A new drop retires the last run's sentence; the rows are the answer now.
     setRecordMessage(null);
+    setBoxOpen(false);
     const results = await scanFiles(files);
 
     // One file in, one page out. A single artifact drop always lands on its
@@ -547,6 +580,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
 
   async function handleFolder(walked: WalkedFile[]) {
     setRecordMessage(null);
+    setBoxOpen(false);
     const scan = discoverDrop(walked);
     if (scan.exports.length === 0) {
       // Hand off, or put the drop zone back: the reading state was raised
@@ -1074,26 +1108,18 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            start at the top. */
         .bitgraph-wrap:not(.bitgraph-results) { justify-content: center; min-height: var(--bg-wrap-min, auto); padding-bottom: 40px; }
         .bitgraph-wrap.bitgraph-results { padding-top: 32px; padding-bottom: 48px; }
-        /* ── Results: the box becomes a STRIP (Mike, 2026-08-19: "do the
-           strip"). At full size it was ~490px of empty dashed rectangle over
-           the list the drop produced, with "BitGraph Found" below the first
-           screen. A strip keeps every property that matters (it is still the
-           drop target, so a folder can still be DRAGGED here, the only way a
-           folder arrives; the dashed edge still says droppable; nothing leaves
-           the page) and gives the results the screen. Not a "more →" link: a
-           link cannot take a drop and would navigate away from the results the
-           next drop is usually compared against.
-
-           176px: 148 held the headline and three lines of copy on /actor
-           inside the box's own 20px vertical padding (128 fit the text but
-           not the padding), and Mike asked for "a LITTLE taller" on seeing it,
-           so the copy gets about 14px more air above and below. The headline
-           drops to 18 and the copy gap to 6 so the four lines read as one
-           block. Beats globals' .bitgraph-camera (aspect
-           ratio, min-height 180/120, the measured max-height) on specificity,
-           which is the point: this is the one state where the frame is not a
-           viewport-fitted composition. ── */
-        .bitgraph-wrap.bitgraph-results .bitgraph-camera { aspect-ratio: auto; height: 176px; min-height: 0; max-height: none; --fd-headline: 18px; --fd-copy-gap: 6px; }
+        /* ── Results: the box is closed behind one link (Mike, 2026-08-19).
+           At full size it was ~490px of empty dashed rectangle over the list
+           the drop produced, with "BitGraph Found" below the first screen. It
+           was a 176px strip for an hour; Mike's better idea: a link that
+           EXPANDS the box to full size in place. The results lead, nothing
+           leaves the page, and the box is one click away, or no clicks: a
+           file drag entering the window opens it, so the folder gesture (drag
+           is the only way a folder arrives) still lands. Closed means CLOSED:
+           no title, no box, the results start at the top of the page (Mike's
+           mock), and the link sits on the right of the first results heading.
+           Opening brings "the whole thing header included": the hero mounts
+           above the results exactly as the drop step has it. ── */
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; }
         /* The title takes its type from .bg-page-title (globals), the one
            page-title definition on the site. What is left here is the size
@@ -1199,7 +1225,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
 
             ⚠️ useCameraFit stays gated on step === "drop" and must; see the
             note at the hook call. ── */}
-        {(step === "drop" || step === "results") && (
+        {(step === "drop" || (step === "results" && (!showingResults || boxOpen))) && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
             <h1 className="bg-page-title bitgraph-tagline">{title}</h1>
             <div className="bitgraph-camera">
@@ -1353,7 +1379,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                   the dropped bytes themselves, the verdict in the two-outcome
                   colors — blue "matches the ledger", red naming the side that
                   differed. NO buttons: the drop triggered everything. ── */}
-              {checked.length > 0 && <CheckedRoll checked={checked} onOpen={openCheckedRow} />}
+              {checked.length > 0 && <CheckedRoll checked={checked} onOpen={openCheckedRow} aside={openLink} />}
 
               {/* The whole batch state lives in one receipt card (same anatomy
                   as the proof page's receipt): count + export in the body, and
@@ -1377,9 +1403,14 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                   that still had its Record row waiting, with nothing recorded
                   yet. A lookup is not a recording, and neither is a list of
                   files that could be. */}
-              <div className="bg-page-title" style={{ marginBottom: 20 }}>
-                BitGraph{items.length === 1 ? "" : "s"}{" "}
-                {items.some((i) => i.status === "proved") ? "Recorded" : "Found"}
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 20 }}>
+                <div className="bg-page-title">
+                  BitGraph{items.length === 1 ? "" : "s"}{" "}
+                  {items.some((i) => i.status === "proved") ? "Recorded" : "Found"}
+                </div>
+                {/* The link to reopen the camera, on the first heading only:
+                    when a folder's Roll is above this, it carries it. */}
+                {checked.length === 0 && openLink}
               </div>
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
                 <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
