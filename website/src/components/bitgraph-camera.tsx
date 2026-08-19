@@ -1074,6 +1074,26 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            start at the top. */
         .bitgraph-wrap:not(.bitgraph-results) { justify-content: center; min-height: var(--bg-wrap-min, auto); padding-bottom: 40px; }
         .bitgraph-wrap.bitgraph-results { padding-top: 32px; padding-bottom: 48px; }
+        /* ── Results: the box becomes a STRIP (Mike, 2026-08-19: "do the
+           strip"). At full size it was ~490px of empty dashed rectangle over
+           the list the drop produced, with "BitGraph Found" below the first
+           screen. A strip keeps every property that matters (it is still the
+           drop target, so a folder can still be DRAGGED here, the only way a
+           folder arrives; the dashed edge still says droppable; nothing leaves
+           the page) and gives the results the screen. Not a "more →" link: a
+           link cannot take a drop and would navigate away from the results the
+           next drop is usually compared against.
+
+           176px: 148 held the headline and three lines of copy on /actor
+           inside the box's own 20px vertical padding (128 fit the text but
+           not the padding), and Mike asked for "a LITTLE taller" on seeing it,
+           so the copy gets about 14px more air above and below. The headline
+           drops to 18 and the copy gap to 6 so the four lines read as one
+           block. Beats globals' .bitgraph-camera (aspect
+           ratio, min-height 180/120, the measured max-height) on specificity,
+           which is the point: this is the one state where the frame is not a
+           viewport-fitted composition. ── */
+        .bitgraph-wrap.bitgraph-results .bitgraph-camera { aspect-ratio: auto; height: 176px; min-height: 0; max-height: none; --fd-headline: 18px; --fd-copy-gap: 6px; }
         .bitgraph-hero { display: flex; flex-direction: column; align-items: stretch; }
         /* The title takes its type from .bg-page-title (globals), the one
            page-title definition on the site. What is left here is the size
