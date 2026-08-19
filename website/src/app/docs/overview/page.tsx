@@ -67,7 +67,7 @@ export default function OverviewPage() {
           would otherwise restyle these (same trap family as .prose-doc, see the
           2026-08-03 handoff). ── */}
       <h1 style={{ margin: "0 0 4px" }}>
-        BitGraphs give bits a place.
+        BitGraph gives bits a place.
       </h1>
       <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 20px" }}>
         Who, when, and where are different facts. Knowing who took a Polaroid
