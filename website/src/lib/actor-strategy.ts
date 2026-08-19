@@ -1,4 +1,4 @@
-import { commitDigest, commitBatch, type AgencyEnvelope, type BitGraphProof } from "@/lib/bitgraph";
+import { commitDigest, commitBatch, type AgencyEnvelope } from "@/lib/bitgraph";
 import {
   buildAgencyEnvelope,
   requestAssertion,
@@ -44,11 +44,6 @@ async function fetchChallenge(): Promise<string> {
   return ((await res.json()) as { challenge: string }).challenge;
 }
 
-/** How many single-digest requests are in flight at once for the tail of a
- *  large run. The enclave serialises commits anyway (one monotonic counter),
- *  so this only overlaps the HTTP round trips. */
-const LATER_CHUNK_CONCURRENCY = 6;
-
 export function makeActorStrategy(cred: StoredCredential): CommitStrategy {
   /** The run in progress: one nonce, one assertion, every digest the run
    *  covers (the enclave's `remaining` set is built from this list). */
@@ -88,50 +83,33 @@ export function makeActorStrategy(cred: StoredCredential): CommitStrategy {
       return commitDigest(digest, undefined, envelope(digest, null));
     },
 
-    async chunk(digests, offset) {
-      /* ⚠️ The two shapes below are forced by how the parent numbers a request,
-         and the split is what makes a run of any size work with the server
-         as it is (server/commit-service/src/parent/server.ts, "Agency with
-         batch support"):
+    chunk(digests, offset) {
+      /* Every chunk is ONE request, exactly home's shape and speed. The
+         envelope's batchIndex is this chunk's OFFSET into the run; the parent
+         numbers the request's digests from it (server/commit-service/src/
+         parent/server.ts, "Agency with batch support", deployed 2026-08-19).
+         Index 0 alone validates fully against the single-use nonce and opens
+         the batch in the enclave; every later index takes the continuation
+         path (nonce lookup + "is this digest on the authorised list"). The
+         camera sends chunks in order, so the first chunk has opened the batch
+         before the second arrives.
 
-         - A MULTI-digest request is renumbered by the parent: it sends the
-           enclave batchIndex 0, 1, 2… for that request's digests whatever the
-           client wrote. Index 0 means "validate fully against the nonce", and
-           the nonce is single-use. So only the FIRST chunk of a run can go as
-           one request; a second multi-digest request would present a spent
-           nonce for re-validation and fail whole.
-         - A SINGLE-digest request passes the client's batchContext through
-           untouched, so a later chunk goes as one request per digest, each
-           carrying its true index into the run, and every one of them takes
-           the enclave's continuation path (nonce lookup + "is this digest in
-           the authorised batch").
+         ⚠️ Before that parent change, a multi-digest request was renumbered
+         from 0 whatever the client wrote, so a second chunk presented a spent
+         nonce and failed whole; the tail then had to go one request per
+         digest. Do not bring that shape back against a parent that respects
+         the offset, and do not ship this shape against one that does not.
 
-         Up to 50 files is therefore ONE request, exactly home's shape and
-         speed. Past 50, each remaining digest is its own request, a few at a
-         time. ⚠️ The enclave keeps the validated batch for 60s from the first
-         chunk, so a run much past a few hundred files can find its tail
-         refused ("batch not found"); the camera shows those rows as Error and
-         offers to record them again, which costs one more touch. The real fix
-         is one line in the parent (respect the client's batchIndex offset on
-         multi-digest requests), after which every chunk can be one request;
-         that is a host deploy, not a site change, and is not done here. */
-      if (offset === 0) {
-        return commitBatch(
-          digests.map((digestB64) => ({ digestB64, hashAlg: "sha256" as const })),
-          undefined,
-          envelope(digests[0], 0),
-        );
-      }
-      const out: BitGraphProof[] = new Array(digests.length);
-      let next = 0;
-      const worker = async () => {
-        while (next < digests.length) {
-          const j = next++;
-          out[j] = await commitDigest(digests[j], undefined, envelope(digests[j], offset + j));
-        }
-      };
-      await Promise.all(Array.from({ length: Math.min(LATER_CHUNK_CONCURRENCY, digests.length) }, worker));
-      return out;
+         ⚠️ The enclave keeps the validated batch for 60s from the first
+         chunk. At the camera's ~50 commits a second that covers a few
+         thousand files; a run past that can find its tail refused ("batch
+         not found"), which the camera shows as Error and offers to record
+         again, at the cost of one more touch. */
+      return commitBatch(
+        digests.map((digestB64) => ({ digestB64, hashAlg: "sha256" as const })),
+        undefined,
+        envelope(digests[0], offset),
+      );
     },
 
     errorMessage(e, phase) {

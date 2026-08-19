@@ -296,6 +296,12 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
   //   - The enclave validates the challenge + P-256 signature on digest #0,
   //     stores the validated batch, then looks it up for digests #1..N.
   //   - All proofs get actor identity in their Ed25519-signed body.
+  //   - A run larger than one request arrives as several requests. The
+  //     client's batchIndex is the OFFSET of this request into the run, and
+  //     each digest here is numbered from it. Only index 0 validates against
+  //     the (single-use) nonce; every later index takes the enclave's
+  //     continuation path. Renumbering every request from 0 would present a
+  //     spent nonce for re-validation and refuse the whole second request.
   //
   // Enclave commits are sequential (monotonic counter), but TSA timestamps
   // are parallelized afterward to minimize latency on batch requests.
@@ -314,13 +320,17 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     const { slotId } = slotResult.data as { slotId: string };
 
     // Step 2: Commit the digest with the allocated slot
-    // For batch commits with agency, update batchIndex for each digest.
+    // For batch commits with agency, number each digest from the request's
+    // offset into the run (the client's batchIndex), never from 0.
     let agencyForDigest: AgencyEnvelope | undefined;
     if (body.agency) {
       if (isBatch && body.agency.batchContext) {
+        const offset = Number.isInteger(body.agency.batchContext.batchIndex) && body.agency.batchContext.batchIndex > 0
+          ? body.agency.batchContext.batchIndex
+          : 0;
         agencyForDigest = {
           ...body.agency,
-          batchContext: { ...body.agency.batchContext, batchIndex: i },
+          batchContext: { ...body.agency.batchContext, batchIndex: offset + i },
         };
       } else {
         agencyForDigest = i === 0 ? body.agency : undefined;
