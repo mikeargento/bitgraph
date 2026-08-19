@@ -17,6 +17,26 @@
  * a WHO, never a better WHEN, and the honest word for a statement by a named
  * party is the one Player's own verdict already uses for it.
  *
+ * ⚠️ RE-TESTED AND KEPT, 2026-08-19. Mike reopened the word and rejected three
+ * more candidates before landing back on it. The pattern is worth having:
+ * AUTHORIZED assigns permission, AUTHORED assigns creation, COMMISSIONED
+ * assigns patronage. Each gives the person a ROLE, and BitGraph establishes
+ * none: it records that a key was present and consented, and says nothing
+ * about what that person did or is. "Commissioned" fails a second way, the
+ * same way "signed" did, by being true of EVERY BitGraph (an anonymous drop
+ * also requests a recording), so it cannot name the subset. It also already
+ * means a client job to a photographer.
+ *
+ * If it is ever reopened again, the only candidates that survived the
+ * constraints describe the ARTIFACT rather than the person: countersigned
+ * (precise: the enclave signs, the holder's key signs too), keyed, key-bound.
+ * Ruled out on sight: certified/approved/endorsed (imply a gatekeeper granted
+ * permission, which is the C2PA framing we differentiate from), attested
+ * (collides with Nitro attestation), sealed (banned language), named (BitGraph
+ * never learns a name), claimed (collides with /docs/overview: "Provenance can
+ * be enforced or it can be claimed. Most systems claim it"), and Content
+ * Credentials (C2PA's own brand, and our foil twice in that same page).
+ *
  * ── Why this is a separate page rather than a switch on the home box ──
  *
  * An enrolled browser still needs to record anonymously: the shared chain's
