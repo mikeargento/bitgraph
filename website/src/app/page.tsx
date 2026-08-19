@@ -55,13 +55,13 @@ export default function BitGraphPage() {
              proofs are still one nav click away under Roll, so the
              no-commitment path to seeing one is not lost.
 
-             A circled i since 2026-08-19 (Mike: "wrapping button is bad
-             should it just be an i with a circle info symbol???"). It was
-             the words "What is a BitGraph →" at 19, 16 and then the site's
-             standard 14, under the box and then on this row, and on a phone
-             any words here wrap under a 34px title. The glyph says "about
-             this" whole at every width; the words are its label and title
-             for readers who cannot see it. */
+             The words, at the site's standard link type, with "Info →" as the
+             phone form (Mike, 2026-08-19: "what about info ->"), since on a
+             phone the full words wrap under a 34px title. It was a circled i
+             for an afternoon, which never wrapped but was the site's one
+             icon-only control and read as a line at that size. The sizes
+             before that: 19, 16, then the standard 14 (Mike: "the sites
+             standard size links"). */
           <InfoLink href="/docs/overview" label="What is a BitGraph" />
         }
       />

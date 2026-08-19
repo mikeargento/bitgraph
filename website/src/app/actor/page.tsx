@@ -176,6 +176,7 @@ export default function ActorPage() {
            works →" on the right, baseline-aligned; on a phone the link wraps
            under the title. The form under it is left too. */
         .declare-title-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 36px; }
+        @media (max-width: 520px) { .declare-title-row { gap: 6px 12px; } }
         .declare-title { font-size: clamp(34px, 6vw, 40px); margin: 0; }
         .declare-register { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; }
         /* pretty, not balance, now that the lead is left-aligned: balance
@@ -273,9 +274,10 @@ export default function ActorPage() {
           <div className="declare-title-row">
             <h1 className="bg-page-title declare-title">BitGraph Actor</h1>
             {/* The way to the explanation this screen does not carry (see the
-                note under the action). Home has its circled i in this slot;
-                here the question is what the touch does and what a reader may
-                conclude from it, and /docs/actor answers that. */}
+                note under the action). Home has "What is a BitGraph →" in
+                this slot; here the question is what the touch does and what a
+                reader may conclude from it, and /docs/actor answers that.
+                "Info →" on a phone, like home's. */}
             <InfoLink href="/docs/actor" label="How it works" />
           </div>
           <div className="declare-register">

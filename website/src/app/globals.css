@@ -504,9 +504,6 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 /* A month calendar's openable day (components/month-calendar.tsx): the same
    quiet answer under the cursor as a file row. */
 .bg-month-day { transition: background 0.15s; }
-/* The circled-i info link (components/info-link.tsx): one step darker under
-   the cursor, the same answer the action links' arrows give. */
-.bg-info-link { transition: color 0.15s; }
 /* An action on a title row says its whole name where there is room and a
    short one on a phone, where a title of 34px leaves about 60px beside it
    ("Forget this device" / "Forget"; "Record or check more BitGraphs →" /
@@ -520,7 +517,6 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .bg-btn-outline:hover { background: #e8eef5 !important; }
   .bitgraph-file-row:hover { background: #f3f5f7; }
   .bg-month-day:hover { background: #f0f6ff; }
-  .bg-info-link:hover { color: #00568c; }
   /* The shutter answers the hand: one step darker under the cursor. */
   .bg-btn-fill:hover { background: #00568c !important; }
 }

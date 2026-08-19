@@ -1143,6 +1143,10 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            box any more. On a phone the link wraps under the title, both left.
            ── */
         .bitgraph-title-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 36px; }
+        /* 12px between title and link on a phone: the short labels ("Info →"
+           41px, "Forget" 42px) then fit beside a 34px title down to a 360px
+           viewport, where the column is 324px and the home title 264. */
+        @media (max-width: 520px) { .bitgraph-title-row { gap: 6px 12px; } }
         .bitgraph-title-row .bitgraph-tagline { margin: 0; }
         /* 36px, taken over from the deck that used to sit between this title
            and the frame (removed 2026-08-18: it read "a place in space and
