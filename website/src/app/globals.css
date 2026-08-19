@@ -501,9 +501,13 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    override it. */
 .bitgraph-file-card { background: #fff; }
 .bitgraph-file-row { transition: background 0.15s; }
+/* A month calendar's openable day (components/month-calendar.tsx): the same
+   quiet answer under the cursor as a file row. */
+.bg-month-day { transition: background 0.15s; }
 @media (hover: hover) {
   .bg-btn-outline:hover { background: #e8eef5 !important; }
   .bitgraph-file-row:hover { background: #f3f5f7; }
+  .bg-month-day:hover { background: #f0f6ff; }
   /* The shutter answers the hand: one step darker under the cursor. */
   .bg-btn-fill:hover { background: #00568c !important; }
 }

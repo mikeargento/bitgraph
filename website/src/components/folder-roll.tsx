@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isUnchecked, type ExportCheckResult } from "@/lib/folder-check";
+import { MonthCalendar, MonthShelf, type CalendarDay } from "@/components/month-calendar";
 
 // Compact recorded time for a result row, e.g. "Jul 17, 9:22 PM" — the same
 // format the Roll's rows use, so the two lists read as one system.
@@ -292,6 +293,11 @@ function CheckedShelf({ groups, onPick, onLive }: {
   onPick: (key: string) => void;
   onLive: () => void;
 }) {
+  /* The drawing is components/month-calendar.tsx, shared with /rolls. This
+     shelf knows something /rolls does not: how many recordings each day
+     holds (the rows are in hand), so each recorded day carries its count and
+     the month line says the total. Local dates throughout, matching the day
+     groups above, which are keyed the same way. */
   const now = new Date();
   const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
   const recorded = new Map(groups.map((g) => [g.key, g]));
@@ -304,47 +310,32 @@ function CheckedShelf({ groups, onPick, onLive }: {
        m === 0 ? (y--, m = 11) : m--) {
     months.push({ label: new Date(y, m, 1).toLocaleDateString(undefined, { year: "numeric", month: "long" }), y, m });
   }
-  const cell: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", aspectRatio: "1", fontSize: 13 };
-  const mono = "ui-monospace, SFMono-Regular, Menlo, monospace";
   return (
-    <div>
-      {months.map(({ label, y, m }) => {
-        const daysIn = new Date(y, m + 1, 0).getDate();
-        const lead = new Date(y, m, 1).getDay();
-        return (
-          <section key={label} style={{ marginTop: 24, maxWidth: 340 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827", marginBottom: 8 }}>{label}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", fontFamily: mono, fontVariantNumeric: "tabular-nums" }}>
-              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-                <div key={`h${i}`} style={{ ...cell, fontSize: 10.5, color: "#9ca3af", aspectRatio: "auto", paddingBottom: 4 }}>{d}</div>
-              ))}
-              {Array.from({ length: lead }, (_, i) => <div key={`b${i}`} style={cell} />)}
-              {Array.from({ length: daysIn }, (_, i) => {
-                const d = i + 1;
-                const key = `${y}-${m}-${d}`;
-                if (key === todayKey) {
-                  return (
-                    <button key={key} type="button" onClick={onLive} aria-label="Today"
-                      style={{ ...cell, color: "#0065A4", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: mono, boxShadow: "inset 0 0 0 1px #0065A4" }}>
-                      {d}
-                    </button>
-                  );
-                }
-                if (recorded.has(key)) {
-                  return (
-                    <button key={key} type="button" onClick={() => onPick(key)}
-                      className="bitgraph-shelf-day"
-                      style={{ ...cell, color: "#0065A4", fontWeight: 600, background: "none", border: "none", cursor: "pointer", fontFamily: mono }}>
-                      {d}
-                    </button>
-                  );
-                }
-                return <div key={key} style={{ ...cell, color: "#c7ccd1" }}>{d}</div>;
-              })}
-            </div>
-          </section>
-        );
-      })}
+    <div style={{ marginTop: 18 }}>
+      <MonthShelf>
+        {months.map(({ label, y, m }) => {
+          const daysIn = new Date(y, m + 1, 0).getDate();
+          const lead = new Date(y, m, 1).getDay();
+          let recordings = 0;
+          let daysWith = 0;
+          const days: CalendarDay[] = Array.from({ length: daysIn }, (_, i) => {
+            const d = i + 1;
+            const key = `${y}-${m}-${d}`;
+            const g = recorded.get(key);
+            if (g) { recordings += g.rows.length; daysWith += 1; }
+            if (key === todayKey) {
+              return { n: d, kind: "today", count: g?.rows.length, onPick: onLive, ariaLabel: "Today" };
+            }
+            if (g) return { n: d, kind: "recorded", count: g.rows.length, onPick: () => onPick(key) };
+            const isFuture = new Date(y, m, d).getTime() > now.getTime();
+            return { n: d, kind: isFuture ? "future" : "idle" };
+          });
+          const total = recordings
+            ? `${recordings.toLocaleString()} recording${recordings === 1 ? "" : "s"} · ${daysWith} day${daysWith === 1 ? "" : "s"}`
+            : undefined;
+          return <MonthCalendar key={label} title={label} total={total} leading={lead} days={days} />;
+        })}
+      </MonthShelf>
     </div>
   );
 }
