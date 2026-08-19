@@ -269,9 +269,8 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
     return () => cancelAnimationFrame(raf);
   }, [proveProgress.current]);
 
-  // Results are on the page: the camera is closed behind its link above
-  // them, and the page's block under the frame moves to the foot of the page
-  // (see the render).
+  // Results are on the page: the camera (title row, box) is closed behind
+  // one link on the results heading until asked for (see the render).
   const showingResults = step === "results" && (items.length > 0 || checked.length > 0);
 
   // The one link on a closed results page. It sits on the right of the
@@ -1246,15 +1245,13 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
             {/* The title row: the page's name on the left, its one link on the
                 right (home's way out to the explanation, /actor's controls on
                 its key). The link's wrapper is rendered even when empty: the
-                fit measurement observes it by class.
-
-                ⚠️ Only while the page is the camera alone. Once results are
-                under the box, the page's link moves to the FOOT of the page
-                (Mike, 2026-08-19: "default these ... to the bottom when there
-                are results to keep a cleanness between results and box"). */}
+                fit measurement observes it by class. The link goes wherever
+                the row goes and nowhere else: a closed results page has
+                neither (Mike, 2026-08-19: "What is a BitGraph → should simply
+                be absent from results pages"). */}
             <div className="bitgraph-title-row">
               <h1 className="bg-page-title bitgraph-tagline">{title}</h1>
-              {!showingResults && <div className={belowClassName}>{below}</div>}
+              <div className={belowClassName}>{below}</div>
             </div>
             <div className="bitgraph-camera">
               <FileDrop
@@ -1634,12 +1631,12 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
           </div>
         )}
 
-        {/* The page's link, at the foot while results are on the page (see
-            the note in the hero). Same class, so it keeps its type; left, like
-            everything above it. */}
-        {showingResults && (
-          <div className={belowClassName}>{below}</div>
-        )}
+        {/* ❄️ No foot block. The page's link lived at the foot of a results
+            page for an afternoon (after being moved off the box); Mike:
+            "What is a BitGraph → should simply be absent from results pages".
+            The rule that makes it true: the link belongs to the TITLE ROW, so
+            when the row is not on the page (a closed results page), neither is
+            the link. Expanding the camera brings the row, and the link, back. */}
       </div>
     </div>
   );
