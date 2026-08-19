@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "BitGraph Actor",
-  description: "Recordings authorized by a key you hold: one passkey touch, verified inside the enclave against its own single-use nonce, and what a reader may and may not conclude from it.",
+  description: "Recordings authorized by a passkey you control: one touch, verified inside the enclave against its own single-use nonce, and what a reader may and may not conclude from it.",
 };
 
 /* ── /docs/actor: the page the instrument is not allowed to be. ──
@@ -12,7 +12,14 @@ export const metadata: Metadata = {
    reason), and both of those now point here. So this is where the mechanism,
    the claim and its limits, and the cost are written down, once, in the
    overview's vocabulary. Facts, in reading order; no doctrine restated from
-   the overview beyond the one line each section needs. ── */
+   the overview beyond the one line each section needs.
+
+   ⚠️ Every check this page names is one the code makes (enclave/app.ts
+   verifyAgencyEnvelope; packages/verify verifier.ts verifyAgency). Neither
+   re-checks clientData.origin or the rpIdHash today; the RP binding stated
+   here is the authenticator's own (rp.id at registration and assertion). If
+   that re-check is added, say so here; until then, do not. Passkeys may be
+   synced by the platform, so the page never calls the key device-bound. ── */
 
 /* What a declared proof carries, shaped as the enclave emits it (and as
    lib/webauthn.ts builds the envelope). Edit only against those. */
@@ -48,16 +55,16 @@ export default function ActorDocsPage() {
           Mike's. The first sentence says what this is. */}
       <h1 className="mb-5">BitGraph Actor</h1>
       <p style={{ color: "#1f2937", marginBottom: 16 }}>
-        A recording made at <a href="/actor">bitgraph.ing/actor</a> is an ordinary BitGraph plus one thing: an authorization for that exact file, signed by a key only your device can use, and verified inside the enclave against a nonce of its own before it would record anything. Same slot, same order, same anchors. Only the who differs.
+        A recording made at <a href="/actor">bitgraph.ing/actor</a> is an ordinary BitGraph plus one thing: an authorization for that exact file, made with a passkey you control and verified inside the enclave, against a nonce of its own, before anything is recorded. Same slot, same order, same anchors. Only the who differs.
       </p>
       <p style={{ color: "#1f2937", marginBottom: 32 }}>
-        BitGraph never learns who you are. The proof carries a key; who holds it is a question for whoever reads the proof, answered from a source they choose.
+        BitGraph never learns who you are. The proof carries a key. Who holds it is a question for whoever reads the proof, answered from a source they choose.
       </p>
 
       <h2>How it works</h2>
       <ol>
         <li>
-          <strong>Once, per browser: register a passkey.</strong> Touch ID, Face ID or Windows Hello makes a P-256 key pair in the device&apos;s secure hardware. The private key never leaves it. What the proof will carry is the public key and its <code>keyId</code>, the SHA-256 of that public key.
+          <strong>Once, per browser: register a passkey.</strong> Touch ID, Face ID or Windows Hello creates a passkey for bitgraph.ing. The private key stays with your platform&apos;s passkey provider or authenticator, which may sync it across your devices; it is never exposed to BitGraph. The passkey is scoped to bitgraph.ing: your authenticator will not use it for another site. What the proof will carry is the public key and its <code>keyId</code>, the SHA-256 of that public key.
         </li>
         <li>
           <strong>Drop a file, as on home.</strong> It is hashed in your browser and the ledger is read. A file already on record comes back as the positions it holds, and nothing is signed: a lookup is not a recording.
@@ -66,19 +73,19 @@ export default function ActorDocsPage() {
           <strong>For files not yet on record, the enclave issues a nonce.</strong> Its own, from its hardware random source, kept for 60 seconds and accepted once. A nonce the caller chose would prove nothing about when the caller chose it.
         </li>
         <li>
-          <strong>One touch.</strong> Your device signs that nonce (a WebAuthn assertion: the authenticator data and the client data, which names the nonce, under the P-256 key). The envelope that travels with the commit names the key, the file&apos;s digest, the nonce and the moment.
+          <strong>One touch.</strong> Your authenticator signs that nonce: a WebAuthn assertion over the authenticator data and the client data, which carries the nonce. Nothing else is signed by the key. Around that signature goes an envelope naming the key, the file&apos;s digest, the purpose and the moment; the signature is what makes the envelope&apos;s nonce yours, and the enclave is what binds the rest.
         </li>
         <li>
-          <strong>The enclave checks before it allocates anything.</strong> The nonce is its own and still pending; the purpose is <code>bitgraph/commit-authorize/v1</code>; the digest named is the digest being committed; the <code>keyId</code> is the hash of the public key; the moment is inside the window; the authenticator reported the user present and verified; the signature verifies. Then it consumes the nonce and binds the file&apos;s hash into its slot with the actor inside the signed body.
+          <strong>The enclave checks before it allocates anything.</strong> The nonce is its own and still pending; the purpose is <code>bitgraph/commit-authorize/v1</code>; the digest named is the digest being committed; the <code>keyId</code> is the hash of the public key; the moment is inside the window; the authenticator reported the user present and verified; the signature verifies under that key over that nonce. Then it consumes the nonce and binds the file&apos;s hash into its slot with the actor inside the signed body.
         </li>
         <li>
-          <strong>A batch is one touch.</strong> The first file of a run is validated in full; the rest inherit the actor through the batch context, for the same 60 seconds. Forty photos ask once.
+          <strong>A batch is one touch.</strong> One full authorization, on the first file of a run, opens a batch context inside the enclave: this actor, the list of digests the run declared, 60 seconds. The rest of the run inherits the actor only for digests on that list and only inside that window. Forty photos ask once.
         </li>
       </ol>
 
       <h2>What a declared proof carries</h2>
       <p>
-        One object beside the rest of the proof. <code>actor</code> is inside the body the enclave signs, so it cannot be attached to a proof afterwards or removed from one; the authorization&apos;s own P-256 signature is checkable on its own, with no enclave involved.
+        One object beside the rest of the proof. <code>actor</code> is inside the body the enclave signs, so it cannot be attached to a proof afterwards or removed from one. The authorization&apos;s own P-256 signature is checkable on its own, with no enclave involved.
       </p>
       <div className="code-block">
         <div className="code-block-header">proof.json (excerpt)</div>
@@ -90,13 +97,16 @@ export default function ActorDocsPage() {
 
       <h2>What it establishes</h2>
       <p>
-        That the key named was used to authorize this recording at this position, on a device that reported its user present and verified, at a moment the enclave could check.
+        That this key authorized this recording at this position: a passkey controlled through the holder&apos;s authenticator signed the enclave&apos;s nonce, with the user present and verified, and the enclave checked the authorization before it allocated the slot.
       </p>
       <p>
-        <strong>Not authorship.</strong> Anyone can act on a file they downloaded. The proof fixes who authorized the recording, never who made the bytes.
+        <strong>Not authorship.</strong> Anyone can act on a file they downloaded. The proof fixes which key authorized the recording, never who made the bytes or when.
       </p>
       <p>
-        <strong>Not a name.</strong> BitGraph never learns one. On a proof page the Actor card prints a name only when the browser reading it holds that very key; beside anyone else&apos;s key it reads &ldquo;Not established here&rdquo;, which is the claim shown rather than asserted. Who holds a key is the reader&apos;s question. A published register, when one exists, will be one source for the answer, and the card will say so rather than present it as BitGraph&apos;s.
+        <strong>Not a name.</strong> BitGraph never learns one. On a proof page the Actor card prints a name only when the browser reading it holds that very key; beside anyone else&apos;s key it reads &ldquo;Not established here&rdquo;, which is the claim shown rather than asserted. Any mapping from a key to a person comes from a source the reader chooses. A published register, when one exists, will be one such source, and the card will say so rather than present it as BitGraph&apos;s.
+      </p>
+      <p>
+        Actor is an authorization attached to a BitGraph proof. It is not an identity check, not a certificate of authorship, and not proof that a human made the file.
       </p>
 
       <h2>The cost</h2>
@@ -104,12 +114,12 @@ export default function ActorDocsPage() {
         Every recording made under one key can be linked to every other. That is the feature, and it is the price. When the who is not the point, record from <Link href="/">home</Link> instead: the same slot, the same order and the same anchors, with no key on the proof. An enrolled browser can still do that, and should.
       </p>
       <p>
-        There is one chain. Declared recordings are not kept on a ledger of their own, so the anonymity set of an anonymous recording is every recording ever made.
+        There is one chain. Declared recordings are not kept on a ledger of their own, so the anonymity set of an anonymous recording is every recording ever made. BitGraph needs the key for none of this; it never needs the person.
       </p>
 
       <h2>Reading one</h2>
       <p>
-        On a proof page, the Actor card shows the name (when it can), the key, and what signed: a passkey on the actor&apos;s device, or the actor&apos;s own key.
+        On a proof page, the Actor card shows the name (when it can), the key, and what signed: a passkey, or the actor&apos;s own key.
       </p>
       <p>
         Offline, <a href="/docs/verification">bitgraph-verify</a> re-checks the authorization from the proof alone: that <code>keyId</code> is the SHA-256 of the public key, that <code>actorKeyId</code> and <code>artifactHash</code> match the actor and the artifact, that the client data is a <code>webauthn.get</code> over this nonce, that the authenticator reported presence and verification, and that the P-256 signature verifies over the authenticator data and the hash of the client data. A verifier&apos;s policy can require an actor on every proof, or accept only named keys or providers (<code>requireActor</code>, <code>allowedActorKeyIds</code>, <code>allowedActorProviders</code>).
@@ -117,7 +127,7 @@ export default function ActorDocsPage() {
 
       <h2>Forgetting a device</h2>
       <p>
-        <em>Forget this device</em> removes the key from this browser. The passkey itself stays in your keychain until you delete it there, and registering again makes a new key: recordings made under the old one keep it, which is the honest account of what happened. There is no rename. The label beside the key is this browser&apos;s own and never enters a proof.
+        <em>Forget this device</em> removes the key from this browser. The passkey itself stays with your passkey provider until you delete it there, and registering again makes a new key: recordings made under the old one keep it, which is the honest account of what happened. There is no rename. The label beside the key is this browser&apos;s own and never enters a proof.
       </p>
     </div>
   );

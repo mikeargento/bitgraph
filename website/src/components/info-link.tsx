@@ -21,13 +21,17 @@ export function InfoLink({ href, label }: { href: string; label: string }) {
       className="bg-info-link"
       style={{ display: "inline-flex", alignItems: "center", color: "#0065A4", padding: 10, margin: -10, flexShrink: 0, alignSelf: "center" }}
     >
-      {/* The i itself is a filled dot over a stout stem, not two strokes of
-          the ring's weight: at 22px a 2px dot and a 5px stem read as a tick
-          mark (Mike: "hard to make out as an i"). */}
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true">
-        <circle cx="12" cy="12" r="9.5" />
-        <circle cx="12" cy="7.6" r="1.45" fill="currentColor" stroke="none" />
-        <path d="M12 10.9 L12 17.2" strokeWidth="2.7" />
+      {/* Drawn the way the recognisable one is drawn: a THIN ring and a bold,
+          generous i with a real dot. The first cut had a 2px ring and
+          a 5px stem inside 22px and read as a tick, then as "a line" (Mike).
+          The ring is furniture; the i is the sign, so the i gets the weight:
+          stem about a third of the ring's height, dot a clear disc. 28px,
+          which is the cap height of the 40px title it sits beside; 24 read a
+          touch small there, 32 a touch big. */}
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="butt" strokeLinejoin="miter" aria-hidden="true">
+        <circle cx="12" cy="12" r="10.25" strokeWidth="1.5" />
+        <circle cx="12" cy="7.3" r="1.55" fill="currentColor" stroke="none" />
+        <path d="M12 10.4 L12 17.8" strokeWidth="2.9" />
       </svg>
     </Link>
   );
