@@ -65,6 +65,10 @@ export interface BitGraphCameraProps {
    *  /actor: the identity line and its controls in `.declare-more`. */
   below?: ReactNode;
   belowClassName: string;
+  /** One line inside the frame under "Your file never leaves your device",
+   *  for a fact about the instrument: /actor's "Acting as …, key …". Home
+   *  passes nothing. */
+  frameNote?: ReactNode;
   /** Resolve an actor key on a proof to a name this page is entitled to
    *  print, or undefined to print the key. /actor passes its own key's label;
    *  home passes nothing. Identity is a property of the reader: a row never
@@ -114,7 +118,7 @@ export function clearCameraCache(id: BitGraphCameraProps["id"]) {
   cachedChecked.delete(id);
 }
 
-export function BitGraphCamera({ id, strategy, title, below, belowClassName, actorName, acceptsPendingDrop }: BitGraphCameraProps) {
+export function BitGraphCamera({ id, strategy, title, below, belowClassName, frameNote, actorName, acceptsPendingDrop }: BitGraphCameraProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length ? "results" : "drop"));
   const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
@@ -191,13 +195,17 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, act
   /* The frame's height measurement lives in lib/use-camera-fit.ts. The only
      thing that was ever page-specific is which two elements get observed for
      height: the shared title, and the page's own block under the frame.
-     26 on both pages, so the two frames are the same size (Mike, 2026-08-19:
-     "i want home box same size"). ⚠️ It only works because the block BELOW
-     each frame also matches: /actor carries two lines where home carries one,
-     so if the blocks differed while the frames matched, its composition would
-     be 26px taller and its title would ride up again. Frames equal + blocks
-     equal is the only arrangement where the box size, the title position and
-     both pages' breathing room all hold at once.
+
+     No shrinkBy. The two frames are the same size and the titles sit level
+     because the block under each frame is the SAME block: one 16px line box
+     (home's link; /actor's Rename · Forget) at the same margin (42). For a
+     day /actor carried two lines there (an identity line over its controls)
+     and the frames had to give 26px back to compensate; Mike moved that line
+     INTO the box ("under your file never leaves your device ... this way the
+     drop boxes can go back to their last size and be identical"), so the
+     compensation is gone with the cause. ⚠️ If a page ever puts a second
+     line under its frame again, that is the moment shrinkBy comes back, and
+     it comes back for BOTH pages or the titles part.
 
      ⚠️ Gated on step === "drop" and it must stay so. The measurement sums
      every sibling of the frame into the chrome it has to fit around, so with
@@ -205,7 +213,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, act
      grows (that exact bug shipped on /actor). Disabled, the hook clears its
      custom properties and the frame falls back to its CSS sizing, which is
      what a page that has stopped being viewport-fitted should use. */
-  useCameraFit(step === "drop", ".bitgraph-tagline", `.${belowClassName}`, 26);
+  useCameraFit(step === "drop", ".bitgraph-tagline", `.${belowClassName}`);
 
   // Cleanup rAF on unmount only
   useEffect(() => {
@@ -1112,10 +1120,10 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, act
            ever reads as too much. */
         .bitgraph-tagline { font-size: clamp(34px, 6vw, 40px); }
         .bitgraph-tagline .accent { color: inherit; }
-        /* The block under the frame (home's one link, /actor's identity line
-           and controls) is the page's: its class and its margin live in the
-           page's own style, because that margin is half of a two-page
-           agreement (see useCameraFit above). Nothing for it here. */
+        /* The block under the frame (home's one link, /actor's Rename ·
+           Forget) is the page's: its class and its margin live in the page's
+           own style. Both are 42px over one 16px line box, which is what
+           keeps the two frames the same size (see useCameraFit above). */
         /* Waiting states (read/check/prove/export) all pin their center to the
            SAME viewport point the success checkmark uses (fixed, 44% down,
            horizontally centered), so every wait and the capture moment share
@@ -1193,12 +1201,13 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, act
                 headline="Record or check BitGraphs"
                 hint="Choose files, or drag in a whole folder."
                 subhint="Your file never leaves your device."
+                note={frameNote}
               />
             </div>
             {/* The page's block, floated under the card, not inside it. The
                 card's bottom slot is where a proof puts Export, an action on
                 the thing in the card; what sits here is about the page (home's
-                way out to the explanation, /actor's whose-key-this-is), so it
+                way out to the explanation, /actor's controls on its key), so it
                 sits clear of the border. Always rendered, even empty: the fit
                 measurement observes it by class. */}
             <div className={belowClassName}>{below}</div>

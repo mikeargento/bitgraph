@@ -37,17 +37,18 @@ export default function BitGraphPage() {
            its own padding and .bg-arrow-link carries none, so when this row
            changed from one to the other the spacing silently collapsed to 3px.
 
-           The box directly above is one big click target and a stray hit on
-           it opens a file dialog, so the buffer has to clear adjacent-tap
-           distance on a phone; this does comfortably.
+           42 because the box directly above is one big click target and a
+           stray hit on it opens a file dialog. At 20px the buffer was about
+           4mm on a phone, under what adjacent tap targets want; this is
+           closer to 7mm.
 
-           68, matching /actor's block height (about 92 all in) rather than
-           its margin. That page has an identity line above its controls where
-           this has a single link, so equal MARGINS would leave unequal blocks
-           and unequal titles. The air is the price of the two pages being one
-           composition. ⚠️ Moves with .declare-more, not alone; both feed the
-           26 in useCameraFit. */
-        .hero-more { margin-top: 68px; }
+           ⚠️ 42 is also /actor's .declare-more, and it must stay so: the two
+           pages are one composition, and the block under each frame is one
+           16px line box at this margin (home's link, /actor's Rename ·
+           Forget), which is what keeps the two frames the same size with no
+           correction in useCameraFit. It was 68 for a day, when /actor carried
+           a second line under its frame; that line now lives inside the box. */
+        .hero-more { margin-top: 42px; }
         /* Short viewports tighten with the rest of the composition (the
            camera's own rule does the title and padding). */
         @media (max-height: 520px) {

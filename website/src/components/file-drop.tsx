@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef, type ReactNode } from "react";
 import { formatFileSize } from "@/lib/bitgraph";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import {
@@ -50,6 +50,11 @@ interface FileDropProps {
   hint?: string;
   /** Smaller, quieter line rendered beneath the hint */
   subhint?: string;
+  /** One more line under the subhint, in its voice, for a fact about the
+   *  instrument itself: /actor's "Acting as …, key …" (Mike, 2026-08-19: in
+   *  the box, under "Your file never leaves your device", so the block under
+   *  the frame is one line on both pages and the two frames match). */
+  note?: ReactNode;
   /** When set, the empty state shows a blue CTA button with this label
       (instead of the icon + headline). The whole box still accepts drops. */
   buttonLabel?: string;
@@ -79,6 +84,7 @@ export function FileDrop({
   accept,
   hint,
   subhint,
+  note,
   buttonLabel,
   shutter,
   browseLabel = "browse",
@@ -489,6 +495,19 @@ export function FileDrop({
                 }}
               >
                 {subhint}
+              </div>
+            )}
+            {note && (
+              <div
+                className="mt-1.5 text-center"
+                style={{
+                  color: "var(--fd-subhint, #4b5563)",
+                  fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
+                  lineHeight: 1.5,
+                  textWrap: "balance",
+                }}
+              >
+                {note}
               </div>
             )}
             {refusalNote}

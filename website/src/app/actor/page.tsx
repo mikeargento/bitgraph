@@ -192,24 +192,33 @@ export default function ActorPage() {
         }
         .declare-name input:focus-visible { outline: 2px solid #0065A4; outline-offset: -2px; }
 
-        /* ── The block under the frame: whose key this is, and the controls
-           that act on it. ──
-           40 and 16, which is home's 68 in spirit: this block is a caption
-           for the frame and a caption needs air, not a squeeze. Its height is
-           what the frame gives back (the 26 in useCameraFit) so the two
-           pages' titles sit level; home's .hero-more is the other half of
-           that agreement. ⚠️ Keep the three in step: this margin and gap,
-           home's 68, and the 26. */
-        .declare-more { margin-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
-        /* Type is a three-step hierarchy below the frame: the name at 600 in
-           the heading colour because it is the fact, the sentence around it
-           in secondary grey, the key in the site's mono like every other
-           hash, and the controls beneath at 12.5. */
-        .declare-who { margin: 0; font-size: 14px; line-height: 1.35; color: #4b5563; text-wrap: pretty; }
+        /* ── Whose key this is: INSIDE the frame, the third line under the
+           headline, after "Your file never leaves your device" (Mike,
+           2026-08-19). It is a fact about the instrument, so it belongs on the
+           instrument; and with it there, what is left under the frame is one
+           line on both pages, which is what lets the two frames be the same
+           size with no correction. It spent a day under the frame over its
+           controls, and a day before that beside the title.
+           The size and colour are the frame's own subhint line (the box sets
+           them on the wrapper); only the name and the key are dressed here:
+           the name at 600 in the heading colour because it is the fact, the
+           key in the site's mono like every other hash. */
         .declare-who strong { font-weight: 600; color: #111827; }
-        .declare-who .declare-key { font-family: var(--font-mono); font-size: 13px; }
-        .declare-note { font-size: 12.5px; color: #4b5563; line-height: 1.35; max-width: 460px;
-          margin: 0 auto; text-wrap: balance; }
+        .declare-who .declare-key { font-family: var(--font-mono); }
+
+        /* ── The block under the frame: the two controls that act on the key,
+           in exactly home's slot (Mike: "keep the Rename · Forget this device
+           in the identical position as what is a bitgraph"). ──
+           42 is home's .hero-more. ⚠️ The two are one number: the block under
+           each frame is one 16px line box at this margin, and that is what
+           keeps the frames the same size and the titles level. The p keeps
+           the page's 16px so its line box is the same height as home's link
+           row (a line box is never shorter than its block's own font strut);
+           only the controls inside it are 12.5, kept quieter than the fact
+           they act on. */
+        .declare-more { margin-top: 42px; }
+        .declare-note { margin: 0; font-size: 16px; color: #4b5563; }
+        .declare-note-controls { font-size: 12.5px; }
         .declare-inline { appearance: none; border: 0; background: none; padding: 0;
           font: inherit; color: #0065A4; cursor: pointer; }
 
@@ -233,22 +242,25 @@ export default function ActorPage() {
           strategy={strategy}
           title="BitGraph Actor"
           actorName={actorName}
+          /* Whose key this is, inside the frame as its third line: a STATUS
+             of the instrument, so it sits on the instrument, right under the
+             line that says the file never leaves the device. */
+          frameNote={
+            <span className="declare-who">
+              Acting as <strong>{cred.name}</strong>, key{" "}
+              <span className="declare-key">{cred.keyId.slice(0, 12)}&hellip;</span>
+            </span>
+          }
           belowClassName="declare-more"
           below={
-            /* ── Whose key this is, under the frame and directly above the two
-                controls that act on it (Mike, 2026-08-19). It spent a day in
-                home's deck slot beside the title, on the reasoning that the
-                one fact making this page different from home belongs beside
-                the claim. Under the box is better: it is a STATUS, not a
-                claim, and Rename and Forget operate on exactly this, so the
-                fact and its controls read as one block.
-
+            /* ── The two controls that act on the key, in home's link slot. ──
                 The label is correctable, and that is the answer to "should
                 you have to type it twice" (Mike, 2026-08-18). It is not worth
                 confirming: it never enters a proof. But a passkey cannot be
                 renamed once created, so a typo would otherwise sit in the
                 keychain forever. Renaming changes the label beside the
-                credential and leaves the key alone. ── */
+                credential and leaves the key alone. While the field is open
+                the block is taller, briefly; the fit re-measures it. ── */
             renaming ? (
               <div className="declare-name">
                 <input
@@ -269,13 +281,8 @@ export default function ActorPage() {
                 </button>
               </div>
             ) : (
-              <>
-                <p className="declare-who">
-                  Acting as <strong>{cred.name}</strong>, key{" "}
-                  <span className="declare-key">{cred.keyId.slice(0, 12)}&hellip;</span>
-                </p>
-                {/* Maintenance, kept quieter than the fact it acts on. */}
-                <p className="declare-note">
+              <p className="declare-note">
+                <span className="declare-note-controls">
                   <button type="button" className="declare-inline" onClick={() => { setName(cred.name); setRenaming(true); }}>
                     Rename
                   </button>
@@ -283,8 +290,8 @@ export default function ActorPage() {
                   <button type="button" className="declare-inline" onClick={forget}>
                     Forget this device
                   </button>
-                </p>
-              </>
+                </span>
+              </p>
             )
           }
         />
