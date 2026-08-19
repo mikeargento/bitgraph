@@ -94,7 +94,18 @@ export function makeActorStrategy(cred: StoredCredential): CommitStrategy {
          camera sends chunks in order, so the first chunk has opened the batch
          before the second arrives.
 
-         ⚠️ Before that parent change, a multi-digest request was renumbered
+         ⚠️ The envelope's artifactHash is the RUN's first digest on EVERY
+         chunk, never the chunk's own first digest. The enclave stores the
+         envelope it is handed on each proof of the request, and the published
+         verifier accepts a continuation proof only when artifactHash is its
+         own digest or the run's first digest (batchDigests[0]) with its digest
+         on the list (packages/verify, "artifactHash matches"). A chunk's own
+         first digest there minted four permanent actor blocks that every
+         reader rejects (#11647, #11649, #11651, #11653, 2026-08-19): the
+         enclave does not re-check artifactHash on the continuation path, so
+         the client alone keeps this shape honest.
+
+         ⚠️ Before the parent change, a multi-digest request was renumbered
          from 0 whatever the client wrote, so a second chunk presented a spent
          nonce and failed whole; the tail then had to go one request per
          digest. Do not bring that shape back against a parent that respects
@@ -105,10 +116,11 @@ export function makeActorStrategy(cred: StoredCredential): CommitStrategy {
          thousand files; a run past that can find its tail refused ("batch
          not found"), which the camera shows as Error and offers to record
          again, at the cost of one more touch. */
+      if (!run) throw new Error("Recording was not started");
       return commitBatch(
         digests.map((digestB64) => ({ digestB64, hashAlg: "sha256" as const })),
         undefined,
-        envelope(digests[0], offset),
+        envelope(run.digests[0], offset),
       );
     },
 
