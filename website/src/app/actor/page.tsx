@@ -209,16 +209,18 @@ export default function ActorPage() {
         .declare-who strong { font-weight: 600; color: #111827; }
         .declare-who .declare-key { font-family: var(--font-mono); }
 
-        /* ── The one control that acts on the key: under the box, bottom left
-           (Mike, 2026-08-19: "move Forget this device to bottom left on
-           Actor"), at the foot of a closed results page. It was on the
-           title's right for an afternoon and under the box, centred, the day
-           before. 42px off the box: the box is one big click target and a
-           stray hit opens a file dialog, so the buffer clears adjacent-tap
-           distance. The site's standard link type (14 / 600 / -0.01em, brand
-           blue). The hit area is grown the way .bg-arrow-link grows its own:
-           padding the region and cancelling it in layout. */
-        .declare-more { margin-top: 42px; }
+        /* ── The one control that acts on the key: under the box, centred
+           like the title above the box (Mike, 2026-08-19, evening: "center
+           forget this device too"), and at the foot of a closed results page.
+           It was bottom-left for an hour, on the title's right for an
+           afternoon, and under the box, centred, the day before: the drop-box
+           pages centre, the rest of the site does not. 42px off the box: the
+           box is one big click target and a stray hit opens a file dialog, so
+           the buffer clears adjacent-tap distance. The site's standard link
+           type (14 / 600 / -0.01em, brand blue). The hit area is grown the way
+           .bg-arrow-link grows its own: padding the region and cancelling it
+           in layout. */
+        .declare-more { margin-top: 42px; text-align: center; }
         .declare-note { margin: 0; font-size: 16px; color: #4b5563; white-space: nowrap; }
         .declare-note-controls { display: inline-flex; gap: 20px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
         .declare-inline { appearance: none; border: 0; background: none; padding: 13px 0; margin: -13px 0;
