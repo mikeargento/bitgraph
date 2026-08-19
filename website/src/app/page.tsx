@@ -1175,13 +1175,19 @@ export default function BitGraphPage() {
               <Link
                 href="/docs/overview"
                 className="bg-arrow-link"
-                // Matched to the Folder download link on /docs/folder (Mike,
-                // 2026-08-19). ⚠️ 19px is NOT on the site type ladder
-                // (project_type_scale: 32/22/18/16); it is that page's own
-                // size, and this copies it deliberately so the two primary
-                // actions on the site read at the same weight. 18 is the
-                // ladder's nearest if this ever needs to come back in line.
-                style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.015em", color: "#0065A4", textDecoration: "none" }}
+                // 16px: level with the drop box's own hint lines, which is the
+                // relationship that matters here.
+                //
+                // ⚠️ It shipped at 19 for one deploy, copied from the Folder
+                // download link on /docs/folder. Matching the absolute size was
+                // the mistake: that link sits in 19px prose, so it is the same
+                // size as everything around it, while home's context is a 26px
+                // frame heading over 16px hints. The same number read as a
+                // shout here, and put a secondary exit above the primary
+                // action's own copy. MATCH THE RATIO, NOT THE PIXELS. 14 was
+                // the other end of it, inherited from the example-proof link
+                // this replaced, and too quiet for home's only real exit.
+                style={{ fontSize: 16, fontWeight: 600, color: "#0065A4", textDecoration: "none" }}
               >
                 What is a BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
               </Link>
