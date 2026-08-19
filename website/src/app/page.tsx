@@ -371,8 +371,26 @@ export default function BitGraphPage() {
       router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
     };
     if (solo && !solo.fromProofJson) {
+      /* ⚠️ A lone file ALREADY ON RECORD stays here (Mike, 2026-08-19). It used
+         to open its existing proof, on the reading that a lookup's answer IS
+         its proof page. The objection is that nothing happened: no slot was
+         allocated, no position consumed, nothing recorded. Navigating on a
+         drop that recorded something and navigating on a drop that recorded
+         nothing makes the two outcomes look identical, when telling them apart
+         is the entire job of this gesture (one gesture, two outcomes, and the
+         RESULTS are what say which).
+
+         The card is the honest answer and it is also the better one: it shows
+         every position these bytes already hold, "1 of 5 · original" and the
+         rest, which a single proof page cannot. The row is still one click
+         from any of them. /actor was fixed the same way earlier today. */
       if (solo.status === "found" && solo.proof) {
-        openProofPage(solo.proof, solo.file);
+        setItems(results);
+        setStep("results");
+        // ⚠️ The count travels with the step. Every other path into the results
+        // view sets both on adjacent lines, and leaving it out here rendered
+        // "0 of 1" over a file that plainly has a proof.
+        setAnimCount(results.filter((r) => r.status === "found").length);
         return;
       }
       if (solo.status === "new" && solo.digestB64) {
@@ -1186,8 +1204,19 @@ export default function BitGraphPage() {
                   carries a 10px margin, so it clears its card by 20. Here the
                   wrapper below deliberately absorbs the column gap, so the
                   margin has to carry the whole distance itself. */}
+              {/* ⚠️ The heading states what the drop DID, which is not always
+                  recording. A drop where every file was already on the ledger
+                  mints nothing, and "BitGraphs Recorded" over rows that each
+                  say "Already recorded" contradicts them in a larger type
+                  size. /actor has had this conditional since it shipped; home
+                  did not, and the mismatch was visible on the live site (Mike,
+                  2026-08-19: "why does one say found and one says recorded").
+                  Keeping the two pages' grammar identical matters more now
+                  that home stays put on a pure lookup instead of navigating,
+                  so this view is what a lookup actually lands on. */}
               <div className="bg-page-title" style={{ marginBottom: 20 }}>
-                BitGraph{items.length === 1 ? "" : "s"} Recorded
+                BitGraph{items.length === 1 ? "" : "s"}{" "}
+                {items.every((i) => i.status === "found") ? "Found" : "Recorded"}
               </div>
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
                 <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
