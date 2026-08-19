@@ -1017,10 +1017,26 @@ export default function BitGraphPage() {
 
       <div className={`bitgraph-wrap${step !== "drop" ? " bitgraph-results" : ""}`}>
 
-        {/* ── Drop step: /folder's exact shape, pointed at the ledger — title,
-            promise line, the box first thing, then the mechanics and the two
-            offers as plain links. The Roll lives on its own /roll page. ── */}
-        {step === "drop" && (
+        {/* ── The camera: title, the box first thing, then the two offers as
+            plain links. The Roll lives on its own /roll page.
+
+            ⚠️ IT STAYS ON THE RESULTS STEP TOO (Mike, 2026-08-19). It used to
+            vanish, on the reasoning that results were a terminal "here is what
+            you did" view and the nav logo was the way back. Two things made
+            that wrong. /actor keeps its box and lets results accumulate under
+            it, so the same gesture had two different shapes depending on the
+            page; and once a solo lookup stopped navigating to a proof, the
+            results view became somewhere a drop could LAND rather than only
+            somewhere it finished, with no way to drop again short of a reload.
+
+            ⚠️ useCameraFit stays gated on step === "drop" and must. The
+            measurement sums every sibling of the frame into the chrome it has
+            to fit around, so with a results list below it the frame gets
+            squeezed flatter as the list grows. That exact bug shipped on
+            /actor this evening. Disabled, the hook clears its custom
+            properties and the frame falls back to its CSS sizing, which is
+            what a page that has stopped being viewport-fitted should use. ── */}
+        {(step === "drop" || step === "results") && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
             <h1 className="bg-page-title bitgraph-tagline">
               <a href="/docs/overview">A camera for <span className="accent">bits</span></a>
@@ -1173,9 +1189,14 @@ export default function BitGraphPage() {
         {step === "results" && (items.length > 0 || checked.length > 0) && (
           <div style={{ animation: "slideIn 0.3s ease-out", display: "flex", flexDirection: "column", gap: 24 }}>
 
-              {/* No drop box here: the results page is a terminal "here's what you
-                  did" view, so it leads with the results themselves. To start a
-                  new batch, the "BitGraph" logo in the nav returns to the drop
+              {/* The drop box now sits above this (see the camera block), so a
+                  new batch is another drop rather than a trip through the nav.
+                  ⚠️ A second drop REPLACES this list rather than appending,
+                  which is where home still differs from /actor deliberately: a
+                  drop here is a batch, and /actor's rows accumulate because
+                  acting on files one at a time is its whole point.
+                  Historical note: this view used to be terminal, and the
+                  "BitGraph" logo in the nav returned to the drop
                   screen (it force-reloads home). Matches the proof page, which
                   also has no camera. */}
 

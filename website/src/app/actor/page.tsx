@@ -282,8 +282,18 @@ export default function DeclarePage() {
     router.push(`/proof/${encodeURIComponent(toUrlSafeB64(digest))}${sel}`);
   }, [router]);
 
+  /* ⚠️ `lookupOnly` is the FOLDER path and it must never mint. Home's folder
+     handler says it outright: "Every step is a read; nothing here can record."
+     A folder is dropped to ask what is in it, not to sign it, and the cost of
+     getting that wrong here is not a wasted click: it is thousands of
+     permanent positions minted under someone's key from one drag. Dropping a
+     Recordings folder on this page did exactly that for an hour on 2026-08-19
+     until Mike caught it ("it tried to record on bitgraph actor").
+
+     Selecting files is how you act on many things deliberately; dragging a
+     directory is how you ask a question about one. */
   const handleFiles = useCallback(
-    async (files: File[]) => {
+    async (files: File[], lookupOnly = false) => {
       const list = files.filter((f) => f.size > 0);
       if (!list.length || !cred) return;
       try {
@@ -321,6 +331,17 @@ export default function DeclarePage() {
            the proof is what the reader wanted. Only a real recording navigates
            on its own, which is the branch below. */
         if (found.length) setResults((prev) => [...prev, ...found]);
+
+        /* The folder path stops here, whatever it found. Unrecorded files are
+           reported as a count rather than listed: they have no position to
+           show, and this page has no Record button to offer them (its model is
+           one deliberate touch per drop of SELECTED files). */
+        if (lookupOnly) {
+          setPhase(fresh.length
+            ? { step: "error", message: `${found.length} already recorded. ${fresh.length} ${fresh.length === 1 ? "file is" : "files are"} not on the ledger; select them to record.` }
+            : { step: "idle" });
+          return;
+        }
 
         // Everything was already on record: nothing to sign, nothing minted,
         // no prompt. The rows are the answer.
@@ -542,7 +563,9 @@ export default function DeclarePage() {
               onFolder={(walked) => {
                 const files = walked.map((w) => w.file);
                 if (!files.length) { setPhase({ step: "idle" }); return; }
-                void handleFiles(files);
+                /* ⚠️ READ-ONLY. See the note on handleFiles: a directory drop
+                   asks what is in it and never signs it. */
+                void handleFiles(files, true);
               }}
               disabled={working}
               /* Home's own headline, in this page's verb. The box takes both
