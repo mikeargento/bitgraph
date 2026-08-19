@@ -177,7 +177,11 @@ export default function DeclarePage() {
   /** Declared here, this visit. They accumulate: a second drop appends. */
   const [results, setResults] = useState<Recorded[]>([]);
 
-  useCameraFit(ready && !!cred && results.length === 0, ".declare-title", ".declare-more");
+  /* 26 = how much taller this page's block under the frame is than home's
+     (about 92 against 66.5). The frame gives exactly that back, so the two
+     compositions total the same and the titles stay level while the block
+     below gets room to breathe. Re-derive if either block changes. */
+  useCameraFit(ready && !!cred && results.length === 0, ".declare-title", ".declare-more", 26);
   const nameRef = useRef<HTMLInputElement>(null);
 
   // The credential lives in localStorage, which does not exist while this
@@ -455,32 +459,20 @@ export default function DeclarePage() {
            the two titles within about ten pixels of each other.
            ⚠️ Do not restore 42/14 without re-checking the title against home:
            the frame is elastic and the title position is what moves. */
-        /* ⚠️ 18px, and the number is DERIVED, not chosen. This block must be
-           the same total height as home's .hero-more or the two titles do not
-           line up: both wraps are centred columns of the same height, so any
-           difference below the frame pushes the title up by half of it. Home
-           is 42px of margin over a single 24.5px link = 66.5. This page has
-           two lines and their gap, so its margin is whatever is left.
+        /* 40 and 16, which is home's 42 in spirit: this block is a caption for
+           the frame and a caption needs air, not a squeeze.
 
-           ⚠️ EVERYTHING IN THIS BLOCK TRADES 1:1 AGAINST THE MARGIN, because
-           the total is what holds the titles level. Getting the block away
-           from the box (Mike, 2026-08-19) therefore meant finding height
-           somewhere, and it came from LEADING: both lines were set at 1.6,
-           which is prose leading on two single-line labels that never wrap.
-           At 1.35 they measure 18.9 and 16.9 instead of 22.4 and 20, which is
-           6.6px back, and that went into the margin.
+           ⚠️ There is NO ceiling on this, and earlier comments here claimed one
+           (24px, then about 31) because I had the trade backwards. This block's
+           height is only fixed if the FRAME is fixed, and the frame is the
+           elastic thing. Whatever this block gains, the frame gives back
+           through useCameraFit's shrinkBy, the total stays equal to home's, and
+           the titles stay level. The price is box height, about 26px here,
+           which is the honest cost and nothing like a cramped block.
 
-           ⚠️ 24px was the ceiling before that and about 31 is the ceiling now.
-           Home's equivalent gap is 42, and this page cannot reach it while
-           carrying two lines AND keeping its title level with home's. If you
-           ever want home's 42 here, the title alignment is what you are
-           spending.
-           Re-derive it if either page's block changes; do not round it to
-           something tidier. The 42px buffer that keeps stray taps off the drop
-           box is not lost, because the thing now sitting 18px under the frame
-           is TEXT: the first interactive element, Rename, is still 46px away,
-           further than home's link. */
-        .declare-more { margin-top: 22px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+           ⚠️ Keep shrinkBy in step with this: it is this block's total height
+           minus home's 66.5, and the two are one decision, not two. */
+        .declare-more { margin-top: 40px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
         /* The one text field in the product. Square, hairline, brand focus:
            the site has no other input to match, so it borrows the card. */
         /* The register state: no frame, because a frame here would be a

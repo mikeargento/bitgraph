@@ -128,7 +128,14 @@ export default function BitGraphPage() {
      with /actor, which grew the same composition and could not have it.
      Every constant and every listener is unchanged; the only thing that was
      ever page-specific is which two elements get observed for height. */
-  useCameraFit(step === "drop", ".bitgraph-tagline", ".hero-more");
+  /* 26, the same as /actor, so the two frames are the same size (Mike,
+     2026-08-19: "i want home box same size"). ⚠️ It only works because the
+     block BELOW each frame also matches: /actor carries two lines where this
+     carries one, so if the blocks differed while the frames matched, its
+     composition would be 26px taller and its title would ride up again.
+     Frames equal + blocks equal is the only arrangement where the box size,
+     the title position and both pages' breathing room all hold at once. */
+  useCameraFit(step === "drop", ".bitgraph-tagline", ".hero-more", 26);
 
   // Cleanup rAF on unmount only
   useEffect(() => {
@@ -964,7 +971,13 @@ export default function BitGraphPage() {
            stray hit on it opens a file dialog. At 20px the buffer was about
            4mm on a phone, under what adjacent tap targets want; this is closer
            to 7mm. */
-        .hero-more { margin-top: 42px; }
+        /* 68, matching /actor's block height (about 92 all in) rather than
+           its margin. That page has an identity line above its controls where
+           this has a single link, so equal MARGINS would leave unequal blocks
+           and unequal titles. The air is the price of the two pages being one
+           composition; the 40px tap buffer this gap was originally protecting
+           is comfortably inside it. ⚠️ Moves with .declare-more, not alone. */
+        .hero-more { margin-top: 68px; }
 
         .hero-more { }
         /* Explainer under the box: the one place the film/photograph metaphor

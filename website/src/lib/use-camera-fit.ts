@@ -30,20 +30,26 @@ import { useEffect } from "react";
  * @param titleSelector  the page's headline, inside .bitgraph-wrap.
  * @param moreSelector   the row beneath the frame, inside .bitgraph-wrap.
  *
- * ⚠️ THIS HOOK DOES NOT ALIGN TITLES ACROSS PAGES, and do not add a knob that
- * tries to. One was tried on 2026-08-19 and removed: the wrap is a centred
- * column, so the title's position is set by how much shorter the composition
- * is than the wrap, and holding pixels back from the frame only moves it while
- * the frame is FIT-capped. Above a certain width the frame is capped by its
- * aspect ratio instead, the held-back pixels are already unused, and the knob
- * silently does nothing. Two pages align when the content ABOVE and BELOW
- * their frames is the same height. Match those and this hook does the rest at
- * every viewport; see .declare-more against .hero-more.
+ * ⚠️ ALIGNING TITLES ACROSS PAGES: the wrap is a centred column, so a title's
+ * position is set by how much SHORTER the composition is than the wrap. Two
+ * pages therefore align when their total composition height matches, and a
+ * page whose block below the frame is taller has to give the difference back
+ * somewhere. `shrinkBy` is where.
+ *
+ * ⚠️ It shrinks the frame below its NATURAL height, which is the only thing
+ * that works. An earlier knob subtracted from the available room instead and
+ * was removed: at most widths the frame is capped by its aspect ratio well
+ * under that room, so the subtraction was already unused and the knob silently
+ * did nothing. Natural height is computed here from the frame's own width and
+ * its computed aspect-ratio, so it tracks the CSS rather than duplicating it.
+ * @param shrinkBy  px to take off the frame so a taller block below it does
+ *                  not push the title up. Home passes nothing.
  */
 export function useCameraFit(
   enabled: boolean,
   titleSelector: string,
   moreSelector: string,
+  shrinkBy = 0,
 ) {
   /* Size the frame to whatever height is actually left, so the page fills the
      viewport and never scrolls.
@@ -133,7 +139,16 @@ export function useCameraFit(
          before they crowd, but holding it on a landscape phone is what forced
          the page to scroll; 120 still carries the copy. */
       const floor = window.innerHeight <= 520 ? 120 : 180;
-      const avail = Math.max(floor, Math.round(room - other));
+      /* The frame's natural height, from its own width and whatever
+         aspect-ratio the CSS is currently applying. Capping at natural minus
+         shrinkBy is what actually makes an aspect-capped frame give ground. */
+      let cap = room - other;
+      if (shrinkBy > 0) {
+        const ar = getComputedStyle(cam).aspectRatio;
+        const [w, h] = ar.includes("/") ? ar.split("/").map((n) => parseFloat(n)) : [0, 0];
+        if (w > 0 && h > 0) cap = Math.min(cap, (cam.offsetWidth * h) / w - shrinkBy);
+      }
+      const avail = Math.max(floor, Math.round(cap));
       wrap.style.setProperty("--bg-cam-avail", `${avail}px`);
       wrap.style.setProperty("--bg-wrap-min", `${room}px`);
     };
@@ -184,5 +199,5 @@ export function useCameraFit(
       vv?.removeEventListener("resize", fit);
       ro.disconnect();
     };
-  }, [enabled, titleSelector, moreSelector]);
+  }, [enabled, titleSelector, moreSelector, shrinkBy]);
 }
