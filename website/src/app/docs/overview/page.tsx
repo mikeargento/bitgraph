@@ -67,7 +67,7 @@ export default function OverviewPage() {
           would otherwise restyle these (same trap family as .prose-doc, see the
           2026-08-03 handoff). ── */}
       <h1 style={{ margin: "0 0 4px" }}>
-        BitGraph gives bits a place.
+        A BitGraph gives bits a place.
       </h1>
       <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 20px" }}>
         Who, when, and where are different facts. Knowing who took a Polaroid
@@ -81,7 +81,7 @@ export default function OverviewPage() {
         perfectly, and every copy is the same file.
       </p>
       <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 24px" }}>
-        A BitGraph gives your file a position in a public sequence. Nothing else
+        BitGraph gives your file a position in a public sequence. Nothing else
         can hold that position, and it cannot be moved later. Your file never
         leaves your device to get one, and anyone can check it,&nbsp;forever.
       </p>
