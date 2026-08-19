@@ -67,10 +67,11 @@ export default function OverviewPage() {
           would otherwise restyle these (same trap family as .prose-doc, see the
           2026-08-03 handoff). ── */}
       <h1 style={{ margin: "0 0 4px" }}>
-        Who, when, and where are different facts.
+        BitGraphs give bits a place.
       </h1>
       <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 20px" }}>
-        Knowing who took a Polaroid does not tell you where that Polaroid is.
+        Who, when, and where are different facts. Knowing who took a Polaroid
+        does not tell you where that Polaroid is.
         Knowing what time it was taken does not tell you where it is either.
         Holding it in your hand tells you where it is, but nothing about who
         took it or when.
@@ -80,21 +81,41 @@ export default function OverviewPage() {
         perfectly, and every copy is the same file.
       </p>
       <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 24px" }}>
-        BitGraph gives your file a position in a public sequence. Nothing else
+        A BitGraph gives your file a position in a public sequence. Nothing else
         can hold that position, and it cannot be moved later. Your file never
-        leaves your device to get one, and anyone can check&nbsp;it.
+        leaves your device to get one, and anyone can check it,&nbsp;forever.
       </p>
-      {/* The page's ONE standalone thesis line, and it lives up here on
-          purpose. It briefly sat in the prose below as a replacement for
-          "BitGraph enforces origin", which does not work: that paragraph sets
-          up enforced-versus-claimed, so its payoff has to land on one of those
-          two words or the setup dangles. Here it answers the Polaroid instead,
-          which is the question actually on the table. "Enforces" folded into
-          the paragraph that follows the setup, so the contrast still resolves
-          without a second one-line thesis competing with this one. */}
-      <p style={{ fontSize: 16, lineHeight: 1.75, fontWeight: 600, color: "#111827", margin: "0 0 24px" }}>
-        BitGraph gives bits a place.
-      </p>
+      {/* ⚠️ THE H1 IS THE THESIS, AND IT APPEARS ONCE (Mike, 2026-08-18).
+          It spent an hour as a bolded standalone line at the foot of this
+          opener, under an h1 reading "Who, when, and where are different
+          facts". Mike moved it up. The objection to promoting it was that the
+          title poses the question the tagline answers, so moving the answer up
+          leaves nothing asking; that was a false choice, because the question
+          moved into the body as the paragraph's first sentence, where it still
+          does the Content Credentials work (they answer who, timestamps answer
+          when, nobody answers where). A docs page states its claim and then
+          proves it rather than withholding it for four paragraphs. Do NOT
+          restore the standalone copy underneath: one instance, in the h1.
+
+          It also briefly sat in the prose below as a replacement for "BitGraph
+          enforces origin", which does not work: that paragraph sets up
+          enforced-versus-claimed, so its payoff has to land on one of those two
+          words or the setup dangles. "Enforces" folded into the paragraph that
+          follows the setup instead.
+
+          ⚠️ "ORIGIN" WAS RETIRED FROM THIS PAGE, 2026-08-18. Not a style
+          preference: origin implies FIRST EXISTENCE, and BitGraph does not
+          prove that. An old file can be committed into a slot allocated this
+          minute. The proof fixes where the commitment sits, never when the
+          bytes were made, and the forgery-window paragraph now says so out
+          loud. The vocabulary is place -> position -> slot -> occupy -> order,
+          and every other word (provenance, originality, construction) may
+          describe a consequence of that primitive but must not compete with
+          it. "Proof of construction" went the same way and for the same
+          reason: it contradicted "the artifact itself can be produced
+          anywhere, by any process, using any tools" two sections down.
+          "Original" and "originality" survive only in the copies section,
+          where they mean uniqueness of an object, a different idea. */}
       {/* ── The prose Overview, exactly as it was, a beat down the page. An
           h2 element (one h1 per page) wearing the h1's exact clothes inline,
           because .overview h2 would otherwise shrink it to 1.25rem. ── */}
@@ -103,15 +124,15 @@ export default function OverviewPage() {
       </h2>
 
       <p>
-        BitGraphs are not labels or metadata added after the fact. They are new computations created when your file&rsquo;s hash <em>fills</em> a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof file permanently bound to the original.
+        BitGraphs are not labels or metadata added after the fact. They are new computations created when your file&rsquo;s hash <em>fills</em> a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state.
       </p>
 
       <p>
-        Origin can be enforced or it can be claimed. Most digital provenance systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.
+        Provenance can be enforced or it can be claimed. Most systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.
       </p>
 
       <p>
-        BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact&rsquo;s hash is known. The artifact&rsquo;s hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of construction.
+        BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact&rsquo;s hash is known. The artifact&rsquo;s hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
       </p>
 
       <blockquote>
@@ -135,25 +156,25 @@ export default function OverviewPage() {
       </blockquote>
 
       <p>
-        The atomicity is the whole guarantee. The slot is allocated and signed before the hash is known. The slot can be consumed exactly once by a single binding operation. The artifact itself can be produced anywhere, by any process, using any tools. What matters is that when the hash arrives, the slot is already there waiting.
+        The atomicity is the whole guarantee, and it constrains the record rather than the artifact. The artifact itself can be produced anywhere, by any process, using any tools. What matters is that when the hash arrives, the slot is already there waiting.
       </p>
 
       <p>
-        Most systems say: &ldquo;Here is a file hash. Now let&rsquo;s sign it.&rdquo; BitGraph says: &ldquo;Here is a pre-existing origin slot. Now this file hash has occupied it.&rdquo;
+        Most systems begin with the bits. BitGraph begins with the place. They say: &ldquo;Here is a file hash. Now let&rsquo;s sign it.&rdquo; BitGraph says: &ldquo;Here is a pre-existing position. Now this file hash has occupied it.&rdquo;
       </p>
 
       <h2>Why nonce-first matters</h2>
 
       <p>
-        If a nonce, timestamp, or credential is added after the hash is already witnessed, it is just a label. It can prove someone signed something. It can prove a record existed by some moment. It cannot constrain the artifact&rsquo;s origin, because the artifact already existed before the nonce entered the picture.
+        If a nonce, timestamp, or credential is added after the hash is already witnessed, it is just a label. It can prove someone signed something. It can prove a record existed by some moment. It cannot impose a prior condition merely by being attached afterward. The credential may describe where the artifact came from, but the artifact never had to consume a pre-existing, single-use position in order to receive one.
       </p>
 
       <p>
-        That leaves a forgery window. A malicious actor can prepare old hashes, replay prior material, backfill records, or attach fresh randomness to something never produced through the claimed path. The label looks valid. The construction was never constrained.
+        That leaves a forgery window. A malicious actor can prepare old hashes, replay prior material, backfill records, or attach fresh randomness to something never produced through the claimed path. The label looks valid. Nothing had to be true before it was attached.
       </p>
 
       <p>
-        BitGraph closes the window by requiring the slot to exist first. The slot is not evidence added afterward. It is the condition the artifact must satisfy.
+        BitGraph narrows that window by requiring the slot to exist first. It does not stop an old file being committed today: the hash occupies a slot allocated today, and the position claims nothing about when the bytes were made. What it stops is a position being invented after the fact, or occupied twice. The slot is not evidence added afterward. It is the condition the artifact must satisfy.
       </p>
 
       <h2>What a BitGraph proof contains</h2>
@@ -185,7 +206,7 @@ export default function OverviewPage() {
       </table>
 
       <p>
-        The result is not &ldquo;a file was signed.&rdquo; It is: this hash was committed into this causal slot, by this measured environment, at this position in logical order, under this signing identity.
+        Taken together: this hash was committed into this causal slot, by this measured environment, at this position in logical order, under this signing identity.
       </p>
 
       <h2>Logical time</h2>
@@ -203,21 +224,21 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        An Ethereum block hash that becomes available after the artifact has been committed could not have been known at the moment of commitment. This produces an entropy sandwich:
+        An Ethereum block hash that becomes available after the artifact has been committed could not have been known at the moment of commitment. That brackets the commitment:
       </p>
 
       <ol>
-        <li>Private TEE entropy before the artifact.</li>
-        <li>Artifact commitment in the middle.</li>
-        <li>Public blockchain entropy after it.</li>
+        <li>An unpredictable private value before it.</li>
+        <li>The commitment in the middle.</li>
+        <li>An independently observable public value after it.</li>
       </ol>
 
       <p>
-        The artifact was committed after the TEE-created slot existed and before the later Ethereum block was knowable. That bounds the commitment in adversary-resistant entropy, witnessed in a public timeline anyone can check years later.
+        The artifact was committed after the TEE-created slot existed and before the later Ethereum block was knowable. Neither bound depends on the block being a good source of randomness, only on it being a later public reference that did not yet exist, in a timeline anyone can check years afterward.
       </p>
 
       <p>
-        Ethereum is not asked to prove the artifact&rsquo;s origin. BitGraph does that. Ethereum provides the backward seal that makes the commitment publicly verifiable.
+        Ethereum is not asked to establish the artifact&rsquo;s position. BitGraph does that. Ethereum provides the backward seal that makes the commitment publicly verifiable.
       </p>
 
       <h2>Compromise and containment</h2>
@@ -239,7 +260,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        The production deployment makes rotation routine rather than exceptional: the boundary restarts every day at 23:59 UTC, destroying the epoch key and starting a fresh one, so each epoch is exactly one UTC calendar day. A breach that depends on staying resident inside the enclave cannot outlive the day without freshly re-compromising a new enclave. The schedule is deliberately public: rotation times are visible on the ledger regardless, and the protection comes from the key dying, not from anyone guessing when.
+        The production deployment makes rotation routine rather than exceptional: the boundary restarts every day at 23:59 UTC, destroying the epoch key and starting a fresh one, so a normally operating epoch runs about a day. An unexpected restart ends one early and a failed rotation extends one; either way the boundary is recorded in the proofs themselves. A breach that depends on staying resident inside the enclave cannot outlive its epoch without freshly re-compromising a new one. The schedule is deliberately public: rotation times are visible on the ledger regardless, and the protection comes from the key dying, not from anyone guessing when.
       </p>
 
       <h2>The trust model</h2>
@@ -267,14 +288,14 @@ export default function OverviewPage() {
         </tbody>
       </table>
 
-      <h2>Multiple copies of the same original</h2>
+      <h2>Every copy carries the same position</h2>
 
       <p>
         Physical originality depended on singularity. There was one canvas, one negative, one signed paper, and the object&rsquo;s uniqueness was how you knew it came from the author&rsquo;s hand. Digital files broke that. Perfect copies are indistinguishable from the source, so the physical anchor for originality stopped working.
       </p>
 
       <p>
-        BitGraph restores verifiable originality by separating it from the object. The artifact&rsquo;s hash is the proof&rsquo;s anchor, so any exact copy of the bytes carries the same causal provenance. The proof object itself can travel with the file, stay on the server that issued it, or be stored anywhere, and each can have multiple copies. Verification doesn&rsquo;t depend on where it lives. Originality moves from physical container to causal proof. Singularity is no longer required.
+        BitGraph does not restore originality. It makes it unnecessary. The artifact&rsquo;s hash is the proof&rsquo;s anchor, so any exact copy of the bytes carries the same position, and no copy has to be the special one. The proof object itself can travel with the file, stay on the server that issued it, or be stored anywhere, and each of those can have copies too. Verification does not depend on where anything lives. What used to need a unique object now needs only the exact bytes.
       </p>
 
       <h2>What BitGraph applies to</h2>
@@ -284,15 +305,15 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        <strong>Media.</strong> Photos, videos, audio, edited files, generative outputs. The question shifts from &ldquo;is this real?&rdquo; to &ldquo;what origin path does this artifact satisfy?&rdquo;
+        <strong>Media.</strong> Photos, videos, audio, edited files, generative outputs. The question shifts from &ldquo;is this real?&rdquo; to &ldquo;what position does this exact digital state occupy?&rdquo;
       </p>
 
       <p>
-        <strong>AI outputs.</strong> Model results bound to authenticated identity and causal position without requiring the model to run inside an enclave.
+        <strong>AI outputs.</strong> Model results bound to a causal position, and optionally to a key that authorized the recording, without requiring the model to run inside an enclave.
       </p>
 
       <p>
-        <strong>Software supply chain.</strong> Build artifacts, releases, model weights, and deployment packages bound to a measured construction path.
+        <strong>Software supply chain.</strong> Build artifacts, releases, model weights, and deployment packages bound to a position in a measured sequence.
       </p>
 
       <p>
@@ -331,7 +352,7 @@ export default function OverviewPage() {
           <tr>
             <td>C2PA</td>
             <td>Here are signed claims about this content</td>
-            <td>Here is the construction path this content satisfied</td>
+            <td>This exact digital state occupied this pre-existing position</td>
           </tr>
           <tr>
             <td>Blockchains</td>
@@ -342,20 +363,24 @@ export default function OverviewPage() {
       </table>
 
       <p>
-        Signatures, timestamps, content credentials, and blockchains all answer &ldquo;who claimed what, when?&rdquo; BitGraph answers &ldquo;what construction path did this exact artifact satisfy?&rdquo; They are complementary, not competing. A signature can be inside a BitGraph proof. A timestamp can decorate one. Content credentials can ride alongside one. None of them, alone, do what BitGraph does.
+        Signatures, timestamps, content credentials, and blockchains all answer &ldquo;who claimed what, when?&rdquo; BitGraph answers &ldquo;what position does this exact digital state occupy?&rdquo; They are complementary, not competing. A signature can be inside a BitGraph proof. A timestamp can decorate one. Content credentials can ride alongside one. None of them, alone, do what BitGraph does.
       </p>
 
       <h2>The simplest version</h2>
 
-      <p>
-        A measured TEE creates a random unused slot before the artifact hash arrives. The hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, sealing everything before it in a public timeline.
-      </p>
-
       {/* No page-local footer: the site footer already says Patent Pending,
           and this was the one docs page repeating it. The closing line above
           is the page's last word. */}
-      <p>
-        The result is a provenance system that does not say &ldquo;someone signed this.&rdquo; It says: this exact artifact occupies this origin coordinate.
+      <p style={{ marginBottom: "0.75rem" }}>
+        The result is a protocol that does not say &ldquo;someone signed this.&rdquo;
+      </p>
+      {/* The page's last word, and the only bold statement line on it now that
+          the tagline is the h1. Same treatment the tagline carried when it sat
+          in the opener: weight 600 at the heading colour, NOT a new size. The
+          setup above it is tightened to 0.75rem so the pair reads as one beat
+          rather than two paragraphs that happen to be adjacent. */}
+      <p style={{ fontWeight: 600, color: "#111827" }}>
+        It proves: these exact bits occupy this position.
       </p>
     </article>
   );
