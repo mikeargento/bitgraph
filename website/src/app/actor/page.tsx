@@ -83,6 +83,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BitGraphCamera, clearCameraCache } from "@/components/bitgraph-camera";
+import { InfoLink } from "@/components/info-link";
 import { makeActorStrategy } from "@/lib/actor-strategy";
 import {
   clearStoredCredential,
@@ -169,21 +170,26 @@ export default function ActorPage() {
            components/bitgraph-camera.tsx; change both or neither. */
         .declare-register-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0 40px;
           display: flex; flex-direction: column; align-items: stretch; justify-content: center;
-          min-height: calc(100dvh - 114px); gap: 24px; text-align: center; }
-        .declare-title { font-size: clamp(34px, 6vw, 40px); margin: 0 0 36px; }
-        .declare-register { display: flex; flex-direction: column; align-items: center; gap: 22px; }
-        /* balance, not pretty: pretty only rescues a single orphaned word, and
-           this lead's last line is three, so it wrapped at "only / you can
-           use." Balance evens the lines instead. */
+          min-height: calc(100dvh - 114px); gap: 24px; }
+        /* LEFT, like the camera's title row it stands in for (and every other
+           title on the site, since 2026-08-19): the name on the left, "How it
+           works →" on the right, baseline-aligned; on a phone the link wraps
+           under the title. The form under it is left too. */
+        .declare-title-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 36px; }
+        .declare-title { font-size: clamp(34px, 6vw, 40px); margin: 0; }
+        .declare-register { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; }
+        /* pretty, not balance, now that the lead is left-aligned: balance
+           evens ragged centred lines; a left block wants its last line kept
+           from a lone word. */
         .declare-lead { font-size: clamp(14px, 2.5vw, 16px); line-height: 1.6; color: #4b5563;
-          max-width: 430px; margin: 0 auto; text-wrap: balance; }
+          max-width: 430px; margin: 0; text-wrap: pretty; }
         /* The one text field in the product. Square, hairline, brand focus:
            the site has no other input to match, so it borrows the card. */
-        .declare-name { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+        .declare-name { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; }
         .declare-name input {
           font-family: inherit; font-size: 15px; color: #111827; background: #fff;
           border: 1px solid #d0d5dd; border-radius: 0; padding: 11px 13px;
-          width: min(320px, 100%); text-align: center;
+          width: min(320px, 100%);
         }
         .declare-name input:focus-visible { outline: 2px solid #0065A4; outline-offset: -2px; }
 
@@ -221,7 +227,8 @@ export default function ActorPage() {
            chrome, for the two blocks that are this page's. */
         @media (max-height: 520px) {
           .declare-register-wrap { padding-top: 12px; padding-bottom: 12px; }
-          .declare-title { font-size: clamp(20px, 4.5vh, 30px); margin: 0 0 14px; }
+          .declare-title { font-size: clamp(20px, 4.5vh, 30px); }
+          .declare-title-row { margin-bottom: 14px; }
         }
       `}</style>
 
@@ -253,7 +260,7 @@ export default function ActorPage() {
             <p className="declare-note">
               <span className="declare-note-controls">
                 <button type="button" className="declare-inline" onClick={forget}>
-                  Forget this device
+                  <span className="bg-long">Forget this device</span><span className="bg-short">Forget</span>
                 </button>
               </span>
             </p>
@@ -263,7 +270,14 @@ export default function ActorPage() {
 
       {ready && !cred && (
         <div className="declare-register-wrap">
-          <h1 className="bg-page-title declare-title">BitGraph Actor</h1>
+          <div className="declare-title-row">
+            <h1 className="bg-page-title declare-title">BitGraph Actor</h1>
+            {/* The way to the explanation this screen does not carry (see the
+                note under the action). Home has its circled i in this slot;
+                here the question is what the touch does and what a reader may
+                conclude from it, and /docs/actor answers that. */}
+            <InfoLink href="/docs/actor" label="How it works" />
+          </div>
           <div className="declare-register">
             <p className="declare-lead">
               {supported

@@ -69,8 +69,11 @@ export function MonthCalendar({ title, total, leading, days }: {
     ...cell, color: "#0065A4", fontWeight: 700, textDecoration: "none",
     background: "none", border: 0, borderBottom: "1px solid #eef0f1", cursor: "pointer", padding: 0, width: "100%",
   };
-  // Pad the last week out to seven so every row carries its hairline.
-  const trailing = (7 - ((leading + days.length) % 7)) % 7;
+  // Always six week rows, padded with blank cells, so every month card is the
+  // same height and side-by-side months line up (Mike, 2026-08-19: "calendar
+  // should have longest white box even without more days so they match"). Six
+  // is the most any month needs (31 days after a Saturday 1st is 37 cells).
+  const trailing = 6 * 7 - leading - days.length;
   return (
     <section style={{ background: "#fff", border: "1px solid #d0d5dd", padding: "14px 16px 6px" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>

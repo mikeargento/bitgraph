@@ -282,7 +282,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
   const openLink = showingResults && !boxOpen ? (
     <button type="button" className="bg-arrow-link" onClick={() => setBoxOpen(true)}
       style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", whiteSpace: "nowrap", flexShrink: 0 }}>
-      Record or check more BitGraphs <span className="arrow" aria-hidden="true">&rarr;</span>
+      <span className="bg-long">Record or check more BitGraphs</span><span className="bg-short">More</span> <span className="arrow" aria-hidden="true">&rarr;</span>
     </button>
   ) : null;
 

@@ -1329,6 +1329,16 @@ function ActorCard({ proof }: { proof: BitGraphProof }) {
         label="Signed with"
         value={agency?.authorization?.format === "webauthn" ? "A passkey on the actor's device" : "The actor's own key"}
       />
+      {/* The one way out to the explanation this card is not allowed to
+          carry (see the note above): /docs/actor says what the touch did,
+          what a reader may conclude and what they may not. Same row idiom
+          as the other cards' actions. */}
+      <div style={{ padding: "0 16px", borderBottom: "1px solid #e2e5e9" }}>
+        <a href="/docs/actor" className="bg-action-link">
+          <span>How it works</span>
+          <span className="arrow" aria-hidden>&rarr;</span>
+        </a>
+      </div>
     </CollapsibleCard>
   );
 }

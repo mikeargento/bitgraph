@@ -88,6 +88,7 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/verification", label: "Verification" },
       { href: "/docs/audit", label: "Audit a Bundle" },
       { href: "/docs/folder", label: "BitGraph Folder" },
+      { href: "/docs/actor", label: "BitGraph Actor" },
       { href: "/docs/automation", label: "Zapier and Make" },
       { href: "/docs/mcp", label: "MCP" },
     ],

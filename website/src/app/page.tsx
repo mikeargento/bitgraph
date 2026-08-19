@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { BitGraphCamera } from "@/components/bitgraph-camera";
+import { InfoLink } from "@/components/info-link";
 import { anonymous } from "@/lib/commit-strategy";
 
 /**
@@ -46,8 +46,8 @@ export default function BitGraphPage() {
         title={<a href="/docs/overview">A camera for <span className="accent">bits</span></a>}
         belowClassName="hero-more"
         below={
-          /* Home's ONE discoverable exit (the h1 above is a link too, but it
-             is colour: inherit with no underline and hover-only, so on a
+          /* Home's ONE discoverable exit (the h1 beside it is a link too, but
+             it is colour: inherit with no underline and hover-only, so on a
              phone it does not exist). It pointed at a single example proof
              until 2026-08-18. A stranger's first question is what this is,
              not what the output looks like, and /docs/overview now answers
@@ -55,22 +55,14 @@ export default function BitGraphPage() {
              proofs are still one nav click away under Roll, so the
              no-commitment path to seeing one is not lost.
 
-             The site's standard link type (Mike, 2026-08-19: "What is a
-             BitGraph → and rename forget links should be the sites standard
-             size links"): the .bg-action-link numbers, 14 / 600 / -0.01em in
-             brand blue, on the layout-neutral .bg-arrow-link tap target.
-             /actor's Rename · Forget wears the same numbers in the same slot.
-             ⚠️ It was 16 for a day (reasoned as level with the box's hints)
-             and 19 for one deploy before that (copied from the Folder link
-             in 19px prose). One size for every link on the site beats a
-             size reasoned per context; 14 is that size. */
-          <Link
-            href="/docs/overview"
-            className="bg-arrow-link"
-            style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
-          >
-            What is a BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
-          </Link>
+             A circled i since 2026-08-19 (Mike: "wrapping button is bad
+             should it just be an i with a circle info symbol???"). It was
+             the words "What is a BitGraph →" at 19, 16 and then the site's
+             standard 14, under the box and then on this row, and on a phone
+             any words here wrap under a 34px title. The glyph says "about
+             this" whole at every width; the words are its label and title
+             for readers who cannot see it. */
+          <InfoLink href="/docs/overview" label="What is a BitGraph" />
         }
       />
     </>
