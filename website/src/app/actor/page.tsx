@@ -99,7 +99,6 @@ export default function ActorPage() {
   const [name, setName] = useState("");
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
   // The credential lives in localStorage, which does not exist while this
@@ -115,8 +114,8 @@ export default function ActorPage() {
   }, []);
 
   /** The one thing this page hands the camera. Rebuilt when the credential
-   *  changes (register, forget, rename), never mid-run: the controls that
-   *  change it sit under a frame that is not shown while a run is in flight. */
+   *  changes (register, forget), never mid-run: the control that changes it
+   *  sits on a title row that is not shown while a run is in flight. */
   const strategy = useMemo(() => (cred ? makeActorStrategy(cred) : null), [cred]);
 
   /** A row may print this device's label for this device's key, and nothing
@@ -142,23 +141,19 @@ export default function ActorPage() {
     }
   }, [name]);
 
-  /** Rename the local label. The credential is untouched: the key is what a
-   *  proof carries, and it does not change because its owner fixed a typo. */
-  const saveName = useCallback(() => {
-    const next = name.trim();
-    if (!next || !cred) return;
-    const updated = { ...cred, name: next };
-    localStorage.setItem("bitgraph-passkey", JSON.stringify(updated));
-    setCred(updated);
-    setRenaming(false);
-  }, [name, cred]);
-
+  /* ❄️ NO RENAME (Mike, 2026-08-19: "rename is a bad idea. forget this device
+     will suffice in an instance where you want to rename"). It existed for a
+     day because a passkey's keychain label cannot be edited once created and
+     the page's label could. But the label never enters a proof; the key does,
+     and a second control that changes the one without the other taught the
+     wrong thing about where identity lives. Forget and register again: a new
+     key, a new label, and the old recordings keep the old key, which is the
+     honest account of what happened. */
   const forget = useCallback(() => {
     clearStoredCredential();
     clearCameraCache("actor");
     setCred(null);
     setName("");
-    setRenaming(false);
   }, []);
 
   return (
@@ -206,16 +201,16 @@ export default function ActorPage() {
         .declare-who strong { font-weight: 600; color: #111827; }
         .declare-who .declare-key { font-family: var(--font-mono); }
 
-        /* ── The two controls that act on the key, in exactly home's slot
-           (Mike: "keep the Rename · Forget this device in the identical
-           position as what is a bitgraph"): the right of the title row since
-           2026-08-19, under the box for the day before. ──
-           The controls are the site's standard link type, the .bg-action-link
-           numbers (14 / 600 / -0.01em, brand blue), the same as home's link in
-           the same slot (Mike: "the sites standard size links"). The p keeps
-           the page's 16px so its line box matches home's link row. The hit
-           area is grown the way .bg-arrow-link grows its own: padding the
-           region and cancelling it in layout, so a tap near the text lands. */
+        /* ── The control that acts on the key, in exactly home's slot (Mike:
+           "keep the ... Forget this device in the identical position as what
+           is a bitgraph"): the right of the title row since 2026-08-19, under
+           the box for the day before. ──
+           The site's standard link type, the .bg-action-link numbers (14 /
+           600 / -0.01em, brand blue), the same as home's link in the same slot
+           (Mike: "the sites standard size links"). The p keeps the page's 16px
+           so its line box matches home's link row. The hit area is grown the
+           way .bg-arrow-link grows its own: padding the region and cancelling
+           it in layout, so a tap near the text lands. */
         .declare-more { }
         .declare-note { margin: 0; font-size: 16px; color: #4b5563; white-space: nowrap; }
         .declare-note-controls { display: inline-flex; gap: 20px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
@@ -252,51 +247,16 @@ export default function ActorPage() {
           }
           belowClassName="declare-more"
           below={
-            /* ── The two controls that act on the key, in home's link slot. ──
-                The label is correctable, and that is the answer to "should
-                you have to type it twice" (Mike, 2026-08-18). It is not worth
-                confirming: it never enters a proof. But a passkey cannot be
-                renamed once created, so a typo would otherwise sit in the
-                keychain forever. Renaming changes the label beside the
-                credential and leaves the key alone. While the field is open
-                the block is taller, briefly; the fit re-measures it. ── */
-            renaming ? (
-              <div className="declare-name">
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") saveName();
-                    if (e.key === "Escape") { setRenaming(false); setName(cred.name); }
-                  }}
-                  placeholder="Name or organization"
-                  aria-label="The name this device acts under"
-                  spellCheck={false}
-                  autoFocus
-                />
-                <button type="button" className="bg-action-link" onClick={saveName} disabled={!name.trim()}>
-                  Save <span className="arrow" aria-hidden="true">&rarr;</span>
+            /* ── The one control that acts on the key, in home's link slot on
+                the title row. Forget is also how you rename (see the note at
+                `forget`). ── */
+            <p className="declare-note">
+              <span className="declare-note-controls">
+                <button type="button" className="declare-inline" onClick={forget}>
+                  Forget this device
                 </button>
-              </div>
-            ) : (
-              /* Two actions on one line, separated by space alone, as the
-                 Roll's nav line separates its steppers and "All rolls →":
-                 20px, no glyph. It was "Rename · Forget this device" for a
-                 day (Mike: "is there a better way to separate these
-                 links?"); the dot was the one separator of its kind on the
-                 site. */
-              <p className="declare-note">
-                <span className="declare-note-controls">
-                  <button type="button" className="declare-inline" onClick={() => { setName(cred.name); setRenaming(true); }}>
-                    Rename
-                  </button>
-                  <button type="button" className="declare-inline" onClick={forget}>
-                    Forget this device
-                  </button>
-                </span>
-              </p>
-            )
+              </span>
+            </p>
           }
         />
       )}
