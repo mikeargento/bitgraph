@@ -17,6 +17,7 @@ import {
   buildAgencyEnvelope, getStoredCredential, requestAssertion, type StoredCredential,
 } from "@/lib/webauthn";
 import { takeFreshProof } from "@/lib/fresh-proof";
+import { getPreviewFromIDB, putPreviewToIDB } from "@/lib/file-cache";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
 
@@ -731,6 +732,7 @@ export default function ProofPage() {
       <style>{`
         @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
         @keyframes ethWaitPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+        @keyframes spin { to { transform: rotate(360deg) } }
         /* Collapsible card header — the disclosure affordance is a single blue
            chevron that rotates down when open; the row tints on hover. */
         .bg-collapse-head { transition: background .12s; }
@@ -824,7 +826,7 @@ export default function ProofPage() {
             <CollapsibleCard title="BitGraph Recorded" plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
-                <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare />
+                <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} />
               ) : cachedFile ? (
                 <FileCard cachedFile={cachedFile} />
               ) : (
@@ -1685,20 +1687,37 @@ function BringYourFile({
   );
 }
 
+/* The route's digest is url-safe; the file cache is keyed by the standard
+   form. The same conversion the page does inline where it reads the cache. */
+function stdDigest(digestParam: string): string {
+  let d = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
+  while (d.length % 4 !== 0) d += "=";
+  return d;
+}
+
 /* ── Photo preview card — shows the artifact image when one is available ── */
 
 function PhotoCard({
   cachedFile,
   c2pa,
   bare,
+  previewKey,
 }: {
   cachedFile: { name: string; data: ArrayBuffer } | null;
   c2pa?: C2PAReadResult | null;
   /** Skip the card chrome (used inside the BitGraphed File collapsible). */
   bare?: boolean;
+  /** The proof digest (standard base64), the key a converted preview is
+   *  remembered under in IndexedDB so a second visit is instant. */
+  previewKey?: string;
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
+  // True while a preview is being made from bytes the browser cannot show as
+  // they are (a HEIC on anything but Safari: several seconds of WebAssembly
+  // for a 24 MP photo). The card shows the wait rather than nothing; nothing
+  // read as "HEIC files aren't compatible" (Mike, 2026-08-19).
+  const [preparing, setPreparing] = useState(false);
 
   // Build an object URL for image preview if the cached file is an image.
   //
@@ -1742,20 +1761,57 @@ function PhotoCard({
     }
 
     let revoke: (() => void) | null = null;
+    let cancelled = false;
 
     if (isHeic) {
+      setPreparing(true);
       (async () => {
         try {
+          // 1. A preview made on an earlier visit, remembered by digest.
+          if (previewKey) {
+            const remembered = await getPreviewFromIDB(previewKey);
+            if (cancelled) return;
+            if (remembered) {
+              const url = URL.createObjectURL(remembered);
+              setPreviewUrl(url);
+              revoke = () => URL.revokeObjectURL(url);
+              return;
+            }
+          }
+          // 2. The browser's own decoder. Safari and iOS show HEIC natively
+          //    and instantly; the probe loads the bytes as an image and either
+          //    succeeds (use them as they are) or fails (convert).
+          const raw = new Blob([new Uint8Array(cachedFile.data)], { type: "image/heic" });
+          const rawUrl = URL.createObjectURL(raw);
+          const native = await new Promise<boolean>((resolve) => {
+            const probe = new Image();
+            probe.onload = () => resolve(probe.naturalWidth > 0);
+            probe.onerror = () => resolve(false);
+            probe.src = rawUrl;
+          });
+          if (cancelled) { URL.revokeObjectURL(rawUrl); return; }
+          if (native) {
+            setPreviewUrl(rawUrl);
+            revoke = () => URL.revokeObjectURL(rawUrl);
+            return;
+          }
+          URL.revokeObjectURL(rawUrl);
+          // 3. Convert to JPEG in WebAssembly (heic2any, lazy-loaded ~500 KB),
+          //    and remember the result so this only ever happens once per
+          //    recording in this browser.
           const heic2any = (await import("heic2any")).default;
-          const blob = new Blob([new Uint8Array(cachedFile.data)]);
-          const result = await heic2any({ blob, toType: "image/jpeg", quality: 0.85 });
+          const result = await heic2any({ blob: new Blob([new Uint8Array(cachedFile.data)]), toType: "image/jpeg", quality: 0.85 });
           const jpegBlob = Array.isArray(result) ? result[0] : result;
+          if (cancelled) return;
           const url = URL.createObjectURL(jpegBlob);
           setPreviewUrl(url);
           revoke = () => URL.revokeObjectURL(url);
+          if (previewKey) void putPreviewToIDB(previewKey, jpegBlob);
         } catch (e) {
-          console.warn("[bitgraph] heic2any conversion failed:", e);
-          setPreviewUrl(null);
+          console.warn("[bitgraph] HEIC preview failed:", e);
+          if (!cancelled) setPreviewUrl(null);
+        } finally {
+          if (!cancelled) setPreparing(false);
         }
       })();
     } else {
@@ -1766,15 +1822,15 @@ function PhotoCard({
     }
 
     setPreviewFailed(false);
-    return () => { revoke?.(); };
-  }, [cachedFile]);
+    return () => { cancelled = true; revoke?.(); };
+  }, [cachedFile, previewKey]);
 
   // Image source fallback chain:
   //   1. Local preview URL (converted if HEIC, blob if native)
   //   2. C2PA embedded thumbnail (covers RAW + shared links with no cached file)
   //   3. Nothing — the card is not rendered
   const imageSrc = (!previewFailed && previewUrl) || c2pa?.thumbnailDataUrl || "";
-  if (!imageSrc) return null;
+  if (!imageSrc && !preparing) return null;
 
   const alt = cachedFile?.name || c2pa?.title || "Proof artifact";
 
@@ -1796,21 +1852,31 @@ function PhotoCard({
       }}
     >
       <div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageSrc}
-          alt={alt}
-          onError={() => { if (previewUrl) setPreviewFailed(true); }}
-          style={{
-            display: "block",
-            maxWidth: "100%",
-            maxHeight: "min(70vh, 640px)",
-            width: "auto",
-            height: "auto",
-            objectFit: "contain",
-            borderRadius: 0,
-          }}
-        />
+        {imageSrc ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={imageSrc}
+            alt={alt}
+            onError={() => { if (previewUrl) setPreviewFailed(true); }}
+            style={{
+              display: "block",
+              maxWidth: "100%",
+              maxHeight: "min(70vh, 640px)",
+              width: "auto",
+              height: "auto",
+              objectFit: "contain",
+              borderRadius: 0,
+            }}
+          />
+        ) : (
+          /* The wait, in the site's one wait look (the camera's spinner and
+             label), so a slow decode is a decode in progress and not a blank
+             card. Tall enough to hold the slot's shape while it works. */
+          <div role="status" aria-label="Preparing preview" style={{ minHeight: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
+            <div style={{ width: 32, height: 32, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>Preparing preview…</div>
+          </div>
+        )}
       </div>
       {/* Identity row — the same name · size · Open → that FileCard gives every
           other file. The inline image is capped in size, so Open shows it at

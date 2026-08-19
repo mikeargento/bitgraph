@@ -34,3 +34,51 @@ export async function cacheArtifactToIDB(file: File, proofDigest: string): Promi
   }
   await writeRecord(c2pa, true);
 }
+
+/* ── Rendered previews, remembered. ──
+   A HEIC (every iPhone's default) cannot be shown by most browsers; the proof
+   page converts it to JPEG in WebAssembly, which on a 24 MP photo takes
+   several seconds. Content-addressed by the proof digest, the converted
+   preview is as permanent as the bytes it was made from, so it is kept in the
+   same store under a sibling key and the second visit is instant. Same
+   database, same store, same version: a new object store would mean a
+   version bump at every open() site. The key is `${digest}:preview`, which no
+   digest can collide with (a digest is base64 and carries no colon). */
+
+const previewKey = (proofDigest: string) => `${proofDigest}:preview`;
+
+async function openFilesDB(): Promise<IDBDatabase> {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const req = indexedDB.open("bitgraph-files", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("files");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getPreviewFromIDB(proofDigest: string): Promise<Blob | null> {
+  try {
+    const db = await openFilesDB();
+    const tx = db.transaction("files", "readonly");
+    const rec = await new Promise<{ data: ArrayBuffer; mime: string } | undefined>((resolve) => {
+      const req = tx.objectStore("files").get(previewKey(proofDigest));
+      req.onsuccess = () => resolve(req.result as { data: ArrayBuffer; mime: string } | undefined);
+      req.onerror = () => resolve(undefined);
+    });
+    db.close();
+    return rec?.data ? new Blob([rec.data], { type: rec.mime || "image/jpeg" }) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function putPreviewToIDB(proofDigest: string, preview: Blob): Promise<void> {
+  try {
+    const data = await preview.arrayBuffer();
+    const db = await openFilesDB();
+    const tx = db.transaction("files", "readwrite");
+    tx.objectStore("files").put({ data, mime: preview.type || "image/jpeg" }, previewKey(proofDigest));
+    await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
+    db.close();
+  } catch { /* a preview that is not remembered is converted again next time */ }
+}
