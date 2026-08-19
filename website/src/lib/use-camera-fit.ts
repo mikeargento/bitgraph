@@ -19,9 +19,14 @@ import { useEffect } from "react";
  * changes, so those are parameters. Everything else, including every constant
  * and every listener, is identical to what home shipped.
  *
- * @param enabled        false while the page is showing something other than
- *                       the camera (home's results view), which unhooks the
- *                       listeners rather than measuring a frame that is gone.
+ * @param enabled        false once the page has stopped being a single
+ *                       viewport-fitted composition. ⚠️ That includes a page
+ *                       where the camera is STILL VISIBLE but a list has grown
+ *                       under it: fit() sums every sibling of the frame into
+ *                       its chrome, so a growing list is counted as chrome and
+ *                       squeezes the frame flat (/actor, 2026-08-19, Mike:
+ *                       "should it get smooshed like that"). Home never hit
+ *                       this because its results are a separate step.
  * @param titleSelector  the page's headline, inside .bitgraph-wrap.
  * @param moreSelector   the row beneath the frame, inside .bitgraph-wrap.
  *
@@ -60,7 +65,17 @@ export function useCameraFit(
      sensibly sized on the first paint before this runs, and if JS never runs
      the page behaves exactly as it did. */
   useEffect(() => {
-    if (!enabled) return;
+    /* ⚠️ CLEAR, do not just bail. These are custom properties on a live
+       element, so a plain early return leaves the last measurement in place
+       and the frame keeps obeying a number nobody is updating any more.
+       Removing them hands the frame back to its CSS fallback, which is what
+       a page that has stopped being viewport-fitted should use. */
+    if (!enabled) {
+      const w = document.querySelector<HTMLElement>(".bitgraph-wrap");
+      w?.style.removeProperty("--bg-cam-avail");
+      w?.style.removeProperty("--bg-wrap-min");
+      return;
+    }
     const wrap = document.querySelector<HTMLElement>(".bitgraph-wrap");
     const cam = document.querySelector<HTMLElement>(".bitgraph-camera");
     if (!wrap || !cam) return;

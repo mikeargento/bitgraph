@@ -174,9 +174,10 @@ export default function DeclarePage() {
   /* Home's frame measurement, same hook, this page's two selectors. The
      titles line up because the block BELOW each frame is the same height (see
      .declare-more), not because anything is corrected here. */
-  useCameraFit(ready && !!cred, ".declare-title", ".declare-more");
   /** Declared here, this visit. They accumulate: a second drop appends. */
   const [results, setResults] = useState<Recorded[]>([]);
+
+  useCameraFit(ready && !!cred && results.length === 0, ".declare-title", ".declare-more");
   const nameRef = useRef<HTMLInputElement>(null);
 
   // The credential lives in localStorage, which does not exist while this
