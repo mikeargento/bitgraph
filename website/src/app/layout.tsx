@@ -17,7 +17,11 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "BitGraph | A camera for bits",
+    // Home's tab title is the home h1 (Mike, 2026-08-19: "fix those"), with no
+    // "BitGraph |" prefix: the sentence already names BitGraph, and the
+    // template below still brands every other page's tab. It was "BitGraph |
+    // A camera for bits" from 2026-07 until the title became the claim.
+    default: "A BitGraph gives bits a place",
     template: "%s | BitGraph",
   },
   description:
@@ -27,14 +31,14 @@ export const metadata: Metadata = {
     "cryptographic provenance", "tamper-evident", "C2PA", "proof explorer",
   ],
   openGraph: {
-    title: "BitGraph | A camera for bits",
+    title: "A BitGraph gives bits a place",
     description: "Live cryptographic proof chain. Create, verify, and explore BitGraph proofs.",
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary_large_image",
-    title: "BitGraph | A camera for bits",
+    title: "A BitGraph gives bits a place",
     description: "Live cryptographic proof chain. Create, verify, and explore BitGraph proofs.",
   },
   robots: { index: true, follow: true },
