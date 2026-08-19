@@ -2,6 +2,21 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## 0.2.2 (2026-08-19)
+
+### Fixed
+
+- Reports written by 0.2.1 stamped themselves `toolVersion: "0.2.0"`: the
+  source constant had not moved with the package version. It now does, and a
+  test pins the two together.
+
+### Changed
+
+- Depends on `@mikeargento/bitgraph-verify` ^1.3.0, which checks a WebAuthn
+  declaration's `origin` against its `rpIdHash` and accepts an `allowedOrigins`
+  policy. No audit-side behaviour changed; the pin records what the stage
+  already resolves to on a fresh install.
+
 ## 0.2.1 (2026-08-18)
 
 ### Fixed
