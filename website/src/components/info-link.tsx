@@ -21,10 +21,13 @@ export function InfoLink({ href, label }: { href: string; label: string }) {
       className="bg-info-link"
       style={{ display: "inline-flex", alignItems: "center", color: "#0065A4", padding: 10, margin: -10, flexShrink: 0, alignSelf: "center" }}
     >
+      {/* The i itself is a filled dot over a stout stem, not two strokes of
+          the ring's weight: at 22px a 2px dot and a 5px stem read as a tick
+          mark (Mike: "hard to make out as an i"). */}
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" aria-hidden="true">
         <circle cx="12" cy="12" r="9.5" />
-        <path d="M12 11 L12 16.5" />
-        <path d="M12 7.5 L12 8.5" />
+        <circle cx="12" cy="7.6" r="1.45" fill="currentColor" stroke="none" />
+        <path d="M12 10.9 L12 17.2" strokeWidth="2.7" />
       </svg>
     </Link>
   );

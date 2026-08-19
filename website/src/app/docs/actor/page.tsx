@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "BitGraph Actor",
-  description: "The camera that puts your key on a recording: one passkey touch, verified inside the enclave against its own single-use nonce, and what a reader may and may not conclude from it.",
+  description: "Recordings authorized by a key you hold: one passkey touch, verified inside the enclave against its own single-use nonce, and what a reader may and may not conclude from it.",
 };
 
 /* ── /docs/actor: the page the instrument is not allowed to be. ──
@@ -42,12 +42,11 @@ const AGENCY_EXAMPLE = `"agency": {
 export default function ActorDocsPage() {
   return (
     <div className="prose-doc">
-      <h1 className="mb-2">BitGraph Actor</h1>
-      {/* Subtitle: heading furniture, not body copy. No terminal period, grey,
-          one step above body in the ladder, the same as the Player page. */}
-      <p style={{ color: "#1f2937", fontSize: 18, margin: "0 0 24px" }}>
-        The camera that puts your key on a recording
-      </p>
+      {/* ❄️ No subtitle. One lived here for an hour ("The camera that puts
+          your key on a recording"; Mike: "is dumb and i hate it"). The Folder
+          page has none either; only Player carries one, and that line is
+          Mike's. The first sentence says what this is. */}
+      <h1 className="mb-5">BitGraph Actor</h1>
       <p style={{ color: "#1f2937", marginBottom: 16 }}>
         A recording made at <a href="/actor">bitgraph.ing/actor</a> is an ordinary BitGraph plus one thing: an authorization for that exact file, signed by a key only your device can use, and verified inside the enclave against a nonce of its own before it would record anything. Same slot, same order, same anchors. Only the who differs.
       </p>
