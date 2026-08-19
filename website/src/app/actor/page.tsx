@@ -65,6 +65,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCameraFit } from "@/lib/use-camera-fit";
 import { FileDrop } from "@/components/file-drop";
 import { fmtRowWhen, useFileThumbs } from "@/components/folder-roll";
 import { toUrlSafeB64 } from "@/lib/explorer";
@@ -165,6 +166,15 @@ export default function DeclarePage() {
   const [name, setName] = useState("");
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
   const [renaming, setRenaming] = useState(false);
+
+  /* Home's frame measurement, same hook, this page's two selectors. Without it
+     .bitgraph-camera falls back to a CSS constant tuned for home's chrome and
+     this page's box came out a different height from home's. Enabled only once
+     a key exists, which is the only state that renders a frame. */
+  /* Home's frame measurement, same hook, this page's two selectors. The
+     titles line up because the block BELOW each frame is the same height (see
+     .declare-more), not because anything is corrected here. */
+  useCameraFit(ready && !!cred, ".declare-title", ".declare-more");
   /** Declared here, this visit. They accumulate: a second drop appends. */
   const [results, setResults] = useState<Recorded[]>([]);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -243,10 +253,11 @@ export default function DeclarePage() {
 
   /** One file in, one page out — home's rule, and this page owes it too.
    *
-   *  A single drop lands on its proof with no list in between: the drop is
-   *  the shutter, whether the outcome was a lookup or a declaration. Batches
-   *  keep the list, which is where you see which files were already on record
-   *  and which were just declared.
+   *  A single file that this drop actually RECORDED lands on its proof with
+   *  no list in between: the drop was the shutter. ⚠️ A single file that was
+   *  merely found does NOT navigate, because nothing happened to it here; it
+   *  gets a row like any other. Batches always keep the list, which is where
+   *  you see which files were already on record and which were just recorded.
    *
    *  ⚠️ fresh=1 only on something actually recorded. It plays the capture
    *  flash, and a flash over a file that was merely looked up would celebrate
@@ -295,12 +306,19 @@ export default function DeclarePage() {
           if (hit) found.push({ file: f, proof: hit.proof, when: hit.writeTime ?? null, kind: "found" });
           else fresh.push(i);
         });
-        // One file, already on record: its proof IS the answer, so go there.
-        if (list.length === 1 && found.length === 1) {
-          openProofPage(found[0].proof, found[0].file);
-          setPhase({ step: "idle" });
-          return;
-        }
+        /* ⚠️ A lone file ALREADY ON RECORD stays here (Mike, 2026-08-19,
+           reported as a bug). It used to jump to the proof, borrowing home's
+           one-file-one-page rule, but the two pages are not doing the same
+           thing: on home a drop is a recording either way, so its proof is the
+           answer. HERE the drop found something and acted on nothing. No
+           challenge was issued, no key was touched, no position was consumed,
+           and sending the reader to a proof page carrying somebody else's
+           actor, or none, reads as though they had just done that.
+
+           The row is the honest answer: it says the file is already recorded,
+           it stays on the page that asked, and it can be clicked through if
+           the proof is what the reader wanted. Only a real recording navigates
+           on its own, which is the branch below. */
         if (found.length) setResults((prev) => [...prev, ...found]);
 
         // Everything was already on record: nothing to sign, nothing minted,
@@ -395,14 +413,52 @@ export default function DeclarePage() {
         /* 46px only when nothing follows the title but the frame; with the
            deck present its own 36px carries the rest, exactly as home's does.
            ⚠️ Re-derive if the title size or the frame changes. */
-        .declare-title { font-size: clamp(34px, 6vw, 40px); margin: 0 0 46px; }
-        .declare-more { margin-top: 42px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+        /* 36px, home's exact gap between its title and its frame. It was 46
+           while this page had a deck under the title; with that line moved
+           below the box the two pages are the same composition and must not
+           differ by ten pixels for no reason. */
+        .declare-title { font-size: clamp(34px, 6vw, 40px); margin: 0 0 36px; }
+        /* 36 and 6, where home's equivalent row is 42 with a single child.
+           This page carries two lines under the frame (the identity line and
+           the controls that act on it) where home carries one link, so at
+           home's spacing the composition had no centring slack left and the
+           TITLE rode 25px higher than home's. Tightening here buys back part
+           of it and the frame's own measurement absorbs the rest, which lands
+           the two titles within about ten pixels of each other.
+           ⚠️ Do not restore 42/14 without re-checking the title against home:
+           the frame is elastic and the title position is what moves. */
+        /* ⚠️ 18px, and the number is DERIVED, not chosen. This block must be
+           the same total height as home's .hero-more or the two titles do not
+           line up: both wraps are centred columns of the same height, so any
+           difference below the frame pushes the title up by half of it. Home
+           is 42px of margin over a single 24.5px link = 66.5. This page has
+           two lines and their gap, so its margin is whatever is left.
+
+           ⚠️ EVERYTHING IN THIS BLOCK TRADES 1:1 AGAINST THE MARGIN, because
+           the total is what holds the titles level. Getting the block away
+           from the box (Mike, 2026-08-19) therefore meant finding height
+           somewhere, and it came from LEADING: both lines were set at 1.6,
+           which is prose leading on two single-line labels that never wrap.
+           At 1.35 they measure 18.9 and 16.9 instead of 22.4 and 20, which is
+           6.6px back, and that went into the margin.
+
+           ⚠️ 24px was the ceiling before that and about 31 is the ceiling now.
+           Home's equivalent gap is 42, and this page cannot reach it while
+           carrying two lines AND keeping its title level with home's. If you
+           ever want home's 42 here, the title alignment is what you are
+           spending.
+           Re-derive it if either page's block changes; do not round it to
+           something tidier. The 42px buffer that keeps stray taps off the drop
+           box is not lost, because the thing now sitting 18px under the frame
+           is TEXT: the first interactive element, Rename, is still 46px away,
+           further than home's link. */
+        .declare-more { margin-top: 22px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
         /* The one text field in the product. Square, hairline, brand focus:
            the site has no other input to match, so it borrows the card. */
         /* The register state: no frame, because a frame here would be a
            dashed edge over something that takes no drops. */
         /* Home's deck: same clamp, same colour, same 36px to the frame. */
-        .declare-who { margin: 0; font-size: 14px; line-height: 1.6; color: #4b5563;
+        .declare-who { margin: 0; font-size: 14px; line-height: 1.35; color: #4b5563;
           text-wrap: pretty; }
         .declare-who strong { font-weight: 600; color: #111827; }
         .declare-who .declare-key { font-family: var(--font-mono); font-size: 13px; }
@@ -424,10 +480,26 @@ export default function DeclarePage() {
         .declare-register .declare-note { max-width: 430px; }
         .declare-inline { appearance: none; border: 0; background: none; padding: 0;
           font: inherit; color: #0065A4; cursor: pointer; }
-        .declare-note { font-size: 12.5px; color: #4b5563; line-height: 1.6; max-width: 460px;
+        .declare-note { font-size: 12.5px; color: #4b5563; line-height: 1.35; max-width: 460px;
           margin: 0 auto; text-wrap: balance; }
         .declare-result { border-top: 1px solid #d0d5dd; padding-top: 18px; text-align: left; width: 100%; }
         @keyframes declareRowIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+
+        /* Home's short-viewport block, which this page never had. Without it a
+           landscape phone scrolled: the frame bottoms out at its 120px floor
+           and the chrome around it (44px title, two 36px gaps, 80px of wrap
+           padding) already exceeded the room available, so no amount of frame
+           shrinking could fit it. Home solves that by shrinking the chrome
+           itself and this page has the same composition, so it needs the same
+           numbers: 12px padding, a vh-based title, 14px gaps.
+           ⚠️ Scoped :not(.declare-has-result) exactly as home scopes it to
+           :not(.bitgraph-results). Once rows are on the page it is a list and
+           is allowed to scroll; the rule is about the camera state only. */
+        @media (max-height: 520px) {
+          .bitgraph-wrap:not(.declare-has-result) { padding-top: 12px; padding-bottom: 12px; }
+          .declare-title { font-size: clamp(20px, 4.5vh, 30px); margin: 0 0 14px; }
+          .declare-more { margin-top: 14px; }
+        }
       `}</style>
 
       <div className="declare-hero">
