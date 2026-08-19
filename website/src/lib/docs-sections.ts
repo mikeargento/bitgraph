@@ -58,7 +58,7 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       // permanently cached redirects. Being outside /docs is also why the page
       // renders its own <DocsPageNav />: the docs layout does not wrap it.
       { href: "/subjects", label: "Use cases" },
-      { href: "/docs/what-is-bitgraph", label: "What is BitGraph" },
+      { href: "/docs/what-is-bitgraph", label: "The protocol" },
       { href: "/docs/what-bitgraph-is-not", label: "What BitGraph is Not" },
       { href: "/docs/trust-model", label: "Trust Model" },
     ],

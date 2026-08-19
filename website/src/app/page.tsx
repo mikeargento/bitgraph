@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
 import { FileDrop } from "@/components/file-drop";
-import { SeeExample } from "@/components/see-example";
+import Link from "next/link";
 // Footer is in root layout
 import {
   hashFile,
@@ -1160,7 +1160,25 @@ export default function BitGraphPage() {
                 this is a way out to the explanation, so it sits clear of the
                 border. */}
             <div className="hero-more">
-              <SeeExample />
+              {/* Home's ONE discoverable exit (the h1 above is a link too, but
+                  it is colour: inherit with no underline and hover-only, so on
+                  a phone it does not exist). It pointed at a single example
+                  proof until 2026-08-18. A stranger's first question is what
+                  this is, not what the output looks like, and /docs/overview
+                  now answers that starting from a Polaroid rather than from a
+                  TEE. Real proofs are still one nav click away under Roll, so
+                  the no-commitment path to seeing one is not lost.
+
+                  The prefetch machinery went with the old link: that existed to
+                  warm a heavy proof page's data, and a docs route needs nothing
+                  beyond the route prefetch <Link> already does. */}
+              <Link
+                href="/docs/overview"
+                className="bg-arrow-link"
+                style={{ fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none" }}
+              >
+                What is a BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
+              </Link>
             </div>
           </div>
         )}

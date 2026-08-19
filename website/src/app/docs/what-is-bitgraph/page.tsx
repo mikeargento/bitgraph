@@ -2,14 +2,27 @@ import type { Metadata } from "next";
 import { CommitPathDiagram } from "@/components/commit-path-diagram";
 
 export const metadata: Metadata = {
-  title: "What is BitGraph",
+  title: "The protocol",
   description: "BitGraph is a protocol for portable cryptographic proof of place, not time: one position in a sequence, reserved before the file's hash was known.",
 };
 
 export default function WhatIsBitGraphPage() {
   return (
     <article className="prose-doc">
-      <h1 className="mb-6">What is BitGraph</h1>
+      {/* Renamed from "What is BitGraph" 2026-08-18. /docs/overview absorbed
+          that question: it now opens on a Polaroid and answers it before any
+          machinery, so two entry points sat side by side in the docs nav with
+          the fuller one listed first. THE URL IS DELIBERATELY UNCHANGED. The
+          nav stores label and href separately, so renaming costs no redirect
+          and breaks no inbound link.
+
+          ⚠️ This is a patch, not the cure. Overview now does this page's job
+          and more; what is genuinely only here is the commit-path diagram, the
+          Key properties list, and the place-not-time lede below (settled in
+          517b7a4e, see project_place_not_time_copy). The real fix is to move
+          those three into Overview, redirect this URL and drop the nav entry.
+          Do that before adding anything else here. */}
+      <h1 className="mb-6">The protocol</h1>
 
       <p className="text-[#1f2937] leading-relaxed mb-10">
         BitGraph is a protocol that produces portable cryptographic proof when

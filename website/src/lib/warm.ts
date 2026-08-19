@@ -53,7 +53,9 @@ export function takeWarm<T = unknown>(key: string): { data: T } | { promise: Pro
 
 // ── Fixed warm targets ──────────────────────────────────────────────────────
 
-// The curated example proof linked from the home hero ("See an example"). Fixed
+// The curated example proof. It was the home hero's link until 2026-08-18,
+// when that became "What is a BitGraph" pointing at /docs/overview; the proof
+// page still self-seeds this digest's image, which is why it stays. Fixed
 // bytes at a fixed causal position, so it can be warmed on home idle and clicked
 // into instantly. The proof itself, its settled causal window, and the image are
 // immutable; only its Recordings list can grow, which the reconcile handles.
