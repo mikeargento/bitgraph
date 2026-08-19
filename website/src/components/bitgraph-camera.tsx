@@ -1106,7 +1106,10 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            Scoped off the results view, which is a scrolling list and wants to
            start at the top. */
         .bitgraph-wrap:not(.bitgraph-results) { justify-content: center; min-height: var(--bg-wrap-min, auto); padding-bottom: 40px; }
-        .bitgraph-wrap.bitgraph-results { padding-top: 32px; padding-bottom: 48px; }
+        /* 40 under the nav, the same as the Roll and the docs pages (it was
+           32, and the results heading sat tight: Mike, 2026-08-19: "should
+           'bitgraphs found' breathe a bit more?"). */
+        .bitgraph-wrap.bitgraph-results { padding-top: 40px; padding-bottom: 48px; }
         /* ── Results: the box is closed behind one link (Mike, 2026-08-19).
            At full size it was ~490px of empty dashed rectangle over the list
            the drop produced, with "BitGraph Found" below the first screen. It
@@ -1230,7 +1233,14 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
             note at the hook call. ── */}
         {(step === "drop" || (step === "results" && (!showingResults || boxOpen))) && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
-            <h1 className="bg-page-title bitgraph-tagline">{title}</h1>
+            {/* No page title over a box summoned onto a results page (Mike,
+                2026-08-19: "maybe we remove headings on results pages where
+                youre making MORE bitgraphs. it will also save room and be
+                cleaner"). The reader summoned the box from the results; a
+                title over it is ceremony, and the heading row below it, whose
+                job was to hold the link that opens the box, goes with it.
+                Expanded over results is: the box, then the card and the rows. */}
+            {!showingResults && <h1 className="bg-page-title bitgraph-tagline">{title}</h1>}
             <div className="bitgraph-camera">
               <FileDrop
                 multiple
@@ -1374,7 +1384,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                   the dropped bytes themselves, the verdict in the two-outcome
                   colors — blue "matches the ledger", red naming the side that
                   differed. NO buttons: the drop triggered everything. ── */}
-              {checked.length > 0 && <CheckedRoll checked={checked} onOpen={openCheckedRow} aside={openLink} />}
+              {checked.length > 0 && <CheckedRoll checked={checked} onOpen={openCheckedRow} heading={boxOpen ? null : "BitGraph Roll"} aside={openLink} />}
 
               {/* The whole batch state lives in one receipt card (same anatomy
                   as the proof page's receipt): count + export in the body, and
@@ -1398,15 +1408,20 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                   that still had its Record row waiting, with nothing recorded
                   yet. A lookup is not a recording, and neither is a list of
                   files that could be. */}
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 20 }}>
-                <div className="bg-page-title">
-                  BitGraph{items.length === 1 ? "" : "s"}{" "}
-                  {items.some((i) => i.status === "proved") ? "Recorded" : "Found"}
+              {/* The heading row is the control row: it holds the link that
+                  opens the box. With the box open it has nothing left to do
+                  and is not rendered (see the note in the hero). */}
+              {!boxOpen && (
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+                  <div className="bg-page-title">
+                    BitGraph{items.length === 1 ? "" : "s"}{" "}
+                    {items.some((i) => i.status === "proved") ? "Recorded" : "Found"}
+                  </div>
+                  {/* The link to reopen the camera, on the first heading only:
+                      when a folder's Roll is above this, it carries it. */}
+                  {checked.length === 0 && openLink}
                 </div>
-                {/* The link to reopen the camera, on the first heading only:
-                    when a folder's Roll is above this, it carries it. */}
-                {checked.length === 0 && openLink}
-              </div>
+              )}
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
                 <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                   <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both", whiteSpace: "nowrap" }}>
