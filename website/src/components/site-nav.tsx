@@ -185,31 +185,26 @@ export function SiteNav() {
           >
             Folder
           </Link>
-          {/* ── Actor is UNLINKED again as of 2026-08-19, deliberately. ──
-              It was in this slot for a few hours. /actor currently records but
-              cannot CHECK: it has none of home's verification half, no export
-              check on a dropped folder, no proof.json flow, no verdicts, no
-              export. It also auto-records a batch with no confirmation step
-              and has no commitThroughRotation, so a commit during the 23:59
-              key renewal fails raw rather than holding.
+          {/* ── Actor: home's camera with this device's key on the recording.
+              Linked again as of 2026-08-19, the day the two pages became one
+              implementation (components/bitgraph-camera.tsx). It was pulled
+              from this slot for a few hours while /actor was a reimplementation
+              that could record but not CHECK: no folder check, no proof.json
+              flow, no verdicts, no export, a batch that auto-recorded with no
+              confirmation, and no hold through the 23:59 key renewal. All of
+              that is the camera's now, and /actor has it by construction.
 
-              None of that should be one nav click from the front page. The
-              route stays live and works; it is simply not advertised until the
-              two pages share one implementation.
-
-              ⚠️ TO RESTORE: put the Link back here, AFTER Folder and BEFORE
-              Docs. Never before Roll, or an unregistered visitor's
-              introduction to the site is a passkey prompt, and home's rule is
-              a first drop with no dialog and no decision.
-
-                <Link
-                  href="/actor"
-                  aria-current={pathname === "/actor" ? "page" : undefined}
-                  style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
-                >
-                  Actor
-                </Link>
-              ── */}
+              ⚠️ Placement: AFTER Folder and BEFORE Docs. Never before Roll, or
+              an unregistered visitor's introduction to the site is a passkey
+              prompt, and home's rule is a first drop with no dialog and no
+              decision. ── */}
+          <Link
+            href="/actor"
+            aria-current={pathname === "/actor" ? "page" : undefined}
+            style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
+          >
+            Actor
+          </Link>
           {/* Docs opens the section list rather than navigating.
               It used to be a plain link to /docs, and every docs page then
               carried a full-width sticky bar of its own holding this menu. That
