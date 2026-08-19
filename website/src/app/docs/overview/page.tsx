@@ -1,49 +1,100 @@
 import type { Metadata } from "next";
-import { CameraExplainer } from "@/components/camera-explainer";
 
 export const metadata: Metadata = {
   title: "Overview",
   description:
-    "How a BitGraph is made — the digital frame exists first, and the file exposes it once — and why that is different.",
+    "How a BitGraph is made: the position is reserved before your file's fingerprint is known, and consumed once. Why that is different from signing something afterward.",
 };
 
 export default function OverviewPage() {
   return (
     <article className="overview" style={{ padding: "0 0 80px", maxWidth: "none" }}>
-      {/* ── The camera explainer, whole, moved here from /camera (2026-08-06,
-          Mike: "this whole thing to the top of overview left aligned"). The
-          axiom is the page's headline, the diagram shows it, the film pair
-          closes it, and only then does the prose Overview begin. /camera now
-          redirects here and home's title links here. ── */}
+      {/* ── The mechanics, in plain terms, then the prose Overview. This block
+          used to open with the six-card film/photograph diagram (components/
+          camera-explainer.tsx, deleted 2026-08-18, recoverable from ff99b437).
+
+          Mike cut it, and the reason is worth keeping: the analogy's payoff
+          line was "BitGraph is film for data", but film RECORDS THE LIGHT and
+          BitGraph does not record the file. Only the digest crosses the
+          boundary. The intro paragraph had to walk the slogan back one sentence
+          after making it ("your file's exact bits are the light" ... "your data
+          itself never appears in it"), which is the tell that an analogy is
+          costing more than it earns: a reader who keeps only the slogan keeps
+          something false, about the exact thing buyers care most about.
+
+          Two of the six steps were also inert. "Ones and zeros are everywhere,
+          unwitnessed" states no fact, and the lens mapping ran backwards, since
+          a lens focuses light but a file condenses nothing, the hash does.
+
+          What the analogy WAS uniquely good at is the frame existing before the
+          exposure, i.e. allocate-before-bind, which is the counterintuitive
+          mechanic and the whole difference from sign-it-afterward systems. That
+          survives here in words, and if it ever wants a picture again the thing
+          to draw is the slot strip alone (reserved, occupied, next) with no film
+          vocabulary anywhere on it. Not six cards.
+
+          The h1 moved twice. "The frame exists first" was the axiom in film
+          terms and died with the diagram; "The position exists first" replaced
+          it for one revision and then had to go too, because an axiom about
+          positions followed immediately by a Polaroid is a non-sequitur. The
+          opener sets the frame now, so the h1 is its thesis.
+
+          ⚠️ WHY THE OPENER IS A POLAROID AND NOT MECHANICS (Mike, 2026-08-18).
+          This block held a plain five-clause mechanics paragraph for one
+          revision. It was accurate and it was the wrong first thing: the prose
+          Overview immediately below states all of it with room to spare, so the
+          reader met the same content twice, densest version first. The Polaroid
+          earns the slot because it is the only part that the rest of the page
+          cannot do. The one mechanical fact kept here is that the file never
+          leaves the device, which the prose below never states plainly.
+
+          ⚠️ Do not re-explain "sequence". This read "a position in a public
+          sequence, after everything recorded before it and before everything
+          recorded after" for one revision, and Mike's verdict was "i hate
+          this". It is a tautology: a position in a sequence is ordered by
+          definition, so the clause defined the word back to the reader at twice
+          the length. The ordering payoff worth stating is that any two
+          recordings can be put in order, and the Logical time section below
+          already does that.
+
+          These three paragraphs began life as /place, a standalone explainer
+          built the same evening. It shrank at every revision, from six
+          paragraphs to four to one, which is what an opener does when it is
+          being asked to be a page. ⚠️ If /place still exists, it now duplicates
+          this opener and one of the two should go.
+
+          Inline styles throughout: .overview's own h1/p rules are unlayered and
+          would otherwise restyle these (same trap family as .prose-doc, see the
+          2026-08-03 handoff). ── */}
       <h1 style={{ margin: "0 0 4px" }}>
-        The frame exists first.
+        Who, when, and where are different facts.
       </h1>
-      {/* The deck used to read "An exposure cannot come before its frame."
-          It was cut once the mechanics moved here: the h1 already makes that
-          claim, and the paragraph below makes it again with the substance to
-          back it, so the line was the same idea a third time before the reader
-          reached anything new.
-
-          Inline styles throughout this block: .overview's own h1/p rules are
-          unlayered and would otherwise restyle it (the same trap family as
-          .prose-doc, see the 2026-08-03 handoff). */}
-      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 24px" }}>
-        Digital files have no unique place in space or time. BitGraph first creates a blank digital frame. Your file&rsquo;s exact bits are the light, and the fingerprint they condense to is what exposes that frame. Your data itself never appears in it. Each frame can be exposed only once. The exposed frame becomes a portable record. Anyone with the file and its BitGraph can later verify, bit for bit, that those exact bits exposed that&nbsp;frame.
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 20px" }}>
+        Knowing who took a Polaroid does not tell you where that Polaroid is.
+        Knowing what time it was taken does not tell you where it is either.
+        Holding it in your hand tells you where it is, but nothing about who
+        took it or when.
       </p>
-      <CameraExplainer />
-      {/* No closing couplet under the diagram. The film pair that used to be
-          here now sits inside the two result cells, each half under its own
-          subject, so the diagram ends on its own payoff. A line beneath it
-          would be the same comparison a second time.
-
-          The prose line that also said it ("Just as a photograph captures
-          photons through the constraint of a single frame of film...") was
-          removed with it. */}
-      {/* The example link lived here briefly and moved to the home page,
-          under the drop box: it is the no-commitment alternative to the box's
-          ask, so it belongs beside the action it substitutes for. Here it sat
-          between the closer and the prose and pulled the reader away exactly
-          where the diagram had just paid off. */}
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 20px" }}>
+        The Polaroid is in one place. A digital file is not: you can copy it
+        perfectly, and every copy is the same file.
+      </p>
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 24px" }}>
+        BitGraph gives your file a position in a public sequence. Nothing else
+        can hold that position, and it cannot be moved later. Your file never
+        leaves your device to get one, and anyone can check&nbsp;it.
+      </p>
+      {/* The page's ONE standalone thesis line, and it lives up here on
+          purpose. It briefly sat in the prose below as a replacement for
+          "BitGraph enforces origin", which does not work: that paragraph sets
+          up enforced-versus-claimed, so its payoff has to land on one of those
+          two words or the setup dangles. Here it answers the Polaroid instead,
+          which is the question actually on the table. "Enforces" folded into
+          the paragraph that follows the setup, so the contrast still resolves
+          without a second one-line thesis competing with this one. */}
+      <p style={{ fontSize: 16, lineHeight: 1.75, fontWeight: 600, color: "#111827", margin: "0 0 24px" }}>
+        BitGraph gives bits a place.
+      </p>
       {/* ── The prose Overview, exactly as it was, a beat down the page. An
           h2 element (one h1 per page) wearing the h1's exact clothes inline,
           because .overview h2 would otherwise shrink it to 1.25rem. ── */}
@@ -56,15 +107,11 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        Origin can be enforced or it can be claimed. Most digital provenance systems claim it. They produce an artifact and then attach a signature, a timestamp, or a metadata block describing where the artifact came from. The claim arrives after the artifact already exists, which is the wrong end of the timeline.
+        Origin can be enforced or it can be claimed. Most digital provenance systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.
       </p>
 
       <p>
-        BitGraph enforces origin.
-      </p>
-
-      <p>
-        A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact&rsquo;s hash is known. The artifact&rsquo;s hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of construction.
+        BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact&rsquo;s hash is known. The artifact&rsquo;s hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of construction.
       </p>
 
       <blockquote>
@@ -76,7 +123,7 @@ export default function OverviewPage() {
       <p>Nonce first. Hash second. Atomic binding third.</p>
 
       <p>
-        The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave&rsquo;s key, with an identity no attacker could have precomputed. The slot exists as a cryptographic object before any artifact hash has been seen.
+        The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave&rsquo;s key, with an identity that could not feasibly have been predicted. The slot exists as a cryptographic object before any artifact hash has been seen.
       </p>
 
       <p>
@@ -124,7 +171,7 @@ export default function OverviewPage() {
         </thead>
         <tbody>
           <tr><td>Artifact hash</td><td>Identifies the exact file or digital state</td></tr>
-          <tr><td>Nonce</td><td>Hardware entropy giving the slot an identity nobody could precompute</td></tr>
+          <tr><td>Nonce</td><td>Hardware entropy giving the slot an identity that cannot feasibly be predicted</td></tr>
           <tr><td>Slot counter</td><td>Shows the slot was allocated before the commit</td></tr>
           <tr><td>Commit counter</td><td>Shows the artifact consumed the slot later</td></tr>
           <tr><td>Epoch ID</td><td>Groups an ordered run of commitments</td></tr>
@@ -198,7 +245,7 @@ export default function OverviewPage() {
       <h2>The trust model</h2>
 
       <p>
-        BitGraph does not depend on blind trust in any single component. Not the operator, the TEE, Ethereum, the clock, a certificate authority, or a live server. Each layer adds an independently verifiable property.
+        BitGraph does not ask for blind trust in any single component. It has real dependencies, and the point is that each one is inspectable rather than assumed: the enclave&rsquo;s attestation chains to the AWS Nitro Attestation PKI root, and the measurement it carries is published, so both are things you check rather than things you take on faith. Each layer adds an independently verifiable property.
       </p>
 
       <table>
@@ -289,7 +336,7 @@ export default function OverviewPage() {
           <tr>
             <td>Blockchains</td>
             <td>Public ordering of shared transactions</td>
-            <td>Private origin coordinates with optional public anchoring</td>
+            <td>Ordering established inside a measured enclave, then anchored publicly</td>
           </tr>
         </tbody>
       </table>
@@ -308,7 +355,7 @@ export default function OverviewPage() {
           and this was the one docs page repeating it. The closing line above
           is the page's last word. */}
       <p>
-        The result is a provenance system that does not say &ldquo;someone signed this.&rdquo; It says: this exact artifact occupied this origin coordinate.
+        The result is a provenance system that does not say &ldquo;someone signed this.&rdquo; It says: this exact artifact occupies this origin coordinate.
       </p>
     </article>
   );
