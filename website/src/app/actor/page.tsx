@@ -177,6 +177,7 @@ export default function ActorPage() {
            under the title. The form under it is left too. */
         .declare-title-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 36px; }
         @media (max-width: 520px) { .declare-title-row { gap: 6px 12px; } }
+        @media (max-height: 520px) { .declare-more { margin-top: 14px; } }
         .declare-title { font-size: clamp(34px, 6vw, 40px); margin: 0; }
         .declare-register { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; }
         /* pretty, not balance, now that the lead is left-aligned: balance
@@ -208,17 +209,16 @@ export default function ActorPage() {
         .declare-who strong { font-weight: 600; color: #111827; }
         .declare-who .declare-key { font-family: var(--font-mono); }
 
-        /* ── The control that acts on the key, in exactly home's slot (Mike:
-           "keep the ... Forget this device in the identical position as what
-           is a bitgraph"): the right of the title row since 2026-08-19, under
-           the box for the day before. ──
-           The site's standard link type, the .bg-action-link numbers (14 /
-           600 / -0.01em, brand blue), the same as home's link in the same slot
-           (Mike: "the sites standard size links"). The p keeps the page's 16px
-           so its line box matches home's link row. The hit area is grown the
-           way .bg-arrow-link grows its own: padding the region and cancelling
-           it in layout, so a tap near the text lands. */
-        .declare-more { }
+        /* ── The one control that acts on the key: under the box, bottom left
+           (Mike, 2026-08-19: "move Forget this device to bottom left on
+           Actor"), at the foot of a closed results page. It was on the
+           title's right for an afternoon and under the box, centred, the day
+           before. 42px off the box: the box is one big click target and a
+           stray hit opens a file dialog, so the buffer clears adjacent-tap
+           distance. The site's standard link type (14 / 600 / -0.01em, brand
+           blue). The hit area is grown the way .bg-arrow-link grows its own:
+           padding the region and cancelling it in layout. */
+        .declare-more { margin-top: 42px; }
         .declare-note { margin: 0; font-size: 16px; color: #4b5563; white-space: nowrap; }
         .declare-note-controls { display: inline-flex; gap: 20px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
         .declare-inline { appearance: none; border: 0; background: none; padding: 13px 0; margin: -13px 0;
@@ -255,13 +255,12 @@ export default function ActorPage() {
           }
           belowClassName="declare-more"
           below={
-            /* ── The one control that acts on the key, in home's link slot on
-                the title row. Forget is also how you rename (see the note at
-                `forget`). ── */
+            /* ── The one control that acts on the key, under the box, left.
+                Forget is also how you rename (see the note at `forget`). ── */
             <p className="declare-note">
               <span className="declare-note-controls">
                 <button type="button" className="declare-inline" onClick={forget}>
-                  <span className="bg-long">Forget this device</span><span className="bg-short">Forget</span>
+                  Forget this device
                 </button>
               </span>
             </p>

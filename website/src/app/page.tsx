@@ -1,7 +1,6 @@
 "use client";
 
 import { BitGraphCamera } from "@/components/bitgraph-camera";
-import { InfoLink } from "@/components/info-link";
 import { anonymous } from "@/lib/commit-strategy";
 
 /**
@@ -28,42 +27,28 @@ export default function BitGraphPage() {
            on hover. It is the one h1 on the site that is a link. */
         .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
-        /* Home's one link. It lived under the box (42px off it, 68 for a day)
-           until 2026-08-19, when the title row took it: the camera lays it on
-           the right of the title, baseline-aligned, the same row as the
-           results heading and the Roll's nav line. Nothing to size here; the
-           class exists so the camera's fit measurement can observe the row,
-           and so /actor's .declare-more is its twin. */
+        /* ❄️ No link on home (Mike, 2026-08-19: "remove link"). "What is a
+           BitGraph →" lived under the box, then on the title's right, then as
+           "Info →" on phones, and went the same day the title became the
+           claim itself. The title is still a quiet link to the overview, and
+           Overview is the first item under Docs. The class is the camera's
+           slot name; home passes nothing into it. */
         .hero-more { }
       `}</style>
       <BitGraphCamera
         id="home"
         strategy={anonymous}
         acceptsPendingDrop
-        /* No terminal period on the title, matching how it already renders
-           in the tab title, the OpenGraph title and the Twitter card
-           ("BitGraph | A camera for bits"). */
-        title={<a href="/docs/overview">A camera for <span className="accent">bits</span></a>}
+        /* The claim, not the metaphor (Mike, 2026-08-19: "change home to A
+           BitGraph gives bits a place"): the overview's h1 and the README's
+           first line, so home, the overview and the README open on one
+           sentence. "A camera for bits" was the title from 2026-07 to today;
+           it survives in the tab, OpenGraph and Twitter titles until those
+           are decided. No terminal period: this is the app surface. The h1
+           stays a quiet link to the overview (colour inherit, hover only),
+           the one path there from this page besides Docs. */
+        title={<a href="/docs/overview">A BitGraph gives bits a place</a>}
         belowClassName="hero-more"
-        below={
-          /* Home's ONE discoverable exit (the h1 beside it is a link too, but
-             it is colour: inherit with no underline and hover-only, so on a
-             phone it does not exist). It pointed at a single example proof
-             until 2026-08-18. A stranger's first question is what this is,
-             not what the output looks like, and /docs/overview now answers
-             that starting from a Polaroid rather than from a TEE. Real
-             proofs are still one nav click away under Roll, so the
-             no-commitment path to seeing one is not lost.
-
-             The words, at the site's standard link type, with "Info →" as the
-             phone form (Mike, 2026-08-19: "what about info ->"), since on a
-             phone the full words wrap under a 34px title. It was a circled i
-             for an afternoon, which never wrapped but was the site's one
-             icon-only control and read as a line at that size. The sizes
-             before that: 19, 16, then the standard 14 (Mike: "the sites
-             standard size links"). */
-          <InfoLink href="/docs/overview" label="What is a BitGraph" />
-        }
       />
     </>
   );

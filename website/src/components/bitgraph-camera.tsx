@@ -58,11 +58,11 @@ export interface BitGraphCameraProps {
   /** The page title, inside the shared h1 (home's is a link, /actor's is a
    *  noun). */
   title: ReactNode;
-  /** The block under the frame, and the class its row wears. The page owns
-   *  that class's CSS (its margin-top is what sets the block's height, and
-   *  the block's height is what the frame gives back so two pages' titles sit
-   *  level, see lib/use-camera-fit.ts). Home: one link in `.hero-more`;
-   *  /actor: the identity line and its controls in `.declare-more`. */
+  /** The page's own block, and the class its row wears: UNDER the box, left,
+   *  while the page is the camera alone; at the FOOT of a closed results
+   *  page. The page owns that class's CSS (its margin-top). Home has none
+   *  since 2026-08-19 (Mike: "remove link"); /actor puts "Forget this device"
+   *  here (Mike: "move Forget this device to bottom left on Actor"). */
   below?: ReactNode;
   belowClassName: string;
   /** One line inside the frame under "Your file never leaves your device",
@@ -219,10 +219,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
      grows (that exact bug shipped on /actor). Disabled, the hook clears its
      custom properties and the frame falls back to its CSS sizing, which is
      what a page that has stopped being viewport-fitted should use. */
-  // The ROW is what is observed, not the title inside it: on a narrow screen
-  // the link wraps under the title and the row grows while neither child's
-  // own height changes, and a measurement taken before the wrap would stand.
-  useCameraFit(step === "drop", ".bitgraph-title-row", `.${belowClassName}`);
+  useCameraFit(step === "drop", ".bitgraph-tagline", `.${belowClassName}`);
 
   // Cleanup rAF on unmount only
   useEffect(() => {
@@ -1136,18 +1133,10 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            title; the Roll's title sits left over a full-width list. The box's
            OWN copy stays centred: a drop zone centres its prompt.
 
-           The page's one link moves from under the box to the TITLE ROW's
-           right, baseline-aligned: the same row as the results heading
-           ("BitGraph Found … Record or check more →") and the Roll's nav line.
-           Heading left, actions right, everywhere; and nothing sits under the
-           box any more. On a phone the link wraps under the title, both left.
-           ── */
-        .bitgraph-title-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 36px; }
-        /* 12px between title and link on a phone: the short labels ("Info →"
-           41px, "Forget" 42px) then fit beside a 34px title down to a 360px
-           viewport, where the column is 324px and the home title 264. */
-        @media (max-width: 520px) { .bitgraph-title-row { gap: 6px 12px; } }
-        .bitgraph-title-row .bitgraph-tagline { margin: 0; }
+           The title stands alone on its line. For an afternoon the page's one
+           link sat on its right (a title row); Mike then removed home's link
+           and moved /actor's "Forget this device" under the box, bottom left,
+           so the row went with them. ── */
         /* 36px, taken over from the deck that used to sit between this title
            and the frame (removed 2026-08-18: it read "a place in space and
            time", and both halves were wrong). The 12px here before
@@ -1161,7 +1150,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            the tab title, the OpenGraph title and the Twitter card ("BitGraph |
            A camera for bits"). Docs pages keep theirs: those are prose, this
            is the app surface. */
-        .bitgraph-tagline { margin: 0; }
+        .bitgraph-tagline { margin: 0 0 36px; }
         /* The one place on the site that departs from the shared title size.
            .bg-page-title is clamp(26px, 6vw, 32px), which stops growing at a
            533px viewport, so on every desktop it is a flat 32px. That was fine
@@ -1223,8 +1212,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            composition still fits, just closer together. */
         @media (max-height: 520px) {
           .bitgraph-wrap:not(.bitgraph-results) { padding-top: 12px; padding-bottom: 12px; }
-          .bitgraph-tagline { font-size: clamp(20px, 4.5vh, 30px); }
-          .bitgraph-title-row { margin-bottom: 14px; }
+          .bitgraph-tagline { font-size: clamp(20px, 4.5vh, 30px); margin-bottom: 14px; }
         }
       `}</style>
       {/* Nav is in root layout */}
@@ -1246,17 +1234,7 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
             note at the hook call. ── */}
         {(step === "drop" || (step === "results" && (!showingResults || boxOpen))) && (
           <div className="bitgraph-hero" style={{ animation: "slideIn 0.3s ease-out" }}>
-            {/* The title row: the page's name on the left, its one link on the
-                right (home's way out to the explanation, /actor's controls on
-                its key). The link's wrapper is rendered even when empty: the
-                fit measurement observes it by class. The link goes wherever
-                the row goes and nowhere else: a closed results page has
-                neither (Mike, 2026-08-19: "What is a BitGraph → should simply
-                be absent from results pages"). */}
-            <div className="bitgraph-title-row">
-              <h1 className="bg-page-title bitgraph-tagline">{title}</h1>
-              <div className={belowClassName}>{below}</div>
-            </div>
+            <h1 className="bg-page-title bitgraph-tagline">{title}</h1>
             <div className="bitgraph-camera">
               <FileDrop
                 multiple
@@ -1282,6 +1260,11 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                 note={frameNote}
               />
             </div>
+            {/* The page's block, under the box, left (Mike, 2026-08-19: "move
+                Forget this device to bottom left on Actor"; home has none).
+                Rendered only when the page gave one, so a page without it
+                adds no height; the fit observes it by class when present. */}
+            {!showingResults && below && <div className={belowClassName}>{below}</div>}
           </div>
         )}
 
@@ -1635,12 +1618,12 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
           </div>
         )}
 
-        {/* ❄️ No foot block. The page's link lived at the foot of a results
-            page for an afternoon (after being moved off the box); Mike:
-            "What is a BitGraph → should simply be absent from results pages".
-            The rule that makes it true: the link belongs to the TITLE ROW, so
-            when the row is not on the page (a closed results page), neither is
-            the link. Expanding the camera brings the row, and the link, back. */}
+        {/* The page's block at the foot of a closed results page, left, so
+            /actor's "Forget this device" is reachable without expanding the
+            camera. Home has no block, so home's results page ends with the
+            rows (Mike: "What is a BitGraph → should simply be absent from
+            results pages"). */}
+        {showingResults && below && <div className={belowClassName}>{below}</div>}
       </div>
     </div>
   );
