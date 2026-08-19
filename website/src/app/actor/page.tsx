@@ -168,9 +168,13 @@ export default function ActorPage() {
            follows), so registering and then seeing the frame does not move
            the headline. ⚠️ These mirror .bitgraph-wrap / .bitgraph-tagline in
            components/bitgraph-camera.tsx; change both or neither. */
+        /* No column gap of its own: the title's 36 carries title-to-lead, as it
+           carries title-to-box on the camera (Mike, 2026-08-19: "could this
+           spacing be better": the 24 here stacked on the 36 and put 60px
+           between the title and the lead). */
         .declare-register-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0 40px;
           display: flex; flex-direction: column; align-items: stretch; justify-content: center;
-          min-height: calc(100dvh - 114px); gap: 24px; text-align: center; }
+          min-height: calc(100dvh - 114px); text-align: center; }
         /* CENTRED, like the camera it stands in for (Mike, 2026-08-19,
            evening: "re center bitgraph actor sign in page"; the drop-box
            pages centre, the rest of the site does not). It was left for an
@@ -194,9 +198,11 @@ export default function ActorPage() {
           border: 1px solid #d0d5dd; border-radius: 0; padding: 11px 13px;
           width: min(320px, 100%); text-align: center;
         }
-        /* The way to the explanation, under the form: home's link slot. 42px
-           off the action above it, as home's is off the box. */
-        .declare-how { margin-top: 20px; }
+        /* The way to the explanation, under the form: home's link slot, 42px
+           visually below the action's text as home's is below the box. 6, not
+           42, because the column's 22 gap and the action's own 14 of tap
+           padding already sit between them (6 + 22 + 14 = 42). */
+        .declare-how { margin-top: 6px; }
         .declare-name input:focus-visible { outline: 2px solid #0065A4; outline-offset: -2px; }
 
         /* ── Whose key this is: INSIDE the frame, the third line under the
