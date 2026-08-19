@@ -91,7 +91,7 @@ body {
 
    So long prose wraps greedily and fills its measure. pretty is applied where
    it earns its keep, on the short blocks it was designed for. ── */
-.bitgraph-tagline, .hero-why p { text-wrap: pretty; }
+.bitgraph-tagline { text-wrap: pretty; }
 
 h1 {
   text-shadow: none;

@@ -1010,11 +1010,20 @@ export default function BitGraphPage() {
            of what sits in it changed, so the card and frame are untouched. */
         .bitgraph-hero { text-align: center; }
         .bitgraph-hero .bg-action-link { text-align: center; }
-        /* 12px, not 4. At a 32px title over a 14px deck the old value left
-           three optical pixels between the descenders and the deck's cap
-           height, which reads as a collision rather than a pair. This still
-           binds them as one block against the 44px below. */
-        .bitgraph-tagline { margin: 0 0 12px; }
+        /* 36px, taken over from the deck that used to sit between this title
+           and the frame (removed 2026-08-18: it read "a place in space and
+           time", and both halves were wrong). The 12px here before
+           was the title-to-deck gap, binding those two as one block; with the
+           deck gone it would have left the headline three optical pixels above
+           a box that opens a file dialog on a stray hit. 36 is the number that
+           was already tuned against the frame, so the title inherits it rather
+           than a new one being invented.
+
+           No terminal period on the title, matching how it already renders in
+           the tab title, the OpenGraph title and the Twitter card ("BitGraph |
+           A camera for bits"). Docs pages keep theirs: those are prose, this
+           is the app surface. */
+        .bitgraph-tagline { margin: 0 0 36px; }
         /* The one place on the site that departs from the shared title size.
            .bg-page-title is clamp(26px, 6vw, 32px), which stops growing at a
            533px viewport, so on every desktop it is a flat 32px. That was fine
@@ -1064,41 +1073,6 @@ export default function BitGraphPage() {
         .hero-more { margin-top: 42px; }
 
         .hero-more { }
-        /* The deck, back under the title where it started: regular weight and
-           muted, so the headline stays the loudest thing on the page.
-
-           No terminal periods on either line, matching the tagline as it
-           already renders in the tab title, the OpenGraph title and the
-           Twitter card ("BitGraph | A camera for bits"). Docs pages keep
-           theirs: those are prose, this is the app surface.
-
-           The gap below it matches the one under the box, so the frame sits
-           evenly between the two lines of text. The size is set by the lower
-           gap, which has a job: the box is one big click target and a stray
-           hit opens a file dialog, so it needs more room than typography would
-           ask for. This one just follows it. */
-        /* Deliberately SMALLER than the 44 below, though both were equal for
-           a while. Matching margins did not even match gaps (the deck carries
-           ~2px of leading below its text, the link ~2px above its), and once
-           those were corrected to a true 44/44 the top still read as the wider
-           of the two. The deck works as a caption for the frame, and a caption
-           sits nearer the thing it labels; the gap above is also bounded by a
-           short centred line while the one below meets the frame's full-width
-           dashed edge, so identical whitespace does not read identically.
-
-           36 gives 38 optical. The 44 below is not free to move with it: that
-           one is keeping stray taps off a box that opens a file dialog. */
-        .hero-why { margin: 0 0 36px; }
-        /* The deck scales too, on the same vw basis as the title, so the two
-           hold a similar relationship at both ends instead of the title
-           growing away from a fixed 14px. Both reach their caps at about the
-           same viewport (deck at 640, title at 667).
-
-           It cannot be a true ratio. Matching the desktop 40/14 on a phone
-           would put the deck at 9px, so the floor is legibility, not
-           proportion; this narrows the drift from 1.86-vs-2.86 to
-           1.86-vs-2.50 rather than removing it. */
-        .hero-why p { margin: 0; font-size: clamp(14px, 2.5vw, 16px); line-height: 1.6; color: #4b5563; text-wrap: pretty; }
         /* Explainer under the box: the one place the film/photograph metaphor
            is spelled out. Left-aligned reading prose, spanning the full
            column like every other line on the page (the 640px cap was the
@@ -1141,9 +1115,7 @@ export default function BitGraphPage() {
            composition still fits, just closer together. */
         @media (max-height: 520px) {
           .bitgraph-wrap:not(.bitgraph-results) { padding-top: 12px; padding-bottom: 12px; }
-          .bitgraph-tagline { font-size: clamp(20px, 4.5vh, 30px); margin: 0 0 6px; }
-          .hero-why p { font-size: 13px; }
-          .hero-why { margin: 0 0 14px; }
+          .bitgraph-tagline { font-size: clamp(20px, 4.5vh, 30px); margin: 0 0 14px; }
           .hero-more { margin-top: 14px; }
         }
       `}</style>
@@ -1159,14 +1131,6 @@ export default function BitGraphPage() {
             <h1 className="bg-page-title bitgraph-tagline">
               <a href="/docs/overview">A camera for <span className="accent">bits</span></a>
             </h1>
-            {/* The deck to that headline. It was tried inside the card, in the
-                slot a proof uses for its date and time window, and it did not
-                belong: that band carries facts about the thing in the card,
-                and an empty frame has none yet. This is the page's claim, so
-                it sits with the title. */}
-            <div className="hero-why">
-              <p>Give your data a place in space and time</p>
-            </div>
             <div className="bitgraph-camera">
               <FileDrop
                 multiple
