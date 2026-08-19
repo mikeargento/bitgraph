@@ -211,12 +211,14 @@ export default function ActorPage() {
 
         /* ── The one control that acts on the key: under the box, centred
            like the title above the box (Mike, 2026-08-19, evening: "center
-           forget this device too"), and at the foot of a closed results page.
-           It was bottom-left for an hour, on the title's right for an
-           afternoon, and under the box, centred, the day before: the drop-box
-           pages centre, the rest of the site does not. 42px off the box: the
-           box is one big click target and a stray hit opens a file dialog, so
-           the buffer clears adjacent-tap distance. The site's standard link
+           forget this device too"), in exactly the slot home's "What is a
+           BitGraph →" sits in, so the two pages are one composition. It was
+           bottom-left for an hour, on the title's right for an afternoon, and
+           under the box, centred, the day before: the drop-box pages centre,
+           the rest of the site does not. 42px off the box: the box is one big
+           click target and a stray hit opens a file dialog, so the buffer
+           clears adjacent-tap distance. ⚠️ 42 is also home's .hero-more; the
+           two move together, or the titles part. The site's standard link
            type (14 / 600 / -0.01em, brand blue). The hit area is grown the way
            .bg-arrow-link grows its own: padding the region and cancelling it
            in layout. */

@@ -58,11 +58,12 @@ export interface BitGraphCameraProps {
   /** The page title, inside the shared h1 (home's is a link, /actor's is a
    *  noun). */
   title: ReactNode;
-  /** The page's own block, and the class its row wears: UNDER the box, left,
-   *  while the page is the camera alone; at the FOOT of a closed results
-   *  page. The page owns that class's CSS (its margin-top). Home has none
-   *  since 2026-08-19 (Mike: "remove link"); /actor puts "Forget this device"
-   *  here (Mike: "move Forget this device to bottom left on Actor"). */
+  /** The page's own block, and the class its row wears: UNDER the box,
+   *  centred, while the page is the camera alone, and nowhere else. The page
+   *  owns that class's CSS (its margin-top, 42 on both pages). Home: "What is
+   *  a BitGraph →"; /actor: "Forget this device". One line each, so the two
+   *  pages are one composition (Mike, 2026-08-19: "make the two pages home
+   *  and actor match"). */
   below?: ReactNode;
   belowClassName: string;
   /** One line inside the frame under "Your file never leaves your device",
@@ -1629,12 +1630,12 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
           </div>
         )}
 
-        {/* The page's block at the foot of a closed results page, left, so
-            /actor's "Forget this device" is reachable without expanding the
-            camera. Home has no block, so home's results page ends with the
-            rows (Mike: "What is a BitGraph → should simply be absent from
-            results pages"). */}
-        {showingResults && below && <div className={belowClassName}>{below}</div>}
+        {/* ❄️ Nothing at the foot of a results page, on either page (Mike:
+            "What is a BitGraph → should simply be absent from results pages";
+            then "make the two pages home and actor match"). The page's block
+            belongs to the camera-alone composition: under the box, and only
+            there. /actor's Forget is one click behind "Record or check more
+            BitGraphs →" on a results page, which is where its box is too. */}
       </div>
     </div>
   );

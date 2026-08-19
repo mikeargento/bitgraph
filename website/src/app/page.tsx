@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { BitGraphCamera } from "@/components/bitgraph-camera";
 import { anonymous } from "@/lib/commit-strategy";
 
@@ -27,13 +28,18 @@ export default function BitGraphPage() {
            on hover. It is the one h1 on the site that is a link. */
         .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
         .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
-        /* ❄️ No link on home (Mike, 2026-08-19: "remove link"). "What is a
-           BitGraph →" lived under the box, then on the title's right, then as
-           "Info →" on phones, and went the same day the title became the
-           claim itself. The title is still a quiet link to the overview, and
-           Overview is the first item under Docs. The class is the camera's
-           slot name; home passes nothing into it. */
-        .hero-more { }
+        /* Home's one link, under the box, centred like the title above it:
+           the same slot, margin and type as /actor's "Forget this device", so
+           the two pages are one composition (Mike, 2026-08-19, evening: "once
+           again add what is a bitgraph link to homepage and make the two
+           pages home and actor match"). 42px off the box: the box is one big
+           click target and a stray hit opens a file dialog, so the buffer
+           clears adjacent-tap distance. ⚠️ 42 is also /actor's .declare-more;
+           the two move together, or the titles part. The link spent the day
+           elsewhere (the title's right; "Info →" on phones; removed); this is
+           where it started. */
+        .hero-more { margin-top: 42px; text-align: center; }
+        @media (max-height: 520px) { .hero-more { margin-top: 14px; } }
       `}</style>
       <BitGraphCamera
         id="home"
@@ -49,6 +55,22 @@ export default function BitGraphPage() {
            the one path there from this page besides Docs. */
         title={<a href="/docs/overview">A BitGraph gives bits a place</a>}
         belowClassName="hero-more"
+        below={
+          /* Home's ONE discoverable exit (the h1 is a link too, but it is
+             colour: inherit with no underline and hover-only, so on a phone it
+             does not exist). A stranger's first question is what this is, and
+             /docs/overview answers it starting from a Polaroid. Real proofs
+             are still one nav click away under Roll. The site's standard link
+             type (14 / 600 / -0.01em, brand blue), on the layout-neutral
+             .bg-arrow-link tap target. */
+          <Link
+            href="/docs/overview"
+            className="bg-arrow-link"
+            style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
+          >
+            What is a BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
+          </Link>
+        }
       />
     </>
   );
