@@ -24,22 +24,26 @@ export const metadata: Metadata = {
     default: "A BitGraph gives bits a place",
     template: "%s | BitGraph",
   },
+  // The overview's own sentence (Mike, 2026-08-19: "update the description
+  // too"): the line under the title in a link preview, and what a search
+  // result shows. It was "Live cryptographic proof chain. Create, verify, and
+  // explore BitGraph proofs." from July, which is the old vocabulary.
   description:
-    "Live cryptographic proof chain. Create, verify, and explore BitGraph proofs.",
+    "BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later.",
   keywords: [
     "BitGraph", "content provenance", "causal order", "proof of integrity",
     "cryptographic provenance", "tamper-evident", "C2PA", "proof explorer",
   ],
   openGraph: {
     title: "A BitGraph gives bits a place",
-    description: "Live cryptographic proof chain. Create, verify, and explore BitGraph proofs.",
+    description: "BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later.",
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary_large_image",
     title: "A BitGraph gives bits a place",
-    description: "Live cryptographic proof chain. Create, verify, and explore BitGraph proofs.",
+    description: "BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later.",
   },
   robots: { index: true, follow: true },
 };
