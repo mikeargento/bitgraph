@@ -185,7 +185,7 @@ export function SiteNav() {
           >
             Folder
           </Link>
-          {/* Actor — /declare, the camera that puts your key on a recording.
+          {/* Actor — /actor, the camera that puts your key on a recording.
               It shipped 2026-08-18 deliberately unlinked (Mike: "hidden with no
               link which is fine") and is linked here from 2026-08-19, after the
               feature settled on its name.
@@ -197,11 +197,14 @@ export function SiteNav() {
               to the site, and home's rule is that a first-time visitor drops a
               file and gets a proof with no dialog and no decision.
 
-              ⚠️ The ROUTE stays /declare. The word changed, the URL did not,
-              and anything already shared keeps working. */}
+              The route moved /declare -> /actor on 2026-08-19 so the URL says
+              what the page is. /declare 307s here; TEMPORARY on purpose, in
+              line with every other rename on this site (see next.config.ts),
+              because a 308 bakes into browser caches indefinitely and this
+              name is one day old. */}
           <Link
-            href="/declare"
-            aria-current={pathname === "/declare" ? "page" : undefined}
+            href="/actor"
+            aria-current={pathname === "/actor" ? "page" : undefined}
             style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
           >
             Actor

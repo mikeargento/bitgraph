@@ -3,7 +3,7 @@
 // Copyright (c) 2024-2026 Mike Argento. All rights reserved.
 
 /**
- * /declare — the camera that puts your name on it.
+ * /actor — the camera that puts your key on a recording.
  *
  * A declared BitGraph is an ordinary BitGraph plus one thing: a key you hold
  * signed an authorization for that exact file, and the enclave verified that
@@ -396,16 +396,16 @@ export default function DeclarePage() {
            deck present its own 36px carries the rest, exactly as home's does.
            ⚠️ Re-derive if the title size or the frame changes. */
         .declare-title { font-size: clamp(34px, 6vw, 40px); margin: 0 0 46px; }
-        .declare-hero:has(.declare-who) .declare-title { margin-bottom: 12px; }
         .declare-more { margin-top: 42px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
         /* The one text field in the product. Square, hairline, brand focus:
            the site has no other input to match, so it borrows the card. */
         /* The register state: no frame, because a frame here would be a
            dashed edge over something that takes no drops. */
         /* Home's deck: same clamp, same colour, same 36px to the frame. */
-        .declare-who { margin: 0 0 36px; }
-        .declare-who p { margin: 0; font-size: clamp(14px, 2.5vw, 16px); line-height: 1.6;
-          color: #4b5563; text-wrap: pretty; }
+        .declare-who { margin: 0; font-size: 14px; line-height: 1.6; color: #4b5563;
+          text-wrap: pretty; }
+        .declare-who strong { font-weight: 600; color: #111827; }
+        .declare-who .declare-key { font-family: var(--font-mono); font-size: 13px; }
         .declare-register { display: flex; flex-direction: column; align-items: center; gap: 22px; }
         /* balance, not pretty: pretty only rescues a single orphaned word, and
            this lead's last line is three, so it wrapped at "only / you can
@@ -432,18 +432,6 @@ export default function DeclarePage() {
 
       <div className="declare-hero">
         <h1 className="bg-page-title declare-title">BitGraph Actor</h1>
-
-        {/* ── The deck, in home's slot, saying whose page this is. ──
-            It was a footnote under the box, which put the one fact that makes
-            this page different from home below the thing it qualifies. Home
-            states its claim beside its title; so does this. The box beneath is
-            then home's, word for word: the same instrument, and the page says
-            whose hands. ── */}
-        {ready && cred && (
-          <div className="declare-who">
-            <p>Acting as {cred.name}, key {cred.keyId.slice(0, 12)}&hellip;</p>
-          </div>
-        )}
 
         {/* ── Two states, and only one of them is a drop target. ──
             A dashed edge means droppable, everywhere on this site. Before a
@@ -539,10 +527,29 @@ export default function DeclarePage() {
               passkey cannot be renamed once created, so a typo would otherwise
               sit in the keychain forever. Renaming here changes the label
               beside the credential and leaves the key alone. ── */}
+          {/* ── Whose key this is, under the frame and directly above the two
+              controls that act on it (Mike, 2026-08-19). It spent a day in
+              home's deck slot beside the title, on the reasoning that the one
+              fact making this page different from home belongs beside the
+              claim. Under the box is better: it is a STATUS, not a claim, and
+              Rename and Forget operate on exactly this, so the fact and its
+              controls now read as one block instead of being a page apart.
+
+              Type is a three-step hierarchy below the frame: the name at 600
+              in the heading colour because it is the fact, the sentence around
+              it in secondary grey, the key in the site's mono like every other
+              hash, and the controls beneath at 12.5. ── */}
+          {ready && cred && !renaming && (
+            <p className="declare-who">
+              Acting as <strong>{cred.name}</strong>, key{" "}
+              <span className="declare-key">{cred.keyId.slice(0, 12)}&hellip;</span>
+            </p>
+          )}
+
           {/* ── Maintenance, under the frame. ──
-              The deck states whose page this is; changing or dropping the key
-              is housekeeping, and housekeeping does not belong in a claim.
-              Home keeps its one quiet link in this same slot. ── */}
+              The line above states whose key this is; changing or dropping it
+              is housekeeping, kept quieter than the fact it acts on. Home keeps
+              its one quiet link in this same slot. ── */}
           {ready && cred && !renaming && (
             <p className="declare-note">
               <button type="button" className="declare-inline" onClick={() => { setName(cred.name); setRenaming(true); }}>

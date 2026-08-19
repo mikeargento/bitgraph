@@ -26,6 +26,11 @@ const nextConfig: NextConfig = {
       // bake in another permanent entry. Make them permanent once it holds.
       { source: "/uses", destination: "/subjects", permanent: false },
       { source: "/why", destination: "/subjects", permanent: false },
+      // /declare shipped 2026-08-18 and was renamed to /actor the next day,
+      // when the feature settled on its name (the word is the protocol's own:
+      // agency.actor, actorKeyId). TEMPORARY like the others: the name is a
+      // day old and a 308 would bake into caches indefinitely.
+      { source: "/declare", destination: "/actor", permanent: false },
       { source: "/docs", destination: "/docs/overview", permanent: true },
       // The /folder browser was removed 2026-08-07; the Folder's page is its
       // docs story. TEMPORARY like the others while names settle.
