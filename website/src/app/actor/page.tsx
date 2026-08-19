@@ -376,7 +376,13 @@ export default function DeclarePage() {
             ? "Nothing was recorded: the authorization was cancelled."
             : /challenge/i.test(message)
               ? "That authorization expired before it reached the camera. Drop again."
-              : message,
+              /* ⚠️ Anything else gets a written sentence, never the raw string.
+                 A folder drop used to surface "A requested file or directory
+                 could not be found at the time an operation was processed",
+                 which is a DOMException talking to itself: it names no file,
+                 suggests no action, and reads as a crash. Unrecognised
+                 failures are still failures the visitor can retry. */
+              : "Nothing was recorded. Something went wrong reading that drop; try again.",
         });
       }
     },
@@ -516,6 +522,28 @@ export default function DeclarePage() {
             <FileDrop
               multiple
               onFiles={handleFiles}
+              /* ⚠️ WITHOUT THESE, A FOLDER DROP FAILS WITH A RAW BROWSER ERROR
+                 (Mike, 2026-08-19). FileDrop only walks a directory when
+                 onFolder is supplied; otherwise it falls through to
+                 dataTransfer.files, where a folder appears as a pseudo-file.
+                 Its own comment calls that "a useless 0-byte pseudo-file", but
+                 on macOS the size is NOT zero, so it slips past the size > 0
+                 guard in handleFiles and throws NotFoundError when its bytes
+                 are read. The hint under the frame says "or drag in a whole
+                 folder", copied verbatim from home, so the page was promising
+                 something it had never implemented.
+
+                 A walked folder is just its files here. This page has no use
+                 for the paths, and none of home's export-checking applies: it
+                 acts on files, wherever they came from. */
+              onFolderScan={(n, done) => {
+                if (!done) setPhase({ step: "working", label: n ? `Reading ${n} files` : "Reading folder" });
+              }}
+              onFolder={(walked) => {
+                const files = walked.map((w) => w.file);
+                if (!files.length) { setPhase({ step: "idle" }); return; }
+                void handleFiles(files);
+              }}
               disabled={working}
               /* Home's own headline, in this page's verb. The box takes both
                  outcomes now — a known file comes back as its proof, an
