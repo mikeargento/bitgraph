@@ -260,6 +260,9 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
     return () => cancelAnimationFrame(raf);
   }, [proveProgress.current]);
 
+  // Results are on the page: the camera stays above them, and the page's
+  // block under the frame moves to the foot of the page (see the render).
+  const showingResults = step === "results" && (items.length > 0 || checked.length > 0);
   const found = items.filter(i => i.status === "found" || i.status === "proved");
   // Files the Record row offers: never recorded, or recorded and failed (an
   // errored file is still an unrecorded file; see proveRemaining).
@@ -1208,9 +1211,15 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                 card's bottom slot is where a proof puts Export, an action on
                 the thing in the card; what sits here is about the page (home's
                 way out to the explanation, /actor's controls on its key), so it
-                sits clear of the border. Always rendered, even empty: the fit
-                measurement observes it by class. */}
-            <div className={belowClassName}>{below}</div>
+                sits clear of the border. Rendered even when empty: the fit
+                measurement observes it by class.
+
+                ⚠️ Only while the page is the camera alone. Once results are
+                under the box, this block moves to the FOOT of the page (Mike,
+                2026-08-19: "default these ... to the bottom when there are
+                results to keep a cleanness between results and box"), so the
+                box sits directly over what it produced. */}
+            {!showingResults && <div className={belowClassName}>{below}</div>}
           </div>
         )}
 
@@ -1341,18 +1350,16 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                   wrapper below deliberately absorbs the column gap, so the
                   margin has to carry the whole distance itself. */}
               {/* ⚠️ The heading states what the drop DID, which is not always
-                  recording. A drop where every file was already on the ledger
-                  mints nothing, and "BitGraphs Recorded" over rows that each
-                  say "Already recorded" contradicts them in a larger type
-                  size. /actor has had this conditional since it shipped; home
-                  did not, and the mismatch was visible on the live site (Mike,
-                  2026-08-19: "why does one say found and one says recorded").
-                  Keeping the two pages' grammar identical matters more now
-                  that home stays put on a pure lookup instead of navigating,
-                  so this view is what a lookup actually lands on. */}
+                  recording. It says Found until this page has actually minted
+                  something (Mike, 2026-08-19: "make it say found until
+                  something is recorded"). The earlier rule, Found only when
+                  EVERY row was found, put "BitGraphs Recorded" over a batch
+                  that still had its Record row waiting, with nothing recorded
+                  yet. A lookup is not a recording, and neither is a list of
+                  files that could be. */}
               <div className="bg-page-title" style={{ marginBottom: 20 }}>
                 BitGraph{items.length === 1 ? "" : "s"}{" "}
-                {items.every((i) => i.status === "found") ? "Found" : "Recorded"}
+                {items.some((i) => i.status === "proved") ? "Recorded" : "Found"}
               </div>
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
                 <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
@@ -1559,6 +1566,13 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
             </>)}
 
           </div>
+        )}
+
+        {/* The page's block, at the foot while results are on the page (see
+            the note in the hero). Same class, so it keeps its own margin and
+            type; centred here because it has left the centred hero. */}
+        {showingResults && (
+          <div className={belowClassName} style={{ textAlign: "center" }}>{below}</div>
         )}
       </div>
     </div>
