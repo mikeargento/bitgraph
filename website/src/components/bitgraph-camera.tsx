@@ -1123,20 +1123,16 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
         /* The title takes its type from .bg-page-title (globals), the one
            page-title definition on the site. What is left here is the size
            exception below and the gap to the frame. */
-        /* ── LEFT, like every other title on the site (Mike, 2026-08-19: "is
-           the center aligned text (which is only center aligned text on whole
-           design) correct?"). It was centred from 2026-08-09 to today, the one
-           exception to a column that is left-aligned everywhere else: the
-           Roll, the docs, the proof pages, and "BitGraph Found" on this very
-           page, which sat directly under a centred title whenever the camera
-           was expanded over results. A symmetric box does not need a centred
-           title; the Roll's title sits left over a full-width list. The box's
-           OWN copy stays centred: a drop zone centres its prompt.
-
-           The title stands alone on its line. For an afternoon the page's one
-           link sat on its right (a title row); Mike then removed home's link
-           and moved /actor's "Forget this device" under the box, bottom left,
-           so the row went with them. ── */
+        /* ── CENTRED, the title alone (Mike, 2026-08-19, evening: "now i feel
+           like that should be centered"). It went left that afternoon, when
+           the row also carried a link on its right and sat over a left-aligned
+           "BitGraph Found"; with the link gone and home's title now the claim
+           itself ("A BitGraph gives bits a place"), what is left is one
+           sentence over a symmetric box, and a sentence like that reads as a
+           statement, which wants the centre. Only the title: the box's own
+           copy was always centred, and the block under the box (/actor's
+           "Forget this device") stays where Mike put it, bottom left. ── */
+        .bitgraph-tagline { text-align: center; }
         /* 36px, taken over from the deck that used to sit between this title
            and the frame (removed 2026-08-18: it read "a place in space and
            time", and both halves were wrong). The 12px here before
