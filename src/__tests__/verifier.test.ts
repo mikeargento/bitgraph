@@ -5,6 +5,8 @@ import * as assert from "node:assert/strict";
 import { getPublicKeyAsync, signAsync } from "@noble/ed25519";
 import { Constructor } from "../constructor.js";
 import { verify, resetEpochLinkState } from "../index.js";
+import { verifyProofIntegrity } from "@mikeargento/bitgraph-verify";
+import { DECLARED_12010 } from "./declared-proof-fixture.js";
 import type { HostCapabilities } from "../host.js";
 import type { BitGraphProof } from "../index.js";
 
@@ -519,6 +521,87 @@ describe("verify — policy: requireActor", () => {
     });
     assert.equal(result.valid, false);
     assert.match(result.reason ?? "", /actor|agency/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Agency: WebAuthn origin and RP binding
+// ---------------------------------------------------------------------------
+
+/* The real first declaration (#12,010) as it is, then the same proof with its
+   client data altered. The origin check runs BEFORE the signature check, so a
+   changed origin is reported as the origin problem it is, rather than as the
+   signature failure it also causes; and a changed origin whose host still
+   agrees with the rpIdHash passes the origin check and is then caught by the
+   signature, which is the order a reader would want the reasons in. */
+function withClientData(proof: typeof DECLARED_12010, patch: (cd: Record<string, unknown>) => void): BitGraphProof {
+  const p = JSON.parse(JSON.stringify(proof)) as BitGraphProof;
+  const auth = (p.agency as { authorization: { clientDataJSON: string } }).authorization;
+  const cd = JSON.parse(auth.clientDataJSON) as Record<string, unknown>;
+  patch(cd);
+  auth.clientDataJSON = JSON.stringify(cd);
+  return p;
+}
+
+describe("verify — agency: WebAuthn origin and rpIdHash", () => {
+  test("the real declared proof verifies (origin https://bitgraph.ing, rpIdHash = SHA-256(bitgraph.ing))", async () => {
+    resetEpochLinkState();
+    const result = await verifyProofIntegrity({ proof: DECLARED_12010 as unknown as BitGraphProof });
+    assert.equal(result.valid, true, result.valid ? "" : result.reason);
+  });
+
+  test("an origin whose host disagrees with the authenticator's rpIdHash is refused as such", async () => {
+    resetEpochLinkState();
+    const tampered = withClientData(DECLARED_12010, (cd) => { cd.origin = "https://evil.example"; });
+    const result = await verifyProofIntegrity({ proof: tampered });
+    assert.equal(result.valid, false);
+    assert.match(result.reason ?? "", /rpIdHash does not match the origin/);
+  });
+
+  test("a missing origin is refused", async () => {
+    resetEpochLinkState();
+    const tampered = withClientData(DECLARED_12010, (cd) => { delete cd.origin; });
+    const result = await verifyProofIntegrity({ proof: tampered });
+    assert.equal(result.valid, false);
+    assert.match(result.reason ?? "", /missing origin/);
+  });
+
+  test("a subdomain of the RP ID passes the origin check (and is then caught by the signature)", async () => {
+    resetEpochLinkState();
+    const tampered = withClientData(DECLARED_12010, (cd) => { cd.origin = "https://app.bitgraph.ing"; });
+    const result = await verifyProofIntegrity({ proof: tampered });
+    assert.equal(result.valid, false);
+    assert.doesNotMatch(result.reason ?? "", /origin|rpIdHash/);
+    assert.match(result.reason ?? "", /signature/i);
+  });
+
+  test("policy allowedOrigins accepts the production origin", async () => {
+    resetEpochLinkState();
+    const result = await verifyProofIntegrity({
+      proof: DECLARED_12010 as unknown as BitGraphProof,
+      trustAnchors: { allowedOrigins: ["https://bitgraph.ing"] },
+    });
+    assert.equal(result.valid, true, result.valid ? "" : result.reason);
+  });
+
+  test("policy allowedOrigins refuses any other origin", async () => {
+    resetEpochLinkState();
+    const result = await verifyProofIntegrity({
+      proof: DECLARED_12010 as unknown as BitGraphProof,
+      trustAnchors: { allowedOrigins: ["https://other.example"] },
+    });
+    assert.equal(result.valid, false);
+    assert.match(result.reason ?? "", /origin .* is not in the allowed set/);
+  });
+
+  test("policy allowedOrigins refuses a proof with no agency", async () => {
+    const result = await verify({
+      proof: fx.proof,
+      bytes: fx.bytes,
+      trustAnchors: { allowedOrigins: ["https://bitgraph.ing"] },
+    });
+    assert.equal(result.valid, false);
+    assert.match(result.reason ?? "", /no agency/);
   });
 });
 

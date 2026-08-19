@@ -472,6 +472,24 @@ export interface VerificationPolicy {
   allowedActorProviders?: string[];
 
   /**
+   * Accepted WebAuthn origins. A webauthn-format authorization's
+   * clientDataJSON.origin must exactly match one of the listed values,
+   * e.g. ["https://bitgraph.ing"].
+   *
+   * This is a policy, not a structural check, because the verifier is
+   * origin-agnostic by design: BitGraph can be self-hosted under any
+   * domain, and a proof made from a development origin is still a valid
+   * proof of what it says. What IS always checked, policy or not, is that
+   * the authenticator's rpIdHash agrees with the origin the client data
+   * claims (the RP ID is the origin's host or a parent domain of it), so
+   * the two fields cannot tell different stories.
+   *
+   * An authorization in the direct (non-WebAuthn) format carries no
+   * origin and does not satisfy this policy.
+   */
+  allowedOrigins?: string[];
+
+  /**
    * If true, proof must contain a valid slotAllocation proving
    * nonce-first atomic causality (BitGraph causal commit model).
    *

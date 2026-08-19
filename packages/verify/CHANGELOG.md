@@ -2,6 +2,32 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.3.0 (2026-08-19)
+
+WebAuthn RP binding. Until now the verifier checked a declared proof's
+challenge, user-presence and user-verification flags and P-256 signature, but
+took the client data's word for which site asked: `clientDataJSON.origin` was
+parsed and never compared with the authenticator's `rpIdHash`. A passkey is
+scoped to an RP ID by the authenticator, and that RP ID covers every subdomain,
+so a verifier that does not compare the two cannot tell an assertion made on
+bitgraph.ing from one made on a page that merely shares its RP ID. This is the
+RP-binding step of the WebAuthn verification procedure.
+
+### Added
+
+- Structural check, always on, for `format: "webauthn"` authorizations: the
+  client data's `origin` must be a well-formed origin whose host, or a parent
+  domain of it with at least two labels, hashes (SHA-256) to the first 32 bytes
+  of `authenticatorData` (the `rpIdHash`). Runs before the signature check, so
+  a changed origin is reported as the origin problem it is. Any origin passes
+  as long as the authenticator agrees with it: the verifier stays
+  origin-agnostic (self-hosted boundaries, development origins), and no
+  existing proof changes verdict.
+- `VerificationPolicy.allowedOrigins`: accept only the listed WebAuthn origins
+  (exact match), e.g. `["https://bitgraph.ing"]`. A policy, because a
+  specific origin is a reader's choice, like `allowedActorKeyIds`. A
+  direct-format authorization carries no origin and does not satisfy it.
+
 ## 1.1.1 (2026-07-10)
 
 Correctness fixes found by running against real production proofs. Earlier

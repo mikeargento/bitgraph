@@ -578,6 +578,28 @@ function checkPolicy(proof: BitGraphProof, policy: VerificationPolicy): string |
     }
   }
 
+  // WebAuthn origin allowlist. The origin's agreement with the rpIdHash has
+  // already been checked structurally in verifyAgency; this is the policy
+  // that names WHICH origins a reader accepts.
+  if (policy.allowedOrigins !== undefined && policy.allowedOrigins.length > 0) {
+    if (proof.agency === undefined) {
+      return "policy requires an allowed origin but proof has no agency";
+    }
+    const auth = proof.agency.authorization;
+    if (!("format" in auth) || auth.format !== "webauthn") {
+      return "policy requires an allowed WebAuthn origin but the authorization is not WebAuthn";
+    }
+    let origin: string | undefined;
+    try {
+      origin = (JSON.parse(auth.clientDataJSON) as { origin?: string }).origin;
+    } catch {
+      origin = undefined;
+    }
+    if (typeof origin !== "string" || !policy.allowedOrigins.includes(origin)) {
+      return `WebAuthn origin "${origin ?? "(none)"}" is not in the allowed set`;
+    }
+  }
+
   // Slot allocation required (BitGraph causal ordering)
   if (policy.requireSlot === true) {
     if (proof.slotAllocation === undefined) {
@@ -593,6 +615,44 @@ function checkPolicy(proof: BitGraphProof, policy: VerificationPolicy): string |
 // ---------------------------------------------------------------------------
 // Agency verification (P-256 device signature)
 // ---------------------------------------------------------------------------
+
+/**
+ * The RP-binding half of WebAuthn assertion verification: the origin in the
+ * client data must be a well-formed origin, and the first 32 bytes of the
+ * authenticator data (rpIdHash) must be SHA-256 of that origin's host or of
+ * a parent domain of it with at least two labels (the RP ID is allowed to be
+ * a registrable suffix of the origin's effective domain; without a public
+ * suffix list, "at least two labels" is the usual approximation and errs on
+ * the permissive side). A single-label host such as localhost is its own RP
+ * ID. Returns a reason string or null.
+ */
+function checkWebAuthnOrigin(origin: unknown, authData: Buffer): string | null {
+  if (typeof origin !== "string" || origin.length === 0) {
+    return "agency: clientDataJSON missing origin field";
+  }
+  let host: string;
+  try {
+    host = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return "agency: clientDataJSON origin is not a valid origin";
+  }
+  if (!host) return "agency: clientDataJSON origin has no host";
+  const rpIdHash = authData.subarray(0, 32).toString("hex");
+  const labels = host.split(".");
+  const candidates: string[] = [];
+  for (let i = 0; i < labels.length; i++) {
+    const candidate = labels.slice(i).join(".");
+    if (i > 0 && labels.length - i < 2) break; // no bare TLDs
+    candidates.push(candidate);
+  }
+  const matches = candidates.some(
+    (c) => createHash("sha256").update(c, "utf8").digest("hex") === rpIdHash,
+  );
+  if (!matches) {
+    return "agency: authenticatorData rpIdHash does not match the origin's domain";
+  }
+  return null;
+}
 
 /**
  * Verify the agency envelope: P-256 signature, structural consistency,
@@ -716,6 +776,19 @@ function verifyAgency(proof: BitGraphProof): string | null {
       const flags = authData[32]!;
       if (!(flags & 0x01)) return "agency: authenticatorData UP flag not set";
       if (!(flags & 0x04)) return "agency: authenticatorData UV flag not set";
+
+      // Origin and RP binding. The client data names the origin the
+      // assertion was made on; the authenticator data opens with the hash
+      // of the RP ID it scoped the credential to. WebAuthn requires the RP
+      // ID to be the origin's host or a registrable parent of it, so the
+      // two must agree, and a verifier that reads only the JSON has taken
+      // the client's word for which site asked. This is the RP-binding
+      // check the WebAuthn verification procedure lists; it is structural
+      // (any origin, as long as the authenticator agrees), and a SPECIFIC
+      // origin is a policy (VerificationPolicy.allowedOrigins), because
+      // the protocol can be run under any domain.
+      const originError = checkWebAuthnOrigin(clientData.origin, authData);
+      if (originError !== null) return originError;
 
       // Build signed data: authenticatorData || SHA-256(clientDataJSON)
       const clientDataHash = createHash("sha256")

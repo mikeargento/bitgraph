@@ -85,6 +85,7 @@ export default function VerificationPage() {
   requireActor?: boolean;             // reject proofs without agency
   allowedActorKeyIds?: string[];      // exact match
   allowedActorProviders?: string[];   // e.g. ["apple-secure-enclave"]
+  allowedOrigins?: string[];          // WebAuthn origins, e.g. ["https://bitgraph.ing"]
 }`}</pre>
       </div>
 

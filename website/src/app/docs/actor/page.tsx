@@ -15,11 +15,13 @@ export const metadata: Metadata = {
    the overview beyond the one line each section needs.
 
    ⚠️ Every check this page names is one the code makes (enclave/app.ts
-   verifyAgencyEnvelope; packages/verify verifier.ts verifyAgency). Neither
-   re-checks clientData.origin or the rpIdHash today; the RP binding stated
-   here is the authenticator's own (rp.id at registration and assertion). If
-   that re-check is added, say so here; until then, do not. Passkeys may be
-   synced by the platform, so the page never calls the key device-bound. ── */
+   verifyAgencyEnvelope; packages/verify verifier.ts verifyAgency). As of
+   bitgraph-verify 1.3.0 the VERIFIER checks that the client data's origin
+   agrees with the authenticator's rpIdHash and offers allowedOrigins as a
+   policy; the ENCLAVE does not re-check origin (that is a rebuild and a new
+   PCR0), so the enclave step below states only the authenticator's own RP
+   scoping. Passkeys may be synced by the platform, so the page never calls
+   the key device-bound. ── */
 
 /* What a declared proof carries, shaped as the enclave emits it (and as
    lib/webauthn.ts builds the envelope). Edit only against those. */
@@ -122,7 +124,7 @@ export default function ActorDocsPage() {
         On a proof page, the Actor card shows the name (when it can), the key, and what signed: a passkey, or the actor&apos;s own key.
       </p>
       <p>
-        Offline, <a href="/docs/verification">bitgraph-verify</a> re-checks the authorization from the proof alone: that <code>keyId</code> is the SHA-256 of the public key, that <code>actorKeyId</code> and <code>artifactHash</code> match the actor and the artifact, that the client data is a <code>webauthn.get</code> over this nonce, that the authenticator reported presence and verification, and that the P-256 signature verifies over the authenticator data and the hash of the client data. A verifier&apos;s policy can require an actor on every proof, or accept only named keys or providers (<code>requireActor</code>, <code>allowedActorKeyIds</code>, <code>allowedActorProviders</code>).
+        Offline, <a href="/docs/verification">bitgraph-verify</a> re-checks the authorization from the proof alone: that <code>keyId</code> is the SHA-256 of the public key, that <code>actorKeyId</code> and <code>artifactHash</code> match the actor and the artifact, that the client data is a <code>webauthn.get</code> over this nonce, that the origin the client data names agrees with the RP ID the authenticator scoped the passkey to (its <code>rpIdHash</code>), that the authenticator reported presence and verification, and that the P-256 signature verifies over the authenticator data and the hash of the client data. A verifier&apos;s policy can require an actor on every proof, accept only named keys or providers, or accept only named origins (<code>requireActor</code>, <code>allowedActorKeyIds</code>, <code>allowedActorProviders</code>, <code>allowedOrigins</code>).
       </p>
 
       <h2>Forgetting a device</h2>
