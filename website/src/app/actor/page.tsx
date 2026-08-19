@@ -82,8 +82,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { BitGraphCamera, clearCameraCache } from "@/components/bitgraph-camera";
-import { InfoLink } from "@/components/info-link";
 import { makeActorStrategy } from "@/lib/actor-strategy";
 import {
   clearStoredCredential,
@@ -170,29 +170,33 @@ export default function ActorPage() {
            components/bitgraph-camera.tsx; change both or neither. */
         .declare-register-wrap { width: 90%; max-width: 800px; margin: 0 auto; padding: 40px 0 40px;
           display: flex; flex-direction: column; align-items: stretch; justify-content: center;
-          min-height: calc(100dvh - 114px); gap: 24px; }
-        /* LEFT, like the camera's title row it stands in for (and every other
-           title on the site, since 2026-08-19): the name on the left, "How it
-           works →" on the right, baseline-aligned; on a phone the link wraps
-           under the title. The form under it is left too. */
-        .declare-title-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 36px; }
-        @media (max-width: 520px) { .declare-title-row { gap: 6px 12px; } }
-        @media (max-height: 520px) { .declare-more { margin-top: 14px; } }
-        .declare-title { font-size: clamp(34px, 6vw, 40px); margin: 0; }
-        .declare-register { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; }
-        /* pretty, not balance, now that the lead is left-aligned: balance
-           evens ragged centred lines; a left block wants its last line kept
-           from a lone word. */
+          min-height: calc(100dvh - 114px); gap: 24px; text-align: center; }
+        /* CENTRED, like the camera it stands in for (Mike, 2026-08-19,
+           evening: "re center bitgraph actor sign in page"; the drop-box
+           pages centre, the rest of the site does not). It was left for an
+           afternoon, with "How it works →" on the title's right; that link now
+           sits under the form, in the slot home keeps "What is a BitGraph →"
+           under its box. The title mirrors .bitgraph-tagline: the docs title
+           size, floor 22. */
+        .declare-title { font-size: clamp(22px, 6vw, 32px); margin: 0 0 36px; }
+        @media (max-height: 520px) { .declare-title { margin-bottom: 14px; } .declare-more { margin-top: 14px; } }
+        .declare-register { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+        /* balance, not pretty: pretty only rescues a single orphaned word, and
+           this lead's last line is three, so it wrapped at "only / you can
+           use." Balance evens the lines instead. */
         .declare-lead { font-size: clamp(14px, 2.5vw, 16px); line-height: 1.6; color: #4b5563;
-          max-width: 430px; margin: 0; text-wrap: pretty; }
+          max-width: 430px; margin: 0 auto; text-wrap: balance; }
         /* The one text field in the product. Square, hairline, brand focus:
            the site has no other input to match, so it borrows the card. */
-        .declare-name { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; }
+        .declare-name { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
         .declare-name input {
           font-family: inherit; font-size: 15px; color: #111827; background: #fff;
           border: 1px solid #d0d5dd; border-radius: 0; padding: 11px 13px;
-          width: min(320px, 100%);
+          width: min(320px, 100%); text-align: center;
         }
+        /* The way to the explanation, under the form: home's link slot. 42px
+           off the action above it, as home's is off the box. */
+        .declare-how { margin-top: 20px; }
         .declare-name input:focus-visible { outline: 2px solid #0065A4; outline-offset: -2px; }
 
         /* ── Whose key this is: INSIDE the frame, the third line under the
@@ -274,15 +278,7 @@ export default function ActorPage() {
 
       {ready && !cred && (
         <div className="declare-register-wrap">
-          <div className="declare-title-row">
-            <h1 className="bg-page-title declare-title">BitGraph Actor</h1>
-            {/* The way to the explanation this screen does not carry (see the
-                note under the action). Home has "What is a BitGraph →" in
-                this slot; here the question is what the touch does and what a
-                reader may conclude from it, and /docs/actor answers that.
-                "Info →" on a phone, like home's. */}
-            <InfoLink href="/docs/actor" label="How it works" />
-          </div>
+          <h1 className="bg-page-title declare-title">BitGraph Actor</h1>
           <div className="declare-register">
             <p className="declare-lead">
               {supported
@@ -335,6 +331,17 @@ export default function ActorPage() {
             {registerError && (
               <p style={{ color: "#dc2626", fontSize: 14, margin: 0 }}>{registerError}</p>
             )}
+            {/* The way to the explanation this screen does not carry (see the
+                note under the action): what the touch does and what a reader
+                may conclude from it, on /docs/actor. Under the form, centred,
+                in the slot home keeps "What is a BitGraph →" under its box;
+                alone on its line, so the full words fit on a phone. */}
+            <div className="declare-how">
+              <Link href="/docs/actor" className="bg-arrow-link"
+                style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}>
+                How it works <span className="arrow" aria-hidden="true">&rarr;</span>
+              </Link>
+            </div>
           </div>
         </div>
       )}

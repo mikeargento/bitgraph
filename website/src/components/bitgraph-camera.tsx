@@ -1176,7 +1176,23 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
            size where pages are most often compared, not just where the shared
            rule had already flatlined. Deliberate, and the number to dial if it
            ever reads as too much. */
-        .bitgraph-tagline { font-size: clamp(34px, 6vw, 40px); }
+        /* ⚠️ The 34px floor above was for "A camera for bits" (17 characters).
+           The title is now "A BitGraph gives bits a place" (29), which at 34px
+           is ~450px wide and wraps to two lines in a phone's ~350px column
+           (Mike, 2026-08-19: "on mobile it wraps. has to be smaller i suppose
+           on mobile"). So on phones the size follows the viewport: the
+           sentence measures 13.2x its font size in this face, the column is
+           90vw, and 6.6vw keeps it on one line from a 360px viewport up (25.7px
+           at 390, 23.8 at 360; 22 is the floor, which wraps only on 320px
+           devices). Then, the same evening: "maybe it should match docs titles
+           size?" Yes: that retires the one exception to the site's type
+           ladder (.bg-page-title is clamp(26px, 6vw, 32px), a flat 32 on
+           desktop; home had been 34..40 since the frame started scaling with
+           the window). So: the docs size from 433px up, identical to every
+           other title, and below that the floor is 22 rather than 26 only so
+           the sentence holds one line on small phones (23.4px at 390, 22 at
+           360; 26 would wrap at 375). Same rule on both camera pages. */
+        .bitgraph-tagline { font-size: clamp(22px, 6vw, 32px); }
         .bitgraph-tagline .accent { color: inherit; }
         /* The block under the frame (home's one link, /actor's Rename ·
            Forget) is the page's: its class and its margin live in the page's
