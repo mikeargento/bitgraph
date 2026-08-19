@@ -213,13 +213,17 @@ export default function ActorPage() {
            each frame is one 16px line box at this margin, and that is what
            keeps the frames the same size and the titles level. The p keeps
            the page's 16px so its line box is the same height as home's link
-           row (a line box is never shorter than its block's own font strut);
-           only the controls inside it are 12.5, kept quieter than the fact
-           they act on. */
+           row (a line box is never shorter than its block's own font strut).
+           The controls inside it are the site's standard link type, the
+           .bg-action-link numbers (14 / 600 / -0.01em, brand blue), the same
+           as home's link in the same slot (Mike, 2026-08-19: "the sites
+           standard size links"). They were 12.5 for a day. The hit area is
+           grown the way .bg-arrow-link grows its own: padding the region
+           and cancelling it in layout, so a tap near the text lands. */
         .declare-more { margin-top: 42px; }
         .declare-note { margin: 0; font-size: 16px; color: #4b5563; }
-        .declare-note-controls { font-size: 12.5px; }
-        .declare-inline { appearance: none; border: 0; background: none; padding: 0;
+        .declare-note-controls { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+        .declare-inline { appearance: none; border: 0; background: none; padding: 13px 0; margin: -13px 0;
           font: inherit; color: #0065A4; cursor: pointer; }
 
         /* Short viewports: the same tightening the camera applies to its own

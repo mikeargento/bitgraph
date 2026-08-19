@@ -74,18 +74,19 @@ export default function BitGraphPage() {
              proofs are still one nav click away under Roll, so the
              no-commitment path to seeing one is not lost.
 
-             16px: level with the drop box's own hint lines, which is the
-             relationship that matters here. ⚠️ It shipped at 19 for one
-             deploy, copied from the Folder download link on /docs/folder.
-             Matching the absolute size was the mistake: that link sits in
-             19px prose, while home's context is a 26px frame heading over
-             16px hints, so the same number read as a shout here. MATCH THE
-             RATIO, NOT THE PIXELS. 14 was the other end of it, too quiet for
-             home's only real exit. */
+             The site's standard link type (Mike, 2026-08-19: "What is a
+             BitGraph → and rename forget links should be the sites standard
+             size links"): the .bg-action-link numbers, 14 / 600 / -0.01em in
+             brand blue, on the layout-neutral .bg-arrow-link tap target.
+             /actor's Rename · Forget wears the same numbers in the same slot.
+             ⚠️ It was 16 for a day (reasoned as level with the box's hints)
+             and 19 for one deploy before that (copied from the Folder link
+             in 19px prose). One size for every link on the site beats a
+             size reasoned per context; 14 is that size. */
           <Link
             href="/docs/overview"
             className="bg-arrow-link"
-            style={{ fontSize: 16, fontWeight: 600, color: "#0065A4", textDecoration: "none" }}
+            style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
           >
             What is a BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
           </Link>
