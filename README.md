@@ -1,6 +1,6 @@
 # BitGraph
 
-**Portable cryptographic proof of construction for digital artifacts.**
+**A BitGraph gives bits a place.**
 
 [![npm @mikeargento/bitgraph](https://img.shields.io/npm/v/@mikeargento/bitgraph?label=%40mikeargento%2Fbitgraph&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)
@@ -8,11 +8,17 @@
 
 ---
 
-Just as a photograph captures photons through the constraint of a single frame of film, a BitGraph captures bits through the constraint of a single mathematical slot.
+Who, when, and where are different facts. Knowing who took a Polaroid does not tell you where that Polaroid is. Knowing what time it was taken does not tell you where it is either. Holding it in your hand tells you where it is, but nothing about who took it or when.
 
-Origin can be enforced or it can be claimed. Most digital provenance systems claim it. They produce an artifact and then attach a signature, a timestamp, or a metadata block describing where the artifact came from. The claim arrives after the artifact already exists, which is the wrong end of the timeline.
+The Polaroid is in one place. A digital file is not: you can copy it perfectly, and every copy is the same file.
 
-BitGraph enforces origin. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact's hash is known. The artifact's hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of construction.
+BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later. Your file never leaves your device to get one, and anyone can check it, forever.
+
+BitGraphs are not labels or metadata added after the fact. They are new computations created when your file's hash *fills* a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state.
+
+Provenance can be enforced or it can be claimed. Most systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.
+
+BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact's hash is known. The artifact's hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
 
 > This exact digital state was committed through this measured process, in this order, under these constraints.
 
@@ -20,32 +26,32 @@ BitGraph enforces origin. A measured trusted execution environment creates an un
 
 Nonce first. Hash second. Atomic binding third.
 
-The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave's key, with an identity no attacker could have precomputed. The slot exists as a cryptographic object before any artifact hash has been seen.
+The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave's key, with an identity that could not feasibly have been predicted. The slot exists as a cryptographic object before any artifact hash has been seen.
 
 The artifact hash arrives. The TEE binds the hash into the slot, signs the binding, and advances its internal order. The slot becomes consumed.
 
 > UNUSED slot exists first. Artifact hash enters later. TEE binds the hash to the slot. Slot becomes CONSUMED. Proof travels with the artifact.
 
-The atomicity is the whole guarantee. The slot is allocated and signed before the hash is known. The slot can be consumed exactly once by a single binding operation. The artifact itself can be produced anywhere, by any process, using any tools. What matters is that when the hash arrives, the slot is already there waiting.
+The atomicity is the whole guarantee, and it constrains the record rather than the artifact. The artifact itself can be produced anywhere, by any process, using any tools. What matters is that when the hash arrives, the slot is already there waiting.
 
-Most systems say: "Here is a file hash. Now let's sign it." BitGraph says: "Here is a pre-existing origin slot. Now this file hash has occupied it."
+Most systems begin with the bits. BitGraph begins with the place. They say: "Here is a file hash. Now let's sign it." BitGraph says: "Here is a pre-existing position. Now this file hash has occupied it."
 
 ## Why nonce-first matters
 
-If a nonce, timestamp, or credential is added after the hash is already witnessed, it is just a label. It can prove someone signed something. It can prove a record existed by some moment. It cannot constrain the artifact's origin, because the artifact already existed before the nonce entered the picture.
+If a nonce, timestamp, or credential is added after the hash is already witnessed, it is just a label. It can prove someone signed something. It can prove a record existed by some moment. It cannot impose a prior condition merely by being attached afterward. The credential may describe where the artifact came from, but the artifact never had to consume a pre-existing, single-use position in order to receive one.
 
-That leaves a forgery window. A malicious actor can prepare old hashes, replay prior material, backfill records, or attach fresh randomness to something never produced through the claimed path. The label looks valid. The construction was never constrained.
+That leaves a forgery window. A malicious actor can prepare old hashes, replay prior material, backfill records, or attach fresh randomness to something never produced through the claimed path. The label looks valid. Nothing had to be true before it was attached.
 
-BitGraph closes the window by requiring the slot to exist first. The slot is not evidence added afterward. It is the condition the artifact must satisfy.
+BitGraph narrows that window by requiring the slot to exist first. It does not stop an old file being committed today: the hash occupies a slot allocated today, and the position claims nothing about when the bytes were made. What it stops is a position being invented after the fact, or occupied twice. The slot is not evidence added afterward. It is the condition the artifact must satisfy.
 
 ## What a BitGraph proof contains
 
-A BitGraph proof is a portable proof object, typically JSON, that travels with the artifact. It can include:
+A BitGraph proof is a portable proof object, a JSON document, that travels with the artifact. It can include:
 
 | Component | Purpose |
 |---|---|
 | Artifact hash | Identifies the exact file or digital state |
-| Nonce | The pre-existing causal slot |
+| Nonce | Hardware entropy giving the slot an identity that cannot feasibly be predicted |
 | Slot counter | Shows the slot was allocated before the commit |
 | Commit counter | Shows the artifact consumed the slot later |
 | Epoch ID | Groups an ordered run of commitments |
@@ -56,27 +62,27 @@ A BitGraph proof is a portable proof object, typically JSON, that travels with t
 | Attestation | Shows the proof came from measured hardware |
 | Public anchor | Tethers BitGraph logical time to a public reference |
 
-The result is not "a file was signed." It is: this hash was committed into this causal slot, by this measured environment, at this position in logical order, under this signing identity.
+Taken together: this hash was committed into this causal slot, by this measured environment, at this position in logical order, under this signing identity.
 
 ## Logical time
 
 Every proof has order. Every slot and commit has a position. The system can prove that this happened after that, that this slot existed before this hash was bound, that this proof came before the next, that this epoch has an internal cryptographic history.
 
-BitGraph proves causal order first. Clock time is optional.
+BitGraph proves causal order. It does not assert a clock time.
 
 ## Ethereum: the backward seal
 
 BitGraph's internal ordering does not require Ethereum. The chain creates internal order through slot allocation, consumption, counters, signatures, and chained proof history. Ethereum anchors add a different property on top: a public backward seal that any third party can independently verify.
 
-An Ethereum block hash that becomes available after the artifact has been committed could not have been known at the moment of commitment. This produces an entropy sandwich:
+An Ethereum block hash that becomes available after the artifact has been committed could not have been known at the moment of commitment. That brackets the commitment:
 
-1. Private TEE entropy before the artifact.
-2. Artifact commitment in the middle.
-3. Public blockchain entropy after it.
+1. An unpredictable private value before it.
+2. The commitment in the middle.
+3. An independently observable public value after it.
 
-The artifact was committed after the TEE-created slot existed and before the later Ethereum block was knowable. That bounds the commitment in adversary-resistant entropy, witnessed in a public timeline anyone can check years later.
+The artifact was committed after the TEE-created slot existed and before the later Ethereum block was knowable. Neither bound depends on the block being a good source of randomness, only on it being a later public reference that did not yet exist, in a timeline anyone can check years afterward.
 
-Ethereum is not asked to prove the artifact's origin. BitGraph does that. Ethereum provides the backward seal that makes the commitment publicly verifiable.
+Ethereum is not asked to establish the artifact's position. BitGraph does that. Ethereum provides the backward seal that makes the commitment publicly verifiable.
 
 ## Compromise and containment
 
@@ -88,11 +94,11 @@ Forgery requires more than key theft. Every proof carries a hardware attestation
 
 Damage control is precise. Every proof names its epoch permanently, so a suspect window is identified exactly: rotate the epoch, publish the affected epochId as quarantined, and every other epoch is untouched. Verifiers that pin measurements and track epochs account for the gap.
 
-The production deployment makes rotation routine rather than exceptional: the boundary restarts every day at 23:59 UTC, destroying the epoch key and starting a fresh one, so each epoch is exactly one UTC calendar day. A breach that depends on staying resident inside the enclave cannot outlive the day without freshly re-compromising a new enclave. The schedule is deliberately public: rotation times are visible on the ledger regardless, and the protection comes from the key dying, not from anyone guessing when.
+The production deployment makes rotation routine rather than exceptional: the boundary restarts every day at 23:59 UTC, destroying the epoch key and starting a fresh one, so a normally operating epoch runs about a day. An unexpected restart ends one early and a failed rotation extends one; either way the boundary is recorded in the proofs themselves. A breach that depends on staying resident inside the enclave cannot outlive its epoch without freshly re-compromising a new one. The schedule is deliberately public: rotation times are visible on the ledger regardless, and the protection comes from the key dying, not from anyone guessing when.
 
 ## The trust model
 
-BitGraph does not depend on blind trust in any single component. Not the operator, the TEE, Ethereum, the clock, a certificate authority, or a live server. Each layer adds an independently verifiable property.
+BitGraph does not ask for blind trust in any single component. It has real dependencies, and the point is that each one is inspectable rather than assumed: the enclave's attestation chains to the AWS Nitro Attestation PKI root, and the measurement it carries is published, so both are things you check rather than things you take on faith. Each layer adds an independently verifiable property.
 
 | Layer | What it contributes |
 |---|---|
@@ -109,11 +115,11 @@ BitGraph does not depend on blind trust in any single component. Not the operato
 
 BitGraph works on any digital state that can be hashed. The same primitive applies whether the artifact is a photograph, a contract, a model output, a dataset, or a software release.
 
-**Media.** Photos, videos, audio, edited files, generative outputs. The question shifts from "is this real?" to "what origin path does this artifact satisfy?"
+**Media.** Photos, videos, audio, edited files, generative outputs. The question shifts from "is this real?" to "what position does this exact digital state occupy?"
 
-**AI outputs.** Model results bound to authenticated identity and causal position without requiring the model to run inside an enclave.
+**AI outputs.** Model results bound to a causal position, and optionally to a key that authorized the recording, without requiring the model to run inside an enclave.
 
-**Software supply chain.** Build artifacts, releases, model weights, and deployment packages bound to a measured construction path.
+**Software supply chain.** Build artifacts, releases, model weights, and deployment packages bound to a position in a measured sequence.
 
 **Legal and clinical records.** Contracts, filings, telehealth session manifests, lab results, and consent forms with independently verifiable causal ordering.
 
@@ -127,22 +133,24 @@ BitGraph is often confused with adjacent systems. The differences are structural
 |---|---|---|
 | Signatures | This key signed this data | This key was controlled by a measured environment that consumed an unused slot |
 | Timestamps | This hash existed by time T | This hash consumed a pre-existing slot at this position in causal order |
-| C2PA | Here are signed claims about this content | Here is the construction path this content satisfied |
-| Blockchains | Public ordering of shared transactions | Private origin coordinates with optional public anchoring |
+| C2PA | Here are signed claims about this content | This exact digital state occupied this pre-existing position |
+| Blockchains | Public ordering of shared transactions | Ordering established inside a measured enclave, then anchored publicly |
 
-Signatures, timestamps, content credentials, and blockchains all answer "who claimed what, when?" BitGraph answers "what construction path did this exact artifact satisfy?" They are complementary, not competing. A signature can be inside a BitGraph proof. A timestamp can decorate one. Content credentials can ride alongside one. None of them, alone, do what BitGraph does.
+Signatures, timestamps, content credentials, and blockchains all answer "who claimed what, when?" BitGraph answers "what position does this exact digital state occupy?" They are complementary, not competing. A signature can be inside a BitGraph proof. A timestamp can decorate one. Content credentials can ride alongside one. None of them, alone, do what BitGraph does.
 
-## Multiple copies of the same original
+## Every copy carries the same position
 
-Physical originality depends on singularity. There is one canvas, one negative, one signed paper. Digital files broke that because perfect copies are indistinguishable from the source.
+Physical originality depended on singularity. There was one canvas, one negative, one signed paper, and the object's uniqueness was how you knew it came from the author's hand. Digital files broke that. Perfect copies are indistinguishable from the source, so the physical anchor for originality stopped working.
 
-BitGraph introduces a different category. A digital artifact can be copied without losing its original provenance. The proof travels with the bytes or alongside them. Instead of every copy being a degraded copy, BitGraph allows multiple copies of the same original. Originality moves from physical container to causal proof. Singularity is no longer required for originality.
+BitGraph does not restore originality. It makes it unnecessary. The artifact's hash is the proof's anchor, so any exact copy of the bytes carries the same position, and no copy has to be the special one. The proof object itself can travel with the file, stay on the server that issued it, or be stored anywhere, and each of those can have copies too. Verification does not depend on where anything lives. What used to need a unique object now needs only the exact bytes.
 
 ## The simplest version
 
 A measured TEE creates a random unused slot before the artifact hash arrives. The hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, sealing everything before it in a public timeline.
 
-The result is a provenance system that does not say "someone signed this." It says: this exact artifact occupied this origin coordinate.
+The result is a protocol that does not say "someone signed this."
+
+**It proves: these exact bits occupy this position.**
 
 ---
 
