@@ -1175,7 +1175,13 @@ export default function BitGraphPage() {
               <Link
                 href="/docs/overview"
                 className="bg-arrow-link"
-                style={{ fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none" }}
+                // Matched to the Folder download link on /docs/folder (Mike,
+                // 2026-08-19). ⚠️ 19px is NOT on the site type ladder
+                // (project_type_scale: 32/22/18/16); it is that page's own
+                // size, and this copies it deliberately so the two primary
+                // actions on the site read at the same weight. 18 is the
+                // ladder's nearest if this ever needs to come back in line.
+                style={{ fontSize: 19, fontWeight: 600, letterSpacing: "-0.015em", color: "#0065A4", textDecoration: "none" }}
               >
                 What is a BitGraph <span className="arrow" aria-hidden="true">&rarr;</span>
               </Link>
