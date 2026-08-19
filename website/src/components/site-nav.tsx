@@ -185,6 +185,27 @@ export function SiteNav() {
           >
             Folder
           </Link>
+          {/* Actor — /declare, the camera that puts your key on a recording.
+              It shipped 2026-08-18 deliberately unlinked (Mike: "hidden with no
+              link which is fine") and is linked here from 2026-08-19, after the
+              feature settled on its name.
+
+              ⚠️ It sits AFTER Folder and before Docs on purpose. Roll is what
+              to look at, Folder and Actor are the two tools, Docs is the
+              reference. It must never come before Roll: an unregistered visitor
+              clicking Actor first meets a passkey prompt as their introduction
+              to the site, and home's rule is that a first-time visitor drops a
+              file and gets a proof with no dialog and no decision.
+
+              ⚠️ The ROUTE stays /declare. The word changed, the URL did not,
+              and anything already shared keeps working. */}
+          <Link
+            href="/declare"
+            aria-current={pathname === "/declare" ? "page" : undefined}
+            style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
+          >
+            Actor
+          </Link>
           {/* Docs opens the section list rather than navigating.
               It used to be a plain link to /docs, and every docs page then
               carried a full-width sticky bar of its own holding this menu. That

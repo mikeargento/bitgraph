@@ -882,7 +882,7 @@ export default function ProofPage() {
               whoever recorded them, and a second recording of them can carry a
               different key or none. Needs no file in hand, because it is in
               the proof rather than in the bytes. */}
-          {!isEth && <DeclarationCard proof={proof} />}
+          {!isEth && <ActorCard proof={proof} />}
 
           {/* Recordings — every causal position these exact bytes occupy. Always
               present on a file proof (even a single position), so it is also the
@@ -1298,7 +1298,7 @@ function useStoredCredential(): StoredCredential | null {
  * will be one such source, and the card will have to say so rather than
  * quietly presenting its answer as BitGraph's.
  */
-function DeclarationCard({ proof }: { proof: BitGraphProof }) {
+function ActorCard({ proof }: { proof: BitGraphProof }) {
   const cred = useStoredCredential();
   const agency = (proof as unknown as {
     agency?: {
@@ -1311,7 +1311,7 @@ function DeclarationCard({ proof }: { proof: BitGraphProof }) {
   const mine = cred?.keyId === actor.keyId;
 
   return (
-    <CollapsibleCard title="Declaration">
+    <CollapsibleCard title="Actor">
       {/* ❄️ No explainer paragraph. It read "A key authorized this recording,
           and the boundary verified that signature… Who holds the key is not
           something BitGraph establishes" — true, and doctrine, which belongs
@@ -1320,14 +1320,14 @@ function DeclarationCard({ proof }: { proof: BitGraphProof }) {
           fields already say it: a key with no name beside it reads "Not
           established here", which IS the claim, shown instead of asserted. */}
       <Field
-        label="Declared by"
+        label="Name"
         value={mine ? (cred as StoredCredential).name : "Not established here"}
         highlight={!!mine}
       />
       <Field label="Key" value={actor.keyId} mono />
       <Field
         label="Signed with"
-        value={agency?.authorization?.format === "webauthn" ? "A passkey on the declarer's device" : "The declarer's own key"}
+        value={agency?.authorization?.format === "webauthn" ? "A passkey on the actor's device" : "The actor's own key"}
       />
     </CollapsibleCard>
   );
@@ -1374,7 +1374,7 @@ function DeclareThisButton({ proof, digestParam }: { proof: BitGraphProof; diges
       setMessage(
         /NotAllowed|cancel/i.test(m) ? "Nothing was recorded: the authorization was cancelled."
         : /challenge/i.test(m) ? "That authorization expired before it reached the camera. Try again."
-        : "Could not record a declared position. Try again in a moment."
+        : "Could not record it under your key. Try again in a moment."
       );
       setState("error");
     }

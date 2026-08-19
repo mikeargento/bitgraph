@@ -9,33 +9,44 @@
  * signed an authorization for that exact file, and the enclave verified that
  * signature against its own single-use nonce before it would record anything.
  *
- * ⚠️ It is a DECLARATION, and the word is chosen against the alternatives
- * (Mike, 2026-08-18). Not "signed": every BitGraph carries the enclave's
- * Ed25519 signature, so the word would imply the others do not. Not
- * "authorized" or "verified": BitGraph derives existence and order, and
- * derives nothing whatever about who a person is. What a declaration adds is
- * a WHO, never a better WHEN, and the honest word for a statement by a named
- * party is the one Player's own verdict already uses for it.
+ * ⚠️ THE WORD IS **ACTOR** (Mike, 2026-08-19), after two days and seven
+ * candidates. It is the protocol's own word already: `agency.actor`,
+ * `actorKeyId`, and /docs/what-bitgraph-is-not's "actor-bound proofs... this
+ * is actor-binding, not authorship attribution". UI, JSON and docs now say one
+ * thing.
  *
- * ⚠️ RE-TESTED AND KEPT, 2026-08-19. Mike reopened the word and rejected three
- * more candidates before landing back on it. The pattern is worth having:
- * AUTHORIZED assigns permission, AUTHORED assigns creation, COMMISSIONED
- * assigns patronage. Each gives the person a ROLE, and BitGraph establishes
- * none: it records that a key was present and consented, and says nothing
- * about what that person did or is. "Commissioned" fails a second way, the
- * same way "signed" did, by being true of EVERY BitGraph (an anonymous drop
- * also requests a recording), so it cannot name the subset. It also already
- * means a client job to a photographer.
+ * WHY IT WON, and the test that killed the rest: **`actor` is present only on
+ * these proofs and absent on anonymous ones**, so it names the subset by the
+ * mechanism rather than by a metaphor. Everything else was either true of every
+ * BitGraph or claimed something we do not establish:
  *
- * If it is ever reopened again, the only candidates that survived the
- * constraints describe the ARTIFACT rather than the person: countersigned
- * (precise: the enclave signs, the holder's key signs too), keyed, key-bound.
- * Ruled out on sight: certified/approved/endorsed (imply a gatekeeper granted
- * permission, which is the C2PA framing we differentiate from), attested
- * (collides with Nitro attestation), sealed (banned language), named (BitGraph
- * never learns a name), claimed (collides with /docs/overview: "Provenance can
- * be enforced or it can be claimed. Most systems claim it"), and Content
- * Credentials (C2PA's own brand, and our foil twice in that same page).
+ *   signed        true of every BitGraph (the enclave signs them all)
+ *   commissioned  true of every BitGraph (an anonymous drop is also requested);
+ *                 and to a photographer it already means a client job
+ *   authorized    implies a gatekeeper granted permission, which is the C2PA
+ *                 framing this whole product differentiates from
+ *   authored      /docs/what-bitgraph-is-not says actor-bound proofs are "not
+ *                 authorship attribution" IN A SENTENCE ABOUT THIS FEATURE, and
+ *                 anyone can act on a file they downloaded, so the name would
+ *                 be disproven in one use
+ *   auctor        reads as a typo for author, and sits one letter from `actor`,
+ *                 which is in every proof's JSON
+ *   declared      what it was called for a day. Honest, and it survived two
+ *                 challenges, but it is a word about a statement where `actor`
+ *                 is a word about the record
+ *
+ * ⚠️ Also ruled out on sight: certified/approved/endorsed (gatekeeper),
+ * attested (collides with Nitro attestation), sealed (banned language), named
+ * (BitGraph never learns a name), claimed (collides with /docs/overview's
+ * "Most systems claim it"), and Content Credentials (C2PA's own brand, and our
+ * foil twice on that same page).
+ *
+ * ⚠️ "Actor" is a NOUN, so it does not modify BitGraphs the way "Declared" did.
+ * The page is named for the tool, BitGraph Actor, in the family of BitGraph
+ * Folder and BitGraph Player. The docs' adjective is "actor-bound" if one is
+ * ever needed. The proof page's card is titled Actor and its first field is
+ * Name, whose value is "Not established here" for anyone else's key: identity
+ * is a property of the reader and BitGraph never learns a name.
  *
  * ── Why this is a separate page rather than a switch on the home box ──
  *
@@ -318,7 +329,7 @@ export default function DeclarePage() {
           const i = fresh[n];
           setPhase({
             step: "working",
-            label: fresh.length > 1 ? `Declaring ${n + 1} of ${fresh.length}` : "Declaring",
+            label: fresh.length > 1 ? `Recording ${n + 1} of ${fresh.length}` : "Recording",
           });
           const envelope = buildAgencyEnvelope(cred, assertion, digests[i], challenge);
           if (fresh.length > 1) {
@@ -420,7 +431,7 @@ export default function DeclarePage() {
       `}</style>
 
       <div className="declare-hero">
-        <h1 className="bg-page-title declare-title">Declared BitGraphs</h1>
+        <h1 className="bg-page-title declare-title">BitGraph Actor</h1>
 
         {/* ── The deck, in home's slot, saying whose page this is. ──
             It was a footnote under the box, which put the one fact that makes
@@ -430,7 +441,7 @@ export default function DeclarePage() {
             whose hands. ── */}
         {ready && cred && (
           <div className="declare-who">
-            <p>Declared by {cred.name}, key {cred.keyId.slice(0, 12)}&hellip;</p>
+            <p>Acting as {cred.name}, key {cred.keyId.slice(0, 12)}&hellip;</p>
           </div>
         )}
 
@@ -471,8 +482,8 @@ export default function DeclarePage() {
                    or a business, and a photographer trading as a studio is
                    exactly who declares here. "A key only you can use" already
                    says whose it is, so the possessive was doing no work. */
-                ? "A declaration is a name on a recording, signed by a key only you can use."
-                : "A declaration needs a passkey: Touch ID, Face ID, or Windows Hello. This device has none."}
+                ? "Acting puts a name on a recording, signed by a key only you can use."
+                : "Acting needs a passkey: Touch ID, Face ID, or Windows Hello. This device has none."}
             </p>
             {supported && (
               <div className="declare-name">
@@ -483,7 +494,7 @@ export default function DeclarePage() {
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") void register(); }}
                   placeholder="Name or organization"
-                  aria-label="The name this device declares under"
+                  aria-label="The name this device acts under"
                   spellCheck={false}
                   autoComplete="name"
                   disabled={working}
@@ -559,7 +570,7 @@ export default function DeclarePage() {
                   if (e.key === "Escape") { setRenaming(false); setName(cred.name); }
                 }}
                 placeholder="Name or organization"
-                aria-label="The name this device declares under"
+                aria-label="The name this device acts under"
                 spellCheck={false}
                 autoFocus
               />
@@ -621,8 +632,8 @@ export default function DeclarePage() {
                       <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>
                         {(() => {
                           const actor = actorOf(row.proof);
-                          if (actor && cred && actor === cred.keyId) return `Declared by ${cred.name}`;
-                          if (actor) return `Declared by ${actor.slice(0, 12)}\u2026`;
+                          if (actor && cred && actor === cred.keyId) return `Actor ${cred.name}`;
+                          if (actor) return `Actor ${actor.slice(0, 12)}\u2026`;
                           return row.kind === "found" ? "Already recorded" : "Recorded";
                         })()}
                       </span>
