@@ -111,14 +111,15 @@ export default function TrustModelPage() {
         <li>• Physical access to enclave host - outside threat model</li>
       </ul>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Ethereum front anchors</h2>
+      <h2 className="text-xl font-semibold mt-12 mb-4">Ethereum anchors</h2>
       <p className="text-[#1f2937] leading-relaxed mb-4">
-        BitGraph does not require a blockchain to operate, but it uses Ethereum as
-        an external write-once timeline. The same TEE that signs user proofs
-        also periodically commits its current counter chain into an Ethereum
-        block. The on-chain payload contains the enclave&apos;s public key, the
-        epoch identifier, the current counter, and the latest proof hash —
-        nothing about any individual user or file.
+        BitGraph does not require a blockchain to operate, but it uses Ethereum
+        as an external public timeline. The same TEE that signs user proofs
+        periodically commits the hash of a recent Ethereum block into its own
+        counter chain as an ordinary anchor proof. The anchor carries the
+        enclave&apos;s public key, the epoch identifier, the current counter, and
+        the block it references: nothing about any individual user or file.
+        Nothing is written to Ethereum.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-4">
         Each anchor is itself a BitGraph proof signed by the enclave, so it
