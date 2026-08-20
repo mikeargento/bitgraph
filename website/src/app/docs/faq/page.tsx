@@ -41,7 +41,7 @@ const faqs = [
   },
   {
     q: "How does BitGraph establish time?",
-    a: "BitGraph does not claim to prove absolute time. It proves causal order: every commit pre-allocates a slot inside the enclave before the artifact hash is known, and the monotonic counter establishes sequencing within an epoch. For an external time anchor, the same enclave periodically seals its counter chain into an Ethereum block. Once anchored, every proof committed before that block is fixed in a public, immutable timeline.",
+    a: "BitGraph does not claim to prove absolute time. It proves causal order: every commit pre-allocates a slot inside the enclave before the artifact hash is known, and the monotonic counter establishes sequencing within an epoch. For an external time reference, the same enclave periodically commits the hash of a recent Ethereum block into the chain. A block hash does not exist before its block is produced, so everything chained after an anchor provably came after that block's public date, and the anchor's hash links fix the history behind it against rewrite.",
   },
   {
     q: "Can the same file produce different proofs?",

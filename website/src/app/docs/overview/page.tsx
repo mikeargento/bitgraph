@@ -224,7 +224,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is mined, so the anchor, and every proof chained after it, came after that block and its public date. Anchors land every few seconds. This is the wall-clock statement every proof page shows, and it runs in one direction: provably no earlier than. The other side of the window narrows through the chain&rsquo;s cadence, measured enclave behavior rather than public data, which is why it is narrowed, not closed.
+        Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor, and every proof chained after it, came after that block and its public date. Anchors recur throughout every epoch. This is the wall-clock statement every proof page shows, and it runs in one direction: provably no earlier than. The other side of the window narrows through the chain&rsquo;s cadence, measured enclave behavior rather than public data, which is why it is narrowed, not closed.
       </p>
 
       <p>

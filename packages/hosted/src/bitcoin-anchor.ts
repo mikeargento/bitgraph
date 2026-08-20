@@ -5,7 +5,7 @@
  * The anchor proof is a NORMAL BitGraph proof on the SAME monotonic counter chain
  * as user proofs — same counter, same prevB64, same enclave key, same epoch.
  *
- * A block hash does not exist before its block is mined, so this anchor and
+ * A block hash does not exist before its block is produced, so this anchor and
  * every proof chained AFTER it provably came after that block — the chain's
  * public wall-clock bound, one-directional (no earlier than). What the anchor
  * does for the proofs BEFORE it is fix their content, not their time: it is

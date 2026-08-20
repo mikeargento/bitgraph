@@ -80,7 +80,7 @@ Blockchain advantages: public consensus, shared ledger, timestamping.
 A BitGraph can optionally anchor to a blockchain.
 
 ETHEREUM ANCHORS:
-Ethereum front anchors are proofs that reference a specific Ethereum block. They seal backward. Everything in the chain before the anchor provably existed before that block was mined. This provides an external time reference without relying on clocks.
+Ethereum anchors are ordinary proofs on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor and every proof chained after it provably came AFTER that block: a public "no earlier than" bound, the only wall-clock statement BitGraph makes. Backward, an anchor fixes content, not time: it is hash-linked to everything before it, so earlier history cannot be altered without breaking the chain that reaches it. Nothing is ever written to Ethereum, so no proof has a public "before this block" bound. The enclave keeps no trusted clock; Ethereum is the system's external wall-clock reference.
 
 KEY FACTS:
 - Files NEVER leave the user's device. Only the SHA-256 hash (32 bytes) is sent to the enclave
@@ -103,7 +103,7 @@ When asked about TEE compromise, restarts, or what happens if the enclave is bre
 - Each restart of the enclave generates a new keypair from hardware entropy and resets the counter
 - The previous epoch's signing key is destroyed and exists nowhere outside the terminated enclave
 - A compromise of the live epoch cannot retroactively forge BitGraphs under any prior epoch's key
-- Ethereum anchors seal pre-anchor BitGraphs against rewrite even if the enclave is later compromised
+- Anchors hash-link all prior history, fixing pre-anchor BitGraphs against rewrite even if the enclave is later compromised
 - Restarting the TEE is a deliberate containment action: any undetected breach is bounded to a single epoch window
 
 ANSWER LENGTH:

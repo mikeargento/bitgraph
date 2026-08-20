@@ -93,7 +93,7 @@ export default function TrustModelPage() {
           { threat: "Chain gap insertion", mitigation: "`prevB64` chaining: any removed link breaks hash continuity" },
           { threat: "Counter position forgery", mitigation: "Causal slot pre-allocation: `slotHashB64` binding + `slotCounter` < counter ordering proves pre-allocation" },
           { threat: "Agency replay across batches", mitigation: "Single-use challenge consumed on first validation; batch context scoped to declared digests" },
-          { threat: "Retroactive forgery after compromise", mitigation: "Per-epoch keypair destroyed on restart + Ethereum block anchors seal pre-anchor proofs against rewrite" },
+          { threat: "Retroactive forgery after compromise", mitigation: "Per-epoch keypair destroyed on restart + anchors hash-link prior history, fixing pre-anchor proofs against rewrite" },
           { threat: "Cross-epoch identity confusion", mitigation: "`epochId` binds every proof to a specific compartment; verifiers pin allowed epochs" },
         ].map((t) => (
           <div key={t.threat} className="flex gap-4 border-l-2 border-l-[#d0d5dd] pl-4 py-1">
@@ -123,22 +123,25 @@ export default function TrustModelPage() {
       <p className="text-[#1f2937] leading-relaxed mb-4">
         Each anchor is itself a BitGraph proof signed by the enclave, so it
         participates in the same counter chain as the user proofs that came
-        before it. When the anchor lands in a finalized Ethereum block, that
-        block&apos;s timestamp and ordering become an external witness to the
-        position the chain had reached. Every proof committed before the
-        anchor is then sealed against retroactive rewrite: any attempt to
-        produce an earlier proof under that key would have to also produce a
-        consistent chain that contradicts a value already written to a public
-        block.
+        before it. Its artifact is the hash of a recent Ethereum block, a
+        value that did not exist before that block was produced, so the
+        anchor and everything chained after it provably follow that block&apos;s
+        public date. Every proof committed before the anchor is fixed against
+        retroactive rewrite: the anchor is hash-linked to the entire chain
+        behind it, so any alternative earlier history breaks the chain that
+        reaches an anchor already stored and observed, and once the epoch&apos;s
+        key is destroyed no alternative can ever be signed.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-4">
         This is the mechanism behind the phrase &quot;everything before me already
-        existed.&quot; An anchor seals backward, not forward. It does not prove
+        existed.&quot; An anchor fixes backward, not forward. It does not prove
         when individual proofs were created, only that they preceded the
-        anchor block. Combined with per-epoch keypairs, anchors give BitGraph a
+        anchor in the chain, while the anchor itself provably followed its
+        block. Combined with per-epoch keypairs, anchors give BitGraph a
         bounded breach window: between one anchor and the next, a compromise
-        could in theory rewrite the live chain, but anything before the most
-        recent anchor is already fixed in the public Ethereum timeline.
+        could in theory rewrite the live chain, but anything behind the most
+        recent stored anchor cannot be rewritten without breaking the chain
+        that reaches it.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-8">
         Anchors are public, but they reveal no user-identifying information.
@@ -164,13 +167,14 @@ export default function TrustModelPage() {
         a public key that no surviving system can sign with.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-4">
-        Ethereum anchors tighten this further. Each epoch&apos;s counter chain is
-        periodically sealed into an Ethereum block by the same TEE. Once an
-        anchor is mined, every proof committed before that anchor is fixed in
-        a public, immutable timeline that the TEE cannot rewrite even if it
-        were later compromised. A breach window is therefore bounded on one
-        side by the epoch boundary and on the other side by the most recent
-        Ethereum anchor that preceded it.
+        Ethereum anchors tighten this further. The same TEE periodically
+        commits the hash of a recent Ethereum block into the epoch&apos;s counter
+        chain. Each anchor is hash-linked to every proof before it, so once an
+        anchor exists, the history behind it is fixed: nothing earlier can be
+        altered without breaking the chain that reaches the anchor, and
+        everything after it provably follows that block&apos;s public date. A
+        breach window is therefore bounded on one side by the epoch boundary
+        and on the other side by the most recent anchor that preceded it.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-6">
         Restarting the TEE is not just operational hygiene — it is a deliberate
@@ -199,8 +203,8 @@ export default function TrustModelPage() {
               <td className="py-2">No surviving artifact can produce a valid signature under a closed epoch</td>
             </tr>
             <tr className="border-b border-[#e5e7eb]">
-              <td className="py-2 pr-4">Ethereum front anchors</td>
-              <td className="py-2">Pre-anchor proofs are sealed against retroactive rewrite</td>
+              <td className="py-2 pr-4">Ethereum anchors</td>
+              <td className="py-2">Pre-anchor proofs are hash-linked into the anchor, fixed against retroactive rewrite</td>
             </tr>
             <tr>
               <td className="py-2 pr-4">Verifier epoch pinning</td>
@@ -212,7 +216,7 @@ export default function TrustModelPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Non-goals</h2>
       <ul className="space-y-2 mb-8 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">Global ordering from the counter alone</strong> - every TEE instance and every new epoch resets the counter to 1, so the counter by itself only orders proofs within a single epoch. Ordering relative to the outside world is established by Ethereum anchors: each anchor lands in a finalized block, and that block&apos;s position fixes where the anchored proofs sit in the public timeline — across epochs, across TEE instances, and against any other event in the world.</li>
+        <li>• <strong className="text-text">Global ordering from the counter alone</strong> - every TEE instance and every new epoch resets the counter to 1, so the counter by itself only orders proofs within a single epoch. Ordering relative to the outside world is established by Ethereum anchors: each anchor records the hash of a recent finalized block, so everything chained after it provably follows that block&apos;s public date — across epochs, across TEE instances, and against any other event that can be placed on the same public timeline.</li>
         <li>• <strong className="text-text">Cross-boundary double-spend</strong> - same artifact can be submitted to separate boundaries</li>
         <li>• <strong className="text-text">Copy prevention</strong> - BitGraph does not prevent raw byte copying</li>
         <li>• <strong className="text-text">Consensus replacement</strong> - BitGraph constrains a single boundary, not distributed parties</li>
