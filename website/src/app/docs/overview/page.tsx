@@ -217,28 +217,22 @@ export default function OverviewPage() {
 
       <p>BitGraph proves causal order. It does not assert a clock time.</p>
 
-      <h2>Ethereum: the backward seal</h2>
+      <h2>Establishing wall clock time</h2>
 
       <p>
-        BitGraph&rsquo;s internal ordering does not require Ethereum. The chain creates internal order through slot allocation, consumption, counters, signatures, and chained proof history. Ethereum anchors add a different property on top: a public backward seal that any third party can independently verify.
+        BitGraph&rsquo;s internal ordering does not require Ethereum. The chain creates internal order through slot allocation, consumption, counters, signatures, and chained proof history. What that order lacks, on its own, is a clock. The enclave keeps no trusted one; any clock reading inside a proof is advisory.
       </p>
 
       <p>
-        An Ethereum block hash that becomes available after the artifact has been committed could not have been known at the moment of commitment. That brackets the commitment:
-      </p>
-
-      <ol>
-        <li>An unpredictable private value before it.</li>
-        <li>The commitment in the middle.</li>
-        <li>An independently observable public value after it.</li>
-      </ol>
-
-      <p>
-        The artifact was committed after the TEE-created slot existed and before the later Ethereum block was knowable. Neither bound depends on the block being a good source of randomness, only on it being a later public reference that did not yet exist, in a timeline anyone can check years afterward.
+        Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is mined, so the anchor, and every proof chained after it, came after that block and its public date. Anchors land every few seconds. This is the wall-clock statement every proof page shows, and it runs in one direction: provably no earlier than. The other side of the window narrows through the chain&rsquo;s cadence, measured enclave behavior rather than public data, which is why it is narrowed, not closed.
       </p>
 
       <p>
-        Ethereum is not asked to establish the artifact&rsquo;s position. BitGraph does that. Ethereum provides the backward seal that makes the commitment publicly verifiable.
+        The anchors also fix history backward, through content. Each anchor is hash-linked to everything before it, so once an anchor exists, the history behind it is fixed: alter any earlier proof and the chain no longer reaches the anchor. When the epoch ends, its signing key is destroyed, and the set closes.
+      </p>
+
+      <p>
+        Ethereum is not asked to be a good source of randomness, and it is not asked to establish the artifact&rsquo;s position. BitGraph establishes the position. Ethereum ties the positions to the public timeline, so anyone, years later, can check the order and the earliest date each position could have existed.
       </p>
 
       <h2>Compromise and containment</h2>
@@ -282,7 +276,7 @@ export default function OverviewPage() {
           <tr><td>Atomic binding</td><td>Prevents post-hoc attachment</td></tr>
           <tr><td>Counters</td><td>Internal logical order</td></tr>
           <tr><td>Proof chain</td><td>Historical continuity</td></tr>
-          <tr><td>Ethereum anchor</td><td>Public backward seal</td></tr>
+          <tr><td>Ethereum anchor</td><td>Public wall-clock bound</td></tr>
           <tr><td>Epoch rotation</td><td>Damage containment</td></tr>
           <tr><td>Portable verification</td><td>Independence from the original server</td></tr>
         </tbody>

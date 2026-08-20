@@ -70,19 +70,15 @@ Every proof has order. Every slot and commit has a position. The system can prov
 
 BitGraph proves causal order. It does not assert a clock time.
 
-## Ethereum: the backward seal
+## Establishing wall clock time
 
-BitGraph's internal ordering does not require Ethereum. The chain creates internal order through slot allocation, consumption, counters, signatures, and chained proof history. Ethereum anchors add a different property on top: a public backward seal that any third party can independently verify.
+BitGraph's internal ordering does not require Ethereum. The chain creates internal order through slot allocation, consumption, counters, signatures, and chained proof history. What that order lacks, on its own, is a clock. The enclave keeps no trusted one; any clock reading inside a proof is advisory.
 
-An Ethereum block hash that becomes available after the artifact has been committed could not have been known at the moment of commitment. That brackets the commitment:
+Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is mined, so the anchor, and every proof chained after it, came after that block and its public date. Anchors land every few seconds. This is the wall-clock statement every proof page shows, and it runs in one direction: provably no earlier than. The other side of the window narrows through the chain's cadence, measured enclave behavior rather than public data, which is why it is narrowed, not closed.
 
-1. An unpredictable private value before it.
-2. The commitment in the middle.
-3. An independently observable public value after it.
+The anchors also fix history backward, through content. Each anchor is hash-linked to everything before it, so once an anchor exists, the history behind it is fixed: alter any earlier proof and the chain no longer reaches the anchor. When the epoch ends, its signing key is destroyed, and the set closes.
 
-The artifact was committed after the TEE-created slot existed and before the later Ethereum block was knowable. Neither bound depends on the block being a good source of randomness, only on it being a later public reference that did not yet exist, in a timeline anyone can check years afterward.
-
-Ethereum is not asked to establish the artifact's position. BitGraph does that. Ethereum provides the backward seal that makes the commitment publicly verifiable.
+Ethereum is not asked to be a good source of randomness, and it is not asked to establish the artifact's position. BitGraph establishes the position. Ethereum ties the positions to the public timeline, so anyone, years later, can check the order and the earliest date each position could have existed.
 
 ## Compromise and containment
 
@@ -107,7 +103,7 @@ BitGraph does not ask for blind trust in any single component. It has real depen
 | Atomic binding | Prevents post-hoc attachment |
 | Counters | Internal logical order |
 | Proof chain | Historical continuity |
-| Ethereum anchor | Public backward seal |
+| Ethereum anchor | Public wall-clock bound |
 | Epoch rotation | Damage containment |
 | Portable verification | Independence from the original server |
 
@@ -146,7 +142,7 @@ BitGraph does not restore originality. It makes it unnecessary. The artifact's h
 
 ## The simplest version
 
-A measured TEE creates a random unused slot before the artifact hash arrives. The hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, sealing everything before it in a public timeline.
+A measured TEE creates a random unused slot before the artifact hash arrives. The hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, fixing the history behind it and giving everything after it a public date it provably followed.
 
 The result is a protocol that does not say "someone signed this."
 

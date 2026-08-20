@@ -5,9 +5,13 @@
  * The anchor proof is a NORMAL BitGraph proof on the SAME monotonic counter chain
  * as user proofs — same counter, same prevB64, same enclave key, same epoch.
  *
- * Because the Ethereum block hash is unpredictable and the anchor occurs
- * later in the same chain, it acts as a FUTURE CAUSAL BOUNDARY — everything
- * before this proof in the chain provably existed before the block was mined.
+ * A block hash does not exist before its block is mined, so this anchor and
+ * every proof chained AFTER it provably came after that block — the chain's
+ * public wall-clock bound, one-directional (no earlier than). What the anchor
+ * does for the proofs BEFORE it is fix their content, not their time: it is
+ * hash-linked to the entire prior chain, so once it exists, earlier history
+ * cannot be altered without breaking the chain that reaches it. Nothing is
+ * written to Ethereum, so no proof gains a public "before this block" bound.
  *
  * Chain: User Proof → User Proof → ETH Anchor → User Proof → ETH Anchor
  *
