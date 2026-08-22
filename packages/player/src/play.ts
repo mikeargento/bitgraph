@@ -60,8 +60,13 @@ export function claimUsesSignatures(claim: Claim): boolean {
  * evaluation. Signature files are a few hundred bytes; the cap only
  * exists so a bundle full of large artifacts never inflates memory.
  * A file above the cap is simply not signature evidence.
+ *
+ * The constant lives in types.ts (dependency-free) so check.ts, which is
+ * also built into the browser verifier, can use it without pulling this
+ * module's node:fs import into that bundle. Re-exported here unchanged.
  */
-export const SIG_EVIDENCE_MAX_BYTES = 1_048_576;
+import { SIG_EVIDENCE_MAX_BYTES } from "./types.js";
+export { SIG_EVIDENCE_MAX_BYTES };
 
 /** The pure tail of the pipeline: no filesystem, no network. */
 export function playAudit(

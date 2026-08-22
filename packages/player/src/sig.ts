@@ -93,7 +93,7 @@ export function parseSigFile(bytes: Uint8Array): SigFile | undefined {
 }
 
 /** Strict base64 decode: the spelling must round-trip byte-exactly. */
-function decodeB64Strict(s: string): Buffer | undefined {
+export function decodeB64Strict(s: string): Buffer | undefined {
   if (!/^[A-Za-z0-9+/]+=*$/.test(s)) return undefined;
   const bytes = Buffer.from(s, "base64");
   return bytes.toString("base64") === s ? bytes : undefined;

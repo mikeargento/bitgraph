@@ -239,3 +239,11 @@ export interface Verdict {
   evaluator: { name: string; version: string };
   network: "none";
 }
+
+/**
+ * Size cap on candidate signature-evidence files (SPEC §9.4): a bundle
+ * artifact larger than this is simply not signature evidence. Declared
+ * here, dependency-free, because both play.ts (which imports node:fs) and
+ * check.ts (which is also built into the browser verifier) need it.
+ */
+export const SIG_EVIDENCE_MAX_BYTES = 1_048_576;

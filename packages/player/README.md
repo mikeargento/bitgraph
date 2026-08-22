@@ -52,6 +52,25 @@ same code. It is not hosted anywhere: the site's own drop box checks a file
 against the public ledger, and a second box that could only say
 "self-consistent" would be two boxes with different meanings.
 
+## Pin a domain
+
+    bitgraph-play pin acme.com
+    bitgraph-play check "BitGraph (invoice-4471.pdf)/" --from acme.com
+
+A domain can publish the keys that record for it: one `bitgraph-domain/1`
+file at `https://<domain>/.well-known/bitgraph` (the format is in
+[DOMAIN.md](./DOMAIN.md)). `pin` fetches it once, shows the party and
+every key's fingerprint, and stores the bytes verbatim on your machine
+after you confirm; it is the only command in this package that touches
+the network, and only when invoked. `check --from` then adds one line per
+recording, offline, from the pin on disk: TRUE when the recording
+verifies and a pinned key stands behind it, as the actor inside the proof
+or as a detached `bitgraph-sig/1` in the bundle; UNDETERMINED otherwise;
+and never FALSE, because domain evidence can exist outside any bundle,
+so its absence contradicts nothing. Pinning again shows what changed
+before you accept it. `pin` alone lists your pins; `pin --forget
+<domain>` removes one.
+
 ## Start a rule
 
     bitgraph-play init po.pdf delivery.jpg approval.pdf --out rule.json
@@ -64,11 +83,12 @@ rule's own security policy and has no default, from the scaffolder or
 anywhere else. Choose the floor, say what each digest means, refine the
 claim, then run it.
 
-`init` is a reserved first word as of 0.2.0. A rule file literally
-named `init` is still reachable: write it as `./init`, or after `--`,
-which ends option parsing (`bitgraph-play -- init bundle/`). When a
-file named `init` exists in the working directory, the bare spelling is
-refused as ambiguous rather than silently picking a mode.
+`init` is a reserved first word as of 0.2.0, `check` as of 0.4.0, and
+`pin` as of 0.6.0. A rule file literally named like one of them is still
+reachable: write it as `./init`, or after `--`, which ends option
+parsing (`bitgraph-play -- init bundle/`). When a file with one of those
+names exists in the working directory, the bare spelling is refused as
+ambiguous rather than silently picking a mode.
 
 ## A rule
 
