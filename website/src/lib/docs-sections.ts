@@ -89,6 +89,13 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/audit", label: "Audit a Bundle" },
       { href: "/docs/folder", label: "BitGraph Folder" },
       { href: "/docs/actor", label: "BitGraph Actor" },
+      // Domain resolves what Actor records: the key a proof carries, to the
+      // domain that published it. It follows Actor because it depends on it,
+      // and it is in TOOLS by the column's own test: pin and check are
+      // finished bitgraph-play verbs, nothing to write. (Named "BitGraph
+      // Domain" by Mike 2026-08-22; "Letterhead" survives only as the
+      // analogy line in the page's cost section.)
+      { href: "/docs/domain", label: "BitGraph Domain" },
       { href: "/docs/automation", label: "Zapier and Make" },
       { href: "/docs/mcp", label: "MCP" },
     ],
