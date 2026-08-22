@@ -18,6 +18,7 @@ import {
 } from "@/lib/webauthn";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { getPreviewFromIDB, putPreviewToIDB } from "@/lib/file-cache";
+import { PINNED_DOMAINS } from "@/lib/pinned-domains";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
 
@@ -1293,12 +1294,13 @@ function useStoredCredential(): StoredCredential | null {
  * re-checks it offline from the proof alone.
  *
  * ⚠️ And it names a KEY, never a person. BitGraph proves the act; who holds
- * the key is resolved by whoever is reading, from a source they choose. The
- * only name this card can honestly print is one this browser can vouch for
- * itself, because it holds that key. Everything else is the key, said plainly,
- * with the resolution left to the reader. When a published register exists it
- * will be one such source, and the card will have to say so rather than
- * quietly presenting its answer as BitGraph's.
+ * the key is resolved by whoever is reading, from a source they choose. Two
+ * resolutions exist here, each saying what it is: this browser vouching for
+ * its own key, and the site's PINNED DOMAINS (lib/pinned-domains.ts): a
+ * domain published the key at /.well-known/bitgraph and this site, as one
+ * reader, pinned that statement. The Domain row names the source; a keyId
+ * in neither reads "Not established here", which is the claim shown rather
+ * than asserted, and never an error.
  */
 function ActorCard({ proof }: { proof: BitGraphProof }) {
   const cred = useStoredCredential();
@@ -1311,6 +1313,8 @@ function ActorCard({ proof }: { proof: BitGraphProof }) {
   const actor = agency?.actor;
   if (!actor?.keyId) return null;
   const mine = cred?.keyId === actor.keyId;
+  // The browser's own key outranks a pin: "you" is the stronger claim.
+  const pinned = mine ? undefined : PINNED_DOMAINS[actor.keyId.toLowerCase()];
 
   return (
     <CollapsibleCard title="Actor">
@@ -1323,9 +1327,24 @@ function ActorCard({ proof }: { proof: BitGraphProof }) {
           established here", which IS the claim, shown instead of asserted. */}
       <Field
         label="Name"
-        value={mine ? (cred as StoredCredential).name : "Not established here"}
+        value={mine ? (cred as StoredCredential).name : pinned !== undefined ? pinned.party : "Not established here"}
         highlight={!!mine}
       />
+      {/* The source of the resolution, named: a domain published this key
+          and the site pinned that file. Absent for unpinned keys, so the
+          row's presence IS the provenance of the Name above it. */}
+      {pinned !== undefined && (
+        <Field
+          label="Domain"
+          value={`https://${pinned.domain}/.well-known/bitgraph`}
+          valueNode={
+            <>
+              {pinned.domain}
+              <span style={{ color: "#6b7280" }}> · pinned by this site</span>
+            </>
+          }
+        />
+      )}
       <Field label="Key" value={actor.keyId} mono />
       <Field
         label="Signed with"
