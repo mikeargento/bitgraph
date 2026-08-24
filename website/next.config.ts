@@ -62,7 +62,6 @@ const nextConfig: NextConfig = {
       // shareable by URL, kept out of search indexes.
       { source: "/deck", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/deck.html", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
-      { source: "/deck.pdf", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
   },
 };
