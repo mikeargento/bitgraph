@@ -39,13 +39,14 @@
     line-height: 1.12;
   }
   h1 .place { color: #0065A4; }
-  /* The site's action-link idiom (.bg-action-link): no underline, the
-     arrow travels on hover, same gap and tracking. */
+  /* The site's arrow-link idiom (.bg-arrow-link): an inline link, the
+     arrow after a normal word space on the text baseline, nudging 3px on
+     hover. The padding and negative bottom margin grow the tap target
+     without moving anything, exactly as globals.css does it. */
   .start {
-    margin-top: 42px;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
+    display: inline-block;
+    margin: 29px 0 -13px;
+    padding: 13px 0;
     font-size: 19px;
     font-weight: 600;
     letter-spacing: -0.01em;
@@ -65,8 +66,8 @@
 </head>
 <body>
   <main>
-    <h1>A BitGraph gives bits <span class="place">a place</span>.</h1>
-    <a class="start" href="https://bitgraph.ing">Start here<span class="arrow" aria-hidden="true">&rarr;</span></a>
+    <h1>A BitGraph gives bits <span class="place">a place</span></h1>
+    <a class="start" href="https://bitgraph.ing">Start here <span class="arrow" aria-hidden="true">&rarr;</span></a>
   </main>
   <footer>Mike Argento &middot; Buffalo, NY &middot; 2026</footer>
 </body>
