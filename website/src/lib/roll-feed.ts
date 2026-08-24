@@ -496,34 +496,69 @@ async function archivedDayPage(
    Two LISTs of the whole epoch cost less than sixty LISTs of part of it. The
    proofs prefix gives every counter and the anchors prefix gives the ones to
    skip; the difference is the file list, in order, and the last key is the
-   head. One pass answers both questions the feed used to ask separately, and
-   the answer is cached, so the paging that follows costs nothing but the GETs
-   for the rows actually shown.
+   head. One pass answers both questions the feed used to ask separately.
 
-   revalidate 15 matches the s-maxage this same function hands the CDN for the
-   live head, so this changes how often the work is done and never how fresh
-   the Roll is allowed to be. */
+   The pass itself is split below into an hourly BASE and a per-request DELTA,
+   so the whole-epoch listing runs about once an hour and every recompute in
+   between reads only the counters written since. The 15s body cache
+   (cachedLiveHead, at the bottom of this file) remains the gate on how often
+   any of this runs at all. */
 
 type EpochIndex = { head: number; files: Array<{ key: string; counter: number; lm?: number }> };
 
-async function listAllCounters(prefix: string): Promise<Array<{ key: string; counter: number; lm?: number }>> {
-  const out: Array<{ key: string; counter: number; lm?: number }> = [];
-  let token: string | undefined;
-  // 60 pages is 60,000 objects: far past a day at the current rate, and a rail
-  // rather than a budget. Running short yields FEWER rows, never wrong ones,
-  // and the head it implies is a floor, so the client reads as behind.
-  for (let page = 0; page < 60; page++) {
-    const r = await s3.send(new ListObjectsV2Command({
-      Bucket: bucket, Prefix: prefix, MaxKeys: 1000, ...(token ? { ContinuationToken: token } : {}),
-    }));
-    for (const o of r.Contents || []) {
-      const n = parseInt(((o.Key || "").split("/").pop() || "").split("-")[0], 10);
-      if (!isNaN(n)) out.push({ key: o.Key!, counter: n, lm: o.LastModified?.getTime() });
+/* Counter keys are zero-padded to a fixed width, so the keyspace partitions
+   exactly: StartAfter pad(n) enumerates from counter n, in order. That makes
+   the epoch listable in PARALLEL, a wave of 1000-counter windows at once,
+   where the serial NextContinuationToken chain paid one round trip per 1000
+   objects. By evening an epoch is ~14 pages deep and the chain ran 2.4-2.6s,
+   which blocked whichever request drew the recompute, cost the roll page its
+   1200ms SSR budget, and left the edge handing out stale bodies for want of a
+   fresh one. A wave is one round trip no matter how deep the epoch is.
+
+   The seams are exact. A window's LIST returns the first 1000 keys above its
+   start, so a full page necessarily reaches the next window's start (1000
+   distinct counters cannot fit short of it), and a short, non-truncated page
+   proves the prefix holds nothing above its start beyond what it returned.
+   Spill past a window's end duplicates the next window's keys; the Map
+   dedupes. The union is therefore exactly the prefix's contents from `from`
+   up, and the tail window's page says whether another wave is needed. */
+const WAVE_WINDOWS = 16;
+// 8 waves is 128,000 counters: a rail, not a budget (a day peaks ~16k).
+// Running short yields FEWER rows, never wrong ones, and the head it implies
+// is a floor, so the client reads as behind.
+const MAX_WAVES = 8;
+
+async function listAllCounters(prefix: string, from = 0): Promise<Array<{ key: string; counter: number; lm?: number }>> {
+  const byCounter = new Map<number, { key: string; counter: number; lm?: number }>();
+  let start = from;
+  for (let wave = 0; wave < MAX_WAVES; wave++) {
+    // A delta read (from > 0) is expected to be small: open with a narrow
+    // wave, and let the loop widen if the tail says there is more.
+    const windows = wave === 0 && from > 0 ? 4 : WAVE_WINDOWS;
+    const starts = Array.from({ length: windows }, (_, i) => start + i * 1000);
+    const pages = await Promise.all(starts.map((s) =>
+      s3.send(new ListObjectsV2Command({
+        Bucket: bucket, Prefix: prefix, StartAfter: `${prefix}${pad(s)}`, MaxKeys: 1000,
+      })),
+    ));
+    let max = start;
+    for (const r of pages) {
+      for (const o of r.Contents || []) {
+        const n = parseInt(((o.Key || "").split("/").pop() || "").split("-")[0], 10);
+        if (!isNaN(n)) {
+          byCounter.set(n, { key: o.Key!, counter: n, lm: o.LastModified?.getTime() });
+          if (n > max) max = n;
+        }
+      }
     }
-    token = r.NextContinuationToken;
-    if (!token) break;
+    const tail = pages[pages.length - 1];
+    if ((tail.Contents?.length ?? 0) < 1000 && !tail.IsTruncated) break;
+    // Everything at or below the highest key seen is covered (full pages reach
+    // the next window; short pages end the loop above), so the next wave
+    // resumes there.
+    start = Math.max(max, start + windows * 1000);
   }
-  return out;
+  return [...byCounter.values()];
 }
 
 async function computeEpochIndex(epoch: string): Promise<EpochIndex> {
@@ -539,17 +574,50 @@ async function computeEpochIndex(epoch: string): Promise<EpochIndex> {
   return { head, files };
 }
 
-const cachedEpochIndex = unstable_cache(
+/* The index is a BASE plus a DELTA, because the epoch's past does not change:
+   everything at or below a head already listed is written history, and only
+   the counters above it are news. The base is the full wave listing, cached
+   for an hour; each request then LISTs only what sits above the base's head,
+   which an hour accumulates ~600 counters of, one narrow wave. So the feed is
+   read LIVE on every recompute (fresher than the 15s index cache this
+   replaces) and the expensive full listing runs about once an hour instead of
+   behind every visit.
+
+   The base must be per-epoch immutable-in-shape: revalidate 3600 keyed by
+   epoch, so the first request after the daily rotation builds it when the
+   epoch is a few keys deep and it costs nothing.
+
+   Classification race at the seam: an anchor's proof can land a moment before
+   its anchors/ index entry, so a delta can misread a brand-new anchor as a
+   file. The GET-level type check in liveFiles drops it (same belt and
+   suspenders the base path has always had), costing a wasted GET, never a
+   wrong row. */
+const cachedEpochBase = unstable_cache(
   (epoch: string) => computeEpochIndex(epoch),
-  ["roll-live-epoch-index-v1"],
-  { revalidate: 15 },
+  ["roll-live-epoch-base-v1"],
+  { revalidate: 3600 },
 );
 
-/** The `limit` highest-counter recordings at or below `top`, from the cached
- *  index. No scan, no window, no budget: a slice and the GETs for the rows that
+async function liveEpochIndex(epoch: string): Promise<EpochIndex> {
+  const base = await cachedEpochBase(epoch);
+  const [dp, da] = await Promise.all([
+    listAllCounters(`proofs/${epoch}/`, base.head),
+    listAllCounters(`anchors/${epoch}/`, base.head),
+  ]);
+  const deltaAnchors = new Set(da.map((a) => a.counter));
+  const head = dp.reduce((m, p) => (p.counter > m ? p.counter : m), base.head);
+  const deltaFiles = dp
+    .filter((p) => !deltaAnchors.has(p.counter))
+    .sort((a, b) => b.counter - a.counter);
+  // Delta counters sit strictly above base.head, so concat is the merge.
+  return { head, files: [...deltaFiles, ...base.files] };
+}
+
+/** The `limit` highest-counter recordings at or below `top`, from the index.
+ *  No scan, no window, no budget: a slice and the GETs for the rows that
  *  will actually be shown. */
-async function liveFiles(epoch: string, top: number, limit: number): Promise<{ entries: Entry[]; floor: number }> {
-  const { files } = await cachedEpochIndex(epoch);
+async function liveFiles(index: EpochIndex, top: number, limit: number): Promise<{ entries: Entry[]; floor: number }> {
+  const { files } = index;
   const slice = files.filter((f) => f.counter <= top).slice(0, limit);
   const objs = await Promise.all(slice.map(async ({ key, lm }) => {
     try {
@@ -708,11 +776,12 @@ async function computeRollFeed(opts: {
   const epoch = await getCurrentEpoch(now);
   if (!epoch) return { status: 404, body: { error: "no epoch" } };
 
-  /* The head comes from the same cached pass as the rows. It used to be its own
+  /* The head comes from the same pass as the rows. It used to be its own
      LIST walk that, once the epoch outgrew 12,000 objects, discarded its answer
      and paid for a binary search on top: 3,261ms to learn one number. The walk
-     is gone; the head is a by-product of listing the epoch once. */
-  const { head } = await cachedEpochIndex(epoch);
+     is gone; the head is a by-product of the base-plus-delta index. */
+  const index = await liveEpochIndex(epoch);
+  const { head } = index;
   let top = head;
   if (beforeParam) {
     const b = parseInt(beforeParam, 10);
@@ -725,7 +794,7 @@ async function computeRollFeed(opts: {
   if (filesOnly) {
     // The cursor is the scan floor, not the last entry: an anchor-only stretch
     // legitimately yields an empty page that still advances.
-    const r = top < 1 ? { entries: [], floor: 1 } : await liveFiles(epoch, top, PAGE);
+    const r = top < 1 ? { entries: [], floor: 1 } : await liveFiles(index, top, PAGE);
     entries = r.entries;
     nextBefore = r.floor > 1 ? r.floor : null;
   } else {
@@ -736,23 +805,22 @@ async function computeRollFeed(opts: {
   return {
     status: 200,
     body: { epoch, head, entries, nextBefore, hasMore: nextBefore != null && nextBefore > 1 },
-    // The long stale-while-revalidate is the point, not s-maxage. Traffic here
-    // is sparse, so a 10s SWR window meant the edge copy had almost always
-    // expired by the next visitor and nearly every Roll open paid a cold
-    // function invocation plus S3 LISTs. With an hour of SWR the edge always
-    // has something to hand back instantly and refreshes behind the request, so
-    // the page paints immediately and is corrected in place.
-    //
-    // Serving a slightly stale head page is safe: a recording the visitor just
-    // made is prepended locally from the bitgraph:recorded event, not read back
-    // from this feed, and the 12s live poll reconciles the rest. s-maxage stays
-    // short so that poll still sees new rows promptly.
+    // The SWR window bounds how stale a paint can be, and two minutes is the
+    // most a live feed should ever be behind. It was an hour, reasoned from
+    // sparse traffic: the edge always had SOMETHING to hand back instantly.
+    // But an hour-old body is wrong in the one way this page is judged: a
+    // visitor who had just recorded opened the Roll, was handed a confidently
+    // empty or behind page, and stayed behind until the head poll's
+    // cache-busted refetch finally drew a fresh body. Now that a recompute is
+    // one LIST wave (~well under a second), a MISS after an idle stretch costs
+    // a beat, not seconds, and it answers with the ledger's actual newest
+    // rows. s-maxage stays short so the 3s head poll sees new rows promptly.
     //
     // Cursor pages are effectively immutable (older counters never change), so
     // they cache hard.
     cacheControl: beforeParam
       ? "public, s-maxage=3600, stale-while-revalidate=86400"
-      : "public, s-maxage=15, stale-while-revalidate=3600",
+      : "public, s-maxage=15, stale-while-revalidate=120",
   };
 }
 
