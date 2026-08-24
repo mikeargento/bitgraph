@@ -90,6 +90,11 @@ export function SiteNav() {
     </Link>
   );
 
+  // /deck is the door: an unlinked pitch page whose whole content is the
+  // sentence, Start here, and a name. It carries no chrome, and the site
+  // never links to it. (After the hooks above, per the rules of hooks.)
+  if (pathname === "/deck") return null;
+
   return (
     // The nav shares the page background on purpose. A white bar was tried on
     // 2026-07-27 and reverted: it gave the page a defined top edge, but it also

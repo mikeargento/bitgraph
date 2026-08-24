@@ -48,20 +48,13 @@ const nextConfig: NextConfig = {
       { source: "/applications", destination: "/uses", permanent: true },
     ];
   },
-  async rewrites() {
-    return [
-      // Mike's studio pitch deck (public/deck.html), hosted UNLINKED on
-      // purpose (2026-08-20): reachable by URL so it can be sent to the
-      // people it is for, never linked from any page on the site.
-      { source: "/deck", destination: "/deck.html" },
-    ];
-  },
   async headers() {
     return [
-      // The deck is a targeted pitch carrying personal contact details:
-      // shareable by URL, kept out of search indexes.
+      // The deck is a targeted pitch page (src/app/deck), hosted UNLINKED
+      // on purpose: reachable by URL so it can be sent to the people it is
+      // for, never linked from any page on the site, kept out of indexes
+      // (belt to the page metadata's own robots suspenders).
       { source: "/deck", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
-      { source: "/deck.html", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
   },
 };
