@@ -82,8 +82,9 @@ export default function OverviewPage() {
       </p>
       <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 24px" }}>
         BitGraph gives your file a position in a public sequence. Nothing else
-        can hold that position, and it cannot be moved later. Your file never
-        leaves your device to get one, and anyone can check it,&nbsp;forever.
+        can hold that position, and the order cannot be rewritten later. Your
+        file never leaves your device to get one, and anyone can check the
+        position,&nbsp;forever.
       </p>
       {/* ⚠️ THE H1 IS THE THESIS, AND IT APPEARS ONCE (Mike, 2026-08-18).
           It spent an hour as a bolded standalone line at the foot of this
