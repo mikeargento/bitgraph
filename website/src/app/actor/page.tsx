@@ -269,15 +269,28 @@ export default function ActorPage() {
           }
           belowClassName="declare-more"
           below={
-            /* ── The one control that acts on the key, under the box, left.
-                Forget is also how you rename (see the note at `forget`). ── */
-            <p className="declare-note">
-              <span className="declare-note-controls">
-                <button type="button" className="declare-inline" onClick={forget}>
-                  Forget this device
-                </button>
-              </span>
-            </p>
+            <>
+              {/* The what-happens pair, exactly home's (Mike, 2026-08-26:
+                  "add this ... to actor page above Forget this device"). The
+                  two pages are one composition, and the pair carries the
+                  same razor as home's copy: line one names what travels (the
+                  hash), line two what the place holds (the bits). Verbatim
+                  from app/page.tsx; change it there, change it here. */}
+              <div style={{ fontSize: 16, color: "#111827", marginBottom: 14 }}>
+                A place opens <em>before</em> your file hash arrives.
+                <br />
+                Your bits fill it instantly and permanently.
+              </div>
+              {/* ── The one control that acts on the key, under the box.
+                  Forget is also how you rename (see the note at `forget`). ── */}
+              <p className="declare-note">
+                <span className="declare-note-controls">
+                  <button type="button" className="declare-inline" onClick={forget}>
+                    Forget this device
+                  </button>
+                </span>
+              </p>
+            </>
           }
         />
       )}
