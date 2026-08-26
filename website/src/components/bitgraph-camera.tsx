@@ -66,7 +66,7 @@ export interface BitGraphCameraProps {
    *  and actor match"). */
   below?: ReactNode;
   belowClassName: string;
-  /** One line inside the frame under "Your file never leaves your device",
+  /** One line inside the frame under "Hashed in your browser, never uploaded",
    *  for a fact about the instrument: /actor's "Acting as …, key …". Home
    *  passes nothing. */
   frameNote?: ReactNode;
@@ -1279,7 +1279,13 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                 // uploaded. See the note in file-drop.tsx before cutting it.
                 headline="Record or check BitGraphs"
                 hint="Choose files, or drag in a whole folder."
-                subhint="Your file never leaves your device."
+                // "Hashed in your browser, never uploaded." (Mike, 2026-08-26,
+                // replacing "Your file never leaves your device"): name the
+                // mechanism, scope the denial to the file. The digest travels
+                // to the ledger; the file never does, so the line stays true
+                // with the network tab open, where "Nothing is uploaded"
+                // would not have.
+                subhint="Hashed in your browser, never uploaded."
                 note={frameNote}
               />
             </div>

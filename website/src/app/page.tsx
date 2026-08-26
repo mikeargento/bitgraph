@@ -65,13 +65,26 @@ export default function BitGraphPage() {
              are still one nav click away under Roll. The site's standard link
              type (14 / 600 / -0.01em, brand blue), on the layout-neutral
              .bg-arrow-link tap target. */
-          <Link
-            href="/docs/overview"
-            className="bg-arrow-link"
-            style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
-          >
-            How BitGraph works <span className="arrow" aria-hidden="true">&rarr;</span>
-          </Link>
+          <>
+            {/* Kept 2026-08-26 ("push"). The load-bearing word is "required"
+                (Mike: "ethereum is the chosen method"): the protocol requires
+                an anchor into a public timeline, Ethereum is the method chosen
+                for it, and the player verifies air-gapped with no chain access
+                (unreachable anchor = UNDETERMINED, never FALSE). The
+                overview's wall-clock section opens on the same point. Body 16
+                on the ladder, regular weight: bold read as a second headline
+                against the frame's ("no bold"). */}
+            <div style={{ fontSize: 16, color: "#111827", marginBottom: 14 }}>
+              No token. No wallet. No blockchain required.
+            </div>
+            <Link
+              href="/docs/overview"
+              className="bg-arrow-link"
+              style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
+            >
+              How BitGraph works <span className="arrow" aria-hidden="true">&rarr;</span>
+            </Link>
+          </>
         }
       />
     </>
