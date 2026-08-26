@@ -57,22 +57,20 @@ export default function OverviewPage() {
           Inline styles here: .overview's own h1/p rules are unlayered and
           would otherwise restyle these (same trap family as .prose-doc, see
           the 2026-08-03 handoff). ── */}
-      <h1 style={{ margin: "0 0 4px" }}>
+      {/* 24 below the h1: the 4px it wore before was paid for by the opener
+          paragraph's own 18px top margin, and the opener is gone. */}
+      <h1 style={{ margin: "0 0 24px" }}>
         A BitGraph gives bits a place.
       </h1>
-      {/* The payoff takes its own line by construction (Mike, 2026-08-26:
-          "i hate how 'where' is orphaned", then "BitGraph answers where. its
-          own line???"). text-wrap alone made it worse: balance broke the
-          couplet mid-sentence ("Signatures answer / who."). So the br is
-          deliberate, and each answer pair is glued with nbsp so no verb ever
-          splits from its object at any width. balance stays for the first
-          line's own wraps on phones. */}
-      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 24px", textWrap: "balance" }}>
-        Who, when, and where are different facts. Signatures
-        answer&nbsp;who. Timestamps answer&nbsp;when.
-        <br />
-        BitGraph answers&nbsp;where.
-      </p>
+      {/* The who/when/where triad lived here for one evening (2026-08-26,
+          built with the Polaroid cut, removed the same night, Mike: "just
+          cut this"). It fought its typography all evening (an orphaned
+          "where", a mid-sentence balance break, a word swap that missed the
+          column by 5px) and the fight outweighed the line. The separation it
+          stated is still made where the prose does the work: claimed-vs-
+          enforced covers who, and the forgery-window and wall-clock sections
+          cover when. The h1 now opens straight onto "BitGraphs are not
+          labels", which was Mike's original instinct for this page. */}
       {/* ⚠️ THE H1 IS THE THESIS, AND IT APPEARS ONCE (Mike, 2026-08-18).
           It spent an hour as a bolded standalone line at the foot of this
           opener, under an h1 reading "Who, when, and where are different
