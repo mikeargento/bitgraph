@@ -60,9 +60,18 @@ export default function OverviewPage() {
       <h1 style={{ margin: "0 0 4px" }}>
         A BitGraph gives bits a place.
       </h1>
-      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 24px" }}>
-        Who, when, and where are different facts. Signatures answer who.
-        Timestamps answer when. BitGraph answers where.
+      {/* The payoff takes its own line by construction (Mike, 2026-08-26:
+          "i hate how 'where' is orphaned", then "BitGraph answers where. its
+          own line???"). text-wrap alone made it worse: balance broke the
+          couplet mid-sentence ("Signatures answer / who."). So the br is
+          deliberate, and each answer pair is glued with nbsp so no verb ever
+          splits from its object at any width. balance stays for the first
+          line's own wraps on phones. */}
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 24px", textWrap: "balance" }}>
+        Who, when, and where are different facts. Signatures
+        answer&nbsp;who. Timestamps answer&nbsp;when.
+        <br />
+        BitGraph answers&nbsp;where.
       </p>
       {/* ⚠️ THE H1 IS THE THESIS, AND IT APPEARS ONCE (Mike, 2026-08-18).
           It spent an hour as a bolded standalone line at the foot of this
