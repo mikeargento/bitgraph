@@ -61,7 +61,7 @@ export default function BitGraphPage() {
              does not exist). "How BitGraph works" (Mike, 2026-08-19 evening;
              it was "What is a BitGraph" from the morning): the title above
              already says what one is, so the link asks the next question, and
-             /docs/overview answers it starting from a Polaroid. Real proofs
+             /docs/overview answers it. Real proofs
              are still one nav click away under Roll. The site's standard link
              type (14 / 600 / -0.01em, brand blue), on the layout-neutral
              .bg-arrow-link tap target. */
@@ -85,11 +85,20 @@ export default function BitGraphPage() {
                 word. An "address, forever" third beat was cut knowingly:
                 permanence is demonstrated on the proof page, not claimed
                 here. Wording is Mike's, verbatim. */}
-            <div style={{ fontSize: 16, color: "#111827", marginBottom: 14, textWrap: "balance" }}>
+            {/* min(16px, 3.35vw): the frame's own fluid-type rule, so the
+                sentence holds ONE LINE at any viewport (Mike, 2026-08-26).
+                Measured: 423px at 16px against a 338px column at vw 375, so
+                one line needs <=12.7px there; 3.35vw crosses back to 16px at
+                ~478px. Reflow the wording and this number moves: remeasure. */}
+            <div style={{ fontSize: "min(16px, 3.35vw)", color: "#111827", marginBottom: 14 }}>
               A place opens <em>before</em> your bits arrive. Your bits fill
               it instantly.
             </div>
-            <div style={{ fontSize: 16, color: "#111827", marginBottom: 14 }}>
+            {/* Same clamp as the line above (Mike, 2026-08-26: "they should
+                be same size then on mobile"): the two lines are one voice and
+                scale together, or the block splits into big and small print.
+                The pair moves together; change one, change both. */}
+            <div style={{ fontSize: "min(16px, 3.35vw)", color: "#111827", marginBottom: 14 }}>
               No token. No wallet. No blockchain required.
             </div>
             <Link
