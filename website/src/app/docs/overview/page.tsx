@@ -33,58 +33,36 @@ export default function OverviewPage() {
           to draw is the slot strip alone (reserved, occupied, next) with no film
           vocabulary anywhere on it. Not six cards.
 
-          The h1 moved twice. "The frame exists first" was the axiom in film
-          terms and died with the diagram; "The position exists first" replaced
-          it for one revision and then had to go too, because an axiom about
-          positions followed immediately by a Polaroid is a non-sequitur. The
-          opener sets the frame now, so the h1 is its thesis.
+          ⚠️ THE POLAROID OPENER CAME AND WENT (built 2026-08-18, cut
+          2026-08-26 on Mike's word). Three paragraphs stood here: the
+          who/when/where Polaroid, "every copy is the same file", and a
+          position-in-a-public-sequence summary. On 08-18 they earned the slot
+          by doing what the rest of the page could not; on 08-26 home grew its
+          own porch (the under-box what-happens line, and "Hashed in your
+          browser, never uploaded" in the frame), so the opener's jobs moved
+          one page upstream and the duplication argument that killed the
+          mechanics opener now killed the Polaroid too. Two organs were kept:
+          the who/when/where separation (the one job nothing else on the page
+          does: signatures answer who, timestamps answer when, nobody else
+          answers where) compressed into the triad below, and "your file never
+          leaves your device", transplanted into the first prose paragraph for
+          readers who arrive without passing home. Do not rebuild the Polaroid
+          or any film vocabulary here; if a picture is ever wanted, draw the
+          slot strip (see above).
 
-          ⚠️ WHY THE OPENER IS A POLAROID AND NOT MECHANICS (Mike, 2026-08-18).
-          This block held a plain five-clause mechanics paragraph for one
-          revision. It was accurate and it was the wrong first thing: the prose
-          Overview immediately below states all of it with room to spare, so the
-          reader met the same content twice, densest version first. The Polaroid
-          earns the slot because it is the only part that the rest of the page
-          cannot do. The one mechanical fact kept here is that the file never
-          leaves the device, which the prose below never states plainly.
+          ⚠️ Do not re-explain "sequence" (Mike, 2026-08-18: "i hate this"): a
+          position in a sequence is ordered by definition. The ordering payoff
+          lives in the Logical time section.
 
-          ⚠️ Do not re-explain "sequence". This read "a position in a public
-          sequence, after everything recorded before it and before everything
-          recorded after" for one revision, and Mike's verdict was "i hate
-          this". It is a tautology: a position in a sequence is ordered by
-          definition, so the clause defined the word back to the reader at twice
-          the length. The ordering payoff worth stating is that any two
-          recordings can be put in order, and the Logical time section below
-          already does that.
-
-          These three paragraphs began life as /place, a standalone explainer
-          built the same evening. It shrank at every revision, from six
-          paragraphs to four to one, which is what an opener does when it is
-          being asked to be a page. ⚠️ If /place still exists, it now duplicates
-          this opener and one of the two should go.
-
-          Inline styles throughout: .overview's own h1/p rules are unlayered and
-          would otherwise restyle these (same trap family as .prose-doc, see the
-          2026-08-03 handoff). ── */}
+          Inline styles here: .overview's own h1/p rules are unlayered and
+          would otherwise restyle these (same trap family as .prose-doc, see
+          the 2026-08-03 handoff). ── */}
       <h1 style={{ margin: "0 0 4px" }}>
         A BitGraph gives bits a place.
       </h1>
-      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 20px" }}>
-        Who, when, and where are different facts. Knowing who took a Polaroid
-        does not tell you where that Polaroid is.
-        Knowing what time it was taken does not tell you where it is either.
-        Holding it in your hand tells you where it is, but nothing about who
-        took it or when.
-      </p>
-      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 20px" }}>
-        The Polaroid is in one place. A digital file is not: you can copy it
-        perfectly, and every copy is the same file.
-      </p>
-      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "0 0 24px" }}>
-        BitGraph gives your file a position in a public sequence. Nothing else
-        can hold that position, and the order cannot be rewritten later. Your
-        file never leaves your device to get one, and anyone can check the
-        position,&nbsp;forever.
+      <p style={{ fontSize: 16, lineHeight: 1.75, color: "#1f2937", margin: "18px 0 24px" }}>
+        Who, when, and where are different facts. Signatures answer who.
+        Timestamps answer when. BitGraph answers where.
       </p>
       {/* ⚠️ THE H1 IS THE THESIS, AND IT APPEARS ONCE (Mike, 2026-08-18).
           It spent an hour as a bolded standalone line at the foot of this
@@ -117,15 +95,12 @@ export default function OverviewPage() {
           anywhere, by any process, using any tools" two sections down.
           "Original" and "originality" survive only in the copies section,
           where they mean uniqueness of an object, a different idea. */}
-      {/* ── The prose Overview, exactly as it was, a beat down the page. An
-          h2 element (one h1 per page) wearing the h1's exact clothes inline,
-          because .overview h2 would otherwise shrink it to 1.25rem. ── */}
-      <h2 className="bg-page-title" style={{ margin: "72px 0 24px" }}>
-        Overview
-      </h2>
-
+      {/* ── The prose Overview follows the triad directly. The "Overview" h2
+          that stood here left with the Polaroid opener (2026-08-26): with no
+          opener above it, a page-width "Overview" title directly under the h1
+          was furniture. ── */}
       <p>
-        BitGraphs are not labels or metadata added after the fact. They are new computations created when your file&rsquo;s hash <em>fills</em> a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state.
+        BitGraphs are not labels or metadata added after the fact. They are new computations created when your file&rsquo;s hash <em>fills</em> a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state. Your file never leaves your device to get one.
       </p>
 
       <p>
