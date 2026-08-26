@@ -73,7 +73,22 @@ export default function BitGraphPage() {
                 (unreachable anchor = UNDETERMINED, never FALSE). The
                 overview's wall-clock section opens on the same point. Body 16
                 on the ladder, regular weight: bold read as a second headline
-                against the frame's ("no bold"). */}
+                against the frame's ("no bold"). "No cost." was considered and
+                rejected (08-26): recording is the licensed side of the deck's
+                money line; free-forever belongs to verification surfaces. */}
+            {/* The what-happens line (Mike, devised 2026-08-26, kept on
+                "push"). The rule for this block: ALL "what", NO "how"; every
+                how lives behind the link below. "Place" is the h1's own noun,
+                so the title's promise and this line close into one loop;
+                "before your bits arrive" is the nonce-first fact in lay
+                speech, and the italic is stress on that one load-bearing
+                word. An "address, forever" third beat was cut knowingly:
+                permanence is demonstrated on the proof page, not claimed
+                here. Wording is Mike's, verbatim. */}
+            <div style={{ fontSize: 16, color: "#111827", marginBottom: 14, textWrap: "balance" }}>
+              A place opens <em>before</em> your bits arrive. Your bits fill
+              it instantly.
+            </div>
             <div style={{ fontSize: 16, color: "#111827", marginBottom: 14 }}>
               No token. No wallet. No blockchain required.
             </div>
