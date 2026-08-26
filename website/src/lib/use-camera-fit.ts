@@ -119,7 +119,19 @@ export function useCameraFit(
       const statusBar = standalone && window.screen?.height
         ? Math.min(80, Math.max(0, Math.round(window.screen.height - window.innerHeight)))
         : 0;
-      const room = Math.round(window.innerHeight - top * 2 - statusBar);
+      /* Phones centre BELOW the nav, not on the viewport (Mike, 2026-08-26:
+         "isnt this sitting high on mobile?"). The top*2 symmetry above is
+         right on desktop, but on a phone the nav is a large slice of a short
+         viewport and its mirror-band at the bottom holds nothing: on a 770px
+         phone viewport the gap under the nav measured ~70 while the void
+         under the link measured ~135, so the composition read high even
+         though its centre sat on the viewport's centre. Centring in
+         [nav bottom, viewport bottom] makes the two VISIBLE gaps equal,
+         which is what the eye actually checks. 768 is the site's mobile
+         line; landscape phones exceed it and keep the desktop symmetry. */
+      const room = window.innerWidth < 768
+        ? Math.round(window.innerHeight - top - statusBar)
+        : Math.round(window.innerHeight - top * 2 - statusBar);
 
       /* Summed from the siblings, NOT from (wrap.height - cam.height). Once
          the wrap has a min-height it stays that tall no matter how small the
