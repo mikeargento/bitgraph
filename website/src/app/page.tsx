@@ -66,41 +66,39 @@ export default function BitGraphPage() {
              type (14 / 600 / -0.01em, brand blue), on the layout-neutral
              .bg-arrow-link tap target. */
           <>
-            {/* Kept 2026-08-26 ("push"). The load-bearing word is "required"
-                (Mike: "ethereum is the chosen method"): the protocol requires
-                an anchor into a public timeline, Ethereum is the method chosen
-                for it, and the player verifies air-gapped with no chain access
-                (unreachable anchor = UNDETERMINED, never FALSE). The
-                overview's wall-clock section opens on the same point. Body 16
-                on the ladder, regular weight: bold read as a second headline
-                against the frame's ("no bold"). "No cost." was considered and
-                rejected (08-26): recording is the licensed side of the deck's
-                money line; free-forever belongs to verification surfaces. */}
-            {/* The what-happens line (Mike, devised 2026-08-26, kept on
-                "push"). The rule for this block: ALL "what", NO "how"; every
-                how lives behind the link below. "Place" is the h1's own noun,
-                so the title's promise and this line close into one loop;
-                "before your bits arrive" is the nonce-first fact in lay
-                speech, and the italic is stress on that one load-bearing
-                word. An "address, forever" third beat was cut knowingly:
-                permanence is demonstrated on the proof page, not claimed
-                here. Wording is Mike's, verbatim. */}
-            {/* min(16px, 3.35vw): the frame's own fluid-type rule, so the
-                sentence holds ONE LINE at any viewport (Mike, 2026-08-26).
-                Measured: 423px at 16px against a 338px column at vw 375, so
-                one line needs <=12.7px there; 3.35vw crosses back to 16px at
-                ~478px. Reflow the wording and this number moves: remeasure. */}
-            <div style={{ fontSize: "min(16px, 3.35vw)", color: "#111827", marginBottom: 14 }}>
-              A place opens <em>before</em> your bits arrive. Your bits fill
-              it instantly.
+            {/* The what-happens pair (Mike's wording, devised 2026-08-26).
+                Block rule: ALL "what", NO "how"; every how lives behind the
+                link below. "Place" is the h1's own noun, so the title's
+                promise and these lines close into one loop; "before your
+                bits arrive" is the nonce-first fact in lay speech; the italic
+                is stress on the one load-bearing word; "permanently" is the
+                forever beat (an "address, forever" sentence was cut, then the
+                adverb brought it back). One sentence per line by construction
+                ("maybe 3 lines"), which is also what lets each line hold 16px
+                on phones with no clamp (a min(16px, 3.35vw) clamp lived here
+                for an afternoon; remeasure if the wording reflows). */}
+            {/* "your file hash arrives", not "your bits arrive" (Mike,
+                2026-08-26 evening): the hash is the thing that travels; the
+                bits never do, and the old wording brushed against the frame's
+                "never uploaded". Line two keeps "bits" on purpose: the hash
+                is what arrives, but in the site's ontology it is your BITS
+                that take the place (the h1's loop), mechanism then meaning. */}
+            <div style={{ fontSize: 16, color: "#111827", marginBottom: 14 }}>
+              A place opens <em>before</em> your file hash arrives.
+              <br />
+              Your bits fill it instantly and permanently.
             </div>
-            {/* Same clamp as the line above (Mike, 2026-08-26: "they should
-                be same size then on mobile"): the two lines are one voice and
-                scale together, or the block splits into big and small print.
-                The pair moves together; change one, change both. */}
-            <div style={{ fontSize: "min(16px, 3.35vw)", color: "#111827", marginBottom: 14 }}>
-              No token. No wallet. No blockchain required.
-            </div>
+            {/* "No token. No wallet. No blockchain required." lived here for
+                one day (2026-08-26, b8a25e99, removed the same evening). It
+                was the block's only line when it shipped and carried the lite
+                message alone; once the pair above existed it answered a
+                question the page no longer raises, and three negations under
+                two calm statements read as a sticker on a spec. What it
+                carried survives elsewhere: "required" because Ethereum is the
+                chosen method (the overview's wall-clock section opens on
+                exactly that), and "No cost." stays rejected (recording is the
+                licensed side of the deck's money line). See memory
+                project_home_no_crypto_line before restoring anything here. */}
             <Link
               href="/docs/overview"
               className="bg-arrow-link"
