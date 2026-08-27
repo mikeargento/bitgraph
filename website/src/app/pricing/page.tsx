@@ -39,6 +39,13 @@ export default function PricingPage() {
             A permanent public record of that exact file&apos;s bits, with its
             own proof page. No account.
           </p>
+          {/* The file-as-key property in one outward line. NOT "unlock":
+              nothing is locked, the record is public on the Roll; the file
+              is the ADDRESS, and possessing the bits is what lets you ask. */}
+          <p>
+            The file is the key: drop the same file again, any time, and its
+            record comes back.
+          </p>
           <p>
             Checking is part of verification, so it is free everywhere and
             stays that way: drop any file to look it up, open any proof page,
