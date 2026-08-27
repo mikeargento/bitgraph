@@ -789,6 +789,13 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   display: grid; grid-template-columns: 1fr 1fr;
   align-items: start; column-gap: 24px; row-gap: 28px;
 }
+/* Below 880 each pair is its own stack (Understand+Build, Tools+Reference),
+   so every heading sits the same 28px under the group above it in its column.
+   The 2x2 grid rows used to hold BUILD down to REFERENCE's row and leave a
+   void under the short UNDERSTAND. At 880 the pairs dissolve into the grid
+   and `order` on the groups restores Understand | Tools | Build | Reference. */
+.docs-panel-pair { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+@media (min-width: 880px) { .docs-panel-pair { display: contents; } }
 /* No strokes, in either direction. Both were tried on 2026-08-09 and both were
    wrong for the same underlying reason: a grid with ragged bottoms has no edge
    for a rule to follow.

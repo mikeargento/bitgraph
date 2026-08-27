@@ -287,15 +287,27 @@ export function SiteNav() {
           }}
         >
           <div style={{ width: "90%", maxWidth: 800, margin: "0 auto" }}>
-            {/* Four cells, tops aligned, bottoms wherever each group ends. See
-                globals.css for why this is a grid and not balanced columns. */}
+            {/* Four cells. At >=880px the pairs dissolve (display: contents)
+                and the grid lays four flat columns, tops aligned, ordered by
+                each group's `order`. Below 880 each pair is its own stack, so
+                a heading always sits the same 28px under the group above it
+                in ITS column: the 2x2 grid rows used to align BUILD with
+                REFERENCE's row and leave a void under the short UNDERSTAND
+                (Mike, 2026-08-27: "shouldnt build be same distance"). */}
             <div className="docs-panel-cols">
-              {DOCS_GROUPS.map((g) => (
-                <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group">
-                  {renderHeading(g.label)}
-                  {g.items.map(renderItem)}
+              <div className="docs-panel-pair">
+                {[DOCS_GROUPS[0], DOCS_GROUPS[2]].map((g, i) => (
+                  <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group" style={{ order: i === 0 ? 1 : 3 }}>
+                    {renderHeading(g.label)}
+                    {g.items.map(renderItem)}
+                  </div>
+                ))}
+              </div>
+              <div className="docs-panel-pair">
+                <div key={DOCS_GROUPS[1].label} role="group" aria-label={DOCS_GROUPS[1].label} className="docs-panel-group" style={{ order: 2 }}>
+                  {renderHeading(DOCS_GROUPS[1].label)}
+                  {DOCS_GROUPS[1].items.map(renderItem)}
                 </div>
-              ))}
               {/* The fourth cell: FAQ and the repo, under REFERENCE.
 
                   They ran as a row beneath the columns first, under a rule and
@@ -313,7 +325,7 @@ export function SiteNav() {
                   It says nothing about the reading sequence, which is the one
                   thing a label here could get wrong, since FAQ closes that
                   sequence and the repo sits outside it. */}
-              <div role="group" aria-label="Reference" className="docs-panel-group">
+              <div role="group" aria-label="Reference" className="docs-panel-group" style={{ order: 4 }}>
                 {renderHeading("Reference")}
                 {DOCS_TAIL.map(renderItem)}
                 {/* The one row of sixteen that leaves the site, and the only one
@@ -343,6 +355,7 @@ export function SiteNav() {
                   <span aria-hidden="true" style={{ fontSize: 10, lineHeight: 1 }}>&#8599;</span>
                   <span className="sr-only">(opens in a new tab)</span>
                 </a>
+              </div>
               </div>
             </div>
           </div>
