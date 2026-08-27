@@ -49,6 +49,7 @@ export const metadata: Metadata = {
 };
 
 import { SiteNav } from "@/components/site-nav";
+import { SiteFooter } from "@/components/site-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -75,10 +76,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body style={{ fontFamily: "acumin-pro, -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif", margin: 0 }}>
+      {/* Sticky footer: the column fills the viewport and main takes the
+          slack, so on a page shorter than the glass the footer bar sits flush
+          at the bottom instead of floating over background. Long pages are
+          unaffected: main is already taller than the slack. */}
+      <body style={{ fontFamily: "acumin-pro, -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif", margin: 0, minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
         <ScrollToTop />
         <SiteNav />
-        <main>{children}</main>
+        <main style={{ flex: "1 0 auto" }}>{children}</main>
+        <SiteFooter />
       </body>
     </html>
   );
