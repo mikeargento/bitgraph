@@ -63,10 +63,16 @@ html {
    a distinct surface, and match its colour to the bar. */
 
 body {
-  background: var(--bg);
-  /* The body paints its own box only, and the canvas behind it is white
-     (html, above) to match the bar; so the body must always reach the bottom
-     of the window or the canvas shows as a white band under a short page
+  /* White, matching html and both bars (2026-08-27). The page grey moved to
+     MAIN: iOS extends and samples the body background into its toolbar and
+     safe-area regions, so with a grey body the strip under the white footer
+     bar painted grey and the bar read as floating mid-air on an iPhone
+     (Mike's screenshot, home). With the grey scoped to main, every edge of
+     the page is white: the canvas above the origin (html), the nav, the
+     footer bar, and whatever the browser paints beyond them. */
+  background: #ffffff;
+  /* The body must still always reach the bottom of the window (flex column,
+     min-height 100dvh in the layout), or a short page ends above the fold
      (seen 2026-08-16 on the home and the cassette load screen). */
   min-height: 100dvh;
   color: var(--c-text);
@@ -864,4 +870,18 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .bg-footer-inner > :nth-child(3) { justify-self: end; }
 @media (max-width: 819px) {
   .bg-footer-inner { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px 20px; }
+}
+
+/* The camera pages' footer, responsive (2026-08-27): phones get the slim
+   one-line bar (fixed 40px, subtracted as a constant by use-camera-fit);
+   from 820 up they get the same full bar as every reading page. 820 because
+   the full bar is one 57px row only above its own stacking breakpoint, and
+   57px is exactly the band the desktop top*2 centring already reserves at
+   the bottom, so the full bar fits without touching the fit math. Between
+   768 and 819 the slim bar rides in that band untouched. */
+.bg-footer-camera-slim { display: flex; align-items: center; justify-content: center; gap: 6px; height: 40px; box-sizing: border-box; background: #ffffff; border-top: 1px solid #e5e7eb; font-size: 12.5px; color: #4b5563; white-space: nowrap; }
+.bg-footer-camera-full { display: none; }
+@media (min-width: 820px) {
+  .bg-footer-camera-slim { display: none; }
+  .bg-footer-camera-full { display: block; }
 }

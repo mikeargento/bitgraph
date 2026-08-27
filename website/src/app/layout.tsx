@@ -83,7 +83,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ fontFamily: "acumin-pro, -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif", margin: 0, minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
         <ScrollToTop />
         <SiteNav />
-        <main style={{ flex: "1 0 auto" }}>{children}</main>
+        {/* Main owns the page grey (2026-08-27); body and both bars are
+            white, so nothing outside the content can ever paint grey. See
+            the body rule in globals.css. */}
+        <main style={{ flex: "1 0 auto", background: "var(--bg)" }}>{children}</main>
         <SiteFooter />
       </body>
     </html>
