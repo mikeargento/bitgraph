@@ -1,9 +1,21 @@
-/* The site footer, on every page. Added 2026-08-27 with the legal pages,
-   which supersedes the 2026-08-06 "no footer" rule: the operating company
-   (Argento Computing Inc.) now exists and the site must name it, carry the
-   trademark and patent lines, and link the legal pages. One row spanning the
+"use client";
+
+import { usePathname } from "next/navigation";
+
+/* The site footer, on every READING page. Added 2026-08-27 with the legal
+   pages, which supersedes the 2026-08-06 "no footer" rule: the operating
+   company (Argento Computing Inc.) now exists and the site must name it,
+   carry the trademark line, and link the legal pages. One row spanning the
    page: entity left, trademark centre, links right; stacks on phones. No
-   contact email here (Mike, 2026-08-27); it lives on the legal pages. */
+   contact email here (Mike, 2026-08-27); it lives on the legal pages.
+
+   NOT on the camera pages (home, /actor), Mike's call the same night: they
+   are the app surface, viewport-fitted around the drop box, and the footer
+   both competed with the shutter and re-broke the iPhone fit (WebKit sized
+   the frame as if the bar were not there). The legal links live on every
+   page where reading happens; the camera keeps its one link out. */
+
+const CAMERA_PAGES = new Set(["/", "/actor"]);
 
 const links: Array<{ href: string; label: string }> = [
   { href: "/terms", label: "Terms" },
@@ -15,9 +27,10 @@ const links: Array<{ href: string; label: string }> = [
 ];
 
 export function SiteFooter() {
-  // Computed at render (build time for static pages, request time for
-  // dynamic ones), never hardcoded.
+  const pathname = usePathname();
+  // Computed at render, never hardcoded.
   const year = new Date().getFullYear();
+  if (CAMERA_PAGES.has(pathname)) return null;
   return (
     <footer
       id="site-footer"

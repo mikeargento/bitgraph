@@ -129,22 +129,14 @@ export function useCameraFit(
          [nav bottom, viewport bottom] makes the two VISIBLE gaps equal,
          which is what the eye actually checks. 768 is the site's mobile
          line; landscape phones exceed it and keep the desktop symmetry. */
-      /* The footer bar (2026-08-27) sits flush at the viewport bottom on
-         every page, and a viewport-fitted page must fit WITH it on the glass:
-         subtract its full box (height plus margin), measured rather than a
-         constant, since the bar is one row on desktop and a stack on phones.
-
-         One formula for both widths now. The desktop top*2 mirror band is
-         retired: it centred the composition on the viewport by reserving a
-         nav-height of nothing at the bottom, which was invisible when the
-         page just ended in background, but a white bar floating on that band
-         reads as a bar that failed to reach the bottom. With two visible
-         bars the eye checks the gaps between the composition and each bar,
-         so centring in [nav bottom, footer top] is the mobile argument
-         (2026-08-26) applied everywhere. */
-      const footerEl = document.querySelector<HTMLElement>("#site-footer");
-      const footer = footerEl ? box(footerEl) : 0;
-      const room = Math.round(window.innerHeight - top - statusBar - footer);
+      /* No footer on the camera pages (Mike, 2026-08-27): the bar briefly
+         lived here too, with its height subtracted from the room, and WebKit
+         sized the frame over the text on iPhone. The site footer skips these
+         pages instead, so the formulas below are exactly the ones verified
+         on 2026-08-26. */
+      const room = window.innerWidth < 768
+        ? Math.round(window.innerHeight - top - statusBar)
+        : Math.round(window.innerHeight - top * 2 - statusBar);
 
       /* Summed from the siblings, NOT from (wrap.height - cam.height). Once
          the wrap has a min-height it stays that tall no matter how small the
@@ -195,10 +187,6 @@ export function useCameraFit(
     const more = wrap.querySelector(moreSelector);
     if (title) ro.observe(title);
     if (more) ro.observe(more);
-    // The footer wraps at the 820 breakpoint and when its text reflows; its
-    // height does not depend on the frame's size, so observing it cannot loop.
-    const foot = document.querySelector("#site-footer");
-    if (foot) ro.observe(foot);
     document.fonts?.ready.then(fit).catch(() => {});
 
     /* Launched from a Home Screen bookmark there is no browser chrome, and
