@@ -898,7 +898,9 @@ async function computeRollFeed(opts: {
 
      sealed day    a day/counter range that cannot change. Matches s-maxage=86400.
      live cursor   older counters never change. Matches s-maxage=3600.
-     live head     the only one that must stay current. Matches s-maxage=15.
+
+   The live HEAD is the exception, computed on every request; see the note
+   above rollFeed.
 
    Why it matters more than the CDN already caching: the edge cache is per-URL
    per-region and this site's traffic is sparse, so cold edges are the common
@@ -963,21 +965,20 @@ const cachedLiveCursor = unstable_cache(
   { revalidate: 3600 },
 );
 
-const cachedLiveHead = unstable_cache(
-  (filesOnly: boolean) => computeOrThrow({ filesOnly }),
-  ["roll-feed-live-head-v1"],
-  { revalidate: 15 },
-);
-
-/* 15s fresh / 120s serve-stale-and-refresh: the exact Cache-Control this body
-   hands the CDN (s-maxage=15, stale-while-revalidate=120), applied where the
-   sparse-traffic edge cannot: in the instance that just computed it. */
-const memoLiveHead = swrMemoize(
-  15_000,
-  120_000,
-  (filesOnly: boolean) => cachedLiveHead(filesOnly),
-  (filesOnly) => String(filesOnly),
-);
+/* The live HEAD is deliberately NOT cached here, in either layer. It was
+   (revalidate 15, then briefly behind an in-process stale-serve memo on
+   2026-08-27), and both versions failed the page's one requirement the same
+   way: a person who has just recorded is watching this exact body, and any
+   cache in front of it hands them the ledger without their recording on top.
+   The in-process memo was worst: its behind-the-response refresh freezes with
+   the lambda, so a polling client can be served the same stale body until the
+   window expires. What made the head cacheable-looking was cost, and the cost
+   argument is gone: with the epoch base memoized and the delta one narrow
+   wave, a head compute is a few parallel S3 calls, cheap enough to pay on
+   every poll. The CDN's s-maxage=15 still absorbs un-busted public traffic;
+   the client's cache-busted poll reaches the ledger's actual top. Cursor
+   pages and sealed days keep their Data Cache wrappers: they are immutable,
+   which is exactly what the head is not. */
 
 /** One page of the Roll. `day` selects a sealed UTC day; omit it for the live
  *  feed. Paging takes one of two cursors and never both: `page` for an archived
@@ -998,7 +999,7 @@ export async function rollFeed(opts: {
       return await run(opts.day, opts.before ?? null, opts.bepoch ?? null, opts.page ?? null, filesOnly);
     }
     if (opts.before) return await cachedLiveCursor(opts.before, filesOnly);
-    return await memoLiveHead(filesOnly);
+    return await computeRollFeed({ filesOnly });
   } catch (e) {
     const message = (e as Error)?.message ?? "";
     if (message.startsWith(STATUS_PREFIX)) {
