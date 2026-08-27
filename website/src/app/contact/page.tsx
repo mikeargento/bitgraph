@@ -86,11 +86,11 @@ export default function ContactPage() {
       {/* The Enterprise tier on the pricing page links here, so the page says
           what it is for before asking for anything (2026-08-27). Facts and
           one instruction, no pitch. */}
-      {/* Mike's wording verbatim (2026-08-27). */}
+      {/* Mike's wording verbatim (2026-08-27); the what-you-record second
+          sentence was cut the same day. */}
       <p style={{ fontSize: 16, lineHeight: 1.6, color: "#1f2937", margin: "0 0 8px" }}>
         Ask for a live demo, enterprise consultation, or licensing
-        conversation. Tell us what you record and roughly how much.
-        That&rsquo;s enough to get started.
+        conversation.
       </p>
       <div style={{ height: 20 }} />
       {status === "sent" ? (
