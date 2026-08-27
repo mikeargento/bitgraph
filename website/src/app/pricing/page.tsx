@@ -34,8 +34,10 @@ export default function PricingPage() {
         <section style={tierRule}>
           <h2 style={{ marginTop: 0 }}>Free</h2>
           <p>
-            Drop a file and it gets a BitGraph: a permanent public record of
-            that exact file, with its own proof page. No account.
+            Drop a file and it gets a BitGraph.
+            <br />
+            A permanent public record of that exact file, with its own proof
+            page. No account.
           </p>
           <p>
             Checking is part of verification, so it is free everywhere and
