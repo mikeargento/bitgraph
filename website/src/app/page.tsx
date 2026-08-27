@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BitGraphCamera } from "@/components/bitgraph-camera";
+import { BitGraphCamera, WhatHappensPair } from "@/components/bitgraph-camera";
 import { anonymous } from "@/lib/commit-strategy";
 
 /**
@@ -54,6 +54,9 @@ export default function BitGraphPage() {
            stays a quiet link to the overview (colour inherit, hover only),
            the one path there from this page besides Docs. */
         title={<a href="/docs/overview">A BitGraph gives bits a place</a>}
+        /* The what-happens pair, inside the frame since 2026-08-27; shared
+           with /actor. Wording rules live on the component. */
+        frameNote={<WhatHappensPair />}
         belowClassName="hero-more"
         below={
           /* Home's ONE discoverable exit (the h1 is a link too, but it is
@@ -66,31 +69,9 @@ export default function BitGraphPage() {
              type (14 / 600 / -0.01em, brand blue), on the layout-neutral
              .bg-arrow-link tap target. */
           <>
-            {/* The what-happens pair (Mike's wording, devised 2026-08-26).
-                Block rule: ALL "what", NO "how"; every how lives behind the
-                link below. "Place" is the h1's own noun, so the title's
-                promise and these lines close into one loop; "before your
-                bits arrive" is the nonce-first fact in lay speech; the italic
-                is stress on the one load-bearing word; "permanently" is the
-                forever beat (an "address, forever" sentence was cut, then the
-                adverb brought it back). One sentence per line by construction
-                ("maybe 3 lines"), which is also what lets each line hold 16px
-                on phones with no clamp (a min(16px, 3.35vw) clamp lived here
-                for an afternoon; remeasure if the wording reflows).
-                "instantly, permanently." with a comma (2026-08-27): with
-                "and" the line needed 15.99px to fit at 375 and wrapped
-                "permanently." onto its own line. */}
-            {/* "your file hash arrives", not "your bits arrive" (Mike,
-                2026-08-26 evening): the hash is the thing that travels; the
-                bits never do, and the old wording brushed against the frame's
-                "never uploaded". Line two keeps "bits" on purpose: the hash
-                is what arrives, but in the site's ontology it is your BITS
-                that take the place (the h1's loop), mechanism then meaning. */}
-            <div style={{ fontSize: 16, color: "#111827", marginBottom: 14 }}>
-              A place opens <em>before</em> your file hash arrives.
-              <br />
-              Your bits fill the place instantly, permanently.
-            </div>
+            {/* The what-happens pair lived HERE from 2026-08-26 until
+                2026-08-27, when it moved inside the frame (frameNote above).
+                Its wording history and rules are with it. */}
             {/* "No token. No wallet. No blockchain required." lived here for
                 one day (2026-08-26, b8a25e99, removed the same evening). It
                 was the block's only line when it shipped and carried the lite

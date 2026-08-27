@@ -465,11 +465,32 @@ export function FileDrop({
               The gap is applied only when there is something to separate, so
               a caller passing neither line cannot leave a phantom margin
               behind and push the block off center. */}
-          <div style={{ marginTop: hint || subhint ? "var(--fd-copy-gap, 12px)" : 0 }}>
+          <div style={{ marginTop: hint || subhint || note ? "var(--fd-copy-gap, 12px)" : 0 }}>
+            {/* The note leads (2026-08-27 reversal, Mike: "making the
+                smaller choose files...text at the bottom"): the claim sits
+                under the headline, the operating instructions close the
+                stack. The wrapper's voice is the subhint's; a note that
+                wants its own (the what-happens pair) carries its own
+                styles and wins. */}
+            {note && (
+              <div
+                className="text-center"
+                style={{
+                  color: "var(--fd-subhint, #4b5563)",
+                  fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
+                  lineHeight: 1.5,
+                  textWrap: "balance",
+                }}
+              >
+                {note}
+              </div>
+            )}
             {hint && (
               <div
                 className="text-center"
                 style={{
+                  // Separated from the note above it when one is present.
+                  marginTop: note ? 16 : 0,
                   // Color and size are overridable per-instance (the home box grays
                   // both lines and matches them to the explainer's size). Defaults
                   // unchanged for the maker/proof FileDrops.
@@ -495,19 +516,6 @@ export function FileDrop({
                 }}
               >
                 {subhint}
-              </div>
-            )}
-            {note && (
-              <div
-                className="mt-1.5 text-center"
-                style={{
-                  color: "var(--fd-subhint, #4b5563)",
-                  fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
-                  lineHeight: 1.5,
-                  textWrap: "balance",
-                }}
-              >
-                {note}
               </div>
             )}
             {refusalNote}

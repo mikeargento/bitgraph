@@ -83,7 +83,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { BitGraphCamera, clearCameraCache } from "@/components/bitgraph-camera";
+import { BitGraphCamera, WhatHappensPair, clearCameraCache } from "@/components/bitgraph-camera";
 import { makeActorStrategy } from "@/lib/actor-strategy";
 import {
   clearStoredCredential,
@@ -258,29 +258,27 @@ export default function ActorPage() {
           strategy={strategy}
           title="BitGraph Actor"
           actorName={actorName}
-          /* Whose key this is, inside the frame as its third line: a STATUS
-             of the instrument, so it sits on the instrument, right under the
-             line that says the file never leaves the device. */
+          /* Inside the frame, under the headline (2026-08-27 reversal: the
+             claim above, the operating instructions at the bottom): the
+             shared what-happens pair, then whose key this is, a STATUS of
+             the instrument in the quiet voice, so the two camera pages stay
+             one composition. */
           frameNote={
-            <span className="declare-who">
-              Acting as <strong>{cred.name}</strong>, key{" "}
-              <span className="declare-key">{cred.keyId.slice(0, 12)}&hellip;</span>
-            </span>
+            <>
+              <WhatHappensPair />
+              <div style={{ marginTop: 10 }}>
+                <span className="declare-who">
+                  Acting as <strong>{cred.name}</strong>, key{" "}
+                  <span className="declare-key">{cred.keyId.slice(0, 12)}&hellip;</span>
+                </span>
+              </div>
+            </>
           }
           belowClassName="declare-more"
           below={
             <>
-              {/* The what-happens pair, exactly home's (Mike, 2026-08-26:
-                  "add this ... to actor page above Forget this device"). The
-                  two pages are one composition, and the pair carries the
-                  same razor as home's copy: line one names what travels (the
-                  hash), line two what the place holds (the bits). Verbatim
-                  from app/page.tsx; change it there, change it here. */}
-              <div style={{ fontSize: 16, color: "#111827", marginBottom: 14 }}>
-                A place opens <em>before</em> your file hash arrives.
-                <br />
-                Your bits fill the place instantly, permanently.
-              </div>
+              {/* The what-happens pair moved INSIDE the frame 2026-08-27
+                  (shared WhatHappensPair, via frameNote above). */}
               {/* ── The one control that acts on the key, under the box.
                   Forget is also how you rename (see the note at `forget`). ── */}
               <p className="declare-note">
