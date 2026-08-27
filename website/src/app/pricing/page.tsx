@@ -36,8 +36,8 @@ export default function PricingPage() {
           <p>
             Drop a file and it gets a BitGraph.
             <br />
-            A permanent public record of that exact file, with its own proof
-            page. No account.
+            A permanent public record of that exact file&apos;s bits, with its
+            own proof page. No account.
           </p>
           <p>
             Checking is part of verification, so it is free everywhere and
