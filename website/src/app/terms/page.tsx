@@ -68,13 +68,11 @@ export default function TermsPage() {
           <li>evade rate limits. Rate limits may apply and may change.</li>
         </ul>
 
-        <h2>6. Fees and billing</h2>
+        <h2>6. Fees</h2>
         <p>
-          Paid plans are a monthly subscription plus metered usage, billed
-          through Stripe. Current prices are published on this site.
-          Verification is free to everyone. We may change prices with 30 days
-          notice; the new prices apply from your next billing period after the
-          notice.
+          Recording on this site and verification are free. Commercial and
+          enterprise use is licensed by agreement, and that agreement sets
+          the fees, the billing, and any refund terms.
         </p>
 
         <h2>7. Your data</h2>

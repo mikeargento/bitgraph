@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         <h2>1. What we collect</h2>
         <ul>
           <li>Your account email address.</li>
-          <li>Billing details, handled by Stripe. We do not store card numbers.</li>
+          <li>Billing details, when a paid agreement exists, handled by our payment processor. We do not store card numbers.</li>
           <li>API key usage logs: timestamps, request counts, and IP addresses, kept for abuse prevention.</li>
           <li>File fingerprints (SHA-256 digests) and proof metadata: positions, signatures, and anchors.</li>
         </ul>
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
 
         <h2>4. Third parties</h2>
         <ul>
-          <li>Stripe, for billing.</li>
+          <li>Stripe, for billing under paid agreements.</li>
           <li>Amazon Web Services, for infrastructure, in a US region.</li>
           <li>Vercel, for hosting this site.</li>
           <li>Google Workspace, for email.</li>

@@ -9,7 +9,7 @@ const BASE = "https://bitgraph.ing";
    /proof pages are unbounded and reachable from the Roll, so they are not
    enumerated here. */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const staticRoutes = ["", "/roll", "/rolls", "/actor", "/integrations", "/api-reference", "/mcp", "/terms", "/privacy", "/refunds", "/contact"];
+  const staticRoutes = ["", "/roll", "/rolls", "/actor", "/integrations", "/api-reference", "/mcp", "/terms", "/privacy", "/contact", "/pricing"];
   const docs = DOCS_SECTIONS.map((s) => s.href);
   return [...staticRoutes, ...docs].map((path) => ({
     url: `${BASE}${path}`,

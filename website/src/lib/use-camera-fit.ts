@@ -129,13 +129,21 @@ export function useCameraFit(
          [nav bottom, viewport bottom] makes the two VISIBLE gaps equal,
          which is what the eye actually checks. 768 is the site's mobile
          line; landscape phones exceed it and keep the desktop symmetry. */
-      /* No footer on the camera pages (Mike, 2026-08-27): the bar briefly
-         lived here too, with its height subtracted from the room, and WebKit
-         sized the frame over the text on iPhone. The site footer skips these
-         pages instead, so the formulas below are exactly the ones verified
-         on 2026-08-26. */
+      /* The camera pages carry a one-line 40px colophon bar (site-footer.tsx,
+         CAMERA_BAR_PX, same number by contract). A CONSTANT, deliberately:
+         the full footer bar briefly lived here with its height MEASURED, and
+         WebKit sized the frame over the text on iPhone; a fixed-height bar
+         that cannot wrap needs no measurement and no observer, which removes
+         that class of bug rather than patching it.
+
+         Phones subtract it: the composition centres in [nav bottom, bar top]
+         and the page still fits the glass. Desktop does NOT: the top*2
+         mirror band already reserves a nav height (56px) of nothing at the
+         bottom, and the 40px bar sits inside that band without touching the
+         wrap. */
+      const CAMERA_BAR_PX = 40;
       const room = window.innerWidth < 768
-        ? Math.round(window.innerHeight - top - statusBar)
+        ? Math.round(window.innerHeight - top - statusBar - CAMERA_BAR_PX)
         : Math.round(window.innerHeight - top * 2 - statusBar);
 
       /* Summed from the siblings, NOT from (wrap.height - cam.height). Once
