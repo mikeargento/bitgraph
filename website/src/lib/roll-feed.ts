@@ -598,8 +598,68 @@ const cachedEpochBase = unstable_cache(
   { revalidate: 3600 },
 );
 
+/* ── In-process stale-while-revalidate, in front of the Data Cache ──────────
+   On Vercel every unstable_cache access is a network round trip to the Data
+   Cache service, and the live-head path strings several together: measured
+   1.5-1.8s on a WARM function whose other routes answer in 130ms, against
+   0.68s for the same recompute with the cache on local disk. The hops are the
+   cost, not the S3 work.
+
+   So each hot wrapper gets a per-instance memo with the same bounds the CDN
+   already has for the same answer: serve from memory while fresh; past fresh
+   but within the SWR window, serve the stale value and refresh behind it;
+   past the window, block and compute as before. The safety argument is the
+   one written above the body caches, extended one layer in: nothing served
+   from here is ever staler than what the edge was already allowed to hand
+   back for the same URL. Instances die and take their memos with them; the
+   Data Cache behind this stays the layer that outlives them.
+
+   A background refresh may be frozen with its lambda and finish on a later
+   invocation, or never. Both are safe: the memo just ages out of its window
+   and the next request takes the blocking path, which is exactly today's
+   behavior. */
+type SwrMemo<T> = { value: T; at: number; refreshing?: boolean };
+function swrMemoize<A extends unknown[], T>(
+  freshMs: number,
+  staleMs: number,
+  fn: (...args: A) => Promise<T>,
+  keyOf: (...args: A) => string,
+): (...args: A) => Promise<T> {
+  const memos = new Map<string, SwrMemo<T>>();
+  return async (...args: A): Promise<T> => {
+    const key = keyOf(...args);
+    const m = memos.get(key);
+    const now = Date.now();
+    if (m && now - m.at < freshMs) return m.value;
+    if (m && now - m.at < staleMs) {
+      if (!m.refreshing) {
+        m.refreshing = true;
+        fn(...args)
+          .then((value) => memos.set(key, { value, at: Date.now() }))
+          .catch(() => { m.refreshing = false; });
+      }
+      return m.value;
+    }
+    const value = await fn(...args);
+    memos.set(key, { value, at: now });
+    return value;
+  };
+}
+
+/* Base staleness only grows the delta (any past head of the same epoch yields
+   a complete delta), so serving a stale base while an hourly rebuild runs
+   behind the request is correct by the same argument that makes the base
+   cacheable at all. Keyed by epoch: rotation is a new key, never a stale
+   crossover. */
+const memoEpochBase = swrMemoize(
+  3_600_000,
+  7_200_000,
+  (epoch: string) => cachedEpochBase(epoch),
+  (epoch) => epoch,
+);
+
 async function liveEpochIndex(epoch: string): Promise<EpochIndex> {
-  const base = await cachedEpochBase(epoch);
+  const base = await memoEpochBase(epoch);
   const [dp, da] = await Promise.all([
     listAllCounters(`proofs/${epoch}/`, base.head),
     listAllCounters(`anchors/${epoch}/`, base.head),
@@ -909,6 +969,16 @@ const cachedLiveHead = unstable_cache(
   { revalidate: 15 },
 );
 
+/* 15s fresh / 120s serve-stale-and-refresh: the exact Cache-Control this body
+   hands the CDN (s-maxage=15, stale-while-revalidate=120), applied where the
+   sparse-traffic edge cannot: in the instance that just computed it. */
+const memoLiveHead = swrMemoize(
+  15_000,
+  120_000,
+  (filesOnly: boolean) => cachedLiveHead(filesOnly),
+  (filesOnly) => String(filesOnly),
+);
+
 /** One page of the Roll. `day` selects a sealed UTC day; omit it for the live
  *  feed. Paging takes one of two cursors and never both: `page` for an archived
  *  day, `before`/`bepoch` for everything else (counters repeat across epochs, so
@@ -928,7 +998,7 @@ export async function rollFeed(opts: {
       return await run(opts.day, opts.before ?? null, opts.bepoch ?? null, opts.page ?? null, filesOnly);
     }
     if (opts.before) return await cachedLiveCursor(opts.before, filesOnly);
-    return await cachedLiveHead(filesOnly);
+    return await memoLiveHead(filesOnly);
   } catch (e) {
     const message = (e as Error)?.message ?? "";
     if (message.startsWith(STATUS_PREFIX)) {
