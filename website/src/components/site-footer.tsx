@@ -20,7 +20,9 @@ const CAMERA_PAGES = new Set(["/", "/actor"]);
 const links: Array<{ href: string; label: string }> = [
   // Refunds lived here for a day (2026-08-27) and left with the subscription
   // tier: pricing is Free plus Enterprise-by-agreement, and an agreement
-  // carries its own refund terms.
+  // carries its own refund terms. Pricing leads: commercial before legal.
+  // NOT in the Docs menu, which is the documentation's own contents.
+  { href: "/pricing", label: "Pricing" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
   // The Resend form from June, restored 2026-08-27 in place of a footer
