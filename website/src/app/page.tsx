@@ -76,7 +76,10 @@ export default function BitGraphPage() {
                 adverb brought it back). One sentence per line by construction
                 ("maybe 3 lines"), which is also what lets each line hold 16px
                 on phones with no clamp (a min(16px, 3.35vw) clamp lived here
-                for an afternoon; remeasure if the wording reflows). */}
+                for an afternoon; remeasure if the wording reflows).
+                "instantly, permanently." with a comma (2026-08-27): with
+                "and" the line needed 15.99px to fit at 375 and wrapped
+                "permanently." onto its own line. */}
             {/* "your file hash arrives", not "your bits arrive" (Mike,
                 2026-08-26 evening): the hash is the thing that travels; the
                 bits never do, and the old wording brushed against the frame's
@@ -86,7 +89,7 @@ export default function BitGraphPage() {
             <div style={{ fontSize: 16, color: "#111827", marginBottom: 14 }}>
               A place opens <em>before</em> your file hash arrives.
               <br />
-              Your bits fill it instantly and permanently.
+              Your bits fill the place instantly, permanently.
             </div>
             {/* "No token. No wallet. No blockchain required." lived here for
                 one day (2026-08-26, b8a25e99, removed the same evening). It

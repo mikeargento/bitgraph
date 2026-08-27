@@ -279,7 +279,7 @@ export default function ActorPage() {
               <div style={{ fontSize: 16, color: "#111827", marginBottom: 14 }}>
                 A place opens <em>before</em> your file hash arrives.
                 <br />
-                Your bits fill it instantly and permanently.
+                Your bits fill the place instantly, permanently.
               </div>
               {/* ── The one control that acts on the key, under the box.
                   Forget is also how you rename (see the note at `forget`). ── */}
