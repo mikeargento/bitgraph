@@ -23,7 +23,12 @@ function isValidEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 254;
 }
 
-const RECIPIENT = "mike@bitgraph.ing";
+/* ⚠️ Delivery reality (2026-08-28): the sandbox sender below only delivers
+   to the Resend ACCOUNT OWNER's address. Pointing this at mike@bitgraph.ing
+   (tried 08-27) silently broke the form. It goes back to bitgraph.ing mail
+   only after the domain is verified in Resend (DNS is on Vercel, records
+   can be added by API); until then the gmail is the address that works. */
+const RECIPIENT = "mikeargento@gmail.com";
 // Resend's sandbox sender — works without verifying a domain.
 // To use hello@bitgraph.ing instead, verify bitgraph.ing in the Resend dashboard.
 const SENDER = "BitGraph Contact <onboarding@resend.dev>";
