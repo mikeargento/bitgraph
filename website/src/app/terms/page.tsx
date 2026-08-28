@@ -29,33 +29,47 @@ export default function TermsPage() {
         <h2>2. What the service does</h2>
         <p>
           A sealed environment mints a single-use position, then binds your
-          file&apos;s SHA-256 fingerprint to it in one indivisible step. Positions
-          form a forward-only chain that is periodically anchored to a public
-          blockchain timeline. You receive a portable proof bundle (your file,
-          the proof, and the anchors) that anyone can verify offline with
-          open-source tooling, with no account and nothing to look up.
+          file&apos;s SHA-256 fingerprint to it in one indivisible step.
+          Positions form a forward-only chain, and anchors periodically tie
+          that chain to a public timeline by recording the hash of a recent
+          Ethereum block. Nothing is written to any blockchain, and the
+          ordering does not depend on one.
         </p>
         <p>
-          Only fingerprints are recorded. Your files never leave your machine.
-          BitGraph cannot see, store, or reconstruct file contents.
+          Only fingerprints are recorded. Files are fingerprinted on your
+          machine, and file contents are never transmitted to BitGraph, so
+          BitGraph cannot see, store, or reconstruct them. Your browser or
+          local tooling can assemble a portable verification bundle (your
+          local copy of the file, its proof, and the anchors) that anyone
+          can verify offline with open-source tooling, with no account and
+          nothing to look up.
         </p>
 
         <h2>3. What the service does not do</h2>
         <p>
-          BitGraph records the position of exact bytes in time. It does not
-          verify, endorse, or make any claim about the truth, accuracy,
-          legality, originality, or authorship of any file. A proof shows when
-          bytes were recorded, not what they mean. If a file is misleading,
-          wrong, or fabricated, a BitGraph proof does not make it otherwise,
-          and you must not present a proof as if it does.
+          BitGraph records the position exact bytes took in a BitGraph
+          sequence and relates that position to the public timeline evidence
+          in its anchors. A proof establishes that position, with the timing
+          bounds its anchors support, and nothing more. It does not verify,
+          endorse, or make any claim about the truth, accuracy, legality,
+          originality, authorship, or identity behind any file. It does not
+          establish when a file was first created or that it did not exist
+          somewhere else earlier, and it does not show that an event outside
+          the service (a signing, a delivery, a photograph being taken)
+          happened as represented, unless another system independently
+          establishes that. If a file is misleading, wrong, or fabricated, a
+          BitGraph proof does not make it otherwise, and you must not
+          present a proof as if it does.
         </p>
 
         <h2>4. Accounts and API keys</h2>
         <p>
-          An API key belongs to one person or one entity. Keep your key secret.
-          Anything recorded with your key is your responsibility, whether you
-          did it or someone you gave the key to did. Tell us promptly if you
-          believe a key has been exposed and we will rotate it.
+          An API key belongs to one person or one entity. Keep your key
+          secret. You are responsible for activity you authorize through
+          your key, but not for use of your key that results from a security
+          failure on our side. Tell us promptly if you believe a key has
+          been exposed. We may rotate or revoke a key at any time to protect
+          the service.
         </p>
 
         <h2>5. Acceptable use</h2>
@@ -70,27 +84,35 @@ export default function TermsPage() {
 
         <h2>6. Fees</h2>
         <p>
-          Recording on this site and verification are free. Commercial and
-          enterprise use is licensed by agreement, and that agreement sets
-          the fees, the billing, and any refund terms.
+          Recording through this site, evaluation, ordinary individual use,
+          and verification of proofs are free. Recording inside your own
+          product, service, or internal systems is licensed by separate
+          agreement. That includes production API use, bulk or systematic
+          integration, embedding BitGraph in another offering, enterprise
+          deployment, and providing recording as part of a paid service.
+          The agreement sets the fees, the billing, and any refund terms.
+          If you have a separate written agreement with Argento Computing
+          Inc. covering BitGraph, that agreement controls to the extent it
+          conflicts with these terms.
         </p>
 
         <h2>7. Your data</h2>
         <p>
-          We store fingerprints, positions, and proofs. We never receive file
-          contents, so we cannot store them. Proofs may be retained
-          indefinitely: every proof is part of a chain that other users&apos;
-          proofs depend on, and deleting one would break verification for
-          people who had nothing to do with it.
+          We store fingerprints, positions, anchors, and proofs. We never
+          receive file contents, so we cannot store them. Proof and chain
+          records may be retained indefinitely: they form an append-only
+          history, and later records, including other people&apos;s, can
+          depend on the history behind them.
         </p>
 
         <h2>8. Intellectual property</h2>
         <p>
           BitGraph, the service software, and the pending patents belong to
           Argento Computing Inc. BITGRAPH is a trademark of Argento Computing
-          Inc. You own your files, and you own the proofs you create with the
-          service. The open-source verification tooling is published under its
-          own license; see{" "}
+          Inc. You keep all rights in your files. You may keep, copy,
+          distribute, publish, and use the proofs created for your files
+          without restriction, subject to applicable law. The open-source
+          verification tooling is published under its own license; see{" "}
           <a href="https://www.npmjs.com/package/@mikeargento/bitgraph-verify">bitgraph-verify</a>{" "}
           and{" "}
           <a href="https://www.npmjs.com/package/@mikeargento/bitgraph-player">bitgraph-player</a>{" "}
@@ -101,8 +123,8 @@ export default function TermsPage() {
         <p>
           We run the service on a best-effort basis. There is no uptime
           guarantee at this tier. We may suspend access for abuse or
-          non-payment. Proofs you already hold verify offline regardless of
-          whether the service is up.
+          non-payment. Proof bundles you already hold verify offline
+          regardless of whether the service is up.
         </p>
 
         <h2>10. Disclaimer of warranties</h2>
@@ -133,9 +155,9 @@ export default function TermsPage() {
         <h2>13. Termination</h2>
         <p>
           Either of us can end this agreement on notice. On termination your
-          access ends and unpaid fees remain due. Proofs you already hold
-          remain verifiable offline after termination; nothing about ending an
-          account un-records what was recorded.
+          access ends and unpaid fees remain due. Proof bundles you already
+          hold remain verifiable offline after termination; nothing about
+          ending this agreement un-records what was recorded.
         </p>
 
         <h2>14. Governing law and disputes</h2>
@@ -148,9 +170,10 @@ export default function TermsPage() {
 
         <h2>15. Changes to these terms</h2>
         <p>
-          We may update these terms. For material changes we will give notice
-          on this site and by email to the address on your account before the
-          changes take effect. Continuing to use the service after the
+          We may update these terms. For material changes we will give
+          prominent notice on this site before they take effect, and notice
+          by email where we have an address for you through an account or a
+          commercial agreement. Continuing to use the service after the
           effective date of a change means you accept it.
         </p>
 
