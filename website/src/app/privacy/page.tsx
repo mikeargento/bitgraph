@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "What BitGraph collects (fingerprints, not files), what it never collects, who processes it, and how long it is kept.",
+    "What BitGraph collects (fingerprints, not files), what it does not collect, who processes it, and how long it is kept.",
   alternates: { canonical: "https://bitgraph.ing/privacy" },
 };
 
@@ -16,52 +16,67 @@ export default function PrivacyPage() {
 
         <h2>1. What we collect</h2>
         <ul>
-          <li>Your account email address.</li>
+          <li>Your email address and what you send us, when you contact us, hold an account, or have a commercial agreement with us.</li>
           <li>Billing details, when a paid agreement exists, handled by our payment processor. We do not store card numbers.</li>
-          <li>API key usage logs: timestamps, request counts, and IP addresses, kept for abuse prevention.</li>
-          <li>File fingerprints (SHA-256 digests) and proof metadata: positions, signatures, and anchors.</li>
+          <li>Service logs: timestamps, request data, and IP addresses, used for security, rate limiting, abuse prevention, and diagnosing failures.</li>
+          <li>Protocol records: file fingerprints (SHA-256 digests), positions, signatures, anchors, and related proof metadata.</li>
         </ul>
 
         <h2>2. What we do not collect</h2>
         <p>
-          File contents, ever. Files are fingerprinted on your machine and only
-          the fingerprint is sent. We do not collect file names unless you
-          supply one yourself, and we collect nothing inside your files.
+          File contents are not part of recording. Files are fingerprinted on
+          your machine, and recording sends only the fingerprint and the
+          protocol metadata a proof needs. A SHA-256 fingerprint does not
+          contain the file and cannot by itself be used to reconstruct
+          arbitrary file contents. We do not collect file names unless you
+          supply one yourself.
         </p>
 
         <h2>3. How we use it</h2>
         <p>
-          To run the service, to bill you, to prevent abuse, and to respond
-          when you contact support. Nothing else.
+          To operate, secure, and maintain the service, to diagnose failures,
+          to administer accounts and billing, to prevent fraud and abuse, to
+          enforce our terms, to respond when you contact us, and to comply
+          with applicable law. We do not sell personal data, and we do not
+          use service data for advertising.
         </p>
 
         <h2>4. Third parties</h2>
         <ul>
-          <li>Stripe, for billing under paid agreements.</li>
           <li>Amazon Web Services, for infrastructure, in a US region.</li>
+          <li>Railway, for the anchoring service.</li>
+          <li>Cloudflare, for network routing to the recording environment.</li>
           <li>Vercel, for hosting this site.</li>
+          <li>Resend, for delivering contact form messages.</li>
           <li>Google Workspace, for email.</li>
+          <li>Adobe Fonts, for the site&apos;s typeface, loaded by your browser.</li>
+          <li>A payment processor, for billing under paid agreements.</li>
         </ul>
         <p>
-          No advertising, no selling of data. This site runs no analytics
-          scripts and sets no non-essential cookies.
+          This site runs no analytics scripts and sets no non-essential
+          cookies.
         </p>
 
         <h2>5. Retention</h2>
         <p>
-          Account data is kept while your account exists and for a reasonable
-          period afterward. Fingerprints and proofs are kept indefinitely:
-          they are part of a chain that other users&apos; proofs depend on.
+          Ordinary service data (email, billing, support messages, and logs)
+          is kept only as long as the purposes above need it. Protocol
+          records may be retained indefinitely: they form part of
+          BitGraph&apos;s append-only verification history, and later records
+          are computed over the history that includes them.
         </p>
 
         <h2>6. Your rights</h2>
         <p>
-          You can ask us to show you, correct, or delete your account data at{" "}
-          <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a>. Fingerprints
-          already committed to the chain cannot be removed, because deleting a
-          position would break verification of every proof recorded after it.
-          A fingerprint alone does not reveal anything about your file&apos;s
-          contents.
+          Depending on where you live, applicable law may give you rights to
+          access, correct, or delete personal information we hold about you.
+          Send requests to{" "}
+          <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a> and we will
+          handle them as applicable law requires. These requests can reach
+          ordinary service data. Protocol records are append-only, so a
+          fingerprint already committed to the chain may not be technically
+          removable without altering the history that later records are
+          computed over.
         </p>
 
         <h2>7. Children</h2>
@@ -73,8 +88,9 @@ export default function PrivacyPage() {
 
         <h2>8. Changes and contact</h2>
         <p>
-          If this policy changes materially we will give notice on this site
-          and by email. Questions:{" "}
+          If this policy changes materially we will give prominent notice on
+          this site, and notice by email where we have an address for you.
+          Questions:{" "}
           <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a>.
         </p>
 
