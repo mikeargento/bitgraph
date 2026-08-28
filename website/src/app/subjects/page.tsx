@@ -61,7 +61,7 @@ const cases = [
     body:
       "Nothing in a photograph's file says which version is the one the photographer delivered. Metadata is editable, and a crop or a re-encode produces different bytes, so anything bound to an earlier version stops matching the file in hand.",
     changes:
-      "A BitGraph stays external to the image. The image's exact bytes are bound to a position reserved before those bytes were known, so a photographer can show that this version, exactly as delivered, held that position. It sits alongside Content Credentials rather than replacing them: the manifest describes the image's path, the BitGraph records the position this exact version took.",
+      "A BitGraph stays external to the image: the exact bytes of the delivered version are fixed at a position, so a photographer can show that this version, exactly as delivered, held it. It sits alongside Content Credentials rather than replacing them: the manifest describes the image's path, the BitGraph records the position this exact version took.",
   },
   {
     /* Body reshaped 2026-08-26: this was the one entry that opened on what
@@ -75,8 +75,12 @@ const cases = [
     who: "Issuers, auditors, compliance teams",
     body:
       "A reserve report or a compliance statement is issued, then measured against events that come after it. When the two disagree, the question becomes whether the copy produced today is what was actually filed, and the only archive belongs to the party being questioned.",
+    /* Omission phrasing hardened 2026-08-28: the sequence alone cannot show
+       a report was never made; only an external expectation can, and the
+       sentence now opens on that dependency instead of tucking it into a
+       "where" clause. Same rule applied at the instrument entry. */
     changes:
-      "Each report takes the next position in a sequence, and that position is fixed in a public timeline the issuer does not control. A rewritten report no longer matches the position the original occupied. Where the workflow requires one recorded entry per reporting period, an omitted report becomes visible too.",
+      "Each report takes the next position as it is recorded, outside the issuer's control, and a rewritten report no longer matches the position the original occupied. The sequence alone cannot show that a report was never made; where the workflow fixes one entry per period, a silent period becomes a visible gap.",
   },
   {
     title: "Clinical records and chart entries",
@@ -84,15 +88,19 @@ const cases = [
     body:
       "Malpractice and consent disputes often turn on when a note entered the chart rather than on what it says. Record systems do keep audit trails, but they are maintained by the same organization whose care is in question, which is the position a provider is least able to argue from.",
     changes:
-      "A note takes a position in a sequence when it is written, and that position is fixed in a public timeline the provider does not control. An entry added or revised after an event cannot occupy the earlier position. Only the hash is committed, so nothing in the chart is disclosed in order to record it.",
+      "A note takes its position when it is recorded, outside the provider's control. A later addition or revision cannot be backfilled into an earlier position. Only the hash is committed, so nothing in the chart is disclosed in order to record it.",
   },
   {
     title: "Evidence and chain of custody",
     who: "Investigators, legal teams, internal audit",
     body:
       "Custody disputes are usually about order rather than content: which file existed before which, and whether an item entered the record before or after a claim was made. A file's own timestamp is asserted by whoever holds the file, and system clocks are adjustable.",
+    /* Closer replaced 2026-08-28. "Time is subjective. The order is not."
+       claimed more philosophy than the evidence needs; the new pair says
+       exactly what a hostile reader can verify: a clock is an assertion, an
+       anchored order is not revisable. */
     changes:
-      "Ordering does not depend on any clock. A position exists before the file that occupies it, so a later file cannot be inserted at an earlier point, and each anchor fixes the order of everything committed before it. Time is subjective. The order is not.",
+      "Ordering does not depend on any clock. A position exists before the file that occupies it, so a later file cannot be inserted at an earlier point, and each anchor fixes the order of everything committed before it. A clock can be disputed. An anchored order cannot.",
   },
   {
     title: "Issued documents and credentials",
@@ -108,7 +116,18 @@ const cases = [
     body:
       "Readings are trusted because of the process that produced them, and that trust does not travel outside the organization that ran the process. Once data leaves the instrument, a downstream reader cannot tell whether readings were added later, removed, or reordered.",
     changes:
-      "Each reading, batch, or acquisition session takes a position in the instrument's sequence. A later insertion cannot occupy an earlier position, so the record has an order that someone who was not present can check. Where the expected readings are defined by an instrument counter, a schedule, or a batch manifest, an omitted reading becomes visible too.",
+      "Each reading, batch, or acquisition session takes its position as it is captured, giving the record an order that someone who was not present can check. Omissions are a separate matter: only an outside expectation, an instrument counter, a schedule, a batch manifest, defines what should be present, and against it the sequence can expose a missing expected recording.",
+  },
+  {
+    /* Added 2026-08-28, from the standalone-value session: the ordinary-
+       course record that predates the dispute, in this page's anatomy
+       rather than as a story (stories stay in conversations). */
+    title: "Built work and site records",
+    who: "Contractors, owners, engineers, adjusters",
+    body:
+      "Construction disputes surface years after the work is covered up, and the photographs and daily reports that decide them are the contesting party's own files. A timestamp in a photo is editable, and a record produced after a claim can always be alleged to have been made for it.",
+    changes:
+      "A site photo or daily report recorded on the day it is made holds a position from that day, before any dispute exists. Whatever a claim later alleges, the record demonstrably predates it, and either side can check that from the file and its proof, without trusting the other's archive.",
   },
   {
     title: "Drafts, designs and prior art",
@@ -186,10 +205,17 @@ export default function SubjectsPage() {
         two files are identical. On its own it says nothing about order.
       </p>
       <p style={{ ...pStyle, marginBottom: 14 }}>
+        {/* "outside the recorder's control", not "nobody involved controls"
+            (2026-08-28): the claim is independence from the party making the
+            record, which is what the reader needs and all the mechanism
+            supports; the older phrasing reached for an absolute no page
+            needs to defend. The same principle is applied per-entry below
+            ("the issuer does not control", "the provider does not
+            control"), which already said it correctly. */}
         A BitGraph gives a file a position. The slot is reserved from hardware
         entropy before the file&apos;s hash is known, the hash is bound to that slot
         inside a measured boundary, and the sequence is anchored to a public
-        timeline nobody involved controls.
+        timeline outside the recorder&apos;s control.
       </p>
       {/* Placed after the mechanism, not before it. As a consequence of what
           was just described it needs no setup; ahead of it, it was a property
@@ -246,12 +272,49 @@ export default function SubjectsPage() {
           year and is closed by one email does not need a protocol.
         </p>
         <p style={{ ...pStyle, margin: 0 }}>
+          {/* Reworded 2026-08-28 for first-read clarity: the old version made
+              the reader assemble the condition from two "where" clauses. Same
+              single condition, now named as the one act both cases share. */}
           <strong style={strongStyle}>Someone stands behind the artifact.</strong>{" "}
-          Where an authority issues documents, a BitGraph keeps what it issued
-          distinguishable from what merely resembles it. Where nobody issues
-          anything, as with drafts and prior art, the same record defends a
-          position against a later challenge. Neither protects the truth of what
-          was recorded, only the ability to keep standing behind it.
+          Either an authority issues the file and needs what it issued to stay
+          distinguishable from what merely resembles it, or someone holds the
+          file and may later need to defend exactly what they held. Both are
+          one act: standing behind exact bytes. Neither protects the truth of
+          what was recorded, only the ability to keep standing behind it.
+        </p>
+      </div>
+
+      {/* Added 2026-08-28, the timing principle from the standalone-value
+          session: the shield (a record made before a dispute predates the
+          motive to fabricate) and the option economics. "A BitGraph is an
+          option" is Mike-approved outward on this page; the appreciation
+          line's "more history it demonstrably predates" is the precise form
+          (the proof itself does not strengthen with age; the predated
+          corpus grows). This page is FROZEN as of this pass (Mike): further
+          sentence-polish removes character, not adds clarity. */}
+      <div style={sectionStyle}>
+        <h2 style={h2Style}>Before it matters</h2>
+        <p style={{ ...pStyle, margin: "0 0 14px" }}>
+          <strong style={strongStyle}>A record cannot be made after the fact.</strong>{" "}
+          Nothing recorded today can claim yesterday. So a record made in the
+          ordinary course of work, before any dispute exists, predates not
+          only the dispute but the reason to fabricate: evidence you could
+          not have known you would need.
+        </p>
+        <p style={{ ...pStyle, margin: "0 0 14px" }}>
+          <strong style={strongStyle}>A BitGraph is an option.</strong>{" "}
+          Recording takes seconds; that is the whole premium, and it is paid
+          once. Most options are never exercised, and what they buy in the
+          meantime is quiet: the argument that never starts. The one that is
+          exercised settles a question nothing made afterward can settle,
+          and there is no way to know in advance which file it will be. At a
+          premium of seconds, record everything you finish.
+        </p>
+        <p style={{ ...pStyle, margin: 0 }}>
+          Some records pay on a single day, the day someone doubts. Others
+          appreciate: the older an anchored record, the more history it
+          demonstrably predates, and age is the one property that cannot be
+          added later.
         </p>
       </div>
 
