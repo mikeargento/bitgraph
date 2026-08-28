@@ -51,6 +51,14 @@ export default function PricingPage() {
             to look it up, open any proof page, or verify offline with the
             open-source player. No service required.
           </p>
+          {/* The tier's boundary, stated as policy rather than a number
+              (Mike, 2026-08-27): the edge rate limit counts requests, not
+              files, so no printed number would be mechanically true, and
+              this sentence is true forever. Industrial users' next sentence
+              is the Enterprise section below. */}
+          <p>
+            Free means real use, not industrial use.
+          </p>
           <p>
             <a
               href="/"
