@@ -122,7 +122,7 @@ const cases = [
     /* Added 2026-08-28, from the standalone-value session: the ordinary-
        course record that predates the dispute, in this page's anatomy
        rather than as a story (stories stay in conversations). */
-    title: "Built work and site records",
+    title: "Construction work and site records",
     who: "Contractors, owners, engineers, adjusters",
     body:
       "Construction disputes surface years after the work is covered up, and the photographs and daily reports that decide them are the contesting party's own files. A timestamp in a photo is editable, and a record produced after a claim can always be alleged to have been made for it.",
