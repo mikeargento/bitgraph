@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { CopyEmail } from "@/components/copy-email";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -86,10 +85,14 @@ export default function PricingPage() {
             Start with a live demo, enterprise consultation, or licensing
             conversation.
           </p>
-          {/* The address itself, not a form (Mike, 2026-08-28): the reply
-              thread starts in the buyer's own mail. */}
           <p>
-            <CopyEmail />
+            <a
+              href="/contact"
+              className="bg-arrow-link"
+              style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
+            >
+              Contact us <span className="arrow" aria-hidden="true">&rarr;</span>
+            </a>
           </p>
         </section>
       </article>
