@@ -290,10 +290,10 @@ export default function SubjectsPage() {
           option" is Mike-approved outward on this page; the appreciation
           line's "more history it demonstrably predates" is the precise form
           (the proof itself does not strengthen with age; the predated
-          corpus grows). This page is FROZEN as of this pass (Mike): further
+          corpus grows). Headline is Mike's ("Proof that appreciates with time", answering the h1). This page is FROZEN (Mike): further
           sentence-polish removes character, not adds clarity. */}
       <div style={sectionStyle}>
-        <h2 style={h2Style}>Before it matters</h2>
+        <h2 style={h2Style}>Proof that appreciates with time</h2>
         <p style={{ ...pStyle, margin: "0 0 14px" }}>
           <strong style={strongStyle}>A record cannot be made after the fact.</strong>{" "}
           Nothing recorded today can claim yesterday. So a record made in the
