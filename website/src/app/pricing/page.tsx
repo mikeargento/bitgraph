@@ -51,14 +51,13 @@ export default function PricingPage() {
             to look it up, open any proof page, or verify offline with the
             open-source player. No service required.
           </p>
-          {/* The tier's boundary, stated as policy rather than a number
-              (Mike, 2026-08-27): the edge rate limit counts requests, not
-              files, so no printed number would be mechanically true, and
-              this sentence is true forever. Industrial users' next sentence
-              is the Enterprise section below. */}
-          <p>
-            Free means real use, not industrial use.
-          </p>
+          {/* No boundary sentence. "Free means real use, not industrial use"
+              lived here for an hour (2026-08-27) and was cut as ambiguous:
+              "real use" gives the reader no test to apply. The boundary is
+              drawn by the two sections' own contents (by hand here vs. your
+              systems), enforced by the edge rate limit, the TEE limiter, and
+              Terms section 6. Don't restore a vibe; if a sentence ever
+              returns it must be self-testing. */}
           <p>
             <a
               href="/"
