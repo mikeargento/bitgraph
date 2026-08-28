@@ -117,23 +117,9 @@ export default function ContactPage() {
             Thanks for reaching out. You&apos;ll hear back at the email you
             provided.
           </div>
-          <button
-            type="button"
-            onClick={() => setStatus("idle")}
-            style={{
-              marginTop: 24,
-              background: "transparent",
-              border: "1px solid #d0d5dd",
-              borderRadius: 0,
-              padding: "8px 16px",
-              fontSize: 13,
-              fontWeight: 500,
-              color: "#374151",
-              cursor: "pointer",
-            }}
-          >
-            Send another
-          </button>
+          {/* No "Send another" (Mike, 2026-08-28: "the button isnt needed"):
+              the sent state is terminal; a person with more to say reloads
+              or replies to the mail thread that just started. */}
         </div>
       ) : (
         <form onSubmit={handleSubmit} noValidate>
