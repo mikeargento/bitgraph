@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { CopyEmail } from "@/components/copy-email";
 
 /* The site footer. Reading pages get the full bar (entity left, trademark
    true-centred, links right, one 56px row mirroring the nav, stacking below
@@ -23,11 +24,13 @@ import { usePathname } from "next/navigation";
 
 const CAMERA_PAGES = new Set(["/", "/actor"]);
 
+/* Contact left the links 2026-08-28 when the form died its second death
+   (cut 06-25, restored 08-27, cut 08-28): the address itself renders after
+   these, with a copy action (copy-email.tsx). */
 const links: Array<{ href: string; label: string }> = [
   { href: "/pricing", label: "Pricing" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
-  { href: "/contact", label: "Contact" },
 ];
 
 const linkStyle: React.CSSProperties = { color: "#0065A4", textDecoration: "none" };
@@ -57,6 +60,8 @@ export function SiteFooter() {
               <a href={l.href} style={linkStyle}>{l.label}</a>
             </span>
           ))}
+          <span aria-hidden="true"> · </span>
+          <CopyEmail fontSize={13} />
         </div>
       </div>
     </footer>
