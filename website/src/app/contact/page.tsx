@@ -83,9 +83,8 @@ export default function ContactPage() {
       >
         Contact
       </h1>
-      {/* The Enterprise tier on the pricing page links here, so the page says
-          what it is for before asking for anything (2026-08-27). Facts and
-          one instruction, no pitch. */}
+      {/* The page says what it is for before asking for anything
+          (2026-08-27). Facts and one instruction, no pitch. */}
       {/* Mike's wording verbatim (2026-08-27); the what-you-record second
           sentence was cut the same day. */}
       <p style={{ fontSize: 16, lineHeight: 1.6, color: "#1f2937", margin: "0 0 8px" }}>

@@ -24,7 +24,6 @@ import { usePathname } from "next/navigation";
 const CAMERA_PAGES = new Set(["/", "/actor"]);
 
 const links: Array<{ href: string; label: string }> = [
-  { href: "/pricing", label: "Pricing" },
   { href: "/terms", label: "Terms" },
   { href: "/privacy", label: "Privacy" },
   { href: "/contact", label: "Contact" },
