@@ -226,7 +226,7 @@ function buildPartitionSegments(
     const upperBounds = first.upper;
     const status =
       lowerBounds.length > 0 && upperBounds.length > 0
-        ? ("bracketed" as const)
+        ? ("lower-bounded-with-following-anchor" as const)
         : lowerBounds.length > 0
           ? ("lower-bounded" as const)
           : upperBounds.length > 0
@@ -335,7 +335,10 @@ function makeBound(
     evidence: evidenceKind,
     weaker: evidenceKind === "counter-order",
     basis: kind === "not-before" ? "block-hash-unpredictability" : "causal-precedence",
-    claim,
+    // Machine-readable: a not-after bound from an inbound anchor is an
+    // assumption about anchor latency, never proof-carried evidence.
+    boundClass: kind === "not-before" ? "evidence" : "assumption",
+    claim: kind === "not-before" ? claim : "NOT a proof-carried upper bound. " + claim,
   };
 }
 

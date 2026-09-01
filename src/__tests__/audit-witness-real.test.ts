@@ -74,11 +74,11 @@ describe("audit: real block-header witnesses verify offline", () => {
     assert.equal(report.summary.temporal.anchorsWithVerifiedWitness, 2);
   });
 
-  it("brackets the whitepaper's causal segment with verified Ethereum time on both sides", () => {
+  it("lower-bounds the whitepaper's causal segment and records its following anchor", () => {
     const report = buildJsonReport(result);
     // Both bounding anchors now carry a verified offline timestamp, so the
     // segment holding the whitepaper commit is bracketed (upper AND lower).
-    assert.equal(report.summary.temporal.segmentsBracketed, 1);
+    assert.equal(report.summary.temporal.segmentsWithFollowingAnchor, 1);
     assert.equal(report.summary.temporal.segmentsUnanchored, 0);
   });
 

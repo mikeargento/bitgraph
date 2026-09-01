@@ -154,7 +154,7 @@ describe("bitgraph-audit CLI", () => {
       reportSchemaVersion: string;
       summary: { exit: { code: number } };
     };
-    assert.equal(written.reportSchemaVersion, "bitgraph-audit-report/1");
+    assert.equal(written.reportSchemaVersion, "bitgraph-audit-report/2");
     assert.equal(written.summary.exit.code, 3);
     // No em dashes in either written file.
     assert.ok(!readFileSync(jsonPath, "utf8").includes("—"));

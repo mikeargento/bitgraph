@@ -1086,13 +1086,31 @@ export interface SegmentBound {
   /** True for counter-order evidence: weaker, as documented on BoundEvidence. */
   weaker: boolean;
   basis: "block-hash-unpredictability" | "causal-precedence";
+  /**
+   * Whether this bound is EVIDENCE or an ASSUMPTION, stated as a machine field
+   * so no consumer has to parse the claim text to find out.
+   *
+   *   "evidence"   not-before: the block hash could not exist before its block,
+   *                so proofs chained after the anchor were committed no earlier
+   *                than the block time (assuming a canonical public header).
+   *   "assumption" not-after: the covered proofs precede the ANCHOR COMMIT, and
+   *                the block time bounds that commit from below, not the proofs
+   *                from above. Reading it as a ceiling assumes the anchor consumed
+   *                a recently published block. An inbound anchor cannot supply a
+   *                proof-carried upper bound.
+   */
+  boundClass: "evidence" | "assumption";
   /** Plain-language statement of exactly what this bound claims and assumes. */
   claim: string;
 }
 
 export type TemporalSegmentStatus =
-  /** Verified anchor evidence exists on both sides. Still two one-sided bounds, reported together. */
-  | "bracketed"
+  /**
+   * A verified not-before bound AND a following verified anchor. Deliberately not
+   * called "bracketed": the following anchor's block time is an assumption about
+   * anchor latency, not a proof-carried upper bound on these proofs.
+   */
+  | "lower-bounded-with-following-anchor"
   | "lower-bounded"
   | "upper-bounded"
   /** No verified anchor evidence relates to these proofs. Their causal order stands; no wall-clock claim is made. */
@@ -1510,7 +1528,7 @@ export interface ReportSummary {
     anchorsIdentified: number;
     anchorsWithVerifiedWitness: number;
     segments: number;
-    segmentsBracketed: number;
+    segmentsWithFollowingAnchor: number;
     segmentsLowerBounded: number;
     segmentsUpperBounded: number;
     segmentsUnanchored: number;
@@ -1519,7 +1537,7 @@ export interface ReportSummary {
 }
 
 /**
- * The audit-report.json object, schema "bitgraph-audit-report/1".
+ * The audit-report.json object, schema "bitgraph-audit-report/2".
  *
  * Deterministic given the same bundle except for the runMetadata block,
  * which is explicitly identified as the only nondeterministic section.
@@ -1529,7 +1547,7 @@ export interface ReportSummary {
  * fields, never on message prose.
  */
 export interface AuditJsonReport {
-  reportSchemaVersion: "bitgraph-audit-report/1";
+  reportSchemaVersion: "bitgraph-audit-report/2";
   toolVersion: string;
   runMetadata: {
     /** Always true: this block is the only nondeterministic section of the report. */

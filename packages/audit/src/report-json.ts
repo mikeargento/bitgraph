@@ -53,7 +53,7 @@ export function buildJsonReport(result: AuditResult): AuditJsonReport {
   const summary = buildSummary(result, partitions, anomalies);
 
   return {
-    reportSchemaVersion: "bitgraph-audit-report/1",
+    reportSchemaVersion: "bitgraph-audit-report/2",
     toolVersion: result.runMetadata.toolVersion,
     runMetadata: {
       nondeterministic: true,
@@ -323,7 +323,7 @@ function buildSummary(
       anchorsIdentified: result.anchors.anchors.length,
       anchorsWithVerifiedWitness: result.temporal.verifiedAnchorProofHashes.length,
       segments: result.temporal.segments.length,
-      segmentsBracketed: segmentCount("bracketed"),
+      segmentsWithFollowingAnchor: segmentCount("lower-bounded-with-following-anchor"),
       segmentsLowerBounded: segmentCount("lower-bounded"),
       segmentsUpperBounded: segmentCount("upper-bounded"),
       segmentsUnanchored: segmentCount("ordered-but-unanchored"),

@@ -2,6 +2,33 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## 0.3.0 (2026-09-01)
+
+### Changed, and it is a report-shape change
+
+An inbound Ethereum anchor cannot supply a proof-carried upper bound: a proof
+before an anchor precedes the anchor's COMMIT, and the block's timestamp bounds
+that commit from below, not the proof from above. Reading it as a ceiling
+assumes the anchor consumed a recently published block. The prose on every
+bound already said this; the machine fields did not, and a consumer reading
+`kind: "not-after"` with `weaker: false` under a status of `bracketed` was
+being told something the evidence does not support.
+
+- `SegmentBound` gains `boundClass: "evidence" | "assumption"`. Every
+  not-before bound is `"evidence"`; every not-after bound is `"assumption"`,
+  and its `claim` now begins `NOT a proof-carried upper bound.`
+- `TemporalSegmentStatus` `"bracketed"` is renamed
+  `"lower-bounded-with-following-anchor"`.
+- `summary.temporal.segmentsBracketed` is renamed
+  `segmentsWithFollowingAnchor`.
+- `reportSchemaVersion` is now `bitgraph-audit-report/2`, because the report
+  shape changed. Consumers pinned to `/1` should update the three names above.
+- The markdown report's summary row and bound lines say the same thing.
+
+Nothing about verification, ingestion, anchors, witnesses, attestation, or
+anomaly detection changed. `weaker` keeps its existing meaning (counter-order
+evidence rather than a hash-link path).
+
 ## 0.2.2 (2026-08-19)
 
 ### Fixed

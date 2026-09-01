@@ -245,17 +245,22 @@ describe("audit temporal: one-sided bounds and brackets along chain links", () =
     assert.equal(bound.evidence, "chain-link");
     assert.equal(bound.weaker, false);
     assert.equal(bound.basis, "causal-precedence");
+    // A following inbound anchor is an assumption about anchor latency, never a
+    // proof-carried upper bound, and the report now says so in a machine field.
+    assert.equal(bound.boundClass, "assumption");
+    assert.match(bound.claim, /^NOT a proof-carried upper bound\./);
     assert.match(bound.claim, /assumes the anchor consumed a recently published block/);
   });
 
-  it("proofs between two verified anchors are bracketed by the tightest pair", () => {
+  it("proofs between two verified anchors are lower-bounded with a following anchor, by the tightest pair", () => {
     const segment = segmentOf(fx.hashes["P2"] as string);
-    assert.equal(segment.status, "bracketed");
+    assert.equal(segment.status, "lower-bounded-with-following-anchor");
     // A1 shares the identical bound set (its own block for the lower
     // side, A2 for the upper) and groups into the same segment.
     assert.ok(segment.memberProofHashes.includes(fx.hashes["A1"] as string));
     const lower = segment.lowerBounds[0]!;
     assert.equal(lower.kind, "not-before");
+    assert.equal(lower.boundClass, "evidence");
     assert.equal(lower.anchorProofHash, fx.hashes["A1"]);
     assert.equal(lower.timestamp, T1);
     assert.equal(lower.evidence, "chain-link");

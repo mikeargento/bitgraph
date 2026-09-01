@@ -376,7 +376,7 @@ function executiveSummary(
       ...table(
         ["Temporal coverage", "Segments"],
         [
-          ["Bracketed (verified evidence on both sides)", withCommas(t.segmentsBracketed)],
+          ["Lower-bounded, with a following anchor (its block time is an assumption, not an upper bound)", withCommas(t.segmentsWithFollowingAnchor)],
           ["Lower-bounded only (committed no earlier than a block time)", withCommas(t.segmentsLowerBounded)],
           ["Upper-bounded only (existed before an anchor commit)", withCommas(t.segmentsUpperBounded)],
           ["Ordered but unanchored (causal order only, no wall-clock evidence)", withCommas(t.segmentsUnanchored)],
@@ -808,7 +808,7 @@ function boundLine(bound: SegmentBound): string {
   const direction =
     bound.kind === "not-before"
       ? "Committed no earlier than"
-      : "Existed before the anchor commit that consumed a block published at";
+      : "Precedes an anchor commit that consumed a block published at (ASSUMPTION, not a proof-carried upper bound)";
   return (
     `${direction} ${formatTimestamp(bound.timestamp)} ` +
     `(block ${bound.blockNumber ?? "?"}, anchor ${inlineCode(bound.anchorProofHash)}, ` +

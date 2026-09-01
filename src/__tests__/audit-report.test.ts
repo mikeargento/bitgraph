@@ -94,7 +94,7 @@ describe("audit orchestrator and reports: standard mixed bundle", () => {
   });
 
   it("JSON report carries the schema version, stable codes, and correct counts", () => {
-    assert.equal(report.reportSchemaVersion, "bitgraph-audit-report/1");
+    assert.equal(report.reportSchemaVersion, "bitgraph-audit-report/2");
     assert.equal(report.toolVersion, result.runMetadata.toolVersion);
     assert.equal(report.runMetadata.nondeterministic, true);
 
