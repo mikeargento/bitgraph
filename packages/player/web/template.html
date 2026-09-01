@@ -12,10 +12,10 @@
 @font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 100 800; font-display: swap; src: url(data:font/woff2;base64,/*__MONO_FONT_B64__*/) format("woff2"); }
 /* The home page (bitgraph.ing), measured: same nav, same title, same deck,
    same box, same column. Values are the site's computed values at desktop;
-   the box fills the viewport the way the camera does. This page lives only
-   inside the BitGraph Folder and is opened from disk, so it loads nothing:
-   the site's webfont is not fetched (the kit is domain-locked and would not
-   load from file:// anyway) and the system stack stands in for it. */
+   the box fills the viewport the way the camera does. This page is meant to
+   be SAVED and opened from disk, so it loads nothing: the site's webfont is
+   not fetched (the kit is domain-locked and would not load from file://
+   anyway) and the system stack stands in for it. */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { background: #f5f5f5; color: #111827; }
 body { font-family: acumin-pro, -apple-system, system-ui, "SF Pro Text", sans-serif; font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
@@ -131,7 +131,7 @@ h1.bg-page-title { font-size: clamp(26px, 6vw, 40px); font-weight: 600; letter-s
       </div>
       <div id="status"></div>
       <div id="results" hidden></div>
-      <div class="hero-more" id="more"><div class="edition" id="edition" data-version="/*__FOLDER_VERSION__*/">BitGraph Folder /*__FOLDER_VERSION__*/</div><a class="bg-arrow-link" id="folder-link" href="https://bitgraph.ing/docs/folder">Check for updates <span class="arrow" aria-hidden="true">→</span></a></div>
+      <div class="hero-more" id="more"><a class="bg-arrow-link" id="docs-link" href="https://bitgraph.ing/docs/player">How this page checks a recording <span class="arrow" aria-hidden="true">→</span></a></div>
     </div>
   </div>
 </main>

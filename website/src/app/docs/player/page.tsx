@@ -132,7 +132,7 @@ export default function PlayerPage() {
 
       <h2>Run it</h2>
       <p>
-        With Node.js installed, evaluate a rule against a BitGraph proof bundle. A bundle may be a directory, <code>.tar</code>, or <code>.tar.gz</code> containing BitGraph exports, including the folders written by BitGraph Folder.
+        With Node.js installed, evaluate a rule against a BitGraph proof bundle. A bundle may be a directory, <code>.tar</code>, or <code>.tar.gz</code> containing BitGraph exports. Discovery is by schema shape, not by filename, so any layout holding <code>proof.json</code> files works.
       </p>
       <div className="code-block">
         <div className="code-block-header">Shell</div>
@@ -158,6 +158,14 @@ export default function PlayerPage() {
           <tr><td>3</td><td>Error: bad rule file, unreadable bundle, or invalid usage</td></tr>
         </tbody>
       </table>
+
+      <h2>Without installing anything</h2>
+      <p>
+        The same checks run in a browser page that carries its own copy of the code. <a href="/verify.html" className="text-[#0065A4] font-medium no-underline">verify.html</a> takes a recording folder by drop or by picker and renders the same <code>bitgraph-check/1</code> report the CLI prints, computed by the same bundled implementation.
+      </p>
+      <p>
+        Save it. The page makes no network request of any kind, loads no font, script, or image from anywhere, and runs with the machine offline. That is the point of it: a recording has to stay checkable years from now, on a machine that has never heard of this site, by someone who does not have Node and should not need to trust a server to tell them what their own bytes say.
+      </p>
 
       <h2>Same evidence. Same verdict.</h2>
       <p>

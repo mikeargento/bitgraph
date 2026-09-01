@@ -102,8 +102,8 @@ Any file      ->  Verify BitGraph  ->  Filter         (branch on verified)`}</pr
           added from inside a Zap", which was simply wrong.
 
           An arrow link, not a button: the site has no buttons, and a filled
-          slab was tried on /docs/folder on 2026-08-03 and reverted the same
-          hour. */}
+          slab was tried on the retired Folder page on 2026-08-03 and reverted
+          the same hour. */}
       <p style={{ marginTop: 28, marginBottom: 20 }}>
         <a
           href={ZAPIER_INVITE}

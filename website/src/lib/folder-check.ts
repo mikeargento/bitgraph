@@ -17,12 +17,13 @@
  * Everything here is a read: hashing is local, and every request is a lookup.
  * Nothing in this module can mint a recording.
  *
- * Discovery is BY CONTENT, the same rule the Folder and bitgraph-audit use:
- * a directory holding a proof.json is an export, whatever it is named. The
- * prune rules mirror droppable()/droppableUnder() in packages/folder/src/
- * export.js: dot-named entries are machinery everywhere, and files/ holds
- * hard links to bytes already inside the exports (walking it would count
- * every recording twice).
+ * Discovery is BY CONTENT, the same rule bitgraph-audit uses: a directory
+ * holding a proof.json is an export, whatever it is named. The prune rules
+ * came from droppable()/droppableUnder() in the retired BitGraph Folder
+ * (removed 2026-09-01; see tag folder-v1.15.1 for the source): dot-named
+ * entries are machinery everywhere, and files/ holds hard links to bytes
+ * already inside the exports (walking it would count every recording twice).
+ * They stand alone now and are no longer mirroring anything.
  */
 
 import {

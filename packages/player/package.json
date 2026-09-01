@@ -29,7 +29,7 @@
     "prepack": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "tsc && node --test \"dist/__tests__/*.test.js\"",
-    "build:web": "node scripts/build-verify-html.mjs --out ../folder/src/verify.html",
+    "build:web": "node scripts/build-verify-html.mjs --out ../../website/public/verify.html",
     "typecheck:web": "tsc -p web/tsconfig.json"
   },
   "engines": {

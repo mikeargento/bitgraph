@@ -18,17 +18,21 @@ export const dynamic = "force-dynamic";
 // Restarting and not-yet-anchored both surface as the same retryable 503
 // (code "tee-restarting"), so one client retry loop covers the whole window.
 
-// ── Folder version ─────────────────────────────────────────────────────────
+// ── Folder retirement notice ───────────────────────────────────────────────
+// BitGraph Folder was retired on 2026-09-01. This header used to advertise the
+// current release; it now carries the retirement notice, because it is the only
+// channel that reaches a copy someone already installed. See lib/folder-version.
+//
 // Stated on EVERY response from this route, successes and failures alike, so an
-// installed Folder learns it is behind even when its drop was held through an
-// epoch rotation and retried. It also means the header can be checked without
-// committing anything, which matters: a version notice nobody can test is a
-// version notice nobody can trust.
+// installed Folder sees it even when its drop was held through an epoch rotation
+// and retried. Downward only: the site states the value and never learns the
+// client's, so nothing is added to what leaves a user's machine.
 //
 // A header rather than a body field, because the body is the signed proof that
 // MCP, Zapier and the site all consume and it must not grow fields outside
-// bitgraph/1. Downward only: the site states its own version and never learns
-// the client's, so nothing is added to what leaves a user's machine.
+// bitgraph/1.
+//
+// ⚠️ TEMPORARY. Delete this and lib/folder-version.ts once the notice has landed.
 const VERSION_HEADER = { "X-BitGraph-Folder-Version": FOLDER_VERSION };
 
 const teeRestarting503 = () =>

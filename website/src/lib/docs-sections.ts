@@ -87,7 +87,6 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
     items: [
       { href: "/docs/verification", label: "Verification" },
       { href: "/docs/audit", label: "Audit a Bundle" },
-      { href: "/docs/folder", label: "BitGraph Folder" },
       { href: "/docs/actor", label: "BitGraph Actor" },
       // Domain resolves what Actor records: the key a proof carries, to the
       // domain that published it. It follows Actor because it depends on it,

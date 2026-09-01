@@ -178,18 +178,6 @@ export function SiteNav() {
           >
             Roll
           </Link>
-          {/* Folder — the Mac software's page. The /folder BROWSER (your
-              recordings, remembered in the browser) was removed 2026-08-07
-              ("causing more bugs than its worth"); the link survives it and
-              points at the story instead. Browsing = drop Recordings on the
-              home camera. */}
-          <Link
-            href="/docs/folder"
-            aria-current={pathname === "/docs/folder" ? "page" : undefined}
-            style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
-          >
-            Folder
-          </Link>
           {/* ── Actor: home's camera with this device's key on the recording.
               Linked again as of 2026-08-19, the day the two pages became one
               implementation (components/bitgraph-camera.tsx). It was pulled
@@ -199,7 +187,7 @@ export function SiteNav() {
               confirmation, and no hold through the 23:59 key renewal. All of
               that is the camera's now, and /actor has it by construction.
 
-              ⚠️ Placement: AFTER Folder and BEFORE Docs. Never before Roll, or
+              ⚠️ Placement: AFTER Roll and BEFORE Docs. Never before Roll, or
               an unregistered visitor's introduction to the site is a passkey
               prompt, and home's rule is a first drop with no dialog and no
               decision. ── */}

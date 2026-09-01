@@ -75,14 +75,10 @@ const js = result.outputFiles[0].text;
 const safeJs = js.replace(/<\/script/gi, "<\\/script");
 const template = readFileSync(resolve(pkgRoot, "web", "template.html"), "utf8");
 if (!template.includes("/*__BUNDLE__*/")) throw new Error("template.html lacks the /*__BUNDLE__*/ marker");
-// The Folder edition this page ships with, from packages/folder/VERSION, so
-// the download link under the box always names the release it belongs to.
-const folderVersion = readFileSync(resolve(pkgRoot, "..", "folder", "VERSION"), "utf8").trim();
 // The site's data font, embedded so the page loads nothing (see web/fonts).
 const monoB64 = readFileSync(resolve(pkgRoot, "web", "fonts", "JetBrainsMono-latin.woff2")).toString("base64");
 const html = template
   .replace("/*__BUNDLE__*/", () => safeJs)
-  .replaceAll("/*__FOLDER_VERSION__*/", folderVersion)
   .replace("/*__MONO_FONT_B64__*/", () => monoB64);
 
 mkdirSync(dirname(defaultOut), { recursive: true });

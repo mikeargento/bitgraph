@@ -3,8 +3,8 @@
 /**
  * verify.html: the offline, drag-and-drop face of `bitgraph-play check`.
  *
- * One self-contained page that lives inside the BitGraph Folder, beside
- * Recordings, and is opened from disk. Choose or drop a recording folder
+ * One self-contained page, served from bitgraph.ing/verify.html and meant to
+ * be saved and opened from disk. Choose or drop a recording folder
  * (or a proof.json beside the file it records) and it renders the same
  * bitgraph-check/1 report the CLI prints, computed by the same code: this
  * file is a thin DOM front over ingestEntries() and checkIngest(), bundled
@@ -428,7 +428,7 @@ async function renderReport(report: CheckReport, root: HTMLElement, titleEl: HTM
     root.append(
       el("section", { class: "card primary" }, [
         el("div", { class: "notice" }, [
-          "No BitGraph proof was found in what you chose. In your BitGraph Folder a recording is a folder inside Recordings, under the day it was sealed, named for the file: BitGraph (photo.jpg). It holds proof.json beside the file, and its Ethereum anchors.",
+          "No BitGraph proof was found in what you chose. A recording is a folder named for the file it holds, like BitGraph (photo.jpg). Inside it are proof.json, the file itself, and an ethereum-anchors folder.",
         ]),
       ])
     );
