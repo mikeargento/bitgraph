@@ -125,7 +125,7 @@ export interface CheckBound {
 }
 
 export interface CheckBounds {
-  status: "bracketed" | "lower-bounded" | "upper-bounded" | "unanchored";
+  status: "lower-bounded-with-following-anchor" | "lower-bounded" | "upper-bounded" | "unanchored";
   notBefore?: CheckBound;
   notAfter?: CheckBound;
   detail: string;
@@ -618,7 +618,7 @@ function boundsFor(segment: TemporalSegment | undefined): CheckBounds {
   const notAfter = upper === undefined ? undefined : toBound(upper);
   const status: CheckBounds["status"] =
     notBefore !== undefined && notAfter !== undefined
-      ? "bracketed"
+      ? "lower-bounded-with-following-anchor"
       : notBefore !== undefined
         ? "lower-bounded"
         : notAfter !== undefined
@@ -636,16 +636,22 @@ function boundsFor(segment: TemporalSegment | undefined): CheckBounds {
   };
 }
 
-/** "after Ethereum block A and before block B (both headers verified)…", shared by bounds.detail and the summary. */
+/**
+ * "after Ethereum block A; precedes an anchor that consumed block B", shared by bounds.detail and the summary.
+ * The following anchor is deliberately NOT rendered as "before block B": a proof precedes the anchor's
+ * commit, and block B's timestamp bounds that commit from below, not the proof from above. Reading it as
+ * a ceiling assumes the anchor consumed a recently published block. An inbound anchor cannot carry a
+ * proof of an upper bound, so the phrase says what the evidence supports and names the assumption.
+ */
 function boundsPhrase(
   status: CheckBounds["status"],
   notBefore: CheckBound | undefined,
   notAfter: CheckBound | undefined
 ): string {
   switch (status) {
-    case "bracketed":
+    case "lower-bounded-with-following-anchor":
       return (
-        `after Ethereum block ${blockRef(notBefore as CheckBound)} and before block ${blockRef(notAfter as CheckBound)} (both headers verified in this bundle)` +
+        `after Ethereum block ${blockRef(notBefore as CheckBound)} (header verified in this bundle); precedes an anchor that consumed block ${blockRef(notAfter as CheckBound)} (header verified), an anchor-latency assumption rather than an upper bound on this recording` +
         weakerSuffix((notBefore as CheckBound).weaker || (notAfter as CheckBound).weaker)
       );
     case "lower-bounded":
@@ -689,8 +695,8 @@ function toBound(b: SegmentBound): CheckBound {
 /** The headline form of the bounds: one clause, no qualifiers (those live in bounds.detail). */
 function shortBoundsPhrase(b: CheckBounds): string {
   switch (b.status) {
-    case "bracketed":
-      return `between Ethereum blocks ${blockRef(b.notBefore as CheckBound)} and ${blockRef(b.notAfter as CheckBound)}`;
+    case "lower-bounded-with-following-anchor":
+      return `after Ethereum block ${blockRef(b.notBefore as CheckBound)}, then an anchor at block ${blockRef(b.notAfter as CheckBound)}`;
     case "lower-bounded":
       return `after Ethereum block ${blockRef(b.notBefore as CheckBound)}`;
     case "upper-bounded":

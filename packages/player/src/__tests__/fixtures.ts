@@ -94,6 +94,8 @@ export function makeBound(partial: Partial<SegmentBound>): SegmentBound {
     weaker: partial.weaker ?? false,
     basis: partial.basis ?? "block-hash-unpredictability",
     claim: partial.claim ?? "fixture bound",
+    // Required since bitgraph-audit 0.3.0: a not-after bound is an assumption, never evidence.
+    boundClass: partial.boundClass ?? ((partial.kind ?? "not-before") === "not-before" ? "evidence" : "assumption"),
     ...(partial.blockNumber !== undefined ? { blockNumber: partial.blockNumber } : {}),
   };
 }
@@ -126,7 +128,7 @@ export function makeAudit(spec: FixtureAuditSpec): AuditResult {
   const segments = (spec.segments ?? []).map((s) => ({
     partition: { publicKeyB64: "key-A", chainId: "bitgraph:main" },
     memberProofHashes: s.members.map(proofHashOf),
-    status: "bracketed",
+    status: "lower-bounded-with-following-anchor",
     lowerBounds: (s.lowerBounds ?? []).map((b) => makeBound({ ...b, kind: "not-before" })),
     upperBounds: (s.upperBounds ?? []).map((b) => makeBound({ ...b, kind: "not-after" })),
   }));

@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-player",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Deterministic evaluation of causal rules over BitGraph proof bundles: a pure function from (rule, verified evidence) to a reproducible verdict.",
   "license": "MIT",
   "type": "module",

@@ -116,10 +116,11 @@ describe("check: real export fixture (disk)", () => {
 
   it("brackets the recording between the two verified block headers", () => {
     const b = report.recordings[0]!.bounds;
-    assert.equal(b.status, "bracketed");
+    assert.equal(b.status, "lower-bounded-with-following-anchor");
     assert.equal(b.notBefore?.blockNumber, "25735831");
     assert.equal(b.notAfter?.blockNumber, "25735832");
-    assert.match(b.detail, /after Ethereum block 25735831 and before block 25735832/);
+    assert.match(b.detail, /after Ethereum block 25735831 \(header verified in this bundle\); precedes an anchor that consumed block 25735832/);
+    assert.match(b.detail, /rather than an upper bound/);
   });
 
   it("orders anchors by causal position, not file name", () => {

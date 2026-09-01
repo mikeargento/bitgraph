@@ -233,9 +233,13 @@ function fmtDateTime(unix: number): string {
 
 /**
  * The proof page's "when" row: the date in bold, and under it the window
- * the recording sits in, from the verified block headers in the bundle:
- * "between 9:51:47 AM and 9:51:59 AM EDT". Grey connective words, dark
- * times. Absent bounds are said plainly in the same slot.
+ * the recording sits after, from the verified block headers in the bundle:
+ * "after 9:51:47 AM EDT, then an anchor at 9:51:59 AM". The lower bound is
+ * evidence (a block hash cannot precede its block). A following anchor is
+ * not an upper bound: the recording can land after that block and before the
+ * anchor service consumed its hash, so it is shown as what followed, never
+ * as "before". Grey connective words, dark times. Absent bounds are said
+ * plainly in the same slot.
  */
 function whenRow(rec: CheckRecording): HTMLElement {
   const b = rec.bounds;
@@ -247,11 +251,11 @@ function whenRow(rec: CheckRecording): HTMLElement {
     row.append(el("div", { class: "when-date" }, [fmtDate(anchorTs.timestamp)]));
     const line = el("div", { class: "when-line" });
     if (b.notBefore !== undefined && b.notAfter !== undefined) {
-      line.append(grey("between "), dark(fmtTime(b.notBefore.timestamp, false)), grey(" and "), dark(fmtTime(b.notAfter.timestamp, true)));
+      line.append(grey("after "), dark(fmtTime(b.notBefore.timestamp, true)), grey(", then an anchor at "), dark(fmtTime(b.notAfter.timestamp, false)), grey(" (not an upper bound)"));
     } else if (b.notBefore !== undefined) {
       line.append(grey("after "), dark(fmtTime(b.notBefore.timestamp, true)));
     } else if (b.notAfter !== undefined) {
-      line.append(grey("before "), dark(fmtTime(b.notAfter.timestamp, true)));
+      line.append(grey("no lower bound in this bundle; an anchor followed at "), dark(fmtTime(b.notAfter.timestamp, true)), grey(" (not an upper bound)"));
     }
     row.append(line);
   } else {
@@ -398,7 +402,7 @@ function recordingChecks(rec: CheckRecording): HTMLElement[] {
  */
 function anchorOpener(a: CheckAnchor, side: "before" | "after" | "other", index: number, ts: number | undefined): HTMLElement {
   const title =
-    side === "before" ? "Recorded after this block" : side === "after" ? "Recorded before this block" : `Ethereum anchor ${index + 1}`;
+    side === "before" ? "Recorded after this block" : side === "after" ? "An anchor followed this recording (not an upper bound)" : `Ethereum anchor ${index + 1}`;
   const body: HTMLElement[] = [];
   if (a.blockNumber !== undefined) body.push(proofField("Block", fmtBlock(a.blockNumber), true));
   if (ts !== undefined) body.push(proofField("Block Time", fmtDateTime(ts)));
