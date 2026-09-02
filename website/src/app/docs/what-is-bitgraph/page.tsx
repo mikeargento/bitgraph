@@ -3,7 +3,7 @@ import { CommitPathDiagram } from "@/components/commit-path-diagram";
 
 export const metadata: Metadata = {
   title: "The protocol",
-  description: "BitGraph is a protocol for portable cryptographic proof of place, not time: one position in a sequence, reserved before the file's hash was known.",
+  description: "BitGraph is a protocol for portable cryptographic proof of place, not time: one position in a sequence, reserved before the file's hash arrived.",
 };
 
 export default function WhatIsBitGraphPage() {
@@ -29,7 +29,7 @@ export default function WhatIsBitGraphPage() {
         a file is committed through an authorized execution boundary. The proof
         does not assert a time. It asserts a place: this exact file, in this
         exact form, at one position in a sequence, reserved before the
-        file&apos;s hash was known and never occupied by anything else.
+        file&apos;s hash reached the enclave and never occupied by anything else.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">The core idea</h2>
@@ -58,7 +58,7 @@ export default function WhatIsBitGraphPage() {
       <ol className="space-y-3 mb-6">
         <li className="text-[#1f2937] leading-relaxed">
           <strong className="text-text">1. Allocate</strong> - The enclave pre-allocates a
-          causal slot (nonce + counter) before the artifact hash is known. The
+          causal slot (nonce + counter) before the artifact hash reaches it. The
           place exists before the file that will occupy it.
         </li>
         <li className="text-[#1f2937] leading-relaxed">
@@ -92,7 +92,7 @@ export default function WhatIsBitGraphPage() {
       <ul className="space-y-2 mb-6">
         <li className="text-[#1f2937]"><strong className="text-text">Portable</strong> — a self-contained JSON object. Any verifier can check it offline with only the public key and the original bytes.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Atomic</strong> — fail-closed. Either a complete, valid proof is produced, or nothing is.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Causal</strong> — every proof is bound to a pre-allocated slot created before the artifact hash was known.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Causal</strong> — every proof is bound to a pre-allocated slot created before the artifact hash reached the enclave.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Ordered</strong> — one place in a sequence, fixed by a monotonic counter within its epoch. Counter, epoch, and chain link establish sequencing.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Measured</strong> — binds to a specific execution environment via its platform measurement. Production is AWS Nitro, where that measurement is PCR0; the schema names no platform, so another TEE&rsquo;s would fit it.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Verifiable</strong> — Ed25519 signature, SHA-256 digest, canonical serialization. Standard cryptographic primitives.</li>

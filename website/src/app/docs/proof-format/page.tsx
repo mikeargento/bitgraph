@@ -133,7 +133,8 @@ export default function ProofFormatPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Causal slot allocation</h2>
       <p className="text-[#1f2937] mb-4">
-        Every proof is causally bound to a pre-allocated slot. The slot is created <em>before</em> the artifact hash is known, proving the enclave committed to a nonce and counter independently of the artifact content.
+        Every proof is causally bound to a pre-allocated slot. The slot is created <em>before</em> the artifact hash reaches the enclave, so the enclave committed to a nonce
+          and counter without having seen the artifact.
       </p>
       <div className="overflow-x-auto mb-4">
         <table className="w-full text-sm">

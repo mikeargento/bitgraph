@@ -8,17 +8,11 @@
 
 ---
 
-Who, when, and where are different facts. Knowing who took a Polaroid does not tell you where that Polaroid is. Knowing what time it was taken does not tell you where it is either. Holding it in your hand tells you where it is, but nothing about who took it or when.
-
-The Polaroid is in one place. A digital file is not: you can copy it perfectly, and every copy is the same file.
-
-BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later. Your file never leaves your device to get one, and anyone can check it, forever.
-
 BitGraphs are not labels or metadata added after the fact. They are new computations created when your file's hash *fills* a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state.
 
 Provenance can be enforced or it can be claimed. Most systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.
 
-BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact's hash is known. The artifact's hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
+BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact's hash reaches it. The artifact's hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
 
 > This exact digital state was committed through this measured process, in this order, under these constraints.
 
@@ -26,7 +20,7 @@ BitGraph enforces it instead. A measured trusted execution environment creates a
 
 Nonce first. Hash second. Atomic binding third.
 
-The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave's key, with an identity that could not feasibly have been predicted. The slot exists as a cryptographic object before any artifact hash has been seen.
+The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave's key, with an identity that could not feasibly have been predicted. The slot exists as a cryptographic object before it has seen any artifact hash.
 
 The artifact hash arrives. The TEE binds the hash into the slot, signs the binding, and advances its internal order. The slot becomes consumed.
 

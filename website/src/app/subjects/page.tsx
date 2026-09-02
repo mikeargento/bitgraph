@@ -213,7 +213,7 @@ export default function SubjectsPage() {
             ("the issuer does not control", "the provider does not
             control"), which already said it correctly. */}
         A BitGraph gives a file a position. The slot is reserved from hardware
-        entropy before the file&apos;s hash is known, the hash is bound to that slot
+        entropy before the file&apos;s hash arrives, the hash is bound to that slot
         inside a measured boundary, and the sequence is anchored to a public
         timeline outside the recorder&apos;s control.
       </p>

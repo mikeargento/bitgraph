@@ -65,7 +65,7 @@ export default function TrustModelPage() {
               <td className="py-2">Anti-rollback degrades to single session</td>
             </tr>
             <tr className="border-b border-[#e5e7eb]">
-              <td className="py-2 pr-4">Causal slot integrity - slot allocated before artifact hash known</td>
+              <td className="py-2 pr-4">Causal slot integrity - slot allocated before the artifact hash reached the enclave</td>
               <td className="py-2">Without pre-allocation, commit order could be forged</td>
             </tr>
             <tr>

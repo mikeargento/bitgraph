@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Overview",
   description:
-    "How a BitGraph is made: the position is reserved before your file's fingerprint is known, and consumed once. Why that is different from signing something afterward.",
+    "How a BitGraph is made: the position is reserved before your file's fingerprint arrives, and consumed once. Why that is different from signing something afterward.",
 };
 
 export default function OverviewPage() {
@@ -115,7 +115,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact&rsquo;s hash is known. The artifact&rsquo;s hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
+        BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact&rsquo;s hash reaches it. The artifact&rsquo;s hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
       </p>
 
       <blockquote>
@@ -127,7 +127,7 @@ export default function OverviewPage() {
       <p>Nonce first. Hash second. Atomic binding third.</p>
 
       <p>
-        The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave&rsquo;s key, with an identity that could not feasibly have been predicted. The slot exists as a cryptographic object before any artifact hash has been seen.
+        The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave&rsquo;s key, with an identity that could not feasibly have been predicted. The slot exists as a cryptographic object before it has seen any artifact hash.
       </p>
 
       <p>

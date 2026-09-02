@@ -41,7 +41,7 @@ const faqs = [
   },
   {
     q: "How does BitGraph establish time?",
-    a: "BitGraph does not claim to prove absolute time. It proves causal order: every commit pre-allocates a slot inside the enclave before the artifact hash is known, and the monotonic counter establishes sequencing within an epoch. For an external time reference, the same enclave periodically commits the hash of a recent Ethereum block into the chain. A block hash does not exist before its block is produced, so everything chained after an anchor provably came after that block's public date, and the anchor's hash links fix the history behind it against rewrite.",
+    a: "BitGraph does not claim to prove absolute time. It proves causal order: every commit pre-allocates a slot inside the enclave before the artifact hash reaches it, and the monotonic counter establishes sequencing within an epoch. For an external time reference, the same enclave periodically commits the hash of a recent Ethereum block into the chain. A block hash does not exist before its block is produced, so everything chained after an anchor provably came after that block's public date, and the anchor's hash links fix the history behind it against rewrite.",
   },
   {
     q: "Can the same file produce different proofs?",
@@ -53,11 +53,11 @@ const faqs = [
   },
   {
     q: "How is this different from just signing a file?",
-    a: "A standard digital signature proves someone with the private key signed the bytes. BitGraph additionally provides: a measured execution boundary (PCR0), a monotonic counter (ordering), causal slot pre-allocation (proves commitment position was reserved before content was known), proof chaining (sequence integrity), hardware attestation (boundary evidence), actor-bound proofs (device biometric authorization), and signed attribution (creator metadata). The key never leaves the enclave.",
+    a: "A standard digital signature proves someone with the private key signed the bytes. BitGraph additionally provides: a measured execution boundary (PCR0), a monotonic counter (ordering), causal slot pre-allocation (the position was reserved before the enclave received the content's hash), proof chaining (sequence integrity), hardware attestation (boundary evidence), actor-bound proofs (device biometric authorization), and signed attribution (creator metadata). The key never leaves the enclave.",
   },
   {
     q: "What is a causal slot?",
-    a: "A slot is a pre-allocated nonce and counter pair created inside the enclave before any artifact hash is known. This proves the enclave committed to a specific position in its sequence independently of the artifact content. The slot has its own Ed25519 signature and is cryptographically bound to the final proof via `slotHashB64`. Every proof includes its slot allocation record.",
+    a: "A slot is a pre-allocated nonce and counter pair created inside the enclave before any artifact hash reaches it. This proves the enclave committed to a specific position in its sequence without having seen the artifact. The slot has its own Ed25519 signature and is cryptographically bound to the final proof via `slotHashB64`. Every proof includes its slot allocation record.",
   },
   {
     q: "What is attribution?",
