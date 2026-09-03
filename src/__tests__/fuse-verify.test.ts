@@ -55,10 +55,17 @@ describe("path 3: the file is the committed bytes", () => {
     });
   }
 
-  test("the origin statement appears only when the origin was matched", async () => {
-    const withOrigin = await run("trailer.proof.json", bytes("fused-trailer.bin"));
-    assert.equal(withOrigin.statements.length, 2);
-    assert.match(withOrigin.statements[0]!, /supplied original matched the origin digest/);
+  test("the origin statement names what was checked: consistency on the direct path, reconstruction on the origin path", async () => {
+    const direct = await run("trailer.proof.json", bytes("fused-trailer.bin"));
+    assert.equal(direct.category, "FUSED_DIRECT");
+    assert.equal(direct.statements.length, 2);
+    assert.match(direct.statements[0]!, /origin digest that matches the signed marker/);
+    assert.match(direct.statements[0]!, /was not supplied and was not checked/);
+    assert.doesNotMatch(direct.statements[0]!, /supplied original/, "no original was supplied on the direct path");
+    const fromOrigin = await run("trailer.proof.json", original);
+    assert.equal(fromOrigin.category, "FUSED_FROM_ORIGIN");
+    assert.equal(fromOrigin.statements.length, 2);
+    assert.match(fromOrigin.statements[0]!, /supplied original rebuilds the committed fused artifact byte for byte/);
     const bare = await run("produced-bare.proof.json", bytes("produced-bare.json"));
     assert.equal(bare.statements.length, 1);
     assert.equal(bare.originDigestB64, null);

@@ -4,6 +4,7 @@ All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
 ## 0.4.0 (2026-09-03)
 
+- The report's `toolVersion` (and `AUDIT_VERSION`) is `0.4.0`; every other field of an audit over a bundle without fused proofs is unchanged from 0.3.0, checked byte for byte on the shipped TRACE bundles.
 - `streamArtifactsByHash(ingest, hexes)`: re-read specific artifacts by content hash, matched or not, for profiles whose evidence is a file other than the committed bytes (the original of a fused artifact). `streamMatchedArtifacts` is unchanged.
 
 ## 0.3.0 (2026-09-01)

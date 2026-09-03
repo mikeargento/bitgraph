@@ -113,9 +113,18 @@ function spanOf(proof: BitGraphProof): FuseSpan | null {
 function statements(category: FuseCategory, span: FuseSpan | null, originMatched: boolean): string[] {
   if (span === null) return [];
   const out: string[] = [];
-  if ((category === "FUSED_DIRECT" || category === "FUSED_FROM_ORIGIN") && originMatched) {
+  // The origin sentence names exactly what was checked. On the origin path the
+  // supplied file was rebuilt into the committed artifact, so its existence by
+  // M is established. On the direct path only the fused bytes were supplied:
+  // an embedded origin digest agreeing with the signed marker is consistency,
+  // not a check of the original, and a check that did not run is never a verdict.
+  if (category === "FUSED_FROM_ORIGIN") {
     out.push(
-      `The supplied original matched the origin digest committed by this proof and therefore existed no later than commit position ${span.commitCounter}.`,
+      `The supplied original rebuilds the committed fused artifact byte for byte, so these exact original bytes existed no later than commit position ${span.commitCounter}.`,
+    );
+  } else if (category === "FUSED_DIRECT" && originMatched) {
+    out.push(
+      "The fused bytes carry an origin digest that matches the signed marker; the original itself was not supplied and was not checked.",
     );
   }
   if (category === "FUSED_DIRECT" || category === "FUSED_FROM_ORIGIN") {

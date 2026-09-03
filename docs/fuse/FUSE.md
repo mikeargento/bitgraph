@@ -56,8 +56,10 @@ enclave, and fresh nonce generation without disclosure before allocation:
 - Therefore the exact fused bytes could not feasibly have been finalized before
   allocation.
 - The commit binds their digest at the commit position, so they existed by then.
-- A supplied original whose digest matches the committed origin digest existed
-  no later than the commit.
+- A supplied original that rebuilds the committed fused artifact byte for byte
+  existed no later than the commit. An origin digest inside the fused bytes
+  only shows consistency with the signed marker; it says nothing about the
+  original until the original is supplied and rebuilt.
 
 What it does not establish. Never state or imply that Fuse proves: the original
 was created after slot allocation; the original's content is fresh, authentic,
@@ -175,11 +177,17 @@ in its epoch." A following anchor is never a ceiling. The Player also requires
 `slot.chainId` to be the anchored chain before comparing any anchor to the
 slot; a slot on any other chain has no floor.
 
-Statements, fused with origin matched or rebuilt:
+Statements, fused. The origin sentence depends on the path: the first below
+only when the supplied file is the original and rebuilds the artifact
+(FUSED_FROM_ORIGIN); the second only when the fused bytes were supplied and
+carry an origin digest (FUSED_DIRECT):
 
 ```
-The supplied original matched the origin digest committed by this proof and
-therefore existed no later than commit position M.
+The supplied original rebuilds the committed fused artifact byte for byte, so
+these exact original bytes existed no later than commit position M.
+
+The fused bytes carry an origin digest that matches the signed marker; the
+original itself was not supplied and was not checked.
 
 The exact fused bytes could not feasibly have been finalized before their signed
 slot allocation at position N, which followed anchored block B (timestamp T),
