@@ -107,6 +107,20 @@ export default function ProofPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
+  // Which file the page holds for a fused proof: the original (accepted by
+  // reconstruction) or the new file itself. Names the export action; an
+  // ordinary recording has one file and needs no role.
+  const [cachedRole, setCachedRole] = useState<"original" | "new" | null>(null);
+  useEffect(() => {
+    const marker = (proof?.attribution as { name?: string; message?: string } | undefined);
+    if (!cachedFile || !proof || marker?.name !== "bitgraph-fuse/1") { setCachedRole(null); return; }
+    let cancelled = false;
+    void hashBytes(new Uint8Array(cachedFile.data)).then((h) => {
+      if (cancelled) return;
+      setCachedRole(h === marker.message ? "original" : h === proof.artifact.digestB64 ? "new" : null);
+    }).catch(() => { if (!cancelled) setCachedRole(null); });
+    return () => { cancelled = true; };
+  }, [cachedFile, proof]);
   // Export fetches the two ETH anchors and their block-header witnesses before
   // zipping, so it is a real wait, not an instant download. The link reports it.
   const [exporting, setExporting] = useState(false);
@@ -865,20 +879,15 @@ export default function ProofPage() {
                   the card above shows, and the new file's, the fused bytes the
                   proof commits. Both come from the signed proof: the origin
                   digest from the attribution, the artifact digest from the
-                  commit. The original's link opens its own page, which lists
-                  this artifact among its descendants without ranking. An
+                  commit. The placement is not shown: it is a verifier detail,
+                  in the attribution and the Raw JSON (Mike, 2026-09-03). An
                   ordinary recording keeps the single File Hash. */}
               {attr?.name === "bitgraph-fuse/1" ? (
                 <>
-                  <Field
-                    label="Original file hash"
-                    mono
-                    topBorder
-                    value={attr.message ?? "not declared"}
-                    valueNode={attr.message ? <a href={`/proof/${encodeURIComponent(toSafeB64(attr.message))}`} style={{ color: "#0065A4", textDecoration: "none" }}>{attr.message}</a> : undefined}
-                  />
+                  {/* Plain, not a link: the original has no position of its own, so
+                      there is no proof page to go to (Mike, 2026-09-03). */}
+                  <Field label="Original file hash" value={attr.message ?? "not declared"} mono topBorder />
                   <Field label="New file hash" value={proof.artifact.digestB64} mono topBorder />
-                  {attr.title && <Field label="Placement" value={attr.title} mono topBorder />}
                 </>
               ) : (
                 <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
@@ -886,7 +895,7 @@ export default function ProofPage() {
               {attr?.name === "bitgraph-fuse/1" && cachedFile && (
                 <div style={{ padding: "0 16px" }}>
                   <button onClick={downloadFusedCopy} className="bg-action-link">
-                    <span>Download fused copy</span>
+                    <span>Download new file</span>
                     <span className="arrow" aria-hidden>&rarr;</span>
                   </button>
                 </div>
@@ -896,7 +905,7 @@ export default function ProofPage() {
                   a touch more type weight because it is the primary one. */}
               <div style={{ padding: "0 16px" }}>
                 <button onClick={exportZip} disabled={exporting} className="bg-action-link">
-                  <span>{exporting ? "Exporting…" : cachedFile ? "Export BitGraph + File" : "Export BitGraph"}</span>
+                  <span>{exporting ? "Exporting…" : cachedFile ? (cachedRole === "original" ? "Export BitGraph + Original File" : cachedRole === "new" ? "Export BitGraph + New File" : "Export BitGraph + File") : "Export BitGraph"}</span>
                   {!exporting && <span className="arrow" aria-hidden>&rarr;</span>}
                 </button>
                 {!cachedFile && (
