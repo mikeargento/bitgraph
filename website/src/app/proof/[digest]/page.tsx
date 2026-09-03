@@ -909,11 +909,6 @@ export default function ProofPage() {
                     BitGraph only: the original file is not on this device
                   </div>
                 )}
-                {cachedFile && attr?.name === "bitgraph-fuse/1" && (
-                  <div style={{ fontSize: 12.5, color: "#4b5563", paddingBottom: 6 }}>
-                    The original, the proof, and the new file in a fused folder
-                  </div>
-                )}
               </div>
             </CollapsibleCard>
             {/* A fused proof has two hashes, the new file's and the original's.
