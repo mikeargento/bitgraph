@@ -21,7 +21,7 @@ const forgedSlotId = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32)
     ok("interleaved ordinary commit 200", other.status === 200);
 
     const digestB64 = randomDigestB64();
-    const c = await post(`${U}/commit`, { digests: [{ digestB64, hashAlg: "sha256" }], slotId, chainId: "bitgraph:main", attribution: { name: "BitGraph Fuse", title: "produced/1" } });
+    const c = await post(`${U}/commit`, { digests: [{ digestB64, hashAlg: "sha256" }], slotId, chainId: "bitgraph:main", attribution: { name: "bitgraph-fuse/1", title: "produced/1" } });
     ok("commit under held slot 200", c.status === 200, c.json);
     const proof = Array.isArray(c.json) ? c.json[0] : undefined;
     ok("proof.slotAllocation is the held record", JSON.stringify(proof?.slotAllocation) === JSON.stringify(slot), proof?.slotAllocation);
@@ -29,7 +29,7 @@ const forgedSlotId = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32)
     ok("commit.slotCounter equals the held slot counter", proof?.commit?.slotCounter === slot.counter);
     ok("span [N, M] has the other commit inside it", BigInt(slot.counter) < BigInt(other.json[0].commit.counter) && BigInt(other.json[0].commit.counter) < BigInt(proof.commit.counter), { N: slot.counter, other: other.json[0].commit.counter, M: proof.commit.counter });
     ok("proof landed on the anchored chain", proof?.commit?.chainId === "bitgraph:main");
-    ok("attribution sealed", proof?.attribution?.name === "BitGraph Fuse" && proof?.attribution?.title === "produced/1");
+    ok("attribution sealed", proof?.attribution?.name === "bitgraph-fuse/1" && proof?.attribution?.title === "produced/1");
     ok("artifact digest is the submitted digest", proof?.artifact?.digestB64 === digestB64);
     const v = await verifyProofIntegrity({ proof });
     ok("bitgraph-verify accepts the proof (signature + slot binding)", v.valid === true, v);

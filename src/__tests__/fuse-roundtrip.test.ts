@@ -131,8 +131,8 @@ describe("attribution and Frame", () => {
   test("fused attribution carries placement in title and origin in message (standard base64)", () => {
     const origin = sha256(bytes("original.txt"));
     const a = fuseAttribution("trailer/1", origin);
-    assert.deepEqual(a, { name: "BitGraph Fuse", title: "trailer/1", message: bytesToBase64(origin) });
-    assert.deepEqual(fuseAttribution("produced/1"), { name: "BitGraph Fuse", title: "produced/1" });
+    assert.deepEqual(a, { name: "bitgraph-fuse/1", title: "trailer/1", message: bytesToBase64(origin) });
+    assert.deepEqual(fuseAttribution("produced/1"), { name: "bitgraph-fuse/1", title: "produced/1" });
     const proof = proofOf("trailer.proof.json");
     const m = readFuseAttribution(proof)!;
     assert.equal(m.placement, "trailer/1");

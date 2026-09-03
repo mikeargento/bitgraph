@@ -9,7 +9,10 @@ All notable changes to `@mikeargento/bitgraph-verify` are documented here.
   registry `trailer/1`, `container/1`, `produced/1`, Form C payload,
   Frame helpers) and `verifyFuse`, which verifies a proof against either the
   fused bytes or the original and reports a category, never a collapsed
-  verdict. bitgraph/1 verification is unchanged; `verify` and
+  verdict. A fused proof is marked by its signed attribution: `name` is the
+  profile id `bitgraph-fuse/1` (exported as `FUSE_ATTRIBUTION_NAME`), `title`
+  the placement id, `message` the origin digest in standard base64.
+  bitgraph/1 verification is unchanged; `verify` and
   `verifyProofIntegrity` behave exactly as in 1.3.0.
 
 ## 1.3.0 (2026-08-19)

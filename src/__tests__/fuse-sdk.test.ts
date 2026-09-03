@@ -53,7 +53,7 @@ describe("fuse(): the four beats", () => {
     // The commit carried the placement and origin in the attribution, and named the slot.
     const commit = calls.find((c) => c.path === "/api/fuse/commit")!.body as Record<string, unknown>;
     assert.equal(commit.slotId, proof.slotAllocation!.nonceB64);
-    assert.deepEqual(commit.attribution, { name: "BitGraph Fuse", title: "trailer/1", message: r.originDigestB64 });
+    assert.deepEqual(commit.attribution, { name: "bitgraph-fuse/1", title: "trailer/1", message: r.originDigestB64 });
     assert.deepEqual(commit.digests, [{ digestB64: proof.artifact.digestB64, hashAlg: "sha256" }]);
     assert.equal(commit.chainId, "bitgraph:main");
     // The raw nonce appears in no error and nowhere but the slot field it must ride in.

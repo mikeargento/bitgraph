@@ -18,69 +18,69 @@
   "trailerFixture": {
     "slot": {
       "version": "bitgraph/slot/1",
-      "nonceB64": "tQhtaOOZnenFUA7l3ZeBdK0e68KFvV7wa2DWG6gqMaA=",
+      "nonceB64": "y/2ZLJj+XjngZuKLoN/LnQgDUZ2rHJgDJfZYLKdX314=",
       "counter": "3",
-      "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
-      "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+      "epochId": "EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=",
+      "publicKeyB64": "fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=",
       "chainId": "bitgraph:main",
-      "signatureB64": "zTQ2PZajJ14mUrB9UdeVu8/J1/md8Gg7LKkaZ4hS8I6Sm7SWaF4Zs5eYP6UOD2OMOmXxwylGTOmteGlDL9OjBg=="
+      "signatureB64": "00su+7ZImIihyM70bRUcS4BzOlFxx0WcUeboplrRjt+vBbUA6HihfqMc6aSoktUmIrUllTCH2MSM44iwC0CzAw=="
     },
-    "canonicalSlotBody": "{\"chainId\":\"bitgraph:main\",\"counter\":\"3\",\"epochId\":\"eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=\",\"nonceB64\":\"tQhtaOOZnenFUA7l3ZeBdK0e68KFvV7wa2DWG6gqMaA=\",\"publicKeyB64\":\"ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=\",\"version\":\"bitgraph/slot/1\"}",
-    "slotRecordHashHex": "92b7c7cd68f181f56f22f2fccdc284e93baa2c9f160878a27452b5aba52517ac",
-    "preimageHex": "62697467726170682d667573652f310092b7c7cd68f181f56f22f2fccdc284e93baa2c9f160878a27452b5aba52517acb5086d68e3999de9c5500ee5dd978174ad1eebc285bd5ef06b60d61ba82a31a0",
-    "commitmentHex": "d7e35a31f4af9f272e877a3e3370897091717f6b8865157014d093d987cdfee7",
-    "fusedDigestB64": "R4W8foFE+QtflAbeCmOnCecV8ir61aB7kyCSz6whz+Y=",
+    "canonicalSlotBody": "{\"chainId\":\"bitgraph:main\",\"counter\":\"3\",\"epochId\":\"EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=\",\"nonceB64\":\"y/2ZLJj+XjngZuKLoN/LnQgDUZ2rHJgDJfZYLKdX314=\",\"publicKeyB64\":\"fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=\",\"version\":\"bitgraph/slot/1\"}",
+    "slotRecordHashHex": "336938dcd360dc4804a97fc0c64c81738fa01ab129698d647ff285cba09bc24f",
+    "preimageHex": "62697467726170682d667573652f3100336938dcd360dc4804a97fc0c64c81738fa01ab129698d647ff285cba09bc24fcbfd992c98fe5e39e066e28ba0dfcb9d0803519dab1c980325f6582ca757df5e",
+    "commitmentHex": "22c03d323e25047a2962bbe7696d243fccd86f009a721b3410b5e0cab496da23",
+    "fusedDigestB64": "fkvYlyKXvXEyO+vnODmidr9cV7X6nP1nN2F8NyNgBAA=",
     "originDigestB64": "LoJHlFVP+zb9+nocCyB+yVi7JrHa1Uzr7/NTWJOOQyc="
   },
   "containerFixture": {
     "slot": {
       "version": "bitgraph/slot/1",
-      "nonceB64": "VdajPR8dUhcvapxm6i/v9mG/AdSusoiqzH5RCYTiakQ=",
+      "nonceB64": "gmQSoj4inlNjUKaOc8T/YSuyBTzInEnUI+mb63l/i+M=",
       "counter": "5",
-      "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
-      "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+      "epochId": "EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=",
+      "publicKeyB64": "fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=",
       "chainId": "bitgraph:main",
-      "signatureB64": "AEluxJTmG3u2Vd7h7xqskvRUgYMiAt6rlR7skW9mBeEvWcHzrgBfegA9dshPgnjykc8GfvCIU2nhUcH22r7hAw=="
+      "signatureB64": "OE+ADVX3u6GBuCPXyIHaVrjLBUsso7V3MOL6tvEObBbDHgmZK+e1fPbtje3ojZCgBpVnTHliljqh/Y/5VnTHBA=="
     },
-    "canonicalSlotBody": "{\"chainId\":\"bitgraph:main\",\"counter\":\"5\",\"epochId\":\"eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=\",\"nonceB64\":\"VdajPR8dUhcvapxm6i/v9mG/AdSusoiqzH5RCYTiakQ=\",\"publicKeyB64\":\"ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=\",\"version\":\"bitgraph/slot/1\"}",
-    "slotRecordHashHex": "52904a3d2c67729eda2937c657691e79855be2057962c3ea7c2b1e33365a510c",
-    "preimageHex": "62697467726170682d667573652f310052904a3d2c67729eda2937c657691e79855be2057962c3ea7c2b1e33365a510c55d6a33d1f1d52172f6a9c66ea2feff661bf01d4aeb288aacc7e510984e26a44",
-    "commitmentHex": "7e5845e7691feafd69308f9a0e4e50fcd20e4a38d28144c79ac44f21ada12987",
-    "fusedDigestB64": "OcBdD9YHQr3bBOgTK6+JmvOuI4TCBB3fg4VVum7MomI=",
+    "canonicalSlotBody": "{\"chainId\":\"bitgraph:main\",\"counter\":\"5\",\"epochId\":\"EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=\",\"nonceB64\":\"gmQSoj4inlNjUKaOc8T/YSuyBTzInEnUI+mb63l/i+M=\",\"publicKeyB64\":\"fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=\",\"version\":\"bitgraph/slot/1\"}",
+    "slotRecordHashHex": "0bc70de5d34da0ad8be7fa95c2241658a30759750735353347bfef30e5935a93",
+    "preimageHex": "62697467726170682d667573652f31000bc70de5d34da0ad8be7fa95c2241658a30759750735353347bfef30e5935a93826412a23e229e536350a68e73c4ff612bb2053cc89c49d423e99beb797f8be3",
+    "commitmentHex": "ea7c98e1d131c69941ed8bdb5e889fab2667ef0728ec5ea1de51b9aa33add3b7",
+    "fusedDigestB64": "3lMZ8YdYDBCT9X5LBXg4CqUAruRPKTiQLsTWru9f/2Q=",
     "originDigestB64": "SXeQlH1GZnYM4488AOhSxx/bZsroSbro6e3jUnGeFYE="
   },
   "producedOriginFixture": {
     "slot": {
       "version": "bitgraph/slot/1",
-      "nonceB64": "9NO4t8yzmbah55gpJPv31PNkVww7n39c9HhC4OiN9FM=",
+      "nonceB64": "vFoMRO4ssOIt9z/LcPhaevr6esgdQmx7/Mb3cAzLk4E=",
       "counter": "7",
-      "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
-      "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+      "epochId": "EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=",
+      "publicKeyB64": "fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=",
       "chainId": "bitgraph:main",
-      "signatureB64": "P5aYY3DhRFeaztVntnAPKt/1v80lo5hbO6I+SDIRB5k07dno/bROZQs53uS+MEAoSbQYCJK4IbELmBhqjIAgAw=="
+      "signatureB64": "9jFXifxHsdH5tWjccRR5+rXWXSKsOG6C04V9HtN8qsZxNJ6kTRynrny1DH34AGN5cOH6y74n8tHCYc+woxsZCg=="
     },
-    "canonicalSlotBody": "{\"chainId\":\"bitgraph:main\",\"counter\":\"7\",\"epochId\":\"eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=\",\"nonceB64\":\"9NO4t8yzmbah55gpJPv31PNkVww7n39c9HhC4OiN9FM=\",\"publicKeyB64\":\"ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=\",\"version\":\"bitgraph/slot/1\"}",
-    "slotRecordHashHex": "b50f7e40cdcbd61db7f6856fcaf35ec94b3a81f69b3cad3054a084e9014d7301",
-    "preimageHex": "62697467726170682d667573652f3100b50f7e40cdcbd61db7f6856fcaf35ec94b3a81f69b3cad3054a084e9014d7301f4d3b8b7ccb399b6a1e7982924fbf7d4f364570c3b9f7f5cf47842e0e88df453",
-    "commitmentHex": "c077f10599b8ea28341e194f99c3ecb6f02507632611f56e78847ef1e27df98f",
-    "payload": "{\"origin\":{\"algorithm\":\"sha256\",\"digest\":\"2e824794554ffb36fdfa7a1c0b207ec958bb26b1dad54cebeff35358938e4327\"},\"slotCommitment\":{\"algorithm\":\"sha256\",\"digest\":\"c077f10599b8ea28341e194f99c3ecb6f02507632611f56e78847ef1e27df98f\"},\"type\":\"bitgraph-fuse/1\"}",
-    "fusedDigestB64": "bcOLzWd+xtR0QQ6oaMBZm00JyQ4a9J/A0O2UUE5xm9I="
+    "canonicalSlotBody": "{\"chainId\":\"bitgraph:main\",\"counter\":\"7\",\"epochId\":\"EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=\",\"nonceB64\":\"vFoMRO4ssOIt9z/LcPhaevr6esgdQmx7/Mb3cAzLk4E=\",\"publicKeyB64\":\"fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=\",\"version\":\"bitgraph/slot/1\"}",
+    "slotRecordHashHex": "f54ee08b9382172a00c17f945911e54a98e20dc9d6ac7ca82383d404071d4010",
+    "preimageHex": "62697467726170682d667573652f3100f54ee08b9382172a00c17f945911e54a98e20dc9d6ac7ca82383d404071d4010bc5a0c44ee2cb0e22df73fcb70f85a7afafa7ac81d426c7bfcc6f7700ccb9381",
+    "commitmentHex": "4b55829a11a4e60194202b1d2ce71a41e82a078e57a058a81ead0eac0eaf1b6c",
+    "payload": "{\"origin\":{\"algorithm\":\"sha256\",\"digest\":\"2e824794554ffb36fdfa7a1c0b207ec958bb26b1dad54cebeff35358938e4327\"},\"slotCommitment\":{\"algorithm\":\"sha256\",\"digest\":\"4b55829a11a4e60194202b1d2ce71a41e82a078e57a058a81ead0eac0eaf1b6c\"},\"type\":\"bitgraph-fuse/1\"}",
+    "fusedDigestB64": "F6uw7AOneArKEB4CN3YcP1VnzJ1w3oRZ0fRbQZ4pzEM="
   },
   "producedBareFixture": {
     "slot": {
       "version": "bitgraph/slot/1",
-      "nonceB64": "8DYkYYdBKroipJ/cASJcYcJIIw2uD2E9K0XXUCzn5TM=",
+      "nonceB64": "zmERskWwOsFfk4i9ePDkczefvYDWjceB94G3e/aItRs=",
       "counter": "9",
-      "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
-      "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+      "epochId": "EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=",
+      "publicKeyB64": "fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=",
       "chainId": "bitgraph:main",
-      "signatureB64": "x+zpb/Z3HKIQNZ7hQy1figXWRtw/ku39Q2o1FiWX04EOSzhJZN3GjzhNdPmDLxjw8/hLGeg4vZTfpFY2xN12Cg=="
+      "signatureB64": "0pIL8rz6vgNx1D874MCmN2BocY2QeIj9l+kNkJhaOqS75dH6kGLL/PYUN1UgLKgCObmQtTI03tZHfu51KJAHBQ=="
     },
-    "canonicalSlotBody": "{\"chainId\":\"bitgraph:main\",\"counter\":\"9\",\"epochId\":\"eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=\",\"nonceB64\":\"8DYkYYdBKroipJ/cASJcYcJIIw2uD2E9K0XXUCzn5TM=\",\"publicKeyB64\":\"ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=\",\"version\":\"bitgraph/slot/1\"}",
-    "slotRecordHashHex": "b82b8afa5396767c83144928d4f9b57173d7ef8358b25411fc19177c0a898f0e",
-    "preimageHex": "62697467726170682d667573652f3100b82b8afa5396767c83144928d4f9b57173d7ef8358b25411fc19177c0a898f0ef036246187412aba22a49fdc01225c61c248230dae0f613d2b45d7502ce7e533",
-    "commitmentHex": "35b3cc844a9d81bf4c9c6d2f54eac0816d8184384bce72de525139bce066d99b",
-    "payload": "{\"slotCommitment\":{\"algorithm\":\"sha256\",\"digest\":\"35b3cc844a9d81bf4c9c6d2f54eac0816d8184384bce72de525139bce066d99b\"},\"type\":\"bitgraph-fuse/1\"}",
-    "fusedDigestB64": "pdElD306MEn5oRVRjkfsKya2QzupNooMFz1VJiWrSh8="
+    "canonicalSlotBody": "{\"chainId\":\"bitgraph:main\",\"counter\":\"9\",\"epochId\":\"EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=\",\"nonceB64\":\"zmERskWwOsFfk4i9ePDkczefvYDWjceB94G3e/aItRs=\",\"publicKeyB64\":\"fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=\",\"version\":\"bitgraph/slot/1\"}",
+    "slotRecordHashHex": "c59c28246438139bcaaf515bb6eaf1ec60c93992e2576bfdf106ca3fb90cc0ca",
+    "preimageHex": "62697467726170682d667573652f3100c59c28246438139bcaaf515bb6eaf1ec60c93992e2576bfdf106ca3fb90cc0cace6111b245b03ac15f9388bd78f0e473379fbd80d68dc781f781b77bf688b51b",
+    "commitmentHex": "e7c16440336ffd55e63e44f1827a53a75349a7a0c8a68c9b504b2bfc1d9ae005",
+    "payload": "{\"slotCommitment\":{\"algorithm\":\"sha256\",\"digest\":\"e7c16440336ffd55e63e44f1827a53a75349a7a0c8a68c9b504b2bfc1d9ae005\"},\"type\":\"bitgraph-fuse/1\"}",
+    "fusedDigestB64": "dDsCsWes15lkQgTV6rmElelikWxRRFwGLJukEfNFDE4="
   }
 }

@@ -112,10 +112,16 @@ serialization is pinned and round-trip tested.
 The proof declares placement and origin in the attribution the enclave signs:
 
 ```
-attribution.name    = "BitGraph Fuse"
+attribution.name    = "bitgraph-fuse/1"
 attribution.title   = placement id
 attribution.message = origin digest (standard base64); absent for Form C with no source
 ```
+
+`attribution.name` is the profile id: the stable wire identifier of this
+construction, ruled 2026-09-03. The nested proof remains an ordinary
+`bitgraph/1` proof; `bitgraph-fuse/1` names the construction on the wire, not
+a new proof format. A product name may change; the v1 wire identifier does
+not.
 
 The signature proves the enclave sealed the claim, not that the claim is true.
 Reconstruction is the truth check: a false origin cannot yield bytes that hash
@@ -200,6 +206,14 @@ Service surfaces (all behind `FUSE_ENABLED`, off by default; nothing deployed):
   (position-aware gate: an anchor must precede the slot in its epoch; never
   returns a proof under a different slot; writes the by-digest index including
   the origin's descendants).
+
+Posture (ruled 2026-09-03): allocation is the gated parent route above, under
+the existing key mechanism and limiter; a commit consumes the exact allocation
+that route returned, with no slot substitution and no fresh allocation during
+commit; the commit path stays behind the anchor-first gate. The flag stays off
+and the harness stays internal until the implementation, vectors, verifier
+behaviour and claim language are fully tested; there is no public docs page
+until then.
 
 SDK (in the core package `@mikeargento/bitgraph`, licensed): `fuse(builder, options)`: allocate, hand the
 commitment to the builder, hash, commit under the same slot, verify the

@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     // fused proof from the signed bytes alone.
     const attr = body.attribution as Record<string, unknown> | undefined;
     if (attr === undefined || attr === null || typeof attr !== "object" || Array.isArray(attr)) {
-      return NextResponse.json({ error: "body.attribution is required: { name: 'BitGraph Fuse', title: <placement id>, message?: <origin digest> }" }, { status: 400 });
+      return NextResponse.json({ error: `body.attribution is required: { name: '${FUSE_ATTRIBUTION_NAME}', title: <placement id>, message?: <origin digest> }` }, { status: 400 });
     }
     if (attr.name !== FUSE_ATTRIBUTION_NAME) {
       return NextResponse.json({ error: `attribution.name must be "${FUSE_ATTRIBUTION_NAME}"` }, { status: 400 });

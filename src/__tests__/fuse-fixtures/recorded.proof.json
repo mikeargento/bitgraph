@@ -5,33 +5,33 @@
     "digestB64": "LoJHlFVP+zb9+nocCyB+yVi7JrHa1Uzr7/NTWJOOQyc="
   },
   "commit": {
-    "nonceB64": "SwkCAJFnzVNnP20l0SAx4KWNk5ecHHEeOzxhTm6+Q1o=",
+    "nonceB64": "9N0QGQudQyyge8Ikpfn3PouprmCl1WOYjyXoJBiznJU=",
     "counter": "2",
     "slotCounter": "1",
-    "slotHashB64": "p1iLSGuDe/2mFk8rdC4gM6mF3zAzdFmyKtYt4gsiFTE=",
-    "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
+    "slotHashB64": "mF16D48CiFPGG3Wf+S9R6trrAKKDQ+2Yna3zjblVnf8=",
+    "epochId": "EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=",
     "chainId": "bitgraph:main"
   },
   "signer": {
-    "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
-    "signatureB64": "Yuvr80XDv3qpbNjcm3aIm/Up0pFbbrl91qXx2PMq9pIQs90LdLyG+k2PDnUH871xY+KT+ljQTCUooA7VFrx3Dg=="
+    "publicKeyB64": "fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=",
+    "signatureB64": "bngqVVZqGk7SL1U8ir2MnDlr7J/BCsWeYyL2EI21iIOmoDb/bpna0ED2YIZwAm2gAgYrHr37HfZudEpJdzihAw=="
   },
   "environment": {
     "enforcement": "measured-tee",
     "measurement": "abababababababababababababababababababababababababababababababababababababababababababababababab",
     "attestation": {
       "format": "aws-nitro",
-      "reportB64": "TE9DQUwtSEFSTkVTUy1BVFRFU1RBVElPTjoyNWE0NTc0MzVmMDJmYWQzZmZiODYwYWQ1OTM2MGFhNDlkNDQxZDUwMmZlODBjZTY3MDc5OGJhMjE4NGQzNzQ2"
+      "reportB64": "TE9DQUwtSEFSTkVTUy1BVFRFU1RBVElPTjo0MGI1NDAyMWE1MTU0MjQ0Nzc5ZjJlNzQxYjU3MWMzZWZjODBjM2QyNTMzMTJmNTViMGY4MTk2MjM4NjkzN2Nk"
     }
   },
   "slotAllocation": {
     "version": "bitgraph/slot/1",
-    "nonceB64": "SwkCAJFnzVNnP20l0SAx4KWNk5ecHHEeOzxhTm6+Q1o=",
+    "nonceB64": "9N0QGQudQyyge8Ikpfn3PouprmCl1WOYjyXoJBiznJU=",
     "counter": "1",
-    "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
-    "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+    "epochId": "EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=",
+    "publicKeyB64": "fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=",
     "chainId": "bitgraph:main",
-    "signatureB64": "OCv24Iri3rQwOPedDb8HlL9AiWsdXsZ8BE8CeHoj0MHSiM02UvFTEIkvb+udqufCn8SfIY/jYMCJrpL3amCIDQ=="
+    "signatureB64": "AF94eYJk9xVFAehTUg75JHK4poE1cErQADzOabeSuLMdgm2f3Tugonwt7k2qbWFnq06HPrQ0JzmVuBd+VYIxCg=="
   },
-  "proofHash": "JaRXQ18C+tP/uGCtWTYKpJ1EHVAv6AzmcHmLohhNN0Y="
+  "proofHash": "QLVAIaUVQkR3ny50G1ccPvyAw9JTMS9VsPgZYjhpN80="
 }

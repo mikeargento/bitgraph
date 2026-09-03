@@ -2,42 +2,42 @@
   "version": "bitgraph/1",
   "artifact": {
     "hashAlg": "sha256",
-    "digestB64": "X7XXeShIz5OHg7zHYDhHwNuBzQ9YTY5vTGtI/L62T2s="
+    "digestB64": "2XkXhACmbeUtht1wN/S7328QaaLxNV2Aku/yCxfI8K0="
   },
   "commit": {
-    "nonceB64": "R60aHMNuqT9OFFDK4pPi3bJYJQ1s7WG9WBlhN6rpXQY=",
+    "nonceB64": "wWooI9bZXBnHXz8yQLZORLvp+WA2arfZXEzbVADnZtg=",
     "counter": "17",
     "slotCounter": "16",
-    "slotHashB64": "9L845joz5iO+eaVGP65VFgQtD0/WdU/tiHynqln23TQ=",
-    "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
-    "prevB64": "o0TjMrmECSG6vM8CVfHUVaDOsp5DHmMKXTzgKdLqeng=",
+    "slotHashB64": "bJhyu0NjBDx9SY5DjQCu/npzEDnSvd6+dBnZe3J+b1g=",
+    "epochId": "EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=",
+    "prevB64": "MNAbbR8b8fgnuI8loOCN4ApXVGJx5LaDqBI5X88BMcE=",
     "chainId": "bitgraph:main"
   },
   "signer": {
-    "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
-    "signatureB64": "MbySStKdy4wcQ4qc/HF+S1z4/Woc0ncwM6cdEvjelcfInD7nCUlLaJVY9NiT2gpf9fjq9lPzxfHud+7IRPtmAA=="
+    "publicKeyB64": "fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=",
+    "signatureB64": "EsflKR3fAP0Bs2UjOBWtWyfD8wkWD09pOBAvA+6/h0BORXTBXk6Mv4Lynbq5bCnOntNGeiy5bEJeaXdLTU1aDg=="
   },
   "environment": {
     "enforcement": "measured-tee",
     "measurement": "abababababababababababababababababababababababababababababababababababababababababababababababab",
     "attestation": {
       "format": "aws-nitro",
-      "reportB64": "TE9DQUwtSEFSTkVTUy1BVFRFU1RBVElPTjpkZWFlMmFhYjMzYWEwYWMyMWQzMGMwYjE2OTdhMmZjYjYyOWM1NjJjODZlNzg1NTNmMmE5NGY0MTNjOWFiOGQ5"
+      "reportB64": "TE9DQUwtSEFSTkVTUy1BVFRFU1RBVElPTjo1YjU4Nzk4OWMyYjMwYmUzYmEyMTJmMWUyN2MyMjgzOTY5NzAzYTg2MTU3OTI5NzU2YjFhODUwZDU3YWU2YTEy"
     }
   },
   "slotAllocation": {
     "version": "bitgraph/slot/1",
-    "nonceB64": "R60aHMNuqT9OFFDK4pPi3bJYJQ1s7WG9WBlhN6rpXQY=",
+    "nonceB64": "wWooI9bZXBnHXz8yQLZORLvp+WA2arfZXEzbVADnZtg=",
     "counter": "16",
-    "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
-    "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+    "epochId": "EtMed8gFPxwKF/4aYlRVZpdBWmhdmi+RKgF1TG/7ajg=",
+    "publicKeyB64": "fR0dzpIJQdatJ5Q0rgxgpBCzKmbvSy4M9fHZJ5+qlAE=",
     "chainId": "bitgraph:main",
-    "signatureB64": "iEDPmyTyN+Ak7goElt5RKNQfCDCc4t96XwK2GSj1vnm/hBhmOhPhWT1pxS+4SAYg7LFy6CxfZBG0+h0K2qlMDg=="
+    "signatureB64": "6f0dzH00JwgwfOXfQ7HIv5CBuVH0adbO6BpPzSIsLm0upwy0d174wUvUyweyQVwJxgYGLJW/xRY2HNzJFDI+Dg=="
   },
   "attribution": {
-    "name": "BitGraph Fuse",
+    "name": "bitgraph-fuse/1",
     "title": "xmp/9",
     "message": "LoJHlFVP+zb9+nocCyB+yVi7JrHa1Uzr7/NTWJOOQyc="
   },
-  "proofHash": "3q4qqzOqCsIdMMCxaXovy2KcViyG54VT8qlPQTyauNk="
+  "proofHash": "W1h5icKzC+O6IS8eJ8IoOWlwOoYVeSl1axqFDVeuahI="
 }

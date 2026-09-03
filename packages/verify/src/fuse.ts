@@ -44,8 +44,12 @@ export const FUSE_DOMAIN: Uint8Array = (() => {
   return out;
 })();
 
-/** The signed attribution name that marks a fused proof (spec 6.5). */
-export const FUSE_ATTRIBUTION_NAME = "BitGraph Fuse" as const;
+/**
+ * The signed attribution name that marks a fused proof (spec 6.5): the profile
+ * id itself, the stable wire identifier of this construction. A product name
+ * may change; the v1 wire identifier does not (ruled 2026-09-03).
+ */
+export const FUSE_ATTRIBUTION_NAME = FUSE_PROFILE;
 
 /** Trailer placement: 8 ASCII magic bytes, 8 reserved zero bytes, 32 commitment bytes. */
 export const TRAILER_MAGIC = "BGFUSE01" as const;
@@ -413,7 +417,7 @@ export function getPlacement(id: string): Placement | undefined {
 // Attribution (the signed carrier of placement and origin, spec 6.5)
 // ---------------------------------------------------------------------------
 
-/** attribution.name = "BitGraph Fuse", title = placement id, message = origin digest in standard base64. */
+/** attribution.name = "bitgraph-fuse/1" (the profile id), title = placement id, message = origin digest in standard base64. */
 export function fuseAttribution(placement: PlacementId, originDigest?: Uint8Array): Attribution {
   if (originDigest !== undefined && originDigest.length !== 32) throw new TypeError("originDigest must be 32 bytes");
   return {

@@ -1,18 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fusedOriginDigestOf, isFusedProof, isSlotRecord, secondsUntilRotation, rotationGuardActive } from "../fuse-core.ts";
+import { FUSE_ATTRIBUTION_NAME, fusedOriginDigestOf, isFusedProof, isSlotRecord, secondsUntilRotation, rotationGuardActive } from "../fuse-core.ts";
 
 const digest = Buffer.alloc(32, 7).toString("base64");
 
 test("fusedOriginDigestOf reads only the signed attribution of a fused proof", () => {
-  assert.equal(fusedOriginDigestOf({ attribution: { name: "BitGraph Fuse", title: "trailer/1", message: digest } }), digest);
-  assert.equal(fusedOriginDigestOf({ attribution: { name: "BitGraph Fuse", title: "produced/1" } }), null, "no origin declared");
+  assert.equal(fusedOriginDigestOf({ attribution: { name: "bitgraph-fuse/1", title: "trailer/1", message: digest } }), digest);
+  assert.equal(fusedOriginDigestOf({ attribution: { name: "bitgraph-fuse/1", title: "produced/1" } }), null, "no origin declared");
   assert.equal(fusedOriginDigestOf({ attribution: { name: "Ethereum Anchor", message: digest } }), null, "not fused");
-  assert.equal(fusedOriginDigestOf({ attribution: { name: "BitGraph Fuse", message: "not a digest" } }), null);
-  assert.equal(fusedOriginDigestOf({ attribution: { name: "BitGraph Fuse", message: "-".repeat(43) + "=" } }), null, "url-safe alphabet refused");
-  assert.equal(fusedOriginDigestOf({ attribution: { name: "BitGraph Fuse", message: digest.slice(0, 43) + "B" } }), null, "non-canonical padding refused");
+  assert.equal(fusedOriginDigestOf({ attribution: { name: "bitgraph-fuse/1", message: "not a digest" } }), null);
+  assert.equal(fusedOriginDigestOf({ attribution: { name: "bitgraph-fuse/1", message: "-".repeat(43) + "=" } }), null, "url-safe alphabet refused");
+  assert.equal(fusedOriginDigestOf({ attribution: { name: "bitgraph-fuse/1", message: digest.slice(0, 43) + "B" } }), null, "non-canonical padding refused");
   assert.equal(fusedOriginDigestOf({}), null);
-  assert.equal(isFusedProof({ attribution: { name: "BitGraph Fuse" } }), true);
+  assert.equal(isFusedProof({ attribution: { name: "bitgraph-fuse/1" } }), true);
   assert.equal(isFusedProof({ attribution: { name: "Interval" } }), false);
 });
 
@@ -38,4 +38,14 @@ test("the guard refuses allocation inside the pre-rotation window only", () => {
   assert.equal(rotationGuardActive(new Date(Date.UTC(2026, 8, 3, 23, 56, 0)), 150), false, "180 s before: open");
   assert.equal(rotationGuardActive(new Date(Date.UTC(2026, 8, 3, 23, 59, 5)), 150), false, "after the instant the next rotation is a day away");
   assert.equal(rotationGuardActive(new Date(Date.UTC(2026, 8, 3, 9, 0, 0)), 150), false);
+});
+
+test("the site's pinned wire name agrees with @mikeargento/bitgraph-verify", async () => {
+  // The site cannot import this from its verify dependency until 1.4.0 is
+  // published, so it pins the value and this test keeps the two copies equal.
+  // Requires the workspace build (npm run build at the repo root).
+  const verify = (await import("../../../../packages/verify/dist/index.js")) as { FUSE_ATTRIBUTION_NAME: string; FUSE_PROFILE: string };
+  assert.equal(FUSE_ATTRIBUTION_NAME, verify.FUSE_ATTRIBUTION_NAME);
+  assert.equal(FUSE_ATTRIBUTION_NAME, verify.FUSE_PROFILE, "the marker is the profile id");
+  assert.equal(FUSE_ATTRIBUTION_NAME, "bitgraph-fuse/1", "the v1 wire identifier is fixed");
 });
