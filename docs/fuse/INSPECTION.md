@@ -274,6 +274,19 @@ The mock enclave (`server/commit-service/src/mock/mock-enclave.ts:45-53`) dispat
 11. The parent's `verify-helper.ts` fails every attributed proof (rebuilds without attribution). Incidental, pre-existing, not touched by Fuse; noted for a later fix.
 12. The `file-02.txt` recordings in `~/BitGraph/Recordings` contain the line `nonce: e317...`; no Fuse fixture is derived from them.
 
+## Findings of the completeness critic, folded in (2026-09-03)
+
+1. The package Imran holds has a verdict surface no trace inspected: its `verifier/verify.mjs` chain_continuity rule requires the prevB64 predecessor's commit counter to be below THIS proof's slot counter (line 233). A slot held across any other commit (the normal fused case) fails that category. Never send or reference a fused proof under the current TRACE package; any open profile verifier must compare the predecessor to the commit M and state the span [N, M]. The trace-binding working copy differs from the sent file on this point, which is why an earlier verdict missed it.
+2. Daily rotation blackout: the enclave restarts at 23:59 UTC and voids pending slots, so a slot allocated inside the 120 s TTL before that instant can never be committed. The site's allocate route now refuses inside a 150 s guard with the same retryable 503 as the rotation (`FUSE_ROTATION_UTC`, `FUSE_ROTATION_GUARD_SECONDS`). A parent-direct producer must apply the same rule itself.
+3. The parent's own `POST /verify` rebuilt the signed body without attribution and policy, so it reported every anchor proof and every fused proof as failing while the MIT verifier passed them. Fixed on the branch with tests; deploying it is a parent restart, so it waits with the rest.
+4. A Frame dropped alone on the home page was hashed as an ordinary file and, being new, would have been auto-recorded at a fresh position. The site's proof detection now unwraps a Frame to its proof, which makes the drop a lookup.
+5. Legacy recordings: about 500 production recordings in `~/BitGraph` (2026-06-27 and 2026-08-06) carry a `nonce: <hex>` line inside the file, the proto pattern of this design. No placement locates a commitment in such a file (test added). For counsel: dated evidence of the idea in practice, and a prior-disclosure question only if any were shared; none appear in the Imran package, trace-binding, or Gate.
+6. The root package's `files` whitelist includes `src`, so the fake-PCR0 fixtures would have shipped with the next publish of the core package; they are now excluded.
+7. Tooling: `packages/audit/src/reconstruct.ts` reads as binary to BSD grep and is silently skipped without `-a`; the prevB64 resolver at line 146 lives there.
+8. The branch's `website/public/verify.html` differs from the copy Imran holds; expected, since it is rebuilt from player 0.8.0, and it is neither deployed nor sent.
+9. Production parity is still asserted, not observed. A deploy plan starts with a read-only diff of the box's `server.ts` against HEAD and this branch.
+10. Publication hazard: the branch shares `.git` with the public repository. A `git push --all`, `git push --mirror`, or an IDE "publish branch" from either worktree would publish the mechanism before counsel rules and would trigger a Vercel preview deployment and CI. No such command until counsel rules.
+
 ## Decisions taken (stated as assumptions, changeable)
 
 - The parent allocation path stays `POST /allocate-slot`, gated and metered, with `chainId` defaulting to `bitgraph:main`; the proxy exposes `/api/fuse/allocate` in front of it.
