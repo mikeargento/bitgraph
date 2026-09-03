@@ -31,18 +31,25 @@ export function proofUrl(
 }
 
 /**
- * One recording outcome, in the product's own vocabulary. "not recorded" is
- * the honest label for a file lost to a partial commit failure: never claim
- * "on record" for a digest that has no proof.
+ * One outcome per path, in the product's own vocabulary. "fused": a new fused
+ * artifact was built from the file and committed under its own slot. "on
+ * record": the bytes already had a recording or a fused artifact naming them
+ * as origin, and nothing was minted. "not fused": the attempt failed; never
+ * claim "on record" for bytes that have no proof.
  */
 export interface RecordOutcome {
   path: string;
-  digest: string; // URL-safe
-  outcome: "recorded" | "on record" | "not recorded";
+  /** The file's own digest (URL-safe): the origin of the fused artifact. */
+  digest: string;
+  outcome: "fused" | "on record" | "not fused";
+  /** The fused artifact's digest (URL-safe), present on a "fused" outcome. */
+  artifact_digest: string | null;
+  placement: string | null;
   counter: string | null;
   epoch: string | null; // URL-safe
   total_positions: number;
   proof_url: string | null;
+  error?: string;
 }
 
 export interface CheckOutcome {
@@ -60,33 +67,38 @@ export function positionOf(proof: BitGraphProof): { counter: string | null; epoc
 }
 
 export function renderRecordMarkdown(outcomes: readonly RecordOutcome[]): string {
-  const recorded = outcomes.filter((o) => o.outcome === "recorded");
+  const fused = outcomes.filter((o) => o.outcome === "fused");
   const onRecord = outcomes.filter((o) => o.outcome === "on record");
-  const notRecorded = outcomes.filter((o) => o.outcome === "not recorded");
+  const notFused = outcomes.filter((o) => o.outcome === "not fused");
   const lines: string[] = [];
-  let headline = `${recorded.length} recorded, ${onRecord.length} already on record.`;
-  if (notRecorded.length > 0) {
-    headline = `${recorded.length} recorded, ${onRecord.length} already on record, ${notRecorded.length} NOT recorded.`;
+  let headline = `${fused.length} fused, ${onRecord.length} already on record.`;
+  if (notFused.length > 0) {
+    headline = `${fused.length} fused, ${onRecord.length} already on record, ${notFused.length} NOT fused.`;
   }
   lines.push(headline);
   for (const o of outcomes) {
-    if (o.outcome === "not recorded") {
-      lines.push(`- not recorded (commit failed) · ${o.path}`);
+    if (o.outcome === "not fused") {
+      lines.push(`- not fused · ${o.path}${o.error ? `: ${o.error}` : ""}`);
       continue;
     }
-    const positionNote =
+    const note =
       o.outcome === "on record"
         ? o.total_positions > 1
-          ? ` (${o.total_positions} causal positions, earliest shown)`
+          ? ` (${o.total_positions} positions, earliest shown)`
           : ""
-        : "";
+        : o.placement
+          ? ` (${o.placement})`
+          : "";
+    lines.push(`- ${o.outcome} · #${o.counter ?? "?"} · ${o.path}${note}\n  ${o.proof_url}`);
+  }
+  if (fused.length > 0) {
     lines.push(
-      `- ${o.outcome} · #${o.counter ?? "?"} · ${o.path}${positionNote}\n  ${o.proof_url}`
+      "\nEach fused artifact was built in memory from the file, hashed and committed under its own slot; the file itself is unchanged and was not uploaded. The original plus the proof rebuilds the fused bytes; the Frame for each is in the structured result."
     );
   }
   if (onRecord.length > 0) {
     lines.push(
-      `\nAlready-recorded files were not re-recorded. To record one of them at a new causal position deliberately, call bitgraph_record with again=true.`
+      "\nFiles already on record were left alone. To make a new fused artifact from one of them deliberately, call bitgraph_record with again=true."
     );
   }
   return lines.join("\n");

@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { buildServer } from "../server.js";
+import { buildServer, type FusedSummary } from "../server.js";
 import { toUrlSafeB64 } from "../encoding.js";
 
 interface Recorded {
@@ -32,7 +32,6 @@ let fileB = "";
 let fileC = "";
 let digestA = ""; // standard b64 of fileA bytes
 let digestB = "";
-let commitMode: "ok" | "429" | "short" = "ok";
 const EPOCH = createHash("sha256").update("test-epoch").digest("base64");
 let mintCounter = 100;
 
@@ -90,17 +89,8 @@ before(async () => {
         }
         send(200, { results });
       } else if (url.pathname === "/api/commit") {
-        if (commitMode === "429") {
-          res.writeHead(429, { "Content-Type": "application/json", "Retry-After": "30" });
-          res.end(JSON.stringify({ error: "Rate limit exceeded: per-client proof rate limit exceeded" }));
-          return;
-        }
-        const digests = (body as { digests: Array<{ digestB64: string }> }).digests;
-        if (commitMode === "short") {
-          send(200, digests.slice(1).map((d) => proofFor(d.digestB64)));
-          return;
-        }
-        send(200, digests.map((d) => proofFor(d.digestB64)));
+        // Ordinary recording is no longer what the record tool does; nothing here should call it.
+        send(500, { error: "unexpected /api/commit" });
       } else if (url.pathname.startsWith("/api/proofs/digest/")) {
         const digest = decodeURIComponent(url.pathname.split("/").pop() ?? "");
         if (digest === toUrlSafeB64(digestA)) {
@@ -143,8 +133,24 @@ after(() => {
   delete process.env["BITGRAPH_API_KEY"];
 });
 
+/** A stand-in for the fuse pipeline: no slot, no enclave; records what it was asked to fuse. */
+const fusedCalls: Array<{ name: string; digestB64: string }> = [];
+let fuseMode: "ok" | "fail" = "ok";
+async function fakeFuse(bytes: Uint8Array, name: string): Promise<FusedSummary> {
+  const digestB64 = createHash("sha256").update(bytes).digest("base64");
+  fusedCalls.push({ name, digestB64 });
+  if (fuseMode === "fail") throw new Error("the boundary is restarting");
+  const artifactDigestB64 = createHash("sha256").update("fused:" + digestB64).digest("base64");
+  return {
+    proof: proofFor(artifactDigestB64) as unknown as FusedSummary["proof"],
+    frame: { type: "bitgraph-fuse/1" },
+    placement: "container/1",
+    artifactDigestB64,
+    originDigestB64: digestB64,
+  };
+}
 async function connectedClient(): Promise<Client> {
-  const server = buildServer();
+  const server = buildServer({ fuseFile: fakeFuse });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -158,56 +164,53 @@ test("lists the three tools", async () => {
   assert.deepEqual(names, ["bitgraph_check", "bitgraph_get_proof", "bitgraph_record"]);
 });
 
-test("record dedups on-record files and mints only fresh ones", async () => {
+test("record dedups on-record files and fuses only fresh ones", async () => {
   const client = await connectedClient();
   requests.length = 0;
+  fusedCalls.length = 0;
   const result = await client.callTool({
     name: "bitgraph_record",
     arguments: { paths: [fileA, fileB] },
   });
   assert.ok(!result.isError, JSON.stringify(result.content));
-
-  const commit = requests.find((r) => r.path === "/api/commit");
-  if (!commit) throw new Error("no commit request was sent");
-  const commitBody = commit.body as { digests: Array<{ digestB64: string; hashAlg: string }>; chainId: string };
-  assert.equal(commitBody.chainId, "bitgraph:main");
-  assert.deepEqual(commitBody.digests, [{ digestB64: digestB, hashAlg: "sha256" }], "only fileB minted, standard b64");
-  assert.equal(commit.headers["authorization"], "Bearer test-key-123", "api key forwarded");
-
+  assert.equal(requests.filter((r) => r.path === "/api/commit").length, 0, "nothing is committed as bytes-only");
+  assert.deepEqual(fusedCalls.map((c) => c.digestB64), [digestB], "only fileB fused; fileA was on record");
+  assert.equal(fusedCalls[0]?.name, "b.txt", "the artifact is named after the file");
   const batch = requests.find((r) => r.path === "/api/proofs/batch");
-  if (!batch) throw new Error("no batch check preceded the commit");
+  if (!batch) throw new Error("no batch check preceded the fuse");
   const batchBody = batch.body as { digests: string[] };
   assert.ok(batchBody.digests.every((d) => !d.includes("+") && !d.includes("=")), "check uses url-safe digests");
-
   const structured = result.structuredContent as {
-    results: Array<{ path: string; outcome: string; counter: string | null }>;
-    summary: { recorded: number; on_record: number };
+    results: Array<{ path: string; outcome: string; counter: string | null; placement: string | null; artifact_digest: string | null }>;
+    frames: Record<string, unknown>;
+    summary: { fused: number; on_record: number; not_fused: number };
   };
-  assert.equal(structured.summary.recorded, 1);
+  assert.equal(structured.summary.fused, 1);
   assert.equal(structured.summary.on_record, 1);
+  assert.equal(structured.summary.not_fused, 0);
   const a = structured.results.find((r) => r.path === fileA);
   const b = structured.results.find((r) => r.path === fileB);
   assert.equal(a?.outcome, "on record");
   assert.equal(a?.counter, "10", "on-record outcome reports the EARLIEST position");
-  assert.equal(b?.outcome, "recorded");
+  assert.equal(b?.outcome, "fused");
+  assert.equal(b?.placement, "container/1");
+  assert.ok(b?.artifact_digest && structured.frames[b.artifact_digest], "the Frame rides in the structured result under the fused digest");
 });
 
-test("record with again=true mints even on-record digests", async () => {
+test("record with again=true fuses even on-record files", async () => {
   const client = await connectedClient();
-  requests.length = 0;
+  fusedCalls.length = 0;
   const result = await client.callTool({
     name: "bitgraph_record",
     arguments: { paths: [fileA], again: true },
   });
   assert.ok(!result.isError, JSON.stringify(result.content));
-  const commit = requests.find((r) => r.path === "/api/commit");
-  const commitBody = commit?.body as { digests: Array<{ digestB64: string }> };
-  assert.deepEqual(commitBody.digests.map((d) => d.digestB64), [digestA]);
+  assert.deepEqual(fusedCalls.map((c) => c.digestB64), [digestA]);
   const structured = result.structuredContent as {
     results: Array<{ outcome: string; total_positions: number }>;
   };
-  assert.equal(structured.results[0]?.outcome, "recorded");
-  assert.equal(structured.results[0]?.total_positions, 3, "two prior positions plus the new one");
+  assert.equal(structured.results[0]?.outcome, "fused");
+  assert.equal(structured.results[0]?.total_positions, 3, "two prior positions plus the new artifact");
 });
 
 test("check reports positions without ever committing", async () => {
@@ -274,49 +277,29 @@ test("get_proof requires exactly one selector", async () => {
   assert.ok(result.isError);
 });
 
-test("commit failure labels unminted files as 'not recorded', never 'on record'", async () => {
+test("a fuse failure labels the file 'not fused', never 'on record'", async () => {
   const client = await connectedClient();
-  commitMode = "429";
+  fuseMode = "fail";
   try {
     const result = await client.callTool({
       name: "bitgraph_record",
       arguments: { paths: [fileC] },
     });
-    assert.ok(result.isError, "partial failure must be an error result");
+    assert.ok(result.isError, "a failure must be an error result");
     const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
-    assert.ok(text.includes("Retry after 30 seconds"), text);
     assert.ok(text.includes("0 of 1"), text);
+    assert.ok(text.includes("the boundary is restarting"), text);
     const structured = result.structuredContent as {
-      results: Array<{ outcome: string; proof_url: string | null; counter: string | null }>;
-      summary: { recorded: number; on_record: number; not_recorded: number };
+      results: Array<{ outcome: string; proof_url: string | null; error?: string }>;
+      summary: { fused: number; on_record: number; not_fused: number };
     };
-    assert.equal(structured.results[0]?.outcome, "not recorded");
+    assert.equal(structured.results[0]?.outcome, "not fused");
     assert.equal(structured.results[0]?.proof_url, null);
-    assert.equal(structured.summary.not_recorded, 1);
-    assert.equal(structured.summary.recorded, 0);
+    assert.equal(structured.summary.not_fused, 1);
+    assert.equal(structured.summary.fused, 0);
     assert.equal(structured.summary.on_record, 0);
   } finally {
-    commitMode = "ok";
-  }
-});
-
-test("a 200 with fewer proofs than digests is treated as a partial failure", async () => {
-  const client = await connectedClient();
-  commitMode = "short";
-  try {
-    const result = await client.callTool({
-      name: "bitgraph_record",
-      arguments: { paths: [fileC] },
-    });
-    assert.ok(result.isError, "shortfall must not reach the success path");
-    const structured = result.structuredContent as {
-      results: Array<{ outcome: string }>;
-    };
-    assert.equal(structured.results[0]?.outcome, "not recorded");
-    const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
-    assert.ok(text.includes("fewer proofs than digests"), text);
-  } finally {
-    commitMode = "ok";
+    fuseMode = "ok";
   }
 });
 
@@ -330,5 +313,5 @@ test("record surfaces unreadable paths before any network call", async () => {
   assert.ok(result.isError);
   assert.equal(requests.length, 0, "no API call happened; nothing was minted");
   const text = (result.content as Array<{ text: string }>)[0]?.text ?? "";
-  assert.ok(text.includes("nothing was recorded"));
+  assert.ok(text.includes("nothing was BitGraphed"));
 });

@@ -30,14 +30,14 @@ test("record markdown mentions again=true only when something was already on rec
     total_positions: 1,
     proof_url: "https://bitgraph.ing/proof/x",
   };
-  const fresh = renderRecordMarkdown([{ ...base, path: "/a", outcome: "recorded" }]);
+  const fresh = renderRecordMarkdown([{ ...base, path: "/a", outcome: "fused", artifact_digest: "ZnVzZWQ", placement: "container/1" }]);
   assert.ok(!fresh.includes("again=true"));
   const mixed = renderRecordMarkdown([
-    { ...base, path: "/a", outcome: "recorded" },
-    { ...base, path: "/b", outcome: "on record" },
+    { ...base, path: "/a", outcome: "fused", artifact_digest: "ZnVzZWQ", placement: "container/1" },
+    { ...base, path: "/b", outcome: "on record", artifact_digest: null, placement: null },
   ]);
   assert.ok(mixed.includes("again=true"));
-  assert.ok(mixed.startsWith("1 recorded, 1 already on record."));
+  assert.ok(mixed.startsWith("1 fused, 1 already on record."));
 });
 
 test("proof markdown states the window as between lower and upper", () => {

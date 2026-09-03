@@ -3,21 +3,24 @@
 /**
  * @mikeargento/bitgraph-mcp: tool definitions.
  *
- * Three gestures, the same three the website has: record a file (take a
- * BitGraph), check whether bytes are on record, fetch a proof. Only SHA-256
- * digests ever leave the machine; file contents are never uploaded.
+ * Three gestures, the same three the website has: take a BitGraph of a file,
+ * check whether bytes are on record, fetch a proof. Taking a BitGraph builds a
+ * fused artifact from the file in memory, on this machine, and commits its
+ * digest under a slot allocated for it; only SHA-256 digests and slot records
+ * ever leave the machine. File contents are never uploaded.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { readFile } from "node:fs/promises";
+import { fuse, builderFor, placementForBytes, fusedNamesFor } from "@mikeargento/bitgraph";
 import {
   ApiError,
-  PartialCommitError,
   batchCheck,
-  commitDigests,
   configFromEnv,
   getProofDetail,
   search,
+  type ApiConfig,
 } from "./api.js";
 import {
   fromUrlSafeB64,
@@ -38,10 +41,74 @@ import {
 } from "./format.js";
 import type { BitGraphProof } from "./types.js";
 
-export const SERVER_VERSION = "0.1.2";
+export const SERVER_VERSION = "0.2.0";
 
 const HASH_CONCURRENCY = 4;
 const MAX_FILES = 500;
+/** Files above this are refused: the fused artifact is built in memory. */
+const MAX_FUSE_BYTES = 256 * 1024 * 1024;
+
+/** What taking a BitGraph of one file yields. */
+export interface FusedSummary {
+  proof: BitGraphProof;
+  frame: unknown;
+  placement: string;
+  artifactDigestB64: string;
+  originDigestB64: string;
+}
+export type FuseFileFn = (bytes: Uint8Array, name: string, config: ApiConfig) => Promise<FusedSummary>;
+export interface ServerDeps {
+  /** The fuse pipeline; tests inject a stand-in. Default: the core package's fuse() against the configured site. */
+  fuseFile?: FuseFileFn;
+}
+
+/**
+ * The default pipeline, the same one the site's drop and the bitgraph-fuse
+ * command run: choose the placement from the bytes, allocate a slot, derive
+ * the commitment, build the fused bytes, hash them, commit under that exact
+ * slot, verify the returned proof against the bytes.
+ */
+async function fuseFileDefault(bytes: Uint8Array, name: string, config: ApiConfig): Promise<FusedSummary> {
+  const placement = placementForBytes(bytes);
+  const { fusedName } = fusedNamesFor(name, placement);
+  const r = await fuse(builderFor(placement, bytes), {
+    placement,
+    original: bytes,
+    fusedFile: fusedName,
+    keepFused: false,
+    transport: { baseUrl: config.baseUrl, ...(config.apiKey ? { apiKey: config.apiKey } : {}) },
+  });
+  return {
+    proof: r.proof as unknown as BitGraphProof,
+    frame: r.frame,
+    placement,
+    artifactDigestB64: r.artifactDigestB64,
+    originDigestB64: r.originDigestB64 ?? "",
+  };
+}
+
+/** Read the given paths whole (bounded concurrency). Throws before any network call. */
+async function readPaths(paths: readonly string[]): Promise<Array<{ bytes: Uint8Array; digestB64: string }>> {
+  const failures: string[] = [];
+  const out = await mapConcurrent(paths, HASH_CONCURRENCY, async (p) => {
+    try {
+      const buf = await readFile(p);
+      if (buf.length > MAX_FUSE_BYTES) throw new Error(`larger than ${MAX_FUSE_BYTES / (1024 * 1024)} MB; the fused artifact is built in memory`);
+      const bytes = new Uint8Array(buf);
+      const digestB64 = await sha256FileB64(p);
+      return { bytes, digestB64 };
+    } catch (err) {
+      failures.push(`${p}: ${err instanceof Error ? err.message : String(err)}`);
+      return { bytes: new Uint8Array(0), digestB64: "" };
+    }
+  });
+  if (failures.length > 0) {
+    throw new Error(
+      `Could not read ${failures.length} file(s); nothing was BitGraphed.\n${failures.join("\n")}\nUse absolute paths to existing regular files under ${MAX_FUSE_BYTES / (1024 * 1024)} MB.`
+    );
+  }
+  return out;
+}
 
 const responseFormatSchema = z
   .enum(["markdown", "json"])
@@ -91,7 +158,8 @@ async function hashPaths(paths: readonly string[]): Promise<string[]> {
   return digests;
 }
 
-export function buildServer(): McpServer {
+export function buildServer(deps: ServerDeps = {}): McpServer {
+  const fuseFile = deps.fuseFile ?? fuseFileDefault;
   const server = new McpServer({
     name: "bitgraph-mcp-server",
     version: SERVER_VERSION,
@@ -102,34 +170,24 @@ export function buildServer(): McpServer {
     {
       title: "Take a BitGraph",
       description:
-        "Take a BitGraph of one or more files: record each file's SHA-256 digest at a new causal position in the BitGraph ledger (bitgraph.ing). " +
-        "Only the digest leaves the machine; file contents are never uploaded. " +
-        "Files whose bytes are already on record are NOT re-recorded by default; they come back as 'on record' with their existing proof. " +
-        "Pass again=true to deliberately record already-recorded bytes at a new causal position (BitGraph Again). " +
-        "Recordings are permanent: the ledger has 10-year retention and no deletes, so only record files the user asked to record. " +
-        "Returns one outcome per file: 'recorded' (newly minted) or 'on record' (was already there), with its position number and proof page URL. " +
+        "Take a BitGraph of one or more files. For each file, on this machine: hash it (the origin), allocate an unused slot in the BitGraph ledger (bitgraph.ing) before any artifact exists, build a new fused artifact from the file in memory with a registered placement (a 48-byte trailer for formats that ignore trailing bytes such as JPEG, PNG, TIFF, WebP; a small tar container otherwise), hash it, and commit that digest under the same slot. " +
+        "The file is never modified and never uploaded; only digests and slot records leave the machine. The fused bytes are not kept: the original plus the proof rebuilds them, and the Frame for each file is returned in the structured result. " +
+        "Files whose bytes are already on record, as a recording or as the origin of a fused artifact, are NOT BitGraphed again by default; they come back as 'on record' with their earliest position. " +
+        "Pass again=true to deliberately make a new fused artifact from a file already on record. " +
+        "BitGraphs are permanent: the ledger has 10-year retention and no deletes, so only BitGraph files the user asked to. " +
+        "Returns one outcome per file: 'fused' (a new fused artifact, with its placement, position and proof page URL), 'on record', or 'not fused' (with the error). " +
         "Use bitgraph_check instead when the user only wants to know whether a file is on record.",
       inputSchema: {
         paths: z
           .array(z.string().min(1))
           .min(1)
           .max(MAX_FILES)
-          .describe(`File paths to record (absolute paths preferred), up to ${MAX_FILES}.`),
-        attribution: z
-          .object({
-            name: z.string().max(200).optional().describe("Submitter's name (self-attributed)."),
-            title: z.string().max(200).optional(),
-            message: z.string().max(2000).optional(),
-          })
-          .optional()
-          .describe(
-            "Optional self-attributed submitter's note, stored in the signed proof. Rendered as a note, never as verified identity."
-          ),
+          .describe(`File paths to BitGraph (absolute paths preferred), up to ${MAX_FILES}.`),
         again: z
           .boolean()
           .default(false)
           .describe(
-            "false (default): files already on record are returned as-is, nothing minted. true: record every file at a new causal position even if already on record. Positions are per unique file content: two paths with identical bytes yield one position."
+            "false (default): files already on record are returned as-is, nothing minted. true: make a new fused artifact from every file even if its bytes are already on record. Outcomes are per unique file content: two paths with identical bytes yield one artifact."
           ),
         response_format: responseFormatSchema,
       },
@@ -140,142 +198,106 @@ export function buildServer(): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ paths, attribution, again, response_format }) => {
+    async ({ paths, again, response_format }) => {
       const config = configFromEnv();
       try {
-        const digests = await hashPaths(paths);
-
-        // Unique digests, first path wins for display; extra paths listed too.
-        const byDigest = new Map<string, string[]>();
-        digests.forEach((d, i) => {
-          const list = byDigest.get(d) ?? [];
-          list.push(paths[i] as string);
-          byDigest.set(d, list);
+        const read = await readPaths(paths);
+        // Unique by content, first path wins for the artifact's name; extra paths listed too.
+        const byDigest = new Map<string, { bytes: Uint8Array; paths: string[] }>();
+        read.forEach((r, i) => {
+          const entry = byDigest.get(r.digestB64) ?? { bytes: r.bytes, paths: [] };
+          entry.paths.push(paths[i] as string);
+          byDigest.set(r.digestB64, entry);
         });
         const unique = [...byDigest.keys()];
-
         const checked = await batchCheck(config, unique.map(toUrlSafeB64));
         const existing = new Map<string, Array<{ proof: BitGraphProof }>>();
         for (const d of unique) {
           const entry = checked.results[toUrlSafeB64(d)];
           if (entry && entry.proofs.length > 0) existing.set(d, entry.proofs);
         }
-
         const toMint = again ? unique : unique.filter((d) => !existing.has(d));
-
-        let minted: BitGraphProof[] = [];
-        let partial: PartialCommitError | null = null;
-        if (toMint.length > 0) {
+        const fused = new Map<string, FusedSummary>();
+        const failed = new Map<string, string>();
+        for (const d of toMint) {
+          const entry = byDigest.get(d) as { bytes: Uint8Array; paths: string[] };
+          const name = (entry.paths[0] as string).split(/[\\/]/).pop() ?? "file";
           try {
-            minted = await commitDigests(config, toMint, attribution);
-            // A 200 with fewer proofs than digests is still a partial failure;
-            // never let it reach the success path looking complete.
-            if (minted.length < toMint.length) {
-              partial = new PartialCommitError(
-                minted,
-                toMint.length,
-                new Error("commit returned fewer proofs than digests sent")
-              );
-            }
+            fused.set(d, await fuseFile(entry.bytes, name, config));
           } catch (err) {
-            if (err instanceof PartialCommitError) {
-              minted = err.minted;
-              partial = err;
-            } else {
-              throw err;
-            }
+            failed.set(d, err instanceof Error ? err.message : String(err));
           }
         }
-
-        const mintedByDigest = new Map<string, BitGraphProof>();
-        for (const p of minted) {
-          const d = p.artifact?.digestB64;
-          if (d !== undefined) mintedByDigest.set(d, p);
-        }
-
         const outcomes: RecordOutcome[] = [];
-        for (const [digest, pathList] of byDigest) {
-          const mintedProof = mintedByDigest.get(digest);
+        const frames: Record<string, unknown> = {};
+        for (const [digest, entry] of byDigest) {
+          const made = fused.get(digest);
           const prior = existing.get(digest);
-          for (const path of pathList) {
-            if (mintedProof) {
-              const { counter, epoch } = positionOf(mintedProof);
+          for (const path of entry.paths) {
+            if (made) {
+              const { counter, epoch } = positionOf(made.proof);
+              frames[toUrlSafeB64(made.artifactDigestB64)] = made.frame;
               outcomes.push({
                 path,
                 digest: toUrlSafeB64(digest),
-                outcome: "recorded",
+                outcome: "fused",
+                artifact_digest: toUrlSafeB64(made.artifactDigestB64),
+                placement: made.placement,
                 counter,
                 epoch,
                 total_positions: (prior?.length ?? 0) + 1,
-                proof_url: proofUrl(
-                  config.baseUrl,
-                  digest,
-                  counter ?? undefined,
-                  mintedProof.commit?.epochId
-                ),
+                proof_url: proofUrl(config.baseUrl, made.artifactDigestB64, counter ?? undefined, made.proof.commit?.epochId),
               });
-            } else if (prior) {
+            } else if (prior && !failed.has(digest)) {
               const first = prior[0]?.proof;
               const { counter, epoch } = first ? positionOf(first) : { counter: null, epoch: null };
               outcomes.push({
                 path,
                 digest: toUrlSafeB64(digest),
                 outcome: "on record",
+                artifact_digest: null,
+                placement: null,
                 counter,
                 epoch,
                 total_positions: prior.length,
                 proof_url: proofUrl(config.baseUrl, digest),
               });
             } else {
-              // Neither minted nor previously on record: lost to a partial
-              // failure. The honest outcome is "not recorded", never a claim.
               outcomes.push({
                 path,
                 digest: toUrlSafeB64(digest),
-                outcome: "not recorded",
+                outcome: "not fused",
+                artifact_digest: null,
+                placement: null,
                 counter: null,
                 epoch: null,
-                total_positions: 0,
+                total_positions: prior?.length ?? 0,
                 proof_url: null,
+                error: failed.get(digest) ?? "not attempted",
               });
             }
           }
         }
-
         const structured = {
           results: outcomes as unknown as Record<string, unknown>[],
+          frames,
           summary: {
-            recorded: outcomes.filter((o) => o.outcome === "recorded").length,
+            fused: outcomes.filter((o) => o.outcome === "fused").length,
             on_record: outcomes.filter((o) => o.outcome === "on record").length,
-            not_recorded: outcomes.filter((o) => o.outcome === "not recorded").length,
+            not_fused: outcomes.filter((o) => o.outcome === "not fused").length,
           },
         };
-
-        if (partial) {
-          const unrecorded = toMint.length - minted.length;
-          const retryGuidance = again
-            ? `Some 'not recorded' files MAY still have been recorded server-side if the failure was a timeout. Run bitgraph_check on the 'not recorded' paths first, then re-run bitgraph_record with again=true for only the paths still missing.`
-            : `Re-run bitgraph_record with the same paths: already-recorded files will come back as 'on record' and only the missing ones will mint.`;
+        if (failed.size > 0) {
+          const guidance = again
+            ? "A file marked 'not fused' MAY still have been BitGraphed if the failure was a timeout: run bitgraph_check on it first, then re-run bitgraph_record with again=true for only the files still missing."
+            : "Re-run bitgraph_record with the same paths: files already on record come back as 'on record' and only the missing ones are BitGraphed.";
           return {
             isError: true,
-            content: [
-              {
-                type: "text",
-                text:
-                  `${errorText(partial.cause2)}\n` +
-                  `${minted.length} of ${toMint.length} digests were recorded before the failure (those recordings are permanent); ${unrecorded} were not. ` +
-                  `${retryGuidance}\n\n` +
-                  renderRecordMarkdown(outcomes),
-              },
-            ],
+            content: [{ type: "text", text: `${fused.size} of ${toMint.length} files were BitGraphed; ${failed.size} failed. ${guidance}\n\n${renderRecordMarkdown(outcomes)}` }],
             structuredContent: structured,
           };
         }
-
-        const text =
-          response_format === "json"
-            ? capJson(structured).text
-            : renderRecordMarkdown(outcomes);
+        const text = response_format === "json" ? capJson(structured).text : renderRecordMarkdown(outcomes);
         return ok(text, structured);
       } catch (err) {
         return fail(errorText(err));
@@ -290,8 +312,8 @@ export function buildServer(): McpServer {
       description:
         "Check whether files or digests are on record in the BitGraph ledger, without recording anything. " +
         "Accepts file paths (hashed locally; only digests are sent) and/or raw SHA-256 digests in standard or URL-safe base64. " +
-        "Returns, per item: on record or not, every causal position (a file recorded more than once has several), and the proof page URL. " +
-        "Read-only. Use bitgraph_record to record files that turn out not to be on record.",
+        "Returns, per item: on_record (a recording of the exact bytes exists), fused_descendants (fused artifacts that name the bytes as their origin), every position by counter, and the proof page URL. " +
+        "Read-only. Use bitgraph_record to BitGraph files that turn out not to be on record.",
       inputSchema: {
         paths: z
           .array(z.string().min(1))
