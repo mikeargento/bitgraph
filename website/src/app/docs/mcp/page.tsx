@@ -3,7 +3,7 @@ import { CopyUrl } from "./copy-url";
 
 export const metadata: Metadata = {
   title: "MCP",
-  description: "Connect an AI agent to BitGraph with one URL. Record files, check bytes, and fetch proofs over the Model Context Protocol.",
+  description: "Connect an AI agent to BitGraph with one URL. Take BitGraphs of files, check bytes, and fetch proofs over the Model Context Protocol.",
 };
 
 const MCP_URL = "https://bitgraph.ing/mcp";
@@ -34,7 +34,9 @@ export default function McpPage() {
       <h1 className="mb-6">MCP</h1>
       <p className="text-[#1f2937] mb-10">
         BitGraph is an MCP server. Any AI agent that speaks the Model Context Protocol can
-        record files, check whether bytes are on record, and fetch proofs with one URL.
+        take BitGraphs of files, check whether bytes are on record, and fetch proofs with one
+        URL. It needs nothing more than the ability to hash a file: the file itself never
+        leaves the agent.
       </p>
 
       <div className="code-block">
@@ -96,14 +98,14 @@ export default function McpPage() {
           <>Open <Ui>Settings</Ui>, then <Ui>Security and login</Ui>, and turn on <Ui>Developer mode</Ui>.</>,
           <>Go to <Ui>chatgpt.com/plugins</Ui> and click <Ui>+</Ui>.</>,
           <>Name it BitGraph, paste the URL, and choose <Ui>No authentication</Ui>. The URL already ends in <code>/mcp</code>, so paste it exactly as it is.</>,
-          <>Create the connection. ChatGPT lists the three tools it found, which is your confirmation that it worked.</>,
+          <>Create the connection. ChatGPT lists the five tools it found, which is your confirmation that it worked.</>,
           <>In a new chat, open the <Ui>+</Ui> menu, choose <Ui>Developer mode</Ui>, and select BitGraph.</>,
         ]}
       />
       <p className="text-base text-[#4b5563] mb-8">
-        ChatGPT treats recording as a write action and asks you to confirm each one, showing
-        the digest it is about to send. Checking and fetching proofs are read-only. Every new
-        conversation starts from the same cautious default.
+        ChatGPT treats opening, committing and recording as write actions and asks you to
+        confirm each one, showing what it is about to send. Checking and fetching proofs are
+        read-only. Every new conversation starts from the same cautious default.
       </p>
 
       <h3 className="text-base font-semibold mt-8 mb-3">Cursor, VS Code, and everything else</h3>
@@ -134,20 +136,27 @@ export default function McpPage() {
         Asking is read-only and writes nothing to the ledger, so it is a safe first move.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Three tools</h2>
+      <h2 className="text-xl font-semibold mt-12 mb-4">Five tools</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">bitgraph_record</strong> · Take a BitGraph. On the stdio package below, which holds the file bytes, this builds a fused artifact from the file on your machine: an unused slot is allocated first, a commitment to it is placed into a new artifact built from the file with a registered placement, and that artifact&apos;s digest is committed under the same slot. The file is never modified or uploaded, and the Frame for each file comes back in the structured result. On the hosted endpoint, which receives digests only, the same tool records existing bytes at a position, the compatibility operation. Files already on record come back as-is; <span className="font-mono text-xs">again=true</span> deliberately makes a new BitGraph of them.</li>
+        <li>• <strong className="text-text">bitgraph_open</strong> · Take a BitGraph, step one. The agent sends a file&apos;s name, size, SHA-256 digest and first 16 bytes. An unused slot is allocated at the boundary before the new file exists, and the agent gets back a token and a recipe: the exact bytes the new file adds after the original (<span className="font-mono text-xs">trailer/1</span>, for formats that ignore trailing data) or around it (<span className="font-mono text-xs">container/1</span>, a tar that carries the original untouched).</li>
+        <li>• <strong className="text-text">bitgraph_commit</strong> · Step two. The agent builds the new file from the recipe, hashes it, and sends the token and that digest. The boundary commits it under that exact slot with the signed marker, and the agent gets back the proof and the Frame to save next to the original. The new file is virtual: the original plus the Frame rebuilds it.</li>
+        <li>• <strong className="text-text">bitgraph_record</strong> · The compatibility recording: digests alone, no new file. It gives bytes that already exist a position and establishes that they existed no later than the commit.</li>
         <li>• <strong className="text-text">bitgraph_check</strong> · Is this file on record? Read-only. It reports <span className="font-mono text-xs">on_record</span>, every recording of the exact bytes, and <span className="font-mono text-xs">fused_descendants</span>, every fused artifact that names the bytes as its origin, each listed by position with its proof page URL.</li>
         <li>• <strong className="text-text">bitgraph_get_proof</strong> · Fetch a proof and its Ethereum anchor window: BitGraphed between block X and block Y.</li>
       </ul>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Working with local files</h2>
+      <h2 className="text-xl font-semibold mt-12 mb-4">How the hosted endpoint takes a BitGraph</h2>
       <p className="text-[#1f2937] mb-4">
-        The hosted endpoint accepts digests, not files: the agent hashes a file where it
-        lives and sends only the SHA-256, so it can record bytes but cannot build a fused
-        artifact from them. For clients that run on your machine, the stdio package takes
-        plain file paths and takes BitGraphs the default way, fused artifacts under their
-        own slots:
+        The endpoint never receives a file. If an agent can hash a file it can build the
+        virtual new file and hash that, so the two steps above are all it takes: hash the
+        original, open a slot, build the new file exactly as the recipe says, hash it, commit.
+        Only digests, byte sizes, a file&apos;s first bytes, the signed slot record and the
+        recipe cross the network. Agents with code execution, ChatGPT and Claude among them,
+        do this on any file you give them.
+      </p>
+      <p className="text-[#1f2937] mb-4">
+        For clients that run on your machine, the stdio package does the same in one call from
+        a plain file path:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span></div>
@@ -156,9 +165,9 @@ export default function McpPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Notes</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">Files are never uploaded.</strong> Only SHA-256 digests cross the network to either endpoint, plus the signed slot record on the stdio package&apos;s fuse path.</li>
+        <li>• <strong className="text-text">Files are never uploaded.</strong> Only SHA-256 digests, byte sizes, a file&apos;s first bytes, signed slot records and recipe bytes cross the network, to either endpoint.</li>
         <li>• <strong className="text-text">Recordings are permanent.</strong> The ledger has 10-year retention and no deletes. Agents are instructed to record only files you asked to record.</li>
-        <li>• <strong className="text-text">Two operations, one tool name.</strong> A fused artifact is new bytes built from the file under a slot that existed first, so those bytes could not have been finalized before the slot. A recording selects bytes that already exist and gives them a position, which establishes only that they existed no later than the commit. The stdio package does the first; the hosted endpoint can only do the second.</li>
+        <li>• <strong className="text-text">Two operations.</strong> A fused file is new bytes built from the original under a slot that existed first, so those bytes could not have been finalized before the slot: that is what open and commit make. A recording gives bytes that already exist a position, and only says they existed no later than the commit: that is what bitgraph_record makes.</li>
         <li>• <strong className="text-text">One ledger.</strong> Whatever MCP makes lands on the same ledger and the same Roll as everything else, and a lookup by the original&apos;s digest finds its fused artifacts by position and placement, never ranked.</li>
       </ul>
     </article>

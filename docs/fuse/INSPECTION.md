@@ -334,3 +334,16 @@ The npm MCP server (`@mikeargento/bitgraph-mcp` 0.2.0) takes BitGraphs the defau
 
 Publish order for this round: core 1.3.0, then player 0.9.0, then mcp 0.2.0 (mcp depends on core ^1.3.0; the repo root lockfile is refreshed once core 1.3.0 is on the registry). The site deploy does not depend on any of them.
 
+## Ruling 8 (2026-09-03): the hosted endpoint takes BitGraphs the default way
+
+Mike, on a recording made through ChatGPT's connector (position 9546, an ordinary recording with no marker): "it has to record like this EVERYWHERE", and on how: "if it can hash the file it can create the virtual fused file and hash that."
+
+The hosted MCP endpoint (`bitgraph.ing/mcp`) never holds a file, and does not need one. Every registered placement is a deterministic function of (original bytes, origin digest, commitment), and every byte of the new file that is not the original is computable from the origin digest, the origin size and the commitment. So the hosted path is two steps, and the caller builds the new file:
+
+- `bitgraph_open`: per file, the name, exact size, SHA-256 digest and the first 16 bytes (the placement choice, the same `placementForBytes` policy as everywhere else; no head means the container). The route allocates a slot through the site's own `/api/fuse/allocate`, derives the commitment to the signed slot record, and returns a `fuse_token` (the open state, opaque, not secret: the enclave-signed slot record plus what the caller declared) and the recipe: `append` (48 bytes, trailer/1) or `prefix` and `suffix` (container/1: the manifest entry, the original's ustar header, the padding and the two end blocks).
+- `bitgraph_commit`: per file, the token and the SHA-256 of the file the caller built. The route commits through the site's own `/api/fuse/commit` under that exact slot with the signed marker, checks the proof came back under that slot for those bytes with that marker, runs the integrity verifier (signature, slot binding, attestation; the byte half is the caller's and any reader's), and returns the proof and the Frame. Nothing is kept: the new file is virtual here as everywhere.
+
+`bitgraph_record` stays as the compatibility recording of digests alone, described as such. The ustar writer in `website/src/lib/mcp/fuse-hosted.ts` is a verbatim copy of the verify package's; `website/src/lib/__tests__/fuse-hosted.test.ts` proves `prefix + original + suffix` equals `container/1`'s own build byte for byte at sizes around every 512-byte edge, and `original + append` equals `trailer/1`'s, and that the placement locates the commitment and the origin in what the caller built. The site's `fuse-placement.ts` now delegates to the core policy (dedupe done).
+
+What only travels: digests, sizes, a file's first bytes, slot records, recipe bytes. What never travels: file contents. The proof page shows the new file's hash first, then the original's (Mike, same day).
+

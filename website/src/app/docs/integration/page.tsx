@@ -225,7 +225,7 @@ curl https://nitro.occproof.com/key
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Important notes</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">Files are never uploaded.</strong> Only SHA-256 digests and slot records cross the network.</li>
+        <li>• <strong className="text-text">Files are never uploaded.</strong> Only SHA-256 digests and slot records cross the network, plus byte sizes, a file&apos;s first bytes and recipe bytes on the hosted MCP endpoint, where the caller builds the new file itself.</li>
         <li>• <strong className="text-text">Commit via bitgraph.ing.</strong> The site endpoint records every causal position of a file for later lookup. A lookup by a file&apos;s digest lists its recordings and every fused artifact naming it as origin, by position, never ranked. Committing to the enclave host directly skips that index, and your recordings will not be discoverable by digest.</li>
         <li>• <strong className="text-text">The proof is portable.</strong> Store it alongside the artifact or in a separate system.</li>
         <li>• <strong className="text-text">Verification is offline.</strong> No API calls needed to verify. Just the public key and the bytes: the artifact, or the origin of a fused artifact.</li>

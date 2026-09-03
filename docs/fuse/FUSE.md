@@ -238,7 +238,7 @@ allocate, for strict order.
 
 ## Producing
 
-Service surfaces (all behind `FUSE_ENABLED`, off by default; nothing deployed):
+Service surfaces (all behind `FUSE_ENABLED`, on in production since 2026-09-03):
 
 - Parent: `POST /allocate-slot` (metered per address in slots, sized to the
   120 s TTL; same key policy as `/commit`; chain pinned to `bitgraph:main`)
@@ -249,6 +249,14 @@ Service surfaces (all behind `FUSE_ENABLED`, off by default; nothing deployed):
   (position-aware gate: an anchor must precede the slot in its epoch; never
   returns a proof under a different slot; writes the by-digest index including
   the origin's descendants).
+- Hosted MCP (`bitgraph.ing/mcp`): `bitgraph_open` and `bitgraph_commit`, the
+  two site routes above for a caller that holds a file this endpoint never
+  sees. Open takes the origin digest, size and first bytes and returns the
+  slot's token and a recipe (the bytes the new file adds after or around the
+  original, computed here from the digest, the size and the commitment);
+  commit takes the token and the digest of the file the caller built. If a
+  caller can hash the file it can build the virtual new file and hash that.
+  `bitgraph_record` remains the compatibility recording of digests alone.
 
 Posture (ruled 2026-09-03, revised the same day): allocation is the gated
 parent route above, under the existing key mechanism and limiter; a commit
@@ -296,8 +304,8 @@ A fused proof is indexed under its artifact digest and, per position, under
 its origin digest. A lookup by a file's hash returns the recordings of that
 file first and then every fused artifact naming it as origin, labelled
 `recorded` or `fused`, descendants unranked. A fused-only list means the origin
-bytes themselves were never committed: `/api/verify`, the MCP tools, Zapier,
-and the camera treat it that way.
+bytes themselves were never committed: `/api/verify`, the MCP tools and the
+camera treat it that way.
 
 ## Limits stated plainly
 

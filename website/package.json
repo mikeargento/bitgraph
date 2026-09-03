@@ -10,11 +10,12 @@
     "start": "next start",
     "lint": "eslint",
     "test:roll": "node --test src/lib/__tests__/roll-archive.test.ts",
-    "test:fuse": "node --test src/lib/__tests__/fuse.test.ts"
+    "test:fuse": "node --test src/lib/__tests__/fuse.test.ts",
+    "test:mcp": "node --test src/lib/__tests__/fuse-hosted.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1021.0",
-    "@mikeargento/bitgraph": "^1.2.0",
+    "@mikeargento/bitgraph": "^1.3.0",
     "@mikeargento/bitgraph-verify": "^1.4.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "@noble/curves": "^2.0.1",
