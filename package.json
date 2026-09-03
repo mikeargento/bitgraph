@@ -40,6 +40,7 @@
     "packages/audit",
     "packages/mcp",
     "packages/player",
-    "packages/titles"
+    "packages/titles",
+    "packages/fuse"
   ]
 }

@@ -48,3 +48,6 @@ patch(
 writeFileSync(out, code);
 const child = spawn(process.execPath, ["--import", "tsx/esm", out], { stdio: "inherit", env: process.env });
 child.on("exit", (c) => process.exit(c ?? 1));
+// A runner that is killed takes its child with it, so a driver's stop() never
+// leaves an enclave or parent listening behind.
+for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => { child.kill("SIGTERM"); process.exit(0); });
