@@ -9,10 +9,10 @@ import { describe, test } from "node:test";
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { fuse, builderFor, FuseError } from "../index.js";
-import type { BitGraphProof, SlotAllocation } from "../index.js";
+import { fuse, builderFor, FuseError } from "../fuse.js";
+import type { BitGraphProof, SlotAllocation } from "../fuse.js";
 
-const FIX = fileURLToPath(new URL("../../../../src/__tests__/fuse-fixtures/", import.meta.url));
+const FIX = fileURLToPath(new URL("../../src/__tests__/fuse-fixtures/", import.meta.url));
 const bytes = (name: string) => new Uint8Array(readFileSync(FIX + name));
 const proofOf = (name: string) => JSON.parse(readFileSync(FIX + name, "utf8")) as BitGraphProof;
 

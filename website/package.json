@@ -31,7 +31,8 @@
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
     "resend": "^6.10.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@mikeargento/bitgraph": "file:.."
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

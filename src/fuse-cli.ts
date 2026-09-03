@@ -20,8 +20,8 @@ import { basename, extname, join, resolve } from "node:path";
 import { sha256 } from "@noble/hashes/sha256";
 import { parseFrame, verifyFuse, bytesToBase64 } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof, PlacementId } from "@mikeargento/bitgraph-verify";
-import { fuse, builderFor, FuseError } from "./index.js";
-import type { FuseTransport } from "./index.js";
+import { fuse, builderFor, FuseError } from "./fuse.js";
+import type { FuseTransport } from "./fuse.js";
 
 const USAGE = `bitgraph-fuse: BitGraph producer harness (profile bitgraph-fuse/1, working name)
 

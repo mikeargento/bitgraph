@@ -201,7 +201,7 @@ Service surfaces (all behind `FUSE_ENABLED`, off by default; nothing deployed):
   returns a proof under a different slot; writes the by-digest index including
   the origin's descendants).
 
-SDK (`packages/fuse`, licensed): `fuse(builder, options)`: allocate, hand the
+SDK (in the core package `@mikeargento/bitgraph`, licensed): `fuse(builder, options)`: allocate, hand the
 commitment to the builder, hash, commit under the same slot, verify the
 returned proof locally, return the Frame. It refuses to commit bytes that do
 not carry the commitment, refuses a proof under any other slot, and on a lost
@@ -209,9 +209,13 @@ or refused commit reads back by digest and matches `commit.slotHashB64` against
 the held slot record; it never allocates again on its own. The raw nonce lives
 in process memory only.
 
-Harness: `bitgraph-fuse fuse|produce|check`, a command in the SDK package
-rather than a site page (a page would make the site build depend on unpublished
-packages). Bounded copy, verbatim:
+Harness: the site's `/fuse` page and `/api/fuse/harness` route (404 unless
+`FUSE_ENABLED` and `FUSE_HARNESS_ENABLED` are set, and a shared
+`FUSE_HARNESS_TOKEN`), which runs the same `fuse()` against the site's own
+routes; plus the `bitgraph-fuse fuse|produce|check` command in the core
+package for vectors from a shell. The website depends on the core package by
+path (`file:..`), so a deploy needs the core package and verify 1.4.0 built
+or published first. Bounded copy, verbatim:
 
 ```
 Original recorded

@@ -1,7 +1,7 @@
 // The SDK end to end against the unmodified enclave through the real parent
 // (parent-direct transport). Run: node --import tsx/esm fuse-sdk-e2e.mts
 import { startStack } from "./lib.mts";
-import { fuse, builderFor } from "../../../packages/fuse/dist/index.js";
+import { fuse, builderFor } from "../../../dist/fuse.js";
 import { verifyFuse, assembledAfterCommit } from "../../../packages/verify/dist/index.js";
 
 const stack = await startStack({ quiet: true, parentEnv: { FUSE_ENABLED: "true" } });
@@ -44,7 +44,7 @@ console.log(`\n${pass} checks passed${process.exitCode ? ", with failures" : ""}
     const src = join(dir, "note.txt");
     writeFileSync(src, "a note that already exists\n");
     const { fileURLToPath } = await import("node:url");
-    const cli = fileURLToPath(new URL("../../../packages/fuse/dist/cli.js", import.meta.url));
+    const cli = fileURLToPath(new URL("../../../dist/fuse-cli.js", import.meta.url));
     const common = ["--base-url", stack2.parentUrl, "--allocate-path", "/allocate-slot", "--commit-path", "/commit", "--out", dir];
     const a = spawnSync(process.execPath, [cli, "fuse", src, "--placement", "trailer/1", "--keep", ...common], { encoding: "utf8" });
     okc("cli fuse trailer/1 exits 0", a.status === 0, a.stderr + a.stdout);
