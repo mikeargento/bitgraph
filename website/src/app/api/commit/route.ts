@@ -1,22 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { storeProofByDigest, getProofByDigest, listKeysUnderPrefix } from "@/lib/s3";
+import { storeProofByDigest, getProofByDigest } from "@/lib/s3";
 import { FOLDER_VERSION } from "@/lib/folder-version";
-
-const TEE_URL = "https://nitro.occproof.com";
+import { currentEpochHasAnchor, TEE_URL, teeRestarting503 as teeRestarting503Bare } from "@/lib/anchor-gate";
 
 export const dynamic = "force-dynamic";
 
 // ── Anchor-first gate ──────────────────────────────────────────────────────
-// The boundary restarts daily (epoch rotation). A commit accepted in the
-// seconds between the new epoch coming up and its FIRST anchor landing would
-// mint a proof with no same-epoch lower bound: a one-sided bracket. This gate
-// holds user commits until the current epoch has at least one anchor, so
-// "every recording is preceded by an anchor in its own epoch" is an invariant
-// of everything that commits through this proxy (web, MCP, API). The anchor
-// service itself commits TEE-direct and is deliberately not gated, or the
-// first anchor could never land.
-// Restarting and not-yet-anchored both surface as the same retryable 503
-// (code "tee-restarting"), so one client retry loop covers the whole window.
+// Lives in lib/anchor-gate.ts now, shared with the Fuse routes so every
+// commit surface on this site sits behind the same rule. See the header there.
 
 // ── Folder retirement notice ───────────────────────────────────────────────
 // BitGraph Folder was retired on 2026-09-01. This header used to advertise the
@@ -35,37 +26,7 @@ export const dynamic = "force-dynamic";
 // ⚠️ TEMPORARY. Delete this and lib/folder-version.ts once the notice has landed.
 const VERSION_HEADER = { "X-BitGraph-Folder-Version": FOLDER_VERSION };
 
-const teeRestarting503 = () =>
-  NextResponse.json(
-    { error: "The camera is restarting", code: "tee-restarting" },
-    { status: 503, headers: VERSION_HEADER },
-  );
-
-let cachedKey: { epochId: string; at: number } | null = null;
-const anchoredEpochs = new Set<string>();
-
-async function currentEpochHasAnchor(): Promise<"yes" | "no" | "tee-down"> {
-  try {
-    if (!cachedKey || Date.now() - cachedKey.at > 10_000) {
-      const r = await fetch(`${TEE_URL}/key`, { signal: AbortSignal.timeout(5000) });
-      if (!r.ok) return "tee-down";
-      const k = (await r.json()) as { epochId?: string };
-      if (!k.epochId) return "tee-down";
-      cachedKey = { epochId: k.epochId, at: Date.now() };
-    }
-  } catch {
-    return "tee-down";
-  }
-  const epochId = cachedKey.epochId;
-  if (anchoredEpochs.has(epochId)) return "yes";
-  const safe = epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  const keys = await listKeysUnderPrefix(`anchors/${safe}/`, 1);
-  if (keys.length > 0) {
-    anchoredEpochs.add(epochId);
-    return "yes";
-  }
-  return "no";
-}
+const teeRestarting503 = () => teeRestarting503Bare(VERSION_HEADER);
 
 export async function POST(req: NextRequest) {
   try {
