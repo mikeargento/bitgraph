@@ -1610,7 +1610,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                         operation: prove that these exact pre-existing bytes
                         existed by a commit position, without making anything. */}
                     {fuseByDefault && (
-                      <button type="button" className="bg-action-link" onClick={recordRemaining} style={{ fontWeight: 400 }}>
+                      <button type="button" className="bg-action-link" onClick={recordRemaining}>
                         <span>Record {unproven.length} file{unproven.length === 1 ? "" : "s"} instead</span>
                         <span className="arrow" aria-hidden>&rarr;</span>
                       </button>

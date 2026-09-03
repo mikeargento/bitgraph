@@ -885,7 +885,7 @@ export default function ProofPage() {
               )}
               {attr?.name === "bitgraph-fuse/1" && cachedFile && (
                 <div style={{ padding: "0 16px" }}>
-                  <button onClick={downloadFusedCopy} className="bg-action-link" style={{ fontWeight: 400 }}>
+                  <button onClick={downloadFusedCopy} className="bg-action-link">
                     <span>Download fused copy</span>
                     <span className="arrow" aria-hidden>&rarr;</span>
                   </button>
