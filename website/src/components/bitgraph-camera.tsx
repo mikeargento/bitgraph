@@ -1006,11 +1006,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
     const tick = () => new Promise(r => setTimeout(r, 0));
 
     // Add a text entry to the zip
-    const addBytes = (name: string, bytes: Uint8Array) => {
-      const entry = new ZipPassThrough(name);
-      z.add(entry);
-      entry.push(bytes, true);
-    };
     const addText = (name: string, text: string) => {
       const entry = new ZipPassThrough(name);
       z.add(entry);
@@ -1101,14 +1096,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
       const base = f.name.replace(/\.[^.]+$/, "");
       const prefix = multi ? `${base}/` : "";
       const fileBytes = new Uint8Array(await f.arrayBuffer());
-      // A file fused in this drop also exports its Frame and the exact fused
-      // bytes it committed, beside the original the visitor keeps. The fused
-      // copy is rebuildable from the original and the proof; it rides along
-      // here because an export is an explicit download.
+      // A file fused in this drop also exports its Frame beside the original
+      // the visitor keeps. The new file itself is virtual (Mike, 2026-09-03):
+      // it is rebuilt from the original and the proof only when asked for,
+      // through "Download new file" on the proof page, never packed here.
       const fusedOut = withProofs[i].fused;
       if (fusedOut) {
         addText(`${prefix}${fusedOut.frameName}`, JSON.stringify(fusedOut.frame, null, 2));
-        addBytes(`${prefix}${fusedOut.fusedName}`, fusedOut.fusedBytes);
       }
 
       // A single recording keeps the flat layout (file + proof.json, covered
