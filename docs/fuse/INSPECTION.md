@@ -251,7 +251,7 @@ Deliverable 8: dropped (Gate shelved).
 
 Deliverable 9, internal harness: built as a command in the SDK package (`bitgraph-fuse fuse|produce|check`) rather than a site page. A page would add the unpublished `packages/fuse` and verify 1.4.0 to the website's dependencies, and the Vercel build installs from the registry, so the site would stop building until those are published; the command needs nothing but the repository and exercises Forms A, B and C end to end against the local enclave, with the bounded copy of spec 9.3 verbatim. A page can follow once verify 1.4.0 is on the registry.
 
-Deliverable 10, docs: `docs/fuse/FUSE.md` with the doctrine, trust, and distinction paragraphs verbatim and the limitations of spec 4.2; no site page until counsel rules (a public docs page is disclosure).
+Deliverable 10, docs: `docs/fuse/FUSE.md` with the doctrine, trust, and distinction paragraphs verbatim and the limitations of spec 4.2; no site page yet (a public docs page is an outward surface, which is Mike's call).
 
 Must not be touched: `server/commit-service/src/enclave/app.ts` and `reproducible-build/`; every file under `~/Desktop/imran/` and `trace-binding/`; the published tarballs verify 1.3.0, audit 0.3.0, player 0.7.0; existing fixtures under `src/__tests__/real-fixtures/` and `packages/player/src/__tests__/fixtures/`; the main working tree's uncommitted removal diff.
 
@@ -261,7 +261,7 @@ The mock enclave (`server/commit-service/src/mock/mock-enclave.ts:45-53`) dispat
 
 ## Risks and freeze constraints
 
-1. `occ` is a public GitHub repository and Fuse is unfiled new matter. The `bitgraph-fuse` branch must not be pushed until counsel rules. The Imran package also pins `enclave/app.ts` line 229 and line 566 on GitHub main, so nothing on main may shift those lines.
+1. `occ` is a public GitHub repository. Mike's ruling (2026-09-03): Fuse is a re-ordering of BitGraph on the same patented nonce-first architecture, so no counsel gate applies. The `bitgraph-fuse` branch is pushed only on Mike's explicit word and not while the Imran freeze holds. The Imran package pins `enclave/app.ts` line 229 and line 566 on GitHub main, so nothing on main may shift those lines.
 2. Mike's 09-02 freeze: no host patch or restart, no push to main, no npm publish, no site or proof-page change while Imran evaluates. Deliverable 2 is built and tested locally and stays undeployed. The main working tree's removal diff stays as it is; at deploy time Mike chooses between the removal (main) and the gated route (branch), and the branch keeps the package sentence "POST /allocate-slot ... is available" true.
 3. Published verify 1.3.0, audit 0.3.0, player 0.7.0 are frozen for Imran; version bumps on the branch are not published and `verify.html` is not redeployed.
 4. Attribution is settable by anyone with no validation, so the signed placement and origin are sealed claims; the verifier's reconstruction is the truth check.
@@ -280,12 +280,12 @@ The mock enclave (`server/commit-service/src/mock/mock-enclave.ts:45-53`) dispat
 2. Daily rotation blackout: the enclave restarts at 23:59 UTC and voids pending slots, so a slot allocated inside the 120 s TTL before that instant can never be committed. The site's allocate route now refuses inside a 150 s guard with the same retryable 503 as the rotation (`FUSE_ROTATION_UTC`, `FUSE_ROTATION_GUARD_SECONDS`). A parent-direct producer must apply the same rule itself.
 3. The parent's own `POST /verify` rebuilt the signed body without attribution and policy, so it reported every anchor proof and every fused proof as failing while the MIT verifier passed them. Fixed on the branch with tests; deploying it is a parent restart, so it waits with the rest.
 4. A Frame dropped alone on the home page was hashed as an ordinary file and, being new, would have been auto-recorded at a fresh position. The site's proof detection now unwraps a Frame to its proof, which makes the drop a lookup.
-5. Legacy recordings: about 500 production recordings in `~/BitGraph` (2026-06-27 and 2026-08-06) carry a `nonce: <hex>` line inside the file, the proto pattern of this design. No placement locates a commitment in such a file (test added). For counsel: dated evidence of the idea in practice, and a prior-disclosure question only if any were shared; none appear in the Imran package, trace-binding, or Gate.
+5. Legacy recordings: about 500 production recordings in `~/BitGraph` (2026-06-27 and 2026-08-06) carry a `nonce: <hex>` line inside the file, the proto pattern of this design. No placement locates a commitment in such a file (test added). They are dated evidence of the pattern in practice on the public ledger; none appear in the Imran package, trace-binding, or Gate. Mike's 2026-09-03 ruling makes this a footnote, not a counsel question.
 6. The root package's `files` whitelist includes `src`, so the fake-PCR0 fixtures would have shipped with the next publish of the core package; they are now excluded.
 7. Tooling: `packages/audit/src/reconstruct.ts` reads as binary to BSD grep and is silently skipped without `-a`; the prevB64 resolver at line 146 lives there.
 8. The branch's `website/public/verify.html` differs from the copy Imran holds; expected, since it is rebuilt from player 0.8.0, and it is neither deployed nor sent.
 9. Production parity is still asserted, not observed. A deploy plan starts with a read-only diff of the box's `server.ts` against HEAD and this branch.
-10. Publication hazard: the branch shares `.git` with the public repository. A `git push --all`, `git push --mirror`, or an IDE "publish branch" from either worktree would publish the mechanism before counsel rules and would trigger a Vercel preview deployment and CI. No such command until counsel rules.
+10. Publication hazard: the branch shares `.git` with the public repository. A `git push --all`, `git push --mirror`, or an IDE "publish branch" from either worktree would publish the branch, trigger a Vercel preview deployment of the Fuse routes, and run CI, all while the Imran freeze holds. No such command without Mike's explicit word.
 
 ## Decisions taken (stated as assumptions, changeable)
 
@@ -302,4 +302,4 @@ Delivered on the branch, all local: 2 (allocation metered, chain pinned), 3 (hel
 ## Open questions for Mike (only those that change the build)
 
 1. At deploy time, which allocation posture: the prepared removal on main, or the gated `/allocate-slot` from this branch? The branch assumes the gated route.
-2. Is a public `/docs/fuse` page wanted before counsel rules on Fuse as new matter? This branch ships `docs/fuse/FUSE.md` only.
+2. Is a public docs page wanted, and under what name, given that Fuse is a working name? This branch ships `docs/fuse/FUSE.md` only.
