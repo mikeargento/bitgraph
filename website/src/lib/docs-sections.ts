@@ -128,10 +128,17 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
  * REFERENCE, the fourth column, rendered by the menu after the three groups
  * above (it appends GitHub to these, which is external and stays out of the
  * sequence). These ARE in the sequence, and they close it: the trail runs
- * Self-Host TEE → FAQ and stops.
+ * Self-Host TEE → FAQ, then Contact, and stops.
  */
 export const DOCS_TAIL: DocsSection[] = [
   { href: "/docs/faq", label: "FAQ" },
+  // Contact closes the column (Mike, 2026-09-03). It was briefly a fourth nav
+  // item: the bar holds the product, and a reader who has come this far through
+  // the docs is the one with a question worth an answer. The page it opens
+  // offers a live demo, an enterprise consultation or a licensing conversation.
+  // It is not under /docs, which the sequence tolerates: the trail simply ends
+  // on it, the way it used to end on the FAQ.
+  { href: "/contact", label: "Contact" },
 ];
 
 /** Every section, flat, in reading order. The previous/next sequence. */

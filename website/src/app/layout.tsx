@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     // "BitGraph |" prefix: the sentence already names BitGraph, and the
     // template below still brands every other page's tab. It was "BitGraph |
     // A camera for bits" from 2026-07 until the title became the claim.
-    default: "A BitGraph gives bits a place",
+    default: "Prove what came first",
     template: "%s | BitGraph",
   },
   // The overview's own sentence (Mike, 2026-08-19: "update the description
@@ -35,14 +35,14 @@ export const metadata: Metadata = {
     "cryptographic provenance", "tamper-evident", "C2PA", "proof explorer",
   ],
   openGraph: {
-    title: "A BitGraph gives bits a place",
+    title: "Prove what came first",
     description: "BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later.",
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary_large_image",
-    title: "A BitGraph gives bits a place",
+    title: "Prove what came first",
     description: "BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later.",
   },
   robots: { index: true, follow: true },

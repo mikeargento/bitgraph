@@ -54,7 +54,17 @@ export default function BitGraphPage() {
            are decided. No terminal period: this is the app surface. The h1
            stays a quiet link to the overview (colour inherit, hover only),
            the one path there from this page besides Docs. */
-        title={<a href="/docs/overview">A BitGraph gives bits a place</a>}
+        title={<a href="/docs/overview">Prove what came first</a>}
+        /* The line the title used to leave unsaid. "A BitGraph gives bits a
+           place" stated identity in the product's own vocabulary; this pair
+           states the function and who it is for, which is what a stranger can
+           act on. No mechanism: the box below says make or check, and the
+           overview link answers how (Mike, 2026-09-03). "Checkable offline by
+           anyone" closed this line for one draft and came out for the same
+           reason, it can be discovered. The frame flattens by exactly the
+           height these two lines add (the fit hook counts every sibling above
+           it), so the composition still fits one screen with no scroll. */
+        subtitle={<>Receipts, manifests, audit trails, etc.</>}
         /* The what-happens pair, inside the frame since 2026-08-27; shared
            with /actor. Wording rules live on the component. */
         belowClassName="hero-more"
