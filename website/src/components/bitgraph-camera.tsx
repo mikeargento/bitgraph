@@ -68,9 +68,6 @@ export interface BitGraphCameraProps {
    *  pages are one composition (Mike, 2026-08-19: "make the two pages home
    *  and actor match"). */
   below?: ReactNode;
-  /** One line under the title, above the frame. The fit hook counts it as chrome,
-      so the frame flattens to keep the composition on one screen. */
-  subtitle?: ReactNode;
   belowClassName: string;
   /** One line inside the frame under "Hashed in your browser, never uploaded",
    *  for a fact about the instrument: /actor's "Acting as …, key …". Home
@@ -129,7 +126,7 @@ export function clearCameraCache(id: BitGraphCameraProps["id"]) {
 }
 
 
-export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, subtitle, below, belowClassName, frameNote, acceptsPendingDrop }: BitGraphCameraProps) {
+export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, below, belowClassName, frameNote, acceptsPendingDrop }: BitGraphCameraProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length ? "results" : "drop"));
   const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
@@ -1276,17 +1273,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, sub
            A camera for bits"). Docs pages keep theirs: those are prose, this
            is the app surface. */
         .bitgraph-tagline { margin: 0 0 36px; }
-        /* With a line under it the title stops carrying the gap to the frame:
-           the two read as one block, and the sub-line takes the 36. Its size is
-           the site's supporting-copy size, the same clamp the drop box's own
-           subtitle uses, so the three sizes descend cleanly from title to line
-           to box headline. Measure held near 60 characters. */
-        .bitgraph-tagline.has-sub { margin-bottom: 14px; }
-        .bitgraph-sub {
-          text-align: center; margin: 0 auto 36px; max-width: 60ch;
-          font-size: clamp(15px, 3.6vw, 17px); line-height: 1.55; color: #4b5563;
-          text-wrap: balance;
-        }
         /* The one place on the site that departs from the shared title size.
            .bg-page-title is clamp(26px, 6vw, 32px), which stops growing at a
            533px viewport, so on every desktop it is a flat 32px. That was fine
@@ -1393,8 +1379,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, sub
                 title over it is ceremony, and the heading row below it, whose
                 job was to hold the link that opens the box, goes with it.
                 Expanded over results is: the box, then the card and the rows. */}
-            {!showingResults && <h1 className={`bg-page-title bitgraph-tagline${subtitle ? " has-sub" : ""}`}>{title}</h1>}
-            {!showingResults && subtitle && <p className="bitgraph-sub">{subtitle}</p>}
+            {!showingResults && <h1 className="bg-page-title bitgraph-tagline">{title}</h1>}
             <div className="bitgraph-camera">
               <FileDrop
                 multiple
