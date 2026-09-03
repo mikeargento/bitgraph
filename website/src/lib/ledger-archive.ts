@@ -1,12 +1,12 @@
 // Copyright (c) 2024-2026 Mike Argento. All rights reserved.
 
 /**
- * The Roll archive's algebra. Pure: no S3, no fetch, no clock.
+ * The ledger archive's algebra. Pure: no S3, no fetch, no clock.
  *
  * A sealed UTC day is written history. It cannot gain, lose or reorder a single
  * entry, so it is materialised ONCE into display pages and served immutable
  * from then on. Only the live epoch is live, and the live epoch reads the
- * ledger directly (see roll-index.ts) — it gets no archive, which is what keeps
+ * ledger directly (see day-index.ts) — it gets no archive, which is what keeps
  * the one place drift is possible free of a second source of truth.
  *
  * WHY PAGES AND NOT COUNTER RANGES
@@ -23,7 +23,7 @@
  *
  * FILTERS
  *
- * Two streams per day, because the Roll has two views and neither should pay
+ * Two streams per day, because the ledger has two views and neither should pay
  * for the other: "f" is recordings only (the default) and "a" is everything,
  * anchors and interval recurrences included. Duplication is the point — a page
  * is ~9KB, and the alternative is the reader filtering a mixed page and finding
@@ -37,15 +37,20 @@
 export const PAGE_ROWS = 100;
 
 /** Bumped only when the on-disk shape changes, so old objects are orphaned
- *  rather than misread. Archived pages are immutable and never rewritten. */
+ *  rather than misread. Archived pages are immutable and never rewritten.
+ *
+ *  ⚠️ The word "roll" survives here alone, and deliberately. This is an S3 key
+ *  prefix, not vocabulary: every archived day already written lives under it.
+ *  The Roll was renamed to the Ledger everywhere a person can see it on
+ *  2026-09-03; renaming this string would orphan the archive instead. */
 export const ARCHIVE_PREFIX = "roll/v1/day";
 
-export type RollFilter = "f" | "a";
+export type LedgerFilter = "f" | "a";
 
-/** One row of the Roll, as stored. The display record and nothing else: the
- *  Roll is not a trust surface, and a proof verifies offline against the
+/** One row of the ledger, as stored. The display record and nothing else: the
+ *  Ledger is not a trust surface, and a proof verifies offline against the
  *  hardware signature and the anchors, never against this. */
-export type RollRow = {
+export type LedgerRow = {
   /** Commit counter. Unique within an epoch, and the sort key. */
   c: number;
   /** proof | anchor | interval. */
@@ -82,17 +87,17 @@ export type DayIndex = {
 
 export type DayPage = {
   day: string;
-  filter: RollFilter;
+  filter: LedgerFilter;
   /** Zero-based page number, newest rows first (page 0 is the end of the day). */
   n: number;
-  rows: RollRow[];
+  rows: LedgerRow[];
 };
 
 const pad4 = (n: number) => String(n).padStart(4, "0");
 
 /** Deterministic name. The client derives it from the manifest's page count and
  *  fetches it directly, so the read path never LISTs the bucket. */
-export function pageKey(day: string, filter: RollFilter, n: number): string {
+export function pageKey(day: string, filter: LedgerFilter, n: number): string {
   return `${ARCHIVE_PREFIX}/${day}/${filter}/${pad4(n)}.json`;
 }
 
@@ -103,8 +108,8 @@ export function dayIndexKey(day: string): string {
 /** Split rows (already newest-first) into fixed pages. The last page is short,
  *  which is the ONLY page allowed to be, and the manifest's count is what says
  *  so rather than the reader inferring it from a short response. */
-export function paginate(rows: RollRow[], size = PAGE_ROWS): RollRow[][] {
-  const out: RollRow[][] = [];
+export function paginate(rows: LedgerRow[], size = PAGE_ROWS): LedgerRow[][] {
+  const out: LedgerRow[][] = [];
   for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
   return out.length ? out : [[]];
 }
@@ -133,7 +138,7 @@ export type Coverage = {
 /**
  * What the client is allowed to claim.
  *
- * FALSE ABSENCE IS THE FAILURE MODE THAT MATTERS. A Roll that under-reports is
+ * FALSE ABSENCE IS THE FAILURE MODE THAT MATTERS. A Ledger that under-reports is
  * indistinguishable from a ledger that never recorded the thing you are looking
  * for, and this page's whole job is being the second thing rather than looking
  * like it.
@@ -142,7 +147,7 @@ export type Coverage = {
  * response: it requires every declared page to be held AND the row count to
  * match what was declared. Every uncertain case resolves to incomplete.
  */
-export function coverageOf(heldPages: number[], index: DayIndex, filter: RollFilter, rowsLoaded: number): Coverage {
+export function coverageOf(heldPages: number[], index: DayIndex, filter: LedgerFilter, rowsLoaded: number): Coverage {
   const total = index.pages[filter];
   const rowsTotal = index.rows[filter];
   const held = new Set(heldPages);
@@ -152,8 +157,8 @@ export function coverageOf(heldPages: number[], index: DayIndex, filter: RollFil
   return { loaded: held.size, total, rowsLoaded, rowsTotal, missing, behind: missing.length > 0, complete };
 }
 
-/** What the end of a roll is allowed to say about itself. */
-export type RollClaim =
+/** What the end of a day is allowed to say about itself. */
+export type DayClaim =
   /** More pages to fetch. Report progress against the declaration, not an end. */
   | "paging"
   /** Every declared row is on screen. The only state that may say "all". */
@@ -167,18 +172,18 @@ export type RollClaim =
  * The render-time half of coverageOf, for a reader that pages strictly in order.
  *
  * coverageOf answers for a client that can hold arbitrary pages and therefore
- * arbitrary holes. The Roll is not that client: it fetches page n+1 only after
+ * arbitrary holes. The ledger is not that client: it fetches page n+1 only after
  * page n has landed and stops at the first failure, so a hole cannot form and
  * the row count carries the whole answer. This is the same rule reduced to the
  * two numbers that reader actually has.
  *
  * The asymmetry is deliberate. "complete" requires a declaration to match;
  * everything else, including every uncertain case, resolves to a state that
- * claims nothing. A roll that under-reports is indistinguishable from a ledger
+ * claims nothing. A day that under-reports is indistinguishable from a ledger
  * that never recorded the thing you came to look for, so a short list has to be
  * detectably short rather than quietly plausible.
  */
-export function endOfRollClaim(shown: number, declared: number | null, hasMore: boolean): RollClaim {
+export function endOfDayClaim(shown: number, declared: number | null, hasMore: boolean): DayClaim {
   if (declared == null) return "undeclared";
   if (hasMore) return "paging";
   return shown < declared ? "short" : "complete";
@@ -199,8 +204,8 @@ export function findPageGaps(heldPages: number[], total: number): number[] {
 
 /** Newest-first, deduped by (epoch, counter). Counters restart across epochs,
  *  so a day spanning a restart can legitimately hold the same counter twice. */
-export function mergeRows(...lists: RollRow[][]): RollRow[] {
-  const seen = new Map<string, RollRow>();
+export function mergeRows(...lists: LedgerRow[][]): LedgerRow[] {
+  const seen = new Map<string, LedgerRow>();
   for (const list of lists) for (const r of list) {
     const k = `${r.ep ?? ""}:${r.c}`;
     if (!seen.has(k)) seen.set(k, r);

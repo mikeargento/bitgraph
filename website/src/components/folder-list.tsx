@@ -1,6 +1,6 @@
 "use client";
 
-/* The folder's Roll, extracted so it has more than one address: the home
+/* The folder's Ledger, extracted so it has more than one address: the home
  * page renders it for a one-off drop, and /folder renders it for the folder
  * you keep. Everything here is a READ of bytes already on the machine.
  */
@@ -10,11 +10,11 @@ import { isUnchecked, type ExportCheckResult } from "@/lib/folder-check";
 import { MonthCalendar, MonthShelf, type CalendarDay } from "@/components/month-calendar";
 
 // Compact recorded time for a result row, e.g. "Jul 17, 9:22 PM" — the same
-// format the Roll's rows use, so the two lists read as one system.
+// format the ledger's rows use, so the two lists read as one system.
 export const fmtRowWhen = (ms?: number | null) =>
   ms ? new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 
-/* ── The folder's Roll — the viewer a dropped BitGraph folder loads into.
+/* ── The folder's Ledger — the viewer a dropped BitGraph folder loads into.
    The Folder generates no browsing pages of its own (1.9.0); this is where a
    folder is browsed AND checked, in one surface the site renders. Day
    grouping and causal order are the sheet's exact keys, computed here from
@@ -74,13 +74,13 @@ export function useFileThumbs(files: Array<File | null | undefined>): Map<File, 
    browser's IndexedDB memory was removed with that page (2026-08-07). This
    list renders drops whose bytes are in hand; thumbs are generated from
    those bytes and live for the visit. */
-export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll", aside }: {
+export function CheckedList({ checked, onOpen, heading = "BitGraphs in this folder", aside }: {
   checked: ExportCheckResult[];
   onOpen: (r: ExportCheckResult) => void;
   /** The list's own title. null lets a caller's page header own the top. */
   heading?: string | null;
   /** Something for the right of the heading row (the camera's "Record or
-   *  check more →" when this Roll is the first thing on a results page). */
+   *  check more →" when this Ledger is the first thing on a results page). */
   aside?: React.ReactNode;
 }) {
   // Causal order, newest first: lower-bound block, then counter; unsealed
@@ -125,15 +125,15 @@ export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll", aside 
     return out;
   }, [ordered]);
 
-  // The Roll's navigation, exactly (Mike: "i thought maybe you could just
-  // use Roll exactly for this"): the default view is every recording newest
+  // The ledger's navigation, exactly (Mike: "i thought maybe you could just
+  // use Ledger exactly for this"): the default view is every recording newest
   // first, and past days are walked one at a time with dated steppers - not
   // scrolled past under inline headers. `day` is which slice is open; null
   // is the live view. Steppers move between RECORDED days (a folder is
   // sparse where the ledger is continuous - the same knowing deviation the
   // old sheet made).
   const [day, setDay] = useState<string | null>(null);
-  // The shelf: the Roll's /rolls month-grid calendar, client-side. Not
+  // The shelf: the ledger's /days month-grid calendar, client-side. Not
   // important at two days, load-bearing at two hundred (Mike's call).
   const [shelf, setShelf] = useState(false);
   const dayIdx = day === null ? -1 : groups.findIndex((g) => g.key === day);
@@ -144,7 +144,7 @@ export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll", aside 
 
   const stepLink: React.CSSProperties = { color: "#0065A4", fontWeight: 600, fontSize: 13.5, textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" };
 
-  // Thumbs from the dropped bytes, in the roll's render order so pictures
+  // Thumbs from the dropped bytes, in the day's render order so pictures
   // fill from the top of what is on screen (see useFileThumbs).
   const thumbs = useFileThumbs(ordered.map((r) => r.artifactFile));
 
@@ -165,8 +165,8 @@ export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll", aside 
           day-view line survives regardless, because only this component
           knows which day is open. */}
       {heading && (
-        /* The Roll's own title, at the one size every page title on the site
-           uses (docs h1, /roll, /folder), with the caller's aside on its right. */
+        /* The ledger's own title, at the one size every page title on the site
+           uses (docs h1, /day, /folder), with the caller's aside on its right. */
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16 }}>
           <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827" }}>
             {heading}
@@ -225,7 +225,7 @@ export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll", aside 
               </button>
             )}
             <button type="button" style={stepLink} onClick={() => setShelf(true)}>
-              All rolls <span aria-hidden>&rarr;</span>
+              All days <span aria-hidden>&rarr;</span>
             </button>
           </span>
         </nav>
@@ -272,7 +272,7 @@ export function CheckedRoll({ checked, onOpen, heading = "BitGraph Roll", aside 
                     <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {r.fileName ?? r.dirName}
                     </span>
-                    <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }} className="bg-roll-when">
+                    <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }} className="bg-day-when">
                       {fmtRowWhen(r.ts ? r.ts * 1000 : r.writeTime)}
                     </span>
                     <span style={{ flexShrink: 0, maxWidth: "40%", fontSize: 12.5, fontWeight: 600, color: r.ok === true ? "#0065A4" : r.ok === false ? (isUnchecked(r) ? "#6b7280" : "#dc2626") : "#9ca3af", textAlign: "right" }}>
@@ -299,8 +299,8 @@ function CheckedShelf({ groups, onPick, onLive }: {
   onPick: (key: string) => void;
   onLive: () => void;
 }) {
-  /* The drawing is components/month-calendar.tsx, shared with /rolls. This
-     shelf knows something /rolls does not: how many recordings each day
+  /* The drawing is components/month-calendar.tsx, shared with /days. This
+     shelf knows something /days does not: how many recordings each day
      holds (the rows are in hand), so each recorded day carries its count and
      the month line says the total. Local dates throughout, matching the day
      groups above, which are keyed the same way. */

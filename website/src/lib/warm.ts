@@ -1,10 +1,10 @@
 // A tiny client-side "warm cache". Start fetching a page's data BEFORE the user
 // navigates — on idle for a fixed, known target (the example proof), or on
-// hover / focus / touch intent for a nav link (the Roll feed) — and stash the
+// hover / focus / touch intent for a nav link (the ledger feed) — and stash the
 // parsed JSON in a module slot. The destination page seeds its first paint from
 // the slot (takeWarm) and then runs its normal fetch as a background reconcile,
 // so nothing is ever frozen: the warm copy is just a REAL response fetched a few
-// seconds early, and any dynamic field (a new Recording, fresh Roll rows) is
+// seconds early, and any dynamic field (a new Recording, fresh Ledger rows) is
 // corrected by the reconcile. Module state survives a client-side router.push,
 // so the handoff needs no storage.
 
@@ -90,11 +90,11 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
   return `/api/proofs/digest/${digestParam}${s ? `?${s}` : ""}`;
 }
 
-/** The Roll feed's initial (files-only, no-cursor) URL. This MUST stay byte-
+/** The ledger feed's initial (files-only, no-cursor) URL. This MUST stay byte-
  *  identical to Explorer's `feedUrl()` with its default state, because warm
- *  slots are keyed by URL string: the Roll went files-default without this
+ *  slots are keyed by URL string: the ledger went files-default without this
  *  constant following, so the nav warmed "/api/explorer?" while the page
  *  fetched "/api/explorer?files=1" and every hover prefetched a response
  *  nobody read. If the anchors toggle ever changes its default, change this
  *  too. */
-export const ROLL_FEED_KEY = "/api/explorer?files=1";
+export const LEDGER_FEED_KEY = "/api/explorer?files=1";

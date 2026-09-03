@@ -1,12 +1,12 @@
-/* ── Rolls — the shelf. One roll per UTC day since the ledger began; this page
-   is the index of them, a month-grid contact sheet. Deliberately zero data:
-   anchors have run continuously since the cutover, so every past day HAS a
-   roll (a day with no files says so honestly on its own page). Every cell is
-   just a date link — no fetches, no counts, no dashboard. Days are named by
+/* ── The Archive — the shelf. One page per UTC day since the ledger began,
+   and this is the index of them, a month-grid contact sheet. Zero data by
+   design: anchors have run continuously since the cutover, so every past day
+   HAS a page (one with no files says so honestly on its own page). Every cell
+   is just a date link, no fetches, no counts, no dashboard. Days are named by
    date, never an epoch ordinal (epochs carry no numbers; Canon).
 
    The drawing is components/month-calendar.tsx, shared with a dropped
-   Folder's shelf (folder-roll.tsx) so the two cannot drift. That one knows
+   Folder's shelf (folder-list.tsx) so the two cannot drift. That one knows
    its counts and says them; this one, by design, does not. ── */
 
 import { MonthCalendar, MonthShelf, MONTH_NAMES, type CalendarDay } from "@/components/month-calendar";
@@ -27,7 +27,7 @@ function buildMonths(todayISO: string): MonthGrid[] {
   const [ey, em] = EARLIEST_DAY.split("-").map((x) => parseInt(x, 10));
   const [ty, tm] = todayISO.split("-").map((x) => parseInt(x, 10));
   const months: MonthGrid[] = [];
-  // Newest month first: the recent rolls are the ones people flip back to.
+  // Newest month first: the recent days are the ones people flip back to.
   for (let y = ty, m = tm; y > ey || (y === ey && m >= em); m === 1 ? (y--, m = 12) : m--) {
     const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
     months.push({
@@ -36,12 +36,12 @@ function buildMonths(todayISO: string): MonthGrid[] {
       days: Array.from({ length: daysInMonth }, (_, i) => {
         const iso = `${y}-${pad2(m)}-${pad2(i + 1)}`;
         if (iso === todayISO) {
-          // Today's roll is the live Roll — outlined, not filled: the one
+          // Today is the live Ledger — outlined, not filled: the one
           // open frame on a shelf of sealed ones.
-          return { n: i + 1, kind: "today", href: "/roll", ariaLabel: "Today's roll" } as CalendarDay;
+          return { n: i + 1, kind: "today", href: "/ledger", ariaLabel: "Today" } as CalendarDay;
         }
         if (iso >= EARLIEST_DAY && iso < todayISO) {
-          return { n: i + 1, kind: "recorded", href: `/roll?day=${iso}` } as CalendarDay;
+          return { n: i + 1, kind: "recorded", href: `/ledger?day=${iso}` } as CalendarDay;
         }
         return { n: i + 1, kind: iso > todayISO ? "future" : "idle" } as CalendarDay;
       }),
@@ -50,7 +50,7 @@ function buildMonths(todayISO: string): MonthGrid[] {
   return months;
 }
 
-export default function RollsPage() {
+export default function ArchivePage() {
   const todayISO = new Date().toISOString().slice(0, 10);
   const months = buildMonths(todayISO);
 
@@ -61,9 +61,9 @@ export default function RollsPage() {
       `}</style>
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
         {/* The one title size every page header uses. */}
-        <div className="bg-page-title">Rolls</div>
+        <div className="bg-page-title">Archive</div>
         <div style={{ fontSize: 14, fontWeight: 400, color: "#4b5563", marginTop: 2, marginBottom: 24 }}>
-          One roll per day (UTC). Today&rsquo;s is still open.
+          One page per UTC day. Today&rsquo;s is still open.
         </div>
         <MonthShelf>
           {months.map((mo) => (

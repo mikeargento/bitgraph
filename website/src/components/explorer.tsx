@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { takeWarm, ROLL_FEED_KEY } from "@/lib/warm";
-import { endOfRollClaim } from "@/lib/roll-archive";
+import { takeWarm, LEDGER_FEED_KEY } from "@/lib/warm";
+import { endOfDayClaim } from "@/lib/ledger-archive";
 
 type Entry = {
   counter: number;
@@ -13,7 +13,7 @@ type Entry = {
   etherscanUrl: string | null;
   isNew?: true;
   at?: number;
-  // URL-safe epochId. Day rolls can span epochs and counters repeat across
+  // URL-safe epochId. Day days can span epochs and counters repeat across
   // them, so identity and proof links use (epoch, counter), not counter alone.
   ep?: string;
 };
@@ -31,11 +31,11 @@ type FeedResp = {
   total?: number;
 };
 
-// Row identity that survives epoch boundaries (day rolls). Live-feed rows are
+// Row identity that survives epoch boundaries (day days). Live-feed rows are
 // all one epoch, where this degrades to the counter as before.
 const rowId = (e: Entry) => `${e.ep ?? ""}:${e.counter}`;
 
-// Compact recorded time for a roll row, e.g. "Jul 17, 9:22 PM". More useful
+// Compact recorded time for a day row, e.g. "Jul 17, 9:22 PM". More useful
 // than the truncated hash it replaces (nobody reads a proof by 10 hash chars).
 const fmtWhen = (ms?: number) =>
   ms ? new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
@@ -47,17 +47,17 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   //
   //   initial   the first page rendered into the HTML by the server. Removes
   //             the whole client waterfall (JS, hydrate, then fetch) for anyone
-  //             arriving cold, and is the only seed a sealed day roll can get.
+  //             arriving cold, and is the only seed a sealed day day can get.
   //             Absent when the server read was slow or failed, in which case
   //             this falls back to exactly the old behaviour rather than
-  //             showing an empty roll: a failed read is not an empty ledger.
+  //             showing an empty day: a failed read is not an empty ledger.
   //   warm      a feed the nav prefetched on hover/focus. Live view only.
   //
   // Either way the effect below still reconciles against a live fetch.
   const seeded = (() => {
     if (initial) return initial;
     if (day) return null;
-    const w = takeWarm<FeedResp>(ROLL_FEED_KEY);
+    const w = takeWarm<FeedResp>(LEDGER_FEED_KEY);
     return w && "data" in w ? w.data : null;
   })();
   const [entries, setEntries] = useState<Entry[]>(() => seeded?.entries ?? []);
@@ -80,7 +80,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
     }), NEW_TAG_MS);
   }, []);
   const [nextBefore, setNextBefore] = useState<number | null>(() => seeded?.nextBefore ?? null);
-  // Day-roll cursor scope: counters repeat across epochs, so the resume point
+  // Day-day cursor scope: counters repeat across epochs, so the resume point
   // is (epoch, counter). Null outside day mode.
   const [nextEpoch, setNextEpoch] = useState<string | null>(() => seeded?.nextEpoch ?? null);
   // Archived-day cursor. Separate from nextBefore because the server keeps them
@@ -89,7 +89,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   /* Rows the day says it holds, once it has said so. THE POINT OF THIS FIELD IS
      THAT A SHORT LIST MUST BE DETECTABLY SHORT. Without it a client holding
      three pages cannot tell "that was the whole day" from "the fourth request
-     failed", and a roll that under-reports looks exactly like a ledger that
+     failed", and a day that under-reports looks exactly like a ledger that
      never recorded the thing you came to look for.
 
      Only archived days declare one. Null means no declaration exists, and the
@@ -105,7 +105,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
 
 
   // Anchors are the clock ticking, not the photos: hidden by default so the
-  // roll reads as files. The toggle refetches; ?files=1 lets the server skip
+  // the ledger reads as files. The toggle refetches; ?files=1 lets the server skip
   // anchor objects via the anchors/{epoch}/ index instead of GETting each.
   const [showAnchors, setShowAnchors] = useState(false);
   // Search: resolve a hash to a proof via /api/search, which verifies the proof
@@ -152,7 +152,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   const firstRunRef = useRef(true);
 
   const feedUrl = useCallback((before?: number | null, bepoch?: string | null, page?: number | null) => {
-    // The no-cursor live files URL must stay byte-identical to ROLL_FEED_KEY
+    // The no-cursor live files URL must stay byte-identical to LEDGER_FEED_KEY
     // (warm slots key by URL string), so the live path keeps its exact shape.
     if (!day) return `/api/explorer?${showAnchors ? "" : "files=1"}${before != null ? `${showAnchors ? "" : "&"}before=${before}` : ""}`;
     const p = new URLSearchParams({ day });
@@ -169,7 +169,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
     return `/api/explorer?${p.toString()}`;
   }, [showAnchors, day]);
 
-  // An anchor-only stretch (day rolls especially: a sparse day inside a big
+  // An anchor-only stretch (day days especially: a sparse day inside a big
   // pre-rotation epoch) legitimately yields empty pages that still carry a
   // cursor. Absorb them here, bounded, so a page the user sees always has
   // either rows or a real end — chaining must not depend on the scroll
@@ -274,11 +274,11 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   }, [fetchChain]);
 
   // Instant arrivals: the drop flow on this page dispatches each successful
-  // recording the moment its commit returns, so the dropper's Roll never
+  // recording the moment its commit returns, so the dropper's Ledger never
   // waits out the poll. Same flash + "new!" treatment as polled arrivals;
   // topRef advances so the next poll doesn't re-add these counters.
   useEffect(() => {
-    if (day) return; // a sealed day's roll cannot receive live arrivals
+    if (day) return; // a sealed day's day cannot receive live arrivals
     const onRecorded = (ev: Event) => {
       const detail = ((ev as CustomEvent<Entry[]>).detail || []).filter((e) => e.counter > 0);
       if (!detail.length) return;
@@ -300,14 +300,14 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   }, [noteNew, day]);
 
   // Live poll, two tiers: a tiny head check every ~3s, and a feed fetch only
-  // when the head actually advances. The head endpoint (/api/roll/head) is
+  // when the head actually advances. The head endpoint (/api/day/head) is
   // never served long-stale (short s-maxage, no SWR), which is what makes
   // arrivals feel instant; the heavier feed page keeps its hour-long SWR and
   // is fetched with a ?n={head} cache-buster, so the CDN key changes exactly
-  // when the content does and every open Roll shares one origin fetch per
+  // when the content does and every open Ledger shares one origin fetch per
   // change. Hidden tabs pause (background timers are throttled anyway and
   // fetches there are wasted); regaining visibility checks immediately, which
-  // also heals a tab that slept through arrivals. Day rolls are sealed
+  // also heals a tab that slept through arrivals. Day days are sealed
   // history: nothing to poll for.
   useEffect(() => {
     if (day) return;
@@ -322,13 +322,13 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
       if (inFlight || document.visibilityState !== "visible") return;
       inFlight = true;
       try {
-        const hr = await fetch("/api/roll/head");
+        const hr = await fetch("/api/ledger/head");
         if (!hr.ok) return;
         const h = (await hr.json()) as { epoch?: string; head?: number };
         if (!h.epoch || !h.head) return;
         if (liveEpoch !== null && liveEpoch !== h.epoch) {
-          // Daily rotation at 23:59 UTC: the live Roll becomes the new day's
-          // roll. Old-epoch counters are incomparable, so replace instead of
+          // Daily rotation at 23:59 UTC: the live Ledger becomes the new day's
+          // day. Old-epoch counters are incomparable, so replace instead of
           // prepending across the boundary.
           liveEpoch = h.epoch;
           const r = await fetch(bustedFeedUrl(h.head));
@@ -416,7 +416,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
      response that happened to be short, and short is exactly what a page that
      failed to load also looks like.
 
-     So when the two disagree and there is nothing left to fetch, the roll says
+     So when the two disagree and there is nothing left to fetch, the day says
      so. And when there is no declaration at all (the live feed, a day not yet
      archived) it claims nothing, because a client must not invent a
      declaration that was never made. */
@@ -426,7 +426,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   // below already says so in words, so the tail treats it as nothing to report
   // rather than printing "All 0".
   const declared = total != null && total > 0 ? total : null;
-  const claim = endOfRollClaim(shown, declared, hasMore);
+  const claim = endOfDayClaim(shown, declared, hasMore);
   const noun = showAnchors ? "entries" : "recordings";
 
   return (
@@ -459,8 +459,8 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
       {/* THE nav line — one stratum for everything: the day-flip pair on the
           left (a classic stepper, back before forward), view controls on the
           right (anchors toggle, then the calendar). Sized to hold one line at
-          375px with nothing wrapping; the All-rolls label collapses to its
-          glyph on phones. Anchors hidden by default: the roll shows the
+          375px with nothing wrapping; the All-days label collapses to its
+          glyph on phones. Anchors hidden by default: the day shows the
           photos, not the clock. */}
       {(subnav != null || aside != null) && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
@@ -529,7 +529,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
       )}
 
       {/* Stream — generic ledger rows; type and specifics live on the drill-in.
-          Each row is its own bordered card with a gap between, so the Roll reads
+          Each row is its own bordered card with a gap between, so the ledger reads
           as separate items rather than one dense table. */}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {loading && (
@@ -609,7 +609,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
               // come, and otherwise only that this walk ran out of ledger, which
               // is an end but not an audited one.
               : hasMore ? " "
-              : day ? (entries.length ? "End of this day's roll" : " ")
+              : day ? (entries.length ? "End of this day" : " ")
               : "Beginning of epoch"}
           </div>
         )}

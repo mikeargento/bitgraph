@@ -168,7 +168,7 @@ export default function McpPage() {
         <li>• <strong className="text-text">Files are never uploaded.</strong> Only SHA-256 digests, byte sizes, a file&apos;s first bytes, signed slot records and recipe bytes cross the network, to either endpoint.</li>
         <li>• <strong className="text-text">Recordings are permanent.</strong> The ledger has 10-year retention and no deletes. Agents are instructed to record only files you asked to record.</li>
         <li>• <strong className="text-text">Two operations.</strong> A fused file is new bytes built from the original under a slot that existed first, so those bytes could not have been finalized before the slot: that is what open and commit make. A recording gives bytes that already exist a position, and only says they existed no later than the commit: that is what bitgraph_record makes.</li>
-        <li>• <strong className="text-text">One ledger.</strong> Whatever MCP makes lands on the same ledger and the same Roll as everything else, and a lookup by the original&apos;s digest finds its fused artifacts by position and placement, never ranked.</li>
+        <li>• <strong className="text-text">One ledger.</strong> Whatever MCP makes lands on the same ledger as everything else, and a lookup by the original&apos;s digest finds its fused artifacts by position and placement, never ranked.</li>
       </ul>
     </article>
   );

@@ -171,7 +171,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* ── THE PAGE TITLE. One definition, every page (2026-08-07). ──
    Home's "A camera for bits." is the reference, and every other title on
-   the site is the same type: the docs h1s, the Roll, Rolls, Subjects, the
+   the site is the same type: the docs h1s, the ledger, its Archive, Subjects, the
    proof pages' "BitGraph Recorded", Maker. It scales with the viewport
    (26px floor on phones, 32px cap) so mobile and desktop may differ from
    each other but never from each other's peers.
@@ -627,10 +627,10 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    hit nothing at all and read as a broken link.
 
    Padding grows the region; the matching negative margin cancels it in
-   layout, so the nine places this class is used (home, the Roll's day
-   steppers and "All rolls", proof pages' Etherscan and causal actions, the
+   layout, so the nine places this class is used (home, the ledger's day
+   steppers and "All days", proof pages' Etherscan and causal actions, the
    docs Action links, the explorer) render exactly as before. Vertical only:
-   horizontal growth would let adjacent links in the Roll's nav line overlap
+   horizontal growth would let adjacent links in the ledger's nav line overlap
    each other's targets. */
 .bg-arrow-link { padding: 13px 0; margin: -13px 0; }
 .bg-arrow-link .arrow { display: inline-block; transition: transform .18s ease; }
@@ -829,7 +829,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    so the two never say the same thing in the same way. */
 .docs-menu-item { color: #4b5563; background: transparent; transition: color .15s; }
 .docs-menu-item[aria-current="page"] { color: #111827; background: #f3f4f6; }
-/* The bar's own links (Roll, Folder) mark the page they are on in the brand
+/* The bar's own links (Ledger, Folder) mark the page they are on in the brand
    blue: colour in text, never a background (2026-08-16). Docs is a menu, not
    a page, and keeps its own rule above. */
 #site-nav .bg-nav-links a[aria-current="page"] { color: #0065A4; }

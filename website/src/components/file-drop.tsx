@@ -223,7 +223,7 @@ export function FileDrop({
   };
 
   // Why the just-taken photo (or pasted image data) was not recorded. One
-  // short line stating the rule, in the site's error red (same as the Roll
+  // short line stating the rule, in the site's error red (same as the ledger
   // search error) since a selection was actively refused.
   const refusalNote = refusedEphemeral ? (
     <div
@@ -233,7 +233,7 @@ export function FileDrop({
         position: "relative", zIndex: 2,
       }}
     >
-      Photos must be chosen from your camera roll or files.
+      Photos must be chosen from your camera day or files.
     </div>
   ) : null;
 

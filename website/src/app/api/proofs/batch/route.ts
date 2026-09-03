@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
           try {
             const entries = await getProofsByDigest(fromUrlSafeB64(d));
             // writeTime (ledger write moment, ms) rides along so result rows
-            // can show a compact "when" like the Roll's rows.
+            // can show a compact "when" like the ledger's rows.
             results[d] = { proofs: entries.map(({ proof, writeTime, kind }) => ({ proof, writeTime: writeTime ?? null, kind })) };
           } catch (err) {
             // ⚠️ THIS USED TO REPORT `{ proofs: [] }`, and it was the whole

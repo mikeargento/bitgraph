@@ -17,6 +17,13 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/overview", destination: "/docs/overview", permanent: true },
+      // The Roll became the Ledger on 2026-09-03: a photography word for an
+      // audience that is now developers. Every old path keeps working, because
+      // proof pages, the docs and anything anyone bookmarked point at these.
+      // Permanent: the new names are settled, unlike the /uses experiment below.
+      { source: "/roll", destination: "/ledger", permanent: true },
+      { source: "/rolls", destination: "/ledger/archive", permanent: true },
+      { source: "/api/roll/head", destination: "/api/ledger/head", permanent: true },
       // The buyer's room, renamed twice on 2026-08-02: "Uses" (SaaS taxonomy)
       // → "Why" (vague, and an interrogative among nouns) → "Subjects" (what
       // you point the camera at; parallel with Roll and Docs, and the page is

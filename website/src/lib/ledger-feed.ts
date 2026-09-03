@@ -1,10 +1,10 @@
 import { unstable_cache } from "next/cache";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
-import { dayIndexKey, pageKey, type DayIndex, type DayPage, type RollFilter } from "./roll-archive";
+import { dayIndexKey, pageKey, type DayIndex, type DayPage, type LedgerFilter } from "./ledger-archive";
 
-/* The Roll feed, shared by the API route and the server-rendered /roll page.
+/* The ledger feed, shared by the API route and the server-rendered /day page.
 
-   This lived inside app/api/explorer/route.ts until the roll page needed the
+   This lived inside app/api/explorer/route.ts until the day page needed the
    same first page at request time. A route handler can only be reached over
    HTTP, so server-rendering the first 25 rows through it would have meant the
    page fetching itself. The logic moved here instead and route.ts became a
@@ -33,7 +33,7 @@ const EPOCH_TTL = 60_000;
  *  PAGINATED newest-born scan of the ledger while the boundary is rotating.
  *  The old single-page MaxKeys:200 listing was a time bomb under daily epoch
  *  rotation: past 200 epoch prefixes (~2027-01) the current epoch could sort
- *  off the page and the Roll would silently pin to a stale epoch. */
+ *  off the page and the ledger would silently pin to a stale epoch. */
 async function getCurrentEpoch(now: number): Promise<string | null> {
   if (epochCache && now - epochCache.at < EPOCH_TTL) return epochCache.epoch;
   try {
@@ -82,9 +82,9 @@ type Entry = {
   etherscanUrl: string | null;
   isNew?: true;
   // Wall-clock write time (S3 LastModified, epoch ms) — the recording moment,
-  // shown on each roll row. The precise ETH window lives on the proof page.
+  // shown on each day row. The precise ETH window lives on the proof page.
   at?: number;
-  // URL-safe epochId. Counters repeat across epochs, so day rolls (which can
+  // URL-safe epochId. Counters repeat across epochs, so day days (which can
   // span epochs) need it for row identity and to pin proof links to the exact
   // position. Present on every entry; the live feed just doesn't need it.
   ep?: string;
@@ -141,7 +141,7 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
 /* 40,000, not 4,000. Recordings arrive in bursts and anchors do not, so a quiet
    stretch is anchor-only for thousands of counters at a time. On 2026-08-09 the
    top 4,000 counters held no recordings at all, so this budget expired before
-   finding one and the live Roll answered a 5.2s request with ZERO rows and
+   finding one and the live Ledger answered a 5.2s request with ZERO rows and
    hasMore — a page that looks exactly like an empty ledger.
 
    The budget is cheap to raise because the scan itself is cheap: anchor
@@ -246,7 +246,7 @@ async function listRecent(epoch: string, top: number, limit: number, lowBound = 
     .sort((a, b) => b.counter - a.counter);
 }
 
-// ── Day rolls ───────────────────────────────────────────────────────────────
+// ── Day days ───────────────────────────────────────────────────────────────
 // A UTC calendar day resolved to (epoch, counter-range) segments via the
 // anchors-by-time/ index: keys are ISO-timestamp-prefixed so lexicographic
 // order IS chronological, and each object carries its epoch + counter. Anchors
@@ -338,7 +338,7 @@ async function computeDaySegments(day: string): Promise<DaySeg[]> {
 
 /* A sealed day's segments are a fixed fact, but computeDaySegments rederived
    them from scratch on every cold instance: a dozen keys-only LISTs plus a
-   recursive binary partition, and it is the reason a cold day roll cost ~3.8s
+   recursive binary partition, and it is the reason a cold day day cost ~3.8s
    while a warm one cost ~100ms. The in-process Map above only ever helped an
    instance that had already answered for that day.
 
@@ -362,11 +362,11 @@ const cachedDaySegments = unstable_cache(
     if (segs.length === 0) throw new Error(EMPTY_DAY);
     return segs;
   },
-  ["roll-day-segments-v1"],
+  ["day-day-segments-v1"],
   { revalidate: false },
 );
 
-const EMPTY_DAY = "roll-feed: day resolved to no segments";
+const EMPTY_DAY = "ledger-feed: day resolved to no segments";
 
 async function daySegments(day: string): Promise<DaySeg[]> {
   const cached = daySegCache.get(day);
@@ -378,7 +378,7 @@ async function daySegments(day: string): Promise<DaySeg[]> {
     // Empty is the one throw this layer invents, and the answer it stands for
     // is []: no recompute needed. Anything else is a real read failure and has
     // to stay one, so it travels up rather than being flattened into an empty
-    // roll.
+    // day.
     if ((e as Error)?.message !== EMPTY_DAY) throw e;
     segs = [];
   }
@@ -389,7 +389,7 @@ async function daySegments(day: string): Promise<DaySeg[]> {
 
 // ── The sealed-day archive ──────────────────────────────────────────────────
 /* A sealed day is written history: it cannot gain, lose or reorder an entry, so
-   it is materialised once into display pages by scripts/build-roll-archive.mjs
+   it is materialised once into display pages by scripts/build-ledger-archive.mjs
    and read back by name. Everything below replaces, for archived days only, the
    derivation this file does otherwise — a dozen LISTs over anchors-by-time, a
    recursive binary partition to find epoch boundaries, then window scans with a
@@ -447,7 +447,7 @@ function entryFromRow(r: DayPage["rows"][number]): Entry {
  * NULL IS THE ONLY FAILURE ANSWER. A missing manifest, an unreadable page, a
  * schema this build does not understand and an out-of-range cursor all return
  * null, and the caller then does exactly what it did before this existed. What
- * none of them do is return an empty page: a Roll that under-reports is
+ * none of them do is return an empty page: a Ledger that under-reports is
  * indistinguishable from a ledger that never recorded the thing you came to
  * look for, and every shortcut here has to fail towards the slow answer rather
  * than towards the empty one.
@@ -457,7 +457,7 @@ async function archivedDayPage(
 ): Promise<{ entries: Entry[]; nextPage: number | null; hasMore: boolean; total: number } | null> {
   const index = await getArchiveJson<DayIndex>(dayIndexKey(day));
   if (!index || index.v !== 1) return null;
-  const filter: RollFilter = filesOnly ? "f" : "a";
+  const filter: LedgerFilter = filesOnly ? "f" : "a";
   const pageCount = index.pages?.[filter];
   const rowTotal = index.rows?.[filter];
   if (typeof pageCount !== "number" || typeof rowTotal !== "number") return null;
@@ -511,7 +511,7 @@ type EpochIndex = { head: number; files: Array<{ key: string; counter: number; l
    the epoch listable in PARALLEL, a wave of 1000-counter windows at once,
    where the serial NextContinuationToken chain paid one round trip per 1000
    objects. By evening an epoch is ~14 pages deep and the chain ran 2.4-2.6s,
-   which blocked whichever request drew the recompute, cost the roll page its
+   which blocked whichever request drew the recompute, cost the day page its
    1200ms SSR budget, and left the edge handing out stale bodies for want of a
    fresh one. A wave is one round trip no matter how deep the epoch is.
 
@@ -594,7 +594,7 @@ async function computeEpochIndex(epoch: string): Promise<EpochIndex> {
    wrong row. */
 const cachedEpochBase = unstable_cache(
   (epoch: string) => computeEpochIndex(epoch),
-  ["roll-live-epoch-base-v1"],
+  ["day-live-epoch-base-v1"],
   { revalidate: 3600 },
 );
 
@@ -697,7 +697,7 @@ async function liveFiles(index: EpochIndex, top: number, limit: number): Promise
   return { entries, floor: more ? lowest : 1 };
 }
 
-export type RollFeedBody = {
+export type LedgerFeedBody = {
   epoch?: string;
   day?: string;
   head?: number;
@@ -721,28 +721,28 @@ export type RollFeedBody = {
   total?: number;
 };
 
-export type RollFeedResult =
-  | { status: 200; body: RollFeedBody; cacheControl: string }
+export type LedgerFeedResult =
+  | { status: 200; body: LedgerFeedBody; cacheControl: string }
   | { status: 400 | 404; body: { error: string }; cacheControl?: undefined };
 
-/** One page of the Roll. `day` selects a sealed UTC day; omit it for the live
+/** One page of the ledger. `day` selects a sealed UTC day; omit it for the live
  *  feed. Paging takes one of two cursors and never both: `page` for an archived
  *  day, `before`/`bepoch` for everything else (counters repeat across epochs, so
  *  a counter cursor is scoped by epoch). */
-async function computeRollFeed(opts: {
+async function computeLedgerFeed(opts: {
   day?: string | null;
   before?: string | null;
   bepoch?: string | null;
   page?: string | null;
   filesOnly?: boolean;
-}): Promise<RollFeedResult> {
+}): Promise<LedgerFeedResult> {
   const now = Date.now();
   const beforeParam = opts.before ?? null;
   const filesOnly = !!opts.filesOnly;
   const dayParam = opts.day ?? null;
 
   if (dayParam) {
-    // Sealed UTC days only; the live Roll is the plain (no-day) feed.
+    // Sealed UTC days only; the live Ledger is the plain (no-day) feed.
     const todayUTC = new Date(now).toISOString().slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dayParam) || dayParam >= todayUTC) {
       return { status: 400, body: { error: "bad day" } };
@@ -780,7 +780,7 @@ async function computeRollFeed(opts: {
       };
     }
 
-    // Newest segment first: the roll reads newest-first within the day too.
+    // Newest segment first: the ledger reads newest-first within a day too.
     const ordered = [...await daySegments(dayParam)].reverse();
     if (ordered.length === 0) {
       return {
@@ -869,7 +869,7 @@ async function computeRollFeed(opts: {
     // most a live feed should ever be behind. It was an hour, reasoned from
     // sparse traffic: the edge always had SOMETHING to hand back instantly.
     // But an hour-old body is wrong in the one way this page is judged: a
-    // visitor who had just recorded opened the Roll, was handed a confidently
+    // visitor who had just recorded opened the ledger, was handed a confidently
     // empty or behind page, and stayed behind until the head poll's
     // cache-busted refetch finally drew a fresh body. Now that a recompute is
     // one LIST wave (~well under a second), a MISS after an idle stretch costs
@@ -894,13 +894,13 @@ async function computeRollFeed(opts: {
    function hands the CDN. That is the safety argument: an answer served from
    here can never be staler than one the edge was already allowed to serve for
    the same URL, so this changes how often the work is done, never how fresh
-   the roll is allowed to be.
+   the day is allowed to be.
 
      sealed day    a day/counter range that cannot change. Matches s-maxage=86400.
      live cursor   older counters never change. Matches s-maxage=3600.
 
    The live HEAD is the exception, computed on every request; see the note
-   above rollFeed.
+   above ledgerFeed.
 
    Why it matters more than the CDN already caching: the edge cache is per-URL
    per-region and this site's traffic is sparse, so cold edges are the common
@@ -908,10 +908,10 @@ async function computeRollFeed(opts: {
 
 // Non-200s ride out as a thrown message so nothing is cached and the caller
 // still gets the real answer without recomputing it.
-const STATUS_PREFIX = "roll-feed-status:";
+const STATUS_PREFIX = "ledger-feed-status:";
 
-async function computeOrThrow(opts: Parameters<typeof computeRollFeed>[0]): Promise<RollFeedResult> {
-  const result = await computeRollFeed(opts);
+async function computeOrThrow(opts: Parameters<typeof computeLedgerFeed>[0]): Promise<LedgerFeedResult> {
+  const result = await computeLedgerFeed(opts);
   if (result.status !== 200) throw new Error(`${STATUS_PREFIX}${result.status}:${result.body.error}`);
   return result;
 }
@@ -931,7 +931,7 @@ const cachedIsArchived = unstable_cache(
     const index = await getArchiveJson<DayIndex>(dayIndexKey(day));
     return !!index && index.v === 1;
   },
-  ["roll-day-archived-v1"],
+  ["day-day-archived-v1"],
   { revalidate: 60 },
 );
 
@@ -948,20 +948,20 @@ const cachedIsArchived = unstable_cache(
 const cachedArchivedDayFeed = unstable_cache(
   (day: string, before: string | null, bepoch: string | null, page: string | null, filesOnly: boolean) =>
     computeOrThrow({ day, before, bepoch, page, filesOnly }),
-  ["roll-feed-day-archived-v1"],
+  ["ledger-feed-day-archived-v1"],
   { revalidate: 86400 },
 );
 
 const cachedDerivedDayFeed = unstable_cache(
   (day: string, before: string | null, bepoch: string | null, page: string | null, filesOnly: boolean) =>
     computeOrThrow({ day, before, bepoch, page, filesOnly }),
-  ["roll-feed-day-derived-v1"],
+  ["ledger-feed-day-derived-v1"],
   { revalidate: 60 },
 );
 
 const cachedLiveCursor = unstable_cache(
   (before: string, filesOnly: boolean) => computeOrThrow({ before, filesOnly }),
-  ["roll-feed-live-cursor-v1"],
+  ["ledger-feed-live-cursor-v1"],
   { revalidate: 3600 },
 );
 
@@ -980,17 +980,17 @@ const cachedLiveCursor = unstable_cache(
    pages and sealed days keep their Data Cache wrappers: they are immutable,
    which is exactly what the head is not. */
 
-/** One page of the Roll. `day` selects a sealed UTC day; omit it for the live
+/** One page of the ledger. `day` selects a sealed UTC day; omit it for the live
  *  feed. Paging takes one of two cursors and never both: `page` for an archived
  *  day, `before`/`bepoch` for everything else (counters repeat across epochs, so
  *  a counter cursor is scoped by epoch). */
-export async function rollFeed(opts: {
+export async function ledgerFeed(opts: {
   day?: string | null;
   before?: string | null;
   bepoch?: string | null;
   page?: string | null;
   filesOnly?: boolean;
-}): Promise<RollFeedResult> {
+}): Promise<LedgerFeedResult> {
   const filesOnly = !!opts.filesOnly;
   try {
     if (opts.day) {
@@ -999,7 +999,7 @@ export async function rollFeed(opts: {
       return await run(opts.day, opts.before ?? null, opts.bepoch ?? null, opts.page ?? null, filesOnly);
     }
     if (opts.before) return await cachedLiveCursor(opts.before, filesOnly);
-    return await computeRollFeed({ filesOnly });
+    return await computeLedgerFeed({ filesOnly });
   } catch (e) {
     const message = (e as Error)?.message ?? "";
     if (message.startsWith(STATUS_PREFIX)) {
@@ -1009,7 +1009,7 @@ export async function rollFeed(opts: {
       return { status: status as 400 | 404, body: { error: rest.slice(split + 1) } };
     }
     // A real read failure. It stays a failure: the caller turns it into a 500
-    // and the Roll says so, rather than showing an empty ledger.
+    // and the ledger says so, rather than showing an empty ledger.
     throw e;
   }
 }

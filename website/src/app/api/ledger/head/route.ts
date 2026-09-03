@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
-// The Roll's heartbeat: the current epoch and its highest counter, nothing
-// else. The live Roll polls this every few seconds and fetches the (heavier,
+// The ledger's heartbeat: the current epoch and its highest counter, nothing
+// else. The live Ledger polls this every few seconds and fetches the (heavier,
 // long-SWR) feed page only when the head actually advances, so this response
 // must never be served stale for long: short s-maxage, NO stale-while-
 // revalidate. Kept cheap enough to be polled: after a cold binary search,
@@ -90,7 +90,7 @@ export async function GET() {
     known = { epoch, head, at: now };
     return NextResponse.json({ epoch, head }, { headers: { "Cache-Control": "public, s-maxage=2, must-revalidate" } });
   } catch (e) {
-    console.error("[api/roll/head]", (e as Error).message);
+    console.error("[api/day/head]", (e as Error).message);
     return NextResponse.json({ error: "failed" }, { status: 500, headers: { "Cache-Control": "no-store" } });
   }
 }

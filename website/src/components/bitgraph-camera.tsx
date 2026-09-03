@@ -40,7 +40,7 @@ import {
 import type { CommitStrategy } from "@/lib/commit-strategy";
 import { toUrlSafeB64 } from "@/lib/explorer";
 import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, captureDrop, type CapturedDrop, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
-import { CheckedRoll, fmtRowWhen, useFileThumbs } from "@/components/folder-roll";
+import { CheckedList, fmtRowWhen, useFileThumbs } from "@/components/folder-list";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
@@ -60,7 +60,8 @@ export interface BitGraphCameraProps {
   fuseByDefault?: boolean;
   /** The page title, inside the shared h1 (home's is a link, /actor's is a
    *  noun). */
-  title: ReactNode;
+  /** Omitted by a page that carries its own hero above the box. */
+  title?: ReactNode;
   /** The page's own block, and the class its row wears: UNDER the box,
    *  centred, while the page is the camera alone, and nowhere else. The page
    *  owns that class's CSS (its margin-top, 42 on both pages). Home: "What is
@@ -68,6 +69,14 @@ export interface BitGraphCameraProps {
    *  pages are one composition (Mike, 2026-08-19: "make the two pages home
    *  and actor match"). */
   below?: ReactNode;
+  /** false when the page keeps scrolling under the frame: the fit measurement is
+      released (its own contract) and the frame stops centring in the viewport. */
+  fitViewport?: boolean;
+  /** The box's own first line. Defaults to naming both functions; a page whose
+      headline already names them passes the instruction instead. */
+  dropHeadline?: string;
+  /** The line under it. Empty when the headline has taken its words. */
+  dropHint?: string;
   belowClassName: string;
   /** One line inside the frame under "Hashed in your browser, never uploaded",
    *  for a fact about the instrument: /actor's "Acting as …, key …". Home
@@ -126,7 +135,7 @@ export function clearCameraCache(id: BitGraphCameraProps["id"]) {
 }
 
 
-export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, below, belowClassName, frameNote, acceptsPendingDrop }: BitGraphCameraProps) {
+export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, below, belowClassName, frameNote, acceptsPendingDrop, fitViewport = true, dropHeadline = "Make or check BitGraphs", dropHint = "Choose files, or drag in a whole folder." }: BitGraphCameraProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length ? "results" : "drop"));
   const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
@@ -227,7 +236,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
      grows (that exact bug shipped on /actor). Disabled, the hook clears its
      custom properties and the frame falls back to its CSS sizing, which is
      what a page that has stopped being viewport-fitted should use. */
-  useCameraFit(step === "drop", ".bitgraph-tagline", `.${belowClassName}`);
+  useCameraFit(fitViewport && step === "drop", ".bitgraph-tagline", `.${belowClassName}`);
 
   // Cleanup rAF on unmount only
   useEffect(() => {
@@ -279,7 +288,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
   const showingResults = step === "results" && (items.length > 0 || checked.length > 0);
 
   // The one link on a closed results page. It sits on the right of the
-  // first results heading (the folder's Roll when there is one, else the
+  // first results heading (the folder's Ledger when there is one, else the
   // files' heading) and opens the whole camera, title and full-size box,
   // above the results. In the action-link voice; "Make or check BitGraphs"
   // is the box's own headline, so the link names exactly what it reveals
@@ -457,7 +466,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
       if (ordered.length > 0) {
         const result = await verifyProofSignature(ordered[0].proof);
         // The ledger write moment rides along per row so rows can show a
-        // compact "when", same as the Roll. Legacy/backfilled entries have
+        // compact "when", same as the ledger. Legacy/backfilled entries have
         // none and just leave the slot blank.
         const times = ordered.map((x) => x.writeTime ?? null);
         const kinds = ordered.map((x): "recorded" | "fused" => (x.kind === "fused" ? "fused" : "recorded"));
@@ -613,7 +622,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
       else setStep("drop");
       return;
     }
-    // The roll renders the moment the local scan finishes; verdicts stream
+    // The day renders the moment the local scan finishes; verdicts stream
     // in per row behind it. No full-screen wait at all: browsing must be
     // instant, verification merely prompt.
     setFolderChecking(true);
@@ -646,7 +655,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
       void scanFiles(scan.strays).then((strayItems) => {
         setItems(strayItems);
         setAnimCount(strayItems.filter((r) => r.status === "found").length);
-      }).catch(() => { /* strays are secondary; the roll stands */ });
+      }).catch(() => { /* strays are secondary; the ledger stands */ });
     }
   }
 
@@ -667,8 +676,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
 
   /* ── Prove unproven files ── */
 
-  // Hand each fresh recording straight to the Roll: the commit response
-  // already knows the counter, so the dropper's own Roll shouldn't wait for
+  // Hand each fresh recording straight to the ledger: the commit response
+  // already knows the counter, so the dropper's own Ledger shouldn't wait for
   // the next poll to show a mint it just watched happen. Fire-and-forget.
   async function announceRecorded(proofs: BitGraphProof[]) {
     try {
@@ -1216,7 +1225,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
       <style>{`
-        /* Drop step: the same column as /folder and /roll, to the pixel —
+        /* Drop step: the same column as /folder and /day, to the pixel —
            90% up to 800, 40px under the nav, top-aligned. The centered-hero
            formula (and its /camera morph pairing) is RETIRED with the hero:
            the page is a tool that starts at the top, like every other page.
@@ -1228,8 +1237,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
            bottom. Symmetric padding, or the content sits 20px high of centre.
            Scoped off the results view, which is a scrolling list and wants to
            start at the top. */
-        .bitgraph-wrap:not(.bitgraph-results) { justify-content: center; min-height: var(--bg-wrap-min, auto); padding-bottom: 40px; }
-        /* 40 under the nav, the same as the Roll and the docs pages (it was
+        .bitgraph-wrap:not(.bitgraph-results):not(.bitgraph-flow) { justify-content: center; min-height: var(--bg-wrap-min, auto); padding-bottom: 40px; }
+        /* A page that keeps going under the frame: no viewport centring, and the
+           frame is capped so the first section shows without scrolling for it. */
+        .bitgraph-wrap.bitgraph-flow { padding: 10px 0 30px; }
+        .bitgraph-wrap.bitgraph-flow .bitgraph-camera { max-height: 300px; }
+        /* 40 under the nav, the same as the ledger and the docs pages (it was
            32, and the results heading sat tight: Mike, 2026-08-19: "should
            'bitgraphs found' breathe a bit more?"). */
         .bitgraph-wrap.bitgraph-results { padding-top: 40px; padding-bottom: 48px; }
@@ -1355,10 +1368,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
       `}</style>
       {/* Nav is in root layout */}
 
-      <div className={`bitgraph-wrap${step !== "drop" ? " bitgraph-results" : ""}`}>
+      <div className={`bitgraph-wrap${step !== "drop" ? " bitgraph-results" : !fitViewport ? " bitgraph-flow" : ""}`}>
 
         {/* ── The camera: the page's title, the box first thing, then the
-            page's block under it. The Roll lives on its own /roll page.
+            page's block under it. The ledger lives on its own /day page.
 
             ⚠️ IT STAYS ON THE RESULTS STEP TOO (Mike, 2026-08-19). It used to
             vanish, on the reasoning that results were a terminal "here is what
@@ -1379,7 +1392,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                 title over it is ceremony, and the heading row below it, whose
                 job was to hold the link that opens the box, goes with it.
                 Expanded over results is: the box, then the card and the rows. */}
-            {!showingResults && <h1 className="bg-page-title bitgraph-tagline">{title}</h1>}
+            {/* A page that carries its own hero passes no title; the box then
+                opens with its own first line and nothing is said twice. */}
+            {!showingResults && title && <h1 className="bg-page-title bitgraph-tagline">{title}</h1>}
             <div className="bitgraph-camera">
               <FileDrop
                 multiple
@@ -1399,8 +1414,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                 // click path to one raises a view-files or upload-files
                 // warning on a page whose whole claim is that nothing is
                 // uploaded. See the note in file-drop.tsx before cutting it.
-                headline="Make or check BitGraphs"
-                hint="Choose files, or drag in a whole folder."
+                headline={dropHeadline}
+                hint={dropHint}
                 // "Hashed in your browser, never uploaded." (Mike, 2026-08-26,
                 // replacing "Your file never leaves your device"): name the
                 // mechanism, scope the denial to the file. The digest travels
@@ -1520,23 +1535,23 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                   screen (it force-reloads home). Matches the proof page, which
                   also has no camera. */}
 
-              {/* ── The folder's Roll: a dropped BitGraph folder loads HERE
+              {/* ── The folder's Ledger: a dropped BitGraph folder loads HERE
                   instead of carrying its own generated sheet (Mike,
                   2026-08-05: "no index file at all... you drag and drop the
-                  whole folder into the camera and it loads the Roll! and this
-                  viewer can have small thumbs"). Roll grammar throughout: day
+                  whole folder into the camera and it loads the ledger! and this
+                  viewer can have small thumbs"). Ledger grammar throughout: day
                   headers over causal order, rows with a small thumb made from
                   the dropped bytes themselves, the verdict in the two-outcome
                   colors — blue "matches the ledger", red naming the side that
                   differed. NO buttons: the drop triggered everything. ── */}
-              {checked.length > 0 && <CheckedRoll checked={checked} onOpen={openCheckedRow} heading={boxOpen ? null : "BitGraph Roll"} aside={openLink} />}
+              {checked.length > 0 && <CheckedList checked={checked} onOpen={openCheckedRow} heading={boxOpen ? null : "BitGraphs in this folder"} aside={openLink} />}
 
               {/* The whole batch state lives in one receipt card (same anatomy
                   as the proof page's receipt): count + export in the body, and
                   when files remain unrecorded, a Record row in the arrow-link
                   style. No banners anywhere — the drop was the gesture. */}
               {/* Title sits above the card as a page heading, the same way the
-                  proof page and the Roll title their content. Wrapped so the
+                  proof page and the ledger title their content. Wrapped so the
                   column's 24px gap applies below the card, not under the title. */}
               {items.length > 0 && (<>
               <div>
@@ -1563,7 +1578,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                     {items.some((i) => i.status === "proved") ? "Recorded" : "Found"}
                   </div>
                   {/* The link to reopen the camera, on the first heading only:
-                      when a folder's Roll is above this, it carries it. */}
+                      when a folder's Ledger is above this, it carries it. */}
                   {checked.length === 0 && openLink}
                 </div>
               )}
@@ -1628,7 +1643,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
               {/* File list: one card per file separated by a gap so each file's
                   set of BitGraphs reads as a distinct block. Within a card,
                   recordings share hairline separators; the gap between cards is
-                  the file boundary. 10px matches the explorer/Roll row gap, so
+                  the file boundary. 10px matches the explorer/Ledger row gap, so
                   every openable-card surface spaces its cards identically. */}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {shown.map((item, i) => {
@@ -1641,7 +1656,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                   item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
                 const openProof = (p: BitGraphProof) => {
                   // Same-tab navigation: the recordings also live in the explorer/
-                  // Roll, so leaving this page loses nothing. Use the proof's digest
+                  // Ledger, so leaving this page loses nothing. Use the proof's digest
                   // (from TEE) for the URL, not the browser-computed hash;
                   // ?counter=&epoch= pins THIS row's causal position.
                   const proofDigest = p.artifact.digestB64;
@@ -1698,7 +1713,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                   >
                     {/* The file's tiny thumb (or its type label), once per
                         card on the first row — recognition for a forty-photo
-                        drop, same cell the checked roll uses. Later rows of a
+                        drop, same cell the checked day uses. Later rows of a
                         multi-recording card keep a spacer so the #s align. */}
                     {(() => {
                       const f = item.fromProofJson ? item.matchedFile : item.file;
@@ -1741,7 +1756,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                         that key (/actor, its own); any other actor shows as
                         its key, and a recording with no actor shows nothing
                         rather than borrowing this browser's name. */}
-                    {/* Right side matches the Roll's row anatomy: compact
+                    {/* Right side matches the ledger's row anatomy: compact
                         anchor time, then the chevron. Unanchored rows (fresh
                         recordings) simply leave the time blank. */}
                     <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#4b5563", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
@@ -1791,7 +1806,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
    clicked row's bytes to the proof page the same way the drop flow does. */
 
 
-/* ── The shelf — /rolls, translated to a dropped folder. One cell per day,
+/* ── The shelf — /days, translated to a dropped folder. One cell per day,
    months newest first from now back to the oldest recording; a day is a link
    when the folder recorded on it, today is the outlined open frame leading
    back to the live view, and everything else sits grey. Zero data beyond the

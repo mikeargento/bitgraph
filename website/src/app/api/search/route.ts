@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     if (!raw) return NextResponse.json({ found: false }, { status: 400 });
 
     // Answer a number specifically rather than letting it fall through and
-    // decode into a nonsense digest. Someone typing one has read it off a Roll
+    // decode into a nonsense digest. Someone typing one has read it off a Ledger
     // row, and "not found" would leave them thinking the recording was gone.
     if (/^\d+$/.test(raw.replace(/[#,\s]/g, ""))) {
       return NextResponse.json({ found: false, reason: "number" });

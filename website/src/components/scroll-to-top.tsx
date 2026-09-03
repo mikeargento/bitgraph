@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 
 /* Open every route at the top. Next's App Router scroll handling is
    inconsistent across our entry points (nav links, in-app router.push,
-   roll -> proof, results -> proof), so pages sometimes carried the previous
+   ledger -> proof, results -> proof), so pages sometimes carried the previous
    scroll position over. Reset explicitly on each navigation.
 
    There are three ways a page can arrive and all three need covering:
@@ -38,7 +38,7 @@ import { useEffect, useRef } from "react";
 
    So watch the document instead of the clock: hold while the page is still
    growing, let go once its height has been stable for SETTLE_MS. MAX_PIN_MS is
-   only a backstop for pages that never stop changing height (the live roll, the
+   only a backstop for pages that never stop changing height (the live ledger, the
    anchor countdown), so the pin can't run forever.
 
    Either way it is a ceiling, not a lock: any real touch, wheel or key releases

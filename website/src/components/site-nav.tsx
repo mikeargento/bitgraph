@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { warm, ROLL_FEED_KEY } from "@/lib/warm";
+import { warm, LEDGER_FEED_KEY } from "@/lib/warm";
 import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-sections";
 
-// Warm the Roll feed the moment the user signals intent to open it, so the page
+// Warm the ledger feed the moment the user signals intent to open it, so the page
 // paints filled-in instead of spinning. Fires on hover / focus / touch — only
 // when there's real intent, never on every page load — and is a no-op once a
 // fresh copy is in flight or cached. Next already prefetches the route CODE on
 // hover; this brings the DATA, the actual latency.
-const warmRoll = () => warm(ROLL_FEED_KEY);
+const warmLedger = () => warm(LEDGER_FEED_KEY);
 
 export function SiteNav() {
   const pathname = usePathname();
@@ -100,7 +100,7 @@ export function SiteNav() {
     // 2026-07-27 and reverted: it gave the page a defined top edge, but it also
     // turned the site's one continuous surface into chrome plus content, which
     // is the thing that makes this read as a document rather than an app. White
-    // is the cards' value too, so on the Roll and on proof pages the bar and the
+    // is the cards' value too, so on the ledger and on proof pages the bar and the
     // content were the same colour anyway. If it is ever revisited, #fafafa is
     // the middle option: distinct from the page without borrowing the cards'
     // white. It IS a surface now (white, hairline), and the overscroll canvas
@@ -155,7 +155,7 @@ export function SiteNav() {
             A 12-character label ("Applications", before this settled on "Uses")
             left only 7px between the wordmark and the first link at 320px. */}
         <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
-          {/* Roll → Docs: the ledger, then the spec. The page of what you
+          {/* Ledger → Docs: the ledger, then the spec. The page of what you
               point the camera at lived here for months under four names
               (Uses → Why → Subjects → Applications → "Use cases", each a
               deliberate call, the history is in git) and moved INTO the Docs
@@ -166,17 +166,19 @@ export function SiteNav() {
               a PERMANENT 308 to /uses on 2026-07-27, and /uses 308s onward,
               so reviving either path as a real page risks a cached-redirect
               loop for anyone holding the old redirect. */}
-          {/* Roll — the ledger, now on its own /roll page (no longer embedded
-              under the home camera), so the nav is its way in. */}
+          {/* The ledger, on its own /day page (no longer embedded under the
+              home camera), so the nav is its way in. Labelled Ledger until
+              2026-09-03, a photography word for an audience that is now
+              developers; the route stays /day so no link anywhere breaks. */}
           <Link
-            href="/roll"
-            aria-current={pathname === "/roll" ? "page" : undefined}
-            onMouseEnter={warmRoll}
-            onFocus={warmRoll}
-            onTouchStart={warmRoll}
+            href="/ledger"
+            aria-current={pathname === "/ledger" ? "page" : undefined}
+            onMouseEnter={warmLedger}
+            onFocus={warmLedger}
+            onTouchStart={warmLedger}
             style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
           >
-            Roll
+            Ledger
           </Link>
           {/* Docs opens the section list rather than navigating.
               It used to be a plain link to /docs, and every docs page then

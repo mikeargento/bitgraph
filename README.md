@@ -1,6 +1,6 @@
 # BitGraph
 
-**Prove what came first.**
+**A BitGraph gives bits a place.**
 
 [![npm @mikeargento/bitgraph](https://img.shields.io/npm/v/@mikeargento/bitgraph?label=%40mikeargento%2Fbitgraph&color=cb3837)](https://www.npmjs.com/package/@mikeargento/bitgraph)
 [![Website](https://img.shields.io/badge/bitgraph.ing-live-0065A4)](https://bitgraph.ing)

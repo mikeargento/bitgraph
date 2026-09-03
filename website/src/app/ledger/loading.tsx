@@ -1,7 +1,7 @@
-/* ── Painted by the App Router the instant a navigation to /roll starts,
+/* ── Painted by the App Router the instant a navigation to /day starts,
    while the server component awaits its SSR seed (up to the 1200ms budget
    in page.tsx, plus network). Without this file that wait is a dead click:
-   the previous page just sits there. With it, the Roll's own frame appears
+   the previous page just sits there. With it, the ledger's own frame appears
    immediately and the Explorer's in-page row skeletons continue the same
    visual wait, so transition and data read as one moment.
 
@@ -25,11 +25,11 @@ export default function Loading() {
         {/* Heading: the real title (it never varies), a shimmer where the
             live-vs-day subtitle will land. */}
         <div style={{ marginBottom: 12 }}>
-          <div className="bg-page-title">BitGraph Roll</div>
+          <div className="bg-page-title">BitGraph Ledger</div>
           <div className="rl-skel" style={{ ...bar, width: 208, height: 14, marginTop: 6 }} />
         </div>
 
-        {/* The nav line: day stepper left, anchors toggle + All rolls right. */}
+        {/* The nav line: day stepper left, anchors toggle + All days right. */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
           <div className="rl-skel" style={{ ...bar, width: 72, height: 13 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -61,7 +61,7 @@ export default function Loading() {
             </div>
           ))}
         </div>
-        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Opening the Roll…</span>
+        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Opening the ledger…</span>
       </div>
     </div>
   );

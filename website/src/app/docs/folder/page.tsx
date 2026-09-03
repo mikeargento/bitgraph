@@ -69,7 +69,7 @@ export default function FolderRetiredPage() {
           <code>npx @mikeargento/bitgraph-audit &lt;folder&gt;</code> audits a whole archive. It finds proofs by schema shape rather than by filename, so the layout does not matter.
         </li>
         <li>
-          Drag your <code>Recordings</code> folder onto <a href="/" className="text-[#0065A4] font-medium no-underline">bitgraph.ing</a> to read it as a roll, every row checked against the public ledger. Dragging a single day folder scopes it, which is much faster on a large archive.
+          Drag your <code>Recordings</code> folder onto <a href="/" className="text-[#0065A4] font-medium no-underline">bitgraph.ing</a> to read it as a day, every row checked against the public ledger. Dragging a single day folder scopes it, which is much faster on a large archive.
         </li>
       </ul>
       <p>

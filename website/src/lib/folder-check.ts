@@ -438,7 +438,7 @@ export interface ExportCheckResult {
   /** True when the claimed position exists on the ledger — the proof page
    *  link is meaningful even for a row that failed a later side. */
   onLedger: boolean;
-  /** null while the verdict is still streaming in (the roll renders
+  /** null while the verdict is still streaming in (the day renders
    *  instantly from local data; verification catches up per row). */
   ok: boolean | null;
   /** The specific failing side, factual, one line. Null when ok/pending. */
@@ -501,7 +501,7 @@ async function parseJsonFile(f: File): Promise<Record<string, unknown> | null> {
 
 /* ── The check itself: instant rows, streaming verification ──
  *
- * The roll renders the moment the local scan finishes (proof.json fields and
+ * The day renders the moment the local scan finishes (proof.json fields and
  * the witness timestamps are all the rows need); hashing, signatures and the
  * ledger sides stream in per row afterwards. It was one sequential pass that
  * blocked rendering on the slowest network call, which read as "kind of
@@ -560,7 +560,7 @@ async function looksLikeReceipt(f: File): Promise<boolean> {
   return head.startsWith(RECEIPT_PREFIX) && head.includes(RECEIPT_CACHE_META);
 }
 
-/** The fast half: everything the roll needs to render, no hashing and no
+/** The fast half: everything the day needs to render, no hashing and no
  *  network. Structural failures (unreadable proof, no file at all) are
  *  verdicts already; everything else is pending (`ok: null`). */
 async function scanExportsLocal(candidates: ExportCandidate[]): Promise<Working[]> {

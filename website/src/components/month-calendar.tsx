@@ -1,10 +1,10 @@
-/* ── The month calendar: one sheet per month, used by /rolls (the shelf of
-   every day's roll) and by a dropped Folder's shelf (folder-roll.tsx), so the
+/* ── The month calendar: one sheet per month, used by /days (the shelf of
+   every day's day) and by a dropped Folder's shelf (folder-list.tsx), so the
    two cannot drift (Mike, 2026-08-19: "yes i like the more informational
    calendars ... grid left to right depending on page width ... white
    backgrounds to separate, with light strokes").
 
-   No hooks and no "use client": /rolls renders it on the server with plain
+   No hooks and no "use client": /days renders it on the server with plain
    hrefs, the Folder's shelf renders it on the client with onPick handlers. A
    day is whatever the caller says it is; this file only knows how to draw a
    month.
@@ -23,9 +23,9 @@ import type { ReactNode } from "react";
 export type CalendarDay = {
   n: number;
   /** idle: a past day with nothing to open. future: not yet. recorded: has a
-   *  roll (or recordings) and opens. today: the live one. */
+   *  day (or recordings) and opens. today: the live one. */
   kind: "idle" | "future" | "recorded" | "today";
-  /** Recorded that day, when the caller knows (a dropped Folder does; /rolls
+  /** Recorded that day, when the caller knows (a dropped Folder does; /days
    *  deliberately does not fetch). */
   count?: number;
   href?: string;
@@ -52,7 +52,7 @@ export function MonthCalendar({ title, total, leading, days }: {
   /** "August 2026" */
   title: string;
   /** The right-hand side of the month line, e.g. "62 recordings · 10 days".
-   *  Omitted on /rolls, which carries no data by design. */
+   *  Omitted on /days, which carries no data by design. */
   total?: string;
   /** Blank cells before the 1st (Sunday-start week). */
   leading: number;

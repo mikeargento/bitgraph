@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Mike Argento. All rights reserved.
 
 /**
- * Archive algebra tests. Run with `npm run test:roll` from website/.
+ * Archive algebra tests. Run with `npm run test:day` from website/.
  *
  * Node 24 strips the types itself, so this needs no build step and no test
  * dependency. Everything under test is pure, which is the point of keeping the
@@ -12,10 +12,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   PAGE_ROWS, pageKey, dayIndexKey, paginate, isSealedDay,
-  coverageOf, findPageGaps, mergeRows, endOfRollClaim, type DayIndex, type RollRow,
-} from "../roll-archive.ts";
+  coverageOf, findPageGaps, mergeRows, endOfDayClaim, type DayIndex, type LedgerRow,
+} from "../ledger-archive.ts";
 
-const row = (c: number, t: RollRow["t"] = "p", ep?: string): RollRow => ({ c, t, d: `d${c}`, h: `h${c}`, ...(ep ? { ep } : {}) });
+const row = (c: number, t: LedgerRow["t"] = "p", ep?: string): LedgerRow => ({ c, t, d: `d${c}`, h: `h${c}`, ...(ep ? { ep } : {}) });
 const index = (over: Partial<DayIndex> = {}): DayIndex => ({
   day: "2026-08-05", pages: { f: 3, a: 5 }, rows: { f: 250, a: 500 }, epochs: ["E"], v: 1, ...over,
 });
@@ -134,32 +134,32 @@ test("the same counter in two epochs is two rows, not a duplicate", () => {
 // every case that cannot prove completeness has to land somewhere else.
 
 test("a matched declaration is the only way to claim completeness", () => {
-  assert.equal(endOfRollClaim(250, 250, false), "complete");
+  assert.equal(endOfDayClaim(250, 250, false), "complete");
 });
 
 test("paging stopped short of the declaration reports the shortfall", () => {
   // The archive declined a page and the derivation ended early. The list is
   // short, and short must be visible rather than plausible.
-  assert.equal(endOfRollClaim(200, 250, false), "short");
+  assert.equal(endOfDayClaim(200, 250, false), "short");
 });
 
 test("one missing row is still short", () => {
-  assert.equal(endOfRollClaim(249, 250, false), "short");
+  assert.equal(endOfDayClaim(249, 250, false), "short");
 });
 
 test("mid-scroll is progress, never an end", () => {
-  assert.equal(endOfRollClaim(100, 250, true), "paging");
+  assert.equal(endOfDayClaim(100, 250, true), "paging");
 });
 
 test("holding every declared row while more is promised is still paging", () => {
   // hasMore outranks the count: the server says the walk is unfinished, and a
   // count that happens to line up is not permission to stop believing it.
-  assert.equal(endOfRollClaim(250, 250, true), "paging");
+  assert.equal(endOfDayClaim(250, 250, true), "paging");
 });
 
 test("no declaration claims nothing, however the paging ended", () => {
   // The live feed and any day not yet archived. There is no manifest to check
   // against, so completeness is not a statement this client gets to make.
-  assert.equal(endOfRollClaim(25, null, false), "undeclared");
-  assert.equal(endOfRollClaim(0, null, true), "undeclared");
+  assert.equal(endOfDayClaim(25, null, false), "undeclared");
+  assert.equal(endOfDayClaim(0, null, true), "undeclared");
 });

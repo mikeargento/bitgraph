@@ -236,7 +236,7 @@ export default function SubjectsPage() {
       <p style={{ ...pStyle, marginBottom: 0 }}>
         {/* Says what the public record reveals, not that recording is private.
             "BitGraphing is completely private" was considered and is false: the
-            Roll publishes every digest, position and time, permanently on
+            The ledger publishes every digest, position and time, permanently on
             the public ledger, and anyone holding the file can hash it and find the
             record. Content is private, the record is public by design, and that
             is what makes it checkable by a third party. Getting this wrong would

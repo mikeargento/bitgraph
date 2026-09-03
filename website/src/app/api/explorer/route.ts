@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rollFeed } from "@/lib/roll-feed";
+import { ledgerFeed } from "@/lib/ledger-feed";
 
-// Read-only explorer feed. A thin adapter over lib/roll-feed, which the
-// server-rendered /roll page calls directly (a route handler is only reachable
+// Read-only explorer feed. A thin adapter over lib/ledger-feed, which the
+// server-rendered /day page calls directly (a route handler is only reachable
 // over HTTP, and the page fetching itself would put the network back in the
 // path this exists to take it out of).
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const p = req.nextUrl.searchParams;
-    const result = await rollFeed({
+    const result = await ledgerFeed({
       day: p.get("day"),
       before: p.get("before"),
       bepoch: p.get("bepoch"),
