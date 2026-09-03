@@ -11,8 +11,8 @@ export const FUSE_CHAIN = "bitgraph:main";
  * The signed attribution name every fused proof carries (spec 6.5): the
  * profile id, the stable wire identifier of this construction (ruled
  * 2026-09-03). Must equal FUSE_ATTRIBUTION_NAME in @mikeargento/bitgraph-verify
- * 1.4.0; the site pins the value itself because its verify dependency is the
- * published package, and the test suite checks that the two agree.
+ * 1.4.0; the site pins the value itself so these pure helpers stay free of
+ * package imports, and the test suite checks that the two agree.
  */
 export const FUSE_ATTRIBUTION_NAME = "bitgraph-fuse/1";
 

@@ -235,9 +235,9 @@ Harness: the site's `/fuse` page and `/api/fuse/harness` route (404 unless
 `FUSE_ENABLED` and `FUSE_HARNESS_ENABLED` are set, and a shared
 `FUSE_HARNESS_TOKEN`), which runs the same `fuse()` against the site's own
 routes; plus the `bitgraph-fuse fuse|produce|check` command in the core
-package for vectors from a shell. The website depends on the core package by
-path (`file:..`), so a deploy needs the core package and verify 1.4.0 built
-or published first. Bounded copy, verbatim:
+package for vectors from a shell. The website depends on the published core
+package (`^1.2.0`, which brings verify 1.4.0); the earlier repo-root link
+could not build on Vercel. Bounded copy, verbatim:
 
 ```
 Original recorded
