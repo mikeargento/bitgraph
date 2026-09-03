@@ -884,10 +884,11 @@ export default function ProofPage() {
                   ordinary recording keeps the single File Hash. */}
               {attr?.name === "bitgraph-fuse/1" ? (
                 <>
-                  {/* Plain, not a link: the original has no position of its own, so
-                      there is no proof page to go to (Mike, 2026-09-03). */}
-                  <Field label="Original file hash" value={attr.message ?? "not declared"} mono topBorder />
+                  {/* New file first: it is the bytes this page is about. The original
+                      is plain, not a link: it has no position of its own, so there is
+                      no proof page to go to (Mike, 2026-09-03). */}
                   <Field label="New file hash" value={proof.artifact.digestB64} mono topBorder />
+                  <Field label="Original file hash" value={attr.message ?? "not declared"} mono topBorder />
                 </>
               ) : (
                 <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
