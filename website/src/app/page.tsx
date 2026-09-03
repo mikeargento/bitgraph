@@ -35,6 +35,11 @@ import { CopyLine } from "./copy-line";
 
 const MCP_URL = "https://bitgraph.ing/mcp";
 
+/* A real, permanent proof, so a visitor with no file to hand still has
+   something to open (task 8). Position 9,792: a fused JPEG. */
+const EXAMPLE_PROOF =
+  "/proof/67wEsJos17kptaF4_RiiNHBHuCviOL2m7v7LnSbwJPI?counter=9792&epoch=6iIBoRkg-aKBsztGRmaSt4h6yisupc1dMf3k1NlcjZU";
+
 /** A package row: the name links to npm, the note says what it does. */
 function Pkg({ name, note }: { name: string; note: string }) {
   return (
@@ -47,11 +52,15 @@ function Pkg({ name, note }: { name: string; note: string }) {
   );
 }
 
-/** A mechanism step: a monospace stage label, then what happens in that stage. */
-function Step({ stage, children }: { stage: string; children: React.ReactNode }) {
+/** One step of a sequence: its number and name, then what happens in it. The
+ *  number is information here, not decoration: these genuinely are ordered. */
+function Step({ n, stage, children }: { n: string; stage: string; children: React.ReactNode }) {
   return (
     <div className="step">
-      <div className="step-stage">{stage}</div>
+      <div className="step-stage">
+        <span className="step-n">{n}</span>
+        {stage}
+      </div>
       <div className="step-body">{children}</div>
     </div>
   );
@@ -108,13 +117,13 @@ export default function BitGraphPage() {
         .install-copy:hover { color: #004b7a; }
 
         /* ── Sections. A hairline is the only divider; nothing is in a card. ── */
-        .sec { padding: 44px 0; border-top: 1px solid #d0d5dd; }
+        .sec { padding: 52px 0; border-top: 1px solid #d0d5dd; }
         .sec h2 {
           font-size: 22px; font-weight: 600; letter-spacing: -0.02em;
           color: #111827; margin: 0 0 8px;
         }
-        .sec .lede { font-size: 16px; line-height: 1.6; color: #4b5563; margin: 0 0 26px; }
-        .sec p { font-size: 16px; line-height: 1.7; color: #1f2937; margin: 0 0 16px; }
+        .sec .lede { font-size: 17px; line-height: 1.65; color: #4b5563; margin: 0 0 28px; }
+        .sec p { font-size: 17px; line-height: 1.8; color: #1f2937; margin: 0 0 22px; }
         .sec p:last-child { margin-bottom: 0; }
         /* Task 4: exactly three lines on the page carry display weight, so the
            reader's eye has somewhere to land in ten sections of even text. A
@@ -127,14 +136,17 @@ export default function BitGraphPage() {
         .sec a { color: #0065A4; }
 
         /* Three stages. A label column and a text column, not three cards. */
-        .step { display: grid; grid-template-columns: 168px 1fr; gap: 20px; padding: 14px 0; border-top: 1px solid #e2e5e9; }
+        .step { display: grid; grid-template-columns: 190px 1fr; gap: 22px; padding: 17px 0; border-top: 1px solid #e2e5e9; }
         .step:first-of-type { border-top: none; padding-top: 0; }
         .step-stage {
-          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-          font-size: 12.5px; letter-spacing: 0.04em; text-transform: uppercase;
-          color: #4b5563; padding-top: 3px;
+          font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+          color: #111827; padding-top: 2px;
         }
-        .step-body { font-size: 16px; line-height: 1.7; color: #1f2937; }
+        .step-n {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+          font-size: 13px; font-weight: 400; color: #9ca3af; margin-right: 9px;
+        }
+        .step-body { font-size: 17px; line-height: 1.75; color: #1f2937; }
         @media (max-width: 640px) {
           .step { grid-template-columns: 1fr; gap: 6px; }
           .step-stage { padding-top: 0; }
@@ -171,15 +183,20 @@ export default function BitGraphPage() {
         .links-row a { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; text-decoration: none; }
 
         /* The box keeps its own composition; the page only gives it room. */
-        .hero-more { margin: 0; }
+        /* Under the box: what comes back, and something to open for a visitor
+           with no file to hand. */
+        .hero-more { margin: 14px auto 0; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+        .box-out { font-size: 15px; line-height: 1.6; color: #4b5563; }
+        .box-out-link { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; text-decoration: none; }
       `}</style>
 
       {/* ── 1. Hero ───────────────────────────────────────────────────────── */}
       <div className="hp hero">
         <h1>Give bits a provable place.</h1>
         <p>
-          BitGraph creates a cryptographic position before the file exists, then binds the finished
-          bytes to it. The result is a proof of order anyone can verify offline.
+          BitGraph allocates a cryptographic position before the new file exists, then builds that
+          file around the position and binds its finished bytes to it. The result is a proof of
+          order anyone can verify offline.
         </p>
         <CopyLine text="npm install @mikeargento/bitgraph" />
       </div>
@@ -198,61 +215,78 @@ export default function BitGraphPage() {
           dropHint="Choose files, or drag in a whole folder."
           fitViewport={false}
           belowClassName="hero-more"
+          below={
+            <>
+              <span className="box-out">
+                You get back a proof, and a new file built to carry its position. Your original is
+                untouched.
+              </span>
+              <a href={EXAMPLE_PROOF} className="bg-arrow-link box-out-link">
+                Or check an example proof <span className="arrow" aria-hidden="true">&rarr;</span>
+              </a>
+            </>
+          }
         />
       </div>
 
-      {/* ── 2. Mechanism ──────────────────────────────────────────────────── */}
+      {/* ── 2. How it works ───────────────────────────────────────────────
+             Numbered, because the content genuinely is a sequence and the
+             number is information (task 3a). The all-caps eyebrows it replaces
+             read as template chrome. ── */}
       <div className="hp sec">
         <h2>How it works</h2>
         <p className="display">The position is allocated first.</p>
         <p className="lede">That single fact is what the rest of the system exists to preserve.</p>
-        <Step stage="Before the file">
+        {/* Change 2 (Mike, 2026-09-03): "before the file exists" reads wrong to
+            someone holding a file. Their original exists already. The file that
+            does not exist yet is the new one, and the distinction has to be
+            unmistakable this high on the page. */}
+        <p>
+          Your original already exists, and nothing here changes it. The file that does not exist
+          yet is the new one, built around the position.
+        </p>
+        <Step n="1" stage="Before the new file">
           BitGraph allocates a single-use position inside a measured AWS Nitro enclave, from
           hardware entropy, while the file that will occupy it does not yet exist.
         </Step>
-        <Step stage="Build the file">
+        <Step n="2" stage="Building it">
           The new file is constructed to carry a commitment to that position, written into the bytes
           before they are finalized, as a documented trailer or container entry.
         </Step>
-        <Step stage="After the file">
+        <Step n="3" stage="After the new file">
           The finished exact bytes are hashed, and that digest is committed into the same position
           the enclave held open. The position is consumed and cannot be reused.
         </Step>
       </div>
 
-      {/* ── 3. The guarantee ──────────────────────────────────────────────── */}
+      {/* ── 3. What you receive ───────────────────────────────────────────── */}
       <div className="hp sec">
-        <h2>What that establishes</h2>
+        <h2>What you receive</h2>
         <p>
           A BitGraph is a file whose cryptographic position was allocated before the file existed,
-          plus the signed proof that establishes that order.
+          plus the signed proof that establishes that order. A drop or a call gives you three
+          things.
         </p>
-        <p>
-          These exact bytes could not have been finalized before the position they occupy, and they
-          existed no later than the position at which they were committed.
+        <Step n="1" stage="The proof">
+          A signed record binding the finished bytes to their position, with the enclave&apos;s
+          attestation inside it. This is the durable artifact and it verifies on its own.
+        </Step>
+        <Step n="2" stage="The new file">
+          The bytes that occupy the position, carrying the commitment. Reproducible: your original
+          plus the proof rebuilds it exactly, so it is only written out when you ask for it.
+        </Step>
+        <Step n="3" stage="Your original">
+          Unchanged, and never uploaded. It is hashed where it lives, in your browser or on your
+          machine. Only digests and signed slot records cross the network.
+        </Step>
+        <p style={{ marginTop: 26 }}>
+          What that establishes: these exact bytes could not have been finalized before the position
+          they occupy, and they existed no later than the position at which they were committed.
         </p>
       </div>
 
-      {/* ── 4. Verify without BitGraph ────────────────────────────────────── */}
-      <div className="hp sec">
-        <h2>Verify without BitGraph</h2>
-        <p className="lede">
-          Every BitGraph proof can be checked offline. No BitGraph API, account, blockchain node, or
-          company permission required.
-        </p>
-        <Pkg name="@mikeargento/bitgraph-verify" note="Verifies canonical form, signatures, and slot binding." />
-        <Pkg name="@mikeargento/bitgraph-audit" note="Validates the audit bundle and the AWS Nitro attestation chain." />
-        <Pkg name="@mikeargento/bitgraph-player" note="Evaluates proofs against rules you write, offline." />
-        <Pkg name="@mikeargento/bitgraph-mcp" note="Exposes the same operations to AI clients holding local files." />
-        <p style={{ marginTop: 22 }}>
-          There is also <a href="/verify.html">a standalone verifier page</a>. Save it and open it
-          with no network connection at all.
-        </p>
-        <p className="display">Reading and verifying a BitGraph never requires trusting BitGraph.</p>
-        <p>That is the property the whole design exists to hold.</p>
-      </div>
-
-      {/* ── 5. Integrate ──────────────────────────────────────────────────── */}
+      {/* ── 4. Integrate. Moved above verification (change 3): for a developer
+             this is the strongest section on the page. ── */}
       <div className="hp sec">
         <h2>Integrate in two calls</h2>
         <div className="calls">
@@ -271,6 +305,7 @@ export default function BitGraphPage() {
         <CopyLine text="bitgraph-fuse photo.jpg" />
         <CopyLine text="npx -y @mikeargento/bitgraph-mcp" style={{ marginTop: 10 }} />
         <CopyLine text={MCP_URL} prompt="" note="# hosted MCP, no install" style={{ marginTop: 10 }} />
+
         {/* Task 6: the question a serious evaluator asks first, answered before
             they ask it. Every number here is read from the shipped enclave
             (server/commit-service/src/enclave/app.ts): SLOT_TTL_MS = 120_000,
@@ -310,53 +345,47 @@ export default function BitGraphPage() {
         </div>
       </div>
 
-      {/* ── 6. Trust and reproducibility ──────────────────────────────────── */}
+      {/* ── 5. Verify without BitGraph ────────────────────────────────────── */}
       <div className="hp sec">
-        <h2>Rebuild the enclave yourself</h2>
+        <h2>Verify without BitGraph</h2>
+        <p className="display">Reading and verifying a BitGraph never requires trusting BitGraph.</p>
+        <p className="lede">
+          Every proof can be checked offline. No BitGraph API, account, blockchain node, or company
+          permission required.
+        </p>
+        <Pkg name="@mikeargento/bitgraph-verify" note="Verifies canonical form, signatures, and slot binding." />
+        <Pkg name="@mikeargento/bitgraph-audit" note="Validates the audit bundle and the AWS Nitro attestation chain." />
+        <Pkg name="@mikeargento/bitgraph-player" note="Evaluates proofs against rules you write, offline." />
+        <Pkg name="@mikeargento/bitgraph-mcp" note="Exposes the same operations to AI clients holding local files." />
+        <p style={{ marginTop: 26 }}>
+          There is also <a href="/verify.html">a standalone verifier page</a>. Save it and open it
+          with no network connection at all.
+        </p>
+      </div>
+
+      {/* ── 6. Trust and limits. Change 4: four sections (rebuild the enclave,
+             Ethereum, does not claim, what you may depend on) dominated the
+             page. One section, three short parts, then the documentation. ── */}
+      <div className="hp sec">
+        <h2>Trust and limits</h2>
+
+        <h3 className="sub">Rebuild the enclave yourself</h3>
         <p>
           The enclave inputs are pinned and its measurement is published. Rebuild the image and
           compare the measurement you get against the one carried inside any proof&apos;s Nitro
-          attestation. If they differ, the proof was not made by the code you just built.
+          attestation. If they differ, the proof was not made by the code you just built. Every
+          position ever committed is public on <Link href="/ledger">the ledger</Link>.
         </p>
-        <p>
-          Every position ever committed is public on <Link href="/ledger">the ledger</Link>.
-        </p>
-        <div className="links-row">
-          <Link href="/docs/trust-model">
-            Trust model <span className="arrow" aria-hidden="true">&rarr;</span>
-          </Link>
-          <Link href="/docs/self-host-tee">
-            Self-host the enclave <span className="arrow" aria-hidden="true">&rarr;</span>
-          </Link>
-        </div>
-      </div>
 
-      {/* ── 7. Privacy ────────────────────────────────────────────────────── */}
-      <div className="hp sec">
-        <h2>Your file stays where it is</h2>
-        <p>
-          The original file is never uploaded and never modified. It is hashed where it lives, in
-          your browser or on your machine. Only digests and signed slot records cross the network.
-        </p>
-      </div>
-
-      {/* ── 8. Ethereum ───────────────────────────────────────────────────── */}
-      <div className="hp sec">
-        <h2>What Ethereum is used for</h2>
+        <h3 className="sub">What Ethereum is used for</h3>
         <p>
           Ethereum brackets portions of the BitGraph ledger between public block hashes that could
-          not be predicted before those blocks were mined. It provides an external ordering
-          boundary, not consensus for BitGraph itself.
+          not be predicted before those blocks were mined. It is an external ordering boundary, not
+          consensus for BitGraph itself. There is no token and no wallet, anchoring writes nothing
+          to Ethereum, and verifying a proof requires no Ethereum access.
         </p>
-        <p>
-          There is no token and no wallet. Anchoring writes nothing to Ethereum. Verifying a proof
-          requires no Ethereum access, and a proof carries no trusted absolute timestamp.
-        </p>
-      </div>
 
-      {/* ── 9. What it does not claim ─────────────────────────────────────── */}
-      <div className="hp sec">
-        <h2>What BitGraph does not claim</h2>
+        <h3 className="sub">What BitGraph does not claim</h3>
         <div className="overflow-x-auto mb-8">
           <table className="w-full text-sm">
             <thead>
@@ -393,22 +422,14 @@ export default function BitGraphPage() {
             </tbody>
           </table>
         </div>
-        <div className="links-row">
-          <Link href="/docs/what-bitgraph-is-not">
-            What BitGraph is not <span className="arrow" aria-hidden="true">&rarr;</span>
-          </Link>
-        </div>
-      </div>
 
-      {/* ── 10. Licensing ─────────────────────────────────────────────────── */}
-      <div className="hp sec">
-        <h2>What you may depend on</h2>
+        <h3 className="sub">What you may depend on</h3>
         <p>
           Verification is permissionless and stays that way. The four packages above are MIT
           licensed. The proprietary core and commit service are what issue proofs, and using them to
-          issue proofs requires a written agreement.
+          issue proofs requires a written agreement. The core carries one permission that cannot be
+          withdrawn:
         </p>
-        <p>The core carries one permission that cannot be withdrawn:</p>
         <p className="grant">
           Permission is granted, free of charge and irrevocably, to any person obtaining a copy of
           this software, to copy, build, and run the software solely for the purposes of verifying
@@ -419,22 +440,35 @@ export default function BitGraphPage() {
           continued existence, permission, pricing, or availability of Argento Computing. Patents
           are pending. Verification of BitGraph proofs is and remains permissionless.
         </p>
+
+        <div className="links-row">
+          <Link href="/docs/trust-model">
+            Trust model <span className="arrow" aria-hidden="true">&rarr;</span>
+          </Link>
+          <Link href="/docs/what-bitgraph-is-not">
+            What BitGraph is not <span className="arrow" aria-hidden="true">&rarr;</span>
+          </Link>
+          <Link href="/docs/self-host-tee">
+            Self-host the enclave <span className="arrow" aria-hidden="true">&rarr;</span>
+          </Link>
+        </div>
       </div>
 
-      {/* ── 11. Adoption ──────────────────────────────────────────────────── */}
+      {/* ── 7. Evaluating it ──────────────────────────────────────────────── */}
       <div className="hp sec">
         <h2>Evaluating it</h2>
         <p>
           If you are evaluating BitGraph, check it rather than believe it. Build the enclave. Verify
           a proof offline with a package you did not get from us. Read the signed structures and the
-          proof format. Try to break the assumptions.
+          proof format.
         </p>
-        <div className="links-row">
-          <Link href="/contact">
-            Licensing, evaluations, and technical questions{" "}
-            <span className="arrow" aria-hidden="true">&rarr;</span>
-          </Link>
-        </div>
+        {/* Task 9: an invitation with a target. No bounty, no deadline, no
+            promise beyond wanting to see it. */}
+        <h3 className="sub">The claim to break</h3>
+        <p>
+          Produce a file that occupies a position it did not hold. If you can, we want to see it.{" "}
+          <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a>
+        </p>
       </div>
     </>
   );
