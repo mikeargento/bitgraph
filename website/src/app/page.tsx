@@ -159,13 +159,6 @@ export default function BitGraphPage() {
         .calls .step-arrow { color: #9ca3af; }
         .calls .aside { color: #6b7280; }
 
-        /* A short list of plain statements. No bullets, no icons: the bold lead
-           is the marker. */
-        .claims { margin: 0; padding: 0; list-style: none; }
-        .claims li { padding: 13px 0; border-top: 1px solid #e2e5e9; font-size: 16px; line-height: 1.7; color: #1f2937; }
-        .claims li:first-child { border-top: none; }
-        .claims b { color: #111827; font-weight: 600; }
-
         /* The grant, quoted rather than paraphrased, because it is the sentence
            an adopter decides to rely on. */
         .grant {
@@ -237,11 +230,6 @@ export default function BitGraphPage() {
         <p>
           These exact bytes could not have been finalized before the position they occupy, and they
           existed no later than the position at which they were committed.
-        </p>
-        <p>
-          That is a statement about order, not about time. BitGraph does not establish who created a
-          file, what it means, whether its contents are true, an exact clock time, an identity, or
-          authorship.
         </p>
       </div>
 
@@ -369,28 +357,42 @@ export default function BitGraphPage() {
       {/* ── 9. What it does not claim ─────────────────────────────────────── */}
       <div className="hp sec">
         <h2>What BitGraph does not claim</h2>
-        <ul className="claims">
-          <li>
-            <b>Not a blockchain.</b> No consensus protocol, token, wallet, or blockchain of any
-            kind. The BitGraph ledger is a signed sequence, not a chain with consensus.
-          </li>
-          <li>
-            <b>Not a watermark.</b> The commitment inside a fused artifact is documented and
-            explicit, never hidden, and the original is recoverable byte for byte where the format
-            allows it.
-          </li>
-          <li>
-            <b>Not proof of authorship.</b> BitGraph does not establish who created an artifact. A
-            submitter&apos;s note is a claim by whoever recorded it, and is rendered as one.
-          </li>
-          <li>
-            <b>Not proof of absolute time.</b> Anchors bound causal positions relative to public
-            events. They do not make BitGraph a timestamp authority.
-          </li>
-          <li>
-            <b>Not identity.</b> The protocol requires no account and no login.
-          </li>
-        </ul>
+        <div className="overflow-x-auto mb-8">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[#e5e7eb]">
+                <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Not</th>
+                <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Why</th>
+              </tr>
+            </thead>
+            <tbody className="text-[#1f2937]">
+              <tr className="border-b border-[#e5e7eb]">
+                <td className="py-2 pr-4">A blockchain</td>
+                <td className="py-2">No consensus protocol, token, wallet, or chain of any kind. The ledger is a signed sequence.</td>
+              </tr>
+              <tr className="border-b border-[#e5e7eb]">
+                <td className="py-2 pr-4">A watermark</td>
+                <td className="py-2">The commitment inside a fused artifact is documented and explicit, never hidden. The original comes back byte for byte where the format allows it.</td>
+              </tr>
+              <tr className="border-b border-[#e5e7eb]">
+                <td className="py-2 pr-4">Proof of truth</td>
+                <td className="py-2">Says nothing about whether an artifact&apos;s contents are accurate, or about what it means.</td>
+              </tr>
+              <tr className="border-b border-[#e5e7eb]">
+                <td className="py-2 pr-4">Proof of authorship</td>
+                <td className="py-2">Does not establish who created an artifact. A submitter&apos;s note is a claim, and is rendered as one.</td>
+              </tr>
+              <tr className="border-b border-[#e5e7eb]">
+                <td className="py-2 pr-4">Proof of absolute time</td>
+                <td className="py-2">Anchors bound causal positions relative to public events. BitGraph is not a timestamp authority.</td>
+              </tr>
+              <tr>
+                <td className="py-2 pr-4">Identity</td>
+                <td className="py-2">No account and no login.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <div className="links-row">
           <Link href="/docs/what-bitgraph-is-not">
             What BitGraph is not <span className="arrow" aria-hidden="true">&rarr;</span>
