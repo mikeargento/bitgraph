@@ -38,7 +38,7 @@ import {
 } from "./format.js";
 import type { BitGraphProof } from "./types.js";
 
-export const SERVER_VERSION = "0.1.1";
+export const SERVER_VERSION = "0.1.2";
 
 const HASH_CONCURRENCY = 4;
 const MAX_FILES = 500;

@@ -2,6 +2,10 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## 0.4.1 (2026-09-03)
+
+- Ingest reads the proof carried by a bitgraph-fuse/1 Frame (`{ type: "bitgraph-fuse/1", manifest, fusePayload?, proof }`): the nested proof is the member and the Frame file is never an artifact candidate. Before this, `bitgraph-play check <frame> <fused bytes>` reported "no BitGraph proofs were found"; found on the first production fused artifact.
+
 ## 0.4.0 (2026-09-03)
 
 - The report's `toolVersion` (and `AUDIT_VERSION`) is `0.4.0`; every other field of an audit over a bundle without fused proofs is unchanged from 0.3.0, checked byte for byte on the shipped TRACE bundles.

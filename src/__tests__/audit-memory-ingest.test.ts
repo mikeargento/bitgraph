@@ -138,3 +138,19 @@ describe("audit: ingestEntries mirrors ingestBundle over the same files", () => 
     assert.ok(viaMemory.verification.verified > 0);
   });
 });
+
+describe("audit: a bitgraph-fuse/1 Frame is a proof carrier", () => {
+  it("ingestEntries reads the nested proof out of a Frame and does not index the Frame as an artifact", async () => {
+    const fix = fileURLToPath(new URL("../../src/__tests__/fuse-fixtures/", import.meta.url)); // compiled tests run from dist/__tests__/
+    const frame = new Uint8Array(await readFile(join(fix, "trailer.bitgraph-fuse.json")));
+    const fused = new Uint8Array(await readFile(join(fix, "fused-trailer.bin")));
+    const ingest = await ingestEntries([
+      { path: "photo.bitgraph-fuse.json", open: () => frame },
+      { path: "photo.bin", open: () => fused },
+    ]);
+    assert.equal(ingest.proofs.length, 1);
+    assert.equal((ingest.proofs[0]!.proof.attribution as { name?: string } | undefined)?.name, "bitgraph-fuse/1");
+    assert.ok(!ingest.artifacts.some((a) => a.paths.includes("photo.bitgraph-fuse.json")), "the Frame is not an artifact candidate");
+    assert.ok(ingest.artifacts.some((a) => a.paths.includes("photo.bin") && a.matchedProofHashes.length === 1), "the fused bytes match the nested proof");
+  });
+});

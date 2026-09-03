@@ -348,7 +348,11 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
       continue;
     }
 
-    const parsed = entry.json;
+    // A Frame (profile bitgraph-fuse/1) is the shipped carrier of a fused
+    // recording: { type: "bitgraph-fuse/1", manifest, fusePayload?, proof }.
+    // The nested proof is the member; the wrapper is never an artifact.
+    const framed = unwrapFrame(entry.json);
+    const parsed = framed ?? entry.json;
     if (parsed !== undefined && isProofShaped(parsed)) {
       const version = (parsed as Record<string, unknown>)["version"] as string;
       if (version === "bitgraph/1") {
@@ -833,6 +837,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * Proof-shaped per spec section 6.1: a string version plus object-valued
  * artifact, commit, and signer fields.
  */
+/** The proof carried by a bitgraph-fuse/1 Frame, or undefined when the value is not a Frame carrying a proof-shaped object. */
+function unwrapFrame(value: unknown): Record<string, unknown> | undefined {
+  if (!isPlainObject(value) || value["type"] !== "bitgraph-fuse/1") return undefined;
+  const inner = value["proof"];
+  return isProofShaped(inner) ? (inner as Record<string, unknown>) : undefined;
+}
+
 function isProofShaped(value: unknown): boolean {
   if (!isPlainObject(value)) return false;
   return (

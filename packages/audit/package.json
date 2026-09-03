@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-audit",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Offline audit of BitGraph proof bundles: ingest, tiered verification, causal reconstruction, divergence reporting.",
   "license": "MIT",
   "type": "module",

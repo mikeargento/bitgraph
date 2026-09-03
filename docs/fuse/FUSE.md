@@ -131,6 +131,8 @@ to the signed artifact digest.
 
 ## The Frame
 
+The Frame is the shipped container. The offline verifier (`bitgraph-play check`, `verify.html`) reads the proof out of it from player 0.8.1 / audit 0.4.1 on; the site's drop reader and the CLI `check` always did.
+
 `<original-basename>.bitgraph-fuse.json`:
 
 ```json

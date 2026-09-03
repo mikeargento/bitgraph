@@ -29,6 +29,16 @@ async function entries(spec: Record<string, string>): Promise<BundleEntrySource[
 }
 
 describe("fused recordings in check", () => {
+  it("a Frame beside the fused bytes: the nested proof is the recording, the Frame is not an artifact", async () => {
+    const report = await checkIngest(await ingestEntries(await entries({ "photo.bitgraph-fuse.json": "trailer.bitgraph-fuse.json", "photo.bin": "fused-trailer.bin" })));
+    assert.equal(report.recordings.length, 1, "the Frame's nested proof is observed");
+    const rec = report.recordings[0]!;
+    assert.equal(rec.lines.find((l) => l.name === "file")?.result, "TRUE");
+    assert.equal(rec.lines.find((l) => l.name === "fused")?.result, "TRUE");
+    assert.equal(rec.fused?.category, "FUSED_DIRECT");
+    assert.ok(!report.notes.some((n) => /photo\.bitgraph-fuse\.json/.test(n)), "the Frame is not listed as an unmatched file");
+  });
+
   it("fused bytes beside the proof: fused line TRUE, floor undetermined without anchors, statements carried", async () => {
     const report = await checkIngest(await ingestEntries(await entries({ "proof.json": "trailer.proof.json", "photo.bin": "fused-trailer.bin" })));
     assert.equal(report.recordings.length, 1);
