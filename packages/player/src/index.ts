@@ -46,20 +46,5 @@ export type { Evaluation } from "./evaluate.js";
 export { buildVerdict, serializeVerdict, playerVersion, PLAYER_VERSION } from "./verdict.js";
 
 export { checkIngest, buildCheckReport, renderCheckText, serializeCheckReport, KNOWN_ENCLAVE_MEASUREMENTS } from "./check.js";
-export type { CheckReport, CheckRecording, CheckAnchor, CheckLine, CheckBounds, CheckBound, CheckOptions, CheckDomain } from "./check.js";
+export type { CheckReport, CheckRecording, CheckAnchor, CheckLine, CheckBounds, CheckBound, CheckOptions } from "./check.js";
 
-export {
-  parseDomainFile,
-  isDomainName,
-  keyFingerprint,
-  domainKeyRefs,
-  diffDomainFiles,
-  checkDomain,
-  DomainFileError,
-  DOMAIN_FILE_VERSION,
-  DOMAIN_WELL_KNOWN_PATH,
-  DOMAIN_FILE_MAX_BYTES,
-} from "./domain.js";
-export type { DomainFile, DomainKeyRef, DomainDiff } from "./domain.js";
-export { defaultPinsDir, readPin, writePin, forgetPin, listPins, fetchDomainFile } from "./pin.js";
-export type { StoredPin, PinListEntry, FetchLike } from "./pin.js";

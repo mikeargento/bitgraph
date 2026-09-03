@@ -46,30 +46,9 @@ no offline check can establish, stated rather than implied. `--json`
 prints the `bitgraph-check/1` report; exit codes match evaluation.
 
 The same check runs in a browser: `verify.html`, built from this package,
-ships inside the BitGraph Folder, beside Recordings. Open it and choose or
-drop a recording folder, offline, and it renders the same report from the
-same code. It is not hosted anywhere: the site's own drop box checks a file
-against the public ledger, and a second box that could only say
-"self-consistent" would be two boxes with different meanings.
-
-## Pin a domain
-
-    bitgraph-play pin acme.com
-    bitgraph-play check "BitGraph (invoice-4471.pdf)/" --from acme.com
-
-A domain can publish the keys that record for it: one `bitgraph-domain/1`
-file at `https://<domain>/.well-known/bitgraph` (the format is in
-[DOMAIN.md](./DOMAIN.md)). `pin` fetches it once, shows the party and
-every key's fingerprint, and stores the bytes verbatim on your machine
-after you confirm; it is the only command in this package that touches
-the network, and only when invoked. `check --from` then adds one line per
-recording, offline, from the pin on disk: TRUE when the recording
-verifies and a pinned key stands behind it, as the actor inside the proof
-or as a detached `bitgraph-sig/1` in the bundle; UNDETERMINED otherwise;
-and never FALSE, because domain evidence can exist outside any bundle,
-so its absence contradicts nothing. Pinning again shows what changed
-before you accept it. `pin` alone lists your pins; `pin --forget
-<domain>` removes one.
+ships as `dist-web/verify.html` and is served at
+https://bitgraph.ing/verify.html. Open it and choose or drop an export,
+offline, and it renders the same report from the same code.
 
 ## Start a rule
 

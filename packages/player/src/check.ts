@@ -63,11 +63,10 @@ import type {
   SegmentBound,
   TemporalSegment,
 } from "@mikeargento/bitgraph-audit";
-import { auditIngest, AUDIT_VERSION, streamMatchedArtifacts, streamArtifactsByHash } from "@mikeargento/bitgraph-audit";
+import { auditIngest, AUDIT_VERSION, streamArtifactsByHash } from "@mikeargento/bitgraph-audit";
 import { readFuseAttribution, verifyFuse, base64ToBytes, bytesToHex, resetEpochLinkState } from "@mikeargento/bitgraph-verify";
 import type { FuseVerifyResult } from "@mikeargento/bitgraph-verify";
 import type { ThreeValued } from "./types.js";
-import { SIG_EVIDENCE_MAX_BYTES } from "./types.js";
 import { kleeneAll } from "./logic.js";
 import { PLAYER_VERSION } from "./verdict.js";
 
@@ -110,7 +109,7 @@ export const KNOWN_ENCLAVE_MEASUREMENTS: ReadonlyArray<{ pcr0: string; label: st
 
 /** One checked property, three-valued, with a plain-language reason. */
 export interface CheckLine {
-  name: "file" | "signature" | "attestation" | "enclave" | "witness" | "contradiction" | "domain" | "fused";
+  name: "file" | "signature" | "attestation" | "enclave" | "witness" | "contradiction" | "fused";
   result: ThreeValued;
   detail: string;
 }
@@ -197,10 +196,7 @@ export interface CheckAnchor {
 }
 
 export interface CheckReport {
-  /** /2 exactly when the report was built against a pinned domain (`from`). */
-  check: "bitgraph-check/1" | "bitgraph-check/2";
-  /** The pinned domain this report was checked against, when one was. */
-  from?: { domain: string; party: string };
+  check: "bitgraph-check/1";
   result: ThreeValued;
   /** One-sentence plain-language conclusion, deterministic. */
   summary: string;
@@ -216,31 +212,6 @@ export interface CheckReport {
   network: "none";
 }
 
-/**
- * A pinned BitGraph Domain, as the report builder consults it: one line
- * per recording, TRUE or UNDETERMINED, never FALSE (absence of domain
- * evidence contradicts nothing; the open-world rule of SPEC §9.3).
- *
- * An interface here rather than an import from domain.ts, deliberately:
- * this module is also built into the browser verifier, and the crypto the
- * adapter needs (key decoding, signature verification) stays behind it.
- * domain.ts's `checkDomain(file)` is the implementation; embedders may
- * supply their own.
- */
-export interface CheckDomain {
-  domain: string;
-  party: string;
-  keyCount: number;
-  /** Key name for an actor keyId (es256 fingerprint match), if published. */
-  actorKeyName(keyId: string): string | undefined;
-  /**
-   * Key name of the first pinned key a candidate bitgraph-sig/1 file
-   * verifies under, over this digest (lowercase hex). Deterministic:
-   * candidates ascending by content hash, keys in name order.
-   */
-  signatureKeyName(targetSha256Hex: string, evidence: ReadonlyMap<string, Uint8Array>): string | undefined;
-}
-
 export interface CheckOptions {
   /**
    * False when the environment cannot run the attestation's ECDSA P-384
@@ -248,19 +219,6 @@ export interface CheckOptions {
    * with that reason instead of a false FALSE. Defaults to true.
    */
   webCryptoAvailable?: boolean;
-  /**
-   * Check against a pinned domain: adds one "domain" line per recording
-   * and stamps the report bitgraph-check/2. The check itself stays
-   * offline; the pin was the one fetch, and it already happened.
-   */
-  from?: CheckDomain;
-  /**
-   * Candidate signature bytes by content sha256 hex, for the domain
-   * line's detached-signature path (SPEC §9.4 discipline). checkIngest
-   * collects this from the bundle's matched artifacts when absent;
-   * embedders may supply additional candidates.
-   */
-  sigEvidence?: ReadonlyMap<string, Uint8Array>;
   /**
    * Fuse evidence by proofHash: the verifyFuse result over the fused bytes
    * (preferred) or the original, whichever the bundle holds. checkIngest
@@ -300,17 +258,6 @@ const EXCERPT_NORMAL_CODES: ReadonlySet<string> = new Set([
  */
 export async function checkIngest(ingest: IngestResult, options?: CheckOptions): Promise<CheckReport> {
   let opts = options;
-  // Domain checking's detached-signature path wants the same candidate set
-  // the evaluator uses (SPEC §9.4: matched artifacts, size-capped). Collect
-  // it here, where the ingest is in hand, unless the embedder supplied one.
-  if (opts?.from !== undefined && opts.sigEvidence === undefined) {
-    const collected = new Map<string, Uint8Array>();
-    for await (const matched of streamMatchedArtifacts(ingest)) {
-      if (matched.bytes.length > SIG_EVIDENCE_MAX_BYTES) continue;
-      if (!collected.has(matched.sha256Hex)) collected.set(matched.sha256Hex, matched.bytes);
-    }
-    opts = { ...opts, sigEvidence: collected };
-  }
   const audit = await auditIngest(ingest, { startedAt: "" });
   if (opts?.fuseEvidence === undefined) {
     const collected = await collectFuseEvidence(ingest);
@@ -405,8 +352,6 @@ export function buildCheckReport(audit: AuditResult, options?: CheckOptions): Ch
           segmentByHash.get(proof.proofHash),
           artifactPathByProof.get(proof.proofHash),
           webCrypto,
-          options?.from,
-          options?.sigEvidence,
           options?.fuseEvidence,
           anchorByHash
         )
@@ -418,7 +363,7 @@ export function buildCheckReport(audit: AuditResult, options?: CheckOptions): Ch
   sortByPosition(anchors);
   const contradictions = collectContradictions(audit);
   const notes = collectNotes(audit, recordings, anchors, options?.fuseOriginHexes);
-  const notChecked = collectNotChecked(anchors.length > 0, options?.from?.domain);
+  const notChecked = collectNotChecked(anchors.length > 0);
 
   const allLines: ThreeValued[] = [
     ...recordings.map((r) => r.result),
@@ -428,10 +373,7 @@ export function buildCheckReport(audit: AuditResult, options?: CheckOptions): Ch
   const result: ThreeValued = allLines.length === 0 ? "UNDETERMINED" : kleeneAll(allLines);
 
   return {
-    check: options?.from !== undefined ? "bitgraph-check/2" : "bitgraph-check/1",
-    ...(options?.from !== undefined
-      ? { from: { domain: options.from.domain, party: options.from.party } }
-      : {}),
+    check: "bitgraph-check/1",
     result,
     summary: summarize(result, recordings, anchors, contradictions),
     recordings,
@@ -474,8 +416,6 @@ function buildRecording(
   segment: TemporalSegment | undefined,
   filePath: string | undefined,
   webCrypto: boolean,
-  from?: CheckDomain,
-  sigEvidence?: ReadonlyMap<string, Uint8Array>,
   fuseEvidence?: ReadonlyMap<string, FuseVerifyResult>,
   anchorByHash?: ReadonlyMap<string, AnchorRecord>
 ): CheckRecording {
@@ -529,18 +469,6 @@ function buildRecording(
   // enclave: the attested PCR0 is a published BitGraph measurement.
   lines.push(enclaveLine(att.attestedPcr0, att.line.result));
 
-  // domain: a key the pinned domain published stands behind this
-  // recording. TRUE or UNDETERMINED, never FALSE: domain evidence can
-  // exist outside any bundle, so its absence contradicts nothing
-  // (SPEC §9.3's open-world rule); tampering already reads FALSE on the
-  // lines above, and this line does not restate them.
-  if (from !== undefined) {
-    // Verified exactly when the signature line above reads TRUE: the
-    // integrity-tier "artifact-unavailable" status is a PASS (proof-only
-    // bundles verify; whether bytes are in hand is the file line's job).
-    const verified = v !== undefined && v.status !== "failed";
-    lines.push(domainLine(proof, verified, from, sigEvidence ?? EMPTY_EVIDENCE));
-  }
 
   // fused: the proof's signed attribution marks a fused artifact (profile
   // bitgraph-fuse/1). The commitment check runs over the fused bytes, or
@@ -741,63 +669,6 @@ function attestationLine(
   };
 }
 
-const EMPTY_EVIDENCE: ReadonlyMap<string, Uint8Array> = new Map();
-
-function domainLine(
-  proof: ObservedProof,
-  verified: boolean,
-  from: CheckDomain,
-  sigEvidence: ReadonlyMap<string, Uint8Array>
-): CheckLine {
-  if (!verified) {
-    return {
-      name: "domain",
-      result: "UNDETERMINED",
-      detail: `the recording is not verified here, so nothing binds it to ${from.domain}`,
-    };
-  }
-  const actorKeyId = proof.proof.agency?.actor?.keyId;
-  if (actorKeyId !== undefined) {
-    const name = from.actorKeyName(actorKeyId);
-    if (name !== undefined) {
-      return {
-        name: "domain",
-        result: "TRUE",
-        detail: `actor key "${name}" · published by ${from.domain} (${from.party})`,
-      };
-    }
-  }
-  const targetBytes = decodeDigestB64(proof.proof.artifact.digestB64);
-  if (targetBytes !== undefined && sigEvidence.size > 0) {
-    const name = from.signatureKeyName(targetBytes.toString("hex"), sigEvidence);
-    if (name !== undefined) {
-      return {
-        name: "domain",
-        result: "TRUE",
-        detail: `signature by "${name}" · published by ${from.domain} (${from.party})`,
-      };
-    }
-  }
-  if (actorKeyId !== undefined) {
-    return {
-      name: "domain",
-      result: "UNDETERMINED",
-      detail: `actor key ${actorKeyId.slice(0, 12)}… is not among the ${from.keyCount} key(s) ${from.domain} publishes`,
-    };
-  }
-  return {
-    name: "domain",
-    result: "UNDETERMINED",
-    detail: `no evidence binds this recording to ${from.domain}`,
-  };
-}
-
-/** Standard-base64 digest to bytes; undefined when it does not round-trip. */
-function decodeDigestB64(digestB64: string): Buffer | undefined {
-  if (!/^[A-Za-z0-9+/]+=*$/.test(digestB64)) return undefined;
-  const bytes = Buffer.from(digestB64, "base64");
-  return bytes.toString("base64") === digestB64 ? bytes : undefined;
-}
 
 function enclaveLine(attestedPcr0: string | undefined, attestationResult: ThreeValued): CheckLine {
   if (attestationResult !== "TRUE" || attestedPcr0 === undefined) {
@@ -1109,16 +980,11 @@ function collectNotes(audit: AuditResult, recordings: CheckRecording[], anchors:
   return notes;
 }
 
-function collectNotChecked(hasAnchors: boolean, fromDomain?: string): string[] {
+function collectNotChecked(hasAnchors: boolean): string[] {
   const out: string[] = [];
   if (hasAnchors) {
     out.push(
       "whether the anchored Ethereum blocks are canonical: their headers are recomputed here, but canonicality needs an Ethereum node or a block explorer"
-    );
-  }
-  if (fromDomain !== undefined) {
-    out.push(
-      `whether ${fromDomain}'s published key file has changed since it was pinned: a pin is read as stored; pin the domain again to refresh it`
     );
   }
   out.push(
@@ -1175,9 +1041,6 @@ export function renderCheckText(report: CheckReport): string {
   const out: string[] = [];
   const mark = (r: ThreeValued): string => (r === "TRUE" ? "TRUE " : r === "FALSE" ? "FALSE" : "UNDET");
   out.push(report.summary);
-  if (report.from !== undefined) {
-    out.push(`checked against ${report.from.domain} (${report.from.party}), from the stored pin`);
-  }
   out.push("");
   report.recordings.forEach((rec, i) => {
     out.push(

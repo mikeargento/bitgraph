@@ -4,8 +4,7 @@
 /**
  * bitgraph-play <rule.json> <bundle> [--out <file>] [--summary]
  * bitgraph-play init <file>... [--out <rule.json>]
- * bitgraph-play check <bundle-or-file>... [--json] [--out <file>] [--from <domain> [--pins <dir>]]
- * bitgraph-play pin [<domain>] [--forget <domain>] [--pins <dir>] [--yes]
+ * bitgraph-play check <bundle-or-file>... [--json] [--out <file>]
  *
  * Evaluate: runs a bitgraph-player/1 rule against a proof bundle
  * (directory, .tar, .tar.gz, or .tgz) and writes the verdict JSON to
@@ -23,13 +22,6 @@
  * what bounds it. Human text on stdout by default; --json for the
  * bitgraph-check/1 report. Offline. See check.ts for the vocabulary.
  *
- * Pin: fetches https://<domain>/.well-known/bitgraph once (the ONLY
- * network access anywhere in this package, and only when invoked), shows
- * the party and every key's fingerprint, and stores the bytes verbatim
- * after confirmation. `check --from <domain>` then adds one three-valued
- * "domain" line per recording, offline, from the stored pin: TRUE or
- * UNDETERMINED, never FALSE. Format and semantics: DOMAIN.md.
- *
  * Exit codes: 0 TRUE, 1 FALSE, 2 UNDETERMINED, 3 error (init: 0 or 3).
  * Diagnostics go to stderr; stdout carries the verdict (or skeleton, or
  * check report) bytes only.
@@ -43,14 +35,11 @@ import { createHash } from "node:crypto";
 import { createReadStream, existsSync, writeFileSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
-import { createInterface } from "node:readline/promises";
 import { pipeline } from "node:stream/promises";
 import type { AuditResult, BundleEntrySource } from "@mikeargento/bitgraph-audit";
 import { ingestBundle, ingestEntries } from "@mikeargento/bitgraph-audit";
 import type { CheckOptions } from "./check.js";
 import { checkIngest, renderCheckText, serializeCheckReport } from "./check.js";
-import { checkDomain, diffDomainFiles, domainKeyRefs, DomainFileError, isDomainName } from "./domain.js";
-import { defaultPinsDir, fetchDomainFile, forgetPin, listPins, readPin, writePin } from "./pin.js";
 import { scaffoldRule } from "./init.js";
 import type { ScaffoldEntry } from "./init.js";
 import { play, PlayError } from "./play.js";
@@ -61,12 +50,9 @@ function usage(): number {
     "usage: bitgraph-play <rule.json> <bundle> [--out <file>] [--summary]\n" +
       "       bitgraph-play init <file>... [--out <rule.json>]\n" +
       "       bitgraph-play check <bundle-or-file>... [--json] [--out <file>]\n" +
-      "                          [--from <domain> [--pins <dir>]]\n" +
-      "       bitgraph-play pin [<domain>] [--forget <domain>] [--pins <dir>] [--yes]\n" +
-      '  "--" ends option parsing; a rule file literally named "init",\n' +
-      '  "check" or "pin" is evaluated with: bitgraph-play -- init <bundle>\n' +
-      "  pin is the only command that touches the network; check --from\n" +
-      "  reads the stored pin and runs offline\n" +
+      '  "--" ends option parsing; a rule file literally named "init" or\n' +
+      '  "check" is evaluated with: bitgraph-play -- init <bundle>\n' +
+      "  nothing here touches the network\n" +
       "  exit codes: 0 TRUE, 1 FALSE, 2 UNDETERMINED, 3 error\n"
   );
   return 3;
@@ -107,14 +93,10 @@ interface ParsedArgs {
   outFile?: string;
   summary: boolean;
   json: boolean;
-  from?: string;
-  pinsDir?: string;
-  forget?: string;
-  yes: boolean;
 }
 
 function parseArgs(args: string[]): ParsedArgs | undefined {
-  const parsed: ParsedArgs = { positional: [], summary: false, json: false, yes: false };
+  const parsed: ParsedArgs = { positional: [], summary: false, json: false };
   const valueFor = (i: number): string | undefined => {
     const next = args[i];
     return next === undefined || next.startsWith("-") ? undefined : next;
@@ -129,24 +111,10 @@ function parseArgs(args: string[]): ParsedArgs | undefined {
       const next = valueFor(++i);
       if (next === undefined) return undefined;
       parsed.outFile = next;
-    } else if (arg === "--from") {
-      const next = valueFor(++i);
-      if (next === undefined) return undefined;
-      parsed.from = next;
-    } else if (arg === "--pins") {
-      const next = valueFor(++i);
-      if (next === undefined) return undefined;
-      parsed.pinsDir = next;
-    } else if (arg === "--forget") {
-      const next = valueFor(++i);
-      if (next === undefined) return undefined;
-      parsed.forget = next;
     } else if (arg === "--summary") {
       parsed.summary = true;
     } else if (arg === "--json") {
       parsed.json = true;
-    } else if (arg === "--yes") {
-      parsed.yes = true;
     } else if (arg.startsWith("-")) {
       return undefined;
     } else {
@@ -163,42 +131,11 @@ function parseArgs(args: string[]): ParsedArgs | undefined {
  * `bitgraph-play check proof.json photo.jpg` works without a folder.
  */
 async function runCheck(args: ParsedArgs): Promise<number> {
-  if (args.summary || args.yes || args.forget !== undefined) return usage();
-  if (args.pinsDir !== undefined && args.from === undefined) return usage();
+  if (args.summary) return usage();
   const targets = args.positional;
   if (targets.length === 0) return usage();
 
-  // Resolve the pin before touching the bundle: a missing pin should fail
-  // in milliseconds, with its remedy, not after a long ingest. check
-  // itself NEVER fetches; the pin was the one network step, already done.
-  let options: CheckOptions | undefined;
-  if (args.from !== undefined) {
-    const domain = args.from.toLowerCase();
-    if (!isDomainName(domain)) {
-      process.stderr.write(`error: not a domain name: ${args.from}\n`);
-      return 3;
-    }
-    const pinsDir = args.pinsDir ?? defaultPinsDir();
-    let pin;
-    try {
-      pin = readPin(domain, pinsDir);
-    } catch (err) {
-      process.stderr.write(`error: the stored pin for ${domain} is malformed`);
-      if (err instanceof DomainFileError && err.issues[0] !== undefined) {
-        process.stderr.write(`: ${err.issues[0]}`);
-      }
-      process.stderr.write(`\n  pin it again:  bitgraph-play pin ${domain}\n`);
-      return 3;
-    }
-    if (pin === undefined) {
-      process.stderr.write(
-        `error: no pin for ${domain}\n` +
-          `  pin it once (the only step that needs the network):  bitgraph-play pin ${domain}\n`
-      );
-      return 3;
-    }
-    options = { from: checkDomain(pin.file) };
-  }
+  const options: CheckOptions | undefined = undefined;
 
   let ingest;
   try {
@@ -240,7 +177,7 @@ function looksLikeArchive(path: string): boolean {
 }
 
 async function runInit(args: ParsedArgs): Promise<number> {
-  if (args.summary || args.json || args.from !== undefined || args.pinsDir !== undefined || args.yes || args.forget !== undefined) return usage();
+  if (args.summary || args.json) return usage();
   const files = args.positional;
   if (files.length === 0) return usage();
   if (args.outFile !== undefined && existsSync(args.outFile)) {
@@ -296,7 +233,7 @@ async function runInit(args: ParsedArgs): Promise<number> {
 }
 
 async function runEvaluate(args: ParsedArgs): Promise<number> {
-  if (args.json || args.from !== undefined || args.pinsDir !== undefined || args.yes || args.forget !== undefined) return usage();
+  if (args.json) return usage();
   if (args.positional.length !== 2) return usage();
   const [rulePath, bundlePath] = args.positional as [string, string];
 
@@ -324,126 +261,12 @@ async function runEvaluate(args: ParsedArgs): Promise<number> {
   return result.exitCode;
 }
 
-/**
- * pin: the only command in this package that touches the network, and
- * only when invoked. Conversational output goes to stderr (there are no
- * report bytes); the pin listing, which IS the output, goes to stdout.
- */
-async function runPin(args: ParsedArgs): Promise<number> {
-  if (args.summary || args.json || args.outFile !== undefined || args.from !== undefined) return usage();
-  const pinsDir = args.pinsDir ?? defaultPinsDir();
-
-  if (args.forget !== undefined) {
-    if (args.positional.length !== 0) return usage();
-    const domain = args.forget.toLowerCase();
-    if (!isDomainName(domain)) {
-      process.stderr.write(`error: not a domain name: ${args.forget}\n`);
-      return 3;
-    }
-    if (forgetPin(domain, pinsDir)) {
-      process.stderr.write(`forgot ${domain}\n`);
-      return 0;
-    }
-    process.stderr.write(`error: no pin for ${domain}\n`);
-    return 3;
-  }
-
-  if (args.positional.length === 0) {
-    const pins = listPins(pinsDir);
-    if (pins.length === 0) {
-      process.stderr.write(
-        "no pins yet\n  pin a domain (the only step that needs the network):  bitgraph-play pin <domain>\n"
-      );
-      return 0;
-    }
-    for (const pin of pins) {
-      process.stdout.write(
-        pin.malformed
-          ? `${pin.domain}  (malformed pin; pin it again or --forget it)\n`
-          : `${pin.domain}  ${pin.party as string}  ${pin.keyCount as number} key(s)  pinned ${pin.pinnedAt.toISOString().slice(0, 10)}\n`
-      );
-    }
-    return 0;
-  }
-
-  if (args.positional.length !== 1) return usage();
-  const domain = (args.positional[0] as string).toLowerCase();
-
-  let fetched;
-  try {
-    fetched = await fetchDomainFile(domain);
-  } catch (err) {
-    if (err instanceof DomainFileError) {
-      process.stderr.write(
-        `error: the file at https://${domain}/.well-known/bitgraph is not a valid bitgraph-domain/1 file:\n`
-      );
-      for (const issue of err.issues) process.stderr.write(`  - ${issue}\n`);
-    } else {
-      process.stderr.write(`error: ${(err as Error).message}\n`);
-    }
-    return 3;
-  }
-
-  const refs = domainKeyRefs(fetched.file);
-  const nameWidth = refs.reduce((w, r) => Math.max(w, r.name.length), 4);
-  process.stderr.write(`\n${domain} · ${fetched.file.party}\n`);
-  for (const ref of refs) {
-    process.stderr.write(`  ${ref.name.padEnd(nameWidth)}  ${ref.key.alg.padEnd(7)}  ${ref.fingerprint}\n`);
-  }
-
-  let existing;
-  let existingMalformed = false;
-  try {
-    existing = readPin(domain, pinsDir);
-  } catch {
-    existingMalformed = true;
-  }
-  if (existingMalformed) {
-    process.stderr.write(`\nthe stored pin for ${domain} is malformed and will be replaced\n`);
-  } else if (existing !== undefined) {
-    const diff = diffDomainFiles(existing.file, fetched.file);
-    const changes: string[] = [];
-    if (diff.partyChanged !== undefined) {
-      changes.push(`  party: "${diff.partyChanged.before}" is now "${diff.partyChanged.after}"`);
-    }
-    for (const ref of diff.added) changes.push(`  + ${ref.name}  ${ref.key.alg}  ${ref.fingerprint}`);
-    for (const ref of diff.removed) changes.push(`  - ${ref.name}  ${ref.key.alg}  ${ref.fingerprint}`);
-    for (const ch of diff.changed) changes.push(`  ~ ${ch.name}  now ${ch.after.key.alg}  ${ch.after.fingerprint}`);
-    const pinnedOn = existing.pinnedAt.toISOString().slice(0, 10);
-    process.stderr.write(
-      changes.length === 0
-        ? `\nunchanged since the stored pin (${pinnedOn})\n`
-        : `\nchanges since the stored pin (${pinnedOn}):\n${changes.join("\n")}\n`
-    );
-  }
-
-  if (!args.yes) {
-    if (!process.stdin.isTTY) {
-      process.stderr.write("\nerror: not a terminal; pass --yes to pin non-interactively\n");
-      return 3;
-    }
-    const rl = createInterface({ input: process.stdin, output: process.stderr });
-    const answer = (await rl.question(`\npin ${refs.length} key(s) for ${domain}? [y/N] `)).trim().toLowerCase();
-    rl.close();
-    if (answer !== "y" && answer !== "yes") {
-      process.stderr.write("not pinned\n");
-      return 3;
-    }
-  }
-
-  const path = writePin(domain, fetched.bytes, pinsDir);
-  process.stderr.write(
-    `pinned: ${path}\nchecks now run offline:  bitgraph-play check <export> --from ${domain}\n`
-  );
-  return 0;
-}
-
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   // "--" as the first token forces evaluate mode: parseArgs treats
   // everything after it as positional, so a rule file literally named
-  // "init", "check" or "pin" is reachable as `bitgraph-play -- init <bundle>`.
-  const subcommand = argv[0] === "init" || argv[0] === "check" || argv[0] === "pin" ? argv[0] : undefined;
+  // "init" or "check" is reachable as `bitgraph-play -- init <bundle>`.
+  const subcommand = argv[0] === "init" || argv[0] === "check" ? argv[0] : undefined;
   if (subcommand !== undefined && existsSync(subcommand)) {
     // Both readings are plausible here; a silent pick would hand a
     // 0.1.1 caller a skeleton with exit 0 where the published contract
@@ -459,7 +282,6 @@ async function main(): Promise<number> {
   if (parsed === undefined) return usage();
   if (subcommand === "init") return runInit(parsed);
   if (subcommand === "check") return runCheck(parsed);
-  if (subcommand === "pin") return runPin(parsed);
   return runEvaluate(parsed);
 }
 
