@@ -35,11 +35,6 @@ import { CopyLine } from "./copy-line";
 
 const MCP_URL = "https://bitgraph.ing/mcp";
 
-/* A real, permanent proof, so a visitor with no file to hand still has
-   something to open (task 8). Position 9,792: a fused JPEG. */
-const EXAMPLE_PROOF =
-  "/proof/67wEsJos17kptaF4_RiiNHBHuCviOL2m7v7LnSbwJPI?counter=9792&epoch=6iIBoRkg-aKBsztGRmaSt4h6yisupc1dMf3k1NlcjZU";
-
 /** A package row: the name links to npm, the note says what it does. */
 function Pkg({ name, note }: { name: string; note: string }) {
   return (
@@ -109,12 +104,16 @@ export default function BitGraphPage() {
         .install .prompt { color: #9ca3af; user-select: none; }
         /* An action link, not a button-shaped button. It holds its width when
            the word changes, so the line does not shift under the pointer. */
+        /* A glyph, not a word: the line beside it is a command, and a label
+           there competed with it. Square corners, the site's rule. Fixed box so
+           the row never shifts when the mark changes. */
         .install-copy {
-          flex: 0 0 auto; background: none; border: none; padding: 0; cursor: pointer;
-          font-family: inherit; font-size: 12px; font-weight: 600; color: #0065A4;
-          min-width: 46px; text-align: right;
+          flex: 0 0 auto; background: none; border: none; cursor: pointer;
+          padding: 6px; margin: -6px -2px -6px 0; line-height: 0;
+          color: #9ca3af; transition: color .15s;
         }
-        .install-copy:hover { color: #004b7a; }
+        .install-copy:hover { color: #0065A4; }
+        .install-copy:focus-visible { outline: 2px solid #0065A4; outline-offset: 1px; }
 
         /* ── Sections. A hairline is the only divider; nothing is in a card. ── */
         .sec { padding: 52px 0; border-top: 1px solid #d0d5dd; }
@@ -128,9 +127,12 @@ export default function BitGraphPage() {
         /* Task 4: exactly three lines on the page carry display weight, so the
            reader's eye has somewhere to land in ten sections of even text. A
            fourth would flatten all three again. Type scale and whitespace only. */
+        /* Large and LIGHT. Bold at this size competed with the section heading
+           two lines above it and inverted the hierarchy; at regular weight it
+           reads as the section's lead sentence, which is what it is. */
         .sec .display {
-          font-size: clamp(20px, 3.2vw, 25px); font-weight: 600; letter-spacing: -0.02em;
-          line-height: 1.35; color: #111827; margin: 0 0 14px;
+          font-size: clamp(20px, 3.2vw, 24px); font-weight: 400; letter-spacing: -0.015em;
+          line-height: 1.4; color: #111827; margin: 2px 0 14px;
         }
         .sec h3.sub { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #111827; margin: 30px 0 10px; }
         .sec a { color: #0065A4; }
@@ -174,20 +176,16 @@ export default function BitGraphPage() {
         /* The grant, quoted rather than paraphrased, because it is the sentence
            an adopter decides to rely on. */
         .grant {
-          border-left: 3px solid #0065A4; padding: 2px 0 2px 20px; margin: 0 0 18px;
-          font-size: clamp(17px, 2.6vw, 20px); line-height: 1.55; letter-spacing: -0.01em;
-          color: #111827;
+          border-left: 3px solid #0065A4; padding: 2px 0 2px 20px; margin: 0 0 22px;
+          font-size: clamp(17px, 2.6vw, 20px); line-height: 1.6; letter-spacing: -0.01em;
+          font-weight: 400; color: #111827;
         }
 
         .links-row { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 22px; }
         .links-row a { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; text-decoration: none; }
 
         /* The box keeps its own composition; the page only gives it room. */
-        /* Under the box: what comes back, and something to open for a visitor
-           with no file to hand. */
-        .hero-more { margin: 14px auto 0; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
-        .box-out { font-size: 15px; line-height: 1.6; color: #4b5563; }
-        .box-out-link { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: #0065A4; text-decoration: none; }
+        .hero-more { margin: 0; }
       `}</style>
 
       {/* ── 1. Hero ───────────────────────────────────────────────────────── */}
@@ -215,17 +213,6 @@ export default function BitGraphPage() {
           dropHint="Choose files, or drag in a whole folder."
           fitViewport={false}
           belowClassName="hero-more"
-          below={
-            <>
-              <span className="box-out">
-                You get back a proof, and a new file built to carry its position. Your original is
-                untouched.
-              </span>
-              <a href={EXAMPLE_PROOF} className="bg-arrow-link box-out-link">
-                Or check an example proof <span className="arrow" aria-hidden="true">&rarr;</span>
-              </a>
-            </>
-          }
         />
       </div>
 

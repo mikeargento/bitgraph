@@ -36,13 +36,26 @@ export function CopyLine({
         type="button"
         className="install-copy"
         aria-label={copied ? "Copied" : `Copy ${text}`}
+        title={copied ? "Copied" : "Copy"}
         onClick={() => {
           void navigator.clipboard.writeText(text);
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
         }}
       >
-        {copied ? "Copied" : "Copy"}
+        {/* Square corners, like everything else here. The front sheet is filled
+            with the box's own white so it occludes the back one, which is what
+            makes the glyph read as two sheets rather than a grid. */}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          {copied ? (
+            <path d="M2.5 8.5 L6 12 L13.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square" />
+          ) : (
+            <>
+              <rect x="5.75" y="1.75" width="8.5" height="8.5" stroke="currentColor" strokeWidth="1.3" />
+              <rect x="1.75" y="5.75" width="8.5" height="8.5" fill="#fff" stroke="currentColor" strokeWidth="1.3" />
+            </>
+          )}
+        </svg>
       </button>
     </div>
   );
