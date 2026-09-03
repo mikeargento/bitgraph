@@ -40,7 +40,7 @@ export { Constructor } from "./constructor.js";
 // The producer profile over the primitive (working name Fuse): allocate a
 // slot, write a commitment to it into the artifact, hash, commit under the
 // same slot. The resulting proof is ordinary bitgraph/1.
-export { fuse, builderFor, FuseError, digestFromBase64 } from "./fuse.js";
+export { fuse, builderFor, FuseError, digestFromBase64, placementForBytes, fusedNamesFor } from "./fuse.js";
 export type { FuseBuilder, BuilderInput, FuseOptions, FuseResult, FuseTransport, FuseErrorCode } from "./fuse.js";
 
 // Policy parsing, hashing, and validation

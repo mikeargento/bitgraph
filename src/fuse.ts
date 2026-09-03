@@ -128,6 +128,40 @@ export class FuseError extends Error {
 }
 
 /** A builder for a registered placement over an existing original (Forms A and B), or for a bare Form C payload. */
+/**
+ * Which registered placement a file takes, decided from its bytes, never
+ * its name. `trailer/1` appends 48 bytes after the file's own end, which is
+ * safe only where decoders stop at an end marker or read by declared sizes:
+ * JPEG (EOI), PNG (IEND), GIF (0x3B), TIFF and the TIFF-based raws such as
+ * DNG, CR2, NEF, ARW (offset tables), BMP and RIFF containers such as WebP,
+ * WAV, AVI (declared sizes). Everything else goes into `container/1`, a tar
+ * that carries the original untouched: PDF, ZIP-based documents, ISO base
+ * media video and images, Matroska, MP3, structured and plain text, and any
+ * format not recognised here.
+ */
+export function placementForBytes(bytes: Uint8Array): "trailer/1" | "container/1" {
+  const at = (sig: number[], offset = 0): boolean => bytes.length >= offset + sig.length && sig.every((v, i) => bytes[offset + i] === v);
+  const trailerSafe =
+    at([0xff, 0xd8, 0xff]) || // JPEG
+    at([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) || // PNG
+    at([0x47, 0x49, 0x46, 0x38]) || // GIF87a / GIF89a
+    at([0x49, 0x49, 0x2a, 0x00]) || at([0x4d, 0x4d, 0x00, 0x2a]) || // TIFF, DNG, CR2, NEF, ARW
+    (at([0x42, 0x4d]) && bytes.length >= 14) || // BMP
+    (at([0x52, 0x49, 0x46, 0x46]) && bytes.length >= 12); // RIFF: WebP, WAV, AVI
+  return trailerSafe ? "trailer/1" : "container/1";
+}
+
+/** Names for a fused artifact and its Frame, from the original's name. */
+export function fusedNamesFor(originalName: string, placement: PlacementId): { fusedName: string; frameName: string } {
+  const dot = originalName.lastIndexOf(".");
+  const stem = dot > 0 ? originalName.slice(0, dot) : originalName;
+  const ext = dot > 0 ? originalName.slice(dot) : "";
+  return {
+    fusedName: placement === "trailer/1" ? `${stem}.fused${ext}` : placement === "container/1" ? `${stem}.fused.tar` : `${stem}.produced.json`,
+    frameName: `${originalName}.bitgraph-fuse.json`,
+  };
+}
+
 export function builderFor(placement: PlacementId, original?: Uint8Array): FuseBuilder {
   const p = getPlacement(placement);
   if (p === undefined) throw new FuseError("bad-placement", `placement "${placement}" is not registered`);

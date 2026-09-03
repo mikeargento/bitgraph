@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "license": "SEE LICENSE IN LICENSE",
   "description": "Portable cryptographic proof of construction for digital artifacts.",
   "type": "module",
@@ -23,7 +23,7 @@
   "scripts": {
     "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run build --workspace=packages/player && npm run build --workspace=packages/mcp && tsc",
     "typecheck": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run typecheck --workspace=packages/mcp && tsc --noEmit",
-    "test:core": "npm run build && node --test dist/__tests__/canonical.test.js dist/__tests__/constructor.test.js dist/__tests__/verifier.test.js dist/__tests__/proof-integrity.test.js dist/__tests__/audit-ingest.test.js dist/__tests__/audit-tiers.test.js dist/__tests__/audit-reconstruct.test.js dist/__tests__/audit-anomalies.test.js dist/__tests__/audit-anchors.test.js dist/__tests__/audit-witness.test.js dist/__tests__/audit-temporal.test.js dist/__tests__/audit-attestation.test.js dist/__tests__/audit-report.test.js dist/__tests__/audit-cli.test.js dist/__tests__/audit-property.test.js dist/__tests__/audit-real-fixtures.test.js dist/__tests__/audit-dependencies.test.js dist/__tests__/audit-bench-smoke.test.js dist/__tests__/audit-roundtrip.test.js dist/__tests__/audit-real-live.test.js dist/__tests__/chain-hash-anchor.test.js dist/__tests__/audit-boundary.test.js dist/__tests__/audit-witness-real.test.js dist/__tests__/audit-memory-ingest.test.js dist/__tests__/fuse-vectors.test.js dist/__tests__/fuse-roundtrip.test.js dist/__tests__/fuse-verify.test.js dist/__tests__/fuse-sdk.test.js",
+    "test:core": "npm run build && node --test dist/__tests__/canonical.test.js dist/__tests__/constructor.test.js dist/__tests__/verifier.test.js dist/__tests__/proof-integrity.test.js dist/__tests__/audit-ingest.test.js dist/__tests__/audit-tiers.test.js dist/__tests__/audit-reconstruct.test.js dist/__tests__/audit-anomalies.test.js dist/__tests__/audit-anchors.test.js dist/__tests__/audit-witness.test.js dist/__tests__/audit-temporal.test.js dist/__tests__/audit-attestation.test.js dist/__tests__/audit-report.test.js dist/__tests__/audit-cli.test.js dist/__tests__/audit-property.test.js dist/__tests__/audit-real-fixtures.test.js dist/__tests__/audit-dependencies.test.js dist/__tests__/audit-bench-smoke.test.js dist/__tests__/audit-roundtrip.test.js dist/__tests__/audit-real-live.test.js dist/__tests__/chain-hash-anchor.test.js dist/__tests__/audit-boundary.test.js dist/__tests__/audit-witness-real.test.js dist/__tests__/audit-memory-ingest.test.js dist/__tests__/fuse-vectors.test.js dist/__tests__/fuse-roundtrip.test.js dist/__tests__/fuse-verify.test.js dist/__tests__/fuse-sdk.test.js dist/__tests__/fuse-placement.test.js",
     "test": "npm run test:core",
     "prepack": "npm run build"
   },
