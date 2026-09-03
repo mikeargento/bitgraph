@@ -860,22 +860,28 @@ export default function ProofPage() {
               {/* The fingerprint lives with the file: this SHA-256 IS the file's
                   pre-existing identity. In the no-file state it is also the
                   value a dropped file is checked against. */}
-              <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
-              {/* A fused artifact (profile bitgraph-fuse/1) says where it came from:
-                  the origin digest and the registered placement, both from the
-                  signed attribution. The origin link opens the origin's own page,
-                  which lists this artifact among its descendants without ranking. */}
-              {attr?.name === "bitgraph-fuse/1" && (
-                <Field
-                  label="Fused from"
-                  mono
-                  topBorder
-                  value={attr.message ?? "origin not declared"}
-                  valueNode={attr.message ? <a href={`/proof/${encodeURIComponent(toSafeB64(attr.message))}`} style={{ color: "#0065A4", textDecoration: "none" }}>{attr.message}</a> : undefined}
-                />
-              )}
-              {attr?.name === "bitgraph-fuse/1" && attr.title && (
-                <Field label="Placement" value={attr.title} mono topBorder />
+              {/* A fused artifact (profile bitgraph-fuse/1) carries two hashes:
+                  the original file's, which is what the visitor holds and what
+                  the card above shows, and the new file's, the fused bytes the
+                  proof commits. Both come from the signed proof: the origin
+                  digest from the attribution, the artifact digest from the
+                  commit. The original's link opens its own page, which lists
+                  this artifact among its descendants without ranking. An
+                  ordinary recording keeps the single File Hash. */}
+              {attr?.name === "bitgraph-fuse/1" ? (
+                <>
+                  <Field
+                    label="Original file hash"
+                    mono
+                    topBorder
+                    value={attr.message ?? "not declared"}
+                    valueNode={attr.message ? <a href={`/proof/${encodeURIComponent(toSafeB64(attr.message))}`} style={{ color: "#0065A4", textDecoration: "none" }}>{attr.message}</a> : undefined}
+                  />
+                  <Field label="New file hash" value={proof.artifact.digestB64} mono topBorder />
+                  {attr.title && <Field label="Placement" value={attr.title} mono topBorder />}
+                </>
+              ) : (
+                <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
               )}
               {attr?.name === "bitgraph-fuse/1" && cachedFile && (
                 <div style={{ padding: "0 16px" }}>
