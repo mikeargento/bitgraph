@@ -3,7 +3,7 @@ import { rollFeed, type RollFeedBody } from "@/lib/roll-feed";
 
 /* ── BitGraph Roll — the ledger stream, on its own page. Every recording in
    causal order, newest first, with search. The camera's roll: the home page
-   takes BitGraphs, this is where they live.
+   makes BitGraphs, this is where they live.
 
    Day rolls: since the 23:59 UTC rotation (2026-07-30) each epoch is one UTC
    calendar day, so past days are browsed as sealed rolls — /roll?day=YYYY-MM-DD

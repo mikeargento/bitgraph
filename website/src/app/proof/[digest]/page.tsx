@@ -15,7 +15,7 @@ import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/l
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
-import { fusedMarkerOf, rebuildFromOrigin, blobUrlFor, fuseFile, FuseTooLargeError } from "@/lib/fuse-client";
+import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError } from "@/lib/fuse-client";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
 
@@ -648,21 +648,6 @@ export default function ProofPage() {
   // The fused copy is stored nowhere: it is rebuilt here from the original in
   // hand and the proof, and offered only on this explicit click. A visitor who
   // dropped the fused file itself simply gets those bytes back.
-  async function downloadFusedCopy() {
-    if (!cachedFile || !proof) return;
-    const bytes = new Uint8Array(cachedFile.data);
-    const r = await rebuildFromOrigin(proof, bytes, cachedFile.name);
-    const direct = r.verification.category === "FUSED_DIRECT";
-    const out = direct ? bytes : r.fusedBytes;
-    const name = direct ? cachedFile.name : r.fusedName;
-    if (!out || !name) { console.warn("[bitgraph] fused copy not rebuilt:", r.verification.category); return; }
-    const url = blobUrlFor(out, "application/octet-stream");
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  }
 
   async function exportZip() {
     if (exporting) return;
@@ -671,8 +656,34 @@ export default function ProofPage() {
     const files: Record<string, Uint8Array> = {
       "proof.json": strToU8(JSON.stringify(proof, null, 2)),
     };
-    // Include the original file if cached
-    if (cachedFile) {
+    // The package. A fused BitGraph leaves this page for someone who may have
+    // neither the original nor a tool that rebuilds, so the export is the one
+    // moment the new file is actually wanted (Mike, 2026-09-03): the original
+    // as it always was, its Frame beside it, and the new file under fused/.
+    // Everywhere else the new file stays virtual. Built here from whichever
+    // file is in hand: the original rebuilds it, the new file carries the
+    // original inside it. Without a file, the proof travels alone.
+    let packLabel = cachedFile?.name ?? null;
+    const packProof = proof;
+    if (cachedFile && packProof) {
+      const bytes = new Uint8Array(cachedFile.data);
+      if (attr?.name === "bitgraph-fuse/1" && cachedRole === "new") {
+        const u = await unpackNewFile(packProof, bytes, cachedFile.name);
+        files[`fused/${cachedFile.name}`] = bytes;
+        if (u.originalBytes && u.originalName) {
+          files[u.originalName] = u.originalBytes;
+          packLabel = u.originalName;
+          if (u.frame && u.frameName) files[u.frameName] = strToU8(JSON.stringify(u.frame, null, 2));
+        }
+      } else if (attr?.name === "bitgraph-fuse/1") {
+        files[cachedFile.name] = bytes;
+        const r = await rebuildFromOrigin(packProof, bytes, cachedFile.name);
+        if (r.fusedBytes && r.fusedName) files[`fused/${r.fusedName}`] = r.fusedBytes;
+        if (r.frame && r.frameName) files[r.frameName] = strToU8(JSON.stringify(r.frame, null, 2));
+      } else {
+        files[cachedFile.name] = bytes;
+      }
+    } else if (cachedFile) {
       files[cachedFile.name] = new Uint8Array(cachedFile.data);
     }
     // Captured as the anchors are gathered, so the export's own page can state
@@ -757,7 +768,7 @@ export default function ProofPage() {
     // is a position within one epoch and identifies nothing across days); the
     // zip had kept it. Without a file in hand there is no label, and a bare
     // "BitGraph.zip" beats advertising a number that means nothing tomorrow.
-    const zipLabel = cachedFile?.name ? ` (${cachedFile.name.replace(/[\x00-\x1f\x7f/]/g, " ").trim()})` : "";
+    const zipLabel = packLabel ? ` (${packLabel.replace(/[\x00-\x1f\x7f/]/g, " ").trim()})` : "";
     const a = document.createElement("a"); a.href = url; a.download = `BitGraph${zipLabel}.zip`; a.click();
     URL.revokeObjectURL(url);
     } catch (e) { console.error("[bitgraph] export error:", e); alert("Export failed: " + e); }
@@ -882,31 +893,15 @@ export default function ProofPage() {
                   commit. The placement is not shown: it is a verifier detail,
                   in the attribution and the Raw JSON (Mike, 2026-09-03). An
                   ordinary recording keeps the single File Hash. */}
-              {attr?.name === "bitgraph-fuse/1" ? (
-                <>
-                  {/* New file first: it is the bytes this page is about. The original
-                      is plain, not a link: it has no position of its own, so there is
-                      no proof page to go to (Mike, 2026-09-03). */}
-                  <Field label="New file hash" value={proof.artifact.digestB64} mono topBorder />
-                  <Field label="Original file hash" value={attr.message ?? "not declared"} mono topBorder />
-                </>
-              ) : (
+              {attr?.name !== "bitgraph-fuse/1" && (
                 <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
-              )}
-              {attr?.name === "bitgraph-fuse/1" && cachedFile && (
-                <div style={{ padding: "0 16px" }}>
-                  <button onClick={downloadFusedCopy} className="bg-action-link">
-                    <span>Download new file</span>
-                    <span className="arrow" aria-hidden>&rarr;</span>
-                  </button>
-                </div>
               )}
               {/* Export — the card's own closing action, in its bottom box.
                   Same link idiom as every other action on the page; it carries
                   a touch more type weight because it is the primary one. */}
               <div style={{ padding: "0 16px" }}>
                 <button onClick={exportZip} disabled={exporting} className="bg-action-link">
-                  <span>{exporting ? "Exporting…" : cachedFile ? (cachedRole === "original" ? "Export BitGraph + Original File" : cachedRole === "new" ? "Export BitGraph + New File" : "Export BitGraph + File") : "Export BitGraph"}</span>
+                  <span>{exporting ? "Exporting…" : "Export BitGraph package"}</span>
                   {!exporting && <span className="arrow" aria-hidden>&rarr;</span>}
                 </button>
                 {!cachedFile && (
@@ -914,8 +909,25 @@ export default function ProofPage() {
                     BitGraph only: the original file is not on this device
                   </div>
                 )}
+                {cachedFile && attr?.name === "bitgraph-fuse/1" && (
+                  <div style={{ fontSize: 12.5, color: "#4b5563", paddingBottom: 6 }}>
+                    The original, the proof, and the new file in a fused folder
+                  </div>
+                )}
               </div>
             </CollapsibleCard>
+            {/* A fused proof has two hashes, the new file's and the original's.
+                They sit in their own collapsed card under the receipt, like every
+                other technical value, rather than doubling the identity line in
+                the card above (Mike, 2026-09-03). New file first. The original is
+                plain, not a link: it has no position of its own. Both are what a
+                dropped file is checked against. */}
+            {attr?.name === "bitgraph-fuse/1" && (
+              <CollapsibleCard title="Hashes">
+                <Field label="New file hash" value={proof.artifact.digestB64} mono />
+                <Field label="Original file hash" value={attr.message ?? "not declared"} mono />
+              </CollapsibleCard>
+            )}
             </>
           )}
 
@@ -957,18 +969,15 @@ export default function ProofPage() {
               mono/data font, plus a link to that position. Ethereum/interval
               proofs keep the old "only when more than one" behaviour. */}
           {((!isEth && !isInterval) ? positions.length >= 1 : positions.length > 1) && (
-            <CollapsibleCard title={`Recordings (${positions.length})`}>
+            <CollapsibleCard title={`Positions (${positions.length})`}>
               <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
                 {(() => {
-                  const recordedCount = positions.filter((p) => p.kind !== "fused").length;
-                  const fusedCount = positions.length - recordedCount;
-                  const rec = recordedCount === 0
-                    ? "These exact bits have not been recorded themselves."
-                    : recordedCount === 1
-                      ? "These exact bits have one recorded position so far, with its own verifiable time window."
-                      : `These exact bits were BitGraphed ${recordedCount} times. Each recording sits at its own position, with its own verifiable time window.`;
-                  const fused = fusedCount === 0 ? "" : ` ${fusedCount === 1 ? "One fused artifact names" : `${fusedCount} fused artifacts name`} these bits as origin; each carries a commitment to its own slot and is listed here without ranking.`;
-                  return rec + fused;
+                  // One voice for every position: the original and the new file
+                  // made from it find the same proof, so nothing here says which
+                  // hash the visitor arrived by (Mike, 2026-09-03).
+                  return positions.length === 1
+                    ? "One position, with its own verifiable time window."
+                    : `${positions.length} positions. Each sits at its own place in the sequence, with its own verifiable time window.`;
                 })()}
               </div>
               {[...positions].reverse().map((pos) => {
@@ -989,7 +998,7 @@ export default function ProofPage() {
                 // A fused descendant names these bytes as its origin; it is listed,
                 // never ranked, and links to its own proof page.
                 const roleText = isFusedRow
-                  ? `Fused artifact naming these bytes as origin${pos.placement ? ` (${pos.placement})` : ""}`
+                  ? "New file made from these bytes"
                   : recordedPositions.length === 1 ? "Recorded position" : isEarliest ? "Earliest recorded position" : "Recorded again";
                 const rowDigest = isFusedRow && pos.artifactDigest ? pos.artifactDigest : digestParam;
                 const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
@@ -1207,7 +1216,9 @@ export default function ProofPage() {
               the recording by whoever made it. The title slot is a link ONLY
               when it actually holds a URL; agents routinely put prose there,
               which used to render as a link to nowhere. */}
-          {attr && !isEth && !isInterval && (
+          {/* A fused proof's attribution is the signed marker, not a person's note:
+              it is read into the two hash lines above and stays in Raw JSON. */}
+          {attr && !isEth && !isInterval && attr.name !== "bitgraph-fuse/1" && (
             <CollapsibleCard title="Submitter's Note">
               {attr.name && <Field label="Submitted by" value={attr.name} />}
               {attr.message && <Field label="Note" value={attr.message} mono />}
@@ -1548,17 +1559,19 @@ function BringYourFile({
       onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(captureDrop(e.dataTransfer)); }}
       /* The same instrument as the home page's, not a footnote to the proof:
          this box is how a stranger who was handed a file actually uses the
-         page. Same mark, same blue on hover and drag, and enough height to
-         read as the thing you are meant to do. Dashed edges from the shared
-         hook, like every drop target. */
+         page. Same mark, same blue on hover and drag. Dashed edges from the
+         shared hook, like every drop target. */
       ref={edges.ref}
       className="bg-frame"
       style={{
         backgroundColor: dragOver ? "#f0f6ff" : "#fff",
         ...edges.edgeStyle(edge),
-        // The frame geometry rides on .bg-frame (globals): 3 wide, 2 high,
-        // the same frame every drop box wears; content is the only floor,
-        // so the box holds one size across all four states regardless.
+        // Width rides on .bg-frame (globals) like every drop box, but the
+        // height does not: this page is a receipt, not the camera, so the
+        // box is as tall as its words need with room around them, not the
+        // home frame's 3:2 (Mike, 2026-09-03: "verbiage needs room").
+        aspectRatio: "auto",
+        minHeight: "clamp(200px, 30vw, 236px)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",

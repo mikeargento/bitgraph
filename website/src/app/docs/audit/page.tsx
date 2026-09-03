@@ -27,7 +27,7 @@ export default function AuditPage() {
 
       <h2>1. Get the bundle</h2>
       <p>
-        A bundle can come from anyone who collected BitGraph proofs: an export from a proof page (for a fused recording: the original, <code>proof.json</code>, the Frame, the fused copy and the Ethereum anchors), an operator who assembled a set of proofs, or a colleague who handed you an archive. How you received it does not matter; the contents carry their own evidence.
+        A bundle can come from anyone who collected BitGraph proofs: an export from a proof page (for a fused recording: the original, <code>proof.json</code>, the Frame, the new file in a <code>fused</code> folder, and the Ethereum anchors), an operator who assembled a set of proofs, or a colleague who handed you an archive. How you received it does not matter; the contents carry their own evidence.
       </p>
 
       <h2>2. Optionally check the archive hash</h2>

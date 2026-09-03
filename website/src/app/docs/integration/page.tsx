@@ -23,9 +23,9 @@ export default function IntegrationPage() {
         <div className="code-block-header"><span>Shell</span></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`# The bitgraph-fuse command ships with @mikeargento/bitgraph
 npx -p @mikeargento/bitgraph bitgraph-fuse fuse photo.jpg --placement trailer/1 --out ./out
-# writes ./out/photo.jpg.bitgraph-fuse.json, the Frame (manifest + proof); --keep also writes the fused copy
+# writes ./out/photo.jpg.bitgraph-fuse.json, the Frame (manifest + proof); --keep also writes the new file
 
-# Check the Frame against the original or the fused copy
+# Check the Frame against the original or the new file
 npx -p @mikeargento/bitgraph bitgraph-fuse check ./out/photo.jpg.bitgraph-fuse.json photo.jpg
 # exit 0 fused or verified, 1 refused or contradicted, 2 undetermined, 64 usage`}</pre>
       </div>
@@ -159,7 +159,7 @@ if (result.valid) {
         <div className="code-block-header"><span>TypeScript</span></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`import { verifyFuse } from "@mikeargento/bitgraph-verify";
 
-// bytes: the fused copy, or the original it was made from
+// bytes: the new file, or the original it was made from
 const result = await verifyFuse({ proof: frame.proof, bytes, frame });
 
 result.category;      // "FUSED_DIRECT" | "FUSED_FROM_ORIGIN" | "RECORDED" | "NO_MATCH" | ...

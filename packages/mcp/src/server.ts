@@ -3,8 +3,8 @@
 /**
  * @mikeargento/bitgraph-mcp: tool definitions.
  *
- * Three gestures, the same three the website has: take a BitGraph of a file,
- * check whether bytes are on record, fetch a proof. Taking a BitGraph builds a
+ * Three gestures, the same three the website has: make a BitGraph of a file,
+ * check whether bytes are on record, fetch a proof. Making a BitGraph builds a
  * fused artifact from the file in memory, on this machine, and commits its
  * digest under a slot allocated for it; only SHA-256 digests and slot records
  * ever leave the machine. File contents are never uploaded.
@@ -48,7 +48,7 @@ const MAX_FILES = 500;
 /** Files above this are refused: the fused artifact is built in memory. */
 const MAX_FUSE_BYTES = 256 * 1024 * 1024;
 
-/** What taking a BitGraph of one file yields. */
+/** What making a BitGraph of one file yields. */
 export interface FusedSummary {
   proof: BitGraphProof;
   frame: unknown;
@@ -168,9 +168,9 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
   server.registerTool(
     "bitgraph_record",
     {
-      title: "Take a BitGraph",
+      title: "Make a BitGraph",
       description:
-        "Take a BitGraph of one or more files. For each file, on this machine: hash it (the origin), allocate an unused slot in the BitGraph ledger (bitgraph.ing) before any artifact exists, build a new fused artifact from the file in memory with a registered placement (a 48-byte trailer for formats that ignore trailing bytes such as JPEG, PNG, TIFF, WebP; a small tar container otherwise), hash it, and commit that digest under the same slot. " +
+        "Make a BitGraph of one or more files. For each file, on this machine: hash it (the origin), allocate an unused slot in the BitGraph ledger (bitgraph.ing) before any artifact exists, build a new fused artifact from the file in memory with a registered placement (a 48-byte trailer for formats that ignore trailing bytes such as JPEG, PNG, TIFF, WebP; a small tar container otherwise), hash it, and commit that digest under the same slot. " +
         "The file is never modified and never uploaded; only digests and slot records leave the machine. The fused bytes are not kept: the original plus the proof rebuilds them, and the Frame for each file is returned in the structured result. " +
         "Files whose bytes are already on record, as a recording or as the origin of a fused artifact, are NOT BitGraphed again by default; they come back as 'on record' with their earliest position. " +
         "Pass again=true to deliberately make a new fused artifact from a file already on record. " +
@@ -312,7 +312,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
       description:
         "Check whether files or digests are on record in the BitGraph ledger, without recording anything. " +
         "Accepts file paths (hashed locally; only digests are sent) and/or raw SHA-256 digests in standard or URL-safe base64. " +
-        "Returns, per item: on_record (a recording of the exact bytes exists), fused_descendants (fused artifacts that name the bytes as their origin), every position by counter, and the proof page URL. " +
+        "Returns, per item: on_record (the bytes are on record, as an exact recording or as the original a new file was made from), every position by counter, and the proof page URL. " +
         "Read-only. Use bitgraph_record to BitGraph files that turn out not to be on record.",
       inputSchema: {
         paths: z
@@ -368,8 +368,8 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             input: input.label,
             digest: toUrlSafeB64(input.standardDigest),
             // A fused descendant that names these bytes as origin is not a recording of them.
-            on_record: proofs.some((p) => (p as { kind?: string }).kind !== "fused"),
-            fused_descendants: proofs.filter((p) => (p as { kind?: string }).kind === "fused").length,
+            // The original and the new file made from it find the same proof.
+            on_record: proofs.length > 0,
             positions,
             proof_url: proofs.length > 0 ? proofUrl(config.baseUrl, input.standardDigest) : null,
           };

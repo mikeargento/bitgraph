@@ -3,7 +3,7 @@ import { CopyUrl } from "./copy-url";
 
 export const metadata: Metadata = {
   title: "MCP",
-  description: "Connect an AI agent to BitGraph with one URL. Take BitGraphs of files, check bytes, and fetch proofs over the Model Context Protocol.",
+  description: "Connect an AI agent to BitGraph with one URL. Make BitGraphs of files, check bytes, and fetch proofs over the Model Context Protocol.",
 };
 
 const MCP_URL = "https://bitgraph.ing/mcp";
@@ -34,7 +34,7 @@ export default function McpPage() {
       <h1 className="mb-6">MCP</h1>
       <p className="text-[#1f2937] mb-10">
         BitGraph is an MCP server. Any AI agent that speaks the Model Context Protocol can
-        take BitGraphs of files, check whether bytes are on record, and fetch proofs with one
+        make BitGraphs of files, check whether bytes are on record, and fetch proofs with one
         URL. It needs nothing more than the ability to hash a file: the file itself never
         leaves the agent.
       </p>
@@ -138,14 +138,14 @@ export default function McpPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Five tools</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">bitgraph_open</strong> · Take a BitGraph, step one. The agent sends a file&apos;s name, size, SHA-256 digest and first 16 bytes. An unused slot is allocated at the boundary before the new file exists, and the agent gets back a token and a recipe: the exact bytes the new file adds after the original (<span className="font-mono text-xs">trailer/1</span>, for formats that ignore trailing data) or around it (<span className="font-mono text-xs">container/1</span>, a tar that carries the original untouched).</li>
+        <li>• <strong className="text-text">bitgraph_open</strong> · Make a BitGraph, step one. The agent sends a file&apos;s name, size, SHA-256 digest and first 16 bytes. An unused slot is allocated at the boundary before the new file exists, and the agent gets back a token and a recipe: the exact bytes the new file adds after the original (<span className="font-mono text-xs">trailer/1</span>, for formats that ignore trailing data) or around it (<span className="font-mono text-xs">container/1</span>, a tar that carries the original untouched).</li>
         <li>• <strong className="text-text">bitgraph_commit</strong> · Step two. The agent builds the new file from the recipe, hashes it, and sends the token and that digest. The boundary commits it under that exact slot with the signed marker, and the agent gets back the proof and the Frame to save next to the original. The new file is virtual: the original plus the Frame rebuilds it.</li>
         <li>• <strong className="text-text">bitgraph_record</strong> · The compatibility recording: digests alone, no new file. It gives bytes that already exist a position and establishes that they existed no later than the commit.</li>
         <li>• <strong className="text-text">bitgraph_check</strong> · Is this file on record? Read-only. It reports <span className="font-mono text-xs">on_record</span>, every recording of the exact bytes, and <span className="font-mono text-xs">fused_descendants</span>, every fused artifact that names the bytes as its origin, each listed by position with its proof page URL.</li>
         <li>• <strong className="text-text">bitgraph_get_proof</strong> · Fetch a proof and its Ethereum anchor window: BitGraphed between block X and block Y.</li>
       </ul>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">How the hosted endpoint takes a BitGraph</h2>
+      <h2 className="text-xl font-semibold mt-12 mb-4">How the hosted endpoint makes a BitGraph</h2>
       <p className="text-[#1f2937] mb-4">
         The endpoint never receives a file. If an agent can hash a file it can build the
         virtual new file and hash that, so the two steps above are all it takes: hash the

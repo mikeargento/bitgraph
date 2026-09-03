@@ -1096,13 +1096,18 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
       const base = f.name.replace(/\.[^.]+$/, "");
       const prefix = multi ? `${base}/` : "";
       const fileBytes = new Uint8Array(await f.arrayBuffer());
-      // A file fused in this drop also exports its Frame beside the original
-      // the visitor keeps. The new file itself is virtual (Mike, 2026-09-03):
-      // it is rebuilt from the original and the proof only when asked for,
-      // through "Download new file" on the proof page, never packed here.
+      // A file fused in this drop exports as a package: the original the
+      // visitor keeps, its Frame beside it, and the new file under fused/.
+      // The new file is virtual everywhere else; the export is the one moment
+      // it is asked for, because that is when the BitGraph leaves the page
+      // for someone who has neither the original nor a tool that rebuilds
+      // (Mike, 2026-09-03). Same shape as a proof page's package.
       const fusedOut = withProofs[i].fused;
       if (fusedOut) {
         addText(`${prefix}${fusedOut.frameName}`, JSON.stringify(fusedOut.frame, null, 2));
+        const fusedEntry = new ZipPassThrough(`${prefix}fused/${fusedOut.fusedName}`);
+        z.add(fusedEntry);
+        fusedEntry.push(fusedOut.fusedBytes, true);
       }
 
       // A single recording keeps the flat layout (file + proof.json, covered
@@ -1575,17 +1580,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                     // Same action-link idiom as every other action in the
                     // product. Paired with the count on its left, so it hangs
                     // on the right the way "Open →" does on a file row.
-                    // Names the CONTENTS, not the container, and is the exact
-                    // plural of the proof page's "Export BitGraph + File". It
-                    // was "Download .zip", which described the plumbing: a zip
-                    // is what every export on the site already is, so saying so
-                    // carried no information and made the two views, the same
-                    // bundle from a batch and from one recording, speak
-                    // differently. Both halves pluralize independently, because
-                    // one file recorded at several causal positions really does
-                    // export several BitGraphs of one file.
+                    // One name everywhere, the same as the proof page's, for
+                    // the same object: the originals, their proofs and Frames,
+                    // each new file under fused/, and the Ethereum anchors. It
+                    // no longer counts files and proofs in the label; the
+                    // package is one thing whatever it holds, and the count
+                    // sits on its left. It was "Download .zip" before that,
+                    // which described the plumbing rather than the contents.
                     <button onClick={downloadZip} className="bg-action-link" style={{ padding: 0 }}>
-                      <span>Export BitGraph{zipProofCount === 1 ? "" : "s"} + File{zipFileCount === 1 ? "" : "s"}</span>
+                      <span>Export BitGraph package</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
                   ))}
@@ -1724,17 +1727,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                         (k === 0) as the original. Single recordings show nothing
                         here, so an ordinary row stays just "# … Open". */}
                     {(() => {
-                      // Recordings keep their ordinal, the earliest marked original.
-                      // A fused artifact that names these bytes as origin is listed
-                      // by position with its placement and never ranked among them.
-                      const kind = item.kinds?.[k] ?? "recorded";
-                      if (kind === "fused") {
-                        const placement = (p?.attribution as { title?: string } | undefined)?.title;
-                        return <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>(fused{placement ? ` · ${placement}` : ""})</span>;
-                      }
-                      const recordedCount = item.kinds ? item.kinds.filter((x) => x === "recorded").length : rowProofs.length;
-                      if (recordedCount <= 1) return null;
-                      return <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>({k + 1} of {recordedCount}{k === 0 ? " · original" : ""})</span>;
+                      // One kind of row: the original and the new file find the same
+                      // proof, so a position is a position (Mike, 2026-09-03). With
+                      // more than one, each keeps its ordinal and the earliest says so.
+                      // "original" is reserved for the file a new file was made from.
+                      const count = rowProofs.length;
+                      if (count <= 1) return null;
+                      return <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>({k + 1} of {count}{k === 0 ? " · earliest" : ""})</span>;
                     })()}
                     {/* Whose key is on this recording, when one is. Read off
                         the proof itself, never assumed from the page: a name

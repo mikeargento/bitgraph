@@ -2,7 +2,7 @@
  * Remote MCP endpoint: https://bitgraph.ing/mcp (Streamable HTTP, stateless).
  *
  * A hosted server has no caller filesystem, so it never holds a file. It does
- * not need to: taking a BitGraph the default way is two steps here, and the
+ * not need to: making a BitGraph the default way is two steps here, and the
  * caller builds the new file itself. bitgraph_open sends the origin digest and
  * size and gets back a slot and a recipe (the exact bytes the new file adds
  * around the original); bitgraph_commit sends the digest of the file the
@@ -133,10 +133,10 @@ const handler = createMcpHandler(
     server.registerTool(
       "bitgraph_record",
       {
-        title: "Take a BitGraph",
+        title: "Make a BitGraph",
         description:
           "Compatibility recording: give SHA-256 digests of existing files a causal position in the BitGraph ledger (bitgraph.ing) without a new file. It establishes that the bytes existed no later than the commit. " +
-          "Prefer bitgraph_open then bitgraph_commit whenever the file is at hand: that is taking a BitGraph the default way (a new fused file under a slot that existed first), and it needs nothing more than the ability to hash. " +
+          "Prefer bitgraph_open then bitgraph_commit whenever the file is at hand: that is making a BitGraph the default way (a new fused file under a slot that existed first), and it needs nothing more than the ability to hash. " +
           DIGEST_HINT + ". " +
           "Hash an existing file where it lives; never generate content just to record it, and only record files the user asked to record: recordings are permanent (10-year retention, no deletes). " +
           "Digests already on record are NOT re-recorded by default; they come back as 'on record' with their existing proof. " +
@@ -312,13 +312,13 @@ const handler = createMcpHandler(
     server.registerTool(
       "bitgraph_open",
       {
-        title: "Take a BitGraph: open",
+        title: "Make a BitGraph: open",
         description:
-          "Step one of taking a BitGraph the default way, for a caller that holds the file: open a slot for the new fused file and get the recipe to build that file locally. " +
+          "Step one of making a BitGraph the default way, for a caller that holds the file: open a slot for the new fused file and get the recipe to build that file locally. " +
           "Send, per file, its name, exact byte size and SHA-256 digest (base64, either form), plus head_base64: the file's first 16 bytes (the whole file when shorter), which decides the placement. " +
           "The boundary allocates an unused slot before the new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/1, a tar that carries the original untouched, for everything else). " +
           "Then build the new file exactly as the recipe says, SHA-256 it, and call bitgraph_commit with the fuse_token and that digest. " +
-          "File contents never travel: only digests, sizes, the first bytes and the recipe. Never alter the original. Only take BitGraphs of files the user asked for, and never generate content just to record it: recordings are permanent. " +
+          "File contents never travel: only digests, sizes, the first bytes and the recipe. Never alter the original. Only make BitGraphs of files the user asked for, and never generate content just to record it: recordings are permanent. " +
           "Files already on record (recorded, or the origin of a fused file) are not opened unless again=true; they come back as 'on record' with their proof URL. " +
           `Up to ${MAX_OPEN_FILES} files per call.`,
         inputSchema: z.object({
@@ -423,9 +423,9 @@ const handler = createMcpHandler(
     server.registerTool(
       "bitgraph_commit",
       {
-        title: "Take a BitGraph: commit",
+        title: "Make a BitGraph: commit",
         description:
-          "Step two of taking a BitGraph the default way: commit the new file built from a bitgraph_open recipe. " +
+          "Step two of making a BitGraph the default way: commit the new file built from a bitgraph_open recipe. " +
           "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. " +
           "The boundary commits that digest under the exact slot the token names, with the signed marker (profile bitgraph-fuse/1, placement, origin digest), and this returns the proof and the Frame per file. " +
           "Save each Frame next to the original as frame_name. The new file is virtual: keep the original unchanged and the Frame, and any reader can rebuild the new file and check it. " +
@@ -527,7 +527,7 @@ const handler = createMcpHandler(
         description:
           "Check whether SHA-256 digests are on record in the BitGraph ledger, without recording anything. " +
           DIGEST_HINT + ". " +
-          "Returns, per digest: on_record (a recording of the exact bytes exists), fused_descendants (fused artifacts that name the bytes as their origin), every position by counter, and the proof page URL. " +
+          "Returns, per digest: on_record (the bytes are on record, as an exact recording or as the original a new file was made from), every position by counter, and the proof page URL. " +
           "Read-only. Use bitgraph_record to record digests that turn out not to be on record.",
         inputSchema: z.object({
           digests: z
@@ -560,8 +560,8 @@ const handler = createMcpHandler(
               input: digests[i] as string,
               digest: toUrlSafeB64(standardDigest),
               // A fused descendant that names these bytes as origin is not a recording of them.
-              on_record: proofs.some((p) => (p as { kind?: string }).kind !== "fused"),
-              fused_descendants: proofs.filter((p) => (p as { kind?: string }).kind === "fused").length,
+              // The original and the new file made from it find the same proof.
+              on_record: proofs.length > 0,
               positions,
               proof_url: proofs.length > 0 ? proofUrl(baseUrl, standardDigest) : null,
             };
@@ -670,9 +670,9 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "bitgraph", version: SERVER_VERSION },
     instructions:
-      "BitGraph gives a file's bytes a causal position in a public ledger bracketed by Ethereum anchors. Taking a BitGraph the default way is two steps: bitgraph_open (a slot at the boundary, and a recipe for the new fused file) then bitgraph_commit (the digest of the new file you built from the recipe). " +
+      "BitGraph gives a file's bytes a causal position in a public ledger bracketed by Ethereum anchors. Making a BitGraph the default way is two steps: bitgraph_open (a slot at the boundary, and a recipe for the new fused file) then bitgraph_commit (the digest of the new file you built from the recipe). " +
       "File contents never travel: only digests, sizes, a file's first bytes, slot records and recipe bytes. The new file is virtual; the original stays unchanged and the Frame rebuilds it. " +
-      "Recordings are permanent: only take BitGraphs of files the user asked for, and never generate content just to record it. " +
+      "Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
       "bitgraph_record is the compatibility recording of digests alone. bitgraph_check and bitgraph_get_proof are read-only.",
   }
 );

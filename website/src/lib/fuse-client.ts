@@ -116,8 +116,35 @@ export async function rebuildFromOrigin(siteProof: SiteProof, original: Uint8Arr
   return { verification, fusedBytes, frame, placement: placement.id, fusedName: names.fusedName, frameName: names.frameName };
 }
 
-/** A download for bytes held in memory. The caller revokes the URL after the click. */
-export function blobUrlFor(bytes: Uint8Array | string, type: string): string {
-  const part: BlobPart = typeof bytes === "string" ? bytes : new Uint8Array(bytes);
-  return URL.createObjectURL(new Blob([part], { type }));
+export interface Unpacked {
+  verification: FuseVerifyResult;
+  /** The original carried inside the new file, when the placement carries it. */
+  originalBytes: Uint8Array | null;
+  originalName: string | null;
+  frame: FuseFrame | null;
+  frameName: string | null;
+}
+
+/**
+ * The package parts when the file in hand IS the new file: verify it directly,
+ * then take the original back out of it (both registered placements carry the
+ * original whole) and build the Frame. The original's name comes from the new
+ * file's: `photo.fused.jpg` was made from `photo.jpg`; a container's original
+ * keeps the stem alone, since the container does not record the extension.
+ */
+export async function unpackNewFile(siteProof: SiteProof, fused: Uint8Array, fusedFileName: string): Promise<Unpacked> {
+  const proof = asVerify(siteProof);
+  const verification = await verifyFuse({ proof, bytes: fused });
+  const none: Unpacked = { verification, originalBytes: null, originalName: null, frame: null, frameName: null };
+  if (verification.category !== "FUSED_DIRECT" || !verification.placement) return none;
+  const placement = getPlacement(verification.placement);
+  const located = placement?.locate(fused);
+  const artifactDigest = base64ToBytes(proof.artifact.digestB64);
+  if (placement === undefined || !located?.originalBytes || artifactDigest === null) return none;
+  const originalBytes = located.originalBytes;
+  const originDigest = located.originDigest ?? new Uint8Array(await crypto.subtle.digest("SHA-256", originalBytes as BufferSource));
+  const stem = fusedFileName.replace(/\.fused(\.[^.]+)?$/, "");
+  const originalName = placement.id === "trailer/1" ? fusedFileName.replace(/\.fused(?=\.[^.]+$)/, "") : stem;
+  const frame = buildFrame({ proof, placement: placement.id as PlacementId, artifactDigest, originDigest, fusedFile: fusedFileName });
+  return { verification, originalBytes, originalName, frame, frameName: `${originalName}.bitgraph-fuse.json` };
 }

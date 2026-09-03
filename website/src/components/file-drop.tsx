@@ -62,7 +62,7 @@ interface FileDropProps {
   shutter?: boolean;
   /** Label for the browse link */
   browseLabel?: string;
-  /** Drop-zone headline (proof pages say "Take another BitGraph") */
+  /** Drop-zone headline (proof pages say "Make another BitGraph") */
   headline?: string;
   /** Headline font size (CSS length/clamp). Defaults to the compact card size. */
   headlineSize?: string;

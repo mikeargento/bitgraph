@@ -494,7 +494,7 @@ export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
     lines.push("", ASSEMBLY_INSTRUCTIONS, "", "Each opened file's fuse_token and recipe are in the JSON (response_format=json returns them in full).");
   }
   if (onRecord.length > 0) {
-    lines.push("", "Files already on record were not opened. To take a new BitGraph of one deliberately, call bitgraph_open with again=true.");
+    lines.push("", "Files already on record were not opened. To make a new BitGraph of one deliberately, call bitgraph_open with again=true.");
   }
   return lines.join("\n");
 }
