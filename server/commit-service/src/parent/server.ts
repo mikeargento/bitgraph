@@ -4,8 +4,9 @@
  * Parent EC2 instance — HTTPS API server
  *
  * Endpoints:
- *   POST /commit         — { digests: [{ digestB64, hashAlg }], metadata?, agency?, policy? }  (requires API key)
- *   POST /allocate-slot  — {} → { slotId, slot }  (public — pre-allocates causal slot)
+ *   POST /commit         — { digests: [{ digestB64, hashAlg }], metadata?, agency?, policy?, chainId? }
+ *   POST /allocate-slot  — { chainId? } → { slotId, slot, chainId }  (same key policy as /commit;
+ *                          metered per address in slots, see rate-limit.ts)
  *   POST /challenge      — {} → { challenge }  (public — issues enclave nonce for agency signing)
  *   GET  /key             — { publicKeyB64, measurement, enforcement }
  *   POST /verify          — { proof, policy? }
@@ -13,8 +14,13 @@
  *
  * BitGraph Causal Commit Model:
  *   The parent internally handles the 2-RTT protocol (allocateSlot → commit)
- *   so clients can still use the single POST /commit API. Clients that want
- *   direct control over slot allocation can use POST /allocate-slot.
+ *   so clients can still use the single POST /commit API. POST /allocate-slot
+ *   hands out a client-held slot for the two-phase form (allocate first, then
+ *   commit under that exact slot). It is metered, because a bare allocation
+ *   mints nothing yet occupies one of the enclave's pending-slot entries for
+ *   up to the slot TTL, and the pool is shared with every commit, anchors
+ *   included. The chain is bound at allocation and defaults to the anchored
+ *   chain, so a client-held slot is comparable with anchors.
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -22,7 +28,7 @@ import { verify } from "bitgraph";
 import type { BitGraphProof, VerificationPolicy, AgencyEnvelope, PolicyBinding } from "bitgraph";
 import { VsockClient, type EnclaveClient } from "./vsock-client.js";
 import { requestTimestamp } from "./tsa-client.js";
-import { getClientIp, tryConsumeDigests, rateLimitConfig } from "./rate-limit.js";
+import { getClientIp, tryConsumeDigests, rateLimitConfig, allocationLimiter } from "./rate-limit.js";
 import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js";
 
 const PORT = Number(
@@ -424,16 +430,81 @@ async function handleChallenge(_req: IncomingMessage, res: ServerResponse): Prom
   }
 }
 
-async function handleAllocateSlot(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  // Public endpoint — no API key required.
-  // Pre-allocates a causal slot (nonce-first) for the BitGraph commit model.
-  // Returns { slotId, slot } where slot is the signed SlotAllocation record.
+/** Chain identifiers are short printable ASCII, e.g. "bitgraph:main". */
+const CHAIN_ID_PATTERN = /^[\x21-\x7e]{1,128}$/;
+const DEFAULT_ALLOCATION_CHAIN = "bitgraph:main";
+
+async function handleAllocateSlot(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  // Pre-allocates a causal slot (nonce-first) that the caller holds and later
+  // consumes with POST /commit { slotId }. Admission is the same policy as
+  // /commit: the key gate (open unless REQUIRE_API_KEY=true), and for callers
+  // without a valid key a limiter. This limiter counts slots, not digests: a
+  // bare allocation mints nothing but holds one of the enclave's shared
+  // pending-slot entries for up to the TTL (see rate-limit.ts).
+  if (!checkApiKey(req)) {
+    sendError(res, 401, "Unauthorized: valid API key required (Authorization: Bearer <key>)");
+    return;
+  }
+
+  // The body is optional and tiny: { chainId?: string }.
+  const raw = await readBody(req);
+  if (raw.length > 4096) {
+    sendError(res, 413, "Request body too large. Max 4 KB.");
+    return;
+  }
+  let body: unknown = {};
+  if (raw.length > 0) {
+    try {
+      body = JSON.parse(raw.toString("utf8"));
+    } catch {
+      sendError(res, 400, "Invalid JSON body");
+      return;
+    }
+  }
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    sendError(res, 400, "body must be a JSON object: { chainId?: string }");
+    return;
+  }
+
+  // The chain is bound at allocation (the enclave stores it with the slot and
+  // ignores any chainId sent at commit), so it must be chosen here. Default to
+  // the anchored chain: a slot on any other chain has no anchor before it and
+  // therefore no floor.
+  const requested = (body as { chainId?: unknown }).chainId;
+  let chainId = DEFAULT_ALLOCATION_CHAIN;
+  if (requested !== undefined) {
+    if (typeof requested !== "string" || !CHAIN_ID_PATTERN.test(requested)) {
+      sendError(res, 400, "body.chainId must be printable ASCII, 1 to 128 characters, when present");
+      return;
+    }
+    chainId = requested;
+  }
+
+  if (!hasValidApiKey(req)) {
+    const clientIp = getClientIp(req);
+    const rl = allocationLimiter.tryConsume(clientIp);
+    if (!rl.ok) {
+      console.warn(`[parent] allocation limit: rejected slot allocation from ${clientIp} (${rl.reason})`);
+      const json = JSON.stringify({ error: `Rate limit exceeded: ${rl.reason}` });
+      res.writeHead(429, {
+        ...CORS_HEADERS,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(json),
+        "Retry-After": String(rl.retryAfterSec),
+      });
+      res.end(json);
+      return;
+    }
+  }
+
   try {
-    const result = await enclaveClient.send({ type: "allocateSlot" });
+    const result = await enclaveClient.send({ type: "allocateSlot", chainId });
     if (!result.ok || !result.data) {
       sendError(res, 500, result.error ?? "allocateSlot failed");
       return;
     }
+    // { slotId, slot, chainId }: slotId is the slot's nonce, the bearer
+    // ticket the caller must not disclose before commit.
     sendJson(res, 200, result.data);
   } catch (err) {
     sendError(res, 500, `Failed to allocate slot: ${err instanceof Error ? err.message : String(err)}`);
@@ -483,7 +554,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 server.listen(PORT, async () => {
   console.log(`[parent] listening on http://localhost:${PORT}`);
   console.log(`  POST /commit         (Content-Type: application/json, Authorization: Bearer <key>)`);
-  console.log(`  POST /allocate-slot  (public — pre-allocates causal slot)`);
+  console.log(`  POST /allocate-slot  (client-held slot for the two-phase form; metered in slots)`);
   console.log(`  POST /challenge      (public — issues enclave nonce for agency signing)`);
   console.log(`  GET  /key`);
   console.log(`  POST /verify         (Content-Type: application/json)`);
@@ -491,6 +562,8 @@ server.listen(PORT, async () => {
 
   const rl = rateLimitConfig();
   console.log(`[parent] /commit rate limit: ${rl.perIpCapacity} digests/IP burst, +${rl.perIpRefillPerMin}/min refill, ${rl.globalPerDay}/day global`);
+  const al = allocationLimiter.config();
+  console.log(`[parent] /allocate-slot limit: ${al.perIpCapacity} slots/IP burst, +${al.perIpRefillPerMin}/min refill, ${al.globalPerWindow} per ${al.windowMs / 1000}s global`);
 
   // Initialize enclave with previous epoch's last proof for lineage
   try {

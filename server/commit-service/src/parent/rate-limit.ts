@@ -127,3 +127,108 @@ export function rateLimitConfig(): { perIpCapacity: number; perIpRefillPerMin: n
     globalPerDay: GLOBAL_PER_DAY,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Allocation limiter for POST /allocate-slot (client-held slots)
+// ---------------------------------------------------------------------------
+
+/**
+ * A bare allocation mints no digest, so the digest limiter above has nothing
+ * to count, yet it occupies one entry of the enclave's single pending-slot
+ * map (MAX_PENDING_SLOTS = 1000, shared by every chain and by the anchor
+ * service's own commits) for up to SLOT_TTL_MS = 120 s. Left unmetered, one
+ * client can fill that map and hold every commit at "Too many pending
+ * slots" until the entries expire. This limiter is denominated in slots and
+ * sized to the TTL:
+ *
+ *   - Per address: a token bucket of RL_ALLOC_PER_IP_CAPACITY (default 20)
+ *     refilling RL_ALLOC_PER_IP_REFILL_PER_MIN (default 10) per minute, so
+ *     one address holds at most 20 unexpired slots at once and refills to
+ *     full across one TTL.
+ *   - Global: RL_ALLOC_GLOBAL_PER_WINDOW (default 250) allocations per
+ *     RL_ALLOC_WINDOW_MS (default 120000, the TTL) across all addresses, so
+ *     bare allocations together can never take more than a quarter of the
+ *     pool and internal allocations (every /commit, anchors included) keep
+ *     their room.
+ *
+ * Requests bearing a valid API key are exempt, exactly as on /commit.
+ *
+ * Built as a factory over an env-like object with an injectable clock, the
+ * same shape as auth.ts, so configurations are tabulated in one test process.
+ */
+
+export interface AllocationLimitConfig {
+  perIpCapacity: number;
+  perIpRefillPerMin: number;
+  globalPerWindow: number;
+  windowMs: number;
+}
+
+export interface AllocationLimiter {
+  /** Consume one allocation for `ip`. Never partially consumes. */
+  tryConsume(ip: string, nowMs?: number): RateLimitResult;
+  config(): AllocationLimitConfig;
+}
+
+function positiveNumber(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  return raw !== undefined && Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+export function createAllocationLimiter(env: Record<string, string | undefined>): AllocationLimiter {
+  const cfg: AllocationLimitConfig = {
+    perIpCapacity: positiveNumber(env["RL_ALLOC_PER_IP_CAPACITY"], 20),
+    perIpRefillPerMin: positiveNumber(env["RL_ALLOC_PER_IP_REFILL_PER_MIN"], 10),
+    globalPerWindow: positiveNumber(env["RL_ALLOC_GLOBAL_PER_WINDOW"], 250),
+    windowMs: positiveNumber(env["RL_ALLOC_WINDOW_MS"], 120_000),
+  };
+
+  const ipBuckets = new Map<string, Bucket>();
+  let windowUsed = 0;
+  let windowStartMs: number | null = null;
+
+  function prune(nowMs: number): void {
+    for (const [ip, b] of ipBuckets) {
+      const elapsedMin = (nowMs - b.lastRefillMs) / 60_000;
+      if (b.tokens + elapsedMin * cfg.perIpRefillPerMin >= cfg.perIpCapacity) ipBuckets.delete(ip);
+    }
+  }
+
+  return {
+    config: () => ({ ...cfg }),
+    tryConsume(ip: string, nowMs = Date.now()): RateLimitResult {
+      // Global window (fixed window, restarted when it has fully elapsed).
+      if (windowStartMs === null || nowMs - windowStartMs >= cfg.windowMs) {
+        windowStartMs = nowMs;
+        windowUsed = 0;
+      }
+      if (windowUsed + 1 > cfg.globalPerWindow) {
+        const retryAfterSec = Math.max(1, Math.ceil((windowStartMs + cfg.windowMs - nowMs) / 1000));
+        return { ok: false, retryAfterSec, reason: "global slot allocation budget exhausted for this window" };
+      }
+
+      // Per-address token bucket.
+      let bucket = ipBuckets.get(ip);
+      if (!bucket) {
+        if (ipBuckets.size >= MAX_TRACKED_IPS) prune(nowMs);
+        bucket = { tokens: cfg.perIpCapacity, lastRefillMs: nowMs };
+        ipBuckets.set(ip, bucket);
+      } else {
+        const elapsedMin = (nowMs - bucket.lastRefillMs) / 60_000;
+        bucket.tokens = Math.min(cfg.perIpCapacity, bucket.tokens + elapsedMin * cfg.perIpRefillPerMin);
+        bucket.lastRefillMs = nowMs;
+      }
+      if (bucket.tokens < 1) {
+        const retryAfterSec = Math.max(1, Math.ceil(((1 - bucket.tokens) / cfg.perIpRefillPerMin) * 60));
+        return { ok: false, retryAfterSec, reason: "per-client slot allocation rate limit exceeded" };
+      }
+
+      bucket.tokens -= 1;
+      windowUsed += 1;
+      return { ok: true };
+    },
+  };
+}
+
+/** The limiter the running parent uses; configured from the environment at boot. */
+export const allocationLimiter: AllocationLimiter = createAllocationLimiter(process.env);
