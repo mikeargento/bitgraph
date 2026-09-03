@@ -44,6 +44,7 @@ export default function BitGraphPage() {
       <BitGraphCamera
         id="home"
         strategy={anonymous}
+        fuseByDefault
         acceptsPendingDrop
         /* The claim, not the metaphor (Mike, 2026-08-19: "change home to A
            BitGraph gives bits a place"): the overview's h1 and the README's

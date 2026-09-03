@@ -129,6 +129,39 @@ The signature proves the enclave sealed the claim, not that the claim is true.
 Reconstruction is the truth check: a false origin cannot yield bytes that hash
 to the signed artifact digest.
 
+## The public drop (ruled 2026-09-03, later)
+
+The site's drop makes a fused artifact by default. The visitor's file is the
+origin; it is never modified and never uploaded. In the browser: hash the
+origin, allocate an unused slot through `/api/fuse/allocate`, derive the slot
+commitment, build the fused bytes with the registered placement chosen from
+the bytes (`trailer/1` for formats that ignore trailing data: JPEG, PNG, GIF,
+TIFF and TIFF-based raws, BMP, RIFF such as WebP; `container/1` for everything
+else: PDF, ZIP-based documents, ISO base media video and HEIC, Matroska, MP3,
+structured and plain text, unknown formats), hash them, and consume that exact
+slot through `/api/fuse/commit`. The fused bytes are transient: they exist in
+memory until the visitor leaves or explicitly downloads them (the results
+export includes the Frame and the fused copy; the proof page offers "Download
+fused copy", rebuilt on the spot). The durable state is the original plus the
+signed proof, whose attribution carries the placement id and the origin
+digest; the same registered placement rebuilds the exact fused bytes from
+those at any time, and verifying that reconstruction against the signed
+artifact digest is the evidence.
+
+Lookups work from either hash. Dropping the original finds its recordings and
+every fused artifact that names it as origin, listed by position and
+placement, never ranked; dropping the fused artifact finds its proof directly,
+and its page shows the origin digest and the placement. A fused proof's page
+accepts the original by reconstruction, so the visitor never has to keep the
+fused copy. Ordinary recording remains as the compatibility operation ("Record
+N files instead" on the results card, and every /actor recording): it selects
+existing bytes and gives them a position; Fuse obtains an unused position
+first, creates new bytes from the origin, then consumes that same position
+with them. Files larger than 256 MB are recorded rather than fused, because
+the fused bytes are built in memory. Existing proofs and old drops are not
+reinterpreted. Form C (`produced/1`) is a producer operation of the SDK and
+CLI, where the produced artifact is the substantive artifact and is kept.
+
 ## The Frame
 
 The Frame is the shipped container. The offline verifier (`bitgraph-play check`, `verify.html`) reads the proof out of it from player 0.8.1 / audit 0.4.1 on; the site's drop reader and the CLI `check` always did.

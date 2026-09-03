@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fusedOriginDigestOf, isFusedProof } from "@/lib/fuse-core";
 import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 
@@ -144,7 +145,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
         kind: e.kind,
         // For a fused descendant: the fused artifact's own digest (url-safe) and placement.
         artifactDigest: artifact ? toUrlSafeB64(artifact) : null,
-        ...(e.kind === "fused" ? { placement: attr?.title ?? null } : {}),
+        // Any proof carrying the signed fused marker names its placement and
+        // origin, whichever digest was looked up: the origin's page lists it
+        // as a descendant, the fused artifact's own page shows where it came from.
+        ...(isFusedProof(e.proof) ? { placement: attr?.title ?? null, fusedOrigin: (() => { const o = fusedOriginDigestOf(e.proof); return o ? toUrlSafeB64(o) : null; })() } : {}),
       };
     });
 

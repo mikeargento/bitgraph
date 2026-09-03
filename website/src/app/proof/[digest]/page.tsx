@@ -18,6 +18,7 @@ import {
 } from "@/lib/webauthn";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { getPreviewFromIDB, putPreviewToIDB } from "@/lib/file-cache";
+import { fusedMarkerOf, rebuildFromOrigin, blobUrlFor } from "@/lib/fuse-client";
 import { PINNED_DOMAINS } from "@/lib/pinned-domains";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
@@ -261,7 +262,7 @@ export default function ProofPage() {
     // has been checked (card), bounded to a few seconds. Independent of the proof
     // payload, so it starts as soon as we have a proof — seeded or freshly
     // fetched. Guarded so a warm seed + a reconcile don't start it twice.
-    const startImagePoll = () => {
+    const startImagePoll = (p: BitGraphProof | null) => {
       if (imagePollStarted) return;
       imagePollStarted = true;
       let digestB64 = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
@@ -314,6 +315,12 @@ export default function ProofPage() {
             if (!validated) {
               let matches = false;
               try { matches = (await hashBytes(new Uint8Array(file.data))) === digestB64; } catch { matches = false; }
+              // A fused proof (profile bitgraph-fuse/1) is usually remembered
+              // with the ORIGINAL, which never hashes to the artifact digest:
+              // accept it when it rebuilds the committed fused bytes.
+              if (!matches && p && fusedMarkerOf(p) !== null) {
+                try { matches = (await rebuildFromOrigin(p, new Uint8Array(file.data), file.name)).verification.category === "FUSED_FROM_ORIGIN"; } catch { matches = false; }
+              }
               if (!matches) { void dropCached(); break; }
               validated = true;
             }
@@ -333,7 +340,7 @@ export default function ProofPage() {
       if (data.causalWindow) setCausalWindow(data.causalWindow);
       if (data.anchorBlock) setAnchorBlock(data.anchorBlock);
       if (Array.isArray(data.positions)) setPositions(data.positions);
-      startImagePoll();
+      startImagePoll(data.proofs[0].proof);
       return true;
     };
 
@@ -628,6 +635,25 @@ export default function ProofPage() {
       : <>between <Em>{stampTz(b1)}</Em> and <Em>{stampTz(b2)}</Em></>;
   }
 
+  // The fused copy is stored nowhere: it is rebuilt here from the original in
+  // hand and the proof, and offered only on this explicit click. A visitor who
+  // dropped the fused file itself simply gets those bytes back.
+  async function downloadFusedCopy() {
+    if (!cachedFile || !proof) return;
+    const bytes = new Uint8Array(cachedFile.data);
+    const r = await rebuildFromOrigin(proof, bytes, cachedFile.name);
+    const direct = r.verification.category === "FUSED_DIRECT";
+    const out = direct ? bytes : r.fusedBytes;
+    const name = direct ? cachedFile.name : r.fusedName;
+    if (!out || !name) { console.warn("[bitgraph] fused copy not rebuilt:", r.verification.category); return; }
+    const url = blobUrlFor(out, "application/octet-stream");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
   async function exportZip() {
     if (exporting) return;
     setExporting(true);
@@ -839,6 +865,30 @@ export default function ProofPage() {
                   pre-existing identity. In the no-file state it is also the
                   value a dropped file is checked against. */}
               <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
+              {/* A fused artifact (profile bitgraph-fuse/1) says where it came from:
+                  the origin digest and the registered placement, both from the
+                  signed attribution. The origin link opens the origin's own page,
+                  which lists this artifact among its descendants without ranking. */}
+              {attr?.name === "bitgraph-fuse/1" && (
+                <Field
+                  label="Fused from"
+                  mono
+                  topBorder
+                  value={attr.message ?? "origin not declared"}
+                  valueNode={attr.message ? <a href={`/proof/${encodeURIComponent(toSafeB64(attr.message))}`} style={{ color: "#0065A4", textDecoration: "none" }}>{attr.message}</a> : undefined}
+                />
+              )}
+              {attr?.name === "bitgraph-fuse/1" && attr.title && (
+                <Field label="Placement" value={attr.title} mono topBorder />
+              )}
+              {attr?.name === "bitgraph-fuse/1" && cachedFile && (
+                <div style={{ padding: "0 16px" }}>
+                  <button onClick={downloadFusedCopy} className="bg-action-link" style={{ fontWeight: 400 }}>
+                    <span>Download fused copy</span>
+                    <span className="arrow" aria-hidden>&rarr;</span>
+                  </button>
+                </div>
+              )}
               {/* Export — the card's own closing action, in its bottom box.
                   Same link idiom as every other action on the page; it carries
                   a touch more type weight because it is the primary one. */}
@@ -1569,7 +1619,25 @@ function BringYourFile({
             (files) => { setReadCount(files); setState("reading"); },
           );
       setCheckedCount(checked);
-      if (!match) { setState("mismatch"); return; }
+      if (!match) {
+        // A fused proof's page is reached with the ORIGINAL in hand. Find the
+        // file that hashes to the signed origin digest, rebuild the fused bytes
+        // with the registered placement, and accept it only when the
+        // reconstruction reproduces the committed digest. The page then shows
+        // the visitor's own file, verified by reconstruction.
+        const marker = fusedMarkerOf(proof);
+        if (marker?.originDigestB64) {
+          const origin = Array.isArray(source)
+            ? await findMatchInFiles(source, marker.originDigestB64)
+            : await findMatchInDrop(source, marker.originDigestB64);
+          if (origin.match) {
+            const rebuilt = await rebuildFromOrigin(proof, new Uint8Array(await origin.match.arrayBuffer()), origin.match.name);
+            if (rebuilt.verification.category === "FUSED_FROM_ORIGIN") { await accept(origin.match); return; }
+          }
+        }
+        setState("mismatch");
+        return;
+      }
       await accept(match);
     } catch {
       setState("mismatch");

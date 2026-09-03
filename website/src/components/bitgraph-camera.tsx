@@ -45,6 +45,7 @@ import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
+import { fuseFile, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome } from "@/lib/fuse-client";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -55,6 +56,8 @@ export interface BitGraphCameraProps {
   id: "home" | "actor";
   /** How a digest not yet on the ledger gets committed. The one seam. */
   strategy: CommitStrategy;
+  /** The default gesture makes a fused artifact from the dropped file (profile bitgraph-fuse/1); ordinary recording stays reachable as its own row. */
+  fuseByDefault?: boolean;
   /** The page title, inside the shared h1 (home's is a link, /actor's is a
    *  noun). */
   title: ReactNode;
@@ -99,6 +102,10 @@ interface FileItem {
   // offer an inline check to confirm the visitor holds the matching artifact.
   fromProofJson?: boolean;
   matchedFile?: File | null;
+  /** Per proof in `proofs`: a recording of these exact bytes, or a fused artifact that names them as origin. */
+  kinds?: Array<"recorded" | "fused">;
+  /** Set when this drop fused the file: the Frame and the transient fused bytes, for the export. */
+  fused?: FusedOutcome;
 }
 
 // The results list survives leaving for a proof page: client-side navigation
@@ -143,7 +150,7 @@ export function WhatHappensPair() {
   );
 }
 
-export function BitGraphCamera({ id, strategy, title, below, belowClassName, frameNote, actorName, acceptsPendingDrop }: BitGraphCameraProps) {
+export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, below, belowClassName, frameNote, actorName, acceptsPendingDrop }: BitGraphCameraProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length ? "results" : "drop"));
   const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
@@ -462,18 +469,23 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
       // the current chain, so treating them as "on record" here meant a drop
       // LOOKED UP a dead proof instead of recording the bytes properly. The
       // earliest bitgraph/1 position stays proofs[0], never re-derived.
-      // A fused descendant (kind "fused") names these bytes as origin but is not
-      // a recording of them, so it must not read as "found": the bytes themselves
-      // can still be recorded.
-      const recProofs = (rec?.proofs || []).filter((x) => x.proof?.version === "bitgraph/1" && (x as { kind?: string }).kind !== "fused");
-      const all = recProofs.map((x) => x.proof);
-      if (all.length > 0) {
-        const result = await verifyProofSignature(all[0]);
-        // The ledger write moment rides along per recording so rows can show
-        // a compact "when", same as the Roll. Legacy/backfilled entries have
+      // Recordings of these exact bytes first, then the fused artifacts that
+      // name them as origin (kind "fused"), each by position, none ranked.
+      // Either kind answers the drop: a visitor who drops the original finds
+      // the fused BitGraph it produced. A fused descendant is still not a
+      // recording of the bytes themselves; the row's label says so and the
+      // proof page says where the artifact came from.
+      type Entry = { proof: BitGraphProof; kind?: string; writeTime?: number | null };
+      const entries = ((rec?.proofs || []) as Entry[]).filter((x) => x.proof?.version === "bitgraph/1");
+      const ordered = [...entries.filter((x) => x.kind !== "fused"), ...entries.filter((x) => x.kind === "fused")];
+      if (ordered.length > 0) {
+        const result = await verifyProofSignature(ordered[0].proof);
+        // The ledger write moment rides along per row so rows can show a
+        // compact "when", same as the Roll. Legacy/backfilled entries have
         // none and just leave the slot blank.
-        const times = recProofs.map((x) => (x as { writeTime?: number | null }).writeTime ?? null);
-        return { file: f, digestB64: digest, proof: all[0], proofs: all, times, valid: result.valid, status: "found" as const };
+        const times = ordered.map((x) => x.writeTime ?? null);
+        const kinds = ordered.map((x): "recorded" | "fused" => (x.kind === "fused" ? "fused" : "recorded"));
+        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, valid: result.valid, status: "found" as const };
       }
       return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const };
     }));
@@ -560,9 +572,17 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
         // away.
         let begun = false;
         try {
-          await commitThroughRotation(() => beginRun([solo.digestB64]));
-          begun = true;
-          const p = await commitThroughRotation(() => strategy.one(solo.digestB64));
+          // Fuse by default: the dropped file is the origin, a slot is
+          // allocated for it, and the fused bytes built in memory consume
+          // that slot. The proof page then shows the visitor's own file,
+          // which rebuilds the committed artifact (see BringYourFile).
+          const p = fuseByDefault
+            ? await fuseOrRecordOne(solo.file, solo.digestB64, () => { begun = true; })
+            : await (async () => {
+                await commitThroughRotation(() => beginRun([solo.digestB64]));
+                begun = true;
+                return commitThroughRotation(() => strategy.one(solo.digestB64));
+              })();
           void announceRecorded([p]);
           openProofPage(p, solo.file, true);
           return;
@@ -754,6 +774,34 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
 
   // The strategy's once-per-run step (/actor: the enclave's nonce and the one
   // touch), with its status wired to the proving label. Home's has none.
+  // The default gesture: fuse the file (profile bitgraph-fuse/1) through this
+  // site's own routes, in the browser. The visitor's file is the origin and is
+  // never modified or uploaded; the fused bytes exist in memory only long
+  // enough to be hashed and committed under the slot allocated for them, and
+  // the original plus the signed proof rebuilds them at any time. Held through
+  // the daily rotation like every other commit.
+  async function fuseOne(file: File): Promise<FusedOutcome> {
+    return commitThroughRotation(async () => {
+      try {
+        return await fuseFile(file);
+      } catch (e) {
+        if (isTeeRestarting(e)) { const held = new Error("The camera is restarting"); held.name = "TeeRestartingError"; throw held; }
+        throw e;
+      }
+    });
+  }
+  // A file too large to build in memory is recorded as itself instead, the
+  // compatibility operation, through the strategy's ordinary path.
+  async function fuseOrRecordOne(file: File, digestB64: string, onBegun: () => void): Promise<BitGraphProof> {
+    try {
+      return (await fuseOne(file)).proof;
+    } catch (e) {
+      if (!(e instanceof FuseTooLargeError)) throw e;
+    }
+    await commitThroughRotation(() => beginRun([digestB64]));
+    onBegun();
+    return commitThroughRotation(() => strategy.one(digestB64));
+  }
   async function beginRun(digests: string[]) {
     if (!strategy.begin) return;
     try {
@@ -807,7 +855,65 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
     return recorded.size;
   }
 
-  async function proveRemaining() {
+  // The receipt row's action: fuse by default (home), ordinary recording on
+  // /actor and always as its own compatibility row.
+  function proveRemaining() { return fuseByDefault ? fuseRemaining() : recordRemaining(); }
+
+  async function fuseRemaining() {
+    const toProve = items.filter(i => i.status === "new" || i.status === "error");
+    if (!toProve.length) return;
+    setStep("proving");
+    setRecordMessage(null);
+    setProveProgress({ current: 0, total: toProve.length });
+    setItems(prev => prev.map(i => i.status === "new" || i.status === "error" ? { ...i, status: "proving" as const } : i));
+    let minted = 0;
+    let lastOut: FusedOutcome | null = null;
+    const tooLarge: FileItem[] = [];
+    try {
+      for (let n = 0; n < toProve.length; n++) {
+        const t = toProve[n];
+        try {
+          const out = await fuseOne(t.file);
+          lastOut = out;
+          minted++;
+          setItems(prev => prev.map(i => i.digestB64 === t.digestB64 ? { ...i, proof: out.proof, proofs: [out.proof], kinds: ["fused" as const], fused: out, valid: true, status: "proved" as const } : i));
+          void announceRecorded([out.proof]);
+        } catch (e) {
+          if (e instanceof FuseTooLargeError) tooLarge.push(t); else throw e;
+        }
+        setProveProgress({ current: n + 1, total: toProve.length });
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      if (tooLarge.length) {
+        await commitThroughRotation(() => beginRun(tooLarge.map((t) => t.digestB64)));
+        for (let offset = 0; offset < tooLarge.length; offset += 50) {
+          const chunk = tooLarge.slice(offset, offset + 50);
+          const proofs = await commitThroughRotation(() => strategy.chunk(chunk.map((t) => t.digestB64), offset));
+          minted += proofs.length;
+          const chunkMap = new Map(chunk.map((t, i) => [t.digestB64, proofs[i]] as const));
+          setItems(prev => prev.map(i => { const p = chunkMap.get(i.digestB64); return p ? { ...i, proof: p, proofs: [p], kinds: ["recorded" as const], valid: true, status: "proved" as const } : i; }));
+          void announceRecorded(proofs);
+        }
+      }
+      if (items.length === 1 && minted === 1 && lastOut !== null) {
+        const proofDigest = lastOut.proof.artifact.digestB64;
+        const c = lastOut.proof.commit?.counter;
+        const epoch = lastOut.proof.commit?.epochId ? toUrlSafeB64(lastOut.proof.commit.epochId) : "";
+        const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
+        void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+        router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
+        return;
+      }
+    } catch (e) {
+      setRecordMessage(strategy.errorMessage?.(e, "commit") ?? (e instanceof Error ? e.message : null));
+      setItems(prev => prev.map(i => i.status === "proving" ? { ...i, status: "new" as const } : i));
+    }
+    setStep("results");
+    if (minted > 0) startAnchorCountdown();
+    setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + minted);
+  }
+
+  async function recordRemaining() {
     // Errored rows are still unrecorded files, so the button offers them
     // again; settleAfterFailure has already checked that they were not in
     // fact minted, so recording them again cannot double-record.
@@ -924,6 +1030,11 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
     const tick = () => new Promise(r => setTimeout(r, 0));
 
     // Add a text entry to the zip
+    const addBytes = (name: string, bytes: Uint8Array) => {
+      const entry = new ZipPassThrough(name);
+      z.add(entry);
+      entry.push(bytes, true);
+    };
     const addText = (name: string, text: string) => {
       const entry = new ZipPassThrough(name);
       z.add(entry);
@@ -1014,6 +1125,15 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
       const base = f.name.replace(/\.[^.]+$/, "");
       const prefix = multi ? `${base}/` : "";
       const fileBytes = new Uint8Array(await f.arrayBuffer());
+      // A file fused in this drop also exports its Frame and the exact fused
+      // bytes it committed, beside the original the visitor keeps. The fused
+      // copy is rebuildable from the original and the proof; it rides along
+      // here because an export is an explicit download.
+      const fusedOut = withProofs[i].fused;
+      if (fusedOut) {
+        addText(`${prefix}${fusedOut.frameName}`, JSON.stringify(fusedOut.frame, null, 2));
+        addBytes(`${prefix}${fusedOut.fusedName}`, fusedOut.fusedBytes);
+      }
 
       // A single recording keeps the flat layout (file + proof.json, covered
       // by the batch-level anchor window below). Bytes that occupy SEVERAL
@@ -1507,9 +1627,18 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                 {unproven.length > 0 && (
                   <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
                     <button type="button" className="bg-action-link" onClick={proveRemaining}>
-                      <span>Record {unproven.length} file{unproven.length === 1 ? "" : "s"}</span>
+                      <span>{fuseByDefault ? "BitGraph" : "Record"} {unproven.length} file{unproven.length === 1 ? "" : "s"}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
+                    {/* Ordinary recording stays available as the compatibility
+                        operation: prove that these exact pre-existing bytes
+                        existed by a commit position, without making anything. */}
+                    {fuseByDefault && (
+                      <button type="button" className="bg-action-link" onClick={recordRemaining} style={{ fontWeight: 400 }}>
+                        <span>Record {unproven.length} file{unproven.length === 1 ? "" : "s"} instead</span>
+                        <span className="arrow" aria-hidden>&rarr;</span>
+                      </button>
+                    )}
                   </div>
                 )}
                 {/* What the strategy has to say about a run that did not
@@ -1624,11 +1753,19 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
                         each row in the sequence "(k of N)" and mark the earliest
                         (k === 0) as the original. Single recordings show nothing
                         here, so an ordinary row stays just "# … Open". */}
-                    {rowProofs.length > 1 && (
-                      <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>
-                        ({k + 1} of {rowProofs.length}{k === 0 ? " · original" : ""})
-                      </span>
-                    )}
+                    {(() => {
+                      // Recordings keep their ordinal, the earliest marked original.
+                      // A fused artifact that names these bytes as origin is listed
+                      // by position with its placement and never ranked among them.
+                      const kind = item.kinds?.[k] ?? "recorded";
+                      if (kind === "fused") {
+                        const placement = (p?.attribution as { title?: string } | undefined)?.title;
+                        return <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>(fused{placement ? ` · ${placement}` : ""})</span>;
+                      }
+                      const recordedCount = item.kinds ? item.kinds.filter((x) => x === "recorded").length : rowProofs.length;
+                      if (recordedCount <= 1) return null;
+                      return <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>({k + 1} of {recordedCount}{k === 0 ? " · original" : ""})</span>;
+                    })()}
                     {/* Whose key is on this recording, when one is. Read off
                         the proof itself, never assumed from the page: a name
                         appears only when the page is entitled to print one for
@@ -1721,7 +1858,24 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
         ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }))
         : await findMatchInDrop(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }));
       setCheckedCount(checked);
-      if (!match) { setState("mismatch"); return; }
+      if (!match) {
+        // A fused proof is usually met with the ORIGINAL in hand. Find the
+        // file that hashes to the signed origin digest, rebuild the fused
+        // bytes with the registered placement, and accept it only when the
+        // reconstruction reproduces the committed digest.
+        const marker = fusedMarkerOf(proof);
+        if (marker?.originDigestB64) {
+          const origin = Array.isArray(source)
+            ? await findMatchInFiles(source, marker.originDigestB64)
+            : await findMatchInDrop(source, marker.originDigestB64);
+          if (origin.match) {
+            const rebuilt = await rebuildFromOrigin(proof, new Uint8Array(await origin.match.arrayBuffer()), origin.match.name);
+            if (rebuilt.verification.category === "FUSED_FROM_ORIGIN") { onMatched(origin.match); return; }
+          }
+        }
+        setState("mismatch");
+        return;
+      }
       onMatched(match);
     } catch {
       setState("mismatch");
