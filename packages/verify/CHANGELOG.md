@@ -2,7 +2,7 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
-## 1.4.0 (unreleased)
+## 1.4.0 (2026-09-03)
 
 - BitGraph Fuse, profile `bitgraph-fuse/1` (working name): construction and
   parsing (`computeSlotRecordHash`, `computeSlotCommitment`, the placement
