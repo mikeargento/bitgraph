@@ -116,6 +116,13 @@ export default function BitGraphPage() {
         .sec .lede { font-size: 16px; line-height: 1.6; color: #4b5563; margin: 0 0 26px; }
         .sec p { font-size: 16px; line-height: 1.7; color: #1f2937; margin: 0 0 16px; }
         .sec p:last-child { margin-bottom: 0; }
+        /* Task 4: exactly three lines on the page carry display weight, so the
+           reader's eye has somewhere to land in ten sections of even text. A
+           fourth would flatten all three again. Type scale and whitespace only. */
+        .sec .display {
+          font-size: clamp(20px, 3.2vw, 25px); font-weight: 600; letter-spacing: -0.02em;
+          line-height: 1.35; color: #111827; margin: 0 0 14px;
+        }
         .sec h3.sub { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #111827; margin: 30px 0 10px; }
         .sec a { color: #0065A4; }
 
@@ -162,8 +169,9 @@ export default function BitGraphPage() {
         /* The grant, quoted rather than paraphrased, because it is the sentence
            an adopter decides to rely on. */
         .grant {
-          border-left: 3px solid #0065A4; padding: 2px 0 2px 18px; margin: 0 0 16px;
-          font-size: 16px; line-height: 1.7; color: #1f2937;
+          border-left: 3px solid #0065A4; padding: 2px 0 2px 20px; margin: 0 0 18px;
+          font-size: clamp(17px, 2.6vw, 20px); line-height: 1.55; letter-spacing: -0.01em;
+          color: #111827;
         }
 
         .links-row { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 22px; }
@@ -203,10 +211,8 @@ export default function BitGraphPage() {
       {/* ── 2. Mechanism ──────────────────────────────────────────────────── */}
       <div className="hp sec">
         <h2>How it works</h2>
-        <p className="lede">
-          The position is allocated first. That single fact is what the rest of the system exists to
-          preserve.
-        </p>
+        <p className="display">The position is allocated first.</p>
+        <p className="lede">That single fact is what the rest of the system exists to preserve.</p>
         <Step stage="Before the file">
           BitGraph allocates a single-use position inside a measured AWS Nitro enclave, from
           hardware entropy, while the file that will occupy it does not yet exist.
@@ -254,10 +260,8 @@ export default function BitGraphPage() {
           There is also <a href="/verify.html">a standalone verifier page</a>. Save it and open it
           with no network connection at all.
         </p>
-        <p>
-          Reading and verifying a BitGraph never requires trusting BitGraph. That is the property
-          the whole design exists to hold.
-        </p>
+        <p className="display">Reading and verifying a BitGraph never requires trusting BitGraph.</p>
+        <p>That is the property the whole design exists to hold.</p>
       </div>
 
       {/* ── 5. Integrate ──────────────────────────────────────────────────── */}
