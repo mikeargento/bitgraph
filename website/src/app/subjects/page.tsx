@@ -137,6 +137,19 @@ const cases = [
     changes:
       "Recording a draft as it is made gives those exact bytes a position that cannot be created later. Revisions take later positions, so the development history itself becomes the evidence.",
   },
+  {
+    /* Added 2026-09-03 (Mike: "should AI be a subject?"). The one entry written
+       for the fused operation: the artifact is built around a place that
+       existed first, so the claim reaches the bytes from below as well as
+       from above. Same anatomy as the others; the claim stays narrow, and
+       "The edge of the claim" rules out the rest for this entry too. */
+    title: "AI outputs and agent runs",
+    who: "Teams running models and agents, their auditors, the people relying on the output",
+    body:
+      "An output from a model or an agent can be regenerated, edited and re-dated at will, and the log that says which run produced it is kept by the party that ran it. When an output is questioned, the transcript shows what a run contained, but nothing outside that party's own systems shows that the output in hand is the one that existed.",
+    changes:
+      "Taken as a fused artifact, an output is built around a place that existed before it was finished: it could not have been finalized before that place was allocated, and it was committed no later than the position that follows. A regeneration takes a later place, and anyone holding the file and its proof can tell the two apart. What the output says, and whether the model should have said it, stays outside the claim.",
+  },
 ];
 
 const limits = [

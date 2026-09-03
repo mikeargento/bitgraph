@@ -125,29 +125,6 @@ export function clearCameraCache(id: BitGraphCameraProps["id"]) {
   cachedChecked.delete(id);
 }
 
-/* The what-happens pair, INSIDE the frame (Mike, 2026-08-27: "should this be
-   INSIDE the drop box? im leaning yes"; a dividing hairline was considered
-   and rejected the same hour: "actually no line"). One component so home and
-   /actor cannot drift. The WORDING IS SETTLED, do not reflow it (memory
-   project_home_no_crypto_line): "place" is the h1's noun; "your file hash
-   arrives" because the hash is the only thing that travels; line two keeps
-   "bits" (the place holds the bits, ontology); the italic is stress on the
-   one load-bearing word; "instantly, permanently." with a comma so line two
-   holds one line on phones. Sized between the headline and the hints.
-   Hidden on short landscape viewports (globals, .bg-frame-pair) so the
-   frame's tuned height floors stay valid. */
-export function WhatHappensPair() {
-  return (
-    <div
-      className="bg-frame-pair"
-      style={{ marginTop: 2, color: "#111827", fontSize: "min(15px, 3.6vw)", lineHeight: 1.6, textAlign: "center" }}
-    >
-      A place opens <em>before</em> your file hash arrives.
-      <br />
-      Your bits fill the place instantly, permanently.
-    </div>
-  );
-}
 
 export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, below, belowClassName, frameNote, acceptsPendingDrop }: BitGraphCameraProps) {
   const router = useRouter();

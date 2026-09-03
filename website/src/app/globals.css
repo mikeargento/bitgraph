@@ -886,8 +886,3 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .bg-footer-camera-full { display: block; }
 }
 
-/* The what-happens pair inside the camera frame (WhatHappensPair in
-   bitgraph-camera.tsx). Hidden on short landscape viewports: the frame's
-   height floors (120px under 520 tall) were tuned for the headline and two
-   hint lines, and the pair's two extra lines would crowd them. */
-@media (max-height: 520px) { .bg-frame-pair { display: none; } }

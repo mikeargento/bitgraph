@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BitGraphCamera, WhatHappensPair } from "@/components/bitgraph-camera";
+import { BitGraphCamera } from "@/components/bitgraph-camera";
 import { anonymous } from "@/lib/commit-strategy";
 
 /**
@@ -57,7 +57,6 @@ export default function BitGraphPage() {
         title={<a href="/docs/overview">A BitGraph gives bits a place</a>}
         /* The what-happens pair, inside the frame since 2026-08-27; shared
            with /actor. Wording rules live on the component. */
-        frameNote={<WhatHappensPair />}
         belowClassName="hero-more"
         below={
           /* Home's ONE discoverable exit (the h1 is a link too, but it is
@@ -70,9 +69,8 @@ export default function BitGraphPage() {
              type (14 / 600 / -0.01em, brand blue), on the layout-neutral
              .bg-arrow-link tap target. */
           <>
-            {/* The what-happens pair lived HERE from 2026-08-26 until
-                2026-08-27, when it moved inside the frame (frameNote above).
-                Its wording history and rules are with it. */}
+            {/* The two-line "what happens" pair lived here, then inside the frame,
+                until 2026-09-03, when Mike removed it: too basic for the box. */}
             {/* "No token. No wallet. No blockchain required." lived here for
                 one day (2026-08-26, b8a25e99, removed the same evening). It
                 was the block's only line when it shipped and carried the lite
