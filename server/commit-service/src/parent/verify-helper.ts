@@ -38,6 +38,18 @@ export async function verifySignatureOnly(
     signedBody.actor = proof.agency.actor;
   }
 
+  // Attribution and policy are INSIDE the enclave-signed bytes (app.ts seals
+  // both before signing). Rebuilding without them reported "signature
+  // verification failed" for every anchor proof and for every fused proof
+  // (which carries its placement and origin in attribution). Mirrors the
+  // rebuild in packages/verify/src/verifier.ts.
+  if (proof.policy !== undefined) {
+    signedBody.policy = proof.policy;
+  }
+  if (proof.attribution !== undefined) {
+    signedBody.attribution = proof.attribution;
+  }
+
   const canonicalBytes = canonicalize(signedBody);
   checks.push("canonicalize: ok");
 

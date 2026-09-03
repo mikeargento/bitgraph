@@ -216,12 +216,12 @@ const proofs = await resp.json();
         <Endpoint
           method="POST"
           path="/allocate-slot"
-          description="Pre-allocate a causal slot before committing an artifact. The slot reserves a nonce and counter position, proving the enclave committed to a sequence position independently of any artifact content. Public endpoint."
+          description="Pre-allocate a causal slot before committing an artifact. The slot reserves a nonce and counter position, proving the enclave signed a sequence position before receiving any artifact content. Same key policy as /commit; metered per address in slots (a bare allocation holds one of the enclave's pending-slot entries for up to 120 seconds). The chain is bound at allocation and defaults to the anchored chain."
         >
           <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2">
-            Request body
+            Request body (optional)
           </h4>
-          <CodeBlock code={`{}`} />
+          <CodeBlock code={`{ "chainId": "bitgraph:main" }`} />
 
           <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2 mt-6">
             Response (200)
@@ -233,15 +233,16 @@ const proofs = await resp.json();
     "version": "bitgraph/slot/1",
     "nonceB64": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",
     "counter": "277",
-    "time": 1741496392800,
     "epochId": "a1b2c3d4e5f6...",
     "publicKeyB64": "...",
+    "chainId": "bitgraph:main",
     "signatureB64": "..."
-  }
+  },
+  "chainId": "bitgraph:main"
 }`}
           />
           <p className="text-xs text-text-tertiary mt-3">
-            Note: POST /commit handles slot allocation internally. This endpoint is for clients that want direct control over the 2-RTT protocol.
+            Note: POST /commit handles slot allocation internally. A slot record carries no clock. The slotId is the slot&apos;s nonce: a bearer ticket until it is consumed, so do not disclose it before commit. Consuming a held slot over HTTP (POST /commit with slotId) is available only where the service enables it; a slot that is never consumed expires after 120 seconds. 429 with Retry-After when the per-address allocation budget is spent.
           </p>
         </Endpoint>
 

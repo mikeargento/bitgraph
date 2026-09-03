@@ -154,6 +154,12 @@ describe("fusedFloor", () => {
     assert.equal(fusedFloor(segment([bound("a3", "300", 3000)]), anchors, undefined), null);
   });
 
+  it("a slot off the anchored chain has no floor", () => {
+    const anchors = new Map([["a1", anchor("a1", "10")]]);
+    assert.equal(fusedFloor(segment([bound("a1", "100", 1000)]), anchors, "42", "global"), null);
+    assert.equal(fusedFloor(segment([bound("a1", "100", 1000)]), anchors, "42", "bitgraph:main")?.anchorProofHash, "a1");
+  });
+
   it("only not-before bounds count; not-after bounds are never a ceiling", () => {
     const anchors = new Map([["a9", anchor("a9", "5")]]);
     const after: SegmentBound = { ...bound("a9", "900", 9000), kind: "not-after" };

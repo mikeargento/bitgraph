@@ -17,7 +17,8 @@
     "src",
     "README.md",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "!src/__tests__/fuse-fixtures"
   ],
   "scripts": {
     "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run build --workspace=packages/player && npm run build --workspace=packages/mcp && tsc",

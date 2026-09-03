@@ -108,7 +108,14 @@ export interface ProofVerifyResult {
  */
 export function isBitGraphProof(text: string): BitGraphProof | null {
   try {
-    const obj = JSON.parse(text);
+    let obj = JSON.parse(text);
+    // A Frame (profile bitgraph-fuse/1, working name) wraps an unchanged proof
+    // under "proof". Treat it as that proof: a lookup, never a file to record.
+    // Without this a Frame dropped alone would be hashed as bytes and, being
+    // new, auto-recorded at a fresh position.
+    if (obj && typeof obj === "object" && obj.type === "bitgraph-fuse/1" && obj.proof && typeof obj.proof === "object") {
+      obj = obj.proof;
+    }
     if (
       obj &&
       typeof obj === "object" &&

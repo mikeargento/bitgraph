@@ -7,7 +7,7 @@
  */
 
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
-import { fusedOriginDigestOf } from "@/lib/fuse";
+import { fusedOriginDigestOf } from "@/lib/fuse-core";
 
 /**
  * Raised when the ledger could not be READ. It is not an answer about the

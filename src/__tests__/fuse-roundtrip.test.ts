@@ -117,6 +117,16 @@ describe("produced/1", () => {
   });
 });
 
+describe("legacy files that carry a nonce line", () => {
+  test("a file with a 'nonce:' line and no trailer, container or payload locates nothing", () => {
+    // ~/BitGraph holds recordings whose bytes begin with a test label and a line
+    // "nonce: <hex>" (the proto pattern, minted 2026-06-27 and 2026-08-06). That
+    // line is content, not a commitment: every registered placement must miss.
+    const legacy = new TextEncoder().encode("BitGraph test subject folder-02 file-02\nnonce: e317096692576a308263bc283d66b42e\nuoJjpYb8igrEhhSlczKKTKDyw6guO2iU5iHdBRF+mPELQqBfjrO2WZYrSWyHEuKK\n");
+    for (const p of PLACEMENTS) assert.equal(p.locate(legacy), null, p.id);
+  });
+});
+
 describe("attribution and Frame", () => {
   test("fused attribution carries placement in title and origin in message (standard base64)", () => {
     const origin = sha256(bytes("original.txt"));

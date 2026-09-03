@@ -549,7 +549,7 @@ function buildRecording(
   const marker = readFuseAttribution(proof.proof);
   let fused: CheckFused | undefined;
   if (marker !== null) {
-    const floor = fusedFloor(segment, anchorByHash, proof.slotCounter);
+    const floor = fusedFloor(segment, anchorByHash, proof.slotCounter, proof.chainId);
     const built = fusedLine(marker.placement, marker.originDigest !== undefined ? proof.proof.attribution?.message ?? null : null, fuseEvidence?.get(proof.proofHash), floor, proof);
     lines.push(built.line);
     fused = built.fused;
@@ -579,11 +579,17 @@ function buildRecording(
  * block number, else latest timestamp). Null when no verified anchor
  * precedes the slot in its epoch chain.
  */
+export const ANCHORED_CHAIN = "bitgraph:main";
+
 export function fusedFloor(
   segment: TemporalSegment | undefined,
   anchorByHash: ReadonlyMap<string, AnchorRecord> | undefined,
-  slotCounter: string | undefined
+  slotCounter: string | undefined,
+  chainId: string = ANCHORED_CHAIN
 ): CheckFloor | null {
+  // Anchors exist only on the anchored chain and the anchor index carries no
+  // chain segment, so a slot on any other chain compares to nothing.
+  if (chainId !== ANCHORED_CHAIN) return null;
   if (segment === undefined || anchorByHash === undefined || slotCounter === undefined || !/^[0-9]+$/.test(slotCounter)) return null;
   const slot = BigInt(slotCounter);
   let best: SegmentBound | undefined;
@@ -625,7 +631,9 @@ function fusedLine(
   const where = placement !== null ? ` (placement ${placement})` : " (placement undeclared)";
   const floorDetail = floor !== null
     ? `assembled after ${floorClause(floor)}, the last verified anchor preceding slot ${slot} in this epoch`
-    : FLOOR_UNDETERMINED;
+    : proof.chainId !== ANCHORED_CHAIN
+      ? `floor undetermined: the slot is on chain "${proof.chainId}", not the anchored chain`
+      : FLOOR_UNDETERMINED;
   const span = ev?.span !== undefined && ev.span !== null
     ? { slotCounter: ev.span.slotCounter, commitCounter: ev.span.commitCounter, positions: ev.span.positions }
     : proof.slotCounter !== undefined && proof.counter !== undefined
