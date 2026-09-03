@@ -1,0 +1,69 @@
+{
+  "type": "bitgraph-fuse/1",
+  "manifest": {
+    "placement": "produced/1",
+    "origin": {
+      "algorithm": "sha256",
+      "digest": "2e824794554ffb36fdfa7a1c0b207ec958bb26b1dad54cebeff35358938e4327"
+    },
+    "artifact": {
+      "algorithm": "sha256",
+      "digest": "6dc38bcd677ec6d474410ea868c0599b4d09c90e1af49fc0d0ed94504e719bd2"
+    },
+    "fusedFile": "produced-origin.json"
+  },
+  "proof": {
+    "version": "bitgraph/1",
+    "artifact": {
+      "hashAlg": "sha256",
+      "digestB64": "bcOLzWd+xtR0QQ6oaMBZm00JyQ4a9J/A0O2UUE5xm9I="
+    },
+    "commit": {
+      "nonceB64": "9NO4t8yzmbah55gpJPv31PNkVww7n39c9HhC4OiN9FM=",
+      "counter": "8",
+      "slotCounter": "7",
+      "slotHashB64": "tQ9+QM3L1h239oVvyvNeyUs6gfabPK0wVKCE6QFNcwE=",
+      "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
+      "prevB64": "X3rlmyDMr1pvLGPOZ3VHlo+gJv4SENMl6YJkQOcVKPI=",
+      "chainId": "bitgraph:main"
+    },
+    "signer": {
+      "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+      "signatureB64": "X8fuyOjf94tTo30kXspzh7tWAvXRpu9vOcwqKzgAD/Ij7NE2Q3gtERgEXDwRo3D22/8ZSYoJTE305A55v50aAw=="
+    },
+    "environment": {
+      "enforcement": "measured-tee",
+      "measurement": "abababababababababababababababababababababababababababababababababababababababababababababababab",
+      "attestation": {
+        "format": "aws-nitro",
+        "reportB64": "TE9DQUwtSEFSTkVTUy1BVFRFU1RBVElPTjpjOWNiZWMzYjJkNjlmODAzZGNlMjZhOWVlOGViMDY2YTRiNzg1YzEyOTM2MTY0MTcyYWZkNDMyZmJiOGI5NGQw"
+      }
+    },
+    "slotAllocation": {
+      "version": "bitgraph/slot/1",
+      "nonceB64": "9NO4t8yzmbah55gpJPv31PNkVww7n39c9HhC4OiN9FM=",
+      "counter": "7",
+      "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
+      "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+      "chainId": "bitgraph:main",
+      "signatureB64": "P5aYY3DhRFeaztVntnAPKt/1v80lo5hbO6I+SDIRB5k07dno/bROZQs53uS+MEAoSbQYCJK4IbELmBhqjIAgAw=="
+    },
+    "attribution": {
+      "name": "BitGraph Fuse",
+      "title": "produced/1",
+      "message": "LoJHlFVP+zb9+nocCyB+yVi7JrHa1Uzr7/NTWJOOQyc="
+    },
+    "proofHash": "ycvsOy1p+APc4mqe6OsGakt4XBKTYWQXKv1DL7uLlNA="
+  },
+  "fusePayload": {
+    "origin": {
+      "algorithm": "sha256",
+      "digest": "2e824794554ffb36fdfa7a1c0b207ec958bb26b1dad54cebeff35358938e4327"
+    },
+    "slotCommitment": {
+      "algorithm": "sha256",
+      "digest": "c077f10599b8ea28341e194f99c3ecb6f02507632611f56e78847ef1e27df98f"
+    },
+    "type": "bitgraph-fuse/1"
+  }
+}

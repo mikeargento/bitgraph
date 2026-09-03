@@ -2,6 +2,16 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.4.0 (unreleased)
+
+- BitGraph Fuse, profile `bitgraph-fuse/1` (working name): construction and
+  parsing (`computeSlotRecordHash`, `computeSlotCommitment`, the placement
+  registry `trailer/1`, `container/1`, `produced/1`, Form C payload,
+  Frame helpers) and `verifyFuse`, which verifies a proof against either the
+  fused bytes or the original and reports a category, never a collapsed
+  verdict. bitgraph/1 verification is unchanged; `verify` and
+  `verifyProofIntegrity` behave exactly as in 1.3.0.
+
 ## 1.3.0 (2026-08-19)
 
 WebAuthn RP binding. Until now the verifier checked a declared proof's

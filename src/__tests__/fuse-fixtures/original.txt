@@ -1,0 +1,2 @@
+BitGraph fixture: an original file that already exists.
+Line two.

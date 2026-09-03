@@ -1,0 +1,37 @@
+{
+  "version": "bitgraph/1",
+  "artifact": {
+    "hashAlg": "sha256",
+    "digestB64": "LoJHlFVP+zb9+nocCyB+yVi7JrHa1Uzr7/NTWJOOQyc="
+  },
+  "commit": {
+    "nonceB64": "SwkCAJFnzVNnP20l0SAx4KWNk5ecHHEeOzxhTm6+Q1o=",
+    "counter": "2",
+    "slotCounter": "1",
+    "slotHashB64": "p1iLSGuDe/2mFk8rdC4gM6mF3zAzdFmyKtYt4gsiFTE=",
+    "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
+    "chainId": "bitgraph:main"
+  },
+  "signer": {
+    "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+    "signatureB64": "Yuvr80XDv3qpbNjcm3aIm/Up0pFbbrl91qXx2PMq9pIQs90LdLyG+k2PDnUH871xY+KT+ljQTCUooA7VFrx3Dg=="
+  },
+  "environment": {
+    "enforcement": "measured-tee",
+    "measurement": "abababababababababababababababababababababababababababababababababababababababababababababababab",
+    "attestation": {
+      "format": "aws-nitro",
+      "reportB64": "TE9DQUwtSEFSTkVTUy1BVFRFU1RBVElPTjoyNWE0NTc0MzVmMDJmYWQzZmZiODYwYWQ1OTM2MGFhNDlkNDQxZDUwMmZlODBjZTY3MDc5OGJhMjE4NGQzNzQ2"
+    }
+  },
+  "slotAllocation": {
+    "version": "bitgraph/slot/1",
+    "nonceB64": "SwkCAJFnzVNnP20l0SAx4KWNk5ecHHEeOzxhTm6+Q1o=",
+    "counter": "1",
+    "epochId": "eSmeyEPc94jm+alhqsLMt7eWeQ7iWh6cKxUs4VIuTko=",
+    "publicKeyB64": "ReFLllyVxf28cOBjYt7N6nwdS6GAjqrpmCv2FsxCAuI=",
+    "chainId": "bitgraph:main",
+    "signatureB64": "OCv24Iri3rQwOPedDb8HlL9AiWsdXsZ8BE8CeHoj0MHSiM02UvFTEIkvb+udqufCn8SfIY/jYMCJrpL3amCIDQ=="
+  },
+  "proofHash": "JaRXQ18C+tP/uGCtWTYKpJ1EHVAv6AzmcHmLohhNN0Y="
+}

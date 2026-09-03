@@ -29,3 +29,36 @@ export type { VerifyResult, ProofIntegrityResult } from "./verifier.js";
 export { computeProofHash, computeChainHash, buildSignedBody, computeSignedBodyHash } from "./proof-hash.js";
 
 export { canonicalize, canonicalizeToString, constantTimeEqual } from "./canonical.js";
+
+// BitGraph Fuse (profile bitgraph-fuse/1): construction, parsing, verification.
+export {
+  FUSE_PROFILE,
+  FUSE_DOMAIN,
+  FUSE_ATTRIBUTION_NAME,
+  TRAILER_MAGIC,
+  TRAILER_LENGTH,
+  CONTAINER_MANIFEST_PATH,
+  CONTAINER_ORIGINAL_PATH,
+  PLACEMENTS,
+  getPlacement,
+  canonicalSlotBody,
+  computeSlotRecordHash,
+  slotCommitmentPreimage,
+  computeSlotCommitment,
+  buildFusePayload,
+  parseFusePayload,
+  fuseAttribution,
+  readFuseAttribution,
+  mergeMarkers,
+  buildFrame,
+  parseFrame,
+  readFrameMarker,
+  bytesToBase64,
+  base64ToBytes,
+  bytesToHex,
+  hexToBytes,
+  bytesEqual,
+} from "./fuse.js";
+export type { PlacementId, Placement, Located, FusePayload, FuseFrame, FuseMarker, MarkerSource } from "./fuse.js";
+export { verifyFuse, assembledAfterCommit } from "./fuse-verify.js";
+export type { FuseCategory, FuseSpan, FuseVerifyResult, FuseVerifyOptions } from "./fuse-verify.js";
