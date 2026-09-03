@@ -154,7 +154,7 @@ placement, never ranked; dropping the fused artifact finds its proof directly,
 and its page shows the origin digest and the placement. A fused proof's page
 accepts the original by reconstruction, so the visitor never has to keep the
 fused copy. Ordinary recording remains as the compatibility operation ("Record
-N files instead" on the results card, and every /actor recording): it selects
+N files instead" on the results card, the API, MCP and Zapier): it selects
 existing bytes and gives them a position; Fuse obtains an unused position
 first, creates new bytes from the origin, then consumes that same position
 with them. Files larger than 256 MB are recorded rather than fused, because

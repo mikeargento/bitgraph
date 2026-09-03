@@ -12,12 +12,12 @@ export default function AuditPage() {
     <div className="prose-doc">
       <h1 className="mb-6">Audit a Bundle</h1>
       <p style={{ color: "#4b5563", marginBottom: 32 }}>
-        You have been handed an Audit Bundle: an archive of BitGraph proof files, and optionally the original artifacts, Ethereum anchor witnesses, and a manifest. This is the recipient&apos;s walkthrough. The audit runs entirely on your machine, fully offline, and reports exactly what the supplied evidence supports, nothing more.
+        You have been handed an Audit Bundle: an archive of BitGraph proof files, and optionally the artifact bytes, Ethereum anchor witnesses, and a manifest. This is the recipient&apos;s walkthrough. The audit runs entirely on your machine, fully offline, and reports exactly what the supplied evidence supports, nothing more.
       </p>
 
       <h2>What a bundle is</h2>
       <p>
-        A bundle is a <code>.tar.gz</code>, <code>.tar</code>, or plain directory containing BitGraph proof JSON files. It may also include the artifact bytes each proof commits to, Ethereum anchor witness files, and a <code>manifest.json</code>. Proofs are discovered by their schema shape, not by filename, and artifacts are matched by content hash, so the layout inside the archive does not matter. The complete producer and consumer specification, including the deterministic contents hash and its test vectors, lives in the repository:
+        A bundle is a <code>.tar.gz</code>, <code>.tar</code>, or plain directory containing BitGraph proof JSON files. It may also include the artifact bytes each proof commits to, Ethereum anchor witness files, and a <code>manifest.json</code>. Proofs are discovered by their schema shape, not by filename, and artifacts are matched by content hash, so the layout inside the archive does not matter. A Frame file (<code>&lt;name&gt;.bitgraph-fuse.json</code>, the carrier of a fused recording) is read as a proof file: the proof inside it is the member, and the fused copy it describes is matched by content hash like any other artifact. The complete producer and consumer specification, including the deterministic contents hash and its test vectors, lives in the repository:
       </p>
       <ul>
         <li>
@@ -27,7 +27,7 @@ export default function AuditPage() {
 
       <h2>1. Get the bundle</h2>
       <p>
-        A bundle can come from anyone who collected BitGraph proofs: a per-proof export from a proof page, an operator who assembled a set of proofs, or a colleague who handed you an archive. How you received it does not matter; the contents carry their own evidence.
+        A bundle can come from anyone who collected BitGraph proofs: an export from a proof page (for a fused recording: the original, <code>proof.json</code>, the Frame, the fused copy and the Ethereum anchors), an operator who assembled a set of proofs, or a colleague who handed you an archive. How you received it does not matter; the contents carry their own evidence.
       </p>
 
       <h2>2. Optionally check the archive hash</h2>

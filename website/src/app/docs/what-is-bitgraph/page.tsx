@@ -72,6 +72,15 @@ export default function WhatIsBitGraphPage() {
           The proof includes the signed slot record as causal evidence.
         </li>
       </ol>
+      <p className="text-[#1f2937] leading-relaxed mb-4">
+        In the site&apos;s default operation the artifact is built between
+        steps 1 and 2. A commitment to the signed slot record is placed into a
+        new fused artifact made from the dropped file, the origin, under a
+        registered placement, and it is that artifact&apos;s digest that is
+        bound in step 2. The fused bytes could not have been finalized before
+        the slot existed. Recording existing bytes as they are skips the
+        building step and remains available.
+      </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">What you get</h2>
       <p className="text-[#1f2937] leading-relaxed mb-4">
@@ -83,19 +92,19 @@ export default function WhatIsBitGraphPage() {
         <li className="text-[#1f2937]"><strong className="text-text">signer</strong> - Ed25519 public key and signature over the canonical signed body</li>
         <li className="text-[#1f2937]"><strong className="text-text">environment</strong> - enforcement tier, platform measurement (PCR0), hardware attestation</li>
         <li className="text-[#1f2937]"><strong className="text-text">slotAllocation</strong> - the pre-allocated causal slot record, independently signed by the enclave</li>
-        <li className="text-[#1f2937]"><strong className="text-text">agency</strong> - optional actor-bound proof via device biometrics (passkey/WebAuthn)</li>
-        <li className="text-[#1f2937]"><strong className="text-text">attribution</strong> - optional signed creator metadata (name, title, message)</li>
+        <li className="text-[#1f2937]"><strong className="text-text">agency</strong> - optional, legacy</li>
+        <li className="text-[#1f2937]"><strong className="text-text">attribution</strong> - optional signed metadata (name, title, message); for a fused artifact it carries the profile identifier <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">bitgraph-fuse/1</code>, the placement, and the origin digest</li>
         <li className="text-[#1f2937]"><strong className="text-text">timestamps</strong> - optional and advisory only. A proof&apos;s place comes from its slot and counter. External time bounds come from periodic Ethereum anchors of the counter chain, never from this field.</li>
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Key properties</h2>
       <ul className="space-y-2 mb-6">
-        <li className="text-[#1f2937]"><strong className="text-text">Portable</strong> — a self-contained JSON object. Any verifier can check it offline with only the public key and the original bytes.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Atomic</strong> — fail-closed. Either a complete, valid proof is produced, or nothing is.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Causal</strong> — every proof is bound to a pre-allocated slot created before the artifact hash reached the enclave.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Ordered</strong> — one place in a sequence, fixed by a monotonic counter within its epoch. Counter, epoch, and chain link establish sequencing.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Measured</strong> — binds to a specific execution environment via its platform measurement. Production is AWS Nitro, where that measurement is PCR0; the schema names no platform, so another TEE&rsquo;s would fit it.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Verifiable</strong> — Ed25519 signature, SHA-256 digest, canonical serialization. Standard cryptographic primitives.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Portable</strong> - a self-contained JSON object. Any verifier can check it offline with only the public key and the artifact bytes; a fused artifact is rebuilt from its origin and the proof.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Atomic</strong> - fail-closed. Either a complete, valid proof is produced, or nothing is.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Causal</strong> - every proof is bound to a pre-allocated slot created before the artifact hash reached the enclave.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Ordered</strong> - one place in a sequence, fixed by a monotonic counter within its epoch. Counter, epoch, and chain link establish sequencing.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Measured</strong> - binds to a specific execution environment via its platform measurement. Production is AWS Nitro, where that measurement is PCR0; the schema names no platform, so another TEE&rsquo;s would fit it.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Verifiable</strong> - Ed25519 signature, SHA-256 digest, canonical serialization. Standard cryptographic primitives.</li>
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Enforcement tiers</h2>

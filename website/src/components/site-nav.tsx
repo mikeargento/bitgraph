@@ -178,26 +178,6 @@ export function SiteNav() {
           >
             Roll
           </Link>
-          {/* ── Actor: home's camera with this device's key on the recording.
-              Linked again as of 2026-08-19, the day the two pages became one
-              implementation (components/bitgraph-camera.tsx). It was pulled
-              from this slot for a few hours while /actor was a reimplementation
-              that could record but not CHECK: no folder check, no proof.json
-              flow, no verdicts, no export, a batch that auto-recorded with no
-              confirmation, and no hold through the 23:59 key renewal. All of
-              that is the camera's now, and /actor has it by construction.
-
-              ⚠️ Placement: AFTER Roll and BEFORE Docs. Never before Roll, or
-              an unregistered visitor's introduction to the site is a passkey
-              prompt, and home's rule is a first drop with no dialog and no
-              decision. ── */}
-          <Link
-            href="/actor"
-            aria-current={pathname === "/actor" ? "page" : undefined}
-            style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
-          >
-            Actor
-          </Link>
           {/* Docs opens the section list rather than navigating.
               It used to be a plain link to /docs, and every docs page then
               carried a full-width sticky bar of its own holding this menu. That

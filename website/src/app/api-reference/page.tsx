@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "API Reference",
-  description: "BitGraph Protocol API reference: commit, verify, key, and health endpoints.",
+  description: "BitGraph Protocol API reference: fuse, commit, lookup, verify, key, and health endpoints.",
 };
 
 function Endpoint({
@@ -58,8 +58,9 @@ export default function APIReferencePage() {
           BitGraph Protocol API
         </h1>
         <p className="text-base leading-relaxed text-text-secondary max-w-xl">
-          REST API for committing artifacts and verifying proofs. The commit
-          endpoint runs inside an AWS Nitro Enclave.
+          REST API for fusing and committing artifacts, looking up proofs by
+          digest, and verifying proofs. The commit path runs inside an AWS
+          Nitro Enclave.
         </p>
         <div className="mt-6 terminal-glow border border-border-subtle bg-bg-elevated p-4">
           <div className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2">
@@ -68,6 +69,9 @@ export default function APIReferencePage() {
           <code className="text-sm font-mono text-text">
             https://nitro.occproof.com
           </code>
+          <p className="text-xs text-text-tertiary mt-3">
+            The enclave host. Routes under <code className="font-mono">/api/</code> are served by the site at <code className="font-mono">https://bitgraph.ing</code>.
+          </p>
         </div>
       </div>
 
@@ -96,7 +100,7 @@ export default function APIReferencePage() {
         <Endpoint
           method="POST"
           path="/commit"
-          description="Commit one or more artifact digests. For each digest, the enclave allocates a causal slot (nonce + counter), then commits the artifact against that slot. Returns a complete BitGraph proof for each digest. Requires API key if configured."
+          description="Record existing bytes: commit one or more artifact digests. For each digest, the enclave allocates a causal slot (nonce + counter), then commits the artifact against that slot. Returns a complete BitGraph proof for each digest. For a fused artifact use /api/fuse/allocate and /api/fuse/commit instead. Requires API key if configured."
         >
           <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2">
             Request body
@@ -109,7 +113,6 @@ export default function APIReferencePage() {
       "hashAlg": "sha256"
     }
   ],
-  "agency": { ... },                 // optional - actor-bound proof (passkey/WebAuthn)
   "attribution": {                   // optional - signed creator metadata
     "name": "Jane Doe",
     "title": "Sunset at Malibu",
@@ -246,25 +249,84 @@ const proofs = await resp.json();
           </p>
         </Endpoint>
 
-        {/* POST /challenge */}
+        {/* POST /api/fuse/allocate */}
         <Endpoint
           method="POST"
-          path="/challenge"
-          description="Request a fresh challenge nonce from the enclave for actor-bound proofs (passkey/WebAuthn). The challenge must be signed by the device key and included in the agency envelope of a commit request. Public endpoint."
+          path="/api/fuse/allocate"
+          description="Allocate an unused slot for a fused artifact, before the artifact exists. No body. The slot exists before any hash reaches the enclave; the producer writes a commitment to the signed slot record into the artifact, then commits the artifact's digest under the same slot with POST /api/fuse/commit. Served by the site at https://bitgraph.ing. The route sits behind the anchor-first gate and a rotation guard: until the current epoch has an anchor, and in the window before the daily restart, it answers 503 tee-restarting."
         >
           <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2">
             Request body
           </h4>
-          <CodeBlock code={`{}`} />
+          <CodeBlock code={`(none)`} />
 
           <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2 mt-6">
             Response (200)
           </h4>
           <CodeBlock
             code={`{
-  "challenge": "R2FtbWEgUmF5IEJ1cnN0..."   // base64, 60s TTL, single-use
+  "slotId": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",
+  "slot": {
+    "version": "bitgraph/slot/1",
+    "nonceB64": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",
+    "counter": "277",
+    "epochId": "a1b2c3d4e5f6...",
+    "publicKeyB64": "...",
+    "chainId": "bitgraph:main",
+    "signatureB64": "..."
+  },
+  "chainId": "bitgraph:main"
 }`}
           />
+          <p className="text-xs text-text-tertiary mt-3">
+            The slotId is the slot&apos;s nonce, a bearer ticket until it is consumed: write only the derived commitment into the artifact, never the nonce, and do not log it. The commitment is SHA-256 over the domain string bitgraph-fuse/1, a zero byte, the SHA-256 of the canonical slot record and the nonce. A slot that is never consumed expires after 120 seconds. 429 with Retry-After when the per-address allocation budget is spent.
+          </p>
+        </Endpoint>
+
+        {/* POST /api/fuse/commit */}
+        <Endpoint
+          method="POST"
+          path="/api/fuse/commit"
+          description="Commit the fused artifact's digest under the slot from /api/fuse/allocate. Exactly one digest. The signed attribution is the fused marker: name bitgraph-fuse/1, title the placement id, message the origin digest. An anchor must precede the slot in its epoch, otherwise 409 no-anchor-before-slot; that failure is final for the slot, so allocate again. The route refuses to return a proof minted under any other slot (502 slot-mismatch). Served by the site at https://bitgraph.ing."
+        >
+          <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2">
+            Request body
+          </h4>
+          <CodeBlock
+            code={`{
+  "slotId": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",   // the slot's nonce
+  "slot": { ... },                   // the slot record from /api/fuse/allocate, verbatim
+  "digests": [{
+    "digestB64": "<SHA-256 of the fused bytes>",
+    "hashAlg": "sha256"
+  }],
+  "chainId": "bitgraph:main",
+  "attribution": {
+    "name": "bitgraph-fuse/1",       // fixed value; marks a fused proof
+    "title": "trailer/1",            // placement id: trailer/1 | container/1 | produced/1
+    "message": "<origin digest, standard base64>"
+  }
+}`}
+          />
+
+          <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2 mt-6">
+            Response (200)
+          </h4>
+          <CodeBlock
+            code={`{
+  "proof": {
+    "version": "bitgraph/1",
+    "artifact": { "hashAlg": "sha256", "digestB64": "<SHA-256 of the fused bytes>" },
+    "commit": { "nonceB64": "...", "counter": "278", "slotCounter": "277", "slotHashB64": "...", "epochId": "..." },
+    "attribution": { "name": "bitgraph-fuse/1", "title": "trailer/1", "message": "..." },
+    "slotAllocation": { ... },       // the held slot
+    ...
+  }
+}`}
+          />
+          <p className="text-xs text-text-tertiary mt-3">
+            An ordinary bitgraph/1 proof: slotAllocation is the held slot, commit.slotCounter its counter, commit.counter the commit position. If the response is lost, read the proof back by the fused digest and match commit.slotHashB64 against the hash of the slot record you hold. Errors: 400 body shape; 409 no-anchor-before-slot; 502 slot-mismatch; 503 tee-restarting or ledger-unavailable, retry.
+          </p>
         </Endpoint>
 
         {/* GET /key */}
@@ -315,6 +377,78 @@ const proofs = await resp.json();
 
 // Failure
 { "valid": false, "reason": "measurement not in allowed set" }`}
+          />
+        </Endpoint>
+
+        {/* GET /api/proofs/digest/{digest} */}
+        <Endpoint
+          method="GET"
+          path="/api/proofs/digest/{digest}"
+          description="Every causal position of a digest (url-safe base64, no padding). By the original's digest: its recordings and every fused artifact naming it as origin, by position, never ranked. By a fused artifact's digest: that proof with its origin. ?counter= (and ?epoch=) selects which position the lead proof describes; the default is the earliest recording. Served by the site at https://bitgraph.ing."
+        >
+          <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2">
+            Response (200)
+          </h4>
+          <CodeBlock
+            code={`{
+  "proofs": [{ "proof": { ... } }],   // the selected position; [] when the ledger holds nothing
+  "lookupKind": "recorded",           // "recorded" | "origin-only" (only fused descendants exist)
+  "positions": [
+    {
+      "counter": "278",
+      "epoch": "<url-safe>",
+      "lowerTime": "2026-03-07T12:00:00.000Z",   // anchor before, or null
+      "upperTime": "2026-03-07T12:00:12.000Z",   // anchor after, or null
+      "kind": "recorded",             // "recorded" | "fused"
+      "artifactDigest": "<url-safe>"
+    },
+    {
+      "counter": "301",
+      "epoch": "<url-safe>",
+      "lowerTime": "...",
+      "upperTime": "...",
+      "kind": "fused",
+      "artifactDigest": "<url-safe>", // the fused artifact's own digest
+      "placement": "trailer/1",
+      "fusedOrigin": "<url-safe>"     // the origin digest named by the signed marker
+    }
+  ],
+  "causalWindow": { "anchorBefore": { ... }, "anchorAfter": { ... } },
+  "anchorBlock": null
+}`}
+          />
+          <p className="text-xs text-text-tertiary mt-3">
+            An empty proofs list means the ledger holds nothing for this digest. 503 with &quot;ledger unavailable&quot; means the ledger could not be read; it is not an answer about the bytes.
+          </p>
+        </Endpoint>
+
+        {/* POST /api/proofs/batch */}
+        <Endpoint
+          method="POST"
+          path="/api/proofs/batch"
+          description="Batch form of the lookup: one round trip for up to 500 url-safe digests. Each entry lists that digest's positions with their kind. Served by the site at https://bitgraph.ing."
+        >
+          <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2">
+            Request body
+          </h4>
+          <CodeBlock code={`{ "digests": ["<digest-a>", "<digest-b>", "<digest-c>"] }`} />
+
+          <h4 className="text-[11px] font-medium uppercase tracking-[0.15em] text-text-tertiary mb-2 mt-6">
+            Response (200)
+          </h4>
+          <CodeBlock
+            code={`{
+  "results": {
+    "<digest-a>": {
+      "proofs": [
+        { "proof": { ... }, "writeTime": 1741496392841, "kind": "recorded" },
+        { "proof": { ... }, "writeTime": 1741496410207, "kind": "fused" }
+      ]
+    },
+    "<digest-b>": { "proofs": [] },                        // nothing on the ledger
+    "<digest-c>": { "proofs": [], "unavailable": true }    // the read failed; not an answer
+  }
+}`}
           />
         </Endpoint>
 
@@ -375,28 +509,9 @@ const proofs = await resp.json();
     publicKeyB64: string;            // same enclave key
     signatureB64: string;            // Ed25519 over canonical slot body
   };
-  agency?: {                         // actor-bound proof
-    actor: {
-      keyId: string;
-      publicKeyB64: string;
-      algorithm: "ES256";
-      provider: string;              // e.g. "passkey"
-    };
-    authorization: {
-      purpose: "bitgraph/commit-authorize/v1";
-      actorKeyId: string;
-      artifactHash: string;
-      challenge: string;
-      timestamp: number;
-      signatureB64: string;          // P-256 ECDSA
-    };
-    batchContext?: {                  // present on batch proofs
-      batchSize: number;
-      batchIndex: number;
-      batchDigests: string[];
-    };
-  };
-  attribution?: {                    // signed creator metadata
+  agency?: unknown;                  // legacy; present on some older proofs
+  attribution?: {                    // signed; creator metadata, or the fused marker:
+                                     //   name "bitgraph-fuse/1", title placement id, message origin digest
     name?: string;
     title?: string;
     message?: string;
@@ -424,11 +539,7 @@ const proofs = await resp.json();
   minTime?: number;
   maxTime?: number;
   requireEpochId?: boolean;
-
-  // Actor-bound proof policy
-  requireActor?: boolean;
-  allowedActorKeyIds?: string[];
-  allowedActorProviders?: string[];
+  requireActor?: boolean;            // legacy
 }`}
         />
 
@@ -472,6 +583,21 @@ const proofs = await resp.json();
                 <td className="py-3 pr-4">413</td>
                 <td className="py-3 pr-4">Payload too large</td>
                 <td className="py-3"><code className="text-xs font-mono">{`{ "error": "Image too large. Max 2 MB." }`}</code></td>
+              </tr>
+              <tr className="border-b border-border-subtle">
+                <td className="py-3 pr-4">409</td>
+                <td className="py-3 pr-4">No anchor precedes the slot in its epoch (fuse commit); allocate again</td>
+                <td className="py-3"><code className="text-xs font-mono">{`{ "error": "...", "code": "no-anchor-before-slot" }`}</code></td>
+              </tr>
+              <tr className="border-b border-border-subtle">
+                <td className="py-3 pr-4">502</td>
+                <td className="py-3 pr-4">The boundary committed under a different slot (fuse commit)</td>
+                <td className="py-3"><code className="text-xs font-mono">{`{ "error": "...", "code": "slot-mismatch" }`}</code></td>
+              </tr>
+              <tr className="border-b border-border-subtle">
+                <td className="py-3 pr-4">503</td>
+                <td className="py-3 pr-4">Boundary restarting or not yet anchored, or the ledger could not be read; retry</td>
+                <td className="py-3"><code className="text-xs font-mono">{`{ "error": "...", "code": "tee-restarting" }`}</code></td>
               </tr>
               <tr>
                 <td className="py-3 pr-4">500</td>

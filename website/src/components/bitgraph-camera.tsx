@@ -53,7 +53,7 @@ export interface BitGraphCameraProps {
   /** Which page this is, for the module-level caches below: each page keeps
    *  its own batch across a trip to a proof page and back, and never sees the
    *  other's. */
-  id: "home" | "actor";
+  id: "home";
   /** How a digest not yet on the ledger gets committed. The one seam. */
   strategy: CommitStrategy;
   /** The default gesture makes a fused artifact from the dropped file (profile bitgraph-fuse/1); ordinary recording stays reachable as its own row. */
@@ -77,7 +77,6 @@ export interface BitGraphCameraProps {
    *  print, or undefined to print the key. /actor passes its own key's label;
    *  home passes nothing. Identity is a property of the reader: a row never
    *  borrows this browser's name for someone else's key. */
-  actorName?: (keyId: string) => string | undefined;
   /** Pick up files dropped on a proof page's camera strip (they always go to
    *  home, which is the page that strip navigates to). */
   acceptsPendingDrop?: boolean;
@@ -150,7 +149,7 @@ export function WhatHappensPair() {
   );
 }
 
-export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, below, belowClassName, frameNote, actorName, acceptsPendingDrop }: BitGraphCameraProps) {
+export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, below, belowClassName, frameNote, acceptsPendingDrop }: BitGraphCameraProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length ? "results" : "drop"));
   const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
@@ -305,13 +304,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
   // The one link on a closed results page. It sits on the right of the
   // first results heading (the folder's Roll when there is one, else the
   // files' heading) and opens the whole camera, title and full-size box,
-  // above the results. In the action-link voice; "Record or check BitGraphs"
+  // above the results. In the action-link voice; "Make or check BitGraphs"
   // is the box's own headline, so the link names exactly what it reveals
   // (Mike, 2026-08-19: "more BitGraphs", not "more": the noun stays).
   const openLink = showingResults && !boxOpen ? (
     <button type="button" className="bg-arrow-link" onClick={() => setBoxOpen(true)}
       style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", whiteSpace: "nowrap", flexShrink: 0 }}>
-      <span className="bg-long">Record or check more BitGraphs</span><span className="bg-short">More</span> <span className="arrow" aria-hidden="true">&rarr;</span>
+      <span className="bg-long">Make or check more BitGraphs</span><span className="bg-short">More</span> <span className="arrow" aria-hidden="true">&rarr;</span>
     </button>
   ) : null;
 
@@ -1424,7 +1423,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                 // click path to one raises a view-files or upload-files
                 // warning on a page whose whole claim is that nothing is
                 // uploaded. See the note in file-drop.tsx before cutting it.
-                headline="Record or check BitGraphs"
+                headline="Make or check BitGraphs"
                 hint="Choose files, or drag in a whole folder."
                 // "Hashed in your browser, never uploaded." (Mike, 2026-08-26,
                 // replacing "Your file never leaves your device"): name the
@@ -1772,15 +1771,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                         that key (/actor, its own); any other actor shows as
                         its key, and a recording with no actor shows nothing
                         rather than borrowing this browser's name. */}
-                    {p?.agency?.actor?.keyId && (() => {
-                      const keyId = p.agency!.actor.keyId;
-                      const name = actorName?.(keyId);
-                      return (
-                        <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>
-                          Actor {name ?? <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{keyId.slice(0, 12)}&hellip;</span>}
-                        </span>
-                      );
-                    })()}
                     {/* Right side matches the Roll's row anatomy: compact
                         anchor time, then the chevron. Unanchored rows (fresh
                         recordings) simply leave the time blank. */}

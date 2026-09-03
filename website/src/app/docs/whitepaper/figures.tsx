@@ -214,7 +214,7 @@ export function Figure2() {
   const lx = 30, lw = 250, lcx = lx + lw / 2;
   const rcx = 530;
   return (
-    <Wrap minWidth={560} label="Atomic causality: authorize, bind, and commit fused in one boundary versus separated steps with observable gaps">
+    <Wrap minWidth={560} label="Atomic causality: authorize, bind, and commit combined in one boundary versus separated steps with observable gaps">
       <svg viewBox="0 0 680 400" width="100%" style={{ display: "block" }}>
         <Defs id={id} />
 
@@ -415,13 +415,13 @@ export function Figure6() {
         <Defs id={id} />
         <Box x={10} y={108} w={104} h={68} title="Pre-existing" sub={["content", "unauthenticated"]} dash="5 4" stroke={C.faint} titleSize={11.5} />
         <Arrow id={id} d={`M 114 142 L 138 142`} />
-        <ChainBoundary id={id} x={142} name="BOUNDARY A" action="Ingest" tuple="(H, N₁, σ₁)" origin="origin₁" />
+        <ChainBoundary id={id} x={142} name="BOUNDARY A" action="Ingest" tuple="(H, N₁, σ₁)" origin="link₁" />
         <Arrow id={id} d={`M 286 142 L 310 142`} />
-        <ChainBoundary id={id} x={314} name="BOUNDARY B" action="Process" tuple="(H′, N₂, σ₂)" origin="origin₂" />
+        <ChainBoundary id={id} x={314} name="BOUNDARY B" action="Process" tuple="(H′, N₂, σ₂)" origin="link₂" />
         <Arrow id={id} d={`M 458 142 L 482 142`} />
-        <ChainBoundary id={id} x={486} name="BOUNDARY C" action="Publish" tuple="(H″, N₃, σ₃)" origin="origin₃" />
+        <ChainBoundary id={id} x={486} name="BOUNDARY C" action="Publish" tuple="(H″, N₃, σ₃)" origin="link₃" />
         <Arrow id={id} d={`M 630 142 L 654 142`} />
-        <Box x={658} y={108} w={94} h={68} title="Authenticated" sub={["artifact", "3 enforced origins"]} stroke={C.green} sw={1.5} titleSize={11.5} />
+        <Box x={658} y={108} w={94} h={68} title="Authenticated" sub={["artifact", "3 enforced links"]} stroke={C.green} sw={1.5} titleSize={11.5} />
         <text x={380} y={250} textAnchor="middle" fontSize={9.5} fill={C.mut}>
           each link requires traversal of a protected commit interface; none can be attached after the fact
         </text>

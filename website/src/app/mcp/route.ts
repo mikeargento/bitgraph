@@ -95,11 +95,12 @@ const handler = createMcpHandler(
       {
         title: "Take a BitGraph",
         description:
-          "Take a BitGraph: record SHA-256 digests of existing files at new causal positions in the BitGraph ledger (bitgraph.ing). " +
+          "Record SHA-256 digests of existing files at new causal positions in the BitGraph ledger (bitgraph.ing): the compatibility operation. It gives bytes that already exist a position and establishes that they existed no later than the commit. " +
           DIGEST_HINT + ". " +
-          "Only digests are sent; file contents are never uploaded. Hash an existing file where it lives; never generate content just to record it, and only record files the user asked to record: recordings are permanent (10-year retention, no deletes). " +
+          "This endpoint receives digests only, so it cannot build a fused artifact; to take a BitGraph the default way (a fused artifact under its own slot), drop the file on bitgraph.ing, run the bitgraph-fuse command, or use the bitgraph-mcp server, which hold the file bytes. " +
+          "Hash an existing file where it lives; never generate content just to record it, and only record files the user asked to record: recordings are permanent (10-year retention, no deletes). " +
           "Digests already on record are NOT re-recorded by default; they come back as 'on record' with their existing proof. " +
-          "Pass again=true to deliberately record already-recorded bytes at a new causal position (BitGraph Again). " +
+          "Pass again=true to deliberately record already-recorded bytes at a new causal position. " +
           "Returns one outcome per digest: 'recorded' (newly minted) or 'on record' (was already there), with its position number and proof page URL. " +
           "Use bitgraph_check instead when the user only wants to know whether a file is on record.",
         inputSchema: z.object({
@@ -275,7 +276,7 @@ const handler = createMcpHandler(
         description:
           "Check whether SHA-256 digests are on record in the BitGraph ledger, without recording anything. " +
           DIGEST_HINT + ". " +
-          "Returns, per digest: on record or not, every causal position (a file recorded more than once has several), and the proof page URL. " +
+          "Returns, per digest: on_record (a recording of the exact bytes exists), fused_descendants (fused artifacts that name the bytes as their origin), every position by counter, and the proof page URL. " +
           "Read-only. Use bitgraph_record to record digests that turn out not to be on record.",
         inputSchema: z.object({
           digests: z

@@ -23,7 +23,7 @@ export default function WhatBitGraphIsNotPage() {
           },
           {
             title: "BitGraph is not a watermark",
-            body: "BitGraph does not embed anything in the artifact bytes. The artifact is hashed, not modified. The proof is a separate JSON object that travels alongside the artifact. Removing the proof does not change the artifact; it only removes the evidence of the commit event.",
+            body: "BitGraph does not hide anything in content. A recording hashes the bytes and modifies nothing. A fused artifact is a new file built from the original under a registered placement, a trailer or a container around the unchanged file; the commitment it carries is documented, not concealed, and the original is never modified. The proof is a separate JSON object. Removing the proof does not change any bytes; it only removes the evidence of the commit event.",
           },
           {
             title: "BitGraph is not DRM",
@@ -35,11 +35,11 @@ export default function WhatBitGraphIsNotPage() {
           },
           {
             title: "BitGraph is not proof of authorship",
-            body: "A base proof attests which boundary committed an artifact, not who created the underlying content. Actor-bound proofs can additionally attest that a specific person or device authorized the commitment, but this is actor-binding, not authorship attribution.",
+            body: "A proof attests which boundary committed an artifact, not who created the underlying content. A signed attribution is a note bound into the proof, not a verified identity; for a fused artifact it names the placement and the origin digest.",
           },
           {
             title: "BitGraph is not proof of first creation",
-            body: "BitGraph does not prove that these bytes never existed before this commit. The same content could have been created elsewhere earlier. BitGraph proves that this specific boundary committed these bytes at this point in its counter sequence. Nothing more.",
+            body: "A recording does not prove that these bytes never existed before this commit. The same content could have been created elsewhere earlier. A fused artifact carries a commitment to a slot that existed first, so its bytes could not have been finalized before that slot was allocated; the bound is on the fused bytes, not on the content, and the origin it was built from can be any age. BitGraph proves where bytes sit in a boundary's counter sequence, and for fused bytes that they came after their slot. Nothing more.",
           },
           {
             title: "BitGraph is not attestation",

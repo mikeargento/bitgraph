@@ -71,31 +71,19 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
   // reads Understand / Tools / Build / Reference, two things you do and two
   // things you reach for.
   //
-  // Zapier/Make and MCP moved here from BUILD the same day (Mike: "zapier make
-  // and MCP could be under USE right?"). They could and they should: BUILD was
-  // holding a no-code connector next to running your own enclave, which meant
-  // the line between the columns was not a line at all. It is one test now,
-  // does this require engineering, and both of these fail it. Configuring a Zap
-  // is not building any more than installing the Folder is.
+  // MCP moved here from BUILD the same day (Mike: "zapier make and MCP could
+  // be under USE right?"). It is one test now, does this require engineering,
+  // and configuring a client does not. Zapier and Make left the site on
+  // 2026-09-03.
   //
   // The order is two runs, not one: CHECK something you were handed
-  // (Verification, Audit), then RECORD things yourself (Folder, Zapier, MCP).
-  // That is a truer account than the rising-setup-effort story told at first,
-  // and it happens to produce the same five.
+  // (Verification, Audit), then RECORD things yourself (MCP).
+  // That is a truer account than the rising-setup-effort story told at first.
   {
     label: "Tools",
     items: [
       { href: "/docs/verification", label: "Verification" },
       { href: "/docs/audit", label: "Audit a Bundle" },
-      { href: "/docs/actor", label: "BitGraph Actor" },
-      // Domain resolves what Actor records: the key a proof carries, to the
-      // domain that published it. It follows Actor because it depends on it,
-      // and it is in TOOLS by the column's own test: pin and check are
-      // finished bitgraph-play verbs, nothing to write. (Named "BitGraph
-      // Domain" by Mike 2026-08-22; "Letterhead" survives only as the
-      // analogy line in the page's cost section.)
-      { href: "/docs/domain", label: "BitGraph Domain" },
-      { href: "/docs/automation", label: "Zapier and Make" },
       { href: "/docs/mcp", label: "MCP" },
     ],
   },

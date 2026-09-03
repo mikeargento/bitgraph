@@ -101,7 +101,10 @@ export default function OverviewPage() {
           reason: it contradicted "the artifact itself can be produced
           anywhere, by any process, using any tools" two sections down.
           "Original" and "originality" survive only in the copies section,
-          where they mean uniqueness of an object, a different idea. */}
+          where they mean uniqueness of an object, a different idea.
+          2026-09-03: "origin" returns in ONE sense only, the file a fused
+          artifact was built from (the site's default operation), never a
+          claim about first existence. */}
       {/* ── The prose Overview follows the triad directly. The "Overview" h2
           that stood here left with the Polaroid opener (2026-08-26): with no
           opener above it, a page-width "Overview" title directly under the h1
@@ -157,7 +160,11 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        BitGraph narrows that window by requiring the slot to exist first. It does not stop an old file being committed today: the hash occupies a slot allocated today, and the position claims nothing about when the bytes were made. What it stops is a position being invented after the fact, or occupied twice. The slot is not evidence added afterward. It is the condition the artifact must satisfy.
+        BitGraph narrows that window by requiring the slot to exist first. A recording of existing bytes does not stop an old file being committed today: the hash occupies a slot allocated today, and the position claims nothing about when the bytes were made. What it stops is a position being invented after the fact, or occupied twice. The slot is not evidence added afterward. It is the condition the artifact must satisfy.
+      </p>
+
+      <p>
+        The site&rsquo;s default operation adds a bound from below. The dropped file is the origin. Before any artifact exists, the browser asks the enclave for an unused slot and derives a commitment to the signed slot record. It builds a new fused artifact from the origin by placing that commitment under a registered placement: a 48-byte trailer where the format ignores trailing bytes, a small tar container otherwise. The fused artifact is hashed and committed into the same slot. Those bytes could not have been finalized before the slot was allocated, and they were committed no later than the commit position. The origin gets the upper bound only: rebuilding the fused artifact from the origin and the proof shows the origin existed no later than the commit. Neither bound says when the content was created or whether it is authentic. Recording existing bytes as they are remains available and gives the upper bound alone.
       </p>
 
       <h2>What a BitGraph proof contains</h2>
@@ -175,6 +182,7 @@ export default function OverviewPage() {
         </thead>
         <tbody>
           <tr><td>Artifact hash</td><td>Identifies the exact file or digital state</td></tr>
+          <tr><td>Attribution</td><td>Optional and signed. For a fused artifact: the placement used and the digest of the origin</td></tr>
           <tr><td>Nonce</td><td>Hardware entropy giving the slot an identity that cannot feasibly be predicted</td></tr>
           <tr><td>Slot counter</td><td>Shows the slot was allocated before the commit</td></tr>
           <tr><td>Commit counter</td><td>Shows the artifact consumed the slot later</td></tr>
@@ -215,7 +223,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        Ethereum is not asked to be a good source of randomness, and it is not asked to establish the artifact&rsquo;s position. BitGraph establishes the position. Ethereum ties the positions to the public timeline, so anyone, years later, can check the order and the earliest date each position could have existed.
+        Ethereum is not asked to be a good source of randomness, and it is not asked to establish the artifact&rsquo;s position. BitGraph establishes the position. Ethereum ties the positions to the public timeline, so anyone, years later, can check the order and the earliest date each position could have existed. For a fused artifact that earliest date reaches the bytes as well: they carry a commitment to their slot, and the slot follows the anchored block before it.
       </p>
 
       <h2>Compromise and containment</h2>
@@ -272,7 +280,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        BitGraph does not restore originality. It makes it unnecessary. The artifact&rsquo;s hash is the proof&rsquo;s anchor, so any exact copy of the bytes carries the same position, and no copy has to be the special one. The proof object itself can travel with the file, stay on the server that issued it, or be stored anywhere, and each of those can have copies too. Verification does not depend on where anything lives. What used to need a unique object now needs only the exact bytes.
+        BitGraph does not restore originality. It makes it unnecessary. The artifact&rsquo;s hash is the proof&rsquo;s anchor, so any exact copy of the bytes carries the same position, and no copy has to be the special one. The proof object itself can travel with the file, stay on the server that issued it, or be stored anywhere, and each of those can have copies too. Verification does not depend on where anything lives. What used to need a unique object now needs only the exact bytes. A fused artifact need not even be kept: the origin plus the proof rebuilds it byte for byte, and checking that reconstruction against the signed artifact digest is the evidence.
       </p>
 
       <h2>What BitGraph applies to</h2>
@@ -286,7 +294,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        <strong>AI outputs.</strong> Model results bound to a causal position, and optionally to a key that authorized the recording, without requiring the model to run inside an enclave.
+        <strong>AI outputs.</strong> Model results bound to a causal position, without requiring the model to run inside an enclave.
       </p>
 
       <p>

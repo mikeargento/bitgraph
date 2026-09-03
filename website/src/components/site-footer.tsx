@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 /* The site footer. Reading pages get the full bar (entity left, trademark
    true-centred, links right, one 56px row mirroring the nav, stacking below
-   820). The camera pages (home, /actor) are responsive (Mike, 2026-08-27):
+   820). The camera page (home) is responsive (Mike, 2026-08-27):
    phones get the slim one-line bar, whose FIXED 40px height is what the
    camera-fit hook subtracts as a constant (nothing measured, the WebKit
    iPhone bug class stays dead); from 820 up they get the same full bar as
@@ -21,7 +21,7 @@ import { usePathname } from "next/navigation";
    email, a Security link, and a Refunds link were each here briefly and
    rejected; see project_company_site_2026_08_27. */
 
-const CAMERA_PAGES = new Set(["/", "/actor"]);
+const CAMERA_PAGES = new Set(["/"]);
 
 const links: Array<{ href: string; label: string }> = [
   { href: "/terms", label: "Terms" },

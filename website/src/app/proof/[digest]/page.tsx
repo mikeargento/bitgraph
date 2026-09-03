@@ -5,7 +5,7 @@ import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams } from "next/navigation";
 // Nav is in root layout
-import { hashFile, hashBytes, proofHashB64, commitDigest, type BitGraphProof } from "@/lib/bitgraph";
+import { hashFile, hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
 import { findMatchInDrop, findMatchInFiles, captureDrop, type CapturedDrop } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
@@ -13,13 +13,9 @@ import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
-import {
-  buildAgencyEnvelope, getStoredCredential, requestAssertion, type StoredCredential,
-} from "@/lib/webauthn";
 import { takeFreshProof } from "@/lib/fresh-proof";
-import { getPreviewFromIDB, putPreviewToIDB } from "@/lib/file-cache";
-import { fusedMarkerOf, rebuildFromOrigin, blobUrlFor } from "@/lib/fuse-client";
-import { PINNED_DOMAINS } from "@/lib/pinned-domains";
+import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
+import { fusedMarkerOf, rebuildFromOrigin, blobUrlFor, fuseFile, FuseTooLargeError } from "@/lib/fuse-client";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
 
@@ -935,7 +931,6 @@ export default function ProofPage() {
               whoever recorded them, and a second recording of them can carry a
               different key or none. Needs no file in hand, because it is in
               the proof rather than in the bytes. */}
-          {!isEth && <ActorCard proof={proof} />}
 
           {/* Recordings — every causal position these exact bytes occupy. Always
               present on a file proof (even a single position), so it is also the
@@ -1014,18 +1009,15 @@ export default function ProofPage() {
                   </div>
                 );
               })}
-              {/* BitGraph again — record these same bytes at a NEW causal
-                  position. It ADDS to this list, so it lives here rather than in
-                  the file card. Offered on a file proof with the artifact in
-                  hand. */}
+              {/* BitGraph again — a NEW fused artifact from the file in hand,
+                  at a new causal position. It ADDS to the origin's list, so it
+                  lives here rather than in the file card. Offered only with the
+                  file in hand: fusing needs the bytes. */}
               {!isEth && !isInterval && cachedFile && (
                 /* A column: side by side they collided, and they are two
                    choices about the same act rather than one sentence. */
                 <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-                  <BitGraphAgainButton proof={proof} digestParam={digestParam} />
-                  {/* Same list, same gate, one act further: a declaration adds
-                      a position too, and carries a key while it does. */}
-                  <DeclareThisButton proof={proof} digestParam={digestParam} />
+                  <BitGraphAgainButton proof={proof} cachedFile={cachedFile} />
                 </div>
               )}
             </CollapsibleCard>
@@ -1333,184 +1325,34 @@ const btnStyle: React.CSSProperties = {
   background: "#0065A4", border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer",
 };
 
-/* ── BitGraph again — commit the same digest into a fresh slot, then reload
-   onto the new position's URL so the page shows the recording that was just
-   made (with the Causal Positions card now listing every position). ── */
-
-/** This browser's passkey, if it has one. Read on mount: localStorage has no
- *  server value to seed from. */
-function useStoredCredential(): StoredCredential | null {
-  const [cred, setCred] = useState<StoredCredential | null>(null);
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- no server value to seed from */
-    setCred(getStoredCredential());
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, []);
-  return cred;
-}
-
-/**
- * Declaration — the key that authorized this recording.
- *
- * ⚠️ It looks like the Content Credentials card and stands on different
- * ground. That one is a pass-through of what a file says about itself. This
- * one is checked: the enclave verified this signature against its own
- * single-use nonce before it would record anything, and bitgraph-verify
- * re-checks it offline from the proof alone.
- *
- * ⚠️ And it names a KEY, never a person. BitGraph proves the act; who holds
- * the key is resolved by whoever is reading, from a source they choose. Two
- * resolutions exist here, each saying what it is: this browser vouching for
- * its own key, and the site's PINNED DOMAINS (lib/pinned-domains.ts): a
- * domain published the key at /.well-known/bitgraph and this site, as one
- * reader, pinned that statement. The Domain row names the source; a keyId
- * in neither reads "Not established here", which is the claim shown rather
- * than asserted, and never an error.
- */
-function ActorCard({ proof }: { proof: BitGraphProof }) {
-  const cred = useStoredCredential();
-  const agency = (proof as unknown as {
-    agency?: {
-      actor?: { keyId?: string; provider?: string };
-      authorization?: { format?: string; timestamp?: number };
-    };
-  }).agency;
-  const actor = agency?.actor;
-  if (!actor?.keyId) return null;
-  const mine = cred?.keyId === actor.keyId;
-  // The browser's own key outranks a pin: "you" is the stronger claim.
-  const pinned = mine ? undefined : PINNED_DOMAINS[actor.keyId.toLowerCase()];
-
-  return (
-    <CollapsibleCard title="Actor">
-      {/* ❄️ No explainer paragraph. It read "A key authorized this recording,
-          and the boundary verified that signature… Who holds the key is not
-          something BitGraph establishes" — true, and doctrine, which belongs
-          in the docs rather than inside every proof (Mike, 2026-08-18: "this
-          explains something that can be explained outside of utility"). The
-          fields already say it: a key with no name beside it reads "Not
-          established here", which IS the claim, shown instead of asserted. */}
-      <Field
-        label="Name"
-        value={mine ? (cred as StoredCredential).name : pinned !== undefined ? pinned.party : "Not established here"}
-        highlight={!!mine}
-      />
-      {/* The source of the resolution, named: a domain published this key
-          and the site pinned that file. Absent for unpinned keys, so the
-          row's presence IS the provenance of the Name above it. */}
-      {pinned !== undefined && (
-        <Field
-          label="Domain"
-          value={`https://${pinned.domain}/.well-known/bitgraph`}
-          valueNode={
-            <>
-              {pinned.domain}
-              <span style={{ color: "#6b7280" }}> · pinned by this site</span>
-            </>
-          }
-        />
-      )}
-      <Field label="Key" value={actor.keyId} mono />
-      <Field
-        label="Signed with"
-        value={agency?.authorization?.format === "webauthn" ? "A passkey on the actor's device" : "The actor's own key"}
-      />
-      {/* The one way out to the explanation this card is not allowed to
-          carry (see the note above): /docs/actor says what the touch did,
-          what a reader may conclude and what they may not. Same row idiom
-          as the other cards' actions. */}
-      <div style={{ padding: "0 16px", borderBottom: "1px solid #e2e5e9" }}>
-        <a href="/docs/actor" className="bg-action-link">
-          <span>How it works</span>
-          <span className="arrow" aria-hidden>&rarr;</span>
-        </a>
-      </div>
-    </CollapsibleCard>
-  );
-}
-
-/**
- * Declare this file — record these same bytes again, under this browser's key.
- *
- * ⚠️ Shown only with the artifact in hand, which is the same gate
- * BitGraphAgainButton uses and is not a formality: a declaration is a claim
- * about bytes, and someone who reached this page by link has never held them.
- * Nothing here is a substitute for that; the button simply is not offered.
- *
- * It mints a NEW position rather than amending this one. A recording is
- * finished when it is made, and a declaration made later is a later act; the
- * ledger shows both, in order, which is the truthful shape.
- */
-function DeclareThisButton({ proof, digestParam }: { proof: BitGraphProof; digestParam: string }) {
-  const cred = useStoredCredential();
+/* ── BitGraph again — fuse the file in hand into a NEW artifact under a fresh
+   slot, then open the new proof. The file stays the origin; the page reached
+   shows it, accepted by reconstruction, exactly as after a first drop. ── */
+function BitGraphAgainButton({ proof, cachedFile }: { proof: BitGraphProof; cachedFile: { name: string; data: ArrayBuffer } | null }) {
   const [state, setState] = useState<"idle" | "working" | "error">("idle");
   const [message, setMessage] = useState("");
-
-  const actorKeyId = (proof as unknown as { agency?: { actor?: { keyId?: string } } }).agency?.actor?.keyId;
-  // Nothing to offer: no key on this browser, or this recording already
-  // carries it.
-  if (!cred || actorKeyId === cred.keyId) return null;
-
+  if (!cachedFile) return null;
   async function run() {
-    if (state === "working" || !cred) return;
+    if (state === "working" || !cachedFile) return;
     setState("working");
     setMessage("");
     try {
-      const res = await fetch("/api/challenge", { method: "POST" });
-      if (!res.ok) throw new Error("The camera is restarting; try again shortly.");
-      const { challenge } = (await res.json()) as { challenge: string };
-      const assertion = await requestAssertion(challenge, cred.credentialIdB64);
-      const envelope = buildAgencyEnvelope(cred, assertion, proof.artifact.digestB64, challenge);
-      const p = await commitDigest(proof.artifact.digestB64, undefined, envelope);
-      const counter = p.commit?.counter;
-      const epoch = p.commit?.epochId ? toSafeB64(String(p.commit.epochId)) : "";
-      window.location.href = `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1`;
-    } catch (e) {
-      const m = e instanceof Error ? e.message : String(e);
-      setMessage(
-        /NotAllowed|cancel/i.test(m) ? "Nothing was recorded: the authorization was cancelled."
-        : /challenge/i.test(m) ? "That authorization expired before it reached the camera. Try again."
-        : "Could not record it under your key. Try again in a moment."
-      );
-      setState("error");
-    }
-  }
-
-  return (
-    <>
-      <button onClick={run} disabled={state === "working"} className="bg-action-link">
-        {/* Deliberately the SAME sentence as the action above it, plus two
-            words. Both mint a new position for these bytes; the only
-            difference is whether a key rides along, and parallel labels say
-            that where two different verbs would have hidden it (Mike,
-            2026-08-18: "Bitgraph this file again as Mike Argento"). */}
-        <span>{state === "working" ? "BitGraphing…" : `BitGraph this file again as ${cred.name}`}</span>
-        {state !== "working" && <span className="arrow" aria-hidden>&rarr;</span>}
-      </button>
-      {state === "error" && (
-        <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>{message}</div>
-      )}
-    </>
-  );
-}
-
-function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; digestParam: string }) {
-  const [state, setState] = useState<"idle" | "working" | "error">("idle");
-
-  async function run() {
-    if (state === "working") return;
-    setState("working");
-    try {
-      const p = await commitDigest(proof.artifact.digestB64);
-      const counter = p.commit?.counter;
-      const epoch = p.commit?.epochId ? toSafeB64(String(p.commit.epochId)) : "";
-      // &fresh=1 → capture flash on the new position (a just-made recording).
-      window.location.href = `/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1`;
+      const file = new File([cachedFile.data], cachedFile.name);
+      const out = await fuseFile(file);
+      // The proof page shows the visitor's own file: remember the original
+      // under the new fused digest, as the drop flow does.
+      await cacheArtifactToIDB(file, out.artifactDigestB64).catch((e) => console.error("[bitgraph] cache error:", e));
+      const counter = out.proof.commit?.counter;
+      const epoch = out.proof.commit?.epochId ? toSafeB64(String(out.proof.commit.epochId)) : "";
+      // &fresh=1 → capture flash on the new position (a just-made BitGraph).
+      window.location.href = `/proof/${encodeURIComponent(toSafeB64(out.artifactDigestB64))}?counter=${encodeURIComponent(counter ?? "")}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1`;
     } catch (e) {
       console.error("[bitgraph] BitGraph again failed:", e);
+      setMessage(e instanceof FuseTooLargeError ? e.message : "Could not make a new BitGraph. Try again in a moment.");
       setState("error");
     }
   }
+  void proof;
 
   return (
     <>
@@ -1519,9 +1361,7 @@ function BitGraphAgainButton({ proof, digestParam }: { proof: BitGraphProof; dig
         {state !== "working" && <span className="arrow" aria-hidden>&rarr;</span>}
       </button>
       {state === "error" && (
-        <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>
-          Could not record a new position. Try again in a moment.
-        </div>
+        <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>{message}</div>
       )}
     </>
   );

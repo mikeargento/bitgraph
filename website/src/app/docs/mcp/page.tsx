@@ -128,23 +128,26 @@ export default function McpPage() {
       </div>
       <p className="text-[#1f2937] mb-10">
         A file that has never been recorded comes back as not on record. One that has comes
-        back with its causal position and a link to its proof page. Either answer means the
-        connection is live. Asking is read-only and writes nothing to the ledger, so it is a
-        safe first move.
+        back with its causal position and a link to its proof page. A file that was dropped on
+        the site comes back with the fused artifact built from it, listed as a fused descendant
+        with its position and placement. Any of these answers means the connection is live.
+        Asking is read-only and writes nothing to the ledger, so it is a safe first move.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Three tools</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">bitgraph_record</strong> · Take a BitGraph: record a file&apos;s SHA-256 digest at a new causal position. Bytes already on record come back with their existing proof; <span className="font-mono text-xs">again=true</span> deliberately records the same bytes at a new position.</li>
-        <li>• <strong className="text-text">bitgraph_check</strong> · Is this file on record? Read-only, every causal position, with proof page URLs.</li>
+        <li>• <strong className="text-text">bitgraph_record</strong> · Take a BitGraph. On the stdio package below, which holds the file bytes, this builds a fused artifact from the file on your machine: an unused slot is allocated first, a commitment to it is placed into a new artifact built from the file with a registered placement, and that artifact&apos;s digest is committed under the same slot. The file is never modified or uploaded, and the Frame for each file comes back in the structured result. On the hosted endpoint, which receives digests only, the same tool records existing bytes at a position, the compatibility operation. Files already on record come back as-is; <span className="font-mono text-xs">again=true</span> deliberately makes a new BitGraph of them.</li>
+        <li>• <strong className="text-text">bitgraph_check</strong> · Is this file on record? Read-only. It reports <span className="font-mono text-xs">on_record</span>, every recording of the exact bytes, and <span className="font-mono text-xs">fused_descendants</span>, every fused artifact that names the bytes as its origin, each listed by position with its proof page URL.</li>
         <li>• <strong className="text-text">bitgraph_get_proof</strong> · Fetch a proof and its Ethereum anchor window: BitGraphed between block X and block Y.</li>
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Working with local files</h2>
       <p className="text-[#1f2937] mb-4">
         The hosted endpoint accepts digests, not files: the agent hashes a file where it
-        lives and sends only the SHA-256. For clients that run on your machine, the stdio
-        package does the hashing itself and takes plain file paths:
+        lives and sends only the SHA-256, so it can record bytes but cannot build a fused
+        artifact from them. For clients that run on your machine, the stdio package takes
+        plain file paths and takes BitGraphs the default way, fused artifacts under their
+        own slots:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span></div>
@@ -153,10 +156,10 @@ export default function McpPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Notes</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">Files are never uploaded.</strong> Only the SHA-256 digest crosses the network, to either endpoint.</li>
+        <li>• <strong className="text-text">Files are never uploaded.</strong> Only SHA-256 digests cross the network to either endpoint, plus the signed slot record on the stdio package&apos;s fuse path.</li>
         <li>• <strong className="text-text">Recordings are permanent.</strong> The ledger has 10-year retention and no deletes. Agents are instructed to record only files you asked to record.</li>
-        <li>• <strong className="text-text">A BitGraph is a selection.</strong> The record tool takes the digest of a file that already exists; it does not create anything.</li>
-        <li>• <strong className="text-text">One ledger.</strong> A recording made through MCP is indistinguishable from one made by dropping the file on the site, and shows up on the same Roll.</li>
+        <li>• <strong className="text-text">Two operations, one tool name.</strong> A fused artifact is new bytes built from the file under a slot that existed first, so those bytes could not have been finalized before the slot. A recording selects bytes that already exist and gives them a position, which establishes only that they existed no later than the commit. The stdio package does the first; the hosted endpoint can only do the second.</li>
+        <li>• <strong className="text-text">One ledger.</strong> Whatever MCP makes lands on the same ledger and the same Roll as everything else, and a lookup by the original&apos;s digest finds its fused artifacts by position and placement, never ranked.</li>
       </ul>
     </article>
   );

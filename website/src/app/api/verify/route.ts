@@ -225,7 +225,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (e) {
     // "We could not read the ledger" is not a verification result. Callers
-    // (Zapier, Make) retry a 503; they would have recorded a 200 saying
+    // (automation clients) retry a 503; they would have recorded a 200 saying
     // "not on record" as fact.
     if (e instanceof LedgerUnavailableError) {
       console.error("POST /api/verify ledger unavailable:", e.message);

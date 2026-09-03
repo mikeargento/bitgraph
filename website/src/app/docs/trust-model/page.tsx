@@ -88,11 +88,11 @@ export default function TrustModelPage() {
         {[
           { threat: "Proof replay", mitigation: "`minCounter` in policy rejects old proofs" },
           { threat: "Measurement substitution", mitigation: "`allowedMeasurements` pins exact values" },
-          { threat: "Signature forgery", mitigation: "Ed25519 unforgeability" },
+          { threat: "Signature forgery", mitigation: "Ed25519 signatures; the private key never leaves the boundary" },
           { threat: "Downgrade attack", mitigation: "Enforcement tier is signed; `requireEnforcement` rejects weaker tiers" },
           { threat: "Chain gap insertion", mitigation: "`prevB64` chaining: any removed link breaks hash continuity" },
           { threat: "Counter position forgery", mitigation: "Causal slot pre-allocation: `slotHashB64` binding + `slotCounter` < counter ordering proves pre-allocation" },
-          { threat: "Agency replay across batches", mitigation: "Single-use challenge consumed on first validation; batch context scoped to declared digests" },
+          { threat: "Slot commitment mismatch", mitigation: "A fused artifact carries a commitment derived from the signed slot record; the verifier recomputes it from the proof's own slot and rejects a mismatch (`INVALID_SLOT_COMMITMENT`). A claimed origin must rebuild the artifact byte for byte (`RECONSTRUCTION_MISMATCH` otherwise)" },
           { threat: "Retroactive forgery after compromise", mitigation: "Per-epoch keypair destroyed on restart + anchors hash-link prior history, fixing pre-anchor proofs against rewrite" },
           { threat: "Cross-epoch identity confusion", mitigation: "`epochId` binds every proof to a specific compartment; verifiers pin allowed epochs" },
         ].map((t) => (
@@ -142,12 +142,16 @@ export default function TrustModelPage() {
         bounded breach window: between one anchor and the next, a compromise
         could in theory rewrite the live chain, but anything behind the most
         recent stored anchor cannot be rewritten without breaking the chain
-        that reaches it.
+        that reaches it. A fused artifact carries a commitment to its slot,
+        so the same bound reaches its bytes: they could not have been
+        finalized before the slot, and the slot follows the block named by
+        the anchor before it.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-8">
         Anchors are public, but they reveal no user-identifying information.
-        A verifier can fetch any anchor from Ethereum and use it to bound
-        when a proof must have existed by, without ever contacting BitGraph.
+        A verifier can confirm the block an anchor names on Ethereum and use
+        its date to bound when everything chained after that anchor must have
+        come into existence, without ever contacting BitGraph.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Epoch isolation: blast-radius containment</h2>
@@ -156,7 +160,7 @@ export default function TrustModelPage() {
         Each restart of the enclave generates a new Ed25519 keypair inside the
         boundary, derives a new <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">epochId</code> from
         fresh hardware entropy, and resets the monotonic counter. This means
-        every epoch is a sealed compartment, identified by a key that exists
+        every epoch is a closed compartment, identified by a key that exists
         nowhere else in the world.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-4">
@@ -178,7 +182,7 @@ export default function TrustModelPage() {
         and on the other side by the most recent anchor that preceded it.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-6">
-        Restarting the TEE is not just operational hygiene — it is a deliberate
+        Restarting the TEE is not just operational hygiene. It is a deliberate
         containment action. Each restart closes one compartment and opens a
         fresh one, so any undetected compromise is quarantined to the bounded
         window of a single epoch. Verifiers can refuse to accept proofs from
@@ -217,7 +221,7 @@ export default function TrustModelPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Non-goals</h2>
       <ul className="space-y-2 mb-8 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">Global ordering from the counter alone</strong> - every TEE instance and every new epoch resets the counter to 1, so the counter by itself only orders proofs within a single epoch. Ordering relative to the outside world is established by Ethereum anchors: each anchor records the hash of a recent finalized block, so everything chained after it provably follows that block&apos;s public date — across epochs, across TEE instances, and against any other event that can be placed on the same public timeline.</li>
+        <li>• <strong className="text-text">Global ordering from the counter alone</strong> - every TEE instance and every new epoch resets the counter to 1, so the counter by itself only orders proofs within a single epoch. Ordering relative to the outside world is established by Ethereum anchors: each anchor records the hash of a recent finalized block, so everything chained after it provably follows that block&apos;s public date: across epochs, across TEE instances, and against any other event that can be placed on the same public timeline.</li>
         <li>• <strong className="text-text">Cross-boundary double-spend</strong> - same artifact can be submitted to separate boundaries</li>
         <li>• <strong className="text-text">Copy prevention</strong> - BitGraph does not prevent raw byte copying</li>
         <li>• <strong className="text-text">Consensus replacement</strong> - BitGraph constrains a single boundary, not distributed parties</li>

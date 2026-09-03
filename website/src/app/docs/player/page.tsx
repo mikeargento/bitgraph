@@ -132,7 +132,7 @@ export default function PlayerPage() {
 
       <h2>Run it</h2>
       <p>
-        With Node.js installed, evaluate a rule against a BitGraph proof bundle. A bundle may be a directory, <code>.tar</code>, or <code>.tar.gz</code> containing BitGraph exports. Discovery is by schema shape, not by filename, so any layout holding <code>proof.json</code> files works.
+        With Node.js installed, evaluate a rule against a BitGraph proof bundle. A bundle may be a directory, <code>.tar</code>, or <code>.tar.gz</code> containing BitGraph exports. Discovery is by schema shape, not by filename, so any layout holding <code>proof.json</code> files works. A Frame file (<code>&lt;name&gt;.bitgraph-fuse.json</code>, the carrier of a fused recording) is read as a proof carrier.
       </p>
       <div className="code-block">
         <div className="code-block-header">Shell</div>
@@ -148,6 +148,13 @@ export default function PlayerPage() {
       <p>
         It deliberately leaves <code>requires.ordering</code> unset. The security floor belongs to the rule author. Player will not choose it.
       </p>
+      <p>
+        To read an export without a rule, <code>check</code> prints a <code>bitgraph-check/1</code> report: a three-valued line per check for each recording, with its anchor bounds. A recording marked fused adds a <code>fused</code> line (the commitment check, over the fused bytes or the original), a fused floor (the last anchored block before its slot) and a fused span (slot position to commit position).
+      </p>
+      <div className="code-block">
+        <div className="code-block-header">Shell</div>
+        <pre>{`npx @mikeargento/bitgraph-player check export/`}</pre>
+      </div>
       <p>The process exit code is the verdict summary, so another program can gate on it directly:</p>
       <table>
         <thead><tr><th>Code</th><th>Meaning</th></tr></thead>

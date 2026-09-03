@@ -16,9 +16,9 @@ export default function SelfHostTEEPage() {
       <h2>Architecture</h2>
       <p>The BitGraph TEE consists of three components running on a single EC2 instance:</p>
       <ul>
-        <li><strong>Enclave</strong> — isolated TEE that holds the Ed25519 signing key and produces cryptographically signed proofs. The key is generated inside the enclave and never leaves.</li>
-        <li><strong>Parent server</strong> — HTTP server running on the EC2 host. Receives proof requests, forwards them to the enclave via vsock, returns signed proofs.</li>
-        <li><strong>Vsock bridge</strong> — socat process that bridges TCP (parent) to vsock (enclave). Required because Node.js doesn&apos;t support AF_VSOCK natively.</li>
+        <li><strong>Enclave</strong>: isolated TEE that holds the Ed25519 signing key and produces cryptographically signed proofs. The key is generated inside the enclave and never leaves.</li>
+        <li><strong>Parent server</strong>: HTTP server running on the EC2 host. Receives proof requests, forwards them to the enclave via vsock, returns signed proofs.</li>
+        <li><strong>Vsock bridge</strong>: socat process that bridges TCP (parent) to vsock (enclave). Required because Node.js doesn&apos;t support AF_VSOCK natively.</li>
       </ul>
 
       <p>Communication flow:</p>
@@ -29,7 +29,7 @@ export default function SelfHostTEEPage() {
       <h2>Prerequisites</h2>
       <ul>
         <li>AWS account with EC2 access</li>
-        <li>A Nitro-capable EC2 instance (c5, c6, m5, m6, r5, r6 families — <strong>not</strong> t2/t3)</li>
+        <li>A Nitro-capable EC2 instance (c5, c6, m5, m6, r5, r6 families, <strong>not</strong> t2/t3)</li>
         <li>At least 2 vCPUs and 4 GB RAM (the enclave needs dedicated CPU/memory)</li>
         <li>Docker installed on the instance</li>
         <li>Node.js 20+ installed on the instance</li>
@@ -51,7 +51,7 @@ aws ec2 run-instances \\
   --key-name your-key-pair`}</pre>
       </div>
 
-      <p>Security group — allow inbound:</p>
+      <p>Security group, allow inbound:</p>
       <table>
         <thead><tr><th>Port</th><th>Protocol</th><th>Source</th><th>Purpose</th></tr></thead>
         <tbody>
@@ -170,7 +170,7 @@ nitro-cli run-enclave \\
 nitro-cli describe-enclaves
 # Should show: State: "RUNNING", EnclaveCID: <number>
 
-# Save the CID — you need it for the vsock bridge
+# Save the CID: you need it for the vsock bridge
 ENCLAVE_CID=$(nitro-cli describe-enclaves | jq -r '.[0].EnclaveCID')`}</pre>
       </div>
 
@@ -227,7 +227,26 @@ curl -X POST http://localhost:8080/commit \\
   -d "{
     \\"digests\\": [{\\"digestB64\\": \\"$DIGEST\\", \\"hashAlg\\": \\"sha256\\"}]
   }"
-# Returns: signed BitGraph proof with TEE attestation`}</pre>
+# Returns: signed BitGraph proof with TEE attestation
+
+# Two-phase form, used by producers that build a fused artifact: allocate a
+# slot first, then commit into that exact slot. Needs FUSE_ENABLED=true in
+# the parent's environment. /allocate-slot takes the same key policy as
+# /commit and is metered in slots; a held slot commits exactly one digest
+# per request. The slotId is the slot's nonce: do not disclose it before
+# the commit. A slot that is never consumed expires after 120 seconds.
+curl -X POST http://localhost:8080/allocate-slot \\
+  -H "Authorization: Bearer your-secret-api-key-here"
+# { "slotId": "...", "slot": { ... }, "chainId": "bitgraph:main" }
+
+curl -X POST http://localhost:8080/commit \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer your-secret-api-key-here" \\
+  -d "{
+    \\"slotId\\": \\"<slotId from the previous call>\\",
+    \\"digests\\": [{\\"digestB64\\": \\"$DIGEST\\", \\"hashAlg\\": \\"sha256\\"}]
+  }"
+# Returns: the proof, committed under the slot you allocated`}</pre>
       </div>
 
       <h2>Step 10: Point BitGraph Dashboard at Your TEE</h2>
@@ -246,10 +265,10 @@ TEE_URL=https://your-tee-domain.com`}</pre>
         <li>Put an ALB or CloudFront in front of port 8080 with TLS termination</li>
         <li>Restrict security group to only allow your app server&apos;s IP</li>
         <li>Set strong API keys via the <code>API_KEYS</code> environment variable</li>
-        <li>Save the PCR0 measurement — this is your enclave&apos;s identity for verification</li>
+        <li>Save the PCR0 measurement: this is your enclave&apos;s identity for verification</li>
         <li>Set up monitoring on <code>/health</code> endpoint</li>
         <li>Configure log rotation for parent server and socat logs</li>
-        <li>The enclave generates a new keypair on each restart — the epochId changes and the counter resets to 1. Cross-epoch sequencing is established by Ethereum anchors, not by an in-enclave chain.</li>
+        <li>The enclave generates a new keypair on each restart: the epochId changes and the counter resets to 1. Cross-epoch sequencing is established by Ethereum anchors, not by an in-enclave chain.</li>
       </ul>
 
       <h2>Using the Deploy Script</h2>
@@ -273,12 +292,12 @@ TEE_URL=https://your-tee-domain.com`}</pre>
         <thead><tr><th>File</th><th>Purpose</th></tr></thead>
         <tbody>
           <tr><td><code>server/commit-service/Dockerfile.enclave</code></td><td>Builds the enclave Docker image</td></tr>
-          <tr><td><code>server/commit-service/src/enclave/app.ts</code></td><td>Enclave application — proof signing, slot management</td></tr>
-          <tr><td><code>server/commit-service/src/parent/server.ts</code></td><td>Parent HTTP API — commit, key, health endpoints</td></tr>
+          <tr><td><code>server/commit-service/src/enclave/app.ts</code></td><td>Enclave application: proof signing, slot management</td></tr>
+          <tr><td><code>server/commit-service/src/parent/server.ts</code></td><td>Parent HTTP API: commit, allocate-slot, key, health endpoints</td></tr>
           <tr><td><code>server/commit-service/src/parent/vsock-client.ts</code></td><td>TCP bridge client to enclave</td></tr>
           <tr><td><code>server/commit-service/deploy.sh</code></td><td>Automated deployment script</td></tr>
-          <tr><td><code>packages/adapter-nitro/src/nitro-host.ts</code></td><td>NSM device interface — attestation, measurement</td></tr>
-          <tr><td><code>packages/hosted/src/authorization.ts</code></td><td>Dashboard integration — calls TEE_URL</td></tr>
+          <tr><td><code>packages/adapter-nitro/src/nitro-host.ts</code></td><td>NSM device interface: attestation, measurement</td></tr>
+          <tr><td><code>packages/hosted/src/authorization.ts</code></td><td>Dashboard integration: calls TEE_URL</td></tr>
         </tbody>
       </table>
 
@@ -294,9 +313,9 @@ TEE_URL=https://your-tee-domain.com`}</pre>
 
       <p>For each proof request:</p>
       <ol>
-        <li>Validates the slot exists (BitGraph causal gate — no slot, no proof)</li>
+        <li>Validates the slot exists (BitGraph causal gate: no slot, no proof)</li>
         <li>Increments the chain counter</li>
-        <li>Builds the signed body: artifact, commit, measurement, and any actor, attribution or policy</li>
+        <li>Builds the signed body: artifact, commit, measurement, and any attribution or policy</li>
         <li>Signs with Ed25519</li>
         <li>Gets a Nitro attestation report from the NSM device</li>
         <li>Returns the complete BitGraph proof with attestation embedded</li>
@@ -307,10 +326,10 @@ TEE_URL=https://your-tee-domain.com`}</pre>
       <ul>
         <li>A fresh Ed25519 keypair is generated inside the enclave from hardware entropy. The previous key is destroyed and exists nowhere outside the terminated enclave.</li>
         <li>A new <code>epochId</code> is derived from the new public key plus a fresh boot nonce.</li>
-        <li>The monotonic counter resets to 1. The first proof of the new epoch has no <code>prevB64</code> — the prior chain is closed, and the new chain begins at genesis.</li>
+        <li>The monotonic counter resets to 1. The first proof of the new epoch has no <code>prevB64</code>: the prior chain is closed, and the new chain begins at genesis.</li>
         <li>During restart, all commit requests fail closed.</li>
       </ul>
-      <p>This is a containment property, not a limitation. Each epoch is a sealed compartment: any compromise of the live epoch cannot retroactively forge proofs under a prior epoch&apos;s key. Cross-epoch sequencing is established externally by Ethereum anchors, not by an in-enclave chain.</p>
+      <p>This is a containment property, not a limitation. Each epoch is a closed compartment: any compromise of the live epoch cannot retroactively forge proofs under a prior epoch&apos;s key. Cross-epoch sequencing is established externally by Ethereum anchors, not by an in-enclave chain.</p>
     </div>
   );
 }

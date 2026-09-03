@@ -447,27 +447,6 @@ export async function getEnclaveInfo(): Promise<{
   return resp.json();
 }
 
-/**
- * Request a fresh challenge nonce from the enclave for agency signing.
- * The challenge must be signed by the device (P-256) and included in the
- * commit request's agency envelope.
- */
-export async function requestChallenge(): Promise<string> {
-  const resp = await fetch(`${BITGRAPH_ENDPOINT}/challenge`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: "{}",
-  });
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: resp.statusText }));
-    throw new Error(err.error || `Challenge request failed: ${resp.status}`);
-  }
-
-  const result = await resp.json();
-  return result.challenge;
-}
-
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;

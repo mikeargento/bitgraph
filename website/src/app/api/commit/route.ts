@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 // client's, so nothing is added to what leaves a user's machine.
 //
 // A header rather than a body field, because the body is the signed proof that
-// MCP, Zapier and the site all consume and it must not grow fields outside
+// MCP and the site consume and it must not grow fields outside
 // bitgraph/1.
 //
 // ⚠️ TEMPORARY. Delete this and lib/folder-version.ts once the notice has landed.
