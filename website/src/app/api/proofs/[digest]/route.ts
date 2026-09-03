@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ dig
     // The same bits can be BitGraphed more than once (each time occupies a new
     // causal position), so the lookup returns all of them.
     const entries = await getProofsByDigest(standardB64);
-    return NextResponse.json({ proofs: entries.map(({ proof, writeTime }) => ({ proof, writeTime: writeTime ?? null })) });
+    return NextResponse.json({ proofs: entries.map(({ proof, writeTime, kind }) => ({ proof, writeTime: writeTime ?? null, kind })) });
   } catch (e) {
     // A read failure is 503 with a named reason, never an empty proof list:
     // the caller has to be able to say "could not check" instead of "not on

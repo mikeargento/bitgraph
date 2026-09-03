@@ -103,7 +103,8 @@ const perform = async (z: ZObject, bundle: Bundle<InputData>) => {
   } else {
     const forms = digestForms(claimedDigestB64 as string);
     const checked = await client.batchCheck([forms.digestUrlSafe]);
-    const priors = checked.results[forms.digestUrlSafe]?.proofs ?? [];
+    // Recordings of these bytes only; a fused descendant naming them as origin is not one.
+    const priors = (checked.results[forms.digestUrlSafe]?.proofs ?? []).filter((p) => (p as { kind?: string }).kind !== "fused");
     onRecord = priors.length > 0;
     proof = priors[0]?.proof ?? null;
     checkedAgainst = "ledger";

@@ -462,7 +462,10 @@ export function BitGraphCamera({ id, strategy, title, below, belowClassName, fra
       // the current chain, so treating them as "on record" here meant a drop
       // LOOKED UP a dead proof instead of recording the bytes properly. The
       // earliest bitgraph/1 position stays proofs[0], never re-derived.
-      const recProofs = (rec?.proofs || []).filter((x) => x.proof?.version === "bitgraph/1");
+      // A fused descendant (kind "fused") names these bytes as origin but is not
+      // a recording of them, so it must not read as "found": the bytes themselves
+      // can still be recorded.
+      const recProofs = (rec?.proofs || []).filter((x) => x.proof?.version === "bitgraph/1" && (x as { kind?: string }).kind !== "fused");
       const all = recProofs.map((x) => x.proof);
       if (all.length > 0) {
         const result = await verifyProofSignature(all[0]);

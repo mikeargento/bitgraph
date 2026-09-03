@@ -103,10 +103,14 @@ export async function POST(req: NextRequest) {
       }
     } else {
       const entries = await getProofsByDigest(claimedDigest as string);
-      onRecord = entries.length > 0;
-      totalPositions = entries.length;
-      // The earliest position is the originating proof.
-      proof = (entries[0]?.proof as Record<string, unknown> | undefined) ?? null;
+      // Only RECORDINGS of these bytes put them on record. A fused descendant
+      // (a fused artifact naming these bytes as origin) proves the bytes existed
+      // no later than its commit, but it is not a proof of these bytes.
+      const recorded = entries.filter((e) => e.kind === "recorded");
+      onRecord = recorded.length > 0;
+      totalPositions = recorded.length;
+      // The earliest recorded position is the originating proof.
+      proof = (recorded[0]?.proof as Record<string, unknown> | undefined) ?? null;
       checkedAgainst = "ledger";
 
       if (proof === null) {
@@ -116,7 +120,10 @@ export async function POST(req: NextRequest) {
           {
             verified: false,
             status: "not on record",
-            reason: "These bytes have never been recorded in the BitGraph ledger, so there is no proof to verify.",
+            reason: entries.length > 0
+              ? `These bytes have not been recorded themselves. ${entries.length === 1 ? "One fused artifact names" : `${entries.length} fused artifacts name`} them as origin, which bounds them from above only; there is no proof of these bytes to verify.`
+              : "These bytes have never been recorded in the BitGraph ledger, so there is no proof to verify.",
+            fusedDescendants: entries.length,
             artifactBinding: "not-checked",
             checkedAgainst,
             onRecord: false,

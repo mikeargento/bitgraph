@@ -7,6 +7,7 @@
  */
 
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { fusedOriginDigestOf } from "@/lib/fuse";
 
 /**
  * Raised when the ledger could not be READ. It is not an answer about the
@@ -260,6 +261,22 @@ export async function storeProofByDigest(proof: Record<string, unknown>, priorLe
         ContentType: "application/json",
       })));
     }
+    // A fused proof (profile bitgraph-fuse/1) that names an origin in its
+    // SIGNED attribution is also indexed under the origin digest, per
+    // position, so a lookup by the origin's hash lists its descendants. Never
+    // the origin's legacy key: that key means "the proof of these bytes" to
+    // /api/search and the commit pre-read, and a descendant is not that.
+    const originDigest = fusedOriginDigestOf(proof);
+    const c = proof.commit as { epochId?: string; counter?: string } | undefined;
+    if (originDigest !== null && originDigest !== artifact.digestB64 && c?.epochId && c?.counter) {
+      puts.push(s3.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: `by-digest/${toSafe(originDigest)}/${toSafe(c.epochId)}-${String(c.counter).padStart(12, "0")}.json`,
+        Body: body,
+        ContentType: "application/json",
+        Metadata: { "bg-kind": "fused-descendant" },
+      })));
+    }
     await Promise.all(puts);
   } catch (err) {
     console.error("[s3] storeProofByDigest failed:", (err as Error).message);
@@ -270,6 +287,13 @@ export interface DigestProofEntry {
   proof: Record<string, unknown>;
   /** S3 write time of the position-index entry (ms), null for the legacy key. */
   writeTime: number | null;
+  /**
+   * "recorded": the proof commits exactly the looked-up bytes.
+   * "fused": a fused artifact (profile bitgraph-fuse/1) that names the
+   * looked-up bytes as its origin; the bytes themselves were not committed
+   * by this proof. Descendants are listed, never ranked.
+   */
+  kind: "recorded" | "fused";
 }
 
 /**
@@ -316,7 +340,9 @@ export async function getProofsByDigest(digestB64: string): Promise<DigestProofE
         const backfilled = result.Metadata?.["bg-backfill"] === "1";
         const stamped = parseInt(result.Metadata?.["bg-writetime"] ?? "", 10);
         const writeTime = Number.isFinite(stamped) ? stamped : backfilled ? null : obj.LastModified?.getTime() ?? null;
-        return { proof: JSON.parse(body) as Record<string, unknown>, writeTime };
+        const parsed = JSON.parse(body) as Record<string, unknown>;
+        const artifactDigest = (parsed.artifact as { digestB64?: string } | undefined)?.digestB64;
+        return { proof: parsed, writeTime, kind: artifactDigest === digestB64 ? "recorded" : "fused" };
       } catch (err) {
         // A position that was LISTED but could not be read is a hole in the
         // answer, not a position that does not exist.
@@ -330,7 +356,10 @@ export async function getProofsByDigest(digestB64: string): Promise<DigestProofE
     throw new LedgerUnavailableError("by-digest listing", err);
   }
   const legacy = await readLegacyDigest(digestB64, true);
-  if (legacy) entries.push({ proof: legacy, writeTime: null });
+  if (legacy) {
+    const legacyDigest = (legacy.artifact as { digestB64?: string } | undefined)?.digestB64;
+    entries.push({ proof: legacy, writeTime: null, kind: legacyDigest === digestB64 ? "recorded" : "fused" });
+  }
 
   const positionOf = (p: Record<string, unknown>) => {
     const c = p.commit as { epochId?: string; counter?: string } | undefined;
@@ -345,7 +374,11 @@ export async function getProofsByDigest(digestB64: string): Promise<DigestProofE
     return true;
   });
 
+  // Recordings of the bytes first, earliest causal position first. Fused
+  // descendants follow in a stable order that makes no lineage or version
+  // claim: BitGraph knows they name these bytes, nothing more.
   unique.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === "recorded" ? -1 : 1;
     const pa = positionOf(a.proof);
     const pb = positionOf(b.proof);
     if (pa.epoch && pa.epoch === pb.epoch) return pa.counter - pb.counter;

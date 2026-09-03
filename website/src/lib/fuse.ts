@@ -47,6 +47,26 @@ export function isSlotRecord(x: unknown): x is SlotRecord {
 
 export const isDigestB64 = (x: unknown): x is string => typeof x === "string" && B64_32.test(x);
 
+/**
+ * The origin digest a fused proof names in its SIGNED attribution
+ * (name "BitGraph Fuse", message = origin digest, standard base64), or
+ * null when the proof is not fused or names no origin. The only field a
+ * ledger index may trust for an origin: it is inside the Ed25519 signature.
+ */
+export function fusedOriginDigestOf(proof: Record<string, unknown>): string | null {
+  const a = proof.attribution as { name?: unknown; message?: unknown } | undefined;
+  if (!a || a.name !== FUSE_ATTRIBUTION_NAME || typeof a.message !== "string") return null;
+  if (!B64_32.test(a.message)) return null;
+  const bytes = Buffer.from(a.message, "base64");
+  return bytes.length === 32 && bytes.toString("base64") === a.message ? a.message : null;
+}
+
+/** True when the proof's signed attribution marks it fused (origin declared or not). */
+export function isFusedProof(proof: Record<string, unknown>): boolean {
+  const a = proof.attribution as { name?: unknown } | undefined;
+  return !!a && a.name === FUSE_ATTRIBUTION_NAME;
+}
+
 /** Retry-After from the parent survives the proxy hop on 429s. */
 export function retryAfterHeaders(from: Response): Record<string, string> {
   const ra = from.headers.get("retry-after");

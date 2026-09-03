@@ -183,7 +183,7 @@ export default function ProofPage() {
   // BitGraphed more than once), earliest first. ?counter=&epoch= in the URL
   // picks which one this page describes. lowerTime/upperTime are the ETH anchor
   // window bounds (block times) that bracket each recording.
-  const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; lowerTime: string | null; upperTime: string | null }>>([]);
+  const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; lowerTime: string | null; upperTime: string | null; kind?: "recorded" | "fused"; artifactDigest?: string | null; placement?: string | null }>>([]);
 
   // A capture "flash" plays once when you land here straight off a fresh
   // recording (the drop flow / BitGraph Again append ?fresh=1). On mount the
@@ -898,12 +898,22 @@ export default function ProofPage() {
           {((!isEth && !isInterval) ? positions.length >= 1 : positions.length > 1) && (
             <CollapsibleCard title={`Recordings (${positions.length})`}>
               <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
-                {positions.length === 1
-                  ? "These exact bits have one recorded position so far, with its own verifiable time window."
-                  : `These exact bits were BitGraphed ${positions.length} times. Each recording sits at its own position, with its own verifiable time window.`}
+                {(() => {
+                  const recordedCount = positions.filter((p) => p.kind !== "fused").length;
+                  const fusedCount = positions.length - recordedCount;
+                  const rec = recordedCount === 0
+                    ? "These exact bits have not been recorded themselves."
+                    : recordedCount === 1
+                      ? "These exact bits have one recorded position so far, with its own verifiable time window."
+                      : `These exact bits were BitGraphed ${recordedCount} times. Each recording sits at its own position, with its own verifiable time window.`;
+                  const fused = fusedCount === 0 ? "" : ` ${fusedCount === 1 ? "One fused artifact names" : `${fusedCount} fused artifacts name`} these bits as origin; each carries a commitment to its own slot and is listed here without ranking.`;
+                  return rec + fused;
+                })()}
               </div>
               {[...positions].reverse().map((pos) => {
-                const isEarliest = pos === positions[0];
+                const recordedPositions = positions.filter((p) => p.kind !== "fused");
+                const isFusedRow = pos.kind === "fused";
+                const isEarliest = pos === recordedPositions[0];
                 const isCurrent =
                   String(pos.counter) === String(commit.counter) &&
                   (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
@@ -915,7 +925,12 @@ export default function ProofPage() {
                 if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
                 else if (t2) rowDate = longDate(t2);
                 else if (t1) rowDate = longDate(t1);
-                const roleText = positions.length === 1 ? "Recorded position" : isEarliest ? "Earliest recorded position" : "Recorded again";
+                // A fused descendant names these bytes as its origin; it is listed,
+                // never ranked, and links to its own proof page.
+                const roleText = isFusedRow
+                  ? `Fused artifact naming these bytes as origin${pos.placement ? ` (${pos.placement})` : ""}`
+                  : recordedPositions.length === 1 ? "Recorded position" : isEarliest ? "Earliest recorded position" : "Recorded again";
+                const rowDigest = isFusedRow && pos.artifactDigest ? pos.artifactDigest : digestParam;
                 const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
                 const timesNode = t1 && t2
                   ? (sameDay
@@ -937,7 +952,7 @@ export default function ProofPage() {
                           // response listing fewer than n positions as provably
                           // stale and refetches — the case where this page knows
                           // a recording the cached sibling page predates.
-                          href={`/proof/${encodeURIComponent(digestParam)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}&n=${positions.length}`}
+                          href={`/proof/${encodeURIComponent(rowDigest)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}&n=${positions.length}`}
                           style={{ color: "var(--c-accent)", textDecoration: "none" }}
                         >
                           View <span className="arrow" aria-hidden>&rarr;</span>

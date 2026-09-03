@@ -345,7 +345,9 @@ export function buildServer(): McpServer {
           return {
             input: input.label,
             digest: toUrlSafeB64(input.standardDigest),
-            on_record: proofs.length > 0,
+            // A fused descendant that names these bytes as origin is not a recording of them.
+            on_record: proofs.some((p) => (p as { kind?: string }).kind !== "fused"),
+            fused_descendants: proofs.filter((p) => (p as { kind?: string }).kind === "fused").length,
             positions,
             proof_url: proofs.length > 0 ? proofUrl(config.baseUrl, input.standardDigest) : null,
           };

@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
     const unique = [...new Set(digests as string[])];
     const results: Record<string, {
-      proofs: Array<{ proof: unknown; writeTime: number | null }>;
+      proofs: Array<{ proof: unknown; writeTime: number | null; kind: "recorded" | "fused" }>;
       /** The read FAILED. Not an answer about these bytes; see below. */
       unavailable?: true;
     }> = {};
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
             const entries = await getProofsByDigest(fromUrlSafeB64(d));
             // writeTime (ledger write moment, ms) rides along so result rows
             // can show a compact "when" like the Roll's rows.
-            results[d] = { proofs: entries.map(({ proof, writeTime }) => ({ proof, writeTime: writeTime ?? null })) };
+            results[d] = { proofs: entries.map(({ proof, writeTime, kind }) => ({ proof, writeTime: writeTime ?? null, kind })) };
           } catch (err) {
             // ⚠️ THIS USED TO REPORT `{ proofs: [] }`, and it was the whole
             // bug: an empty list is the wire form of "these bytes were never

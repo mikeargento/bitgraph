@@ -86,7 +86,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     }
     const selCounter = req.nextUrl.searchParams.get("counter");
     const selEpoch = req.nextUrl.searchParams.get("epoch");
-    let proof = all[0].proof;
+    // The originating proof is the earliest RECORDING of these bytes. A fused
+    // descendant (a fused artifact naming these bytes as origin) never stands
+    // in for it: when only descendants exist, the bytes themselves are not
+    // on record and the response says so with lookupKind "origin-only".
+    const recorded = all.filter((e) => e.kind === "recorded");
+    const lookupKind: "recorded" | "origin-only" = recorded.length > 0 ? "recorded" : "origin-only";
+    let proof = (recorded[0] ?? all[0]).proof;
     if (selCounter) {
       const match = all.find((e) => {
         const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
@@ -128,11 +134,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     const positions = all.map((e, idx) => {
       const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
       const w = positionWindows[idx];
+      const artifact = (e.proof.artifact as { digestB64?: string } | undefined)?.digestB64;
+      const attr = e.proof.attribution as { title?: string } | undefined;
       return {
         counter: c?.counter ?? null,
         epoch: c?.epochId ? toUrlSafeB64(c.epochId) : null,
         lowerTime: w.anchorBefore?.blockTime ?? null,
         upperTime: w.anchorAfter?.blockTime ?? null,
+        kind: e.kind,
+        // For a fused descendant: the fused artifact's own digest (url-safe) and placement.
+        artifactDigest: artifact ? toUrlSafeB64(artifact) : null,
+        ...(e.kind === "fused" ? { placement: attr?.title ?? null } : {}),
       };
     });
 
@@ -174,7 +186,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     const cacheControl = settled
       ? "public, s-maxage=60, stale-while-revalidate=300"
       : "public, s-maxage=5, stale-while-revalidate=30";
-    return NextResponse.json({ proofs: [{ proof }], positions, causalWindow, anchorBlock }, { headers: { "Cache-Control": cacheControl } });
+    return NextResponse.json({ proofs: [{ proof }],
+        lookupKind, positions, causalWindow, anchorBlock }, { headers: { "Cache-Control": cacheControl } });
   } catch (e) {
     // Never cached, and never confusable with the `{ proofs: [] }` miss above:
     // that answer means the ledger has nothing, this one means we could not

@@ -34,7 +34,7 @@ export interface BitGraphProof {
 
 /** POST /api/proofs/batch response. Keyed by the digest exactly as sent (URL-safe). */
 export interface BatchCheckResponse {
-  results: Record<string, { proofs: Array<{ proof: BitGraphProof }> }>;
+  results: Record<string, { proofs: Array<{ proof: BitGraphProof; kind?: "recorded" | "fused" }> }>;
 }
 
 export interface AnchorView {
