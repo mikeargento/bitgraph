@@ -215,13 +215,16 @@ Service surfaces (all behind `FUSE_ENABLED`, off by default; nothing deployed):
   returns a proof under a different slot; writes the by-digest index including
   the origin's descendants).
 
-Posture (ruled 2026-09-03): allocation is the gated parent route above, under
-the existing key mechanism and limiter; a commit consumes the exact allocation
-that route returned, with no slot substitution and no fresh allocation during
-commit; the commit path stays behind the anchor-first gate. The flag stays off
-and the harness stays internal until the implementation, vectors, verifier
-behaviour and claim language are fully tested; there is no public docs page
-until then.
+Posture (ruled 2026-09-03, revised the same day): allocation is the gated
+parent route above, under the existing key mechanism and limiter; a commit
+consumes the exact allocation that route returned, with no slot substitution
+and no fresh allocation during commit; the commit path stays behind the
+anchor-first gate. Fuse is ENABLED in production as the standard BitGraph
+production path: `FUSE_ENABLED=true` on the parent and on the site, the
+harness on behind its token, the edge rate-limit rule covering the two Fuse
+routes. The parent's per-address allocation bucket is set no tighter than its
+global window (250 per 120 s) because site traffic reaches it under the
+proxy's egress addresses; per-user limiting is the edge rule's job.
 
 SDK (in the core package `@mikeargento/bitgraph`, licensed): `fuse(builder, options)`: allocate, hand the
 commitment to the builder, hash, commit under the same slot, verify the
