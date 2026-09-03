@@ -63,7 +63,9 @@ import type {
   SegmentBound,
   TemporalSegment,
 } from "@mikeargento/bitgraph-audit";
-import { auditIngest, AUDIT_VERSION, streamMatchedArtifacts } from "@mikeargento/bitgraph-audit";
+import { auditIngest, AUDIT_VERSION, streamMatchedArtifacts, streamArtifactsByHash } from "@mikeargento/bitgraph-audit";
+import { readFuseAttribution, verifyFuse, base64ToBytes, bytesToHex, resetEpochLinkState } from "@mikeargento/bitgraph-verify";
+import type { FuseVerifyResult } from "@mikeargento/bitgraph-verify";
 import type { ThreeValued } from "./types.js";
 import { SIG_EVIDENCE_MAX_BYTES } from "./types.js";
 import { kleeneAll } from "./logic.js";
@@ -108,7 +110,7 @@ export const KNOWN_ENCLAVE_MEASUREMENTS: ReadonlyArray<{ pcr0: string; label: st
 
 /** One checked property, three-valued, with a plain-language reason. */
 export interface CheckLine {
-  name: "file" | "signature" | "attestation" | "enclave" | "witness" | "contradiction" | "domain";
+  name: "file" | "signature" | "attestation" | "enclave" | "witness" | "contradiction" | "domain" | "fused";
   result: ThreeValued;
   detail: string;
 }
@@ -131,6 +133,36 @@ export interface CheckBounds {
   detail: string;
 }
 
+/**
+ * The wall-clock floor of a fused artifact: the last verified anchored
+ * block preceding its SLOT counter in the same epoch chain. Counter-order
+ * evidence by construction (no hash path reaches a slot record), reported
+ * with the same "genuine block" assumption as every other bound.
+ */
+export interface CheckFloor {
+  blockNumber?: string;
+  blockHash: string;
+  /** Unix seconds from the verified block header. */
+  timestamp: number;
+  anchorProofHash: string;
+  evidence: "counter-order";
+}
+
+/** What the bundle establishes about a recording marked fused (profile bitgraph-fuse/1, working name). */
+export interface CheckFused {
+  category: FuseVerifyResult["category"] | "NO_EVIDENCE";
+  placement: string | null;
+  originDigestB64: string | null;
+  /** Which bytes in the bundle the commitment check ran against. */
+  evidence: "fused-bytes" | "original" | null;
+  /** The bounded statements, carrying the floor clause when a floor exists. */
+  statements: string[];
+  floor: CheckFloor | null;
+  floorDetail: string;
+  /** The causal span [N, M]. */
+  span: { slotCounter: string; commitCounter: string; positions: string } | null;
+}
+
 /** A non-anchor recording in the bundle. */
 export interface CheckRecording {
   proofHash: string;
@@ -146,6 +178,8 @@ export interface CheckRecording {
   /** Kleene all over `lines`. */
   result: ThreeValued;
   bounds: CheckBounds;
+  /** Present exactly when the proof's signed attribution marks it fused. */
+  fused?: CheckFused;
 }
 
 /** An Ethereum anchor recording in the bundle. */
@@ -227,6 +261,14 @@ export interface CheckOptions {
    * embedders may supply additional candidates.
    */
   sigEvidence?: ReadonlyMap<string, Uint8Array>;
+  /**
+   * Fuse evidence by proofHash: the verifyFuse result over the fused bytes
+   * (preferred) or the original, whichever the bundle holds. checkIngest
+   * collects this from the bundle; embedders may supply it.
+   */
+  fuseEvidence?: ReadonlyMap<string, FuseVerifyResult>;
+  /** Content hashes (hex) of files that served as the original of a fused recording; not "unmatched". */
+  fuseOriginHexes?: ReadonlySet<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +312,55 @@ export async function checkIngest(ingest: IngestResult, options?: CheckOptions):
     opts = { ...opts, sigEvidence: collected };
   }
   const audit = await auditIngest(ingest, { startedAt: "" });
+  if (opts?.fuseEvidence === undefined) {
+    const collected = await collectFuseEvidence(ingest);
+    opts = { ...opts, fuseEvidence: collected.evidence, fuseOriginHexes: collected.originHexes };
+  }
   return buildCheckReport(audit, opts);
+}
+
+/**
+ * For every proof marked fused, find the bytes the check can run against:
+ * the committed (fused) bytes if the bundle holds them, else the original
+ * named by the signed origin digest. Runs after the audit pass and resets
+ * the verify library's epoch-link state around its own verifications.
+ */
+async function collectFuseEvidence(
+  ingest: IngestResult
+): Promise<{ evidence: Map<string, FuseVerifyResult>; originHexes: Set<string> }> {
+  const evidence = new Map<string, FuseVerifyResult>();
+  const originHexes = new Set<string>();
+  const wanted: Array<{ proof: ObservedProof; artifactHex: string | null; originHex: string | null }> = [];
+  const hexes = new Set<string>();
+  for (const proof of ingest.proofs) {
+    const marker = readFuseAttribution(proof.proof);
+    if (marker === null) continue;
+    const artifactBytes = base64ToBytes(proof.proof.artifact.digestB64);
+    const artifactHex = artifactBytes !== null ? bytesToHex(artifactBytes) : null;
+    const originHex = marker.originDigest !== undefined ? bytesToHex(marker.originDigest) : null;
+    wanted.push({ proof, artifactHex, originHex });
+    if (artifactHex !== null) hexes.add(artifactHex);
+    if (originHex !== null) hexes.add(originHex);
+  }
+  if (wanted.length === 0) return { evidence, originHexes };
+  const bytesByHex = new Map<string, Uint8Array>();
+  for await (const artifact of streamArtifactsByHash(ingest, hexes)) {
+    if (!bytesByHex.has(artifact.sha256Hex)) bytesByHex.set(artifact.sha256Hex, artifact.bytes);
+  }
+  resetEpochLinkState();
+  try {
+    for (const w of wanted) {
+      const direct = w.artifactHex !== null ? bytesByHex.get(w.artifactHex) : undefined;
+      const original = w.originHex !== null ? bytesByHex.get(w.originHex) : undefined;
+      if (original !== undefined && w.originHex !== null) originHexes.add(w.originHex);
+      const bytes = direct ?? original;
+      if (bytes === undefined) continue;
+      evidence.set(w.proof.proofHash, await verifyFuse({ proof: w.proof.proof, bytes }));
+    }
+  } finally {
+    resetEpochLinkState();
+  }
+  return { evidence, originHexes };
 }
 
 /** The pure report builder over an AuditResult. */
@@ -316,7 +406,9 @@ export function buildCheckReport(audit: AuditResult, options?: CheckOptions): Ch
           artifactPathByProof.get(proof.proofHash),
           webCrypto,
           options?.from,
-          options?.sigEvidence
+          options?.sigEvidence,
+          options?.fuseEvidence,
+          anchorByHash
         )
       );
     }
@@ -325,7 +417,7 @@ export function buildCheckReport(audit: AuditResult, options?: CheckOptions): Ch
   sortByPosition(recordings);
   sortByPosition(anchors);
   const contradictions = collectContradictions(audit);
-  const notes = collectNotes(audit, recordings, anchors);
+  const notes = collectNotes(audit, recordings, anchors, options?.fuseOriginHexes);
   const notChecked = collectNotChecked(anchors.length > 0, options?.from?.domain);
 
   const allLines: ThreeValued[] = [
@@ -383,7 +475,9 @@ function buildRecording(
   filePath: string | undefined,
   webCrypto: boolean,
   from?: CheckDomain,
-  sigEvidence?: ReadonlyMap<string, Uint8Array>
+  sigEvidence?: ReadonlyMap<string, Uint8Array>,
+  fuseEvidence?: ReadonlyMap<string, FuseVerifyResult>,
+  anchorByHash?: ReadonlyMap<string, AnchorRecord>
 ): CheckRecording {
   const lines: CheckLine[] = [];
   const v = proof.verification;
@@ -448,6 +542,19 @@ function buildRecording(
     lines.push(domainLine(proof, verified, from, sigEvidence ?? EMPTY_EVIDENCE));
   }
 
+  // fused: the proof's signed attribution marks a fused artifact (profile
+  // bitgraph-fuse/1). The commitment check runs over the fused bytes, or
+  // over the original by reconstruction; its floor is the last verified
+  // anchor preceding the SLOT, not the commit.
+  const marker = readFuseAttribution(proof.proof);
+  let fused: CheckFused | undefined;
+  if (marker !== null) {
+    const floor = fusedFloor(segment, anchorByHash, proof.slotCounter);
+    const built = fusedLine(marker.placement, marker.originDigest !== undefined ? proof.proof.attribution?.message ?? null : null, fuseEvidence?.get(proof.proofHash), floor, proof);
+    lines.push(built.line);
+    fused = built.fused;
+  }
+
   const result = kleeneAll(lines.map((l) => l.result));
 
   return {
@@ -462,7 +569,106 @@ function buildRecording(
     lines,
     result,
     bounds: boundsFor(segment),
+    ...(fused !== undefined ? { fused } : {}),
   };
+}
+
+/**
+ * The fused floor: among the segment's verified not-before anchors, those
+ * whose commit counter precedes the SLOT counter, tightest last (largest
+ * block number, else latest timestamp). Null when no verified anchor
+ * precedes the slot in its epoch chain.
+ */
+export function fusedFloor(
+  segment: TemporalSegment | undefined,
+  anchorByHash: ReadonlyMap<string, AnchorRecord> | undefined,
+  slotCounter: string | undefined
+): CheckFloor | null {
+  if (segment === undefined || anchorByHash === undefined || slotCounter === undefined || !/^[0-9]+$/.test(slotCounter)) return null;
+  const slot = BigInt(slotCounter);
+  let best: SegmentBound | undefined;
+  for (const b of segment.lowerBounds) {
+    if (b.kind !== "not-before") continue;
+    const anchor = anchorByHash.get(b.anchorProofHash);
+    if (anchor === undefined || anchor.counter === undefined || !/^[0-9]+$/.test(anchor.counter)) continue;
+    if (BigInt(anchor.counter) >= slot) continue;
+    if (best === undefined) { best = b; continue; }
+    const bn = b.blockNumber !== undefined ? BigInt(b.blockNumber) : BigInt(b.timestamp);
+    const bb = best.blockNumber !== undefined ? BigInt(best.blockNumber) : BigInt(best.timestamp);
+    if (bn > bb) best = b;
+  }
+  if (best === undefined) return null;
+  return {
+    ...(best.blockNumber !== undefined ? { blockNumber: best.blockNumber } : {}),
+    blockHash: best.blockHash,
+    timestamp: best.timestamp,
+    anchorProofHash: best.anchorProofHash,
+    evidence: "counter-order",
+  };
+}
+
+const FLOOR_UNDETERMINED = "floor undetermined: no anchor precedes this slot in its epoch";
+
+function floorClause(floor: CheckFloor): string {
+  const block = floor.blockNumber !== undefined ? `#${floor.blockNumber}` : floor.blockHash;
+  return `anchored block ${block} (${new Date(floor.timestamp * 1000).toISOString()})`;
+}
+
+function fusedLine(
+  placement: string | null,
+  originMessage: string | null,
+  ev: FuseVerifyResult | undefined,
+  floor: CheckFloor | null,
+  proof: ObservedProof
+): { line: CheckLine; fused: CheckFused } {
+  const slot = proof.slotCounter ?? "?";
+  const where = placement !== null ? ` (placement ${placement})` : " (placement undeclared)";
+  const floorDetail = floor !== null
+    ? `assembled after ${floorClause(floor)}, the last verified anchor preceding slot ${slot} in this epoch`
+    : FLOOR_UNDETERMINED;
+  const span = ev?.span !== undefined && ev.span !== null
+    ? { slotCounter: ev.span.slotCounter, commitCounter: ev.span.commitCounter, positions: ev.span.positions }
+    : proof.slotCounter !== undefined && proof.counter !== undefined
+      ? { slotCounter: proof.slotCounter, commitCounter: proof.counter, positions: (BigInt(proof.counter) - BigInt(proof.slotCounter)).toString() }
+      : null;
+  const statements = (ev?.statements ?? []).map((s) =>
+    floor !== null ? s.replace(`at position ${slot},`, `at position ${slot}, which followed ${floorClause(floor)},`) : s
+  );
+  const base = (category: CheckFused["category"], evidence: CheckFused["evidence"]): CheckFused => ({
+    category,
+    placement: ev?.placement ?? placement,
+    originDigestB64: ev?.originDigestB64 ?? originMessage,
+    evidence,
+    statements,
+    floor,
+    floorDetail,
+    span,
+  });
+  if (ev === undefined) {
+    return {
+      line: { name: "fused", result: "UNDETERMINED", detail: `marked fused${where}, but neither the fused bytes nor ${originMessage !== null ? "the original" : "an original"} is in this bundle, so the commitment to slot ${slot} cannot be checked` },
+      fused: base("NO_EVIDENCE", null),
+    };
+  }
+  const evidence: CheckFused["evidence"] = ev.category === "FUSED_FROM_ORIGIN" || (ev.fileDigestB64 !== ev.artifactDigestB64 && ev.category !== "NO_MATCH") ? "original" : "fused-bytes";
+  switch (ev.category) {
+    case "FUSED_DIRECT":
+      return { line: { name: "fused", result: "TRUE", detail: `the fused bytes carry the commitment to slot ${slot}${where}` }, fused: base(ev.category, "fused-bytes") };
+    case "FUSED_FROM_ORIGIN":
+      return { line: { name: "fused", result: "TRUE", detail: `the original rebuilds the committed fused bytes${where}; they carry the commitment to slot ${slot}` }, fused: base(ev.category, "original") };
+    case "INVALID_SLOT_COMMITMENT":
+      return { line: { name: "fused", result: "FALSE", detail: `the fused bytes do not carry the commitment to this proof's slot ${slot}: ${ev.reason ?? ""}` }, fused: base(ev.category, evidence) };
+    case "INVALID_ORIGIN_ATTRIBUTION":
+      return { line: { name: "fused", result: "FALSE", detail: `the declared origin contradicts the origin inside the fused bytes: ${ev.reason ?? ""}` }, fused: base(ev.category, evidence) };
+    case "RECONSTRUCTION_MISMATCH":
+      return { line: { name: "fused", result: "FALSE", detail: `the file matching the declared origin does not rebuild the committed fused bytes: ${ev.reason ?? ""}` }, fused: base(ev.category, "original") };
+    case "UNDETERMINED_PLACEMENT":
+      return { line: { name: "fused", result: "UNDETERMINED", detail: `${ev.reason ?? "the placement is not registered"}; this verifier cannot check the commitment` }, fused: base(ev.category, evidence) };
+    case "INVALID_UNDERLYING_PROOF":
+      return { line: { name: "fused", result: "UNDETERMINED", detail: "not checked: the proof itself does not verify (see the signature line)" }, fused: base(ev.category, evidence) };
+    default:
+      return { line: { name: "fused", result: "UNDETERMINED", detail: `the commitment could not be checked: ${ev.reason ?? ev.category}` }, fused: base(ev.category, evidence) };
+  }
 }
 
 function attestationLine(
@@ -821,7 +1027,7 @@ function collectContradictions(audit: AuditResult): CheckLine[] {
   return out;
 }
 
-function collectNotes(audit: AuditResult, recordings: CheckRecording[], anchors: CheckAnchor[]): string[] {
+function collectNotes(audit: AuditResult, recordings: CheckRecording[], anchors: CheckAnchor[], fuseOriginHexes?: ReadonlySet<string>): string[] {
   const notes: string[] = [];
 
   // Excerpt gaps, said once, plainly.
@@ -848,7 +1054,13 @@ function collectNotes(audit: AuditResult, recordings: CheckRecording[], anchors:
 
   // Files that match no recording: the human hint for an edited file or a
   // wrong drop, without claiming which.
-  const unmatched = audit.ingest.artifacts.filter((a) => a.matchedProofHashes.length === 0);
+  const originals = audit.ingest.artifacts.filter((a) => a.matchedProofHashes.length === 0 && fuseOriginHexes?.has(a.sha256Hex) === true);
+  if (originals.length > 0) {
+    notes.push(
+      `${originals.length} file${originals.length === 1 ? "" : "s"} in this bundle ${originals.length === 1 ? "is" : "are"} the original of a fused recording: ${originals.slice(0, 5).map((a) => a.paths[0] ?? "(unnamed)").join(", ")}${originals.length > 5 ? ", …" : ""}. The original itself receives only the ceiling (it existed no later than the commit); the fused bytes receive the interval`
+    );
+  }
+  const unmatched = audit.ingest.artifacts.filter((a) => a.matchedProofHashes.length === 0 && fuseOriginHexes?.has(a.sha256Hex) !== true);
   if (unmatched.length > 0 && recordings.length > 0) {
     const listed = unmatched
       .slice(0, 5)
@@ -969,6 +1181,11 @@ export function renderCheckText(report: CheckReport): string {
     }
     for (const line of rec.lines) out.push(`  ${mark(line.result)}  ${pad(line.name, 12)} ${line.detail}`);
     out.push(`  bounds      ${rec.bounds.detail}`);
+    if (rec.fused !== undefined) {
+      out.push(`  fused floor ${rec.fused.floorDetail}`);
+      if (rec.fused.span !== null) out.push(`  fused span  slot ${rec.fused.span.slotCounter} to commit ${rec.fused.span.commitCounter} (${rec.fused.span.positions} positions)`);
+      for (const s of rec.fused.statements) out.push(`  statement   ${s}`);
+    }
     out.push("");
   });
   report.anchors.forEach((a, i) => {

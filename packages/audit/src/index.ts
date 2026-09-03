@@ -85,7 +85,7 @@ export type {
   AuditJsonReport,
 } from "./types.js";
 
-export { ingestBundle, ingestEntries, streamMatchedArtifacts, DEFAULT_INGEST_LIMITS } from "./ingest.js";
+export { ingestBundle, ingestEntries, streamMatchedArtifacts, streamArtifactsByHash, DEFAULT_INGEST_LIMITS } from "./ingest.js";
 export type { BundleEntrySource } from "./ingest.js";
 
 export { verifyObservedProofs } from "./verify-tiers.js";

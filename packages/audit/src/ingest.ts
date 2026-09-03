@@ -450,7 +450,30 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
 export async function* streamMatchedArtifacts(
   ingest: IngestResult
 ): AsyncGenerator<MatchedArtifactBytes, void, void> {
-  const needed = ingest.artifacts.filter((a) => a.matchedProofHashes.length > 0);
+  yield* streamArtifactsFor(ingest, ingest.artifacts.filter((a) => a.matchedProofHashes.length > 0));
+}
+
+/**
+ * Re-read the bytes of specific artifacts by content hash (lowercase hex),
+ * matched or not, with the same container handling and re-hashing as
+ * streamMatchedArtifacts. A profile whose evidence is a file OTHER than the
+ * committed bytes (the original of a fused artifact, which matches no proof
+ * by digest) reads it through here. Hashes absent from the bundle are simply
+ * not yielded.
+ */
+export async function* streamArtifactsByHash(
+  ingest: IngestResult,
+  sha256Hexes: Iterable<string>
+): AsyncGenerator<MatchedArtifactBytes, void, void> {
+  const wanted = new Set(sha256Hexes);
+  if (wanted.size === 0) return;
+  yield* streamArtifactsFor(ingest, ingest.artifacts.filter((a) => wanted.has(a.sha256Hex)));
+}
+
+async function* streamArtifactsFor(
+  ingest: IngestResult,
+  needed: ArtifactRecord[]
+): AsyncGenerator<MatchedArtifactBytes, void, void> {
   if (needed.length === 0) return;
 
   if (ingest.container === "memory") {

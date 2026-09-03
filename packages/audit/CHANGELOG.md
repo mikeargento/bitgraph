@@ -2,6 +2,10 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## 0.4.0 (unreleased)
+
+- `streamArtifactsByHash(ingest, hexes)`: re-read specific artifacts by content hash, matched or not, for profiles whose evidence is a file other than the committed bytes (the original of a fused artifact). `streamMatchedArtifacts` is unchanged.
+
 ## 0.3.0 (2026-09-01)
 
 ### Changed, and it is a report-shape change

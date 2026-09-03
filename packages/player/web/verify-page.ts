@@ -265,6 +265,22 @@ function whenRow(rec: CheckRecording): HTMLElement {
 }
 type CheckBoundLike = { timestamp: number };
 
+/** The fused floor row: the slot-based floor of a fused artifact, said plainly beneath the commit bounds. */
+function floorRow(rec: CheckRecording): HTMLElement | null {
+  if (rec.fused === undefined) return null;
+  const grey = (t: string): HTMLElement => el("span", { class: "when-grey" }, [t]);
+  const dark = (t: string): HTMLElement => el("span", { class: "when-dark" }, [t]);
+  const row = el("div", { class: "when" });
+  const line = el("div", { class: "when-line" });
+  if (rec.fused.floor !== null) {
+    line.append(grey("fused bytes assembled after "), dark(fmtTime(rec.fused.floor.timestamp, true)), grey(`, the last anchor before slot ${rec.fused.span?.slotCounter ?? "?"}`));
+  } else {
+    line.append(grey(rec.fused.floorDetail));
+  }
+  row.append(line);
+  return row;
+}
+
 // ---------------------------------------------------------------------------
 // File preview: the proof page's, from the dropped bytes
 // ---------------------------------------------------------------------------
@@ -391,6 +407,7 @@ function recordingChecks(rec: CheckRecording): HTMLElement[] {
     enclave: "Enclave identity",
     witness: "Block header",
     contradiction: "Contradiction",
+    fused: "Fused artifact",
   };
   return rec.lines.map((l) => field(label[l.name] ?? l.name, l.detail, { mark: l.result }));
 }
@@ -455,6 +472,8 @@ async function renderReport(report: CheckReport, root: HTMLElement, titleEl: HTM
   }
   if (one !== undefined) {
     primary.append(whenRow(one));
+    const floor = floorRow(one);
+    if (floor !== null) primary.append(floor);
     const file = one.filePath !== undefined ? files.get(one.filePath) : undefined;
     let kind: FileKind | undefined;
     let preview: HTMLElement | null = null;
@@ -486,6 +505,7 @@ async function renderReport(report: CheckReport, root: HTMLElement, titleEl: HTM
       root.append(
         opener(`Recording ${i + 1}: ${rec.filePath ?? rec.digestB64.slice(0, 16) + "…"}  [${rec.result}]`, [
           whenRow(rec),
+          ...(floorRow(rec) !== null ? [floorRow(rec) as HTMLElement] : []),
           ...(rec.counter !== undefined ? [proofField("Position", `#${rec.counter}${rec.epochId !== undefined ? `  ·  epoch ${rec.epochId}` : ""}`, true)] : []),
           proofField("File Hash", rec.digestB64, true),
           ...recordingChecks(rec),
