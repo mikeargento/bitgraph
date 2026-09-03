@@ -116,6 +116,7 @@ export default function BitGraphPage() {
         .sec .lede { font-size: 16px; line-height: 1.6; color: #4b5563; margin: 0 0 26px; }
         .sec p { font-size: 16px; line-height: 1.7; color: #1f2937; margin: 0 0 16px; }
         .sec p:last-child { margin-bottom: 0; }
+        .sec h3.sub { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #111827; margin: 30px 0 10px; }
         .sec a { color: #0065A4; }
 
         /* Three stages. A label column and a text column, not three cards. */
@@ -278,6 +279,32 @@ export default function BitGraphPage() {
         <CopyLine text="bitgraph-fuse photo.jpg" />
         <CopyLine text="npx -y @mikeargento/bitgraph-mcp" style={{ marginTop: 10 }} />
         <CopyLine text={MCP_URL} prompt="" note="# hosted MCP, no install" style={{ marginTop: 10 }} />
+        {/* Task 6: the question a serious evaluator asks first, answered before
+            they ask it. Every number here is read from the shipped enclave
+            (server/commit-service/src/enclave/app.ts): SLOT_TTL_MS = 120_000,
+            MAX_PENDING_SLOTS = 1000, the counter advances inside
+            handleAllocateSlot, pendingSlots is an in-memory Map so allocation
+            persists nothing, and the file's own header documents the gaps.
+            The second paragraph is the honest limit and must not be softened:
+            a caller CAN hold several positions open inside the window. What
+            the enclave attests is issuance before the digest, not independence
+            from it. Saying so here is worth more than the claim it gives up. */}
+        <h3 className="sub">What happens between the two calls</h3>
+        <p>
+          A position is held for 120 seconds. Up to 1,000 can be open at once across the whole
+          enclave. Allocating one advances the counter immediately, so a position that is never
+          committed leaves a permanent gap in the sequence. Nothing is written when a position is
+          allocated, so an abandoned position never reaches the ledger and appears only as that gap.
+          An enclave restart begins a new epoch and voids every position still open.
+        </p>
+        <p>
+          The limit of the claim, stated plainly: inside that window a caller can hold several
+          positions open and decide which artifact fills which. What the enclave signs is that it
+          issued the position before it received the digest, and then bound the two. It does not say
+          the position was chosen without knowledge of the artifact. Ordering between proofs comes
+          from the previous-proof hash rather than from counters, so the gaps abandoned positions
+          leave cost nothing.
+        </p>
         <div className="links-row">
           <Link href="/docs/integration">
             Integration guide <span className="arrow" aria-hidden="true">&rarr;</span>
