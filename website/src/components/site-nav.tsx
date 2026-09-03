@@ -184,7 +184,7 @@ export function SiteNav() {
               bar was a button the width of the reading column whose label
               repeated the h1 eight pixels beneath it, on a site whose rule is
               no buttons. The list belongs in the nav, which is sticky already,
-              so a reader deep in the whitepaper can still jump sections.
+              so a reader deep in a long page can still jump sections.
 
               Click, not hover: hover menus have no touch equivalent, and this
               has to work on a phone. Visually it stays a nav link, with only a

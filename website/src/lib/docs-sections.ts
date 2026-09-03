@@ -26,7 +26,8 @@
  * conceptual run as a compromise between two things that were both true: high
  * placement is a credibility signal, and the most demanding document on the
  * site should not be the sixth thing a curious reader meets. Reference settles
- * it instead of splitting it. The whitepaper is not a step in an orientation,
+ * it instead of splitting it. The whitepaper (removed from the site on
+ * 2026-09-03; the source is in git history) was not a step in an orientation,
  * it is a thing you consult, which is exactly what it now sits with.
  *
  * Proof Format left the conceptual run for BUILD (2026-08-09), where it sits
@@ -38,7 +39,7 @@
  * infrastructure. The four ways in still run easiest to hardest, they just no
  * longer run across a column boundary.
  *
- * REFERENCE is the fourth column: the whitepaper, the FAQ, the repo. The three
+ * REFERENCE is the fourth column: the FAQ, the repo. The three
  * things you look something up in rather than read through. GitHub is appended
  * in the menu itself, always last; it is the only entry on this page that is
  * NOT in the reading sequence, being a destination rather than a section.
@@ -127,10 +128,9 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
  * REFERENCE, the fourth column, rendered by the menu after the three groups
  * above (it appends GitHub to these, which is external and stays out of the
  * sequence). These ARE in the sequence, and they close it: the trail runs
- * Self-Host TEE → Whitepaper → FAQ and stops.
+ * Self-Host TEE → FAQ and stops.
  */
 export const DOCS_TAIL: DocsSection[] = [
-  { href: "/docs/whitepaper", label: "Whitepaper" },
   { href: "/docs/faq", label: "FAQ" },
 ];
 
