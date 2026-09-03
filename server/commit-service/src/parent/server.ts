@@ -4,7 +4,8 @@
  * Parent EC2 instance — HTTPS API server
  *
  * Endpoints:
- *   POST /commit         — { digests: [{ digestB64, hashAlg }], metadata?, agency?, policy?, chainId? }
+ *   POST /commit         — { digests: [{ digestB64, hashAlg }], metadata?, agency?, policy?, chainId?, slotId? }
+ *                          (slotId: a client-held slot from /allocate-slot; needs FUSE_ENABLED=true)
  *   POST /allocate-slot  — { chainId? } → { slotId, slot, chainId }  (same key policy as /commit;
  *                          metered per address in slots, see rate-limit.ts)
  *   POST /challenge      — {} → { challenge }  (public — issues enclave nonce for agency signing)
@@ -44,6 +45,12 @@ const PORT = Number(
 const INDEX_URL = process.env["PROOF_INDEX_URL"] ?? "https://bitgraph.ing/api/proofs";
 const LEDGER_BUCKET = process.env["LEDGER_BUCKET"];
 const ALLOW_DEBUG_MODE = process.env["ALLOW_DEBUG_MODE"] === "true";
+// BitGraph Fuse: lets POST /commit consume a client-held slot from
+// POST /allocate-slot instead of allocating its own. Off by default; the
+// enclave is unchanged either way (its commitDigest already takes a slotId).
+const FUSE_ENABLED = process.env["FUSE_ENABLED"] === "true";
+/** The slotId returned by /allocate-slot is the slot's 32-byte nonce in standard base64. */
+const SLOT_ID_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 
 if (LEDGER_BUCKET) {
   console.log(`[parent] S3 ledger enabled: ${LEDGER_BUCKET}`);
@@ -252,6 +259,8 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     attribution?: { name?: string; title?: string; message?: string };
     policy?: PolicyBinding;
     chainId?: string;
+    /** Client-held slot from POST /allocate-slot (BitGraph Fuse). */
+    slotId?: unknown;
   };
 
   try {
@@ -271,6 +280,29 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
       sendError(res, 400, "each digest must have { digestB64: string, hashAlg: 'sha256' }");
       return;
     }
+  }
+
+  // Client-held slot (the BitGraph Fuse two-phase form): the caller allocated
+  // a slot with POST /allocate-slot and now consumes exactly that slot. Never
+  // fall back to a fresh slot when one was named; a proof under a different
+  // slot would look like success and be a silent downgrade. One digest per
+  // request: the enclave binds one slot to one digest, and a mid-batch
+  // failure would burn the held nonce with nothing returned.
+  let heldSlotId: string | undefined;
+  if (body.slotId !== undefined) {
+    if (!FUSE_ENABLED) {
+      sendError(res, 400, "client-held slots are not enabled on this service (FUSE_ENABLED)");
+      return;
+    }
+    if (typeof body.slotId !== "string" || !SLOT_ID_PATTERN.test(body.slotId)) {
+      sendError(res, 400, "body.slotId must be the slotId returned by POST /allocate-slot (a 44-character base64 nonce)");
+      return;
+    }
+    if (body.digests.length !== 1) {
+      sendError(res, 400, "a client-held slot commits exactly one digest per request");
+      return;
+    }
+    heldSlotId = body.slotId;
   }
 
   // Rate limit by digest count (proofs minted), not by request. Requests
@@ -317,13 +349,20 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
   for (let i = 0; i < body.digests.length; i++) {
     const d = body.digests[i]!;
 
-    // Step 1: Allocate a causal slot (nonce-first) — pass chainId for isolation
-    const slotResult = await enclaveClient.send({ type: "allocateSlot", chainId: body.chainId });
-    if (!slotResult.ok || !slotResult.data) {
-      sendError(res, 500, slotResult.error ?? "slot allocation failed");
-      return;
+    // Step 1: the slot. Either the caller's held slot (its chain was bound at
+    // allocation; body.chainId is not consulted) or a fresh one allocated
+    // here, nonce-first, on the requested chain.
+    let slotId: string;
+    if (heldSlotId !== undefined) {
+      slotId = heldSlotId;
+    } else {
+      const slotResult = await enclaveClient.send({ type: "allocateSlot", chainId: body.chainId });
+      if (!slotResult.ok || !slotResult.data) {
+        sendError(res, 500, slotResult.error ?? "slot allocation failed");
+        return;
+      }
+      slotId = (slotResult.data as { slotId: string }).slotId;
     }
-    const { slotId } = slotResult.data as { slotId: string };
 
     // Step 2: Commit the digest with the allocated slot
     // For batch commits with agency, number each digest from the request's
@@ -354,6 +393,18 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     });
 
     if (!commitResult.ok || !commitResult.data) {
+      // A held slot the enclave no longer has: consumed by an earlier
+      // commit whose response was lost, expired past the TTL, or wiped by an
+      // enclave restart. The enclave cannot tell these apart and neither can
+      // we; the distinct code lets the client read back by digest before it
+      // allocates again, instead of retrying blindly.
+      if (heldSlotId !== undefined && /Slot not found or expired/.test(commitResult.error ?? "")) {
+        sendJson(res, 409, {
+          error: "The held slot is not available: it was already consumed, it expired, or the enclave restarted since allocation. Look the artifact digest up before allocating again.",
+          code: "slot-unavailable",
+        });
+        return;
+      }
       sendError(res, 500, commitResult.error ?? "commit failed");
       return;
     }
@@ -562,6 +613,7 @@ server.listen(PORT, async () => {
 
   const rl = rateLimitConfig();
   console.log(`[parent] /commit rate limit: ${rl.perIpCapacity} digests/IP burst, +${rl.perIpRefillPerMin}/min refill, ${rl.globalPerDay}/day global`);
+  console.log(`[parent] fuse: client-held slots on /commit are ${FUSE_ENABLED ? "ENABLED" : "disabled"} (FUSE_ENABLED)`);
   const al = allocationLimiter.config();
   console.log(`[parent] /allocate-slot limit: ${al.perIpCapacity} slots/IP burst, +${al.perIpRefillPerMin}/min refill, ${al.globalPerWindow} per ${al.windowMs / 1000}s global`);
 
