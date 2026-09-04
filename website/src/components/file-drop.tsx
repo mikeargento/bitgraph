@@ -49,7 +49,7 @@ interface FileDropProps {
   accept?: string;
   hint?: string;
   /** Smaller, quieter line rendered beneath the hint */
-  subhint?: string;
+  subhint?: ReactNode;
   /** One more line under the subhint, in its voice, for a fact about the
    *  instrument itself: /actor's "Acting as …, key …" (Mike, 2026-08-19: in
    *  the box, under "Your file never leaves your device", so the block under
@@ -63,6 +63,8 @@ interface FileDropProps {
   /** Label for the browse link */
   browseLabel?: string;
   /** Drop-zone headline (proof pages say "Make another BitGraph") */
+  /* Stays a string: it is also the drop target's aria-label (see the button
+     below), so markup here would strip the control's name. */
   headline?: string;
   /** Headline font size (CSS length/clamp). Defaults to the compact card size. */
   headlineSize?: string;

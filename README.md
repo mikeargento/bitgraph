@@ -8,7 +8,9 @@
 
 ---
 
-BitGraphs are not labels or metadata added after the fact. They are new computations created when your file's hash *fills* a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state.
+A file is chosen. A position is opened with nothing from that file in the request. The enclave reveals the signed slot, and only then can the new file be finished, because its final ingredient comes from that slot. You hash the finished bytes and send the digest back, with the original file's hash attached as a declaration. The enclave spends the position on that digest, and it can never be spent again. It signs a record binding the digest to that position, linked to the proof before it. The hardware attests which code produced it, and this record in particular. The signed record is a BitGraph.
+
+All of it happens off-chain, and the proof is permanently bound to that exact digital state.
 
 Provenance can be enforced or it can be claimed. Most systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.
 

@@ -62,6 +62,9 @@ export interface BitGraphCameraProps {
    *  noun). */
   /** Omitted by a page that carries its own hero above the box. */
   title?: ReactNode;
+  /** A block above the frame, in place of a title. It sits inside the wrap so
+      the fit measurement counts it and the frame gives up exactly its height. */
+  above?: ReactNode;
   /** The page's own block, and the class its row wears: UNDER the box,
    *  centred, while the page is the camera alone, and nowhere else. The page
    *  owns that class's CSS (its margin-top, 42 on both pages). Home: "What is
@@ -77,7 +80,12 @@ export interface BitGraphCameraProps {
   dropHeadline?: string;
   /** The line under it. Empty when the headline has taken its words. */
   dropHint?: string;
-  belowClassName: string;
+  /** The quiet line under that. Empty when a page states it in its own copy. */
+  dropSubhint?: ReactNode;
+  /* Only meaningful alongside `below`: it is the selector useCameraFit measures
+     for the row under the frame. Optional since 2026-09-04, when home moved its
+     explainer inside the frame and stopped rendering anything below it. */
+  belowClassName?: string;
   /** One line inside the frame under "Hashed in your browser, never uploaded",
    *  for a fact about the instrument: /actor's "Acting as …, key …". Home
    *  passes nothing. */
@@ -135,7 +143,7 @@ export function clearCameraCache(id: BitGraphCameraProps["id"]) {
 }
 
 
-export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, below, belowClassName, frameNote, acceptsPendingDrop, fitViewport = true, dropHeadline = "Make or check BitGraphs", dropHint = "Choose files, or drag in a whole folder." }: BitGraphCameraProps) {
+export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, above, below, belowClassName, frameNote, acceptsPendingDrop, fitViewport = true, dropHeadline = "Make or check BitGraphs", dropHint = "Choose files, or drag in a whole folder.", dropSubhint = "Hashed in your browser, never uploaded." }: BitGraphCameraProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length ? "results" : "drop"));
   const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
@@ -236,7 +244,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
      grows (that exact bug shipped on /actor). Disabled, the hook clears its
      custom properties and the frame falls back to its CSS sizing, which is
      what a page that has stopped being viewport-fitted should use. */
-  useCameraFit(fitViewport && step === "drop", ".bitgraph-tagline", `.${belowClassName}`);
+  useCameraFit(fitViewport && step === "drop", ".bitgraph-tagline", belowClassName ? `.${belowClassName}` : ".bitgraph-nothing-below");
 
   // Cleanup rAF on unmount only
   useEffect(() => {
@@ -1372,7 +1380,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
       `}</style>
       {/* Nav is in root layout */}
 
-      <div className={`bitgraph-wrap${step !== "drop" ? " bitgraph-results" : !fitViewport ? " bitgraph-flow" : ""}`}>
+      {/* The id also rides as a class, so a page can style its own instance
+          without reaching every other page that renders one. */}
+      <div className={`bitgraph-wrap bitgraph-${id}${step !== "drop" ? " bitgraph-results" : !fitViewport ? " bitgraph-flow" : ""}`}>
 
         {/* ── The camera: the page's title, the box first thing, then the
             page's block under it. The ledger lives on its own /day page.
@@ -1399,6 +1409,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
             {/* A page that carries its own hero passes no title; the box then
                 opens with its own first line and nothing is said twice. */}
             {!showingResults && title && <h1 className="bg-page-title bitgraph-tagline">{title}</h1>}
+            {!showingResults && above}
             <div className="bitgraph-camera">
               <FileDrop
                 multiple
@@ -1426,7 +1437,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
                 // to the ledger; the file never does, so the line stays true
                 // with the network tab open, where "Nothing is uploaded"
                 // would not have.
-                subhint="Hashed in your browser, never uploaded."
+                subhint={dropSubhint}
                 note={frameNote}
               />
             </div>
