@@ -457,6 +457,12 @@ export interface CommitOutcome {
   fused_name: string;
   frame_name: string;
   proof_url: string | null;
+  /* Every position these bytes occupy after this commit, newest last, filled
+     by one ledger read after the commits land. Without it a caller who asked
+     to BitGraph a file AGAIN could only be told about the position it just
+     made: the commit knows its own counter and nothing about the earlier
+     ones, so "again" reported the same as a first recording. */
+  positions: Array<{ counter: string | null; epoch: string | null }>;
   recovered: boolean;
   error: string | null;
 }
@@ -482,7 +488,10 @@ export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
   lines.push(headline);
   for (const o of outcomes) {
     if (o.outcome === "opened") {
-      lines.push(`- opened · slot #${o.slot_counter ?? "?"} · ${o.name} · ${o.placement} → ${o.fused_name}`);
+      /* An `again` open already knows the file's history, so say it here rather
+         than letting the caller assume a first recording. */
+      const prior = o.total_positions > 0 ? ` · already at ${o.total_positions} position${o.total_positions === 1 ? "" : "s"}` : "";
+      lines.push(`- opened · slot #${o.slot_counter ?? "?"} · ${o.name} · ${o.placement} → ${o.fused_name}${prior}`);
     } else if (o.outcome === "on record") {
       const note = o.total_positions > 1 ? ` (${o.total_positions} positions)` : "";
       lines.push(`- on record · ${o.name}${note}\n  ${o.proof_url}`);
@@ -508,9 +517,19 @@ export function renderCommitMarkdown(outcomes: readonly CommitOutcome[]): string
     if (o.outcome === "fused") {
       const rec = o.recovered ? " (recovered from the ledger)" : "";
       lines.push(`- fused · slot #${o.slot_counter ?? "?"} → #${o.counter ?? "?"} · ${o.name} → ${o.fused_name}${rec}\n  ${o.proof_url}`);
+      if (o.positions.length > 1) {
+        const all = o.positions.map((p) => `#${p.counter ?? "?"}`).join(" · ");
+        lines.push(`  ${o.positions.length} positions for these bytes: ${all}`);
+      }
     } else {
       lines.push(`- not fused · ${o.name} · ${o.error ?? "unknown error"}`);
     }
+  }
+  if (fused.some((o) => o.positions.length > 1)) {
+    lines.push(
+      "",
+      "A file may occupy any number of positions. Report every position listed above, not only the one just made."
+    );
   }
   if (fused.length > 0) {
     lines.push(

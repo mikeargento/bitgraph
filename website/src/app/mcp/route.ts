@@ -429,6 +429,7 @@ const handler = createMcpHandler(
           "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. " +
           "The boundary commits that digest under the exact slot the token names, with the signed marker (profile bitgraph-fuse/1, placement, origin digest), and this returns the proof and the Frame per file. " +
           "Save each Frame next to the original as frame_name. The new file is virtual: keep the original unchanged and the Frame, and any reader can rebuild the new file and check it. " +
+          "Returns, per file, the position just made AND every position those bytes occupy: a file may be BitGraphed any number of times, so report the whole list, not only the newest. " +
           "A 'not fused' outcome says why and what to do (usually: commit again in a few seconds, or open again). Nothing is labelled fused unless the proof came back under the named slot and verified.",
         inputSchema: z.object({
           entries: z
@@ -472,6 +473,7 @@ const handler = createMcpHandler(
                 fused_name: state?.fusedName ?? "",
                 frame_name: state?.frameName ?? "",
                 proof_url: null,
+                positions: [],
                 recovered: false,
                 error: state === null ? "fuse_token is not one issued by bitgraph_open" : `"${e.artifact_digest}" is not a base64 SHA-256 digest. ${DIGEST_HINT}`,
               });
@@ -495,19 +497,49 @@ const handler = createMcpHandler(
                 counter,
                 epoch,
                 proof_url: proofUrl(baseUrl, artifact, counter ?? undefined, c.proof.commit?.epochId),
+                positions: [],
                 recovered: c.recovered,
                 error: null,
               });
               frames.push({ name: state.frameName, frame: c.frame });
             } catch (err) {
-              outcomes.push({ ...common, outcome: "not fused", counter: null, epoch: null, proof_url: null, recovered: false, error: hostedErrorText(err) });
+              outcomes.push({ ...common, outcome: "not fused", counter: null, epoch: null, proof_url: null, positions: [], recovered: false, error: hostedErrorText(err) });
             }
           }
+          /* One ledger read, after the writes, so a caller who asked to BitGraph
+             a file AGAIN is told every position those bytes occupy and not only
+             the one just made. The origin digest is what carries the history:
+             the file and every new file made from it find the same proofs.
+
+             The read is best-effort and additive. A digest's own fresh position
+             is unioned in rather than trusted to the index, which is written
+             after the proof and can lag a commit by a moment; and a read that
+             fails leaves each outcome with just its own position, which is what
+             the caller had before this existed. */
+          const fusedOutcomes = outcomes.filter((o) => o.outcome === "fused");
+          if (fusedOutcomes.length > 0) {
+            const origins = [...new Set(fusedOutcomes.map((o) => o.origin_digest))];
+            try {
+              const back = await batchCheck(origins);
+              for (const o of fusedOutcomes) {
+                const proofs = back.results[o.origin_digest]?.proofs ?? [];
+                const seen = proofs.map((p) => positionOf(p.proof));
+                if (o.counter !== null && !seen.some((p) => p.counter === o.counter)) {
+                  seen.push({ counter: o.counter, epoch: o.epoch });
+                }
+                seen.sort((a, b) => Number(a.counter ?? 0) - Number(b.counter ?? 0));
+                o.positions = seen;
+              }
+            } catch {
+              for (const o of fusedOutcomes) o.positions = [{ counter: o.counter, epoch: o.epoch }];
+            }
+          }
+
           const structured = {
             results: outcomes,
             frames,
             summary: {
-              fused: outcomes.filter((o) => o.outcome === "fused").length,
+              fused: fusedOutcomes.length,
               not_fused: outcomes.filter((o) => o.outcome === "not fused").length,
             },
           };
