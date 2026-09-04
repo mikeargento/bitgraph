@@ -499,7 +499,7 @@ export default function ProofPage() {
   const Em = ({ children }: { children: React.ReactNode }) => <span style={emStyle}>{children}</span>;
   if (isEth && ethBlockNum) {
     // An anchor is just a BitGraph (of an Ethereum block hash), so it reads
-    // like the others: "BitGraph Recorded on {date}" with the block + time on
+    // like the others: "BitGraph Record on {date}" with the block + time on
     // the line below. The date lives in the title.
     const bt = anchorBlock?.blockTime;
     const blockPart = `Ethereum Block #${Number(ethBlockNum).toLocaleString()}`;
@@ -870,19 +870,26 @@ export default function ProofPage() {
             </div>
           )}
 
-          {/* The content slot: the "BitGraph Recorded" card. Unlike the technical
+          {/* The content slot: the "BitGraph Record" card. Unlike the technical
               cards below it, this one is plain (no toggle) and always open — it
-              holds the file, its "when", and its hash, and its header asserts the
-              recording happened (the confirmation the removed receipt used to
-              carry). The "when" leads the body, then the image when the bytes are
-              in hand (or the bring-your-file dropzone), then the file hash. */}
+              holds the file, its "when", and its hash.
+              ⚠️ It is a NOUN. It read "BitGraph Recorded" until 2026-09-04, a
+              confirmation carried over from the removed receipt, which is only
+              true in the minute after minting: this page is permanent and
+              linkable, and almost every visit to it is someone opening a record,
+              not watching an event. A certificate names itself. The noun is also
+              the only form that is true of every proof here, since a fused
+              artifact was MADE rather than recorded (recording is the
+              compatibility path) and no participle covers both. The "when" leads
+              the body, then the image when the bytes are in hand (or the
+              bring-your-file dropzone), then the file hash. */}
           {!isEth && !isInterval && (
             <>
             {/* The one title size every page header uses. */}
             <div className="bg-page-title" style={{ marginBottom: 10 }}>
-              BitGraph Recorded
+              BitGraph Record
             </div>
-            <CollapsibleCard title="BitGraph Recorded" plain>
+            <CollapsibleCard title="BitGraph Record" plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} />
@@ -1297,7 +1304,7 @@ function FreshRecordingWait() {
 
 function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean; plain?: boolean }) {
   // A plain card has no toggle and is always open — used for the primary
-  // "BitGraph Recorded" card, whose contents are the point of the page.
+  // "BitGraph Record" card, whose contents are the point of the page.
   const [open, setOpen] = useState(!!defaultOpen || !!plain);
   const headerStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",

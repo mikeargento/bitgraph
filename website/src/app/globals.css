@@ -172,7 +172,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 /* ── THE PAGE TITLE. One definition, every page (2026-08-07). ──
    Home's "A camera for bits." is the reference, and every other title on
    the site is the same type: the docs h1s, the ledger, its Archive, Subjects, the
-   proof pages' "BitGraph Recorded", Maker. It scales with the viewport
+   proof pages' "BitGraph Record", Maker. It scales with the viewport
    (26px floor on phones, 32px cap) so mobile and desktop may differ from
    each other but never from each other's peers.
 

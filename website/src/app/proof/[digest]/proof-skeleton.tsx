@@ -13,7 +13,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* The proof page's loaded shape is the always-open "BitGraph Recorded" card
+/* The proof page's loaded shape is the always-open "BitGraph Record" card
    followed by a stack of collapsed card headers, so the wait renders that
    exact layout as shimmering placeholders. The cards sit where the real ones
    will, so data arriving swaps content in with minimal jump; the shimmer
@@ -35,7 +35,7 @@ export function ProofSkeleton() {
         @media (prefers-reduced-motion: reduce) { .bg-skel { animation: none; } }
       `}</style>
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
-        {/* "BitGraph Recorded" now sits ABOVE the card as a page heading, so the
+        {/* "BitGraph Record" now sits ABOVE the card as a page heading, so the
             skeleton leads with it rather than with a header band. */}
         <div className="bg-skel" style={{ ...bar, width: 196, height: 21, marginBottom: 10 }} aria-hidden />
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }} aria-hidden>
