@@ -120,7 +120,7 @@ interface FileItem {
   matchedFile?: File | null;
   /** Per proof in `proofs`: a recording of these exact bytes, or a fused artifact that names them as origin. */
   kinds?: Array<"recorded" | "fused">;
-  /** Set when this drop fused the file: the Frame and the transient fused bytes, for the export. */
+  /** Set when this drop fused the file: the transient fused bytes, for the export. */
   fused?: FusedOutcome;
 }
 
@@ -1113,24 +1113,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       const base = f.name.replace(/\.[^.]+$/, "");
       const prefix = multi ? `${base}/` : "";
       const fileBytes = new Uint8Array(await f.arrayBuffer());
-      // A file fused in this drop exports as a package: the original the
-      // visitor keeps, its Frame beside it, and the new file under fused/.
-      // The new file is virtual everywhere else; the export is the one moment
-      // it is asked for, because that is when the BitGraph leaves the page
-      // for someone who has neither the original nor a tool that rebuilds
-      // (Mike, 2026-09-03). Same shape as a proof page's package.
-      const fusedOut = withProofs[i].fused;
-      if (fusedOut) {
-        // No Frame: proof.json below already carries the same signed proof, and
-        // the manifest a Frame adds is derivable from it apart from the new
-        // file's name, which is the entry immediately below (Mike, 2026-09-03).
-        // That entry keeps the original's own name and is told apart by its
-        // folder: it is the same file plus 48 bytes, not a different thing.
-        const fusedEntry = new ZipPassThrough(`${prefix}new-file/${f.name}`);
-        z.add(fusedEntry);
-        fusedEntry.push(fusedOut.fusedBytes, true);
-      }
-
       // A single recording keeps the flat layout (file + proof.json, covered
       // by the batch-level anchor window below). Bytes that occupy SEVERAL
       // causal positions export each recording as its own complete unit,
@@ -1139,6 +1121,40 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       // anchors. A shared window spanning distant recordings would be
       // uselessly loose for the older ones.
       const allPositions = withProofs[i].proofs.length ? withProofs[i].proofs : p ? [p] : [];
+
+      // A file fused in this drop exports as a package: the original the
+      // visitor keeps and the new file beside it under new-file/. The new
+      // file is virtual everywhere else; the export is the one moment it is
+      // asked for, because that is when the BitGraph leaves the page for
+      // someone who has neither the original nor a tool that rebuilds
+      // (Mike, 2026-09-03). Same shape as a proof page's package.
+      //
+      // It sits INSIDE the export dir of the position that committed it. A
+      // flat export has one dir and that position owns it; a file holding
+      // several positions gives each its own complete unit, and new-file/
+      // beside the set would belong to none of them: a folder dropped back in
+      // reads it as a loose file sitting beside the verdicts, since a check
+      // claims new-file/ only WITHIN an export. Only the flat case can arise
+      // today, since a fuse leaves the file holding exactly the position it
+      // just made, and the placement does not depend on that staying true.
+      const fusedOut = withProofs[i].fused;
+      if (fusedOut) {
+        const own = allPositions.length > 1
+          ? allPositions.find((pos) => pos.commit?.counter === fusedOut.proof.commit?.counter &&
+                                       pos.commit?.epochId === fusedOut.proof.commit?.epochId)
+          : null;
+        // Its own position, or the export root when the positions do not name
+        // it: a home that is merely imprecise beats dropping the bytes.
+        const dir = own?.commit?.counter ? `${prefix}bitgraph-${own.commit.counter}/` : prefix;
+        // No Frame: proof.json beside it already carries the same signed proof,
+        // and the manifest a Frame adds is derivable from it apart from the new
+        // file's name, which is this entry (Mike, 2026-09-03). That entry keeps
+        // the original's own name and is told apart by its folder: it is the
+        // same file plus 48 bytes, not a different thing.
+        const fusedEntry = new ZipPassThrough(`${dir}new-file/${f.name}`);
+        z.add(fusedEntry);
+        fusedEntry.push(fusedOut.fusedBytes, true);
+      }
       if (allPositions.length <= 1) {
         const fileEntry = new ZipPassThrough(`${prefix}${f.name}`);
         z.add(fileEntry);
@@ -1611,8 +1627,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     // product. Paired with the count on its left, so it hangs
                     // on the right the way "Open →" does on a file row.
                     // One name everywhere, the same as the proof page's, for
-                    // the same object: the originals, their proofs and Frames,
-                    // each new file under fused/, and the Ethereum anchors. It
+                    // the same object: the originals, their proofs, each new
+                    // file under new-file/, and the Ethereum anchors. It
                     // no longer counts files and proofs in the label; the
                     // package is one thing whatever it holds, and the count
                     // sits on its left. It was "Download .zip" before that,
@@ -1626,22 +1642,19 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 {/* Files not yet on record get their action as a receipt row:
                     the same arrow-link voice as "See an example …" on the
                     drop screen. Writing to the ledger stays deliberate — a
-                    line you read and choose, not a banner that shouts. */}
+                    line you read and choose, not a banner that shouts.
+                    ⚠️ ONE action, never two. A "Record N files instead" link
+                    sat beside this one until 2026-09-04, from a reading in
+                    which BitGraph had two ways of recording. It does not:
+                    making a BitGraph is the operation, and the digest-only
+                    commit is an API and MCP compatibility path, not a second
+                    choice put in front of whoever dropped the files. */}
                 {unproven.length > 0 && (
                   <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
                     <button type="button" className="bg-action-link" onClick={proveRemaining}>
                       <span>{fuseByDefault ? "BitGraph" : "Record"} {unproven.length} file{unproven.length === 1 ? "" : "s"}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
-                    {/* Ordinary recording stays available as the compatibility
-                        operation: prove that these exact pre-existing bytes
-                        existed by a commit position, without making anything. */}
-                    {fuseByDefault && (
-                      <button type="button" className="bg-action-link" onClick={recordRemaining}>
-                        <span>Record {unproven.length} file{unproven.length === 1 ? "" : "s"} instead</span>
-                        <span className="arrow" aria-hidden>&rarr;</span>
-                      </button>
-                    )}
                   </div>
                 )}
                 {/* What the strategy has to say about a run that did not

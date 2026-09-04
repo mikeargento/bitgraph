@@ -662,12 +662,12 @@ export default function ProofPage() {
     // Of the manifest's four fields, three are already in the signed proof (the
     // placement is the attribution title, the origin digest its message, the
     // artifact digest the proof's own) and the fourth is the new file's name,
-    // which is moot here because the new file is in fused/ beside it.
+    // which is moot here because the new file is in new-file/ beside it.
     //
     // The package. A fused BitGraph leaves this page for someone who may have
     // neither the original nor a tool that rebuilds, so the export is the one
     // moment the new file is actually wanted (Mike, 2026-09-03): the original
-    // as it always was, its Frame beside it, and the new file under fused/.
+    // as it always was, and the new file beside it under new-file/.
     // Everywhere else the new file stays virtual. Built here from whichever
     // file is in hand: the original rebuilds it, the new file carries the
     // original inside it. Without a file, the proof travels alone.
