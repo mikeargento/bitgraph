@@ -1001,10 +1001,15 @@ export default function ProofPage() {
                 if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
                 else if (t2) rowDate = longDate(t2);
                 else if (t1) rowDate = longDate(t1);
-                // A fused descendant names these bytes as its origin; it is listed,
-                // never ranked, and links to its own proof page.
+                /* A fused descendant is listed, never ranked, and links to its
+                   own proof page. It says "from the original" rather than "from
+                   these bytes": this list appears on the ORIGINAL's page and on
+                   every new file's, and from a new file's page "these bytes"
+                   would name the artifact being viewed rather than the origin
+                   all of them share. "The original" is true from either, and
+                   matches the Hashes card above (2026-09-04). */
                 const roleText = isFusedRow
-                  ? "New file made from these bytes"
+                  ? "New file made from the original"
                   : recordedPositions.length === 1 ? "Recorded position" : isEarliest ? "Earliest recorded position" : "Recorded again";
                 const rowDigest = isFusedRow && pos.artifactDigest ? pos.artifactDigest : digestParam;
                 const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
