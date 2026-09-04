@@ -9,7 +9,9 @@
  * Three tools each see one side of an export today; this walks all three in
  * one gesture, entirely client-side reads:
  *
- *   1. bytes vs proof     hash the artifact, compare to proof.json's digest
+ *   1. bytes vs proof     hash the artifact, compare to proof.json's digest;
+ *                         a fused export is settled by its ORIGINAL, rebuilt
+ *                         with the registered placement
  *   2. proof vs ledger    the ledger's copy at the CLAIMED position
  *   3. anchors vs chain   the folder's anchor + witness files against the
  *                         ledger's window for that position
@@ -24,6 +26,14 @@
  * entries are machinery everywhere, and files/ holds hard links to bytes
  * already inside the exports (walking it would count every recording twice).
  * They stand alone now and are no longer mirroring anything.
+ *
+ * An export dir holds at most three things beside the artifact: proof.json,
+ * ethereum-anchors/, and, for a fused recording, new-file/ — the bytes the
+ * proof's digest actually describes, written whole by the site's own export
+ * (bitgraph-camera downloadZip, and the proof page's package). It is part of
+ * the export, not a loose file in the drop: treating it as one both robbed
+ * the export of the only bytes that hash to its proof and left a second,
+ * unrelated card sitting under the row.
  */
 
 import {
@@ -35,6 +45,11 @@ import {
 } from "./bitgraph";
 import { toUrlSafeB64 } from "./explorer";
 import { blockTimeFromHeader } from "./export-pages";
+import { readFuseAttribution, verifyFuse, type BitGraphProof as VerifyProof } from "@mikeargento/bitgraph-verify";
+
+/* The site keeps its own looser proof type (version: string); the reader
+ * package narrows it. Same cast fuse-client.ts makes, for the same reason. */
+const asVerify = (proof: BitGraphProof): VerifyProof => proof as unknown as VerifyProof;
 
 /* ── Walking the dropped tree ── */
 
@@ -240,8 +255,13 @@ export interface ExportCandidate {
   dirName: string;
   proofFile: File;
   /** Files directly in the export dir that are not machinery — normally
-   *  exactly one, the artifact. */
+   *  exactly one, the artifact. For a fused recording this is the ORIGINAL:
+   *  what the proof commits is `newFile` below. */
   artifactCandidates: File[];
+  /** new-file/<name>, for a fused export: the bytes the proof's digest
+   *  describes. Absent from an export whose keeper kept only the original,
+   *  which is the durable state and still verifies (by reconstruction). */
+  newFile?: File;
   /** The export's own index.html, held aside rather than discarded: when it
    *  is the ONLY file beside proof.json it may BE the artifact — an export
    *  whose recorded file is itself named index.html carries no receipt (the
@@ -324,6 +344,8 @@ export function discoverDrop(walked: WalkedFile[]): DropScan {
       if (rel[0] === "proof.json") cand.proofFile = w.file;
       else if (rel[0] === "index.html") cand.receipt = w.file;
       else cand.artifactCandidates.push(w.file);
+    } else if (rel.length === 2 && rel[0] === "new-file") {
+      cand.newFile = w.file;
     } else if (rel.length === 2 && rel[0] === "ethereum-anchors") {
       if (rel[1] === "anchor-before.json") cand.anchors.before = w.file;
       else if (rel[1] === "anchor-after.json") cand.anchors.after = w.file;
@@ -573,12 +595,17 @@ async function scanExportsLocal(candidates: ExportCandidate[]): Promise<Working[
         !(await looksLikeReceipt(cand.receipt))) {
       cand.artifactCandidates.push(cand.receipt);
     }
+    // The row shows the file the person has in the folder: for a fused
+    // export that is the ORIGINAL, which is also the only one of the pair a
+    // container placement can thumbnail. new-file/ stands in when the
+    // original is the part that went missing.
+    const shown = cand.artifactCandidates[0] ?? cand.newFile ?? null;
     const w: Working = {
       cand,
       dirName: cand.dirName,
-      fileName: cand.artifactCandidates[0]?.name ?? null,
+      fileName: shown?.name ?? null,
       matchedFile: null,
-      artifactFile: cand.artifactCandidates[0] ?? null,
+      artifactFile: shown,
       block: null,
       ts: null,
       proof: null,
@@ -621,7 +648,7 @@ async function scanExportsLocal(candidates: ExportCandidate[]): Promise<Working[
     w.counter = proof.commit?.counter ?? null;
     w.epochId = proof.commit?.epochId ?? null;
     w.epochUrlSafe = w.epochId ? toUrlSafeB64(w.epochId) : null;
-    if (cand.artifactCandidates.length === 0) {
+    if (cand.artifactCandidates.length === 0 && !cand.newFile) {
       w.ok = false;
       w.failure = "no file beside proof.json";
     }
@@ -726,16 +753,50 @@ export function startFolderCheck(
 
       // Side 1 — bytes vs proof. The artifact is whichever candidate matches;
       // one candidate that does not match is the headline tamper case.
-      for (const f of w.cand.artifactCandidates) {
-        const digest = await hashFile(f).catch(() => null);
-        if (digest && digest === w.proof.artifact.digestB64 && !w.matchedFile) {
-          w.matchedFile = f;
-          w.artifactFile = f;
-          w.fileName = f.name;
+      //
+      // A fused proof commits the NEW file's digest, so the original beside
+      // proof.json can never match it by hash. It settles this side the other
+      // way round: the registered placement rebuilds the new bytes from it,
+      // and the rebuild has to reproduce the committed digest. Tried first,
+      // so a package holding both files is judged — and thumbnailed, and
+      // handed to the proof page — by the file its keeper actually has.
+      if (readFuseAttribution(asVerify(w.proof))) {
+        for (const f of w.cand.artifactCandidates) {
+          const bytes = await f.arrayBuffer().catch(() => null);
+          if (bytes) {
+            const rebuilt = await verifyFuse({ proof: asVerify(w.proof), bytes: new Uint8Array(bytes) }).catch(() => null);
+            if (rebuilt?.category === "FUSED_FROM_ORIGIN") {
+              w.matchedFile = f;
+              w.artifactFile = f;
+              w.fileName = f.name;
+              break;
+            }
+          }
+          await new Promise((res) => setTimeout(res, 0));
         }
-        // Yield so the UI paints and Safari can reclaim the buffer between
-        // multi-MB reads.
-        await new Promise((r) => setTimeout(r, 0));
+      }
+      // The direct pass: an ordinary recording's file, or the new file itself.
+      //
+      // ⚠️ new-file/ answers ONLY for a package whose original is gone. A
+      // fused export that still holds its original is judged BY that original
+      // and nothing else: letting an intact new-file/ carry the row would
+      // turn a corrupted original into a green verdict on the very file the
+      // row names and hands to the proof page.
+      if (!w.matchedFile) {
+        const direct = w.cand.artifactCandidates.length > 0
+          ? w.cand.artifactCandidates
+          : w.cand.newFile ? [w.cand.newFile] : [];
+        for (const f of direct) {
+          const digest = await hashFile(f).catch(() => null);
+          if (digest && digest === w.proof.artifact.digestB64 && !w.matchedFile) {
+            w.matchedFile = f;
+            w.artifactFile = f;
+            w.fileName = f.name;
+          }
+          // Yield so the UI paints and Safari can reclaim the buffer between
+          // multi-MB reads.
+          await new Promise((res) => setTimeout(res, 0));
+        }
       }
       if (!w.matchedFile) { w.failure = "bytes differ from the proof"; return; }
 
