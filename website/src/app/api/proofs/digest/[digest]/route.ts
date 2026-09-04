@@ -103,6 +103,39 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       if (match) proof = match.proof;
     }
 
+    /* WHICH BYTES' HISTORY THE POSITIONS CARD SHOWS.
+       The list is the history of the file the visitor has in hand. When the
+       digest looked up is a FUSED ARTIFACT, that history lives under its
+       ORIGIN: a file BitGraphed five times has five positions, and the origin
+       is what every one of them names. The artifact's own set holds exactly one
+       entry, its own commit, which is why a fused artifact's page said
+       "Positions (1)" while the original's said "Positions (6)" for the same
+       file (Mike, 2026-09-04). Dropping the original and dropping the new file
+       must land on the same list.
+
+       Deliberately separate from `all`: that set still drives the lead card,
+       lookupKind and the proof selection above, all of which are about the
+       bytes actually looked up. Only the list widens. */
+    let positionEntries = all;
+    const selfFused = all.find(
+      (e) =>
+        isFusedProof(e.proof) &&
+        toUrlSafeB64((e.proof.artifact as { digestB64?: string } | undefined)?.digestB64 ?? "") ===
+          toUrlSafeB64(standardB64)
+    );
+    if (selfFused) {
+      const originB64 = fusedOriginDigestOf(selfFused.proof);
+      if (originB64) {
+        try {
+          const originEntries = await getProofsByDigest(originB64);
+          // Never shrink the list: a widening that came back short (a lagging
+          // index, a partial read) leaves the page saying exactly what it said
+          // before this existed.
+          if (originEntries.length > positionEntries.length) positionEntries = originEntries;
+        } catch { /* keep the artifact's own list */ }
+      }
+    }
+
     // The two-sided ETH anchor window for one counter+epoch. NOTE the naming
     // inversion the UI depends on: anchorBefore is the anchor with the LOWER
     // counter (earlier Ethereum block) — the proof was BitGraphed AFTER it
@@ -125,14 +158,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // the defensible time statement (the S3 write time is just our server
     // clock, not part of the proof), so each position in the Causal Positions
     // card shows the same two-sided "between X and Y" as the lead card.
-    const positionWindows = await Promise.all(all.map(async (e) => {
+    const positionWindows = await Promise.all(positionEntries.map(async (e) => {
       const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
       if (!c?.counter || !c?.epochId) return { anchorBefore: null, anchorAfter: null };
       try { return await computeWindow(parseInt(c.counter, 10), c.epochId); }
       catch { return { anchorBefore: null, anchorAfter: null }; }
     }));
 
-    const positions = all.map((e, idx) => {
+    const positions = positionEntries.map((e, idx) => {
       const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
       const w = positionWindows[idx];
       const artifact = (e.proof.artifact as { digestB64?: string } | undefined)?.digestB64;
@@ -155,10 +188,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // The lead card's window is the selected proof's — reuse it from the set
     // just computed instead of looking it up a second time.
     let causalWindow = null;
-    const selIdx = all.findIndex((e) => e.proof === proof);
+    // Matched on counter+epoch, not object identity: when the list widened to
+    // the origin's entries above, the selected proof is a different instance of
+    // the same record. A counter is unique within an epoch, so this is exact.
+    const selCommit = proof.commit as { counter?: string; epochId?: string } | undefined;
+    const selIdx = positionEntries.findIndex((e) => {
+      const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
+      return c?.counter === selCommit?.counter && c?.epochId === selCommit?.epochId;
+    });
     if (selIdx >= 0) {
       const w = positionWindows[selIdx];
       if (w.anchorAfter || w.anchorBefore) causalWindow = { anchorBefore: w.anchorBefore, anchorAfter: w.anchorAfter };
+    } else if (selCommit?.counter && selCommit?.epochId) {
+      // The selected proof is not in the list at all. Not expected, and the
+      // lead card must still carry its window rather than silently losing it.
+      try {
+        const w = await computeWindow(parseInt(selCommit.counter, 10), selCommit.epochId);
+        if (w.anchorAfter || w.anchorBefore) causalWindow = { anchorBefore: w.anchorBefore, anchorAfter: w.anchorAfter };
+      } catch { /* leave it null, as before */ }
     }
 
     // For an Ethereum anchor, resolve its OWN block (number + timestamp) so the
