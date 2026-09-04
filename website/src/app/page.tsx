@@ -57,7 +57,7 @@ export default function BitGraphPage() {
            No terminal period: this is the app surface. The h1 stays a quiet
            link to the overview (colour inherit, hover only), the one path
            there from this page besides Docs. */
-        title={<a href="/docs/overview">Give bits a provable place</a>}
+        title={<a href="/docs/overview">A BitGraph gives bits a place</a>}
         /* The what-happens pair, inside the frame since 2026-08-27; shared
            with /actor. Wording rules live on the component. */
         belowClassName="hero-more"
