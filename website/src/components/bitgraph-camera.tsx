@@ -1507,10 +1507,18 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           </div>
         ))}
 
-        {/* ── Proving: a single chunk (up to 50 files) is one round trip with
-            nothing to count, so it just spins; multi-chunk drops tick every
-            ~1.5s and get the live count + bar so a big batch never reads as
-            stuck. Same look as reading/checking. ── */}
+        {/* ── Proving: the count is shown whenever there is something to
+            count, and that depends on which operation is running.
+            ⚠️ Making BitGraphs goes ONE FILE AT A TIME (each needs its own
+            slot), so every file is a tick and a batch of any size has a real
+            count. Ordinary recording signs a whole chunk of up to 50 digests
+            in ONE round trip, so under 50 files there is genuinely nothing to
+            report until it is over, and only multi-chunk runs tick.
+            The old rule was the chunk rule applied to both: 50 files made
+            into BitGraphs sat under a bare spinner for a full minute with
+            nothing moving, which is indistinguishable from hung (Mike,
+            2026-09-04: "takes a long time and in fact gets hung"). Same look
+            as reading/checking. ── */}
         {step === "proving" && (
           <div className="bitgraph-wait">
             <div role="status" aria-label="BitGraphing" style={waitSpinner} />
@@ -1520,7 +1528,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 nothing is moving. */}
             {recordStatus ? (
               <div style={waitLabel}>{recordStatus}…</div>
-            ) : proveProgress.total > 50 ? (
+            ) : proveProgress.total > (fuseByDefault ? 1 : 50) ? (
               <>
                 <div style={waitLabel}>BitGraphing {proveAnimCount} of {proveProgress.total}</div>
                 <div style={waitTrack}>
