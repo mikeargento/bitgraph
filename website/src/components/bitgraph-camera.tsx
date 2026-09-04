@@ -1113,7 +1113,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
       // (Mike, 2026-09-03). Same shape as a proof page's package.
       const fusedOut = withProofs[i].fused;
       if (fusedOut) {
-        addText(`${prefix}${fusedOut.frameName}`, JSON.stringify(fusedOut.frame, null, 2));
+        // No Frame: proof.json below already carries the same signed proof, and
+        // the manifest a Frame adds is derivable from it apart from the new
+        // file's name, which is the entry immediately below (Mike, 2026-09-03).
         const fusedEntry = new ZipPassThrough(`${prefix}fused/${fusedOut.fusedName}`);
         z.add(fusedEntry);
         fusedEntry.push(fusedOut.fusedBytes, true);

@@ -656,6 +656,14 @@ export default function ProofPage() {
     const files: Record<string, Uint8Array> = {
       "proof.json": strToU8(JSON.stringify(proof, null, 2)),
     };
+    // No Frame in the package (Mike, 2026-09-03: "this is the correct proof").
+    // A Frame is { type, manifest, proof }, and the proof inside it is byte for
+    // byte proof.json, so shipping both put the signed proof in the zip twice.
+    // Of the manifest's four fields, three are already in the signed proof (the
+    // placement is the attribution title, the origin digest its message, the
+    // artifact digest the proof's own) and the fourth is the new file's name,
+    // which is moot here because the new file is in fused/ beside it.
+    //
     // The package. A fused BitGraph leaves this page for someone who may have
     // neither the original nor a tool that rebuilds, so the export is the one
     // moment the new file is actually wanted (Mike, 2026-09-03): the original
@@ -673,13 +681,11 @@ export default function ProofPage() {
         if (u.originalBytes && u.originalName) {
           files[u.originalName] = u.originalBytes;
           packLabel = u.originalName;
-          if (u.frame && u.frameName) files[u.frameName] = strToU8(JSON.stringify(u.frame, null, 2));
         }
       } else if (attr?.name === "bitgraph-fuse/1") {
         files[cachedFile.name] = bytes;
         const r = await rebuildFromOrigin(packProof, bytes, cachedFile.name);
         if (r.fusedBytes && r.fusedName) files[`fused/${r.fusedName}`] = r.fusedBytes;
-        if (r.frame && r.frameName) files[r.frameName] = strToU8(JSON.stringify(r.frame, null, 2));
       } else {
         files[cachedFile.name] = bytes;
       }
