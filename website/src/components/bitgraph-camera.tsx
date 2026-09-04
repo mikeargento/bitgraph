@@ -1116,7 +1116,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, bel
         // No Frame: proof.json below already carries the same signed proof, and
         // the manifest a Frame adds is derivable from it apart from the new
         // file's name, which is the entry immediately below (Mike, 2026-09-03).
-        const fusedEntry = new ZipPassThrough(`${prefix}fused/${fusedOut.fusedName}`);
+        // That entry keeps the original's own name and is told apart by its
+        // folder: it is the same file plus 48 bytes, not a different thing.
+        const fusedEntry = new ZipPassThrough(`${prefix}new-file/${f.name}`);
         z.add(fusedEntry);
         fusedEntry.push(fusedOut.fusedBytes, true);
       }

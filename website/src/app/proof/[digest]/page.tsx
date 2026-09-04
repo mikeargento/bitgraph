@@ -675,9 +675,14 @@ export default function ProofPage() {
     const packProof = proof;
     if (cachedFile && packProof) {
       const bytes = new Uint8Array(cachedFile.data);
+      // The new file keeps the original's name and is told apart by the folder
+      // it sits in (Mike, 2026-09-03). It is the same picture plus 48 bytes, so
+      // a second name would imply a second thing. "fused" is gone from the
+      // package too: Fuse is a working name and an export is permanent.
       if (attr?.name === "bitgraph-fuse/1" && cachedRole === "new") {
         const u = await unpackNewFile(packProof, bytes, cachedFile.name);
-        files[`fused/${cachedFile.name}`] = bytes;
+        const name = u.originalName ?? cachedFile.name;
+        files[`new-file/${name}`] = bytes;
         if (u.originalBytes && u.originalName) {
           files[u.originalName] = u.originalBytes;
           packLabel = u.originalName;
@@ -685,7 +690,7 @@ export default function ProofPage() {
       } else if (attr?.name === "bitgraph-fuse/1") {
         files[cachedFile.name] = bytes;
         const r = await rebuildFromOrigin(packProof, bytes, cachedFile.name);
-        if (r.fusedBytes && r.fusedName) files[`fused/${r.fusedName}`] = r.fusedBytes;
+        if (r.fusedBytes) files[`new-file/${cachedFile.name}`] = r.fusedBytes;
       } else {
         files[cachedFile.name] = bytes;
       }
