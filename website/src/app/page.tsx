@@ -24,126 +24,75 @@ export default function BitGraphPage() {
   return (
     <>
       <style>{`
-        /* The box IS the page (Mike, 2026-09-04): the h1 over it was dropped
-           and its job passed to the drop headline, so that line carries the
-           weight a page title carried. The document keeps a real h1 out of
-           sight, since a home page with no heading is a hole for a screen
-           reader and for a crawler. */
-        .home-h1 {
-          position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-          overflow: hidden; clip-path: inset(50%); white-space: nowrap;
-        }
-
-        .bitgraph-wrap.bitgraph-home {
-          --fd-headline: clamp(24px, 5.8vw, 32px);
-          --fd-weight: 600;
-          --fd-hint-size: clamp(13px, 3vw, 14px);
-          --fd-subhint-size: clamp(13px, 3vw, 14px);
-          --fd-subhint: #4b5563;
-        }
-        .bitgraph-wrap.bitgraph-home .fd-headline {
-          font-size: clamp(24px, 5.8vw, 32px) !important;
-          font-weight: 600; letter-spacing: -0.015em;
-        }
-
-        /* Centred in what is left of the viewport under the nav. The flow mode
-           this page uses lays out from the top, which left the box tight under
-           the bar. The nav is subtracted twice: once because the region starts
-           below it, once so the block's centre lands on the viewport's centre
-           rather than a nav-height low. Padding, not margin, so the composition
-           can still grow past the viewport on a short window. */
-        .bitgraph-wrap.bitgraph-home.bitgraph-flow {
-          min-height: calc(100dvh - 116px);
-          justify-content: center;
-          padding: 24px 0;
-        }
-        /* Centred on a phone too. The region is a min-height, not a height, so
-           when the box outgrows the viewport the wrap grows with it and the
-           page scrolls rather than clipping. */
-        @media (max-width: 640px) {
-          .bitgraph-wrap.bitgraph-home.bitgraph-flow { padding: 20px 0 28px; }
-        }
-
-        /* The frame grows to what it holds. The explainer moved inside it on
-           2026-09-04, so a fixed height would either crop the paragraph or
-           leave a hole under it; every ratio and cap the shared box carries is
-           dropped here for that reason.
-
-           ⚠️ Four classes, not three. The camera's own sheet carries
-           .bitgraph-wrap.bitgraph-flow .bitgraph-camera at max-height 300px,
-           and that sheet is rendered after this block, so at equal specificity
-           the cap won: the wrapper stayed 300 tall while the dashed frame drew past it
-           and the footer rode up over the last line of the paragraph. */
-        .bitgraph-wrap.bitgraph-home.bitgraph-flow .bitgraph-camera {
-          aspect-ratio: auto; height: auto; max-height: none; min-height: 0;
-        }
-        /* Room inside the dashes. The shared box gives its copy 20px at each
-           end, which is right when the copy is three short lines and cramped
-           once a paragraph is in there. The child is FileDrop's bordered
-           surface, which is also the click target, so the padding is part of
-           the target rather than a margin around it. */
-        .bitgraph-wrap.bitgraph-home .bitgraph-camera > div { padding: 52px 40px; }
-        /* Barely any side padding on a phone: FileDrop already insets its own
-           copy, and every pixel here comes straight off a measure that is only
-           ~30 characters to begin with. */
-        @media (max-width: 640px) {
-          .bitgraph-wrap.bitgraph-home .bitgraph-camera > div { padding: 30px 10px; }
-        }
-
-        /* The mechanism, last in the frame, under the two operating lines. It
-           reads ragged right, never centred: a nine-line paragraph centred
-           starts every line at a different place, which reads as display type
-           and not as prose. Held to 600 inside the 800 frame: at the frame's
-           full width a 16px line runs past 100 characters, which is past what
-           the eye tracks back from. */
-        .how {
-          text-align: left; font-size: 16px; line-height: 1.7; color: #1f2937;
-          margin: 30px auto 0; max-width: 600px;
-          text-wrap: pretty;
-        }
-        /* Chromium's text-wrap pretty only rescues a SINGLE stranded word, so
-           the tail of the closing sentence could still drop alone onto its own
-           line. The last four words are bound instead, so whatever the measure,
-           the final line is a whole clause. */
-        .how .no-orphan { white-space: nowrap; }
-
-        @media (max-height: 700px) { .how { font-size: 15px; line-height: 1.6; } }
-        /* On a phone the measure is ~34 characters, so the paragraph runs to 13
-           lines at 16px and the box is most of two screens. 15/1.6 pulls it
-           back without dropping under the site's reading size. */
-        @media (max-width: 640px) { .how { font-size: 15px; line-height: 1.6; margin-top: 20px; } }
+        /* The title is a quiet door to the overview: plain at rest, brand blue
+           on hover. It is the one h1 on the site that is a link. */
+        .bitgraph-tagline a { color: inherit; text-decoration: none; transition: color .15s ease; }
+        .bitgraph-tagline a:hover, .bitgraph-tagline a:focus-visible { color: #0065A4; }
+        /* Home's one link, under the box, centred like the title above it:
+           the same slot, margin and type as /actor's "Forget this device", so
+           the two pages are one composition (Mike, 2026-08-19, evening: "once
+           again add what is a bitgraph link to homepage and make the two
+           pages home and actor match"). 42px off the box: the box is one big
+           click target and a stray hit opens a file dialog, so the buffer
+           clears adjacent-tap distance. ⚠️ 42 is also /actor's .declare-more;
+           the two move together, or the titles part. The link spent the day
+           elsewhere (the title's right; "Info →" on phones; removed); this is
+           where it started. */
+        .hero-more { margin-top: 42px; text-align: center; }
+        @media (max-height: 520px) { .hero-more { margin-top: 14px; } }
       `}</style>
-      <h1 className="home-h1">A BitGraph gives bits a place</h1>
       <BitGraphCamera
         id="home"
         strategy={anonymous}
         fuseByDefault
         acceptsPendingDrop
-        fitViewport={false}
-        /* Both operating lines lead, directly under the headline; the mechanism
-           closes the stack. They ride in the note/subhint slots rather than
-           hint/subhint because only those two are ordered that way in FileDrop.
-           The privacy line was moved below the frame on 2026-09-04 and put
-           back: the frame is the click surface, and the lines that describe it
-           belong on it. */
-        dropHint=""
-        frameNote={
+        /* The page is the instrument and one line over it, which is what it
+           was before an evening of trying to make it explain itself. That
+           version grew a hero, a mechanism, a guarantee, verification,
+           integration, a trust model and a licence, and Mike put it back:
+           "just return the homepage to what it was this afternoon when it was
+           just a dropbox but this headline". Everything it grew has a better
+           home in the docs, and the docs already had it.
+
+           No terminal period: this is the app surface. The h1 stays a quiet
+           link to the overview (colour inherit, hover only), the one path
+           there from this page besides Docs. */
+        title={<a href="/docs/overview">A BitGraph gives bits a place</a>}
+        /* The what-happens pair, inside the frame since 2026-08-27; shared
+           with /actor. Wording rules live on the component. */
+        belowClassName="hero-more"
+        below={
+          /* Home's ONE discoverable exit (the h1 is a link too, but it is
+             colour: inherit with no underline and hover-only, so on a phone it
+             does not exist). "How BitGraph works" (Mike, 2026-08-19 evening;
+             it was "What is a BitGraph" from the morning): the title above
+             already says what one is, so the link asks the next question, and
+             /docs/overview answers it. Real proofs
+             are still one nav click away under Roll. The site's standard link
+             type (14 / 600 / -0.01em, brand blue), on the layout-neutral
+             .bg-arrow-link tap target. */
           <>
-            Choose files, or drag in a whole folder.
-            <div style={{ marginTop: 6 }}>Hashed in your browser, never uploaded.</div>
+            {/* The two-line "what happens" pair lived here, then inside the frame,
+                until 2026-09-03, when Mike removed it: too basic for the box. */}
+            {/* "No token. No wallet. No blockchain required." lived here for
+                one day (2026-08-26, b8a25e99, removed the same evening). It
+                was the block's only line when it shipped and carried the lite
+                message alone; once the pair above existed it answered a
+                question the page no longer raises, and three negations under
+                two calm statements read as a sticker on a spec. What it
+                carried survives elsewhere: "required" because Ethereum is the
+                chosen method (the overview's wall-clock section opens on
+                exactly that), and "No cost." stays rejected (recording is the
+                licensed side of the deck's money line). See memory
+                project_home_no_crypto_line before restoring anything here. */}
+            <Link
+              href="/docs/overview"
+              className="bg-arrow-link"
+              style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
+            >
+              How BitGraph works <span className="arrow" aria-hidden="true">&rarr;</span>
+            </Link>
           </>
-        }
-        dropSubhint={
-          <p className="how">
-            A file is chosen. A position is opened with nothing from that file in the request.
-            The enclave reveals the signed slot, and only then can the new file be finished, because
-            its final ingredient comes from that slot. You hash the finished bytes and send the
-            digest back, with the original file&rsquo;s hash attached as a declaration. The enclave
-            spends the position on that digest, and it can never be spent again. It
-            signs a record binding the digest to that position, linked to the proof before it. The hardware
-            attests which code produced it, and this record in particular. The{" "}
-            <span className="no-orphan">signed record is a BitGraph.</span>
-          </p>
         }
       />
     </>
