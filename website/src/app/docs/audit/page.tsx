@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
   title: "Audit a Bundle",
@@ -44,12 +45,12 @@ export default function AuditPage() {
       <h2>3. Run the audit</h2>
       <p>With Node.js installed, run the published CLI against your bundle:</p>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`npx @mikeargento/bitgraph-audit ./bundle.tar.gz --out ./audit`}</pre>
       </div>
       <p>Or build from source if you prefer:</p>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`git clone https://github.com/mikeargento/bitgraph
 cd bitgraph
 npm install

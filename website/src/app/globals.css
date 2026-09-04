@@ -399,6 +399,16 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   color: #4b5563;
   font-weight: 600;
 }
+
+/* The copy control in a code block's header. An action, so it is a button for
+   the keyboard and a screen reader, but it wears no chrome: grey until hover,
+   square, and sized so the header row does not grow around it. */
+.code-copy {
+  background: none; border: none; cursor: pointer; line-height: 0;
+  padding: 4px; margin: -4px -4px -4px 0; color: #9ca3af; transition: color .15s;
+}
+.code-copy:hover { color: #0065A4; }
+.code-copy:focus-visible { outline: 2px solid #0065A4; outline-offset: 1px; }
 .code-block pre {
   padding: 1.25rem 1rem;
   overflow-x: auto;

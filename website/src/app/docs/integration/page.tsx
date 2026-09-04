@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
   title: "Integration Guide",
-  description: "How to fuse a file, record existing bytes, verify proofs, and integrate BitGraph into your application.",
+  description: "How to make a BitGraph, verify a proof, and integrate BitGraph into your application.",
 };
 
 export default function IntegrationPage() {
@@ -10,19 +11,19 @@ export default function IntegrationPage() {
     <article className="prose-doc">
       <h1 className="mb-6">Integration Guide</h1>
       <p className="text-[#1f2937] mb-10">
-        How to fuse a file, record existing bytes, verify proofs, and integrate BitGraph into your application.
-        Connecting an AI agent instead? See <a href="/docs/mcp">MCP</a>. Building a no-code
-        workflow? See <a href="/docs/mcp">MCP</a>.
+        There is one way to make a BitGraph, shown below in three forms: the CLI, the SDK, and two
+        HTTP calls. They produce the same proof on the same ledger. Recording bytes that already
+        exist is a compatibility operation and is covered after it. Connecting an AI agent instead?
+        See <a href="/docs/mcp">MCP</a>.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Quick start: fuse a file</h2>
+      <h2 className="text-xl font-semibold mt-12 mb-4">Making a BitGraph</h2>
       <p className="text-[#1f2937] mb-4">
         The default operation. Your file is the origin and is never modified. In order: allocate an unused slot (the slot exists before any hash reaches the enclave), build a fused artifact that carries a commitment to that slot, hash the fused artifact, and commit that digest into the same slot. The proof bounds the fused bytes from below (the slot) and from above (the commit). The fused bytes are transient: the original plus the proof rebuilds them.
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>Shell</span></div>
-        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`# The bitgraph-fuse command ships with @mikeargento/bitgraph
-npx -p @mikeargento/bitgraph bitgraph-fuse fuse photo.jpg --placement trailer/1 --out ./out
+        <div className="code-block-header"><span>Shell</span><CopyCode /></div>
+        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`npx -p @mikeargento/bitgraph bitgraph-fuse fuse photo.jpg --placement trailer/1 --out ./out
 # writes ./out/photo.jpg.bitgraph-fuse.json, the Frame (manifest + proof); --keep also writes the new file
 
 # Check the Frame against the original or the new file
@@ -33,7 +34,7 @@ npx -p @mikeargento/bitgraph bitgraph-fuse check ./out/photo.jpg.bitgraph-fuse.j
         Placements: <code>trailer/1</code> for formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, RIFF such as WebP), <code>container/1</code> for everything else. <code>produce</code> makes a <code>produced/1</code> artifact with no source file. The same four steps from code:
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>TypeScript</span></div>
+        <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`import { fuse, builderFor } from "@mikeargento/bitgraph";
 
 const original = new Uint8Array(await file.arrayBuffer());
@@ -54,12 +55,19 @@ result.verification;   // verifyFuse over the fused bytes, run locally: FUSED_DI
         Over HTTP the same two calls are <code>POST /api/fuse/allocate</code> and <code>POST /api/fuse/commit</code>; see the <a href="/api-reference">API reference</a>. A fused commit that fails is reported as a failure; it is never downgraded to an ordinary recording.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Record existing bytes</h2>
+      {/* One method above, and this below it. Until 2026-09-03 the guide gave
+          recording three peer sections of its own (the curl, the TypeScript,
+          and the batch form), so a reader could reasonably conclude it was the
+          normal way in. It is not. It is what you use when the bytes exist
+          already and cannot be rebuilt. */}
+      <h2 className="text-xl font-semibold mt-12 mb-4">Compatibility: bytes that already exist</h2>
       <p className="text-[#1f2937] mb-4">
-        Ordinary recording remains for bytes that already exist: it selects them and gives them a position, which establishes that those exact bytes existed no later than the commit. Hash your artifact locally, then send only the digest to the BitGraph endpoint:
+        Use this only when the bytes are already final and cannot be rebuilt around a position: an
+        archive, a signed document, something a third party handed you. It selects them and gives
+        them a position, which establishes that those exact bytes existed no later than it selects them and gives them a position, which establishes that those exact bytes existed no later than the commit. Hash your artifact locally, then send only the digest to the BitGraph endpoint:
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>Shell</span></div>
+        <div className="code-block-header"><span>Shell</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`# 1. Hash your file
 DIGEST=$(openssl dgst -sha256 -binary myfile.pdf | base64)
 
@@ -78,9 +86,9 @@ curl -X POST https://bitgraph.ing/api/commit \\
   }'`}</pre>
       </div>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">TypeScript / JavaScript</h2>
+      <h3 className="text-base font-semibold mt-8 mb-3">The same from TypeScript</h3>
       <div className="code-block">
-        <div className="code-block-header"><span>TypeScript</span></div>
+        <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`// Hash locally
 const bytes = new Uint8Array(await file.arrayBuffer());
 const hashBuf = await crypto.subtle.digest("SHA-256", bytes);
@@ -105,12 +113,13 @@ console.log(proof.slotAllocation);   // causal slot record
 console.log(proof.attribution);      // signed creator metadata`}</pre>
       </div>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Batch commit</h2>
+      <h3 className="text-base font-semibold mt-8 mb-3">Several at once</h3>
       <p className="text-[#1f2937] mb-4">
-        Send multiple digests in one request. The enclave allocates a slot and commits each digest sequentially.
+        Send multiple digests in one request. The enclave allocates a slot and commits each digest
+        sequentially. Still the compatibility path: each digest names bytes that already exist.
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>TypeScript</span></div>
+        <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`const resp = await fetch("https://bitgraph.ing/api/commit", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -132,7 +141,7 @@ const proofs = await resp.json();
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Verify a proof</h2>
       <div className="code-block">
-        <div className="code-block-header"><span>TypeScript</span></div>
+        <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`import { verify } from "@mikeargento/bitgraph";
 
 const result = await verify({
@@ -156,7 +165,7 @@ if (result.valid) {
         For a fused artifact, use <code>verifyFuse</code> from <code>@mikeargento/bitgraph-verify</code> (MIT). It runs the same checks, then compares the commitment: <code>FUSED_DIRECT</code> when the bytes are the fused copy, <code>FUSED_FROM_ORIGIN</code> when they are the original and rebuild the committed artifact byte for byte, <code>RECORDED</code> for an ordinary proof, <code>NO_MATCH</code> when the bytes match neither digest. See <a href="/docs/verification">Verification</a> for the full outcome table.
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>TypeScript</span></div>
+        <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`import { verifyFuse } from "@mikeargento/bitgraph-verify";
 
 // bytes: the new file, or the original it was made from
@@ -174,7 +183,7 @@ result.statements;    // the bounded statements, verbatim`}</pre>
         endpoint and the offline verifier cannot disagree.
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>Shell</span></div>
+        <div className="code-block-header"><span>Shell</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`DIGEST=$(openssl dgst -sha256 -binary myfile.pdf | base64)
 
 curl -X POST https://bitgraph.ing/api/verify \\
@@ -209,9 +218,36 @@ curl -X POST https://bitgraph.ing/api/verify \\
         yourself, which is the result that counts.
       </p>
 
+      {/* Moved here from the home page 2026-09-03, when the home page stopped
+          explaining and became a door. This is the question a serious evaluator
+          asks first, and every number is read from the shipped enclave:
+          SLOT_TTL_MS = 120_000 and MAX_PENDING_SLOTS = 1000 in
+          server/commit-service/src/enclave/app.ts, the counter advances inside
+          handleAllocateSlot, pendingSlots is an in-memory Map so allocation
+          persists nothing, and that file's own header documents the gaps.
+          The last paragraph is the honest limit of the claim. Do not soften it:
+          a caller CAN hold several positions open inside the window, and saying
+          so is worth more than the claim it gives up. */}
+      <h2 className="text-xl font-semibold mt-12 mb-4">What happens between allocate and commit</h2>
+      <p className="text-[#1f2937] mb-4">
+        A position is held for 120 seconds. Up to 1,000 can be open at once across the whole
+        enclave. Allocating one advances the counter immediately, so a position that is never
+        committed leaves a permanent gap in the sequence. Nothing is written when a position is
+        allocated, so an abandoned position never reaches the ledger and appears only as that gap.
+        An enclave restart begins a new epoch and voids every position still open.
+      </p>
+      <p className="text-[#1f2937] mb-4">
+        The limit of the claim, stated plainly: inside that window a caller can hold several
+        positions open and decide which artifact fills which. What the enclave signs is that it
+        issued the position before it received the digest, and then bound the two. It does not say
+        the position was chosen without knowledge of the artifact. Ordering between proofs comes
+        from the previous-proof hash rather than from counters, so the gaps abandoned positions
+        leave cost nothing.
+      </p>
+
       <h2 className="text-xl font-semibold mt-12 mb-4">Enclave info</h2>
       <div className="code-block">
-        <div className="code-block-header"><span>Shell</span></div>
+        <div className="code-block-header"><span>Shell</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`# Get enclave public key and measurement
 curl https://nitro.occproof.com/key
 

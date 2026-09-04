@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { renderInline } from "@/lib/render-inline";
+import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
   title: "Verification",
@@ -115,7 +116,7 @@ export default function VerificationPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Verification policy</h2>
       <div className="code-block mb-6">
-        <div className="code-block-header"><span>VerificationPolicy</span></div>
+        <div className="code-block-header"><span>VerificationPolicy</span><CopyCode /></div>
         <pre className="text-[#1f2937]">{`interface VerificationPolicy {
   requireEnforcement?: "stub" | "hw-key" | "measured-tee";
   allowedMeasurements?: string[];     // exact match

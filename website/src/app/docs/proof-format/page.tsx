@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
   // Colon, matching the h1 below. The parenthesised form was the last place
@@ -18,7 +19,7 @@ export default function ProofFormatPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Proof JSON schema</h2>
       <div className="code-block mb-8">
-        <div className="code-block-header"><span>proof.json</span></div>
+        <div className="code-block-header"><span>proof.json</span><CopyCode /></div>
         <pre className="text-[#1f2937]">{`{
   "version": "bitgraph/1",                // REQUIRED - exact value
   "artifact": {
@@ -71,7 +72,7 @@ export default function ProofFormatPage() {
         The Ed25519 signature covers the canonical serialization of a <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">SignedBody</code> object:
       </p>
       <div className="code-block mb-4">
-        <div className="code-block-header"><span>SignedBody</span></div>
+        <div className="code-block-header"><span>SignedBody</span><CopyCode /></div>
         <pre className="text-[#1f2937]">{`{
   version:           proof.version,
   artifact:          proof.artifact,
@@ -161,7 +162,7 @@ export default function ProofFormatPage() {
         A fused artifact is a file that carries a commitment to its slot record, written into the bytes before the file was finished. The proof is an ordinary <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">bitgraph/1</code> proof: <code className="text-xs font-mono">slotAllocation</code> is the slot the producer held, <code className="text-xs font-mono">commit.slotCounter</code> its counter, <code className="text-xs font-mono">commit.counter</code> the commit position, and <code className="text-xs font-mono">artifact.digestB64</code> the digest of the fused bytes. The signed <code className="text-xs font-mono">attribution</code> is the marker:
       </p>
       <div className="code-block mb-4">
-        <div className="code-block-header"><span>attribution (fused)</span></div>
+        <div className="code-block-header"><span>attribution (fused)</span><CopyCode /></div>
         <pre className="text-[#1f2937]">{`{
   "name":    "bitgraph-fuse/1",      // fixed value; marks a fused proof
   "title":   "trailer/1",            // placement id

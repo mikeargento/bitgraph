@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CopyUrl } from "./copy-url";
+import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
   title: "MCP",
@@ -80,7 +81,7 @@ export default function McpPage() {
       <h3 className="text-base font-semibold mt-8 mb-3">Claude Code</h3>
       <p className="text-[#1f2937] mb-4">One command, no menus.</p>
       <div className="code-block">
-        <div className="code-block-header"><span>Shell</span></div>
+        <div className="code-block-header"><span>Shell</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`claude mcp add --transport http bitgraph ${MCP_URL}`}</pre>
       </div>
       <p className="text-base text-[#4b5563] mb-8">
@@ -125,7 +126,7 @@ export default function McpPage() {
         Point your agent at any file you have and ask:
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>Ask your agent</span></div>
+        <div className="code-block-header"><span>Ask your agent</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">Is this file on record with BitGraph?</pre>
       </div>
       <p className="text-[#1f2937] mb-10">
@@ -159,7 +160,7 @@ export default function McpPage() {
         a plain file path:
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>Shell</span></div>
+        <div className="code-block-header"><span>Shell</span><CopyCode /></div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`claude mcp add bitgraph -- npx -y @mikeargento/bitgraph-mcp`}</pre>
       </div>
 

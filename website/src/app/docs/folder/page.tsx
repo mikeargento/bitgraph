@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
   title: "BitGraph Folder is retired",
@@ -49,7 +50,7 @@ export default function FolderRetiredPage() {
         Every release has been delisted, so <code>uninstall.sh</code> is no longer downloadable. These commands are exactly what it did. They do not touch your recordings.
       </p>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{UNINSTALL}</pre>
       </div>
       <p>

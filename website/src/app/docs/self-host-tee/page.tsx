@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
   title: "Self-Host TEE",
@@ -38,7 +39,7 @@ export default function SelfHostTEEPage() {
       <h2>Step 1: Launch EC2 Instance</h2>
       <p>Launch a Nitro-capable instance with enclave support enabled:</p>
       <div className="code-block">
-        <div className="code-block-header">AWS Console or CLI</div>
+        <div className="code-block-header">AWS Console or CLI<CopyCode /></div>
         <pre>{`# Example: c6a.xlarge (4 vCPU, 8 GB RAM)
 # AMI: Amazon Linux 2023
 
@@ -63,7 +64,7 @@ aws ec2 run-instances \\
       <h2>Step 2: Install Dependencies</h2>
       <p>SSH into the instance and install everything:</p>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`# Install Nitro CLI
 sudo amazon-linux-extras install aws-nitro-enclaves-cli -y
 sudo yum install aws-nitro-enclaves-cli-devel -y
@@ -98,7 +99,7 @@ exit`}</pre>
       <h2>Step 3: Configure Enclave Resources</h2>
       <p>The enclave needs dedicated CPU and memory allocated from the host. Edit the allocator config:</p>
       <div className="code-block">
-        <div className="code-block-header">/etc/nitro_enclaves/allocator.yaml</div>
+        <div className="code-block-header">/etc/nitro_enclaves/allocator.yaml<CopyCode /></div>
         <pre>{`# Allocate 2 CPUs and 1024 MB to the enclave
 memory_mib: 1024
 cpu_count: 2`}</pre>
@@ -110,7 +111,7 @@ sudo systemctl restart nitro-enclaves-allocator`}</pre>
 
       <h2>Step 4: Clone and Build</h2>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`# Clone the repo
 git clone https://github.com/mikeargento/bitgraph.git
 cd bitgraph
@@ -130,7 +131,7 @@ cd bitgraph
       <h2>Step 5: Verify the PCR0 is reproducible</h2>
       <p>PCR0 is a SHA-384 measurement of the entire EIF, and it is the enclave&apos;s identity that every proof embeds. Because the build above pins all of its inputs, you can prove the build is deterministic: build it twice and confirm the PCR0 is byte-identical, and that it equals the value BitGraph publishes. If it matches, you have independently confirmed the production enclave runs exactly the code at the tagged enclave source release (<code>enclave-v5</code>) in this repository, trusting no one.</p>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`# Build twice from clean state and assert identical PCR0 == the published value:
 ./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v5 \\
   6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f
@@ -156,7 +157,7 @@ cd bitgraph
 
       <h2>Step 6: Launch the Enclave</h2>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`# Terminate any existing enclave
 nitro-cli terminate-enclave --all 2>/dev/null
 
@@ -177,7 +178,7 @@ ENCLAVE_CID=$(nitro-cli describe-enclaves | jq -r '.[0].EnclaveCID')`}</pre>
       <h2>Step 7: Start the Vsock Bridge</h2>
       <p>The bridge connects the parent server (TCP) to the enclave (vsock):</p>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`# Start socat bridge in background
 nohup socat TCP-LISTEN:9000,fork,reuseaddr \\
   VSOCK-CONNECT:$ENCLAVE_CID:5000 \\
@@ -190,7 +191,7 @@ ss -tlnp | grep 9000
 
       <h2>Step 8: Build and Start the Parent Server</h2>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`# Build the parent server (TypeScript → JavaScript)
 cd /path/to/bitgraph/server/commit-service
 npx tsc -p tsconfig.parent.json
@@ -206,7 +207,7 @@ nohup node dist/parent/server.js > /tmp/parent.log 2>&1 &`}</pre>
 
       <h2>Step 9: Verify</h2>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`# Health check
 curl http://localhost:8080/health
 # { "ok": true }
@@ -274,7 +275,7 @@ TEE_URL=https://your-tee-domain.com`}</pre>
       <h2>Using the Deploy Script</h2>
       <p>For automated deployment, use the included script:</p>
       <div className="code-block">
-        <div className="code-block-header">Shell</div>
+        <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`cd bitgraph/server/commit-service
 ./deploy.sh
 
