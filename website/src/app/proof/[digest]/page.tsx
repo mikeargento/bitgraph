@@ -988,8 +988,22 @@ export default function ProofPage() {
               </div>
               {[...positions].reverse().map((pos) => {
                 const recordedPositions = positions.filter((p) => p.kind !== "fused");
+                const fusedPositions = positions.filter((p) => p.kind === "fused");
                 const isFusedRow = pos.kind === "fused";
+                // `positions` arrives earliest first (the route fetches it that
+                // way and the ledger's order is chronological across epochs,
+                // which counters alone are not: they reset every epoch). The
+                // rows render reversed, newest at the top.
                 const isEarliest = pos === recordedPositions[0];
+                /* Fused rows were excluded from ranking when they were
+                   introduced, and rightly: back then one only appeared on the
+                   ORIGIN's page, where it is not a recording of those bytes and
+                   "earliest recorded position" would have been false. Fusing is
+                   the standard path now, so a file's whole history can be fused
+                   rows and nothing was marked first at all (Mike, 2026-09-04).
+                   Only when there is more than one: a lone fused row on a
+                   recorded file's page has nothing to be earliest among. */
+                const isEarliestFused = isFusedRow && fusedPositions.length > 1 && pos === fusedPositions[0];
                 const isCurrent =
                   String(pos.counter) === String(commit.counter) &&
                   (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
@@ -1009,7 +1023,9 @@ export default function ProofPage() {
                    all of them share. "The original" is true from either, and
                    matches the Hashes card above (2026-09-04). */
                 const roleText = isFusedRow
-                  ? "New file made from the original"
+                  ? isEarliestFused
+                    ? "Earliest new file made from the original"
+                    : "New file made from the original"
                   : recordedPositions.length === 1 ? "Recorded position" : isEarliest ? "Earliest recorded position" : "Recorded again";
                 const rowDigest = isFusedRow && pos.artifactDigest ? pos.artifactDigest : digestParam;
                 const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
