@@ -42,7 +42,7 @@ export { Constructor } from "./constructor.js";
 // same slot. The resulting proof is ordinary bitgraph/1.
 export { fuse, fuseSet, MAX_SET_MEMBERS, builderFor, FuseError, digestFromBase64, placementForBytes, fusedNamesFor } from "./fuse.js";
 export type { FuseBuilder, BuilderInput, FuseOptions, FuseResult, FuseTransport, FuseErrorCode } from "./fuse.js";
-export type { FuseSetMember, SetMemberPlacement, FuseSetOptions, FuseSetMemberResult, FuseSetResult } from "./fuse.js";
+export type { FuseSetMember, SetMemberPlacement, FuseSetOptions, FuseSetProgress, FuseSetMemberResult, FuseSetResult } from "./fuse.js";
 // The verify-package types those results are made of, so the core entry names everything it returns.
 export type { FuseFrame, PlacementId, SetManifest, FuseMemberResult, FuseVerifyResult } from "@mikeargento/bitgraph-verify";
 

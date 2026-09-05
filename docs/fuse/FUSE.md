@@ -306,24 +306,30 @@ member's index.
 
 What comes back: the proof, the manifest bytes, the parsed manifest, the
 manifest's digest (which is the artifact digest), and per member the origin
-digest, the fused digest, the placement, the row's index in the manifest, the
-virtual file names and the member's own verification, with the fused bytes
-only when kept. Before anything is returned the manifest is verified
-`FUSED_DIRECT` under `set/1` and every member `SET_MEMBER_DIRECT` against the
-explicit manifest bytes. A proof that fails any check is not returned.
+digest, the fused digest, the placement, the row's index in the manifest and
+the virtual file names, with the fused bytes only when kept. Before anything
+is returned the manifest is verified `FUSED_DIRECT` under `set/1` and every
+member is bound to it by digest: the member's computed fused digest, origin
+and placement must be a row of the committed manifest. That binding is
+linear in the member count and reads no bytes. `verifyMembers: true` also
+runs `verifyFuseMember` over every member's fused bytes against the explicit
+manifest bytes and returns each verdict under `verification`; it re-hashes
+every member with the verifier's own hasher and its cost grows with the
+square of the member count. A proof that fails any check is not returned.
+`onProgress` reports the hash, fuse, commit and verify phases as they
+advance; a throw inside the hook is ignored.
 
 The echo. The commit sends the parsed manifest under
 `proof.metadata["bitgraph-fuse/1"]`. Metadata is unsigned and advisory; a
 reader trusts it only because its canonical bytes hash to the signed artifact
-digest. No production boundary returns the echo today: the site's
-`/api/fuse/commit` does not forward metadata, and the enclave's `commitDigest`
-action (the one the parent uses for a held slot) drops it, so a set minted
-through the default transport or parent-direct returns `manifestEchoed:
-false`. The flag is true only against a boundary that mints from the received
-body, which is what the SDK's own test harness does. Keep `manifestBytes`
-beside the proof and pass them to `verifyFuseMember`; explicit bytes always
-win over the echo. Forwarding metadata is a website and enclave decision
-outside this phase.
+digest. Enclave v6 (2026-09-05) keeps metadata on a held-slot commit and the
+site's `/api/fuse/commit` forwards it after verifying that it hashes to the
+committed digest, so a set minted through the default transport returns
+`manifestEchoed: true` and the ledger's own copy of the proof carries the
+manifest. An older enclave, or a proxy that drops metadata returns
+`manifestEchoed: false`; that is a degradation, not a failure. Keep
+`manifestBytes` beside the proof and pass them to `verifyFuseMember`;
+explicit bytes always win over the echo.
 
 Reading: `verifyFuse` answers for the manifest and `verifyFuseMember` for a
 member or an original. Bytes that carry the commitment but are listed nowhere
@@ -332,19 +338,21 @@ bounded copy for a set.
 
 Limits stated plainly. Building and hashing every member must finish inside
 the 120 s slot TTL after allocation, and a miss is reported, never retried
-into a new slot. Every member's fused bytes are held in memory until the
-return-time verification (`container/1` doubles its original). That
-verification runs `verifyFuseMember` once per member, and each run re-parses
-the whole manifest, so its cost grows with the square of the member count:
-under a second at 100 members, a few seconds at 500, and tens of seconds at
-the cap of 2000. All of it happens after the commit, so the slot TTL is not
-at risk and no slot is burned by it; a batch verifier is a later phase. A
-failed member fails the set, and one refused commit burns one slot for the
-whole set. There is no Frame for a set this phase: the proof, the manifest bytes
-and the originals are the durable state. `produced/1` members and nested sets
-are out of scope. A drop of a member's original does not find its set proof
-on the site today: the descendant index reads `attribution.message`, which a
-set does not carry.
+into a new slot. Hashing uses the platform's native SHA-256 when one is
+present (WebCrypto, in browsers and in Node) and the JavaScript library
+otherwise; both give the same digest, and the native path runs about ten
+times faster over large files. Each member's fused bytes are built, hashed
+and released in turn, so memory holds the originals plus one fused copy
+(`container/1` doubles that one member), unless `keepFused` or
+`verifyMembers` asks for all of them. The return-time binding is by digest
+and linear; the `verifyMembers` pass is the quadratic one described above,
+and it runs after the commit, so the slot TTL is not at risk and no slot is
+burned by it. A failed member fails the set, and one refused commit burns one
+slot for the whole set. There is no Frame for a set: the proof, the manifest
+bytes and the originals are the durable state. `produced/1` members and
+nested sets are out of scope. On the site every member's original and fused
+digest is indexed to the set's position (2026-09-05), so a drop of a member's
+original finds its set proof.
 
 In the harness, `bitgraph-fuse set <file>... [--out <dir>] [--keep]` mints a
 set through `fuseSet` and writes `set.proof.json` beside `set.manifest.json`

@@ -32,7 +32,8 @@ import {
 import type { BitGraphProof, SlotAllocation, Attribution, SetMember, SetManifest } from "@mikeargento/bitgraph-verify";
 import { makeKey, signBody, b64, utf8 } from "./audit-fixtures.js";
 import type { ManualKey } from "./audit-fixtures.js";
-import { fuse, fuseSet, builderFor, placementForBytes, fusedNamesFor, FuseError, MAX_SET_MEMBERS } from "../fuse.js";
+import { fuse, fuseSet, builderFor, placementForBytes, fusedNamesFor, FuseError, MAX_SET_MEMBERS, digest } from "../fuse.js";
+import type { FuseSetProgress } from "../fuse.js";
 import type { FuseSetMember } from "../fuse.js";
 
 const FIX = fileURLToPath(new URL("../../src/__tests__/fuse-fixtures/", import.meta.url));
@@ -229,11 +230,11 @@ describe("fuseSet(): one slot, N files, the manifest as the artifact", () => {
     assert.equal(r.proof.attribution?.title, "set/1");
   });
 
-  test("3. members come back in the caller's order, each with its manifest row, its names, and SET_MEMBER_DIRECT against explicit bytes", async () => {
+  test("3. members come back in the caller's order, each with its manifest row and its names; with verifyMembers each is SET_MEMBER_DIRECT against explicit bytes", async () => {
     const members = two();
     members[0]!.name = "photo.jpg";
     const o = oracle(slot, members);
-    const r = await fuseSet(members, { transport: honest(key, slot).transport });
+    const r = await fuseSet(members, { transport: honest(key, slot).transport, verifyMembers: true });
     assert.deepEqual(r.members.map((m) => m.index), [0, 1]);
     for (const m of r.members) {
       const row = o.rows[m.index]!;
@@ -241,13 +242,17 @@ describe("fuseSet(): one slot, N files, the manifest as the artifact", () => {
       assert.equal(m.originDigestB64, bytesToBase64(row.origin));
       assert.equal(m.artifactDigestB64, bytesToBase64(row.artifact));
       assert.equal(m.manifestIndex, o.sorted.findIndex((s) => bytesToHex(s.artifact) === bytesToHex(row.artifact)));
-      assert.equal(m.manifestIndex, m.verification.set!.member!.index);
+      assert.equal(m.manifestIndex, m.verification!.set!.member!.index);
       assert.ok(!("fusedBytes" in m), "not kept by default");
-      assert.equal(m.verification.category, "SET_MEMBER_DIRECT", m.verification.reason ?? "");
-      assert.equal(m.verification.set!.manifestSource, "argument");
-      assert.equal(m.verification.set!.member!.fusedDigestB64, m.artifactDigestB64);
-      assert.equal(m.verification.set!.memberCount, 2);
+      assert.equal(m.verification!.category, "SET_MEMBER_DIRECT", m.verification!.reason ?? "");
+      assert.equal(m.verification!.set!.manifestSource, "argument");
+      assert.equal(m.verification!.set!.member!.fusedDigestB64, m.artifactDigestB64);
+      assert.equal(m.verification!.set!.memberCount, 2);
     }
+    // Without verifyMembers the same rows come back bound by digest, and no verdict is invented.
+    const plain = await fuseSet(members, { transport: honest(key, slot).transport });
+    assert.deepEqual(plain.members.map((m) => [m.index, m.manifestIndex, m.placement, m.originDigestB64, m.artifactDigestB64]), r.members.map((m) => [m.index, m.manifestIndex, m.placement, m.originDigestB64, m.artifactDigestB64]));
+    for (const m of plain.members) assert.ok(!("verification" in m), "no verifier verdict without verifyMembers");
     assert.deepEqual({ fusedName: r.members[0]!.fusedName, frameName: r.members[0]!.frameName }, fusedNamesFor("photo.jpg", "trailer/1"));
     assert.equal(r.members[1]!.fusedName, null);
     assert.equal(r.members[1]!.frameName, null);
@@ -353,8 +358,8 @@ describe("fuseSet(): a bad member burns the slot and commits nothing", () => {
     await assert.rejects(fuseSet(declared, { transport: b.transport }), (e: FuseError) => e.code === "builder-failed" && e.member === 1);
     assert.equal(commits(b.calls).length, 0);
     // And the honest container/1 builder still passes both checks.
-    const ok = await fuseSet([{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }], { transport: honest(key, slot).transport });
-    assert.equal(ok.members[1]!.verification.category, "SET_MEMBER_DIRECT");
+    const ok = await fuseSet([{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }], { transport: honest(key, slot).transport, verifyMembers: true });
+    assert.equal(ok.members[1]!.verification!.category, "SET_MEMBER_DIRECT");
   });
 });
 
@@ -370,12 +375,12 @@ describe("fuseSet(): bad input is refused before any request", () => {
       (e: FuseError) => e.code === "bad-input" && /members 0 and 2/.test(e.message) && e.member === 2,
     );
     assert.equal(calls.length, 0, "no slot was burned");
-    const r = await fuseSet([{ original, placement: "trailer/1" }, { original, placement: "container/1" }], { transport });
+    const r = await fuseSet([{ original, placement: "trailer/1" }, { original, placement: "container/1" }], { transport, verifyMembers: true });
     assert.equal(r.manifest.members.length, 2);
     assert.deepEqual(r.members.map((m) => m.placement), ["trailer/1", "container/1"]);
     assert.equal(r.members[0]!.originDigestB64, r.members[1]!.originDigestB64);
     assert.notEqual(r.members[0]!.artifactDigestB64, r.members[1]!.artifactDigestB64);
-    for (const m of r.members) assert.equal(m.verification.category, "SET_MEMBER_DIRECT");
+    for (const m of r.members) assert.equal(m.verification!.category, "SET_MEMBER_DIRECT");
   });
 
   test("11. an empty set and a set over the cap are refused; the cap runs before the duplicate check", async () => {
@@ -454,14 +459,14 @@ describe("fuseSet(): the boundary", () => {
       () => { throw new Error("socket hang up"); },
       () => ({ status: 200, json: { proofs: [{ proof: decoy }, { proof: real }] } }),
     );
-    const r = await fuseSet(two(), { transport });
+    const r = await fuseSet(two(), { transport, verifyMembers: true });
     assert.equal(r.recovered, true);
     assert.deepEqual(r.proof, real);
     assert.equal(allocates(calls).length, 1);
     const lookup = calls.find((c) => c.path.startsWith("/api/proofs/"))!;
     assert.ok(lookup.path.includes(toUrlSafe(o.digestB64)), lookup.path);
     assert.equal(r.manifestEchoed, true);
-    for (const m of r.members) assert.equal(m.verification.category, "SET_MEMBER_DIRECT");
+    for (const m of r.members) assert.equal(m.verification!.category, "SET_MEMBER_DIRECT");
   });
 
   test("16. 409 slot-unavailable: read back when the ledger has the proof, else reported as slot-unavailable and never retried into a new slot", async () => {
@@ -503,32 +508,40 @@ describe("fuseSet(): the boundary", () => {
 // ---------------------------------------------------------------------------
 
 describe("fuseSet(): the result and the checks before it is returned", () => {
-  test("19. keepFused returns each member's fused bytes; false and the default do not; the verification is present either way", async () => {
+  test("19. keepFused returns each member's fused bytes; false and the default do not; the verifier's verdict only with verifyMembers", async () => {
     const members = two();
     const commitment = computeSlotCommitment(slot);
-    const kept = await fuseSet(members, { transport: honest(key, slot).transport, keepFused: true });
+    const kept = await fuseSet(members, { transport: honest(key, slot).transport, keepFused: true, verifyMembers: true });
     for (const m of kept.members) {
       assert.deepEqual(m.fusedBytes, getPlacement(m.placement)!.build({ original: members[m.index]!.original, commitment }));
-      assert.equal(m.verification.category, "SET_MEMBER_DIRECT");
+      assert.equal(m.verification!.category, "SET_MEMBER_DIRECT");
+    }
+    const keptOnly = await fuseSet(members, { transport: honest(key, slot).transport, keepFused: true });
+    for (const m of keptOnly.members) {
+      assert.deepEqual(m.fusedBytes, getPlacement(m.placement)!.build({ original: members[m.index]!.original, commitment }));
+      assert.ok(!("verification" in m));
     }
     for (const opts of [{ keepFused: false }, {}]) {
       const r = await fuseSet(members, { transport: honest(key, slot).transport, ...opts });
       for (const m of r.members) {
         assert.ok(!("fusedBytes" in m));
-        assert.equal(m.verification.category, "SET_MEMBER_DIRECT");
+        assert.ok(!("verification" in m));
       }
     }
   });
 
-  test("20. a boundary that does not echo the manifest: success, manifestEchoed false, every member verified against the explicit bytes", async () => {
-    const r = await fuseSet(two(), { transport: honest(key, slot, { withMetadata: false }).transport });
+  test("20. a boundary that does not echo the manifest: success, manifestEchoed false, and with verifyMembers every member verified against the explicit bytes", async () => {
+    const r = await fuseSet(two(), { transport: honest(key, slot, { withMetadata: false }).transport, verifyMembers: true });
     assert.equal(r.manifestEchoed, false);
     assert.equal(r.proof.metadata, undefined);
     assert.equal(r.verification.category, "FUSED_DIRECT");
     for (const m of r.members) {
-      assert.equal(m.verification.category, "SET_MEMBER_DIRECT", m.verification.reason ?? "");
-      assert.equal(m.verification.set!.manifestSource, "argument");
+      assert.equal(m.verification!.category, "SET_MEMBER_DIRECT", m.verification!.reason ?? "");
+      assert.equal(m.verification!.set!.manifestSource, "argument");
     }
+    const plain = await fuseSet(two(), { transport: honest(key, slot, { withMetadata: false }).transport });
+    assert.equal(plain.manifestEchoed, false);
+    assert.equal(plain.members.length, 2);
   });
 
   test("21. an echoed manifest that differs from the committed one is verification-failed; no result", async () => {
@@ -589,7 +602,7 @@ describe("wiring", () => {
     for (const name of ["SetManifest", "FuseMemberResult", "FuseVerifyResult", "FuseFrame", "PlacementId"]) assert.ok(typeExports.includes(name), `index.ts re-exports type ${name}`);
   });
 
-  test("26. FUSE.md: Sets is its own subsection, the echo is stated as absent on every production boundary, and the return-time cost is stated", () => {
+  test("26. FUSE.md: Sets is its own subsection, the echo is stated per boundary, and the return-time binding and its costs are stated", () => {
     const doc = readFileSync(fileURLToPath(new URL("../../docs/fuse/FUSE.md", import.meta.url)), "utf8");
     const headings = [...doc.matchAll(/^(##+) (.+)$/gm)].map((m) => `${m[1]} ${m[2]}`);
     const sets = headings.indexOf("### Sets");
@@ -599,9 +612,15 @@ describe("wiring", () => {
     const setsText = doc.slice(doc.indexOf("### Sets"), doc.indexOf("### Harness"));
     assert.ok(!setsText.includes("Bounded copy, verbatim"), "no bounded copy inside Sets");
     assert.ok(!/the parent and the enclave do echo/.test(doc), "the parent path does not echo the manifest");
-    assert.match(setsText, /No production boundary returns the echo today/);
-    assert.match(setsText, /parent-direct returns `manifestEchoed:\s+false`/);
-    assert.match(setsText, /grows with the square of the member count/);
+    assert.match(setsText, /Enclave v6 .*keeps metadata on a held-slot commit/s);
+    assert.match(setsText, /returns\s+`manifestEchoed:\s+true`/);
+    assert.match(setsText, /drops\s+metadata\s+returns\s+`manifestEchoed:\s+false`/);
+    assert.match(setsText, /bound to it by digest/);
+    assert.match(setsText, /`verifyMembers: true`/);
+    assert.match(setsText, /grows\s+with\s+the\s+square\s+of\s+the\s+member\s+count/);
+    assert.match(setsText, /native SHA-256/);
+    assert.match(setsText, /one fused copy/);
+    assert.match(setsText, /`onProgress`/);
     assert.match(setsText, /after the commit, so the slot TTL is not\s+at risk/);
     assert.ok(!doc.includes("\u2014"), "no em dashes");
   });
@@ -634,5 +653,48 @@ describe("wiring", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("fuseSet(): hashing and progress", () => {
+  test("28. digest(): the native hasher and the library agree at every size, and the library answers when the platform has no hasher or refuses the input", async () => {
+    for (const n of [0, 1, 55, 56, 63, 64, 65, 1000, 70_000, 1_000_003]) {
+      const b = new Uint8Array(n);
+      for (let i = 0; i < n; i++) b[i] = (i * 7 + n) & 0xff;
+      assert.equal(bytesToHex(await digest(b)), bytesToHex(sha256(b)), `size ${n}`);
+    }
+    const sample = utf8("a member hashed without WebCrypto\n");
+    const want = bytesToHex(sha256(sample));
+    const desc = Object.getOwnPropertyDescriptor(globalThis, "crypto")!;
+    try {
+      Object.defineProperty(globalThis, "crypto", { value: undefined, configurable: true, writable: true });
+      assert.equal(bytesToHex(await digest(sample)), want, "no platform hasher: the library");
+      Object.defineProperty(globalThis, "crypto", { value: { subtle: { digest: () => Promise.reject(new TypeError("refused")) } }, configurable: true, writable: true });
+      assert.equal(bytesToHex(await digest(sample)), want, "a refusing platform hasher: the library");
+    } finally {
+      Object.defineProperty(globalThis, "crypto", desc);
+    }
+    assert.equal(bytesToHex(await digest(sample)), want, "restored");
+  });
+
+  test("29. onProgress: hash and fuse per member before and after the slot, commit 0 of 1 then 1 of 1, verify only with verifyMembers; a throwing hook changes nothing", async () => {
+    const members: FuseSetMember[] = [...two(), { original: note, placement: "container/1" }];
+    const seen: FuseSetProgress[] = [];
+    const r = await fuseSet(members, { transport: honest(key, slot).transport, onProgress: (p) => seen.push({ ...p }) });
+    assert.equal(r.members.length, 3);
+    const of = (phase: FuseSetProgress["phase"]) => seen.filter((p) => p.phase === phase).map((p) => `${p.done}/${p.total}`);
+    assert.deepEqual(of("hash"), ["1/3", "2/3", "3/3"]);
+    assert.deepEqual(of("fuse"), ["1/3", "2/3", "3/3"]);
+    assert.deepEqual(of("commit"), ["0/1", "1/1"]);
+    assert.deepEqual(of("verify"), []);
+    assert.deepEqual(seen.map((p) => p.phase), ["hash", "hash", "hash", "fuse", "fuse", "fuse", "commit", "commit"], "hash before the slot, fuse after it, then the commit");
+    const verified: FuseSetProgress[] = [];
+    await fuseSet(members, { transport: honest(key, slot).transport, verifyMembers: true, onProgress: (p) => verified.push({ ...p }) });
+    assert.deepEqual(verified.filter((p) => p.phase === "verify").map((p) => `${p.done}/${p.total}`), ["1/3", "2/3", "3/3"]);
+    assert.equal(verified.findIndex((p) => p.phase === "verify") > verified.findIndex((p) => p.phase === "commit" && p.done === 1), true, "verify after the commit");
+    let calls = 0;
+    const thrown = await fuseSet(members, { transport: honest(key, slot).transport, onProgress: () => { calls++; throw new Error("a hook that throws"); } });
+    assert.equal(thrown.members.length, 3);
+    assert.equal(calls, 8, "every report was attempted");
   });
 });

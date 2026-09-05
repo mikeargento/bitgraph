@@ -149,7 +149,8 @@ async function runSet(args: Args): Promise<number> {
       seen.set(fusedName, i);
     }
   }
-  const r = await fuseSet(members, { keepFused: keep, transport: transportFrom(args.flags) });
+  // The harness reads every member with the full verifier; the site binds by digest.
+  const r = await fuseSet(members, { keepFused: keep, verifyMembers: true, transport: transportFrom(args.flags) });
   const outDir = outDirOf(args);
   await mkdir(outDir, { recursive: true });
   const written: string[] = [];
@@ -166,7 +167,7 @@ async function runSet(args: Args): Promise<number> {
     written.push(p);
   }
   report(r.proof, r.verification.category, r.recovered, false);
-  for (const m of r.members) process.stdout.write(`member ${m.index}  row ${m.manifestIndex}  ${m.placement}  ${m.verification.category}  ${m.fusedName ?? ""}\n`);
+  for (const m of r.members) process.stdout.write(`member ${m.index}  row ${m.manifestIndex}  ${m.placement}  ${m.verification?.category ?? "listed"}  ${m.fusedName ?? ""}\n`);
   if (!r.manifestEchoed) process.stdout.write(`note  the proof does not carry the manifest; keep set.manifest.json beside it\n`);
   process.stdout.write(`\nwrote:\n${written.map((w) => "  " + w).join("\n")}\n`);
   return 0;

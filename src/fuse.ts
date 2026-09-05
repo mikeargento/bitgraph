@@ -46,6 +46,7 @@ import {
   computeSlotRecordHash,
   fuseAttribution,
   getPlacement,
+  parseSetManifest,
   readSetMetadata,
   SET_METADATA_KEY,
   verifyFuse,
@@ -64,6 +65,25 @@ import type {
   SetMember,
   SlotAllocation,
 } from "@mikeargento/bitgraph-verify";
+
+/**
+ * SHA-256 over bytes: the platform's native hasher when one is present
+ * (WebCrypto, in browsers and in Node), else the JavaScript library. The
+ * native path runs about ten times faster over large files and both give
+ * the same digest; a test pins that. A platform that refuses the input (a
+ * shared or detached buffer) falls back to the library.
+ */
+export async function digest(bytes: Uint8Array): Promise<Uint8Array> {
+  const subtle = (globalThis as { crypto?: { subtle?: { digest?: (alg: string, data: Uint8Array) => Promise<ArrayBuffer> } } }).crypto?.subtle;
+  if (subtle !== undefined && typeof subtle.digest === "function") {
+    try {
+      return new Uint8Array(await subtle.digest("SHA-256", bytes));
+    } catch {
+      // fall through to the library
+    }
+  }
+  return sha256(bytes);
+}
 
 export type { FuseFrame, PlacementId, SlotAllocation, BitGraphProof, SetManifest, FuseMemberResult, FuseVerifyResult } from "@mikeargento/bitgraph-verify";
 
@@ -381,7 +401,7 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
   if (options.originDigest !== undefined && options.originDigest.length !== 32) throw new FuseError("bad-input", "originDigest must be 32 bytes");
 
   const t: BoundTransport = { ...DEFAULTS, ...(options.transport ?? {}) };
-  const originDigest = options.original !== undefined ? sha256(options.original) : options.originDigest;
+  const originDigest = options.original !== undefined ? await digest(options.original) : options.originDigest;
   const originDigestB64 = originDigest !== undefined ? bytesToBase64(originDigest) : null;
 
   // 1. nonce
@@ -399,7 +419,7 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
   requireCommitment(placement, fused, commitment);
 
   // 3. hash
-  const artifactDigest = sha256(fused);
+  const artifactDigest = await digest(fused);
   const artifactDigestB64 = bytesToBase64(artifactDigest);
 
   // 4. fill
@@ -469,9 +489,32 @@ export interface FuseSetMember {
   builder?: FuseBuilder;
 }
 
+export interface FuseSetProgress {
+  /**
+   * "hash": origin digests, one per member, before any request.
+   * "fuse": each member built and its fused digest taken, after the slot is held.
+   * "commit": 0 of 1 before the request, 1 of 1 when the proof is back.
+   * "verify": only with verifyMembers, one per member.
+   */
+  phase: "hash" | "fuse" | "commit" | "verify";
+  done: number;
+  total: number;
+}
+
 export interface FuseSetOptions {
   /** Return each member's fused bytes. Default false: they are virtual, rebuilt from the original and the proof. */
   keepFused?: boolean;
+  /**
+   * Run the full verifier (verifyFuseMember) over every member's fused bytes
+   * after the commit and return each verdict under `verification`. Default
+   * false: every member is bound to the returned proof by digest, its row in
+   * the committed manifest, which is itself verified FUSED_DIRECT; that is
+   * linear and reads no bytes. The full pass re-hashes every member with the
+   * verifier's own hasher and grows with the square of the member count.
+   */
+  verifyMembers?: boolean;
+  /** Called as the set advances. A throw inside it is ignored: a progress hook never changes the outcome. */
+  onProgress?: (progress: FuseSetProgress) => void;
   /** Actor-bound commits: an agency envelope passed through untouched. */
   agency?: unknown;
   transport?: FuseTransport;
@@ -492,8 +535,8 @@ export interface FuseSetMemberResult {
   frameName: string | null;
   /** Present only when keepFused is true. */
   fusedBytes?: Uint8Array;
-  /** The local verification of the returned proof against this member's fused bytes. Always SET_MEMBER_DIRECT on success, with set.manifestSource "argument". */
-  verification: FuseMemberResult;
+  /** Present only with verifyMembers: the verifier's own verdict against this member's fused bytes. Always SET_MEMBER_DIRECT on success, with set.manifestSource "argument". */
+  verification?: FuseMemberResult;
 }
 
 export interface FuseSetResult {
@@ -528,6 +571,14 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
   interface Checked { placement: Placement; id: SetMemberPlacement; original: Uint8Array; originDigest: Uint8Array; name: string | null; builder: FuseBuilder }
   const checked: Checked[] = [];
   const seen = new Map<string, number>();
+  const report = (phase: FuseSetProgress["phase"], done: number, total: number) => {
+    if (options.onProgress === undefined) return;
+    try {
+      options.onProgress({ phase, done, total });
+    } catch {
+      // a progress hook never changes the outcome
+    }
+  };
   for (let i = 0; i < members.length; i++) {
     const m = members[i];
     // A null, undefined or missing element is refused like any other member without original bytes.
@@ -538,7 +589,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     if (placement.form === "C") throw new FuseError("bad-input", `member ${i}: ${id} takes no original; a set holds trailer/1 and container/1 members only`, null, i);
     if (m.name !== undefined && typeof m.name !== "string") throw new FuseError("bad-input", `member ${i}: name must be a string`, null, i);
     if (m.builder !== undefined && typeof m.builder !== "function") throw new FuseError("bad-input", `member ${i}: builder must be a function`, null, i);
-    const originDigest = sha256(m.original);
+    const originDigest = await digest(m.original);
     // The same original under the same placement fuses to the same bytes, which one manifest lists once.
     const key = `${id}:${bytesToHex(originDigest)}`;
     const j = seen.get(key);
@@ -547,6 +598,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     }
     seen.set(key, i);
     checked.push({ placement, id, original: m.original, originDigest, name: m.name ?? null, builder: m.builder ?? builderFor(id, m.original) });
+    report("hash", i + 1, members.length);
   }
   const t: BoundTransport = { ...DEFAULTS, ...(options.transport ?? {}) };
 
@@ -557,7 +609,12 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
   //    is held and its TTL is running; a throw here burns it but commits nothing.
   const commitment = computeSlotCommitment(slot);
   const commitmentHex = bytesToHex(commitment);
-  const fusedBytes: Uint8Array[] = [];
+  const keep = options.keepFused === true;
+  const verifyMembers = options.verifyMembers === true;
+  // A member's fused bytes are virtual: each is built, hashed and released in
+  // turn, so memory holds the originals and one fused copy. They are held only
+  // for a caller who keeps them or asks the full verifier to read them.
+  const fusedBytes: (Uint8Array | null)[] = [];
   const rows: SetMember[] = [];
   for (let i = 0; i < checked.length; i++) {
     const c = checked[i]!;
@@ -572,16 +629,18 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     // The row's origin must be the origin the bytes embed, else the member
     // would verify INVALID_ORIGIN_ATTRIBUTION after the slot is spent. Both
     // facts are checked when both are present: the digest the bytes declare
-    // (container/1's payload) and the bytes they carry, so a builder cannot
-    // pack other bytes under the member's digest and leave a member no
+    // (container/1's payload) and the bytes they carry, compared byte for
+    // byte with the member's original rather than hashed again, so a builder
+    // cannot pack other bytes under the member's digest and leave a member no
     // original rebuilds.
     const declared = located.originDigest;
-    const carried = located.originalBytes !== undefined ? sha256(located.originalBytes) : undefined;
-    if ((declared !== undefined && !bytesEqual(declared, c.originDigest)) || (carried !== undefined && !bytesEqual(carried, c.originDigest))) {
+    const carried = located.originalBytes;
+    if ((declared !== undefined && !bytesEqual(declared, c.originDigest)) || (carried !== undefined && !bytesEqual(carried, c.original))) {
       throw new FuseError("builder-failed", `member ${i}: the fused bytes embed an origin that is not the member's original; nothing was committed and the slot will expire`, null, i);
     }
-    fusedBytes.push(fused);
-    rows.push({ artifact: sha256(fused), origin: c.originDigest, placement: c.id });
+    rows.push({ artifact: await digest(fused), origin: c.originDigest, placement: c.id });
+    fusedBytes.push(keep || verifyMembers ? fused : null);
+    report("fuse", i + 1, checked.length);
   }
 
   // 3. hash: the canonical manifest is the artifact
@@ -591,7 +650,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
   } catch (err) {
     throw new FuseError("bad-input", `the set manifest could not be built: ${err instanceof Error ? err.message : String(err)}; nothing was committed and the slot will expire`);
   }
-  const artifactDigestB64 = bytesToBase64(sha256(manifestBytes));
+  const artifactDigestB64 = bytesToBase64(await digest(manifestBytes));
   const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as SetManifest;
 
   // 4. fill: one commit, the parsed manifest riding along as unsigned metadata
@@ -604,45 +663,65 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     metadata: { [SET_METADATA_KEY]: manifest },
   };
   if (options.agency !== undefined) body.agency = options.agency;
+  report("commit", 0, 1);
   const { proof, recovered } = await commitUnderSlot(t, body, artifactDigestB64, slot);
+  report("commit", 1, 1);
 
   // The manifest is verified by a reader before the proof is called a set proof.
   const verification = await verifyFuse({ proof, bytes: manifestBytes });
   if (verification.category !== "FUSED_DIRECT" || verification.placement !== "set/1") {
     throw new FuseError("verification-failed", `the returned proof does not verify as a set: ${verification.category}${verification.reason ? ` (${verification.reason})` : ""}`);
   }
-  // The echo is unsigned and advisory. Absent is normal: no production
-  // boundary returns it today (the site proxy does not forward metadata and
-  // the enclave's commitDigest action drops it); differing means a boundary
-  // rewrote the response.
+  // The echo is unsigned and advisory. Absent is normal for a boundary that
+  // drops metadata on a held-slot commit (enclaves before v6, and a proxy
+  // that does not forward it); differing means a boundary rewrote the
+  // response.
   const echoed = readSetMetadata(proof);
   if (echoed !== null && !bytesEqual(echoed, manifestBytes)) {
     throw new FuseError("verification-failed", `the returned proof echoes a set manifest under metadata["${SET_METADATA_KEY}"] that differs from the committed one`);
   }
   const manifestEchoed = echoed !== null;
-  // Every member against the explicit manifest bytes, so no verdict depends on the echo.
-  const keep = options.keepFused === true;
+  // Every member is bound to the returned proof by its row: the manifest the
+  // proof commits (verified FUSED_DIRECT above) is parsed strictly, and each
+  // member's computed fused digest, origin and placement must sit in it. No
+  // member's bytes are read again. With verifyMembers the full verifier runs
+  // over each member's fused bytes as well, against the explicit manifest
+  // bytes so no verdict depends on the echo, and its verdict is returned.
+  const parsed = parseSetManifest(manifestBytes);
+  if (parsed === null) throw new FuseError("verification-failed", "the committed manifest does not parse as a set manifest");
+  const rowIndex = new Map<string, number>();
+  parsed.members.forEach((row, k) => rowIndex.set(bytesToHex(row.artifact), k));
   const results: FuseSetMemberResult[] = [];
   for (let i = 0; i < checked.length; i++) {
     const c = checked[i]!;
-    const fused = fusedBytes[i]!;
-    const memberArtifactB64 = bytesToBase64(rows[i]!.artifact);
-    const v = await verifyFuseMember({ proof, bytes: fused, manifest: manifestBytes });
-    const member = v.set?.member ?? null;
-    if (v.category !== "SET_MEMBER_DIRECT" || member === null || member.fusedDigestB64 !== memberArtifactB64) {
-      throw new FuseError("verification-failed", `member ${i}: the returned proof does not verify this member: ${v.category}${v.reason ? ` (${v.reason})` : ""}`, null, i);
+    const row = rows[i]!;
+    const k = rowIndex.get(bytesToHex(row.artifact));
+    const listed = k !== undefined ? parsed.members[k] : undefined;
+    if (k === undefined || listed === undefined || !bytesEqual(listed.origin, row.origin) || listed.placement !== row.placement) {
+      throw new FuseError("verification-failed", `member ${i}: the committed manifest does not list this member's fused digest with its origin and placement`, null, i);
+    }
+    const memberArtifactB64 = bytesToBase64(row.artifact);
+    let verification: FuseMemberResult | undefined;
+    if (verifyMembers) {
+      const v = await verifyFuseMember({ proof, bytes: fusedBytes[i]!, manifest: manifestBytes });
+      const member = v.set?.member ?? null;
+      if (v.category !== "SET_MEMBER_DIRECT" || member === null || member.fusedDigestB64 !== memberArtifactB64 || member.index !== k) {
+        throw new FuseError("verification-failed", `member ${i}: the returned proof does not verify this member: ${v.category}${v.reason ? ` (${v.reason})` : ""}`, null, i);
+      }
+      verification = v;
+      report("verify", i + 1, checked.length);
     }
     const names = c.name !== null ? fusedNamesFor(c.name, c.id) : null;
     results.push({
       index: i,
-      manifestIndex: member.index,
+      manifestIndex: k,
       placement: c.id,
       originDigestB64: bytesToBase64(c.originDigest),
       artifactDigestB64: memberArtifactB64,
       fusedName: names?.fusedName ?? null,
       frameName: names?.frameName ?? null,
-      ...(keep ? { fusedBytes: fused } : {}),
-      verification: v,
+      ...(keep ? { fusedBytes: fusedBytes[i]! } : {}),
+      ...(verification !== undefined ? { verification } : {}),
     });
   }
   return {
