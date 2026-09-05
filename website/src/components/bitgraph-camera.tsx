@@ -46,7 +46,7 @@ import { Zip, ZipPassThrough } from "fflate";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
 import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
-import type { SitePlacement } from "@/lib/fuse-placement";
+import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
 import { attachSetManifests, bindSet, isSetProof } from "@/lib/fuse-set";
 
 /**
@@ -177,6 +177,16 @@ export function clearCameraCache(id: BitGraphCameraProps["id"]) {
  *  did not echo it and the camera never strips it, so this finds it there; a
  *  belt, since a proof.json without its manifest is a set no member can be
  *  checked against. */
+/**
+ * A row a found drop can BitGraph again: on record, fusable, and with the
+ * scan's placement in hand. A dropped proof.json has nothing to make, and a
+ * file over the fuse cap is recorded by digest, which the boundary answers
+ * with the same proof, so neither has an again.
+ */
+function isAgainRow(i: FileItem): boolean {
+  return i.status === "found" && !i.fromProofJson && !!i.digestB64 && !!i.scan && i.file.size <= MAX_FUSE_BYTES;
+}
+
 function withSetManifest(proof: BitGraphProof, manifestBytes: Uint8Array): BitGraphProof {
   if (readSetMetadata(proof as unknown as VerifyProof) !== null) return proof;
   const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as Record<string, unknown>;
@@ -367,6 +377,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // Files the Record row offers: never recorded, or recorded and failed (an
   // errored file is still an unrecorded file; see proveRemaining).
   const unproven = items.filter(i => i.status === "new" || i.status === "error");
+  const againRows = items.filter(isAgainRow);
+  // The distinct positions the dropped files hold, across every row: a set is
+  // one position for many files, and a file BitGraphed twice holds two.
+  const positionCount = new Set(items.flatMap((i) => (i.proofs.length ? i.proofs : i.proof ? [i.proof] : []).map((p) => `${p.commit?.epochId ?? ""}:${p.commit?.counter ?? ""}`))).size;
   // What the export label counts. These mirror downloadZip's own filter, so the
   // label always names what the zip actually holds: one entry per file, and one
   // proof.json per causal position that file occupies.
@@ -921,13 +935,19 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // /actor and always as its own compatibility row.
   function proveRemaining() { return fuseByDefault ? fuseRemaining() : recordRemaining(); }
 
-  async function fuseRemaining() {
-    const toProve = items.filter(i => i.status === "new" || i.status === "error");
+  async function fuseRemaining(again = false) {
+    // A fresh run takes the rows not yet on record. An again run takes the
+    // rows on record and makes them a NEW set: one new slot, every member
+    // fused under its commitment, one new position beside the ones the files
+    // already hold. The group is a unit of meaning, and a new set is its new
+    // set hash.
+    const eligible = (i: FileItem) => (again ? isAgainRow(i) : i.status === "new" || i.status === "error");
+    const toProve = items.filter(eligible);
     if (!toProve.length) return;
     setStep("proving");
     setRecordMessage(null);
     setProveProgress({ current: 0, total: toProve.length });
-    setItems(prev => prev.map(i => i.status === "new" || i.status === "error" ? { ...i, status: "proving" as const } : i));
+    setItems(prev => prev.map(i => eligible(i) ? { ...i, status: "proving" as const } : i));
     let minted = 0;
     // Held in an object: fuseSolo below assigns it, and a closure's write is
     // invisible to the narrowing at the navigation check after the loop.
@@ -971,7 +991,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // minted counts ROWS, as the results card does: a file dropped twice is
         // one member and two rows.
         minted += rowsOf([t.digestB64]);
-        setItems(prev => prev.map(i => i.status === "proving" && i.digestB64 === t.digestB64 ? { ...i, proof: out.proof, proofs: [out.proof], kinds: ["fused" as const], fused: out, valid: true, status: "proved" as const } : i));
+        setItems(prev => prev.map(i => i.status === "proving" && i.digestB64 === t.digestB64
+          ? { ...i, proof: out.proof, proofs: [out.proof, ...i.proofs], kinds: ["fused" as const, ...(i.kinds ?? i.proofs.map(() => "recorded" as const))], member: i.member ? [null, ...i.member] : i.member, times: undefined, fused: out, valid: true, status: "proved" as const }
+          : i));
         void announceRecorded([out.proof]);
       } catch (e) {
         if (e instanceof FuseTooLargeError) tooLarge.push(t); else throw e;
@@ -1006,13 +1028,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // on a later set is never flipped by this one.
         const setDigests = new Set(set.map((sf) => sf.digestB64));
         const byOrigin = new Map(out.members.map((m) => [m.originDigestB64, m] as const));
-        // Every row the set covers flips to the one shared proof. The same
-        // bytes dropped twice are one member, and both rows carry it.
-        // Nothing here keeps the fused bytes: the export rebuilds them.
+        // Every row the set covers flips to the one shared proof, the new
+        // position first and the positions the row already held behind it
+        // (an again run adds one; a fresh row had none). The same bytes
+        // dropped twice are one member, and both rows carry it. Nothing here
+        // keeps the fused bytes: the export rebuilds them.
         setItems(prev => prev.map(i => {
           const m = i.status === "proving" && setDigests.has(i.digestB64) ? byOrigin.get(i.digestB64) : undefined;
           return m
-            ? { ...i, proof: out.proof, proofs: [out.proof], kinds: ["fused" as const], member: [{ index: m.manifestIndex, count, role: "origin" as const }], setMember: { member: m, manifestBytes: out.manifestBytes, count, proof: out.proof }, valid: true, status: "proved" as const }
+            ? { ...i, proof: out.proof, proofs: [out.proof, ...i.proofs], kinds: ["fused" as const, ...(i.kinds ?? i.proofs.map(() => "recorded" as const))], member: [{ index: m.manifestIndex, count, role: "origin" as const }, ...(i.member ?? i.proofs.map(() => null))], times: undefined, setMember: { member: m, manifestBytes: out.manifestBytes, count, proof: out.proof }, valid: true, status: "proved" as const }
             : i;
         }));
         const rows = rowsOf(byOrigin.keys());
@@ -1052,7 +1076,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     }
     setStep("results");
     if (minted > 0) startAnchorCountdown();
-    setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + minted);
+    // An again run gives no row a place it did not have; the count is the rows on record.
+    setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + (again ? 0 : minted));
   }
 
   async function recordRemaining() {
@@ -1786,8 +1811,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
               )}
               <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
                 <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-                  <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both", whiteSpace: "nowrap" }}>
-                    {animCount} of {items.length}
+                  {/* Files and positions, both true at once: a set is one
+                      position for many files, a file BitGraphed twice holds
+                      two. Position is the ledger's own word, the one every
+                      row and proof page already uses. */}
+                  <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
+                    {animCount} of {items.length} file{items.length === 1 ? "" : "s"}{positionCount > 0 ? ` \u00b7 ${positionCount} position${positionCount === 1 ? "" : "s"}` : ""}
                   </span>
                   {found.length > 0 && (anchorCountdown > 0 ? (
                     <span style={{ fontSize: 13, color: "#4b5563", whiteSpace: "nowrap" }}>
@@ -1824,6 +1853,21 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
                     <button type="button" className="bg-action-link" onClick={proveRemaining}>
                       <span>{fuseByDefault ? "BitGraph" : "Record"} {unproven.length} file{unproven.length === 1 ? "" : "s"}</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </button>
+                  </div>
+                )}
+                {/* A drop entirely on record can make ONE new set of it: the
+                    group is a unit of meaning (a folder, a delivery), and a
+                    new set is a new set hash and a new position beside the
+                    ones its files hold. Offered only when nothing is new, so
+                    the card never shows two ways to make a BitGraph, and not
+                    after a fresh recording: the files have to be dropped
+                    again first. Still the one operation, at a later place. */}
+                {fuseByDefault && unproven.length === 0 && againRows.length > 0 && (
+                  <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
+                    <button type="button" className="bg-action-link" onClick={() => fuseRemaining(true)}>
+                      <span>{againRows.length === 1 ? "BitGraph this file again" : `BitGraph these ${againRows.length} files again`}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
                   </div>
