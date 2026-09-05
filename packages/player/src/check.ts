@@ -99,7 +99,12 @@ export const KNOWN_ENCLAVE_MEASUREMENTS: ReadonlyArray<{ pcr0: string; label: st
   {
     pcr0: "6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f",
     label: "enclave v5 (reproducible)",
-    period: "2026-07-29 onward",
+    period: "2026-07-29 to 2026-09-05",
+  },
+  {
+    pcr0: "cd8ba52d340fb1be78610b59953ded2ceca23be1cfcc7ab504a26b8fdcd7ba92090f49e28a32d008df046ec4212f77bf",
+    label: "enclave v6 (reproducible)",
+    period: "2026-09-05 onward",
   },
 ];
 

@@ -5,18 +5,20 @@ re-derive the **identical PCR0**. Change any one of these and the PCR0 changes.
 This file is the authoritative record; the `Dockerfile.enclave`, `build-eif.sh`,
 and `eif-builder.Dockerfile` all reference these exact pins.
 
-Last resolved: 2026-07-29 (resolved on the production Nitro host, linux/amd64).
-Source: tag `enclave-v5` (`f8fa324d`).
+Last resolved: 2026-09-05 (resolved on the production Nitro host, linux/amd64).
+Source: tag `enclave-v6` (`30a97c60`).
 
 ## Published measurement
 
 ```
-PCR0 = 6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f
+PCR0 = cd8ba52d340fb1be78610b59953ded2ceca23be1cfcc7ab504a26b8fdcd7ba92090f49e28a32d008df046ec4212f77bf
 ```
 
-Built and deployed **2026-07-29**, and **verified by two independent builds on
-that date**: the pipeline was run twice from a clean context at `f8fa324d` and
-both produced this identical PCR0. Rebuild from this source on any linux/amd64
+Built and deployed **2026-09-05**, and **verified by two independent builds on
+that date**: the pipeline was run twice from a clean context at `30a97c60` and
+both produced this identical PCR0 (a third, the deliverable build, agreed as well).
+The only source change since `enclave-v5` is one line: the `commitDigest` action
+keeps a held-slot commit's advisory `metadata`, which a set's manifest rides in. Rebuild from this source on any linux/amd64
 host and you will re-derive exactly this value; the production enclave at
 `nitro.occproof.com` reports it as its `measurement`.
 
@@ -31,7 +33,7 @@ Companion measurements of this build:
 
 ```
 PCR1 = 4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493
-PCR2 = 329dbfe340ce5e1caa770d73363b21f799ebc4565924983ead75a814fc851e4683e0b5299faa46b3ae22d30eb7810419
+PCR2 = 4d745480fffc6efffbf57edbf5506e74d2e75aec509fe7065942ffc5d54f28ec4aa98f3e6a780e4780acd91b2ee4f362
 ```
 
 PCR1 is unchanged from every prior build: it measures AWS's signed kernel, which
@@ -45,6 +47,7 @@ old proofs to verify.
 
 | PCR0 | Period | Note |
 |------|--------|------|
+| `6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f` | 2026-07-29 → 2026-09-05 | v5-repro (`enclave-v5`, `f8fa324d`). Verified by two clean builds 2026-07-29. |
 | `e2fccbae77ee40aac4830e84f195e05d69eb4547bbd961f4d3459feba10807140424aca42ad03810354982598c86b9cb` | 2026-07-05 → 2026-07-29 | v4-repro, the value production actually ran until this rebuild. **This file did not record it at the time** — see the warning below. |
 | `bb9dd158703603ec222fe565495ceaa7edc08f665da5c1cddad91442ac2211731390267036d79deb720d13fb704f648a` | 2026-06-27 → 2026-07-05 | v2-repro. Verified by two clean-room builds 2026-06-27. |
 | `8530a6399399c4f23d89f5a1faa2e8bf2e09a5959f117070fca08148377f92c902c695fc926c17f67f35f110327dca92` | 2026-05-15 → 2026-06-27 | Genesis. Built by an unpinned pipeline and **cannot be re-derived**; its EIF is retained only to verify proofs from that period. |
