@@ -92,7 +92,7 @@ export interface FuseVerifyOptions {
   maxPositions?: bigint | number;
 }
 
-function spanOf(proof: BitGraphProof): FuseSpan | null {
+export function spanOf(proof: BitGraphProof): FuseSpan | null {
   const c = proof.commit;
   if (typeof c.counter !== "string" || typeof c.slotCounter !== "string" || typeof c.epochId !== "string") return null;
   let positions: string;
@@ -108,6 +108,11 @@ function spanOf(proof: BitGraphProof): FuseSpan | null {
     chainId: typeof (c as { chainId?: unknown }).chainId === "string" ? ((c as { chainId?: string }).chainId as string) : null,
     positions,
   };
+}
+
+/** The floor sentence every fused verdict ends with: bounded below by the slot, above by the commit. */
+export function floorStatement(span: FuseSpan): string {
+  return `The exact fused bytes could not feasibly have been finalized before their signed slot allocation at position ${span.slotCounter}, and were committed no later than position ${span.commitCounter}.`;
 }
 
 function statements(category: FuseCategory, span: FuseSpan | null, originMatched: boolean): string[] {
@@ -128,9 +133,7 @@ function statements(category: FuseCategory, span: FuseSpan | null, originMatched
     );
   }
   if (category === "FUSED_DIRECT" || category === "FUSED_FROM_ORIGIN") {
-    out.push(
-      `The exact fused bytes could not feasibly have been finalized before their signed slot allocation at position ${span.slotCounter}, and were committed no later than position ${span.commitCounter}.`,
-    );
+    out.push(floorStatement(span));
   }
   if (category === "RECORDED") {
     out.push(`These exact bytes existed no later than commit position ${span.commitCounter}.`);

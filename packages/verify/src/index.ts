@@ -41,6 +41,11 @@ export {
   CONTAINER_ORIGINAL_PATH,
   PLACEMENTS,
   getPlacement,
+  SET_PLACEMENT_ID,
+  SET_METADATA_KEY,
+  buildSetManifest,
+  parseSetManifest,
+  readSetMetadata,
   canonicalSlotBody,
   computeSlotRecordHash,
   slotCommitmentPreimage,
@@ -59,6 +64,8 @@ export {
   hexToBytes,
   bytesEqual,
 } from "./fuse.js";
-export type { PlacementId, Placement, Located, FusePayload, FuseFrame, FuseMarker, MarkerSource } from "./fuse.js";
+export type { PlacementId, Placement, Located, FusePayload, FuseFrame, FuseMarker, MarkerSource, SetMember, SetManifest } from "./fuse.js";
 export { verifyFuse, assembledAfterCommit } from "./fuse-verify.js";
 export type { FuseCategory, FuseSpan, FuseVerifyResult, FuseVerifyOptions } from "./fuse-verify.js";
+export { verifyFuseMember } from "./fuse-member.js";
+export type { FuseMemberCategory, FuseSetEvidence, FuseMemberOptions, FuseMemberResult } from "./fuse-member.js";

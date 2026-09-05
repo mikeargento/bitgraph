@@ -325,7 +325,7 @@ function parseTar(bytes: Uint8Array): TarEntry[] | null {
 // Placement registry
 // ---------------------------------------------------------------------------
 
-export type PlacementId = "trailer/1" | "container/1" | "produced/1";
+export type PlacementId = "trailer/1" | "container/1" | "produced/1" | "set/1";
 
 export interface Located {
   /** The commitment found in the fused bytes. */
@@ -409,17 +409,210 @@ const produced1: Placement = {
 /** Registered placements in the fixed order a verifier tries them when none is declared. */
 export const PLACEMENTS: readonly Placement[] = Object.freeze([trailer1, container1, produced1]);
 
+// ---------------------------------------------------------------------------
+// Set manifest (placement set/1): N files fused under ONE slot
+// ---------------------------------------------------------------------------
+//
+// A set is N files fused under one slot. The commitment c is computed once
+// from the one slot record; every member's fused bytes carry c via that
+// member's own placement (trailer/1 or container/1, chosen per file as
+// today); and the COMMITTED ARTIFACT is a canonical manifest listing the
+// members' fused digests, origin digests and placement ids, plus c itself.
+// The manifest is a Form C artifact under the placement id "set/1".
+//
+// Its canonical encoding is load-bearing: one committed hash must stand for
+// exactly one member list. buildSetManifest is the single source of the byte
+// layout (rows strictly ascending by artifact digest, lowercase hex, sorted
+// keys, no whitespace) and parseSetManifest accepts nothing that is not byte
+// for byte equal to its own rebuild. Anything outside that domain is refused,
+// never normalized.
+
+export const SET_PLACEMENT_ID = "set/1" as const;
+
+/**
+ * The proof.metadata key under which a set proof carries its manifest as a
+ * parsed plain object: the profile id itself, namespaced so it cannot collide
+ * with a site's own metadata keys. metadata is UNSIGNED and advisory. The
+ * manifest is protected only because its canonical bytes must hash to the
+ * signed artifact digest, which verifyFuseMember checks before reading a row.
+ */
+export const SET_METADATA_KEY = FUSE_PROFILE;
+
+/** A placement id is a lowercase name, a slash, and a positive version: "trailer/1". */
+const PLACEMENT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*\/[1-9][0-9]*$/;
+
+/** One member of a set, bytes view: the build input and the parse output. */
+export interface SetMember {
+  /** SHA-256 of the member's FUSED bytes. */
+  artifact: Uint8Array;
+  /** SHA-256 of the member's ORIGINAL bytes; selects the rebuild path and feeds lookup by original. */
+  origin: Uint8Array;
+  /** The placement that carries the commitment inside this member's fused bytes. */
+  placement: string;
+}
+
+/** The manifest as JSON: the type of the value under proof.metadata[SET_METADATA_KEY]. */
+export interface SetManifest {
+  members: Array<{
+    artifact: { algorithm: "sha256"; digest: string };
+    origin: { algorithm: "sha256"; digest: string };
+    placement: string;
+  }>;
+  placement: typeof SET_PLACEMENT_ID;
+  slotCommitment: { algorithm: "sha256"; digest: string };
+  type: typeof FUSE_PROFILE;
+}
+
+/**
+ * Build the canonical set manifest bytes. Rows are sorted strictly ascending
+ * by artifact digest (byte order, which is the lexicographic order of the
+ * lowercase hex), so the same members in any input order give the same bytes.
+ * Throws on a commitment or digest that is not 32 bytes, an empty list, a
+ * malformed placement id, a member placement of "set/1" (no nesting in v1),
+ * or a duplicate artifact digest. Duplicate ORIGIN digests are permitted: one
+ * original fused two ways is two members with two artifact digests.
+ */
+export function buildSetManifest(commitment: Uint8Array, members: readonly SetMember[]): Uint8Array {
+  if (commitment.length !== 32) throw new TypeError("commitment must be 32 bytes");
+  if (members.length === 0) throw new TypeError("a set lists at least one member");
+  const rows: SetManifest["members"] = [];
+  const seen = new Set<string>();
+  for (const m of members) {
+    if (m.artifact.length !== 32) throw new TypeError("member artifact digest must be 32 bytes");
+    if (m.origin.length !== 32) throw new TypeError("member origin digest must be 32 bytes");
+    if (!PLACEMENT_ID_PATTERN.test(m.placement)) throw new TypeError(`member placement "${m.placement}" is not a placement id`);
+    if (m.placement === SET_PLACEMENT_ID) throw new TypeError("a set cannot list a set as a member");
+    const artifact = bytesToHex(m.artifact);
+    if (seen.has(artifact)) throw new TypeError(`duplicate member artifact digest ${artifact}`);
+    seen.add(artifact);
+    rows.push({
+      artifact: { algorithm: "sha256", digest: artifact },
+      origin: { algorithm: "sha256", digest: bytesToHex(m.origin) },
+      placement: m.placement,
+    });
+  }
+  rows.sort((a, b) => (a.artifact.digest < b.artifact.digest ? -1 : 1));
+  const manifest: SetManifest = {
+    members: rows,
+    placement: SET_PLACEMENT_ID,
+    slotCommitment: { algorithm: "sha256", digest: bytesToHex(commitment) },
+    type: FUSE_PROFILE,
+  };
+  return canonicalize(manifest);
+}
+
+/**
+ * Strict parse of set manifest bytes, in the style of parseFusePayload. The
+ * bytes must be valid UTF-8 JSON, a plain object with exactly the keys
+ * {members, placement, slotCommitment, type}, the profile type, placement
+ * "set/1", a lowercase-hex 32-byte commitment, at least one row, every row
+ * exactly {artifact, origin, placement} with 32-byte digests and a
+ * well-formed placement id other than "set/1", and finally must equal
+ * buildSetManifest over what was read byte for byte. That one comparison
+ * rejects whitespace, key reordering, duplicate JSON keys (a duplicate cannot
+ * survive a round trip), unsorted or duplicated rows, non-canonical escapes
+ * and trailing bytes. Registration of a row's placement is NOT checked here:
+ * a v2 placement must not poison v1 readers, and it surfaces per row as
+ * UNDETERMINED_PLACEMENT at verify time. Returns null on any deviation.
+ */
+export function parseSetManifest(bytes: Uint8Array): { commitment: Uint8Array; members: SetMember[] } | null {
+  let text: string;
+  try {
+    // ignoreBOM keeps a leading BOM in the text, where JSON.parse refuses it,
+    // rather than stripping it as though it were whitespace.
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isPlainObject(parsed)) return null;
+  if (Object.keys(parsed).sort().join(",") !== "members,placement,slotCommitment,type") return null;
+  if (parsed["type"] !== FUSE_PROFILE || parsed["placement"] !== SET_PLACEMENT_ID) return null;
+  const commitment = readDigestField(parsed["slotCommitment"]);
+  if (commitment === null) return null;
+  const list = parsed["members"];
+  if (!Array.isArray(list) || list.length === 0) return null;
+  const members: SetMember[] = [];
+  for (const row of list as unknown[]) {
+    if (!isPlainObject(row)) return null;
+    if (Object.keys(row).sort().join(",") !== "artifact,origin,placement") return null;
+    const artifact = readDigestField(row["artifact"]);
+    const origin = readDigestField(row["origin"]);
+    const placement = row["placement"];
+    if (artifact === null || origin === null || typeof placement !== "string") return null;
+    if (!PLACEMENT_ID_PATTERN.test(placement) || placement === SET_PLACEMENT_ID) return null;
+    members.push({ artifact, origin, placement });
+  }
+  let rebuilt: Uint8Array;
+  try {
+    rebuilt = buildSetManifest(commitment, members);
+  } catch {
+    return null;
+  }
+  if (!bytesEqual(rebuilt, bytes)) return null;
+  return { commitment, members };
+}
+
+/**
+ * The manifest bytes a proof carries under proof.metadata[SET_METADATA_KEY],
+ * re-canonicalized from the parsed object, or null when there is none or it
+ * is not a plain object. UNBOUND and UNVALIDATED: metadata is unsigned, so
+ * this returns bytes only, never rows. Nothing reads a member from it except
+ * through verifyFuseMember, which first requires these bytes to parse
+ * strictly and to hash to the signed artifact digest.
+ */
+export function readSetMetadata(proof: BitGraphProof): Uint8Array | null {
+  const value = proof.metadata?.[SET_METADATA_KEY];
+  if (!isPlainObject(value)) return null;
+  try {
+    return canonicalize(value);
+  } catch {
+    return null;
+  }
+}
+
+const set1: Placement = {
+  id: SET_PLACEMENT_ID,
+  form: "C",
+  byteExact: false,
+  build() {
+    throw new TypeError("set/1 is built with buildSetManifest(commitment, members)");
+  },
+  locate(fused) {
+    const manifest = parseSetManifest(fused);
+    return manifest === null ? null : { commitment: manifest.commitment };
+  },
+};
+
+/**
+ * Resolve a placement by id. set/1 resolves here but is NOT in PLACEMENTS:
+ * the undeclared scan is for bytes whose placement was not declared, whereas
+ * a set manifest is identified by hashing to the signed artifact digest and
+ * by its signed title, so the scan order of every existing fixture is
+ * literally unchanged.
+ */
 export function getPlacement(id: string): Placement | undefined {
-  return PLACEMENTS.find((p) => p.id === id);
+  return [...PLACEMENTS, set1].find((p) => p.id === id);
 }
 
 // ---------------------------------------------------------------------------
 // Attribution (the signed carrier of placement and origin, spec 6.5)
 // ---------------------------------------------------------------------------
 
-/** attribution.name = "bitgraph-fuse/1" (the profile id), title = placement id, message = origin digest in standard base64. */
+/**
+ * attribution.name = "bitgraph-fuse/1" (the profile id), title = placement id,
+ * message = origin digest in standard base64. A set has no single origin, so
+ * set/1 refuses an origin digest: a set/1 marker carrying one is out of
+ * profile and verifyFuseMember refuses it.
+ */
 export function fuseAttribution(placement: PlacementId, originDigest?: Uint8Array): Attribution {
   if (originDigest !== undefined && originDigest.length !== 32) throw new TypeError("originDigest must be 32 bytes");
+  if (placement === SET_PLACEMENT_ID && originDigest !== undefined) throw new TypeError("set/1 has no single origin; a set marker carries no origin digest");
   return {
     name: FUSE_ATTRIBUTION_NAME,
     title: placement,

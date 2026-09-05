@@ -2,6 +2,23 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.5.0 (2026-09-05)
+
+- BitGraph Sets: one slot serves any number of files. Placement `set/1` (Form C)
+  whose artifact is a canonical manifest of the members' fused digests, origin
+  digests and placements, carrying the one slot commitment; `buildSetManifest`,
+  `parseSetManifest` (strict byte-for-byte re-canonicalization), `readSetMetadata`
+  (the manifest rides as a parsed object at `proof.metadata["bitgraph-fuse/1"]`,
+  unsigned, and counts only once it hashes to the signed artifact digest), and
+  `verifyFuseMember`, which verifies one member against a set proof and reports
+  `SET_MEMBER_DIRECT`, `SET_MEMBER_FROM_ORIGIN`, `SET_NOT_MEMBER` (bytes that carry
+  the set's commitment but are not in the committed manifest: made after the slot,
+  not part of the set), `INVALID_SET_MANIFEST`, or the existing failure categories.
+  Floor and membership are checked in one step and cannot be asked apart. A set
+  marker is `{ name: "bitgraph-fuse/1", title: "set/1" }` with no message.
+  `verifyFuse` reports a set manifest as `FUSED_DIRECT` under `set/1` and a member's
+  bytes as `NO_MATCH`; every existing category and behaviour is unchanged.
+
 ## 1.4.0 (2026-09-03)
 
 - BitGraph Fuse, profile `bitgraph-fuse/1` (working name): construction and
