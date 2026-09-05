@@ -303,7 +303,7 @@ const proofs = await resp.json();
   "chainId": "bitgraph:main",
   "attribution": {
     "name": "bitgraph-fuse/1",       // fixed value; marks a fused proof
-    "title": "trailer/1",            // placement id: trailer/1 | container/1 | produced/1
+    "title": "trailer/1",            // placement id: trailer/1 | container/1 | container/2 | produced/1
     "message": "<origin digest, standard base64>"
   }
 }`}

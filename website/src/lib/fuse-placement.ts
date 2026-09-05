@@ -9,7 +9,7 @@
  * sizes, so trailing bytes are ignored: JPEG (EOI), PNG (IEND), GIF (0x3B),
  * TIFF and the TIFF-based raws such as DNG, CR2, NEF, ARW (offset tables),
  * BMP (declared size) and RIFF containers such as WebP, WAV, AVI (declared
- * chunk size). Everything else goes into container/1, a tar that carries the
+ * chunk size). Everything else goes into container/2, a tar that carries the
  * original untouched: PDF (%%EOF is expected near the end), ZIP-based files
  * including Office documents and EPUB (the end-of-central-directory record
  * is found by scanning back from the end), ISO base media video and images
@@ -20,7 +20,7 @@
  */
 import { fusedNamesFor, placementForBytes } from "@mikeargento/bitgraph";
 
-export type SitePlacement = "trailer/1" | "container/1";
+export type SitePlacement = "trailer/1" | "container/1" | "container/2";
 
 /** True when the bytes are one of the formats known to ignore trailing data. */
 export function toleratesTrailer(bytes: Uint8Array): boolean {

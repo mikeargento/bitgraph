@@ -316,7 +316,7 @@ const handler = createMcpHandler(
         description:
           "Step one of making a BitGraph the default way, for a caller that holds the file: open a slot for the new fused file and get the recipe to build that file locally. " +
           "Send, per file, its name, exact byte size and SHA-256 digest (base64, either form), plus head_base64: the file's first 16 bytes (the whole file when shorter), which decides the placement. " +
-          "The boundary allocates an unused slot before the new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/1, a tar that carries the original untouched, for everything else). " +
+          "The boundary allocates an unused slot before the new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/2, a tar that carries the original untouched and first, for everything else). " +
           "Then build the new file exactly as the recipe says, SHA-256 it, and call bitgraph_commit with the fuse_token and that digest. " +
           "File contents never travel: only digests, sizes, the first bytes and the recipe. Never alter the original. Only make BitGraphs of files the user asked for, and never generate content just to record it: recordings are permanent. " +
           "Files already on record (recorded, or the origin of a fused file) are not opened unless again=true; they come back as 'on record' with their proof URL. " +
@@ -466,7 +466,7 @@ const handler = createMcpHandler(
                 origin_digest: state ? toUrlSafeB64(state.origin.digestB64) : "",
                 artifact_digest: digestOk ? toUrlSafeB64(artifact) : e.artifact_digest,
                 outcome: "not fused",
-                placement: state?.placement ?? "container/1",
+                placement: state?.placement ?? "container/2",
                 slot_counter: state?.slot.counter ?? null,
                 counter: null,
                 epoch: null,

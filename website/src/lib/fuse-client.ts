@@ -16,8 +16,8 @@
  * is the one producer of them afterwards, from the original, the proof's slot
  * record and the row's placement.
  */
-import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, trailerBytesFor, type FuseSetMember as CoreSetMember, type FuseSetProgress, type FuseTransport } from "@mikeargento/bitgraph";
-import { finishTrailer } from "./scan-hash";
+import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetMember as CoreSetMember, type FuseSetProgress, type FuseTransport } from "@mikeargento/bitgraph";
+import { finishState } from "./scan-hash";
 export type { FuseSetProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest } from "@mikeargento/bitgraph-verify";
 import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
@@ -189,7 +189,7 @@ function rowOf(v: FuseMemberResult): SetMemberRow | null {
   return { index: m.index, count: v.set.memberCount, originDigestB64: m.originDigestB64, fusedDigestB64: m.fusedDigestB64, placement: m.placement };
 }
 
-const isSitePlacement = (id: string): id is SitePlacement => id === "trailer/1" || id === "container/1";
+const isSitePlacement = (id: string): id is SitePlacement => id === "trailer/1" || id === "container/1" || id === "container/2";
 
 async function sha256B64(bytes: Uint8Array): Promise<string> {
   return bytesToBase64(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as BufferSource)));
@@ -239,7 +239,7 @@ export interface ScannedFile {
   /** SHA-256 of the file, standard base64; the member's origin digest. */
   digestB64: string;
   placement: SitePlacement;
-  /** The saved hasher state after the last byte, for a trailer/1 file; null when the scan had none (a container/1 file, or a scan without the state-saving hasher). */
+  /** The saved hasher state after the placement's prefix and the file's last byte; null when the scan had none (a container/1 file, or a scan without the state-saving hasher). */
   state: Uint8Array | null;
 }
 
@@ -274,7 +274,7 @@ export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUD
       tooLarge.push(f);
       continue;
     }
-    const cost = f.state !== null && f.placement === "trailer/1" ? 0 : f.file.size;
+    const cost = f.state !== null ? 0 : f.file.size;
     if (current.length > 0 && (current.length >= MAX_SET_MEMBERS || reread + cost > rereadBudget)) {
       sets.push(current);
       current = [];
@@ -289,9 +289,9 @@ export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUD
 
 /**
  * Fuse ONE set of scanned files through this site's own routes: one slot,
- * one commit, and no file read before the slot is held. A trailer/1 file
- * scanned with its state is a hashed member: its fused digest is the saved
- * state finished with the slot's trailer bytes, so its bytes are never read
+ * one commit, and no file read before the slot is held. A file scanned with
+ * its state is a hashed member: its fused digest is the saved state finished
+ * with its placement's suffix for the slot, so its bytes are never read
  * again. Any other file is a loaded member: read when it is that member's
  * turn, checked against the scan's digest, fused, hashed and released. Every
  * file must be under MAX_FUSE_BYTES and there must be 1 to MAX_SET_MEMBERS
@@ -317,9 +317,12 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
   const members: CoreSetMember[] = sent.map((f) => {
     const originDigest = base64ToBytes(f.digestB64);
     if (originDigest === null || originDigest.length !== 32) throw new FuseError("bad-input", `${f.file.name}: the scan left no 32-byte digest`);
-    if (f.state !== null && f.placement === "trailer/1") {
+    const placement = getPlacement(f.placement);
+    if (f.state !== null && placement?.frame !== undefined) {
       const state = f.state;
-      return { originDigest, placement: f.placement, name: f.file.name, fusedDigest: ({ commitment }) => finishTrailer(state, trailerBytesFor(commitment)) };
+      const frame = placement.frame.bind(placement);
+      const originalSize = f.file.size;
+      return { originDigest, placement: f.placement, name: f.file.name, fusedDigest: ({ commitment }) => finishState(state, frame({ originalSize, originDigest, commitment }).suffix) };
     }
     return { load: async () => new Uint8Array(await f.file.arrayBuffer()), originDigest, placement: f.placement, name: f.file.name };
   });

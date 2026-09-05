@@ -26,7 +26,7 @@
  * @mikeargento/bitgraph-verify (container/1). The unit test proves
  * prefix + original + suffix equals that placement's own build, byte for byte.
  */
-import {
+import { getPlacement,
   CONTAINER_MANIFEST_PATH,
   CONTAINER_ORIGINAL_PATH,
   TRAILER_MAGIC,
@@ -47,7 +47,7 @@ import { apiBaseUrl } from "./api.ts";
 import { toUrlSafeB64 } from "./encoding.ts";
 import type { BitGraphProof } from "./types.ts";
 
-export type HostedPlacement = "trailer/1" | "container/1";
+export type HostedPlacement = "trailer/1" | "container/1" | "container/2";
 
 /** Files per call: each one is a slot allocation now and a commit later, inside the route's window. */
 export const MAX_OPEN_FILES = 10;
@@ -111,7 +111,7 @@ function padTo(n: number): number {
 
 export type Recipe =
   | { placement: "trailer/1"; append: Uint8Array }
-  | { placement: "container/1"; prefix: Uint8Array; suffix: Uint8Array };
+  | { placement: "container/1" | "container/2"; prefix: Uint8Array; suffix: Uint8Array };
 
 /** The bytes the caller adds to the original. Pure: no I/O, no randomness. */
 export function recipeFor(
@@ -127,6 +127,13 @@ export function recipeFor(
   }
   if (placement === "trailer/1") {
     return { placement, append: concat(utf8(TRAILER_MAGIC), new Uint8Array(8), commitment) };
+  }
+  if (placement === "container/2") {
+    // The original first: its header is the whole prefix, and the manifest
+    // follows the original. The registered placement states the frame; the
+    // test pins prefix + original + suffix to its build byte for byte.
+    const f = getPlacement("container/2")!.frame!({ originalSize: originSize, originDigest, commitment });
+    return { placement, prefix: f.prefix, suffix: f.suffix };
   }
   const manifest = buildFusePayload(commitment, originDigest);
   return {
@@ -150,12 +157,12 @@ export function assemble(recipe: Recipe, original: Uint8Array): Uint8Array {
 
 /**
  * The placement choice, from the first bytes of the original. Without them
- * the safe choice is the container, which wraps any bytes. The head must be
+ * the safe choice is the container (container/2, the original first), which wraps any bytes. The head must be
  * at least HEAD_MIN_BYTES unless the whole file is shorter, so the decision
  * here matches what the SDK would make with the whole file in hand.
  */
 export function choosePlacement(head: Uint8Array | null, originSize: number): HostedPlacement | { error: string } {
-  if (head === null) return "container/1";
+  if (head === null) return "container/2";
   if (head.length > HEAD_MAX_BYTES) return { error: `head_base64 carries more than ${HEAD_MAX_BYTES} bytes` };
   if (head.length > originSize) return { error: "head_base64 is longer than the file itself" };
   if (head.length < HEAD_MIN_BYTES && head.length !== originSize) {

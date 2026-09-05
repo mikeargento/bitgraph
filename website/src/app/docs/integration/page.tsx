@@ -31,7 +31,7 @@ npx -p @mikeargento/bitgraph bitgraph-fuse check ./out/photo.jpg.bitgraph-fuse.j
 # exit 0 fused or verified, 1 refused or contradicted, 2 undetermined, 64 usage`}</pre>
       </div>
       <p className="text-[#1f2937] mb-4">
-        Placements: <code>trailer/1</code> for formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, RIFF such as WebP), <code>container/1</code> for everything else. <code>produce</code> makes a <code>produced/1</code> artifact with no source file. The same four steps from code:
+        Placements: <code>trailer/1</code> for formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, RIFF such as WebP), <code>container/2</code> for everything else (a tar with the original first; the older <code>container/1</code> stays readable). <code>produce</code> makes a <code>produced/1</code> artifact with no source file. The same four steps from code:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>

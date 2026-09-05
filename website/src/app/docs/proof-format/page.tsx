@@ -195,6 +195,11 @@ commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  
             <tr className="border-b border-[#e5e7eb]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">container/1</code></td>
               <td className="py-2 pr-4">an uncompressed ustar archive: <code className="text-xs font-mono">bitgraph-fuse/manifest.json</code>, then <code className="text-xs font-mono">bitgraph-fuse/original</code></td>
+              <td className="py-2">older artifacts; readable, no longer made</td>
+            </tr>
+            <tr className="border-b border-[#e5e7eb]">
+              <td className="py-2 pr-4"><code className="text-xs font-mono">container/2</code></td>
+              <td className="py-2 pr-4">the same archive with <code className="text-xs font-mono">bitgraph-fuse/original</code> first, then <code className="text-xs font-mono">bitgraph-fuse/manifest.json</code>, so the file is hashed once and the digest finished later</td>
               <td className="py-2">everything else</td>
             </tr>
             <tr>

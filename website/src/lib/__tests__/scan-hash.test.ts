@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hashChunks, finishTrailer } from "../scan-hash.ts";
+import { hashChunks, finishState } from "../scan-hash.ts";
 import { trailerBytesFor } from "@mikeargento/bitgraph";
 import { getPlacement, bytesToBase64, computeSlotCommitment } from "@mikeargento/bitgraph-verify";
 
@@ -25,37 +25,55 @@ test("the digest is the native SHA-256 whatever the chunking, and the placement 
     for (const n of [0, 1, 3, 55, 56, 63, 64, 65, 100, 4095, 4096, 4097, 1_000_003]) {
       const b = make(n);
       for (const size of [1, 7, 64, 4096, 1 << 20]) {
-        const r = await hashChunks(chunked(b, size));
+        const r = await hashChunks(chunked(b, size), n);
         assert.equal(r.digestB64, bytesToBase64(await native(b)), `${label} ${n} bytes in ${size}-byte chunks`);
         assert.equal(r.bytes, n);
         // The magic decides: a JPEG needs 3 bytes, a PNG 8; text is always a container, and so is anything too short to carry its magic.
-        const expected = (label === "jpeg" && n >= 4) || (label === "png" && n >= 8) ? "trailer/1" : "container/1";
+        const expected = (label === "jpeg" && n >= 4) || (label === "png" && n >= 8) ? "trailer/1" : "container/2";
         assert.equal(r.placement, expected, `${label} ${n}: placement`);
-        assert.equal(r.state !== null, r.placement === "trailer/1", `${label} ${n}: a state only for trailer/1`);
+        assert.ok(r.state !== null, `${label} ${n}: a state for every default placement when the size is known`);
       }
     }
   }
 });
 
-test("a state finished with trailerBytesFor(commitment) is the hash of the trailer/1 build, for any commitment, without the bytes", async () => {
+test("a trailer/1 state finished with trailerBytesFor(commitment) is the hash of the build, for any commitment, without the bytes", async () => {
   const commitment = computeSlotCommitment(slot);
   const other = filled(32, 99);
   for (const n of [4, 55, 56, 63, 64, 65, 1000, 65_536, 1_000_003]) {
     const b = jpeg(n);
-    const r = await hashChunks(chunked(b, 4096));
+    const r = await hashChunks(chunked(b, 4096), n);
     assert.ok(r.state, "trailer/1 saves a state");
     for (const c of [commitment, other]) {
       const built = getPlacement("trailer/1")!.build({ original: b, commitment: c });
-      const finished = await finishTrailer(r.state!, trailerBytesFor(c));
+      const finished = await finishState(r.state!, trailerBytesFor(c));
       assert.deepEqual(finished, await native(built), `${n} bytes, commitment ${bytesToBase64(c).slice(0, 6)}`);
     }
     // The state is reusable: finishing it twice gives the same answer.
-    assert.deepEqual(await finishTrailer(r.state!, trailerBytesFor(commitment)), await finishTrailer(r.state!, trailerBytesFor(commitment)));
+    assert.deepEqual(await finishState(r.state!, trailerBytesFor(commitment)), await finishState(r.state!, trailerBytesFor(commitment)));
   }
 });
 
-test("a container/1 file yields no state: its fused bytes put the manifest before the original", async () => {
-  const r = await hashChunks(chunked(text(5000), 1024));
-  assert.equal(r.placement, "container/1");
-  assert.equal(r.state, null);
+test("a container/2 file (text, PDF, video) saves a state too: header and bytes hashed once, finished with the manifest suffix for any commitment", async () => {
+  const commitment = computeSlotCommitment(slot);
+  const other = filled(32, 99);
+  const p = getPlacement("container/2")!;
+  for (const n of [1, 511, 512, 513, 5000, 1_000_003]) {
+    const b = text(n);
+    const r = await hashChunks(chunked(b, 4096), n);
+    assert.equal(r.placement, "container/2", `${n}: text goes in the container`);
+    assert.ok(r.state, `${n}: a state is saved`);
+    assert.equal(r.digestB64, bytesToBase64(await native(b)), `${n}: the origin digest is the file's own`);
+    const originDigest = await native(b);
+    for (const c of [commitment, other]) {
+      const built = p.build({ original: b, originDigest, commitment: c });
+      const finished = await finishState(r.state!, p.frame!({ originalSize: n, originDigest, commitment: c }).suffix);
+      assert.deepEqual(finished, await native(built), `${n} bytes, commitment ${bytesToBase64(c).slice(0, 6)}`);
+    }
+  }
+  // Without the size no header can be written, so no state; the digest still comes back.
+  const blind = await hashChunks(chunked(text(5000), 1024));
+  assert.equal(blind.placement, "container/2");
+  assert.equal(blind.state, null);
+  assert.equal(blind.digestB64, bytesToBase64(await native(text(5000))));
 });

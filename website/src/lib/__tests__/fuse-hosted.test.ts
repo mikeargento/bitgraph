@@ -38,6 +38,24 @@ test("container/1 recipe: prefix + original + suffix equals the registered place
   }
 });
 
+test("container/2 recipe: prefix + original + suffix equals the registered placement's own build, byte for byte", () => {
+  const placement = getPlacement("container/2");
+  assert.ok(placement);
+  for (const size of SIZES) {
+    const original = new Uint8Array(randomBytes(size));
+    const originDigest = sha256(original);
+    const recipe = recipeFor("container/2", originDigest, size, commitment);
+    const built = assemble(recipe, original);
+    const reference = placement.build({ original, originDigest, commitment });
+    assert.deepEqual(built, reference, `size ${size}`);
+    // And the placement finds the commitment and the origin in what the caller built.
+    const located = placement.locate(built);
+    assert.ok(located, `locate at size ${size}`);
+    assert.deepEqual(located.commitment, commitment);
+    assert.deepEqual(located.originDigest, originDigest);
+  }
+});
+
 test("trailer/1 recipe: original + append equals the registered placement's own build", () => {
   const placement = getPlacement("trailer/1");
   assert.ok(placement);
@@ -76,10 +94,10 @@ test("choosePlacement follows the core policy from the first bytes, and the cont
   const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...randomBytes(12)]);
   assert.equal(choosePlacement(jpeg, 100_000), "trailer/1");
   const pdf = new Uint8Array([...Buffer.from("%PDF-1.7\n"), ...randomBytes(7)]);
-  assert.equal(choosePlacement(pdf, 100_000), "container/1");
-  assert.equal(choosePlacement(null, 5), "container/1", "no head: the container wraps anything");
+  assert.equal(choosePlacement(pdf, 100_000), "container/2");
+  assert.equal(choosePlacement(null, 5), "container/2", "no head: the container wraps anything");
   // A whole tiny file is an acceptable head.
-  assert.equal(choosePlacement(new Uint8Array([1, 2, 3]), 3), "container/1");
+  assert.equal(choosePlacement(new Uint8Array([1, 2, 3]), 3), "container/2");
   // Too short a head for a larger file is refused, not guessed.
   const short = choosePlacement(new Uint8Array([0xff, 0xd8, 0xff]), 100_000);
   assert.ok(typeof short === "object" && /first 16 bytes/.test(short.error));

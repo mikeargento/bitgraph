@@ -21,7 +21,7 @@ const faqs = [
   },
   {
     q: "Where does the slot commitment go?",
-    a: "A registered placement says where. For formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, and RIFF formats such as WebP) it is a 48-byte trailer (`trailer/1`). For everything else (PDF, ZIP-based documents, video, HEIC, text) it is a small tar container holding the unchanged file (`container/1`). The proof names the placement. The Frame file `<name>.bitgraph-fuse.json` carries the placement, the origin digest, the artifact digest and the nested proof.",
+    a: "A registered placement says where. For formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, and RIFF formats such as WebP) it is a 48-byte trailer (`trailer/1`). For everything else (PDF, ZIP-based documents, video, HEIC, text) it is a small tar container holding the unchanged file, original first (`container/2`; artifacts made under the older `container/1`, manifest first, stay readable). The proof names the placement. The Frame file `<name>.bitgraph-fuse.json` carries the placement, the origin digest, the artifact digest and the nested proof.",
   },
   {
     q: "What do I find when I drop the original later?",
@@ -29,7 +29,7 @@ const faqs = [
   },
   {
     q: "Can I make or check a fused artifact outside the browser?",
-    a: "Yes. `@mikeargento/bitgraph` 1.2.0 exposes `fuse()` and the `bitgraph-fuse` command (`fuse <file> --placement trailer/1|container/1`, `produce`, `check`). `@mikeargento/bitgraph-verify` 1.4.0 adds `verifyFuse`, which reports FUSED_DIRECT, FUSED_FROM_ORIGIN, RECORDED, INVALID_SLOT_COMMITMENT, RECONSTRUCTION_MISMATCH or NO_MATCH. `bitgraph-play check` in `@mikeargento/bitgraph-player` 0.8.1 prints a fused line with the floor and span; `bitgraph_check` in `@mikeargento/bitgraph-mcp` 0.1.2 reports `fused_descendants`; `@mikeargento/bitgraph-audit` 0.4.1 is the matching audit release.",
+    a: "Yes. `@mikeargento/bitgraph` 1.2.0 exposes `fuse()` and the `bitgraph-fuse` command (`fuse <file> --placement trailer/1|container/1|container/2`, `produce`, `check`). `@mikeargento/bitgraph-verify` 1.4.0 adds `verifyFuse`, which reports FUSED_DIRECT, FUSED_FROM_ORIGIN, RECORDED, INVALID_SLOT_COMMITMENT, RECONSTRUCTION_MISMATCH or NO_MATCH. `bitgraph-play check` in `@mikeargento/bitgraph-player` 0.8.1 prints a fused line with the floor and span; `bitgraph_check` in `@mikeargento/bitgraph-mcp` 0.1.2 reports `fused_descendants`; `@mikeargento/bitgraph-audit` 0.4.1 is the matching audit release.",
   },
   {
     q: "Can I verify a proof without an internet connection?",

@@ -46,8 +46,8 @@ export async function POST(req: NextRequest) {
   const file = form.get("file");
   const placement = form.get("placement");
   if (!(file instanceof Blob)) return NextResponse.json({ error: "field 'file' is required" }, { status: 400 });
-  if (placement !== "trailer/1" && placement !== "container/1") {
-    return NextResponse.json({ error: "field 'placement' must be trailer/1 or container/1" }, { status: 400 });
+  if (placement !== "trailer/1" && placement !== "container/1" && placement !== "container/2") {
+    return NextResponse.json({ error: "field 'placement' must be trailer/1, container/1 or container/2" }, { status: 400 });
   }
   if (file.size > MAX_BYTES) return NextResponse.json({ error: `file exceeds ${MAX_BYTES} bytes` }, { status: 413 });
   const original = new Uint8Array(await file.arrayBuffer());

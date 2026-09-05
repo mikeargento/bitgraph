@@ -24,7 +24,7 @@ export const MAX_SET_MEMBERS = 2000;
 /** Cap on JSON.stringify(body.metadata).length, applied before any canonicalization. */
 export const MAX_SET_METADATA_JSON = 600_000;
 /** The member placements a site reader can rebuild; a row under any other id is refused at the route. */
-export const SET_MEMBER_PLACEMENTS = ["trailer/1", "container/1"] as const;
+export const SET_MEMBER_PLACEMENTS = ["trailer/1", "container/1", "container/2"] as const;
 
 export interface SetMemberRow {
   /** Ordinal in the CANONICAL manifest (fuseSet's manifestIndex), never input order. */

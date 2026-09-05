@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Placement = "trailer/1" | "container/1";
+type Placement = "trailer/1" | "container/1" | "container/2";
 
 interface HarnessResult {
   copy: string[][];
@@ -75,6 +75,7 @@ export default function Harness() {
           <select value={placement} onChange={(e) => setPlacement(e.target.value as Placement)} style={{ padding: 8, borderRadius: 0, border: "1px solid #d0d5dd", background: "#fff", maxWidth: 320 }}>
             <option value="trailer/1">trailer/1 (Form A: in-file trailer; formats that tolerate trailing bytes)</option>
             <option value="container/1">container/1 (Form B: fixed-layout archive; the file stays byte-exact inside)</option>
+            <option value="container/2">container/2 (Form B: the same archive with the original first; the default)</option>
           </select>
         </label>
         <label style={{ display: "grid", gap: 6 }}>

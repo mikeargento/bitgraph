@@ -13,7 +13,7 @@ export interface ScanRequest {
 }
 
 export type ScanReply =
-  | { id: number; ok: true; digestB64: string; placement: "trailer/1" | "container/1"; state: Uint8Array | null; bytes: number }
+  | { id: number; ok: true; digestB64: string; placement: "trailer/1" | "container/1" | "container/2"; state: Uint8Array | null; bytes: number }
   | { id: number; ok: false; error: string };
 
 self.onmessage = async (e: MessageEvent<ScanRequest>) => {
