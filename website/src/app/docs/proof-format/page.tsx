@@ -110,7 +110,7 @@ export default function ProofFormatPage() {
             </tr>
             <tr className="border-b border-[#e5e7eb]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">metadata</code></td>
-              <td className="py-2">Advisory, not trusted</td>
+              <td className="py-2">Advisory, never trusted as a field. A set proof (bitgraph-fuse/1, placement set/1) carries its member manifest here; a reader re-canonicalizes it and counts it only if it hashes to the signed artifact.digestB64</td>
             </tr>
             <tr>
               <td className="py-2 pr-4"><code className="text-xs font-mono">claims</code></td>
