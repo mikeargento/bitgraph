@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { storeProofByDigest, getProofByDigest, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
 import { TEE_URL, teeRestarting503 } from "@/lib/anchor-gate";
 import { FUSE_ATTRIBUTION_NAME, FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isDigestB64, isSlotRecord, retryAfterHeaders } from "@/lib/fuse";
-import { SET_KEY, SET_TITLE, reconcileSetMetadata, validateSetCommit, type SetCommitOk } from "@/lib/fuse-set";
+import { SET_KEY, SET_TITLE, SET2_TITLE, reconcileSetMetadata, validateSetCommit, type SetCommitOk } from "@/lib/fuse-set";
 
 export const dynamic = "force-dynamic";
 // A set's member index (one key per member, up to 4000 for the largest set)
@@ -93,7 +93,11 @@ export async function POST(req: NextRequest) {
     // parent receives the canonical parse: value-identical to what the caller
     // sent, in canonical key order, and free of any key the shape check did
     // not admit.
-    const isSet = attr.title === SET_TITLE;
+    // set/1 commits the manifest of every member; set/2 commits the root
+    // document of a Merkle tree over them, and its members are indexed
+    // afterwards through /api/fuse/set-index, each with the path that proves
+    // its place.
+    const isSet = attr.title === SET_TITLE || attr.title === SET2_TITLE;
     let verifiedSet: SetCommitOk | null = null;
     if (isSet || body.metadata !== undefined) {
       const v = await validateSetCommit({ title: attr.title, message: attr.message, metadata: body.metadata, digestB64, slot });

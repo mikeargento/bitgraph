@@ -55,6 +55,8 @@ import { blockTimeFromHeader } from "./export-pages";
 import {
   FUSE_ATTRIBUTION_NAME,
   SET_PLACEMENT_ID,
+  SET2_PLACEMENT_ID,
+  SET_MEMBER_METADATA_KEY,
   readFuseAttribution,
   readSetMetadata,
   verifyFuse,
@@ -72,7 +74,9 @@ const asVerify = (proof: BitGraphProof): VerifyProof => proof as unknown as Veri
  * is a set, and then only through verifyFuseMember, which binds it to the
  * signed digest before reading a row. */
 const isSetProof = (proof: BitGraphProof): boolean =>
-  proof.attribution?.name === FUSE_ATTRIBUTION_NAME && proof.attribution?.title === SET_PLACEMENT_ID;
+  proof.attribution?.name === FUSE_ATTRIBUTION_NAME && (proof.attribution?.title === SET_PLACEMENT_ID || proof.attribution?.title === SET2_PLACEMENT_ID);
+const isSet2Proof = (proof: BitGraphProof): boolean =>
+  proof.attribution?.name === FUSE_ATTRIBUTION_NAME && proof.attribution?.title === SET2_PLACEMENT_ID;
 
 /* ── Walking the dropped tree ── */
 
@@ -286,6 +290,10 @@ export interface ExportCandidate {
    *  describes. Absent from an export whose keeper kept only the original,
    *  which is the durable state and still verifies (by reconstruction). */
   newFile?: File;
+  /** member.json, for a set/2 member: its row, leaf index, count and path,
+   *  which the verifier needs to place it under the committed root. A set/1
+   *  export has none; its proof.json carries the whole list. */
+  memberEvidence?: File;
   /** The export's own index.html, held aside rather than discarded: when it
    *  is the ONLY file beside proof.json it may BE the artifact — an export
    *  whose recorded file is itself named index.html carries no receipt (the
@@ -367,6 +375,7 @@ export function discoverDrop(walked: WalkedFile[]): DropScan {
     if (rel.length === 1) {
       if (rel[0] === "proof.json") cand.proofFile = w.file;
       else if (rel[0] === "index.html") cand.receipt = w.file;
+      else if (rel[0] === "member.json") cand.memberEvidence = w.file;
       else cand.artifactCandidates.push(w.file);
     } else if (rel.length === 2 && rel[0] === "new-file") {
       cand.newFile = w.file;
@@ -581,19 +590,35 @@ async function parseJsonFile(f: File): Promise<Record<string, unknown> | null> {
  *  pass's rule, so an intact new-file/ never carries a corrupted original to
  *  green. Yields between files as the other passes do. Null when nothing in
  *  the unit is a member. */
-async function findSetMember(proof: BitGraphProof, cand: ExportCandidate): Promise<File | null> {
+async function findSetMember(proof: BitGraphProof, cand: ExportCandidate, member: unknown): Promise<File | null> {
   const fromOrigin = cand.artifactCandidates.length > 0;
   const files = fromOrigin ? cand.artifactCandidates : cand.newFile ? [cand.newFile] : [];
   const accepted = fromOrigin ? "SET_MEMBER_FROM_ORIGIN" : "SET_MEMBER_DIRECT";
   for (const f of files) {
     const bytes = await f.arrayBuffer().catch(() => null);
     if (bytes) {
-      const v = await verifyFuseMember({ proof: asVerify(proof), bytes: new Uint8Array(bytes) }).catch(() => null);
+      const v = await verifyFuseMember({ proof: asVerify(proof), bytes: new Uint8Array(bytes), ...(member !== null ? { member } : {}) }).catch(() => null);
       if (v?.category === accepted) return f;
     }
     await new Promise((res) => setTimeout(res, 0));
   }
   return null;
+}
+
+/** A set/2 member's evidence: member.json beside proof.json, else the copy proof.json itself carries under metadata; null when neither. */
+async function memberEvidenceFor(proof: BitGraphProof, cand: ExportCandidate): Promise<unknown> {
+  if (cand.memberEvidence) {
+    const text = await cand.memberEvidence.text().catch(() => null);
+    if (text !== null) {
+      try {
+        return JSON.parse(text) as unknown;
+      } catch {
+        return null;
+      }
+    }
+  }
+  const md = (proof as unknown as { metadata?: Record<string, unknown> }).metadata;
+  return md && typeof md === "object" ? md[SET_MEMBER_METADATA_KEY] ?? null : null;
 }
 
 /* ── The check itself: instant rows, streaming verification ──
@@ -837,13 +862,19 @@ export function startFolderCheck(
       // the row falls through to side 2 and the other passes are skipped.
       if (isSetProof(w.proof)) {
         if (readSetMetadata(asVerify(w.proof)) === null) {
-          // Reserved for the ABSENT manifest. A tampered one is present and
-          // fails to bind underneath, which reads as differing bytes: a
-          // forged manifest never earns the softer sentence.
-          w.failure = "proof.json carries no set manifest";
+          // Reserved for the ABSENT manifest (or root document). A tampered
+          // one is present and fails to bind underneath, which reads as
+          // differing bytes: a forged manifest never earns the softer sentence.
+          w.failure = isSet2Proof(w.proof) ? "proof.json carries no set root" : "proof.json carries no set manifest";
           return;
         }
-        const member = await findSetMember(w.proof, w.cand);
+        // A set/2 member is placed under the root by its evidence: member.json
+        // beside proof.json, or the copy proof.json carries. Without it the
+        // floor may hold but membership cannot be shown, and that is its own
+        // honest sentence, distinct from tampered bytes.
+        const evidence = isSet2Proof(w.proof) ? await memberEvidenceFor(w.proof, w.cand) : null;
+        if (isSet2Proof(w.proof) && evidence === null) { w.failure = "no member.json beside proof.json"; return; }
+        const member = await findSetMember(w.proof, w.cand, evidence);
         if (!member) { w.failure = "bytes differ from the proof"; return; }
         w.matchedFile = member;
         w.artifactFile = member;

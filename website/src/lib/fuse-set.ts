@@ -12,11 +12,19 @@
  * the camera, the proof page and the skeptic's drop all branch on the same
  * predicate and bind through the same function.
  */
-import type { BitGraphProof, SetManifest, SlotAllocation } from "@mikeargento/bitgraph-verify";
-import { bytesEqual, bytesToBase64, bytesToHex, computeSlotCommitment, parseSetManifest, readSetMetadata } from "@mikeargento/bitgraph-verify";
+import type { BitGraphProof, SetManifest, SetMemberProof, SetRoot, SlotAllocation } from "@mikeargento/bitgraph-verify";
+import { bytesEqual, bytesToBase64, bytesToHex, computeSlotCommitment, parseSetManifest, parseSetMemberProof, parseSetRoot, readSetMetadata, setRootFromMember, MAX_SET2_MEMBERS, SET2_PLACEMENT_ID, SET_MEMBER_METADATA_KEY } from "@mikeargento/bitgraph-verify";
 
-/** The signed placement id of a set proof (attribution.title). Pinned; the suite checks it equals SET_PLACEMENT_ID. */
+/** The signed placement id of a set/1 proof (attribution.title). Pinned; the suite checks it equals SET_PLACEMENT_ID. */
 export const SET_TITLE = "set/1";
+/** The signed placement id of a set/2 proof: a Merkle root over the rows instead of the list. Pinned to SET2_PLACEMENT_ID. */
+export const SET2_TITLE: typeof SET2_PLACEMENT_ID = "set/2";
+/** The unsigned metadata key a member's evidence (row, index, count, path) rides under beside a set/2 root document. */
+export const SET_MEMBER_KEY: typeof SET_MEMBER_METADATA_KEY = "bitgraph-fuse/1/member";
+/** The most rows one set-index request carries: ~2.2 MB of evidence with hex paths, under the platform's request cap. */
+export const SET_INDEX_CHUNK = 2500;
+/** Rows of member evidence a set/2 commit may leave to index later; pinned to MAX_SET2_MEMBERS. */
+export const MAX_SET2_ROWS = MAX_SET2_MEMBERS;
 /** The metadata key the manifest rides under, which is also the signed attribution name. Pinned; equals SET_METADATA_KEY. */
 export const SET_KEY = "bitgraph-fuse/1";
 /** Pinned; the suite checks it equals the core's MAX_SET_MEMBERS. */
@@ -38,11 +46,16 @@ export interface SetMemberRow {
 }
 
 export interface BoundSet {
-  /** The canonical manifest bytes that hash to the signed artifact digest. */
+  kind: "set/1" | "set/2";
+  /** The canonical bytes that hash to the signed artifact digest: the set/1 manifest, or the set/2 root document. */
   bytes: Uint8Array;
-  manifest: SetManifest;
-  /** In manifest order. */
+  manifest: SetManifest | SetRoot;
+  /** The set's member count. */
+  count: number;
+  /** set/1: every row in manifest order. set/2: empty; a member is known only through its evidence (see bindSetMember). */
   members: SetMemberRow[];
+  /** set/2 only: the tree root. */
+  root: Uint8Array | null;
 }
 
 const HEX_64 = /^[0-9a-f]{64}$/;
@@ -78,10 +91,17 @@ function rowsOf(members: readonly { artifact: Uint8Array; origin: Uint8Array; pl
   }));
 }
 
-/** Signed marker only: attribution.name === "bitgraph-fuse/1" and attribution.title === "set/1". Nothing unsigned decides this. */
-export function isSetProof(proof: { attribution?: unknown } | null | undefined): boolean {
+/** Which set kind the SIGNED attribution declares: "set/1", "set/2", or null for anything else. Nothing unsigned decides this. */
+export function setKindOf(proof: { attribution?: unknown } | null | undefined): "set/1" | "set/2" | null {
   const a = proof?.attribution;
-  return typeof a === "object" && a !== null && (a as { name?: unknown }).name === SET_KEY && (a as { title?: unknown }).title === SET_TITLE;
+  if (typeof a !== "object" || a === null || (a as { name?: unknown }).name !== SET_KEY) return null;
+  const title = (a as { title?: unknown }).title;
+  return title === SET_TITLE ? "set/1" : title === SET2_TITLE ? "set/2" : null;
+}
+
+/** Signed marker only: a set/1 or set/2 proof. */
+export function isSetProof(proof: { attribution?: unknown } | null | undefined): boolean {
+  return setKindOf(proof) !== null;
 }
 
 /**
@@ -91,12 +111,17 @@ export function isSetProof(proof: { attribution?: unknown } | null | undefined):
  * this serves DISPLAY COUNTS only (the Ledger row's label). Membership goes
  * through bindSet.
  */
-export function parseSetOf(proof: Record<string, unknown>): { commitmentHex: string; members: SetMemberRow[] } | null {
+export function parseSetOf(proof: Record<string, unknown>): { kind: "set/1" | "set/2"; commitmentHex: string; count: number; members: SetMemberRow[] } | null {
   const bytes = readSetMetadata(asVerify(proof));
   if (bytes === null) return null;
+  if (setKindOf(proof) === "set/2") {
+    const doc = parseSetRoot(bytes);
+    if (doc === null) return null;
+    return { kind: "set/2", commitmentHex: bytesToHex(doc.commitment), count: doc.count, members: [] };
+  }
   const parsed = parseSetManifest(bytes);
   if (parsed === null) return null;
-  return { commitmentHex: bytesToHex(parsed.commitment), members: rowsOf(parsed.members) };
+  return { kind: "set/1", commitmentHex: bytesToHex(parsed.commitment), count: parsed.members.length, members: rowsOf(parsed.members) };
 }
 
 /**
@@ -110,21 +135,60 @@ export function parseSetOf(proof: Record<string, unknown>): { commitmentHex: str
  */
 export async function bindSet(proof: Record<string, unknown>, manifest?: Uint8Array | null): Promise<BoundSet | null> {
   try {
-    if (!isSetProof(proof)) return null;
+    const kind = setKindOf(proof);
+    if (kind === null) return null;
     if ((proof.attribution as { message?: unknown }).message !== undefined) return null;
     const bytes = manifest ?? readSetMetadata(asVerify(proof));
     if (bytes === null) return null;
-    const parsed = parseSetManifest(bytes);
-    if (parsed === null || parsed.members.length > MAX_SET_MEMBERS) return null;
     const artifact = (proof.artifact as { digestB64?: unknown } | undefined)?.digestB64;
     if (typeof artifact !== "string" || (await sha256B64(bytes)) !== artifact) return null;
     const slot = proof.slotAllocation;
     if (typeof slot !== "object" || slot === null) return null;
-    if (!bytesEqual(parsed.commitment, computeSlotCommitment(slot as SlotAllocation))) return null;
-    return { bytes, manifest: JSON.parse(decode(bytes)) as SetManifest, members: rowsOf(parsed.members) };
+    const commitment = computeSlotCommitment(slot as SlotAllocation);
+    if (kind === "set/2") {
+      const doc = parseSetRoot(bytes);
+      if (doc === null || !bytesEqual(doc.commitment, commitment)) return null;
+      return { kind, bytes, manifest: JSON.parse(decode(bytes)) as SetRoot, count: doc.count, members: [], root: doc.root };
+    }
+    const parsed = parseSetManifest(bytes);
+    if (parsed === null || parsed.members.length > MAX_SET_MEMBERS) return null;
+    if (!bytesEqual(parsed.commitment, commitment)) return null;
+    return { kind, bytes, manifest: JSON.parse(decode(bytes)) as SetManifest, count: parsed.members.length, members: rowsOf(parsed.members), root: null };
   } catch {
     return null;
   }
+}
+
+/**
+ * set/2: bind one member's evidence to a bound set. The evidence parses
+ * strictly, names the set's count, and its leaf and path recompute the
+ * bound root. Returns the row with its leaf index, or null. Never throws.
+ */
+export function bindSetMember(bound: BoundSet, evidence: unknown): (SetMemberRow & { proof: SetMemberProof }) | null {
+  try {
+    if (bound.kind !== "set/2" || bound.root === null) return null;
+    const parsed = parseSetMemberProof(evidence);
+    if (parsed === null || parsed.count !== bound.count) return null;
+    const reached = setRootFromMember(parsed.member, parsed.index, parsed.count, parsed.path);
+    if (reached === null || !bytesEqual(reached, bound.root)) return null;
+    return {
+      index: parsed.index,
+      count: parsed.count,
+      originDigestB64: bytesToBase64(parsed.member.origin),
+      fusedDigestB64: bytesToBase64(parsed.member.artifact),
+      placement: parsed.member.placement,
+      proof: evidence as SetMemberProof,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The member evidence a proof copy carries under metadata, unparsed; null when none. */
+export function memberEvidenceOf(proof: Record<string, unknown>): unknown {
+  const md = proof.metadata;
+  if (!isPlainObject(md)) return null;
+  return md[SET_MEMBER_KEY] ?? null;
 }
 
 /**
@@ -182,16 +246,37 @@ export async function validateSetCommit(
   limits: { maxMetadataJson?: number } = {},
 ): Promise<SetCommitVerdict> {
   try {
-    const isSet = input.title === SET_TITLE;
-    if (!isSet && input.metadata !== undefined) return refuse("metadata is accepted only for a set/1 commit");
-    if (isSet && input.metadata === undefined) return refuse(`a set/1 commit requires metadata['${SET_KEY}']`);
-    if (isSet && typeof input.message === "string" && input.message.length > 0) return refuse("a set/1 commit carries no origin digest");
+    const kind: "set/1" | "set/2" | null = input.title === SET_TITLE ? "set/1" : input.title === SET2_TITLE ? "set/2" : null;
+    const isSet = kind !== null;
+    if (!isSet && input.metadata !== undefined) return refuse("metadata is accepted only for a set/1 or set/2 commit");
+    if (isSet && input.metadata === undefined) return refuse(`a ${kind} commit requires metadata['${SET_KEY}']`);
+    if (isSet && typeof input.message === "string" && input.message.length > 0) return refuse(`a ${kind} commit carries no origin digest`);
 
     const metadata = input.metadata;
     if (!isPlainObject(metadata) || keysOf(metadata) !== SET_KEY || !isPlainObject(metadata[SET_KEY])) {
-      return refuse(`metadata must be { '${SET_KEY}': <set manifest> } and nothing else`);
+      return refuse(`metadata must be { '${SET_KEY}': <set ${kind === "set/2" ? "root document" : "manifest"}> } and nothing else`);
     }
     const m = metadata[SET_KEY] as Record<string, unknown>;
+    if (kind === "set/2") {
+      // A root document: five keys, the literals, a count in range, two digests; canonical round trip, the slot's commitment, the committed digest.
+      if (
+        keysOf(m) !== "count,placement,root,slotCommitment,type" ||
+        m.type !== SET_KEY ||
+        m.placement !== SET2_TITLE ||
+        typeof m.count !== "number" || !Number.isInteger(m.count) || m.count < 1 || m.count > MAX_SET2_ROWS ||
+        !isDigestField(m.root) ||
+        !isDigestField(m.slotCommitment)
+      ) {
+        return refuse(`metadata['${SET_KEY}'] is not a set root document`);
+      }
+      const canonicalBytes = readSetMetadata({ metadata } as unknown as BitGraphProof);
+      if (canonicalBytes === null) return refuse(`metadata['${SET_KEY}'] is not a set root document`);
+      const doc = parseSetRoot(canonicalBytes);
+      if (doc === null) return refuse(`metadata['${SET_KEY}'] is not a set root document`);
+      if (!bytesEqual(doc.commitment, computeSlotCommitment(input.slot))) return refuse("root document commitment is not this slot's");
+      if ((await sha256B64(canonicalBytes)) !== input.digestB64) return refuse("root document does not hash to the committed digest");
+      return { ok: true, canonicalBytes, manifestObject: JSON.parse(decode(canonicalBytes)) as SetManifest, members: [] };
+    }
     if (
       keysOf(m) !== "members,placement,slotCommitment,type" ||
       m.type !== SET_KEY ||
@@ -297,7 +382,7 @@ export function stripSetManifest(proof: Record<string, unknown>): Record<string,
 /** N for a set proof whose metadata lists N rows, 0 for a set proof without a readable manifest, null for anything that is not a set. Display only. */
 export function setCountOf(proof: Record<string, unknown>): number | null {
   if (!isSetProof(proof)) return null;
-  return parseSetOf(proof)?.members.length ?? 0;
+  return parseSetOf(proof)?.count ?? 0;
 }
 
 /**

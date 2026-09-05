@@ -9,7 +9,7 @@
 import { Agent } from "node:https";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
-import { SET_KEY, bindSet, isSetProof, setIndexEntries, stripSetManifest, type BoundSet } from "@/lib/fuse-set";
+import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
 
 /**
  * Raised when the ledger could not be READ. It is not an answer about the
@@ -353,19 +353,77 @@ async function indexSetMembers(s3: S3Client, bucket: string, proof: Record<strin
     if (isSetProof(proof)) console.log("[s3] set proof carries no bound manifest; members not indexed");
     return;
   }
+  // A set/2 proof lists no members: each arrives with its evidence through
+  // indexSetMemberEvidence, and only a path that reaches the root earns a key.
+  if (bound.kind === "set/2") return;
   const entries = setIndexEntries(bound, artifactDigestB64);
   const body = JSON.stringify(stripSetManifest(proof), null, 2);
+  const written = await writeMemberKeys(s3, bucket, entries.map((e) => ({ ...e, body })), artifactDigestB64, epochId, counter);
+  console.log(`[s3] set index wrote=${written.written} failed=${written.failed}`);
+}
+
+/** One member key per entry: the position key under the member's digest, the body the entry names, the headers a reader needs. */
+async function writeMemberKeys(
+  s3: S3Client,
+  bucket: string,
+  entries: Array<SetIndexEntry & { body: string }>,
+  artifactDigestB64: string,
+  epochId: string,
+  counter: string,
+): Promise<{ written: number; failed: number }> {
   const position = `${toSafe(epochId)}-${String(counter).padStart(12, "0")}`;
   const setDigest = toSafe(artifactDigestB64);
   const results = await runPool(entries, INDEX_POOL, (e) => s3.send(new PutObjectCommand({
     Bucket: bucket,
     Key: `by-digest/${toSafe(e.digestB64)}/${position}.json`,
-    Body: body,
+    Body: e.body,
     ContentType: "application/json",
     Metadata: { "bg-kind": e.kind, "bg-set-digest": setDigest, "bg-set-member": `${e.index}/${e.count}` },
   })));
   const failed = results.filter((r) => r.status === "rejected").length;
-  console.log(`[s3] set index wrote=${results.length - failed} failed=${failed}`);
+  return { written: results.length - failed, failed };
+}
+
+/**
+ * set/2: index members from their evidence. Each evidence object is bound
+ * to the set (bindSetMember: strict parse, the set's count, leaf and path
+ * recomputing the committed root) before it earns its two keys, under the
+ * member's origin digest and its fused digest; the key's body is the set
+ * proof with the member's own evidence riding under metadata, so a lookup
+ * by either digest returns everything a reader needs to verify the member
+ * offline. Evidence that does not bind is counted and skipped, never
+ * written. The caller has already read the set proof from its own position.
+ */
+export async function indexSetMemberEvidence(
+  proof: Record<string, unknown>,
+  bound: BoundSet,
+  evidence: unknown[],
+): Promise<{ written: number; failed: number; rejected: number }> {
+  const c = proof.commit as { epochId?: string; counter?: string } | undefined;
+  const artifact = (proof.artifact as { digestB64?: string } | undefined)?.digestB64;
+  if (!c?.epochId || !c?.counter || !artifact || bound.kind !== "set/2") return { written: 0, failed: 0, rejected: evidence.length };
+  const entries: Array<SetIndexEntry & { body: string }> = [];
+  let rejected = 0;
+  const seen = new Set<string>([artifact]);
+  for (const ev of evidence) {
+    const m = bindSetMember(bound, ev);
+    if (m === null) {
+      rejected++;
+      continue;
+    }
+    const withMember = { ...proof, metadata: { ...(isPlainObject(proof.metadata) ? proof.metadata : {}), [SET_MEMBER_KEY]: m.proof } };
+    const body = JSON.stringify(withMember, null, 2);
+    if (!seen.has(m.originDigestB64)) {
+      seen.add(m.originDigestB64);
+      entries.push({ digestB64: m.originDigestB64, kind: "fused-descendant", index: m.index, count: m.count, body });
+    }
+    if (!seen.has(m.fusedDigestB64)) {
+      seen.add(m.fusedDigestB64);
+      entries.push({ digestB64: m.fusedDigestB64, kind: "set-member", index: m.index, count: m.count, body });
+    }
+  }
+  const written = await writeMemberKeys(getClient(), getBucket(), entries, artifact, c.epochId, c.counter);
+  return { ...written, rejected };
 }
 
 export interface DigestProofEntry {
@@ -460,6 +518,9 @@ async function hydrateSetMembers(s3: S3Client, bucket: string, reads: IndexedRea
   const groups = new Map<string, { key: string; entries: DigestProofEntry[] }>();
   for (const r of reads) {
     if (r.setDigest === null) continue;
+    // A set/2 member key already carries the small root document and its own
+    // evidence; only a set/1 member key was stripped of its manifest.
+    if (isPlainObject(r.entry.proof.metadata) && SET_KEY in r.entry.proof.metadata) continue;
     const c = r.entry.proof.commit as { epochId?: string; counter?: string } | undefined;
     if (!c?.epochId || !c?.counter) continue;
     const key = setPositionKey(r.setDigest, c.epochId, c.counter);

@@ -19,7 +19,7 @@
 import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetMember as CoreSetMember, type FuseSetProgress, type FuseTransport } from "@mikeargento/bitgraph";
 import { finishState } from "./scan-hash";
 export type { FuseSetProgress } from "@mikeargento/bitgraph";
-import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest } from "@mikeargento/bitgraph-verify";
+import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest, SetMemberProof, SetRoot } from "@mikeargento/bitgraph-verify";
 import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
 import { MAX_FUSE_BYTES, fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
 import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
@@ -215,16 +215,20 @@ export interface FusedSetMember {
    * member with the verifier when they hold its bytes.
    */
   verification?: FuseMemberResult;
+  /** set/2 only: the member's evidence (row, leaf index, count, path), which a reader needs beside the proof. */
+  memberProof?: SetMemberProof;
 }
 
 export interface FusedSet {
+  /** "set/1": the manifest of every member is the committed artifact. "set/2": a Merkle root over the rows is, and each member carries its evidence. */
+  set: "set/1" | "set/2";
   /** The set proof, carrying metadata["bitgraph-fuse/1"] whatever the boundary echoed. */
   proof: SiteProof;
   /** SHA-256 of manifestBytes; the committed artifact. */
   artifactDigestB64: string;
   slotCommitmentB64: string;
   manifestBytes: Uint8Array;
-  manifest: SetManifest;
+  manifest: SetManifest | SetRoot;
   manifestEchoed: boolean;
   recovered: boolean;
   /** verifyFuse over manifestBytes: FUSED_DIRECT under set/1. */
@@ -258,6 +262,14 @@ export interface SetPlan {
 export const DEFAULT_REREAD_BUDGET = 4 * 1024 * 1024 * 1024;
 
 /**
+ * The most members one set/2 the site makes: the fuse phase finishes every
+ * saved state in well under the slot window at this size, and the evidence
+ * is indexed afterwards in SET_INDEX_CHUNK rows a request. The protocol's
+ * own cap is far higher (MAX_SET2_MEMBERS).
+ */
+export const SITE_MAX_SET2_MEMBERS = 100_000;
+
+/**
  * Partition a drop: files over MAX_FUSE_BYTES are recorded rather than fused
  * (drop order kept); the rest fill sets greedily in drop order, a new set
  * whenever adding a file would exceed MAX_SET_MEMBERS or the re-read budget.
@@ -269,13 +281,18 @@ export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUD
   const tooLarge: ScannedFile[] = [];
   let current: ScannedFile[] = [];
   let reread = 0;
+  // Up to MAX_SET_MEMBERS fusable files make a set/1, whose proof carries the
+  // whole list; more make a set/2, one position for the whole drop up to the
+  // site's own cap, each member carrying its path instead.
+  const fusable = files.filter((f) => f.file.size <= MAX_FUSE_BYTES).length;
+  const cap = fusable > MAX_SET_MEMBERS ? SITE_MAX_SET2_MEMBERS : MAX_SET_MEMBERS;
   for (const f of files) {
     if (f.file.size > MAX_FUSE_BYTES) {
       tooLarge.push(f);
       continue;
     }
     const cost = f.state !== null ? 0 : f.file.size;
-    if (current.length > 0 && (current.length >= MAX_SET_MEMBERS || reread + cost > rereadBudget)) {
+    if (current.length > 0 && (current.length >= cap || reread + cost > rereadBudget)) {
       sets.push(current);
       current = [];
       reread = 0;
@@ -299,9 +316,13 @@ export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUD
  * is sent once, the first File carrying the member. A FuseError from the
  * pipeline passes through untouched. No fused bytes are kept.
  */
-export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; transport?: FuseTransport; onProgress?: (progress: FuseSetProgress) => void } = {}): Promise<FusedSet> {
+export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; transport?: FuseTransport; onProgress?: (progress: FuseSetProgress) => void; set?: "set/1" | "set/2" } = {}): Promise<FusedSet> {
   if (files.length === 0) throw new FuseError("bad-input", "a set lists at least one file");
-  if (files.length > MAX_SET_MEMBERS) throw new FuseError("bad-input", `a set lists at most ${MAX_SET_MEMBERS} files (got ${files.length})`);
+  // The kind follows the count unless the caller says: the list up to
+  // MAX_SET_MEMBERS, the tree beyond it.
+  const setKind = opts.set ?? (files.length > MAX_SET_MEMBERS ? "set/2" : "set/1");
+  const cap = setKind === "set/1" ? MAX_SET_MEMBERS : SITE_MAX_SET2_MEMBERS;
+  if (files.length > cap) throw new FuseError("bad-input", `a ${setKind} set lists at most ${cap} files (got ${files.length})`);
   const sent: ScannedFile[] = [];
   const seen = new Set<string>();
   for (let i = 0; i < files.length; i++) {
@@ -327,6 +348,7 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
     return { load: async () => new Uint8Array(await f.file.arrayBuffer()), originDigest, placement: f.placement, name: f.file.name };
   });
   const r = await fuseSet(members, {
+    set: setKind,
     keepFused: false,
     ...(opts.agency !== undefined ? { agency: opts.agency } : {}),
     ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
@@ -337,7 +359,7 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
   // proof held in the browser always carries what its export needs.
   const proof = r.proof;
   if (readSetMetadata(proof) === null) {
-    const manifest = JSON.parse(new TextDecoder().decode(r.manifestBytes)) as SetManifest;
+    const manifest = JSON.parse(new TextDecoder().decode(r.manifestBytes)) as SetManifest | SetRoot;
     const prior = proof.metadata;
     const base = typeof prior === "object" && prior !== null && !Array.isArray(prior) ? prior : {};
     proof.metadata = { ...base, [SET_METADATA_KEY]: manifest };
@@ -353,9 +375,11 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
       artifactDigestB64: m.artifactDigestB64,
       fusedName: m.fusedName ?? fusedNames(s.file.name, s.placement).fusedName,
       ...(m.verification !== undefined ? { verification: m.verification } : {}),
+      ...(m.memberProof !== undefined ? { memberProof: m.memberProof } : {}),
     };
   });
   return {
+    set: r.set,
     proof: asSite(proof),
     artifactDigestB64: r.artifactDigestB64,
     slotCommitmentB64: r.slotCommitmentB64,
@@ -384,9 +408,10 @@ export interface RebuiltMember {
  * digest. Explicit manifest bytes win over proof.metadata. The only producer
  * of a member's fused bytes on the site; nothing here touches the network.
  */
-export async function rebuildSetMember(siteProof: SiteProof, original: Uint8Array, originalName: string, manifest?: Uint8Array | null): Promise<RebuiltMember> {
+export async function rebuildSetMember(siteProof: SiteProof, original: Uint8Array, originalName: string, manifest?: Uint8Array | null, evidence?: unknown): Promise<RebuiltMember> {
   const proof = asVerify(siteProof);
-  const verification = await verifyFuseMember({ proof, bytes: original, manifest: manifest ?? null });
+  // set/2: the member's evidence is passed when in hand; otherwise the verifier reads it from the proof copy's own metadata.
+  const verification = await verifyFuseMember({ proof, bytes: original, manifest: manifest ?? null, ...(evidence !== undefined && evidence !== null ? { member: evidence } : {}) });
   const member = rowOf(verification);
   const none: RebuiltMember = { verification, fusedBytes: null, placement: verification.placement ?? null, fusedName: null, member, memberCount: verification.set?.memberCount ?? null };
   if (verification.category !== "SET_MEMBER_FROM_ORIGIN" || member === null) return none;
@@ -421,9 +446,9 @@ export interface UnpackedMember {
  * placements carry the original whole). The original's name follows
  * originalNameOf.
  */
-export async function unpackSetMember(siteProof: SiteProof, fused: Uint8Array, fusedFileName: string, manifest?: Uint8Array | null): Promise<UnpackedMember> {
+export async function unpackSetMember(siteProof: SiteProof, fused: Uint8Array, fusedFileName: string, manifest?: Uint8Array | null, evidence?: unknown): Promise<UnpackedMember> {
   const proof = asVerify(siteProof);
-  const verification = await verifyFuseMember({ proof, bytes: fused, manifest: manifest ?? null });
+  const verification = await verifyFuseMember({ proof, bytes: fused, manifest: manifest ?? null, ...(evidence !== undefined && evidence !== null ? { member: evidence } : {}) });
   const member = rowOf(verification);
   const none: UnpackedMember = { verification, originalBytes: null, originalName: null, member };
   if (verification.category !== "SET_MEMBER_DIRECT" || member === null) return none;

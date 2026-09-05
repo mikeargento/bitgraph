@@ -47,7 +47,7 @@ import { cacheArtifactToIDB } from "@/lib/file-cache";
 import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
 import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
-import { attachSetManifests, bindSet, isSetProof } from "@/lib/fuse-set";
+import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
 
 /**
  * One /api/proofs/batch answer, with every set member entry's manifest put
@@ -232,6 +232,44 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // The strategy's sentence about a failed run, shown in the receipt card
   // until the next run or drop. Home's strategy has none; its rows say Error.
   const [recordMessage, setRecordMessage] = useState<string | null>(null);
+  // A set/2 lands with only its root on the ledger; its members are indexed
+  // afterwards, evidence by evidence, so a drop of any of them finds the set.
+  // The count moves as chunks land; on failure the pending evidence waits
+  // here for a retry.
+  const [indexProgress, setIndexProgress] = useState<{ current: number; total: number } | null>(null);
+  const pendingIndexRef = useRef<Array<{ setDigest: string; epoch: string; counter: string; members: unknown[] }>>([]);
+
+  async function indexSetEvidence(): Promise<void> {
+    const pending = pendingIndexRef.current;
+    const total = pending.reduce((n, p) => n + p.members.length, 0);
+    if (total === 0) { setIndexProgress(null); return; }
+    let done = 0;
+    setIndexProgress({ current: 0, total });
+    for (const set of pending) {
+      while (set.members.length > 0) {
+        const chunk = set.members.slice(0, SET_INDEX_CHUNK);
+        let ok = false;
+        for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+          try {
+            const r = await fetch("/api/fuse/set-index", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ setDigest: set.setDigest, epoch: set.epoch, counter: set.counter, members: chunk }) });
+            ok = r.ok;
+          } catch {
+            ok = false;
+          }
+        }
+        if (!ok) {
+          setIndexProgress(null);
+          setRecordMessage(`The set is on the ledger, but ${total - done} of its ${total} files are not yet findable by hash. Indexing stopped; retry below.`);
+          return;
+        }
+        set.members.splice(0, chunk.length);
+        done += chunk.length;
+        setIndexProgress({ current: done, total });
+      }
+    }
+    pendingIndexRef.current = [];
+    setIndexProgress(null);
+  }
   // On a results page the box is CLOSED behind one link until asked for
   // (Mike, 2026-08-19: "what if there IS a link, and it says something like
   // make more, and it EXPANDS the dropbox full size"). Opened by the link, or
@@ -1044,6 +1082,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         done += rows;
         setProveProgress({ current: done, total: toProve.length });
         void announceRecorded([out.proof]);
+        // A set/2 leaves its members to be indexed from their evidence once
+        // the results are on the page.
+        if (out.set === "set/2") {
+          const c = out.proof.commit;
+          const evidence = out.members.map((m) => m.memberProof).filter((e) => e !== undefined);
+          if (c?.epochId && c?.counter && evidence.length) pendingIndexRef.current.push({ setDigest: out.artifactDigestB64, epoch: toUrlSafeB64(c.epochId), counter: String(c.counter), members: evidence });
+        }
         await tick();
       }
       if (tooLarge.length) {
@@ -1078,6 +1123,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     if (minted > 0) startAnchorCountdown();
     // An again run gives no row a place it did not have; the count is the rows on record.
     setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + (again ? 0 : minted));
+    if (pendingIndexRef.current.length > 0) void indexSetEvidence();
   }
 
   async function recordRemaining() {
@@ -1342,6 +1388,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           z.add(fusedEntry);
           fusedEntry.push(fusedBytes, true);
         }
+        // A set/2 member's evidence travels beside proof.json: without its
+        // row, index and path no reader can place it under the root.
+        if (setOut?.member.memberProof) addText(`${dir}member.json`, JSON.stringify(setOut.member.memberProof, null, 2));
       }
       if (allPositions.length <= 1) {
         const fileEntry = new ZipPassThrough(`${prefix}${f.name}`);
@@ -1349,6 +1398,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         fileEntry.push(fileBytes, true);
         for (const pos of allPositions) {
           addText(`${prefix}proof.json`, JSON.stringify(setOut ? withSetManifest(pos, setOut.manifestBytes) : pos, null, 2));
+          const found = setOut ? null : memberEvidenceOf(pos as unknown as Record<string, unknown>);
+          if (found !== null) addText(`${prefix}member.json`, JSON.stringify(found, null, 2));
           singles.push(pos);
           built.push({ dir: prefix.replace(/\/$/, ""), fileName: f.name,
                        proof: pos as unknown as Record<string, unknown>, sides: sidesOf(prefix) });
@@ -1817,6 +1868,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                       row and proof page already uses. */}
                   <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
                     {animCount} of {items.length} file{items.length === 1 ? "" : "s"}{positionCount > 0 ? ` \u00b7 ${positionCount} position${positionCount === 1 ? "" : "s"}` : ""}
+                    {indexProgress && (
+                      <span style={{ fontWeight: 400, color: "#4b5563" }}>{` \u00b7 indexing ${indexProgress.current} of ${indexProgress.total}`}</span>
+                    )}
                   </span>
                   {found.length > 0 && (anchorCountdown > 0 ? (
                     <span style={{ fontSize: 13, color: "#4b5563", whiteSpace: "nowrap" }}>
@@ -1875,6 +1929,14 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 {/* What the strategy has to say about a run that did not
                     finish, in the card, under the row that offers the retry.
                     One sentence, the error colour, same voice as the hints. */}
+                {recordMessage && pendingIndexRef.current.length > 0 && !indexProgress && (
+                  <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
+                    <button type="button" className="bg-action-link" onClick={() => { setRecordMessage(null); void indexSetEvidence(); }}>
+                      <span>Retry indexing</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </button>
+                  </div>
+                )}
                 {recordMessage && (
                   <div style={{ borderTop: "1px solid #eef0f1", padding: "12px 16px", fontSize: 13, color: "#dc2626" }}>
                     {recordMessage}

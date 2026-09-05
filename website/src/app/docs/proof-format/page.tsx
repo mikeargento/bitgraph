@@ -110,7 +110,7 @@ export default function ProofFormatPage() {
             </tr>
             <tr className="border-b border-[#e5e7eb]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">metadata</code></td>
-              <td className="py-2">Advisory, never trusted as a field. A set proof (bitgraph-fuse/1, placement set/1) carries its member manifest here; a reader re-canonicalizes it and counts it only if it hashes to the signed artifact.digestB64</td>
+              <td className="py-2">Advisory, never trusted as a field. A set proof carries its committed artifact here: the member manifest for placement set/1, the Merkle root document for set/2; a reader re-canonicalizes it and counts it only if it hashes to the signed artifact.digestB64. A set/2 member's evidence (its row, leaf index and path) may ride under bitgraph-fuse/1/member</td>
             </tr>
             <tr>
               <td className="py-2 pr-4"><code className="text-xs font-mono">claims</code></td>

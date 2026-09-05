@@ -16,7 +16,7 @@ import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember } from "@/lib/fuse-client";
-import { SET_KEY, bindSet, isSetProof, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
+import { SET_KEY, bindSet, bindSetMember, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
@@ -511,7 +511,11 @@ export default function ProofPage() {
   // original digest or a member's new-file digest; the row it describes is the
   // file in hand when there is one, else the row the URL digest names.
   const isSet = isSetProof(proof);
-  const viewingRow: SetMemberRow | null = heldMember ?? (setBound ? memberOf(setBound, stdDigest(digestParam)) : null);
+  // set/1 lists every row; set/2 knows one member, the one whose evidence
+  // rode along with this copy of the proof (the lookup that served it).
+  const evidenceRow: SetMemberRow | null = setBound?.kind === "set/2" ? bindSetMember(setBound, memberEvidenceOf(asRecord(proof))) : null;
+  const viewingRow: SetMemberRow | null = heldMember ?? (setBound ? (setBound.kind === "set/2" ? evidenceRow : memberOf(setBound, stdDigest(digestParam))) : null);
+  const setRows: SetMemberRow[] = setBound ? (setBound.kind === "set/2" ? (viewingRow ? [viewingRow] : []) : setBound.members) : [];
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
 
@@ -1033,13 +1037,14 @@ export default function ProofPage() {
                 opens its own page at this same position, by its original's
                 digest, the way the camera opens a member. */}
             {setBound && (
-              <CollapsibleCard title={`Set (${setBound.members.length})`}>
-                {setBound.members.map((m, i) => {
+              <CollapsibleCard title={`Set (${setBound.count})`}>
+                {setRows.map((m, i) => {
                   const isHeld = viewingRow !== null && viewingRow.index === m.index;
+                  const ordinal = setBound.kind === "set/2" ? m.index + 1 : i + 1;
                   return (
                     <div key={m.index} className="causal-row" style={{ borderBottom: "1px solid #e2e5e9" }}>
                       <div className="causal-top">
-                        <span className="causal-label" style={{ color: "var(--c-accent)" }}>{i + 1} of {setBound.members.length}</span>
+                        <span className="causal-label" style={{ color: "var(--c-accent)" }}>{ordinal} of {setBound.count}</span>
                         {isHeld ? (
                           <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>
                         ) : (
@@ -1653,8 +1658,11 @@ function BringYourFile({
         // member's two digests finds it; the verifier then accepts the
         // original by reconstruction or the new file directly.
         if (setBound) {
+          // set/1: every listed row. set/2: the one member whose evidence came with this copy of the proof.
+          const evidenceRow = setBound.kind === "set/2" ? bindSetMember(setBound, memberEvidenceOf(proof as unknown as Record<string, unknown>)) : null;
+          const rows: SetMemberRow[] = setBound.kind === "set/2" ? (evidenceRow ? [evidenceRow] : []) : setBound.members;
           const digests = new Set<string>();
-          for (const m of setBound.members) { digests.add(m.originDigestB64); digests.add(m.fusedDigestB64); }
+          for (const m of rows) { digests.add(m.originDigestB64); digests.add(m.fusedDigestB64); }
           const hit = Array.isArray(source)
             ? await findAnyMatchInFiles(source, digests)
             : await findAnyMatchInDrop(source, digests);
