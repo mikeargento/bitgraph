@@ -39,13 +39,34 @@ import {
 } from "@/lib/bitgraph";
 import type { CommitStrategy } from "@/lib/commit-strategy";
 import { toUrlSafeB64 } from "@/lib/explorer";
-import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, captureDrop, type CapturedDrop, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
+import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
 import { CheckedList, fmtRowWhen, useFileThumbs } from "@/components/folder-list";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
-import { fuseFile, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome } from "@/lib/fuse-client";
+import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember } from "@/lib/fuse-client";
+import { attachSetManifests, bindSet, isSetProof } from "@/lib/fuse-set";
+
+/**
+ * One /api/proofs/batch answer, with every set member entry's manifest put
+ * back from the answer's side table. The route sends a member's set proof
+ * stripped of its manifest and each distinct set once (`sets`), so a drop of
+ * N originals from one set is not answered with N copies of an N-row
+ * manifest. Rows that hold the whole proof export a proof.json the
+ * skeptic's drop can verify, exactly as before the table existed.
+ */
+function batchAnswer(json: { results?: Record<string, BatchEntry>; sets?: Record<string, Record<string, unknown>> }): Record<string, BatchEntry> {
+  const results = json.results || {};
+  attachSetManifests(results as unknown as Parameters<typeof attachSetManifests>[0], json.sets);
+  return results;
+}
+type BatchEntry = {
+  proofs?: Array<{ proof: BitGraphProof; kind?: string; writeTime?: number | null; member?: { index: number; count: number; role: "origin" | "fused" } | null; setDigest?: string }>;
+  /** The read FAILED: not an answer about these bytes. */
+  unavailable?: true;
+};
+import { SET_METADATA_KEY, readSetMetadata, type BitGraphProof as VerifyProof } from "@mikeargento/bitgraph-verify";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -122,6 +143,10 @@ interface FileItem {
   kinds?: Array<"recorded" | "fused">;
   /** Set when this drop fused the file: the transient fused bytes, for the export. */
   fused?: FusedOutcome;
+  /** Per proof in `proofs`: the row the ledger names when the bytes are one member of a set (its origin, or its new file). Null where a position is not a set's. */
+  member?: Array<{ index: number; count: number; role: "origin" | "fused" } | null> | null;
+  /** Set when this drop fused the file as one of N: the member row, the shared manifest and the set proof. NO fused bytes are held; the export rebuilds them. */
+  setMember?: { member: FusedSetMember; manifestBytes: Uint8Array; count: number; proof: BitGraphProof };
 }
 
 // The results list survives leaving for a proof page: client-side navigation
@@ -140,6 +165,17 @@ const cachedChecked = new Map<string, ExportCheckResult[]>();
 export function clearCameraCache(id: BitGraphCameraProps["id"]) {
   cachedResults.delete(id);
   cachedChecked.delete(id);
+}
+
+/** The set proof as it leaves the page: with its manifest at
+ *  metadata["bitgraph-fuse/1"]. fuseFiles attaches one whenever the boundary
+ *  did not echo it and the camera never strips it, so this finds it there; a
+ *  belt, since a proof.json without its manifest is a set no member can be
+ *  checked against. */
+function withSetManifest(proof: BitGraphProof, manifestBytes: Uint8Array): BitGraphProof {
+  if (readSetMetadata(proof as unknown as VerifyProof) !== null) return proof;
+  const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as Record<string, unknown>;
+  return { ...proof, metadata: { ...(proof.metadata ?? {}), [SET_METADATA_KEY]: manifest } };
 }
 
 
@@ -394,7 +430,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const lookupKeys = [...new Set(
       scanned.filter((s) => !s.proofJson && s.digest).map((s) => toUrlSafeB64(s.digest)),
     )];
-    const lookup: Record<string, { proofs?: Array<{ proof: BitGraphProof }> }> = {};
+    const lookup: Record<string, BatchEntry> = {};
     setCheckProgress({ current: 0, total: 0 });
     setScanPhase("checking");
     if (lookupKeys.length) {
@@ -414,7 +450,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 body: JSON.stringify({ digests: mine }),
               });
               if (!r.ok) throw new Error();
-              Object.assign(lookup, (await r.json()).results || {});
+              Object.assign(lookup, batchAnswer(await r.json()));
               done += mine.length;
               setCheckProgress({ current: done, total: lookupKeys.length });
             }
@@ -427,7 +463,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             body: JSON.stringify({ digests: lookupKeys }),
           });
           if (!r.ok) throw new Error();
-          Object.assign(lookup, (await r.json()).results || {});
+          Object.assign(lookup, batchAnswer(await r.json()));
         }
       } catch {
         let nextKey = 0;
@@ -436,7 +472,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             const k = lookupKeys[nextKey++];
             try {
               const resp = await fetch(`/api/proofs/${encodeURIComponent(k)}`);
-              lookup[k] = resp.ok ? await resp.json() : { proofs: [] };
+              lookup[k] = resp.ok ? (await resp.json()) as BatchEntry : { proofs: [] };
             } catch {
               lookup[k] = { proofs: [] };
             }
@@ -468,8 +504,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       // the fused BitGraph it produced. A fused descendant is still not a
       // recording of the bytes themselves; the row's label says so and the
       // proof page says where the artifact came from.
-      type Entry = { proof: BitGraphProof; kind?: string; writeTime?: number | null };
-      const entries = ((rec?.proofs || []) as Entry[]).filter((x) => x.proof?.version === "bitgraph/1");
+      const entries = (rec?.proofs || []).filter((x) => x.proof?.version === "bitgraph/1");
       const ordered = [...entries.filter((x) => x.kind !== "fused"), ...entries.filter((x) => x.kind === "fused")];
       if (ordered.length > 0) {
         const result = await verifyProofSignature(ordered[0].proof);
@@ -478,7 +513,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // none and just leave the slot blank.
         const times = ordered.map((x) => x.writeTime ?? null);
         const kinds = ordered.map((x): "recorded" | "fused" => (x.kind === "fused" ? "fused" : "recorded"));
-        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, valid: result.valid, status: "found" as const };
+        // A position held as one member of a set says so, per row: the
+        // ledger's member index names the row (ordinal and count, and whether
+        // these bytes are the origin or the new file).
+        const member = ordered.map((x) => x.member ?? null);
+        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, member: member.some((m) => m !== null) ? member : null, valid: result.valid, status: "found" as const };
       }
       return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const };
     }));
@@ -729,14 +768,19 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       }).results || {};
       setItems((prev) => prev.map((it) => {
         if (!it.digestB64) return it;
-        const entry = results[toUrlSafeB64(it.digestB64)];
-        if (!entry?.proofs?.length) return it;
         // Align to the rows actually rendered: each row's own position gets
         // its own write time, so a file recorded twice keeps them distinct.
+        // The answer was asked under each PROOF's artifact digest, which is
+        // the row's own digest for a recording but the new file's for a
+        // solo fuse and the manifest's for a set; a fused row's time is read
+        // under its proof's digest, where the position that made it was
+        // written (the set's own position key carries the set's time).
         const rendered = it.proofs.length ? it.proofs : it.proof ? [it.proof] : [];
+        const own = results[toUrlSafeB64(it.digestB64)]?.proofs ?? [];
         const times = rendered.map((p) => {
           const c = p?.commit?.counter;
-          const hit = entry.proofs?.find((e) => String(e.proof?.commit?.counter) === String(c));
+          const under = p ? results[toUrlSafeB64(p.artifact.digestB64)]?.proofs ?? [] : [];
+          const hit = [...own, ...under].find((e) => String(e.proof?.commit?.counter) === String(c));
           return hit?.writeTime ?? null;
         });
         return times.some((t) => t !== null) ? { ...it, times } : it;
@@ -773,15 +817,21 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // enough to be hashed and committed under the slot allocated for them, and
   // the original plus the signed proof rebuilds them at any time. Held through
   // the daily rotation like every other commit.
-  async function fuseOne(file: File): Promise<FusedOutcome> {
+  // The hold, for every fuse: the pipeline's own "come back in a moment"
+  // refusal becomes the typed error commitThroughRotation retries on. Solo
+  // and set share it, so a set caught by the daily renewal waits the same way.
+  async function heldThroughRotation<T>(fn: () => Promise<T>): Promise<T> {
     return commitThroughRotation(async () => {
       try {
-        return await fuseFile(file);
+        return await fn();
       } catch (e) {
         if (isTeeRestarting(e)) { const held = new Error("The camera is restarting"); held.name = "TeeRestartingError"; throw held; }
         throw e;
       }
     });
+  }
+  async function fuseOne(file: File): Promise<FusedOutcome> {
+    return heldThroughRotation(() => fuseFile(file));
   }
   // A file too large to build in memory is recorded as itself instead, the
   // compatibility operation, through the strategy's ordinary path.
@@ -812,15 +862,14 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // is what this view showed before the read existed. Returns how many the
   // read found recorded.
   async function settleAfterFailure(pending: FileItem[]): Promise<number> {
-    type Entry = { proofs?: Array<{ proof: BitGraphProof; writeTime?: number | null }>; unavailable?: true };
-    let found: Record<string, Entry> = {};
+    let found: Record<string, BatchEntry> = {};
     try {
       const r = await fetch("/api/proofs/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ digests: [...new Set(pending.map((p) => toUrlSafeB64(p.digestB64)))] }),
       });
-      if (r.ok) found = ((await r.json()) as { results?: Record<string, Entry> }).results || {};
+      if (r.ok) found = batchAnswer(await r.json());
     } catch { /* unread: see above */ }
     const recorded = new Map<string, Array<{ proof: BitGraphProof; writeTime?: number | null }>>();
     for (const p of pending) {
@@ -860,22 +909,80 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     setProveProgress({ current: 0, total: toProve.length });
     setItems(prev => prev.map(i => i.status === "new" || i.status === "error" ? { ...i, status: "proving" as const } : i));
     let minted = 0;
-    let lastOut: FusedOutcome | null = null;
-    const tooLarge: FileItem[] = [];
+    // Held in an object: fuseSolo below assigns it, and a closure's write is
+    // invisible to the narrowing at the navigation check after the loop.
+    const last: { out: FusedOutcome | null } = { out: null };
+    // The drop's plan, over DISTINCT bytes: the same file dropped twice is
+    // one file to fuse, and every row carrying its digest flips together.
+    // Planning over rows instead put a duplicate straddling a cut into two
+    // sets, so the second set fused bytes the first had already made a
+    // member, spent a position no row ever showed, and the row it did show
+    // was the earlier set's. Files over the in-browser cap go to the record
+    // path below, as before; the rest fill sets, and a set is ONE BitGraph:
+    // one slot, one commit, every member floored and ceilinged by it. A drop
+    // that fits one budget is one set; a drop too big for a browser tab
+    // becomes consecutive sets, each its own position (planSets says where
+    // it cuts).
+    const firstOf = new Map<string, FileItem>();
+    for (const t of toProve) if (!firstOf.has(t.digestB64)) firstOf.set(t.digestB64, t);
+    const plan = planSets([...firstOf.values()].map((t) => t.file));
+    const itemOf = new Map([...firstOf.values()].map((t) => [t.file, t] as const));
+    const tooLarge: FileItem[] = plan.tooLarge.flatMap((f) => { const t = itemOf.get(f); return t ? [t] : []; });
+    // Progress counts ROWS, so a drop with duplicates still reaches its total.
+    const rowsOf = (digests: Iterable<string>) => { const d = new Set(digests); return toProve.filter((t) => d.has(t.digestB64)).length; };
+    let done = 0;
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    // One file on its own slot, as a solo drop gets: a set of one is
+    // protocol-legal and the site never makes one, whether the file is the
+    // whole drop's fusable part or the remainder a cut left alone.
+    const fuseSolo = async (t: FileItem) => {
+      try {
+        const out = await fuseOne(t.file);
+        last.out = out;
+        // minted counts ROWS, as the results card does: a file dropped twice is
+        // one member and two rows.
+        minted += rowsOf([t.digestB64]);
+        setItems(prev => prev.map(i => i.status === "proving" && i.digestB64 === t.digestB64 ? { ...i, proof: out.proof, proofs: [out.proof], kinds: ["fused" as const], fused: out, valid: true, status: "proved" as const } : i));
+        void announceRecorded([out.proof]);
+      } catch (e) {
+        if (e instanceof FuseTooLargeError) tooLarge.push(t); else throw e;
+      }
+      done += rowsOf([t.digestB64]);
+      setProveProgress({ current: done, total: toProve.length });
+      await tick();
+    };
     try {
-      for (let n = 0; n < toProve.length; n++) {
-        const t = toProve[n];
-        try {
-          const out = await fuseOne(t.file);
-          lastOut = out;
-          minted++;
-          setItems(prev => prev.map(i => i.digestB64 === t.digestB64 ? { ...i, proof: out.proof, proofs: [out.proof], kinds: ["fused" as const], fused: out, valid: true, status: "proved" as const } : i));
-          void announceRecorded([out.proof]);
-        } catch (e) {
-          if (e instanceof FuseTooLargeError) tooLarge.push(t); else throw e;
+      for (const set of plan.sets) {
+        if (set.length === 1) {
+          const t = itemOf.get(set[0]);
+          if (t) await fuseSolo(t);
+          continue;
         }
-        setProveProgress({ current: n + 1, total: toProve.length });
-        await new Promise((r) => setTimeout(r, 0));
+        // All or nothing: a set commits as one, so no member is ever shown
+        // proved on its own, and a set already made stays made when a later
+        // one in the same drop fails.
+        const out = await heldThroughRotation(() => fuseFiles(set));
+        const count = out.members.length;
+        // The rows this set covers, and ONLY this set's: the plan holds each
+        // digest once, so the set's digests name its rows and a row waiting
+        // on a later set is never flipped by this one.
+        const setDigests = new Set(set.flatMap((f) => { const t = itemOf.get(f); return t ? [t.digestB64] : []; }));
+        const byOrigin = new Map(out.members.map((m) => [m.originDigestB64, m] as const));
+        // Every row the set covers flips to the one shared proof. The same
+        // bytes dropped twice are one member, and both rows carry it.
+        // Nothing here keeps the fused bytes: the export rebuilds them.
+        setItems(prev => prev.map(i => {
+          const m = i.status === "proving" && setDigests.has(i.digestB64) ? byOrigin.get(i.digestB64) : undefined;
+          return m
+            ? { ...i, proof: out.proof, proofs: [out.proof], kinds: ["fused" as const], member: [{ index: m.manifestIndex, count, role: "origin" as const }], setMember: { member: m, manifestBytes: out.manifestBytes, count, proof: out.proof }, valid: true, status: "proved" as const }
+            : i;
+        }));
+        const rows = rowsOf(byOrigin.keys());
+        minted += rows;
+        done += rows;
+        setProveProgress({ current: done, total: toProve.length });
+        void announceRecorded([out.proof]);
+        await tick();
       }
       if (tooLarge.length) {
         await commitThroughRotation(() => beginRun(tooLarge.map((t) => t.digestB64)));
@@ -885,13 +992,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           minted += proofs.length;
           const chunkMap = new Map(chunk.map((t, i) => [t.digestB64, proofs[i]] as const));
           setItems(prev => prev.map(i => { const p = chunkMap.get(i.digestB64); return p ? { ...i, proof: p, proofs: [p], kinds: ["recorded" as const], valid: true, status: "proved" as const } : i; }));
+          // The label counts these rows too: it read "2 of 3" for the whole
+          // record path when it stopped at the fusable rows.
+          done += rowsOf(chunkMap.keys());
+          setProveProgress({ current: done, total: toProve.length });
           void announceRecorded(proofs);
         }
       }
-      if (items.length === 1 && minted === 1 && lastOut !== null) {
-        const proofDigest = lastOut.proof.artifact.digestB64;
-        const c = lastOut.proof.commit?.counter;
-        const epoch = lastOut.proof.commit?.epochId ? toUrlSafeB64(lastOut.proof.commit.epochId) : "";
+      if (items.length === 1 && minted === 1 && last.out !== null) {
+        const proofDigest = last.out.proof.artifact.digestB64;
+        const c = last.out.proof.commit?.counter;
+        const epoch = last.out.proof.commit?.epochId ? toUrlSafeB64(last.out.proof.commit.epochId) : "";
         const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
         void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
         router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
@@ -1137,30 +1248,44 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       // claims new-file/ only WITHIN an export. Only the flat case can arise
       // today, since a fuse leaves the file holding exactly the position it
       // just made, and the placement does not depend on that staying true.
+      //
+      // A member of a set made in this drop exports the same unit, its own:
+      // the original, new-file/ beside it, and proof.json = the SET proof with
+      // its manifest. The member's fused bytes were never kept; they are
+      // rebuilt HERE from the original, the proof's slot record and the row's
+      // placement, and a member that does not rebuild to its listed digest
+      // exports original + proof.json and never a wrong new file.
       const fusedOut = withProofs[i].fused;
-      if (fusedOut) {
+      const setOut = withProofs[i].setMember;
+      const madeHere = fusedOut?.proof ?? setOut?.proof;
+      if (madeHere) {
         const own = allPositions.length > 1
-          ? allPositions.find((pos) => pos.commit?.counter === fusedOut.proof.commit?.counter &&
-                                       pos.commit?.epochId === fusedOut.proof.commit?.epochId)
+          ? allPositions.find((pos) => pos.commit?.counter === madeHere.commit?.counter &&
+                                       pos.commit?.epochId === madeHere.commit?.epochId)
           : null;
         // Its own position, or the export root when the positions do not name
         // it: a home that is merely imprecise beats dropping the bytes.
         const dir = own?.commit?.counter ? `${prefix}bitgraph-${own.commit.counter}/` : prefix;
+        const fusedBytes = fusedOut
+          ? fusedOut.fusedBytes
+          : setOut ? (await rebuildSetMember(setOut.proof, fileBytes, f.name, setOut.manifestBytes)).fusedBytes : null;
         // No Frame: proof.json beside it already carries the same signed proof,
         // and the manifest a Frame adds is derivable from it apart from the new
         // file's name, which is this entry (Mike, 2026-09-03). That entry keeps
         // the original's own name and is told apart by its folder: it is the
         // same file plus 48 bytes, not a different thing.
-        const fusedEntry = new ZipPassThrough(`${dir}new-file/${f.name}`);
-        z.add(fusedEntry);
-        fusedEntry.push(fusedOut.fusedBytes, true);
+        if (fusedBytes) {
+          const fusedEntry = new ZipPassThrough(`${dir}new-file/${f.name}`);
+          z.add(fusedEntry);
+          fusedEntry.push(fusedBytes, true);
+        }
       }
       if (allPositions.length <= 1) {
         const fileEntry = new ZipPassThrough(`${prefix}${f.name}`);
         z.add(fileEntry);
         fileEntry.push(fileBytes, true);
         for (const pos of allPositions) {
-          addText(`${prefix}proof.json`, JSON.stringify(pos, null, 2));
+          addText(`${prefix}proof.json`, JSON.stringify(setOut ? withSetManifest(pos, setOut.manifestBytes) : pos, null, 2));
           singles.push(pos);
           built.push({ dir: prefix.replace(/\/$/, ""), fileName: f.name,
                        proof: pos as unknown as Record<string, unknown>, sides: sidesOf(prefix) });
@@ -1690,12 +1815,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 // listed here; an errored file shows a single row.
                 const rowProofs: Array<BitGraphProof | null> =
                   item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
-                const openProof = (p: BitGraphProof) => {
+                const openProof = (p: BitGraphProof, k: number) => {
                   // Same-tab navigation: the recordings also live in the explorer/
                   // Ledger, so leaving this page loses nothing. Use the proof's digest
                   // (from TEE) for the URL, not the browser-computed hash;
                   // ?counter=&epoch= pins THIS row's causal position.
-                  const proofDigest = p.artifact.digestB64;
+                  // A member of a set is the exception: its proof's digest is the
+                  // manifest's, one page for N files, so the row opens by the bytes
+                  // in hand (the member's origin, or its new file), and the page
+                  // finds the cached bytes under exactly the digest it was asked for.
+                  const asMember = !!item.setMember || !!item.member?.[k];
+                  const proofDigest = asMember && item.digestB64 ? item.digestB64 : p.artifact.digestB64;
                   const c = p.commit?.counter;
                   const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
                   const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
@@ -1732,8 +1862,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     key={`${item.file.name}-${counter ?? "pending"}-${k}`}
                     role={clickable ? "button" : undefined}
                     tabIndex={clickable ? 0 : undefined}
-                    onClick={clickable ? () => openProof(p) : undefined}
-                    onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(p); } } : undefined}
+                    onClick={clickable ? () => openProof(p, k) : undefined}
+                    onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(p, k); } } : undefined}
                     className={`bitgraph-result-row${clickable ? " bitgraph-file-row" : ""}`}
                     style={{
                       display: "flex", alignItems: "center", gap: 12,
@@ -1783,8 +1913,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                       // more than one, each keeps its ordinal and the earliest says so.
                       // "original" is reserved for the file a new file was made from.
                       const count = rowProofs.length;
-                      if (count <= 1) return null;
-                      return <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>({k + 1} of {count}{k === 0 ? " · earliest" : ""})</span>;
+                      // A position held as one member of a set says so in the
+                      // same slot: "set of N", one label.
+                      const setOf = item.member?.[k]?.count ?? null;
+                      if (count <= 1 && setOf === null) return null;
+                      const ordinal = count > 1 ? `(${k + 1} of ${count}${k === 0 ? " · earliest" : ""})` : "";
+                      return <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>{[ordinal, setOf !== null ? `set of ${setOf}` : ""].filter(Boolean).join(" ")}</span>;
                     })()}
                     {/* Whose key is on this recording, when one is. Read off
                         the proof itself, never assumed from the page: a name
@@ -1870,6 +2004,27 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
         : await findMatchInDrop(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }));
       setCheckedCount(checked);
       if (!match) {
+        // A set proof is met with ONE MEMBER in hand: the original a member
+        // was made from, or its new file. Find the file that hashes to any
+        // digest the bound manifest lists, then let the verifier place it:
+        // rebuilt from the original, or the new file read directly.
+        if (isSetProof(proof)) {
+          const bound = await bindSet(proof as unknown as Record<string, unknown>);
+          const digests = new Set<string>();
+          for (const m of bound?.members ?? []) { digests.add(m.originDigestB64); digests.add(m.fusedDigestB64); }
+          if (bound && digests.size) {
+            const hit = Array.isArray(source)
+              ? await findAnyMatchInFiles(source, digests, (done, total) => setProgress({ done, total }))
+              : await findAnyMatchInDrop(source, digests, (done, total) => setProgress({ done, total }));
+            if (hit.match) {
+              const r = await rebuildSetMember(proof, new Uint8Array(await hit.match.arrayBuffer()), hit.match.name, bound.bytes);
+              const c = r.verification.category;
+              if (c === "SET_MEMBER_FROM_ORIGIN" || c === "SET_MEMBER_DIRECT") { onMatched(hit.match); return; }
+            }
+          }
+          setState("mismatch");
+          return;
+        }
         // A fused proof is usually met with the ORIGINAL in hand. Find the
         // file that hashes to the signed origin digest, rebuild the fused
         // bytes with the registered placement, and accept it only when the

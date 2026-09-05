@@ -14,6 +14,7 @@ import {
   PAGE_ROWS, pageKey, dayIndexKey, paginate, isSealedDay,
   coverageOf, findPageGaps, mergeRows, endOfDayClaim, type DayIndex, type LedgerRow,
 } from "../ledger-archive.ts";
+import { setRowLabel } from "../explorer.ts";
 
 const row = (c: number, t: LedgerRow["t"] = "p", ep?: string): LedgerRow => ({ c, t, d: `d${c}`, h: `h${c}`, ...(ep ? { ep } : {}) });
 const index = (over: Partial<DayIndex> = {}): DayIndex => ({
@@ -162,4 +163,11 @@ test("no declaration claims nothing, however the paging ended", () => {
   // against, so completeness is not a statement this client gets to make.
   assert.equal(endOfDayClaim(25, null, false), "undeclared");
   assert.equal(endOfDayClaim(0, null, true), "undeclared");
+});
+
+test("the Ledger row's tag reads file, set of N, or set, from a package-free helper", () => {
+  assert.equal(setRowLabel(undefined), "file");
+  assert.equal(setRowLabel(50), "set of 50");
+  assert.equal(setRowLabel(3), "set of 3");
+  assert.equal(setRowLabel(0), "set", "a set whose count is unreadable");
 });

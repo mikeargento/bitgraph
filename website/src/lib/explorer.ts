@@ -47,6 +47,15 @@ export function b64ToHex(b64: string): string {
     .join("");
 }
 
+/**
+ * The Ledger row's tag for a proof that is neither an anchor nor an interval:
+ * "file", "set of N", or "set" when the count is unreadable. Lives here, in
+ * the package-free helpers, so the Ledger's client chunk carries no verifier.
+ */
+export function setRowLabel(set: number | undefined): string {
+  return set === undefined ? "file" : set > 0 ? `set of ${set}` : "set";
+}
+
 /** Enforcement tier display label */
 export function enforcementLabel(enforcement: string): string {
   switch (enforcement) {

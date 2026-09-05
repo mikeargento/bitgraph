@@ -11,7 +11,8 @@
  *
  *   1. bytes vs proof     hash the artifact, compare to proof.json's digest;
  *                         a fused export is settled by its ORIGINAL, rebuilt
- *                         with the registered placement
+ *                         with the registered placement; a set member the
+ *                         same way, through the manifest its proof carries
  *   2. proof vs ledger    the ledger's copy at the CLAIMED position
  *   3. anchors vs chain   the folder's anchor + witness files against the
  *                         ledger's window for that position
@@ -34,6 +35,12 @@
  * the export, not a loose file in the drop: treating it as one both robbed
  * the export of the only bytes that hash to its proof and left a second,
  * unrelated card sitting under the row.
+ *
+ * A set (N files under one slot, placement set/1) exports one such unit per
+ * member, each carrying the SAME proof.json: the set proof, whose signed
+ * digest is the manifest of every member's fused digest and whose metadata
+ * carries that manifest. No file in the unit hashes to the digest; a member
+ * is judged by the manifest, and the manifest by hashing to the signature.
  */
 
 import {
@@ -45,11 +52,27 @@ import {
 } from "./bitgraph";
 import { toUrlSafeB64 } from "./explorer";
 import { blockTimeFromHeader } from "./export-pages";
-import { readFuseAttribution, verifyFuse, type BitGraphProof as VerifyProof } from "@mikeargento/bitgraph-verify";
+import {
+  FUSE_ATTRIBUTION_NAME,
+  SET_PLACEMENT_ID,
+  readFuseAttribution,
+  readSetMetadata,
+  verifyFuse,
+  verifyFuseMember,
+  type BitGraphProof as VerifyProof,
+} from "@mikeargento/bitgraph-verify";
 
 /* The site keeps its own looser proof type (version: string); the reader
  * package narrows it. Same cast fuse-client.ts makes, for the same reason. */
 const asVerify = (proof: BitGraphProof): VerifyProof => proof as unknown as VerifyProof;
+
+/* A set proof, by its signed marker only: the profile id as the attribution
+ * name and the set placement as the title. Nothing unsigned (the metadata
+ * manifest) decides this; the manifest is read only once the proof says it
+ * is a set, and then only through verifyFuseMember, which binds it to the
+ * signed digest before reading a row. */
+const isSetProof = (proof: BitGraphProof): boolean =>
+  proof.attribution?.name === FUSE_ATTRIBUTION_NAME && proof.attribution?.title === SET_PLACEMENT_ID;
 
 /* ── Walking the dropped tree ── */
 
@@ -256,7 +279,8 @@ export interface ExportCandidate {
   proofFile: File;
   /** Files directly in the export dir that are not machinery — normally
    *  exactly one, the artifact. For a fused recording this is the ORIGINAL:
-   *  what the proof commits is `newFile` below. */
+   *  what the proof commits is `newFile` below. For a set member it is the
+   *  member's original, and what the proof commits is the set's manifest. */
   artifactCandidates: File[];
   /** new-file/<name>, for a fused export: the bytes the proof's digest
    *  describes. Absent from an export whose keeper kept only the original,
@@ -364,22 +388,37 @@ export function discoverDrop(walked: WalkedFile[]): DropScan {
 
 /* ── Find a file by digest in a drop ── */
 
-/** Hash files until one matches `digestB64`. Short-circuits on the match;
- *  yields between files so the UI paints and Safari reclaims buffers. */
-export async function findMatchInFiles(
+/** Hash files until one's digest is in `digests` (standard base64, the
+ *  alphabet hashFile answers in). One hashing pass whatever the size of the
+ *  set: a set proof's page hands over every member's origin and fused digest
+ *  at once, and hashing a Pictures folder once per digest would be the cost.
+ *  Short-circuits on the match; yields between files so the UI paints and
+ *  Safari reclaims buffers. `digest` names which one matched. */
+export async function findAnyMatchInFiles(
   files: File[],
-  digestB64: string,
+  digests: ReadonlySet<string>,
   onProgress?: (done: number, total: number) => void,
-): Promise<{ match: File | null; checked: number }> {
+): Promise<{ match: File | null; digest: string | null; checked: number }> {
   let done = 0;
   for (const f of files) {
     const d = await hashFile(f).catch(() => null);
     done++;
     onProgress?.(done, files.length);
-    if (d === digestB64) return { match: f, checked: done };
+    if (d !== null && digests.has(d)) return { match: f, digest: d, checked: done };
     await new Promise((r) => setTimeout(r, 0));
   }
-  return { match: null, checked: done };
+  return { match: null, digest: null, checked: done };
+}
+
+/** Hash files until one matches `digestB64`. The one-digest form of
+ *  findAnyMatchInFiles, which is what every existing caller wants. */
+export async function findMatchInFiles(
+  files: File[],
+  digestB64: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ match: File | null; checked: number }> {
+  const { match, checked } = await findAnyMatchInFiles(files, new Set([digestB64]), onProgress);
+  return { match, checked };
 }
 
 /** The "find it for me" version of the file-match check: a drop may hold many
@@ -418,19 +457,30 @@ export function captureDrop(dt: DataTransfer): CapturedDrop {
   return { entries: entriesFromDataTransfer(dt), files: Array.from(dt.files) };
 }
 
-export async function findMatchInDrop(
+export async function findAnyMatchInDrop(
   captured: CapturedDrop,
-  digestB64: string,
+  digests: ReadonlySet<string>,
   onProgress?: (done: number, total: number) => void,
   /** Running file count while the folder is being READ, before hashing can
    *  begin. Dropping a Pictures folder here is the case this box is for, and
    *  the read is the longest silent stretch of it. */
   onWalk?: (files: number) => void,
-): Promise<{ match: File | null; checked: number }> {
+): Promise<{ match: File | null; digest: string | null; checked: number }> {
   const files = captured.entries
     ? (await walkEntries(captured.entries, onWalk)).map((w) => w.file)
     : captured.files;
-  return findMatchInFiles(files, digestB64, onProgress);
+  return findAnyMatchInFiles(files, digests, onProgress);
+}
+
+/** The one-digest form of findAnyMatchInDrop. */
+export async function findMatchInDrop(
+  captured: CapturedDrop,
+  digestB64: string,
+  onProgress?: (done: number, total: number) => void,
+  onWalk?: (files: number) => void,
+): Promise<{ match: File | null; checked: number }> {
+  const { match, checked } = await findAnyMatchInDrop(captured, new Set([digestB64]), onProgress, onWalk);
+  return { match, checked };
 }
 
 /* ── The check itself ── */
@@ -519,6 +569,31 @@ async function parseJsonFile(f: File): Promise<Record<string, unknown> | null> {
   } catch {
     return null;
   }
+}
+
+/** Side 1 for a set proof: the member beside proof.json, judged through the
+ *  manifest. verifyFuseMember binds the manifest first (strict parse, hash
+ *  to the signed digest, commitment to the slot record) and only then reads
+ *  a row, so a forged or tampered manifest can never name a member. The
+ *  ORIGINAL settles the row (SET_MEMBER_FROM_ORIGIN: rebuilt with the row's
+ *  placement, the rebuild has to reproduce the row's fused digest); new-file/
+ *  answers (SET_MEMBER_DIRECT) only when no original is present, the direct
+ *  pass's rule, so an intact new-file/ never carries a corrupted original to
+ *  green. Yields between files as the other passes do. Null when nothing in
+ *  the unit is a member. */
+async function findSetMember(proof: BitGraphProof, cand: ExportCandidate): Promise<File | null> {
+  const fromOrigin = cand.artifactCandidates.length > 0;
+  const files = fromOrigin ? cand.artifactCandidates : cand.newFile ? [cand.newFile] : [];
+  const accepted = fromOrigin ? "SET_MEMBER_FROM_ORIGIN" : "SET_MEMBER_DIRECT";
+  for (const f of files) {
+    const bytes = await f.arrayBuffer().catch(() => null);
+    if (bytes) {
+      const v = await verifyFuseMember({ proof: asVerify(proof), bytes: new Uint8Array(bytes) }).catch(() => null);
+      if (v?.category === accepted) return f;
+    }
+    await new Promise((res) => setTimeout(res, 0));
+  }
+  return null;
 }
 
 /* ── The check itself: instant rows, streaming verification ──
@@ -754,13 +829,33 @@ export function startFolderCheck(
       // Side 1 — bytes vs proof. The artifact is whichever candidate matches;
       // one candidate that does not match is the headline tamper case.
       //
+      // A set proof commits the manifest of its members' fused digests, so
+      // nothing in the unit hashes to it: the member is settled through the
+      // manifest, which proof.json carries UNSIGNED in its metadata and which
+      // binds only by hashing to the signed digest. First, because for a
+      // member's bytes the fused pass below answers NO_MATCH. Once settled,
+      // the row falls through to side 2 and the other passes are skipped.
+      if (isSetProof(w.proof)) {
+        if (readSetMetadata(asVerify(w.proof)) === null) {
+          // Reserved for the ABSENT manifest. A tampered one is present and
+          // fails to bind underneath, which reads as differing bytes: a
+          // forged manifest never earns the softer sentence.
+          w.failure = "proof.json carries no set manifest";
+          return;
+        }
+        const member = await findSetMember(w.proof, w.cand);
+        if (!member) { w.failure = "bytes differ from the proof"; return; }
+        w.matchedFile = member;
+        w.artifactFile = member;
+        w.fileName = member.name;
+      }
       // A fused proof commits the NEW file's digest, so the original beside
       // proof.json can never match it by hash. It settles this side the other
       // way round: the registered placement rebuilds the new bytes from it,
       // and the rebuild has to reproduce the committed digest. Tried first,
       // so a package holding both files is judged — and thumbnailed, and
       // handed to the proof page — by the file its keeper actually has.
-      if (readFuseAttribution(asVerify(w.proof))) {
+      if (!w.matchedFile && readFuseAttribution(asVerify(w.proof))) {
         for (const f of w.cand.artifactCandidates) {
           const bytes = await f.arrayBuffer().catch(() => null);
           if (bytes) {

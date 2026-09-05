@@ -6,7 +6,7 @@ import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams } from "next/navigation";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
-import { findMatchInDrop, findMatchInFiles, captureDrop, type CapturedDrop } from "@/lib/folder-check";
+import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
@@ -15,7 +15,9 @@ import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/l
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
-import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError } from "@/lib/fuse-client";
+import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember } from "@/lib/fuse-client";
+import { SET_KEY, bindSet, isSetProof, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
+import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
 
@@ -23,6 +25,14 @@ const mono = "var(--font-mono), 'SF Mono', SFMono-Regular, monospace";
 
 // Standard base64 -> url-safe, for comparing epoch ids against URL params.
 const toSafeB64 = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+// A set proof's manifest is read here only once BOUND (bindSet: strict parse,
+// hashed to the signed artifact digest and to the slot's commitment).
+// Everything on this page that lists members, names a member's hashes or
+// searches a drop for a member reads from that, never from the raw metadata,
+// which is unsigned. The site's proof type is an interface; the set helpers
+// take the plain record.
+const asRecord = (p: BitGraphProof) => p as unknown as Record<string, unknown>;
 
 // The two-sided ETH anchor window as a compact phrase, matching the lead
 // "Recorded" card: "between X and Y on DATE" when both bounds share a day, a
@@ -111,10 +121,35 @@ export default function ProofPage() {
   // reconstruction) or the new file itself. Names the export action; an
   // ordinary recording has one file and needs no role.
   const [cachedRole, setCachedRole] = useState<"original" | "new" | null>(null);
+  // A set proof (placement set/1) commits a manifest of N members under one
+  // slot. Bound once the proof is in hand; null for everything else, and for
+  // a set whose manifest is missing or does not hash to the signed digest.
+  const [setBound, setSetBound] = useState<BoundSet | null>(null);
+  useEffect(() => {
+    if (!proof || !isSetProof(proof)) { setSetBound(null); return; }
+    let cancelled = false;
+    void bindSet(asRecord(proof)).then((b) => { if (!cancelled) setSetBound(b); }).catch(() => { if (!cancelled) setSetBound(null); });
+    return () => { cancelled = true; };
+  }, [proof]);
+  // The manifest row the file in hand belongs to, when this is a set proof:
+  // named by the verifier, which is also what decides the role below.
+  const [heldMember, setHeldMember] = useState<SetMemberRow | null>(null);
   useEffect(() => {
     const marker = (proof?.attribution as { name?: string; message?: string } | undefined);
-    if (!cachedFile || !proof || marker?.name !== "bitgraph-fuse/1") { setCachedRole(null); return; }
+    if (!cachedFile || !proof || marker?.name !== "bitgraph-fuse/1") { setCachedRole(null); setHeldMember(null); return; }
     let cancelled = false;
+    if (isSetProof(proof)) {
+      // A member's original is accepted by reconstruction, its new file
+      // directly; one verifier pass tells them apart and names the row.
+      void unpackSetMember(proof, new Uint8Array(cachedFile.data), cachedFile.name).then((u) => {
+        if (cancelled) return;
+        const c = u.verification.category;
+        setCachedRole(c === "SET_MEMBER_FROM_ORIGIN" ? "original" : c === "SET_MEMBER_DIRECT" ? "new" : null);
+        setHeldMember(u.member);
+      }).catch(() => { if (!cancelled) { setCachedRole(null); setHeldMember(null); } });
+      return () => { cancelled = true; };
+    }
+    setHeldMember(null);
     void hashBytes(new Uint8Array(cachedFile.data)).then((h) => {
       if (cancelled) return;
       setCachedRole(h === marker.message ? "original" : h === proof.artifact.digestB64 ? "new" : null);
@@ -327,9 +362,18 @@ export default function ProofPage() {
               try { matches = (await hashBytes(new Uint8Array(file.data))) === digestB64; } catch { matches = false; }
               // A fused proof (profile bitgraph-fuse/1) is usually remembered
               // with the ORIGINAL, which never hashes to the artifact digest:
-              // accept it when it rebuilds the committed fused bytes.
+              // accept it when it rebuilds the committed fused bytes. A set
+              // proof is remembered under a MEMBER's digest: accept its
+              // original by reconstruction or its new file directly.
               if (!matches && p && fusedMarkerOf(p) !== null) {
-                try { matches = (await rebuildFromOrigin(p, new Uint8Array(file.data), file.name)).verification.category === "FUSED_FROM_ORIGIN"; } catch { matches = false; }
+                if (isSetProof(p)) {
+                  try {
+                    const c = (await unpackSetMember(p, new Uint8Array(file.data), file.name)).verification.category;
+                    matches = c === "SET_MEMBER_FROM_ORIGIN" || c === "SET_MEMBER_DIRECT";
+                  } catch { matches = false; }
+                } else {
+                  try { matches = (await rebuildFromOrigin(p, new Uint8Array(file.data), file.name)).verification.category === "FUSED_FROM_ORIGIN"; } catch { matches = false; }
+                }
               }
               if (!matches) { void dropCached(); break; }
               validated = true;
@@ -462,6 +506,12 @@ export default function ProofPage() {
   // user submission. It gets its own card (not "Submitter's Note") and, like an
   // anchor, carries no user file.
   const isInterval = attr?.name === "Interval";
+  // A set proof: N files under one slot, the manifest of their digests the
+  // committed artifact. The page is reached by the manifest digest, a member's
+  // original digest or a member's new-file digest; the row it describes is the
+  // file in hand when there is one, else the row the URL digest names.
+  const isSet = isSetProof(proof);
+  const viewingRow: SetMemberRow | null = heldMember ?? (setBound ? memberOf(setBound, stdDigest(digestParam)) : null);
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
 
@@ -653,8 +703,14 @@ export default function ProofPage() {
     if (exporting) return;
     setExporting(true);
     try {
+    // A set proof travels WITH its manifest: proof.json is what a member's
+    // export verifies against, and the manifest is what names the member.
+    // The route's copy carries it; if it does not, the bound copy is attached.
+    const proofOut = proof && isSet && setBound && proof.metadata?.[SET_KEY] === undefined
+      ? { ...proof, metadata: { ...(proof.metadata ?? {}), [SET_KEY]: setBound.manifest } }
+      : proof;
     const files: Record<string, Uint8Array> = {
-      "proof.json": strToU8(JSON.stringify(proof, null, 2)),
+      "proof.json": strToU8(JSON.stringify(proofOut, null, 2)),
     };
     // No Frame in the package (Mike, 2026-09-03: "this is the correct proof").
     // A Frame is { type, manifest, proof }, and the proof inside it is byte for
@@ -679,7 +735,23 @@ export default function ProofPage() {
       // it sits in (Mike, 2026-09-03). It is the same picture plus 48 bytes, so
       // a second name would imply a second thing. "fused" is gone from the
       // package too: Fuse is a working name and an export is permanent.
-      if (attr?.name === "bitgraph-fuse/1" && cachedRole === "new") {
+      if (isSet && cachedRole === "new") {
+        // A set member's new file: the original back out of it, beside it.
+        const u = await unpackSetMember(packProof, bytes, cachedFile.name, setBound?.bytes ?? null);
+        const name = u.originalName ?? cachedFile.name;
+        files[`new-file/${name}`] = bytes;
+        if (u.originalBytes && u.originalName) {
+          files[u.originalName] = u.originalBytes;
+          packLabel = u.originalName;
+        }
+      } else if (isSet) {
+        // A set member's original: its new file rebuilt from the row's
+        // placement and the set's slot commitment, only when the rebuild
+        // hashes to the row's listed digest. Never a wrong new-file.
+        files[cachedFile.name] = bytes;
+        const r = await rebuildSetMember(packProof, bytes, cachedFile.name, setBound?.bytes ?? null);
+        if (r.fusedBytes) files[`new-file/${cachedFile.name}`] = r.fusedBytes;
+      } else if (attr?.name === "bitgraph-fuse/1" && cachedRole === "new") {
         const u = await unpackNewFile(packProof, bytes, cachedFile.name);
         const name = u.originalName ?? cachedFile.name;
         files[`new-file/${name}`] = bytes;
@@ -897,7 +969,7 @@ export default function ProofPage() {
                 <FileCard cachedFile={cachedFile} />
               ) : (
                 <div style={{ padding: 16 }}>
-                  <BringYourFile proof={proof} onMatch={(rec) => setCachedFile(rec)} />
+                  <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} />
                 </div>
               )}
               {/* The fingerprint lives with the file: this SHA-256 IS the file's
@@ -935,10 +1007,56 @@ export default function ProofPage() {
                 the card above (Mike, 2026-09-03). New file first. The original is
                 plain, not a link: it has no position of its own. Both are what a
                 dropped file is checked against. */}
+            {/* A set proof's artifact is the manifest, so its hash is the Set
+                hash. A member (the file in hand, or the row the URL digest
+                names) adds its own two, read from the BOUND manifest. */}
             {attr?.name === "bitgraph-fuse/1" && (
               <CollapsibleCard title="Hashes">
-                <Field label="New file hash" value={proof.artifact.digestB64} mono />
-                <Field label="Original file hash" value={attr.message ?? "not declared"} mono />
+                {isSet ? (
+                  <>
+                    {viewingRow && <Field label="New file hash" value={viewingRow.fusedDigestB64} mono />}
+                    {viewingRow && <Field label="Original file hash" value={viewingRow.originDigestB64} mono />}
+                    <Field label="Set hash" value={proof.artifact.digestB64} mono />
+                  </>
+                ) : (
+                  <>
+                    <Field label="New file hash" value={proof.artifact.digestB64} mono />
+                    <Field label="Original file hash" value={attr.message ?? "not declared"} mono />
+                  </>
+                )}
+              </CollapsibleCard>
+            )}
+            {/* The set's members, in manifest order, from the bound manifest
+                only. Each row is a position-row: ordinal, the placement that
+                carries the commitment, the original's digest. The member in
+                hand (or the one the URL names) reads Viewing; every other
+                opens its own page at this same position, by its original's
+                digest, the way the camera opens a member. */}
+            {setBound && (
+              <CollapsibleCard title={`Set (${setBound.members.length})`}>
+                {setBound.members.map((m, i) => {
+                  const isHeld = viewingRow !== null && viewingRow.index === m.index;
+                  return (
+                    <div key={m.index} className="causal-row" style={{ borderBottom: "1px solid #e2e5e9" }}>
+                      <div className="causal-top">
+                        <span className="causal-label" style={{ color: "var(--c-accent)" }}>{i + 1} of {setBound.members.length}</span>
+                        {isHeld ? (
+                          <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>
+                        ) : (
+                          <a
+                            className="causal-action bg-arrow-link"
+                            href={`/proof/${encodeURIComponent(toUrlSafeB64(m.originDigestB64))}?counter=${encodeURIComponent(commit.counter ?? "")}${commit.epochId ? `&epoch=${encodeURIComponent(toSafeB64(String(commit.epochId)))}` : ""}`}
+                            style={{ color: "var(--c-accent)", textDecoration: "none" }}
+                          >
+                            View <span className="arrow" aria-hidden>&rarr;</span>
+                          </a>
+                        )}
+                      </div>
+                      <div className="causal-role" style={{ fontFamily: mono }}>{m.placement}</div>
+                      <div className="causal-window" style={{ fontFamily: mono }}>{truncateHash(m.originDigestB64, 12)}</div>
+                    </div>
+                  );
+                })}
               </CollapsibleCard>
             )}
             </>
@@ -1477,9 +1595,18 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
 
 function BringYourFile({
   proof,
+  setBound,
+  cacheKey,
   onMatch,
 }: {
   proof: BitGraphProof;
+  /** The bound set manifest when this is a set proof: a drop is searched for
+   *  every member's original and new-file digest, not only the artifact's. */
+  setBound: BoundSet | null;
+  /** The page's own digest (standard base64), the IndexedDB key the page
+   *  reads a remembered file back from. A set member's page is reached by the
+   *  member's digest, which is not the proof's artifact digest. */
+  cacheKey: string;
   onMatch: (rec: { name: string; data: ArrayBuffer; c2pa: C2PAReadResult | null; c2paChecked: boolean }) => void;
 }) {
   const [state, setState] = useState<"idle" | "reading" | "checking" | "mismatch">("idle");
@@ -1521,6 +1648,22 @@ function BringYourFile({
           );
       setCheckedCount(checked);
       if (!match) {
+        // A set proof's page is reached with ONE member in hand, its original
+        // or its new file. One hashing pass over the drop against every
+        // member's two digests finds it; the verifier then accepts the
+        // original by reconstruction or the new file directly.
+        if (setBound) {
+          const digests = new Set<string>();
+          for (const m of setBound.members) { digests.add(m.originDigestB64); digests.add(m.fusedDigestB64); }
+          const hit = Array.isArray(source)
+            ? await findAnyMatchInFiles(source, digests)
+            : await findAnyMatchInDrop(source, digests);
+          if (hit.match) {
+            const u = await unpackSetMember(proof, new Uint8Array(await hit.match.arrayBuffer()), hit.match.name, setBound.bytes);
+            const c = u.verification.category;
+            if (c === "SET_MEMBER_FROM_ORIGIN" || c === "SET_MEMBER_DIRECT") { await accept(hit.match); return; }
+          }
+        }
         // A fused proof's page is reached with the ORIGINAL in hand. Find the
         // file that hashes to the signed origin digest, rebuild the fused bytes
         // with the registered placement, and accept it only when the
@@ -1562,7 +1705,7 @@ function BringYourFile({
           req.onerror = () => rej(req.error);
         });
         const tx = db.transaction("files", "readwrite");
-        tx.objectStore("files").put({ name: file.name, data, c2pa, c2paChecked: true }, proof.artifact.digestB64);
+        tx.objectStore("files").put({ name: file.name, data, c2pa, c2paChecked: true }, cacheKey);
         await new Promise((r, j) => { tx.oncomplete = () => r(null); tx.onerror = () => j(tx.error); });
         db.close();
       } catch (e) { console.warn("[bitgraph] cache write failed:", e); }

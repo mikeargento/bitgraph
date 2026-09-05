@@ -1,3 +1,4 @@
+import "./fuse-set.test.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FUSE_ATTRIBUTION_NAME, fusedOriginDigestOf, isFusedProof, isSlotRecord, secondsUntilRotation, rotationGuardActive } from "../fuse-core.ts";

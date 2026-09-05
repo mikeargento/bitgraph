@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { takeWarm, LEDGER_FEED_KEY } from "@/lib/warm";
 import { endOfDayClaim } from "@/lib/ledger-archive";
+import { setRowLabel } from "@/lib/explorer";
 
 type Entry = {
   counter: number;
@@ -16,6 +17,8 @@ type Entry = {
   // URL-safe epochId. Day days can span epochs and counters repeat across
   // them, so identity and proof links use (epoch, counter), not counter alone.
   ep?: string;
+  // A set proof's member count: the row reads "set of N" instead of "file".
+  set?: number;
 };
 
 type FeedResp = {
@@ -559,7 +562,9 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
           // Interval recurrences are the same bytes as an anchor 25 anchors
           // back, re-committed at a new position: distinct label + violet so
           // they read differently from anchors (gray) and files (blue).
-          const tagLabel = isAnchor ? "anchor" : isInterval ? "interval" : "file";
+          // A set proof (N files under one slot) reads "set of N"; same
+          // colour and weight as "file", one label and nothing else new.
+          const tagLabel = isAnchor ? "anchor" : isInterval ? "interval" : setRowLabel(e.set);
           const tagColor = isAnchor ? "#4b5563" : isInterval ? "#7c3aed" : "#0065A4";
           const tagWeight = isAnchor ? 400 : 600;
           // ?counter=&epoch= pin the drill-in to THIS row's causal position;

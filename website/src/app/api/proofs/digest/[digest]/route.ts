@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fusedOriginDigestOf, isFusedProof } from "@/lib/fuse-core";
+import { bindSet, isSetProof, memberOf } from "@/lib/fuse-set";
 import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 
@@ -123,17 +124,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
         toUrlSafeB64((e.proof.artifact as { digestB64?: string } | undefined)?.digestB64 ?? "") ===
           toUrlSafeB64(standardB64)
     );
+    // A set member's NEW file names its origin through the set's manifest
+    // rather than a signed message, so the widening reads the bound manifest
+    // (hydrated by the index) and takes the row's origin. An origin match wins
+    // in memberOf, so bytes that are both an origin and a member's fused
+    // bytes already sit on the origin's list and widen nowhere.
+    let originB64: string | null = null;
     if (selfFused) {
-      const originB64 = fusedOriginDigestOf(selfFused.proof);
-      if (originB64) {
-        try {
-          const originEntries = await getProofsByDigest(originB64);
-          // Never shrink the list: a widening that came back short (a lagging
-          // index, a partial read) leaves the page saying exactly what it said
-          // before this existed.
-          if (originEntries.length > positionEntries.length) positionEntries = originEntries;
-        } catch { /* keep the artifact's own list */ }
+      originB64 = fusedOriginDigestOf(selfFused.proof);
+    } else {
+      const asMember = all.find((e) => e.member?.role === "fused");
+      if (asMember) {
+        const bound = await bindSet(asMember.proof);
+        const row = bound ? memberOf(bound, standardB64) : null;
+        if (row?.role === "fused") originB64 = row.originDigestB64;
       }
+    }
+    if (originB64) {
+      try {
+        const originEntries = await getProofsByDigest(originB64);
+        // Never shrink the list: a widening that came back short (a lagging
+        // index, a partial read) leaves the page saying exactly what it said
+        // before this existed.
+        if (originEntries.length > positionEntries.length) positionEntries = originEntries;
+      } catch { /* keep the artifact's own list */ }
     }
 
     // The two-sided ETH anchor window for one counter+epoch. NOTE the naming
@@ -165,6 +179,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
       catch { return { anchorBefore: null, anchorAfter: null }; }
     }));
 
+    // A set entry's member count, from the manifest the index hydrated and
+    // bindSet bound (hash to the signed digest, commitment to the slot);
+    // absent when the entry could not be bound, never guessed from raw metadata.
+    const setCounts = await Promise.all(positionEntries.map(async (e) =>
+      isSetProof(e.proof) ? (await bindSet(e.proof))?.members.length ?? null : null));
+
     const positions = positionEntries.map((e, idx) => {
       const c = e.proof.commit as { counter?: string; epochId?: string } | undefined;
       const w = positionWindows[idx];
@@ -182,6 +202,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
         // origin, whichever digest was looked up: the origin's page lists it
         // as a descendant, the fused artifact's own page shows where it came from.
         ...(isFusedProof(e.proof) ? { placement: attr?.title ?? null, fusedOrigin: (() => { const o = fusedOriginDigestOf(e.proof); return o ? toUrlSafeB64(o) : null; })() } : {}),
+        // For a set member's entry: the row these bytes are (origin or fused
+        // bytes, one of N); for any set entry: how many members it lists.
+        ...(e.member ? { member: e.member } : {}),
+        ...(setCounts[idx] !== null ? { setCount: setCounts[idx] } : {}),
       };
     });
 

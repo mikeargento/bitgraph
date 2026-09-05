@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { storeProofByDigest, getProofByDigest, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
 import { TEE_URL, teeRestarting503 } from "@/lib/anchor-gate";
 import { FUSE_ATTRIBUTION_NAME, FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isDigestB64, isSlotRecord, retryAfterHeaders } from "@/lib/fuse";
+import { SET_KEY, SET_TITLE, reconcileSetMetadata, validateSetCommit, type SetCommitOk } from "@/lib/fuse-set";
 
 export const dynamic = "force-dynamic";
+// A set's member index (one key per member, up to 4000 for the largest set)
+// is written inside this request, so the by-digest lookups that follow the
+// response see every member at once.
+export const maxDuration = 60;
 
 const MAX_TITLE = 64;
 const MAX_MESSAGE = 128;
@@ -20,11 +25,21 @@ const PRINTABLE = /^[\x20-\x7e]+$/;
  * (anchors only land at higher counters), so its failure is final for that
  * slot and the producer must allocate again.
  *
+ * A set (attribution.title "set/1") commits the canonical manifest of its
+ * members and carries that manifest, as a parsed object, under
+ * metadata["bitgraph-fuse/1"]. The manifest is verified here before the slot
+ * is spent (validateSetCommit), forwarded as its canonical parse, and the
+ * proof that comes back carries it whether or not the boundary echoed it:
+ * enclave v6 echoes metadata on a held-slot commit, v5 and older boundaries
+ * dropped it, and the site works under both. Metadata on any other title is
+ * refused.
+ *
  * The proxy forwards the body to the parent's /commit with the slotId, then
- * writes the by-digest index the parent does not (per-position entries and,
- * for fused proofs, the origin digest's descendants). It refuses to return a
- * proof minted under any slot other than the one named, so a downgrade to an
- * ordinary recording can never look like success.
+ * writes the by-digest index the parent does not (per-position entries, for
+ * fused proofs the origin digest's descendants, and for a set one key per
+ * member). It refuses to return a proof minted under any slot other than
+ * the one named, so a downgrade to an ordinary recording can never look
+ * like success.
  */
 export async function POST(req: NextRequest) {
   if (!FUSE_ENABLED) return fuseDisabled();
@@ -71,6 +86,21 @@ export async function POST(req: NextRequest) {
     const attribution: Record<string, string> = { name: FUSE_ATTRIBUTION_NAME, title: attr.title };
     if (typeof attr.message === "string" && attr.message.length > 0) attribution.message = attr.message;
 
+    // A set's manifest is verified BEFORE the anchor gate, the pre-read and
+    // the parent call, so a bad one costs no ledger read and no slot: exact
+    // shape without recursion, the size cap, the strict canonical round trip,
+    // the named slot's commitment, and the hash to the committed digest. The
+    // parent receives the canonical parse: value-identical to what the caller
+    // sent, in canonical key order, and free of any key the shape check did
+    // not admit.
+    const isSet = attr.title === SET_TITLE;
+    let verifiedSet: SetCommitOk | null = null;
+    if (isSet || body.metadata !== undefined) {
+      const v = await validateSetCommit({ title: attr.title, message: attr.message, metadata: body.metadata, digestB64, slot });
+      if (!v.ok) return NextResponse.json({ error: v.error }, { status: v.status });
+      verifiedSet = v;
+    }
+
     // Position-aware anchor-first gate: an anchor below N in the slot's epoch.
     let anchorBefore: Record<string, unknown> | null;
     try {
@@ -102,6 +132,7 @@ export async function POST(req: NextRequest) {
       attribution,
     };
     if (body.agency !== undefined) forward.agency = body.agency;
+    if (verifiedSet !== null) forward.metadata = { [SET_KEY]: verifiedSet.manifestObject };
 
     let teeRes: Response;
     try {
@@ -130,6 +161,20 @@ export async function POST(req: NextRequest) {
       // Never report success for a proof under any other slot.
       console.error("[api/fuse/commit] boundary returned a proof under a different slot");
       return NextResponse.json({ error: "The boundary did not commit under the named slot", code: "slot-mismatch" }, { status: 502 });
+    }
+
+    if (verifiedSet !== null) {
+      // The stored and returned proof carries the manifest verified above:
+      // attached when the boundary dropped it, kept when the boundary echoed
+      // the same bytes. A boundary that returned a DIFFERENT manifest is
+      // refused outright. Nothing about the manifest is logged beyond which
+      // of the two happened.
+      const outcome = reconcileSetMetadata(proof, verifiedSet);
+      if (outcome === "mismatch") {
+        console.error("[api/fuse/commit] boundary returned a different set manifest");
+        return NextResponse.json({ error: "The boundary returned a different set manifest", code: "manifest-mismatch" }, { status: 502 });
+      }
+      console.log("[api/fuse/commit] set manifest echoed=" + (outcome === "echoed"));
     }
 
     await storeProofByDigest(proof, priorLegacy);

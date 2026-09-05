@@ -8,6 +8,7 @@
 
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
+import { SET_KEY, bindSet, isSetProof, setIndexEntries, stripSetManifest, type BoundSet } from "@/lib/fuse-set";
 
 /**
  * Raised when the ledger could not be READ. It is not an answer about the
@@ -56,6 +57,36 @@ function getBucket() {
 
 function toSafe(b64: string): string {
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function isPlainObject(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null && !Array.isArray(x);
+}
+
+/** How many S3 calls one function keeps in flight for a set's member keys and for a lookup's position reads. */
+const POOL = 16;
+
+/**
+ * Run `fn` over `items` with at most `limit` in flight, results settled in
+ * item order. Nothing here throws: a rejection comes back as a settled
+ * result so the caller decides what a failure means (the index counts it,
+ * a lookup raises it).
+ */
+export async function runPool<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      try {
+        results[i] = { status: "fulfilled", value: await fn(items[i], i) };
+      } catch (reason) {
+        results[i] = { status: "rejected", reason };
+      }
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 // Warm-instance cache for the current epoch (a new epoch is born at counter 1
@@ -191,6 +222,8 @@ async function readLegacyDigest(digestB64: string, strict: boolean): Promise<Rec
  *     position, so the same bytes can be BitGraphed more than once and every
  *     position stays findable. Digests are fixed-length so the "/" sub-prefix
  *     can never collide with another digest's legacy key.
+ * A set proof additionally earns one position key per member digest, see
+ * indexSetMembers.
  */
 /**
  * @param priorLegacy The proof the legacy by-digest key held BEFORE this
@@ -278,9 +311,53 @@ export async function storeProofByDigest(proof: Record<string, unknown>, priorLe
       })));
     }
     await Promise.all(puts);
+    if (c?.epochId && c?.counter) await indexSetMembers(s3, bucket, proof, artifact.digestB64, c.epochId, c.counter);
   } catch (err) {
     console.error("[s3] storeProofByDigest failed:", (err as Error).message);
   }
+}
+
+/**
+ * The member keys of a set proof: one position entry per distinct member
+ * digest, so a lookup by a member's ORIGINAL bytes (bg-kind
+ * "fused-descendant": these bytes are the origin of a fused artifact under
+ * this proof, the same meaning the solo fused index gives it) or by its
+ * FUSED bytes (bg-kind "set-member": these exact bytes were fused under this
+ * proof as one of N) lists the set's position. bg-set-member carries the
+ * row as "i/N" and bg-set-digest names the set, so a reader can say "one of
+ * N" and find the set's own entry without opening the body.
+ *
+ * Every member entry carries the set proof WITHOUT its manifest and is
+ * hydrated on read from the set's own position key (hydrateSetMembers). A
+ * 2000-row manifest pretty-printed is ~700 KB, and copying it under up to
+ * 4000 member keys, permanently, under Object Lock, is not a cost a per-row
+ * convenience may incur.
+ *
+ * Only a BOUND set is indexed (bindSet: strict parse, hash equal to the
+ * signed artifact digest, commitment equal to the proof's own slot record),
+ * whatever route stored the proof: a set proof with forged or stripped
+ * metadata indexes nothing. Never a legacy key for a member. Failures are
+ * counted and logged, never thrown, which is this function's contract.
+ */
+async function indexSetMembers(s3: S3Client, bucket: string, proof: Record<string, unknown>, artifactDigestB64: string, epochId: string, counter: string): Promise<void> {
+  const bound = await bindSet(proof);
+  if (bound === null) {
+    if (isSetProof(proof)) console.log("[s3] set proof carries no bound manifest; members not indexed");
+    return;
+  }
+  const entries = setIndexEntries(bound, artifactDigestB64);
+  const body = JSON.stringify(stripSetManifest(proof), null, 2);
+  const position = `${toSafe(epochId)}-${String(counter).padStart(12, "0")}`;
+  const setDigest = toSafe(artifactDigestB64);
+  const results = await runPool(entries, POOL, (e) => s3.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: `by-digest/${toSafe(e.digestB64)}/${position}.json`,
+    Body: body,
+    ContentType: "application/json",
+    Metadata: { "bg-kind": e.kind, "bg-set-digest": setDigest, "bg-set-member": `${e.index}/${e.count}` },
+  })));
+  const failed = results.filter((r) => r.status === "rejected").length;
+  console.log(`[s3] set index wrote=${results.length - failed} failed=${failed}`);
 }
 
 export interface DigestProofEntry {
@@ -290,10 +367,112 @@ export interface DigestProofEntry {
   /**
    * "recorded": the proof commits exactly the looked-up bytes.
    * "fused": a fused artifact (profile bitgraph-fuse/1) that names the
-   * looked-up bytes as its origin; the bytes themselves were not committed
-   * by this proof. Descendants are listed, never ranked.
+   * looked-up bytes as its origin, or a set that lists them as a member's
+   * origin or fused bytes; the bytes themselves were not committed by this
+   * proof. Descendants are listed, never ranked.
    */
   kind: "recorded" | "fused";
+  /**
+   * Present on a set member's entry: which row of the set these bytes are,
+   * as the row's origin ("origin") or its fused bytes ("fused"), read from
+   * the headers the index write stamped.
+   */
+  member?: { index: number; count: number; role: "origin" | "fused" };
+  /**
+   * Present on a set member's entry: the set's own digest (url-safe), as the
+   * index stamped it. When the lookup ran with hydrate false the entry's
+   * proof lacks its manifest, and this names the set position that holds it
+   * (readSetPosition).
+   */
+  setDigest?: string;
+}
+
+/** One position read: the entry plus the set it belongs to, when the headers name one. */
+interface IndexedRead {
+  entry: DigestProofEntry;
+  /** bg-set-digest (url-safe), or null for anything that is not a set member entry. */
+  setDigest: string | null;
+}
+
+/** A set member entry's row, from the headers its index write stamped (see indexSetMembers). */
+function memberOfHeaders(metadata: Record<string, string> | undefined): { member?: DigestProofEntry["member"] } {
+  const kind = metadata?.["bg-kind"];
+  const m = /^(\d+)\/(\d+)$/.exec(metadata?.["bg-set-member"] ?? "");
+  if (m === null || (kind !== "set-member" && kind !== "fused-descendant")) return {};
+  return { member: { index: parseInt(m[1], 10), count: parseInt(m[2], 10), role: kind === "set-member" ? "fused" : "origin" } };
+}
+
+/**
+ * Member entries carry the set proof stripped of its manifest (see
+ * indexSetMembers). Put it back from the set's own position key, read once
+ * per distinct set position, and only when that copy BINDS and the entry
+ * binds to it in turn (bindSet on both): an unbound source leaves the group
+ * exactly as it was, which is never a verdict, only less to show. A source
+ * that cannot be READ raises, like any other hole in the answer; a source
+ * that does not EXIST leaves the group unhydrated, since a missing key is
+ * permanent and a lookup must not fail forever on it.
+ */
+const setPositionKey = (setDigestSafe: string, epochId: string, counter: string) =>
+  `by-digest/${setDigestSafe}/${toSafe(epochId)}-${String(counter).padStart(12, "0")}.json`;
+
+/**
+ * The set proof at its own position key, WITH its manifest, when that copy
+ * binds (bindSet). Null when the key does not exist or the copy does not
+ * bind; raises LedgerUnavailableError when it cannot be read.
+ */
+async function readBoundSetPosition(s3: S3Client, bucket: string, key: string): Promise<{ proof: Record<string, unknown>; bound: BoundSet } | null> {
+  let body: string | undefined;
+  try {
+    const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    body = await result.Body?.transformToString();
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    throw new LedgerUnavailableError(`set position ${key}`, err);
+  }
+  if (!body) return null;
+  const proof = JSON.parse(body) as Record<string, unknown>;
+  const bound = await bindSet(proof);
+  return bound === null ? null : { proof, bound };
+}
+
+/**
+ * A set's own position entry, bound, for a caller that looked members up
+ * with hydrate false and wants each distinct set ONCE (the batch route's
+ * side table) instead of a manifest copy per member row. setDigest is
+ * url-safe, as the entry's setDigest carries it. Null when absent or
+ * unbound; raises LedgerUnavailableError when unreadable.
+ */
+export async function readSetPosition(setDigest: string, epochId: string, counter: string): Promise<Record<string, unknown> | null> {
+  const r = await readBoundSetPosition(getClient(), getBucket(), setPositionKey(setDigest, epochId, counter));
+  return r?.proof ?? null;
+}
+
+async function hydrateSetMembers(s3: S3Client, bucket: string, reads: IndexedRead[]): Promise<void> {
+  const groups = new Map<string, { key: string; entries: DigestProofEntry[] }>();
+  for (const r of reads) {
+    if (r.setDigest === null) continue;
+    const c = r.entry.proof.commit as { epochId?: string; counter?: string } | undefined;
+    if (!c?.epochId || !c?.counter) continue;
+    const key = setPositionKey(r.setDigest, c.epochId, c.counter);
+    const g = groups.get(key) ?? { key, entries: [] };
+    g.entries.push(r.entry);
+    groups.set(key, g);
+  }
+  if (groups.size === 0) return;
+  const results = await runPool([...groups.values()], POOL, async (g) => {
+    const source = await readBoundSetPosition(s3, bucket, g.key);
+    if (source === null) return;
+    const bound = source.bound;
+    for (const e of g.entries) {
+      const prior = e.proof.metadata;
+      e.proof.metadata = { ...(isPlainObject(prior) ? prior : {}), [SET_KEY]: bound.manifest };
+      // The entry itself must bind to what was attached (its own signed
+      // digest, its own slot), or the attachment is undone.
+      if ((await bindSet(e.proof)) === null) e.proof.metadata = prior;
+    }
+  });
+  for (const r of results) if (r.status === "rejected") throw r.reason;
 }
 
 /**
@@ -308,7 +487,20 @@ export interface DigestProofEntry {
  * no per-position write time and necessarily predates the index, so it sorts
  * first.
  */
-export async function getProofsByDigest(digestB64: string): Promise<DigestProofEntry[]> {
+export interface LookupOptions {
+  /**
+   * Put each set member entry's manifest back from the set's own position
+   * key (default true: a page or a single lookup wants the whole proof).
+   * A BATCH of member lookups passes false and reads each distinct set once
+   * itself (readSetPosition): hydrating per entry copied one N-row manifest
+   * onto every member row, so a batch answer over a set grew with N squared
+   * (a 50-digest batch over 400 members passed 4.5 MB) and the same set key
+   * was fetched once per digest. Unhydrated member entries carry setDigest.
+   */
+  hydrate?: boolean;
+}
+
+export async function getProofsByDigest(digestB64: string, options: LookupOptions = {}): Promise<DigestProofEntry[]> {
   const safeDigest = toSafe(digestB64);
   const entries: DigestProofEntry[] = [];
   // ⚠️ NOTHING in this function may turn a read failure into an empty or
@@ -320,15 +512,23 @@ export async function getProofsByDigest(digestB64: string): Promise<DigestProofE
   try {
     const s3 = getClient();
     const bucket = getBucket();
-    const listed = await s3.send(new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: `by-digest/${safeDigest}/`,
-      MaxKeys: 1000,
-    }));
-    const objects = (listed.Contents || []).filter((o) => o.Key);
-    const fetched = await Promise.all(objects.map(async (obj): Promise<DigestProofEntry | null> => {
+    // Every page of the listing. A digest with more positions than one page
+    // holds must not lose the rest to a missing continuation loop.
+    const objects: { key: string; lastModified?: Date }[] = [];
+    let token: string | undefined;
+    do {
+      const listed = await s3.send(new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: `by-digest/${safeDigest}/`,
+        ContinuationToken: token,
+        MaxKeys: 1000,
+      }));
+      for (const o of listed.Contents || []) if (o.Key) objects.push({ key: o.Key, lastModified: o.LastModified });
+      token = listed.IsTruncated ? listed.NextContinuationToken : undefined;
+    } while (token);
+    const fetched = await runPool(objects, POOL, async (obj): Promise<IndexedRead | null> => {
       try {
-        const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key! }));
+        const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.key }));
         const body = await result.Body?.transformToString();
         if (!body) return null;
         // Backfilled entries were records copied into the index after the
@@ -339,17 +539,28 @@ export async function getProofsByDigest(digestB64: string): Promise<DigestProofE
         // the legacy key (no write time at all).
         const backfilled = result.Metadata?.["bg-backfill"] === "1";
         const stamped = parseInt(result.Metadata?.["bg-writetime"] ?? "", 10);
-        const writeTime = Number.isFinite(stamped) ? stamped : backfilled ? null : obj.LastModified?.getTime() ?? null;
+        const writeTime = Number.isFinite(stamped) ? stamped : backfilled ? null : obj.lastModified?.getTime() ?? null;
         const parsed = JSON.parse(body) as Record<string, unknown>;
         const artifactDigest = (parsed.artifact as { digestB64?: string } | undefined)?.digestB64;
-        return { proof: parsed, writeTime, kind: artifactDigest === digestB64 ? "recorded" : "fused" };
+        const member = memberOfHeaders(result.Metadata);
+        const setDigest = member.member ? result.Metadata?.["bg-set-digest"] ?? null : null;
+        return {
+          entry: { proof: parsed, writeTime, kind: artifactDigest === digestB64 ? "recorded" : "fused", ...member, ...(setDigest ? { setDigest } : {}) },
+          setDigest,
+        };
       } catch (err) {
         // A position that was LISTED but could not be read is a hole in the
         // answer, not a position that does not exist.
-        throw new LedgerUnavailableError(`position ${obj.Key}`, err);
+        throw new LedgerUnavailableError(`position ${obj.key}`, err);
       }
-    }));
-    for (const e of fetched) if (e) entries.push(e);
+    });
+    const reads: IndexedRead[] = [];
+    for (const r of fetched) {
+      if (r.status === "rejected") throw r.reason;
+      if (r.value) reads.push(r.value);
+    }
+    if (options.hydrate !== false) await hydrateSetMembers(s3, bucket, reads);
+    for (const r of reads) entries.push(r.entry);
   } catch (err) {
     if (err instanceof LedgerUnavailableError) throw err;
     console.error("[s3] getProofsByDigest failed:", (err as Error).message);

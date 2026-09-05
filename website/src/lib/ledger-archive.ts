@@ -66,6 +66,9 @@ export type LedgerRow = {
   /** URL-safe epochId. A day can span epochs (a mid-day restart), and counters
    *  restart with each, so row identity needs it. */
   ep?: string;
+  /** Member count of a set proof (N files under one slot). Type only until the
+   *  archive script learns the field; rows without it read as "file". */
+  s?: number;
 };
 
 /** The per-day manifest. Fetched once, then every page is addressable by name.

@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { dayIndexKey, pageKey, type DayIndex, type DayPage, type LedgerFilter } from "./ledger-archive";
+import { setCountOf } from "./fuse-set";
 
 /* The ledger feed, shared by the API route and the server-rendered /day page.
 
@@ -88,6 +89,10 @@ type Entry = {
   // span epochs) need it for row identity and to pin proof links to the exact
   // position. Present on every entry; the live feed just doesn't need it.
   ep?: string;
+  // A set proof's member count (N files under one slot), so the row can say
+  // "set of N". A display count read off the ledger's own copy of the
+  // manifest, not a verdict; 0 when the set's manifest is absent.
+  set?: number;
 };
 
 // File rows arrive stamped "new!" while their ledger write is under this old;
@@ -118,6 +123,8 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
   }
   const isNew = !isAnchor && !isInterval && !!lastModifiedMs && Date.now() - lastModifiedMs < NEW_MS;
   const epochId = String(commit.epochId || "");
+  // Parse only, no hash: the label is a count, not a verdict.
+  const setCount = setCountOf(p);
   return {
     counter,
     type: isAnchor ? "anchor" : isInterval ? "interval" : "proof",
@@ -128,6 +135,7 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
     ...(isNew ? { isNew: true as const } : {}),
     ...(lastModifiedMs ? { at: lastModifiedMs } : {}),
     ...(epochId ? { ep: toSafe(epochId) } : {}),
+    ...(setCount !== null ? { set: setCount } : {}),
   };
 }
 
@@ -438,6 +446,7 @@ function entryFromRow(r: DayPage["rows"][number]): Entry {
     etherscanUrl: r.b != null ? `https://etherscan.io/block/${r.b}` : null,
     ...(r.at ? { at: r.at } : {}),
     ...(r.ep ? { ep: r.ep } : {}),
+    ...(r.s !== undefined ? { set: r.s } : {}),
   };
 }
 

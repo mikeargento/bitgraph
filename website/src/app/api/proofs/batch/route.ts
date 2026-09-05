@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProofsByDigest, LedgerUnavailableError } from "@/lib/s3";
+import { getProofsByDigest, readSetPosition, runPool, LedgerUnavailableError } from "@/lib/s3";
 import { fromUrlSafeB64 } from "@/lib/explorer";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,15 @@ export async function POST(req: NextRequest) {
     }
     const unique = [...new Set(digests as string[])];
     const results: Record<string, {
-      proofs: Array<{ proof: unknown; writeTime: number | null; kind: "recorded" | "fused" }>;
+      proofs: Array<{
+        proof: unknown;
+        writeTime: number | null;
+        kind: "recorded" | "fused";
+        /** A set member's row (origin or fused bytes, one of N), when the entry is one. */
+        member?: { index: number; count: number; role: "origin" | "fused" };
+        /** A set member's set, by digest (url-safe): its proof here lacks the manifest, which `sets` carries once. */
+        setDigest?: string;
+      }>;
       /** The read FAILED. Not an answer about these bytes; see below. */
       unavailable?: true;
     }> = {};
@@ -41,10 +49,15 @@ export async function POST(req: NextRequest) {
         while (next < unique.length) {
           const d = unique[next++];
           try {
-            const entries = await getProofsByDigest(fromUrlSafeB64(d));
+            // Member entries come back WITHOUT their set's manifest: a batch
+            // over a set's originals would otherwise carry one N-row manifest
+            // per row (N squared bytes; 400 members passed the 4.5 MB
+            // function limit) and fetch the same set key once per digest.
+            // Each distinct set is read once below and sent once, in `sets`.
+            const entries = await getProofsByDigest(fromUrlSafeB64(d), { hydrate: false });
             // writeTime (ledger write moment, ms) rides along so result rows
             // can show a compact "when" like the ledger's rows.
-            results[d] = { proofs: entries.map(({ proof, writeTime, kind }) => ({ proof, writeTime: writeTime ?? null, kind })) };
+            results[d] = { proofs: entries.map(({ proof, writeTime, kind, member, setDigest }) => ({ proof, writeTime: writeTime ?? null, kind, ...(member ? { member } : {}), ...(setDigest ? { setDigest } : {}) })) };
           } catch (err) {
             // ⚠️ THIS USED TO REPORT `{ proofs: [] }`, and it was the whole
             // bug: an empty list is the wire form of "these bytes were never
@@ -59,7 +72,30 @@ export async function POST(req: NextRequest) {
         }
       }),
     );
-    return NextResponse.json({ results });
+    // The side table: every set named by a member entry, ONCE, as its own
+    // bound position copy (with the manifest). A set's digest is its
+    // manifest's, which names the slot, so one digest is one position. A
+    // set that cannot be read or does not bind is simply absent: the entry
+    // still says what it is; only the export of that row goes without the
+    // manifest, which is never a verdict about the bytes.
+    const wanted = new Map<string, { epochId: string; counter: string }>();
+    for (const r of Object.values(results)) {
+      for (const e of r.proofs) {
+        if (!e.setDigest || wanted.has(e.setDigest)) continue;
+        const c = (e.proof as { commit?: { epochId?: string; counter?: string } }).commit;
+        if (c?.epochId && c?.counter) wanted.set(e.setDigest, { epochId: c.epochId, counter: String(c.counter) });
+      }
+    }
+    const sets: Record<string, unknown> = {};
+    if (wanted.size) {
+      const read = await runPool([...wanted.entries()], CONCURRENCY, async ([digest, pos]) => {
+        const proof = await readSetPosition(digest, pos.epochId, pos.counter);
+        if (proof) sets[digest] = proof;
+      });
+      for (const r of read) if (r.status === "rejected") console.error("[batch] set position read failed:",
+        r.reason instanceof LedgerUnavailableError ? r.reason.message : r.reason);
+    }
+    return NextResponse.json(wanted.size ? { results, sets } : { results });
   } catch (e) {
     console.error("POST /api/proofs/batch error:", e);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
