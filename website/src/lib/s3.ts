@@ -6,6 +6,7 @@
  *   anchors-by-time/{timestamp}.json — chronological anchor listing
  */
 
+import { Agent } from "node:https";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
 import { SET_KEY, bindSet, isSetProof, setIndexEntries, stripSetManifest, type BoundSet } from "@/lib/fuse-set";
@@ -46,6 +47,11 @@ function getClient() {
       region: (process.env.LEDGER_REGION || "us-east-2").trim(),
       maxAttempts: 5,
       retryMode: "adaptive",
+      // The SDK's default agent allows 50 sockets, which capped a set's
+      // member index at 50 puts in flight whatever the pool said: the 3,804
+      // keys of a 1,902-member set took six to eight seconds before the
+      // route could answer. Sockets for the whole index pool, kept alive.
+      requestHandler: { httpsAgent: new Agent({ keepAlive: true, maxSockets: INDEX_POOL }) },
     });
   }
   return client;
@@ -65,8 +71,8 @@ function isPlainObject(x: unknown): x is Record<string, unknown> {
 
 /** How many S3 calls one lookup keeps in flight for its position reads. */
 const POOL = 16;
-/** How many member keys a set index write keeps in flight: a 2000-member set is 4000 puts, and the route answers only when they are written. */
-const INDEX_POOL = 64;
+/** How many member keys a set index write keeps in flight: a 2000-member set is 4000 puts, and the route answers only when they are written. The client's agent is sized to match. */
+const INDEX_POOL = 256;
 
 /**
  * Run `fn` over `items` with at most `limit` in flight, results settled in
