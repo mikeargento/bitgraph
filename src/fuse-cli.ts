@@ -5,8 +5,11 @@
  * bitgraph-fuse: the internal harness (spec 9.2), as a command rather than a
  * page. Exercises Forms A, B and C end to end through fuse(), writes the
  * Frame (and the fused bytes when they must be kept), and prints the bounded
- * copy of spec 9.3. `check` runs verifyFuse over a Frame (or bare proof)
- * and a file, so both verification paths can be exercised from a shell.
+ * copy of spec 9.3. `set` runs fuseSet() over N files under one slot and
+ * writes the proof beside the manifest bytes. `check` runs verifyFuse over a
+ * Frame (or bare proof) and a file, or verifyFuseMember when the proof is a
+ * set proof and the file is not its manifest, so every verification path can
+ * be exercised from a shell.
  *
  * Not a product surface. The site has no /fuse page: a page would make the
  * website build depend on packages that are not published, which is a deploy
@@ -18,9 +21,9 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
 import { sha256 } from "@noble/hashes/sha256";
-import { parseFrame, verifyFuse, bytesToBase64 } from "@mikeargento/bitgraph-verify";
-import type { BitGraphProof, PlacementId } from "@mikeargento/bitgraph-verify";
-import { fuse, builderFor, FuseError } from "./fuse.js";
+import { parseFrame, verifyFuse, verifyFuseMember, bytesToBase64 } from "@mikeargento/bitgraph-verify";
+import type { BitGraphProof, PlacementId, FuseVerifyResult, FuseMemberResult } from "@mikeargento/bitgraph-verify";
+import { fuse, fuseSet, builderFor, placementForBytes, fusedNamesFor, FuseError } from "./fuse.js";
 import type { FuseTransport } from "./fuse.js";
 
 const USAGE = `bitgraph-fuse: BitGraph producer harness (profile bitgraph-fuse/1, working name)
@@ -29,12 +32,14 @@ const USAGE = `bitgraph-fuse: BitGraph producer harness (profile bitgraph-fuse/1
       Form A or B over an existing file. The file is never modified.
   bitgraph-fuse produce [--origin <file>] [options]
       Form C: a canonical payload naming an optional source.
-  bitgraph-fuse check <frame-or-proof.json> <file> [--max-positions N]
-      Verify a Frame (or bare proof) against the fused bytes or the original.
+  bitgraph-fuse set <file>... [options]
+      N files under one slot; the committed artifact is the set manifest. The files are never modified.
+  bitgraph-fuse check <frame-or-proof.json> <file> [--manifest <set.manifest.json>] [--max-positions N]
+      Verify a Frame (or bare proof) against the fused bytes or the original; a set proof against a member or its original.
 
-Options for fuse and produce:
-  --out <dir>            where to write the Frame and fused bytes (default: .)
-  --keep                 also write the fused bytes for byte-exact placements
+Options for fuse, produce and set:
+  --out <dir>            where to write the Frame (for set: set.proof.json and set.manifest.json) and fused bytes (default: .)
+  --keep                 also write the fused bytes for byte-exact placements (set: inputs need distinct names)
   --base-url <url>       commit surface (default https://bitgraph.ing)
   --allocate-path <p>    default /api/fuse/allocate (parent-direct: /allocate-slot)
   --commit-path <p>      default /api/fuse/commit   (parent-direct: /commit)
@@ -78,6 +83,10 @@ function transportFrom(flags: Map<string, string | true>): FuseTransport {
   return t;
 }
 
+function outDirOf(args: Args): string {
+  return resolve(typeof args.flags.get("out") === "string" ? (args.flags.get("out") as string) : ".");
+}
+
 async function writeOutputs(outDir: string, label: string, frame: unknown, fusedName: string | null, fused: Uint8Array | undefined): Promise<string[]> {
   await mkdir(outDir, { recursive: true });
   const written: string[] = [];
@@ -102,8 +111,7 @@ async function runFuse(args: Args): Promise<number> {
   const fusedName = `${label.slice(0, label.length - extname(label).length)}.fused${ext}`;
   const keep = args.flags.get("keep") === true;
   const r = await fuse(builderFor(placement as PlacementId, original), { placement: placement as PlacementId, original, fusedFile: fusedName, keepFused: keep, transport: transportFrom(args.flags) });
-  const outDir = resolve(typeof args.flags.get("out") === "string" ? (args.flags.get("out") as string) : ".");
-  const written = await writeOutputs(outDir, label, r.frame, keep ? fusedName : null, r.fusedBytes);
+  const written = await writeOutputs(outDirOf(args), label, r.frame, keep ? fusedName : null, r.fusedBytes);
   report(r.proof, r.verification.category, r.recovered, true);
   process.stdout.write(`\nwrote:\n${written.map((w) => "  " + w).join("\n")}\n`);
   if (!keep) process.stdout.write(`\nThe fused bytes were not kept (${placement} is byte-exact: any verifier rebuilds them from the original and the proof). Pass --keep to write them.\n`);
@@ -114,9 +122,52 @@ async function runProduce(args: Args): Promise<number> {
   const originPath = args.flags.get("origin");
   const originDigest = typeof originPath === "string" ? sha256(new Uint8Array(await readFile(resolve(originPath)))) : undefined;
   const r = await fuse(builderFor("produced/1"), { placement: "produced/1", ...(originDigest !== undefined ? { originDigest } : {}), fusedFile: "produced.json", transport: transportFrom(args.flags) });
-  const outDir = resolve(typeof args.flags.get("out") === "string" ? (args.flags.get("out") as string) : ".");
-  const written = await writeOutputs(outDir, "produced", r.frame, "produced.json", r.fusedBytes);
+  const written = await writeOutputs(outDirOf(args), "produced", r.frame, "produced.json", r.fusedBytes);
   report(r.proof, r.verification.category, r.recovered, originDigest !== undefined);
+  process.stdout.write(`\nwrote:\n${written.map((w) => "  " + w).join("\n")}\n`);
+  return 0;
+}
+
+/** N files under one slot. Writes the proof and the manifest bytes exactly (they are the committed artifact, so `check` can hash them as it). */
+async function runSet(args: Args): Promise<number> {
+  if (args.positional.length === 0) { process.stderr.write(USAGE); return 64; }
+  const keep = args.flags.get("keep") === true;
+  const members = [];
+  for (const file of args.positional) {
+    const original = new Uint8Array(await readFile(resolve(file)));
+    members.push({ original, placement: placementForBytes(original), name: sanitize(basename(file)) });
+  }
+  // Under --keep every member's fused bytes go to a file named from its own
+  // name and placement; two inputs that would share that name are refused
+  // here, before any allocation, rather than one silently overwriting the other.
+  if (keep) {
+    const seen = new Map<string, number>();
+    for (const [i, m] of members.entries()) {
+      const { fusedName } = fusedNamesFor(m.name, m.placement);
+      const j = seen.get(fusedName);
+      if (j !== undefined) { process.stderr.write(`set --keep: members ${j} and ${i} would both be written as ${fusedName}; give the files distinct names\n`); return 64; }
+      seen.set(fusedName, i);
+    }
+  }
+  const r = await fuseSet(members, { keepFused: keep, transport: transportFrom(args.flags) });
+  const outDir = outDirOf(args);
+  await mkdir(outDir, { recursive: true });
+  const written: string[] = [];
+  const proofPath = join(outDir, "set.proof.json");
+  await writeFile(proofPath, JSON.stringify(r.proof, null, 2) + "\n");
+  written.push(proofPath);
+  const manifestPath = join(outDir, "set.manifest.json");
+  await writeFile(manifestPath, r.manifestBytes);
+  written.push(manifestPath);
+  for (const m of r.members) {
+    if (m.fusedBytes === undefined || m.fusedName === null) continue;
+    const p = join(outDir, m.fusedName);
+    await writeFile(p, m.fusedBytes);
+    written.push(p);
+  }
+  report(r.proof, r.verification.category, r.recovered, false);
+  for (const m of r.members) process.stdout.write(`member ${m.index}  row ${m.manifestIndex}  ${m.placement}  ${m.verification.category}  ${m.fusedName ?? ""}\n`);
+  if (!r.manifestEchoed) process.stdout.write(`note  the proof does not carry the manifest; keep set.manifest.json beside it\n`);
   process.stdout.write(`\nwrote:\n${written.map((w) => "  " + w).join("\n")}\n`);
   return 0;
 }
@@ -134,6 +185,22 @@ function report(proof: BitGraphProof, category: string, recovered: boolean, hasO
   if (recovered) process.stdout.write(`note          the commit response was lost; the proof was read back by digest and matched on the held slot\n`);
 }
 
+/** The verdict lines shared by both verifiers; the `set` line appears only for a member verdict. */
+function printVerdict(r: FuseVerifyResult | FuseMemberResult): void {
+  process.stdout.write(`category      ${r.category}\n`);
+  process.stdout.write(`proof         ${r.proof.valid ? "valid" : `invalid: ${r.proof.reason ?? ""}`}\n`);
+  process.stdout.write(`file digest   ${r.fileDigestB64}\n`);
+  process.stdout.write(`artifact      ${r.artifactDigestB64}\n`);
+  if (r.originDigestB64) process.stdout.write(`origin        ${r.originDigestB64}\n`);
+  if (r.placement) process.stdout.write(`placement     ${r.placement}\n`);
+  if (r.span) process.stdout.write(`span          slot ${r.span.slotCounter} to commit ${r.span.commitCounter} (${r.span.positions} positions)\n`);
+  if (r.policy.maxPositions !== null) process.stdout.write(`span policy   ${r.policy.spanExceeded ? "EXCEEDED" : "within"} ${r.policy.maxPositions} positions\n`);
+  if ("set" in r && r.set?.member) process.stdout.write(`set           member ${r.set.member.index + 1} of ${r.set.memberCount}\n`);
+  if (r.reason) process.stdout.write(`reason        ${r.reason}\n`);
+  for (const s of r.statements) process.stdout.write(`\n${s}\n`);
+  process.stdout.write(`\nfloor         computed by the Player from anchors in a bundle (bitgraph-play check); not available here\n`);
+}
+
 async function runCheck(args: Args): Promise<number> {
   const [frameArg, fileArg] = args.positional;
   if (frameArg === undefined || fileArg === undefined) { process.stderr.write(USAGE); return 64; }
@@ -148,18 +215,20 @@ async function runCheck(args: Args): Promise<number> {
   }
   const bytes = new Uint8Array(await readFile(resolve(fileArg)));
   const max = args.flags.get("max-positions");
-  const r = await verifyFuse({ proof, bytes, frame, ...(typeof max === "string" ? { maxPositions: BigInt(max) } : {}) });
-  process.stdout.write(`category      ${r.category}\n`);
-  process.stdout.write(`proof         ${r.proof.valid ? "valid" : `invalid: ${r.proof.reason ?? ""}`}\n`);
-  process.stdout.write(`file digest   ${r.fileDigestB64}\n`);
-  process.stdout.write(`artifact      ${r.artifactDigestB64}\n`);
-  if (r.originDigestB64) process.stdout.write(`origin        ${r.originDigestB64}\n`);
-  if (r.placement) process.stdout.write(`placement     ${r.placement}\n`);
-  if (r.span) process.stdout.write(`span          slot ${r.span.slotCounter} to commit ${r.span.commitCounter} (${r.span.positions} positions)\n`);
-  if (r.policy.maxPositions !== null) process.stdout.write(`span policy   ${r.policy.spanExceeded ? "EXCEEDED" : "within"} ${r.policy.maxPositions} positions\n`);
-  if (r.reason) process.stdout.write(`reason        ${r.reason}\n`);
-  for (const s of r.statements) process.stdout.write(`\n${s}\n`);
-  process.stdout.write(`\nfloor         computed by the Player from anchors in a bundle (bitgraph-play check); not available here\n`);
+  const policy = typeof max === "string" ? { maxPositions: BigInt(max) } : {};
+  // A set proof and a file that is not its manifest: the member verifier answers.
+  const a = proof.attribution;
+  if (a?.name === "bitgraph-fuse/1" && a.title === "set/1" && bytesToBase64(sha256(bytes)) !== proof.artifact.digestB64) {
+    const manifestArg = args.flags.get("manifest");
+    const manifest = typeof manifestArg === "string" ? new Uint8Array(await readFile(resolve(manifestArg))) : undefined;
+    const r = await verifyFuseMember({ proof, bytes, ...(manifest !== undefined ? { manifest } : {}), ...policy });
+    printVerdict(r);
+    if (r.category === "SET_MEMBER_DIRECT" || r.category === "SET_MEMBER_FROM_ORIGIN") return r.policy.spanExceeded ? 1 : 0;
+    if (r.category === "UNDETERMINED_PLACEMENT" || r.category === "NO_MATCH") return 2;
+    return 1;
+  }
+  const r = await verifyFuse({ proof, bytes, frame, ...policy });
+  printVerdict(r);
   if (r.category === "RECORDED" || r.category === "FUSED_DIRECT" || r.category === "FUSED_FROM_ORIGIN") return r.policy.spanExceeded ? 1 : 0;
   if (r.category === "UNDETERMINED_PLACEMENT" || r.category === "NO_MATCH") return 2;
   return 1;
@@ -171,12 +240,13 @@ async function main(): Promise<number> {
     switch (args.command) {
       case "fuse": return await runFuse(args);
       case "produce": return await runProduce(args);
+      case "set": return await runSet(args);
       case "check": return await runCheck(args);
       default: process.stderr.write(USAGE); return 64;
     }
   } catch (err) {
     if (err instanceof FuseError) {
-      process.stderr.write(`no fused proof was completed (${err.code}${err.status !== null ? `, ${err.status}` : ""}): ${err.message}\n`);
+      process.stderr.write(`no fused proof was completed (${err.code}${err.status !== null ? `, ${err.status}` : ""}${err.member !== null ? `, member ${err.member}` : ""}): ${err.message}\n`);
       return err.code === "tee-restarting" ? 2 : 1;
     }
     process.stderr.write(`error: ${err instanceof Error ? err.message : String(err)}\n`);

@@ -277,7 +277,86 @@ or refused commit reads back by digest and matches `commit.slotHashB64` against
 the held slot record; it never allocates again on its own. The raw nonce lives
 in process memory only.
 
-Harness: the site's `/fuse` page and `/api/fuse/harness` route (404 unless
+### Sets
+
+A set is N files fused under one slot. The commitment is computed once from
+the one slot record and written into every member by that member's own
+placement (`trailer/1` or `container/1`, chosen from the bytes as today). The
+committed artifact is the canonical set manifest, placement `set/1`: one row
+per member holding the fused artifact digest, the origin digest and the
+placement id, rows ascending by artifact digest, plus the commitment itself.
+The signed attribution is name `bitgraph-fuse/1`, title `set/1`, and no
+message, because a set has no single origin. The proof is an ordinary
+`bitgraph/1` proof: one position, N files.
+
+`fuseSet(members, options)` in the core package takes an array of members,
+each an original (never modified) with an optional placement (default: chosen
+from the bytes), an optional name (advisory; it names the virtual fused file)
+and an optional builder. The options mirror `fuse()` (`agency`, `transport`)
+with `keepFused` defaulting to false. Refused before any allocation: an empty
+set, more than `MAX_SET_MEMBERS` (2000) members, a `produced/1`, `set/1` or
+unregistered member placement, and the same original twice under the same
+placement (the same original under two placements is two rows). Burns a slot
+without committing: a member whose bytes do not carry the commitment or embed
+an origin that is not its own, a builder failure, a refused commit. One
+allocate, one commit, never a second allocation; a lost or refused commit is
+read back by the manifest digest and matched on the held slot record. The
+error codes are those of `fuse()`; a message about one member names that
+member's index.
+
+What comes back: the proof, the manifest bytes, the parsed manifest, the
+manifest's digest (which is the artifact digest), and per member the origin
+digest, the fused digest, the placement, the row's index in the manifest, the
+virtual file names and the member's own verification, with the fused bytes
+only when kept. Before anything is returned the manifest is verified
+`FUSED_DIRECT` under `set/1` and every member `SET_MEMBER_DIRECT` against the
+explicit manifest bytes. A proof that fails any check is not returned.
+
+The echo. The commit sends the parsed manifest under
+`proof.metadata["bitgraph-fuse/1"]`. Metadata is unsigned and advisory; a
+reader trusts it only because its canonical bytes hash to the signed artifact
+digest. No production boundary returns the echo today: the site's
+`/api/fuse/commit` does not forward metadata, and the enclave's `commitDigest`
+action (the one the parent uses for a held slot) drops it, so a set minted
+through the default transport or parent-direct returns `manifestEchoed:
+false`. The flag is true only against a boundary that mints from the received
+body, which is what the SDK's own test harness does. Keep `manifestBytes`
+beside the proof and pass them to `verifyFuseMember`; explicit bytes always
+win over the echo. Forwarding metadata is a website and enclave decision
+outside this phase.
+
+Reading: `verifyFuse` answers for the manifest and `verifyFuseMember` for a
+member or an original. Bytes that carry the commitment but are listed nowhere
+are `SET_NOT_MEMBER`. Render the verifier's own statements; there is no new
+bounded copy for a set.
+
+Limits stated plainly. Building and hashing every member must finish inside
+the 120 s slot TTL after allocation, and a miss is reported, never retried
+into a new slot. Every member's fused bytes are held in memory until the
+return-time verification (`container/1` doubles its original). That
+verification runs `verifyFuseMember` once per member, and each run re-parses
+the whole manifest, so its cost grows with the square of the member count:
+under a second at 100 members, a few seconds at 500, and tens of seconds at
+the cap of 2000. All of it happens after the commit, so the slot TTL is not
+at risk and no slot is burned by it; a batch verifier is a later phase. A
+failed member fails the set, and one refused commit burns one slot for the
+whole set. There is no Frame for a set this phase: the proof, the manifest bytes
+and the originals are the durable state. `produced/1` members and nested sets
+are out of scope. A drop of a member's original does not find its set proof
+on the site today: the descendant index reads `attribution.message`, which a
+set does not carry.
+
+In the harness, `bitgraph-fuse set <file>... [--out <dir>] [--keep]` mints a
+set through `fuseSet` and writes `set.proof.json` beside `set.manifest.json`
+(the manifest bytes exactly); under `--keep` two inputs that would be written
+under the same fused name are refused before any allocation.
+`bitgraph-fuse check <set.proof.json> <file> [--manifest <set.manifest.json>]`
+runs `verifyFuseMember` when the proof is signed `set/1` and the file is not
+the manifest itself.
+
+### Harness
+
+The site's `/fuse` page and `/api/fuse/harness` route (404 unless
 `FUSE_ENABLED` and `FUSE_HARNESS_ENABLED` are set, and a shared
 `FUSE_HARNESS_TOKEN`), which runs the same `fuse()` against the site's own
 routes; plus the `bitgraph-fuse fuse|produce|check` command in the core

@@ -15,6 +15,16 @@
  *   4. fill:   commit that digest under the same slot, with the placement id
  *              and the origin digest in the signed attribution.
  *
+ * fuseSet(members, options): the same four beats for N files under ONE slot.
+ * The commitment is computed once and written into every member by that
+ * member's own placement; the committed artifact is the canonical set
+ * manifest (placement set/1, built by the verify package); the signed title
+ * is "set/1" with no origin, because a set has no single origin; the parsed
+ * manifest rides along as unsigned metadata. Nothing is committed unless
+ * every member's bytes carry the commitment and embed its own origin, and no
+ * proof is returned unless the manifest verifies FUSED_DIRECT and every
+ * member SET_MEMBER_DIRECT against the explicit manifest bytes.
+ *
  * What this module never does: write the nonce anywhere but process memory,
  * put it in a message, or fall back to an ordinary recording when the fused
  * commit fails. A failure is reported as a failure and the slot expires on
@@ -28,18 +38,34 @@
 import { sha256 } from "@noble/hashes/sha256";
 import {
   buildFrame,
+  buildSetManifest,
+  bytesEqual,
   bytesToBase64,
   bytesToHex,
   computeSlotCommitment,
   computeSlotRecordHash,
   fuseAttribution,
   getPlacement,
+  readSetMetadata,
+  SET_METADATA_KEY,
   verifyFuse,
+  verifyFuseMember,
   base64ToBytes,
 } from "@mikeargento/bitgraph-verify";
-import type { BitGraphProof, FuseFrame, PlacementId, SlotAllocation, FuseVerifyResult } from "@mikeargento/bitgraph-verify";
+import type {
+  BitGraphProof,
+  FuseFrame,
+  FuseMemberResult,
+  FuseVerifyResult,
+  Located,
+  Placement,
+  PlacementId,
+  SetManifest,
+  SetMember,
+  SlotAllocation,
+} from "@mikeargento/bitgraph-verify";
 
-export type { FuseFrame, PlacementId, SlotAllocation, BitGraphProof } from "@mikeargento/bitgraph-verify";
+export type { FuseFrame, PlacementId, SlotAllocation, BitGraphProof, SetManifest, FuseMemberResult, FuseVerifyResult } from "@mikeargento/bitgraph-verify";
 
 /** What the builder receives. The raw nonce is deliberately absent. */
 export interface BuilderInput {
@@ -119,11 +145,14 @@ export type FuseErrorCode =
 export class FuseError extends Error {
   readonly code: FuseErrorCode;
   readonly status: number | null;
-  constructor(code: FuseErrorCode, message: string, status: number | null = null) {
+  /** The caller's 0-based index into a set's members when the failure is one member's; null otherwise. fuse() never sets it. */
+  readonly member: number | null;
+  constructor(code: FuseErrorCode, message: string, status: number | null = null, member: number | null = null) {
     super(message);
     this.name = "FuseError";
     this.code = code;
     this.status = status;
+    this.member = member;
   }
 }
 
@@ -180,6 +209,9 @@ const DEFAULTS = {
   recoveryAttempts: 5,
   recoveryDelayMs: 1_500,
 } as const;
+
+/** A transport with every default filled in: what the beats below take. */
+type BoundTransport = Required<Pick<FuseTransport, keyof typeof DEFAULTS>> & FuseTransport;
 
 const B64_32 = /^[A-Za-z0-9+/]{43}=$/;
 const B64_64 = /^[A-Za-z0-9+/]{86}==$/;
@@ -267,23 +299,8 @@ async function recover(
   return null;
 }
 
-/**
- * Allocate, fuse, hash, fill. Returns the Frame with the unchanged proof, or
- * throws a FuseError; it never returns an ordinary recording in place of a
- * fused one.
- */
-export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<FuseResult> {
-  const placement = getPlacement(options.placement);
-  if (placement === undefined) throw new FuseError("bad-placement", `placement "${options.placement}" is not registered`);
-  if (placement.form !== "C" && options.original === undefined) throw new FuseError("bad-input", `${placement.id} needs the original bytes`);
-  if (placement.form === "C" && options.original !== undefined) throw new FuseError("bad-input", "produced/1 takes no original; pass originDigest to name a source");
-  if (options.originDigest !== undefined && options.originDigest.length !== 32) throw new FuseError("bad-input", "originDigest must be 32 bytes");
-
-  const t = { ...DEFAULTS, ...(options.transport ?? {}) };
-  const originDigest = options.original !== undefined ? sha256(options.original) : options.originDigest;
-  const originDigestB64 = originDigest !== undefined ? bytesToBase64(originDigest) : null;
-
-  // 1. nonce
+/** 1. nonce. The signed slot record from the boundary; it must sit on the anchored chain. */
+async function allocateSlot(t: BoundTransport): Promise<SlotAllocation> {
   const alloc = await request(t, t.allocatePath, { method: "POST", body: {} });
   if (alloc.status === 503 && codeOf(alloc.json) === "tee-restarting") throw new FuseError("tee-restarting", messageOf(alloc.json, "the boundary is restarting"), 503);
   if (alloc.status !== 200) throw new FuseError("allocate-failed", messageOf(alloc.json, `allocation failed (${alloc.status})`), alloc.status);
@@ -291,37 +308,29 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
   const slot = (alloc.json as { slot?: unknown } | null)?.slot;
   if (!isSlotRecord(slot) || slotId !== slot.nonceB64) throw new FuseError("allocate-failed", "the allocation response is not a slot record", alloc.status);
   if (slot.chainId !== "bitgraph:main") throw new FuseError("allocate-failed", "the slot is not on the anchored chain; a fused floor needs bitgraph:main");
+  return slot;
+}
 
-  // 2. fuse
-  const commitment = computeSlotCommitment(slot);
-  let fused: Uint8Array;
-  try {
-    fused = await builder({ commitment, commitmentHex: bytesToHex(commitment), ...(originDigest !== undefined ? { originDigest } : {}), slot });
-  } catch (err) {
-    throw new FuseError("builder-failed", `the builder threw: ${err instanceof Error ? err.message : String(err)}`);
-  }
-  if (!(fused instanceof Uint8Array)) throw new FuseError("builder-failed", "the builder must return a Uint8Array");
-  // Fail closed: never commit bytes that do not carry the commitment.
+/**
+ * Fail closed: never commit bytes that do not carry the commitment. Returns
+ * what the placement located, for any further check. `member` names the
+ * set member the bytes belong to; null for a single fused artifact.
+ */
+function requireCommitment(placement: Placement, fused: Uint8Array, commitment: Uint8Array, member: number | null = null): Located {
   const located = placement.locate(fused);
   if (located === null || bytesToHex(located.commitment) !== bytesToHex(commitment)) {
-    throw new FuseError("commitment-missing", `the fused bytes do not carry the ${placement.id} commitment; nothing was committed and the slot will expire`);
+    const label = member !== null ? `member ${member}: ` : "";
+    throw new FuseError("commitment-missing", `${label}the fused bytes do not carry the ${placement.id} commitment; nothing was committed and the slot will expire`, null, member);
   }
+  return located;
+}
 
-  // 3. hash
-  const artifactDigest = sha256(fused);
-  const artifactDigestB64 = bytesToBase64(artifactDigest);
-
-  // 4. fill
-  const attribution = fuseAttribution(placement.id, originDigest);
-  const body: Record<string, unknown> = {
-    digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
-    slotId: slot.nonceB64,
-    slot,
-    chainId: "bitgraph:main",
-    attribution,
-  };
-  if (options.agency !== undefined) body.agency = options.agency;
-
+/**
+ * 4. fill. Commit under the held slot; on a lost or refused response read
+ * back by digest and match the slot record; never allocate again; refuse a
+ * proof under any other slot.
+ */
+async function commitUnderSlot(t: BoundTransport, body: Record<string, unknown>, artifactDigestB64: string, slot: SlotAllocation): Promise<{ proof: BitGraphProof; recovered: boolean }> {
   let proof: BitGraphProof | null = null;
   let recovered = false;
   let commit: { status: number; json: unknown } | null = null;
@@ -356,6 +365,55 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
   if (proof.slotAllocation?.nonceB64 !== slot.nonceB64 || proof.commit?.nonceB64 !== slot.nonceB64) {
     throw new FuseError("slot-mismatch", "the boundary returned a proof under a different slot; nothing is labelled fused");
   }
+  return { proof, recovered };
+}
+
+/**
+ * Allocate, fuse, hash, fill. Returns the Frame with the unchanged proof, or
+ * throws a FuseError; it never returns an ordinary recording in place of a
+ * fused one.
+ */
+export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<FuseResult> {
+  const placement = getPlacement(options.placement);
+  if (placement === undefined) throw new FuseError("bad-placement", `placement "${options.placement}" is not registered`);
+  if (placement.form !== "C" && options.original === undefined) throw new FuseError("bad-input", `${placement.id} needs the original bytes`);
+  if (placement.form === "C" && options.original !== undefined) throw new FuseError("bad-input", "produced/1 takes no original; pass originDigest to name a source");
+  if (options.originDigest !== undefined && options.originDigest.length !== 32) throw new FuseError("bad-input", "originDigest must be 32 bytes");
+
+  const t: BoundTransport = { ...DEFAULTS, ...(options.transport ?? {}) };
+  const originDigest = options.original !== undefined ? sha256(options.original) : options.originDigest;
+  const originDigestB64 = originDigest !== undefined ? bytesToBase64(originDigest) : null;
+
+  // 1. nonce
+  const slot = await allocateSlot(t);
+
+  // 2. fuse
+  const commitment = computeSlotCommitment(slot);
+  let fused: Uint8Array;
+  try {
+    fused = await builder({ commitment, commitmentHex: bytesToHex(commitment), ...(originDigest !== undefined ? { originDigest } : {}), slot });
+  } catch (err) {
+    throw new FuseError("builder-failed", `the builder threw: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (!(fused instanceof Uint8Array)) throw new FuseError("builder-failed", "the builder must return a Uint8Array");
+  requireCommitment(placement, fused, commitment);
+
+  // 3. hash
+  const artifactDigest = sha256(fused);
+  const artifactDigestB64 = bytesToBase64(artifactDigest);
+
+  // 4. fill
+  const attribution = fuseAttribution(placement.id, originDigest);
+  const body: Record<string, unknown> = {
+    digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
+    slotId: slot.nonceB64,
+    slot,
+    chainId: "bitgraph:main",
+    attribution,
+  };
+  if (options.agency !== undefined) body.agency = options.agency;
+  const { proof, recovered } = await commitUnderSlot(t, body, artifactDigestB64, slot);
+
   // A minted proof is verified by a reader before it is called a proof.
   const verification = await verifyFuse({ proof, bytes: fused });
   if (verification.category !== "FUSED_DIRECT") {
@@ -378,6 +436,224 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
     originDigestB64,
     ...(keep ? { fusedBytes: fused } : {}),
     recovered,
+    verification,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Sets: N files fused under ONE slot
+// ---------------------------------------------------------------------------
+
+/**
+ * The most members one set takes. Measured: one canonical row is 246 bytes
+ * (container/1, the longest id this phase), so 2000 rows is 492,174 bytes.
+ * The parent refuses raw bodies over 1 MB (server.ts:249), which would land
+ * AFTER allocation and burn the slot. Half the cap is left for the slot
+ * record, an agency envelope, and future longer placement ids. 4000 rows
+ * (984 KB) leaves 63 KB and is refused; 10000 rows (2.4 MB) cannot pass at
+ * all. A test pins the budget.
+ */
+export const MAX_SET_MEMBERS = 2000;
+
+/** The placements a set member takes: Forms A and B, one original per member. */
+export type SetMemberPlacement = "trailer/1" | "container/1";
+
+export interface FuseSetMember {
+  /** The original bytes. Never modified. */
+  original: Uint8Array;
+  /** Default: placementForBytes(original). */
+  placement?: SetMemberPlacement;
+  /** Advisory; feeds fusedNamesFor. */
+  name?: string;
+  /** Default: builderFor(placement, original). The locate and origin guards run regardless. */
+  builder?: FuseBuilder;
+}
+
+export interface FuseSetOptions {
+  /** Return each member's fused bytes. Default false: they are virtual, rebuilt from the original and the proof. */
+  keepFused?: boolean;
+  /** Actor-bound commits: an agency envelope passed through untouched. */
+  agency?: unknown;
+  transport?: FuseTransport;
+}
+
+export interface FuseSetMemberResult {
+  /** The caller's index into members. */
+  index: number;
+  /** The row's position in the sorted manifest; equals verification.set.member.index. */
+  manifestIndex: number;
+  placement: SetMemberPlacement;
+  originDigestB64: string;
+  /** SHA-256 of the member's fused bytes; the row's artifact. */
+  artifactDigestB64: string;
+  /** fusedNamesFor(name, placement); null when the member has no name. */
+  fusedName: string | null;
+  /** Advisory; no Frame is written for a set member this phase. */
+  frameName: string | null;
+  /** Present only when keepFused is true. */
+  fusedBytes?: Uint8Array;
+  /** The local verification of the returned proof against this member's fused bytes. Always SET_MEMBER_DIRECT on success, with set.manifestSource "argument". */
+  verification: FuseMemberResult;
+}
+
+export interface FuseSetResult {
+  proof: BitGraphProof;
+  /** The committed artifact. Keep it beside the proof. */
+  manifestBytes: Uint8Array;
+  /** JSON.parse of manifestBytes; the exact object sent under metadata. */
+  manifest: SetManifest;
+  /** SHA-256 of manifestBytes; equals proof.artifact.digestB64. */
+  artifactDigestB64: string;
+  slotCommitmentB64: string;
+  /** In the caller's order. */
+  members: FuseSetMemberResult[];
+  /** True when the commit response was lost and the proof was read back by the manifest digest. */
+  recovered: boolean;
+  /** True only when readSetMetadata(proof) is byte-equal to manifestBytes. */
+  manifestEchoed: boolean;
+  /** verifyFuse over manifestBytes. Always FUSED_DIRECT under "set/1" on success. */
+  verification: FuseVerifyResult;
+}
+
+/**
+ * Allocate once, fuse every member with the one commitment, hash the set
+ * manifest, fill the slot with it. Returns the proof with the manifest bytes
+ * beside it, or throws a FuseError; it never commits a partial set and never
+ * allocates a second slot.
+ */
+export async function fuseSet(members: readonly FuseSetMember[], options: FuseSetOptions = {}): Promise<FuseSetResult> {
+  // 0. validate, before any request. A refusal here burns nothing.
+  if (!Array.isArray(members) || members.length === 0) throw new FuseError("bad-input", "a set lists at least one member");
+  if (members.length > MAX_SET_MEMBERS) throw new FuseError("bad-input", `a set lists at most ${MAX_SET_MEMBERS} members (got ${members.length})`);
+  interface Checked { placement: Placement; id: SetMemberPlacement; original: Uint8Array; originDigest: Uint8Array; name: string | null; builder: FuseBuilder }
+  const checked: Checked[] = [];
+  const seen = new Map<string, number>();
+  for (let i = 0; i < members.length; i++) {
+    const m = members[i];
+    // A null, undefined or missing element is refused like any other member without original bytes.
+    if (m === null || typeof m !== "object" || !(m.original instanceof Uint8Array)) throw new FuseError("bad-input", `member ${i}: original must be a Uint8Array`, null, i);
+    const id = m.placement ?? placementForBytes(m.original);
+    const placement = getPlacement(id);
+    if (placement === undefined) throw new FuseError("bad-placement", `member ${i}: placement "${id}" is not registered`, null, i);
+    if (placement.form === "C") throw new FuseError("bad-input", `member ${i}: ${id} takes no original; a set holds trailer/1 and container/1 members only`, null, i);
+    if (m.name !== undefined && typeof m.name !== "string") throw new FuseError("bad-input", `member ${i}: name must be a string`, null, i);
+    if (m.builder !== undefined && typeof m.builder !== "function") throw new FuseError("bad-input", `member ${i}: builder must be a function`, null, i);
+    const originDigest = sha256(m.original);
+    // The same original under the same placement fuses to the same bytes, which one manifest lists once.
+    const key = `${id}:${bytesToHex(originDigest)}`;
+    const j = seen.get(key);
+    if (j !== undefined) {
+      throw new FuseError("bad-input", `members ${j} and ${i} are the same original under the same placement (${id}) and would fuse to the same bytes; a set lists each fused artifact once`, null, i);
+    }
+    seen.set(key, i);
+    checked.push({ placement, id, original: m.original, originDigest, name: m.name ?? null, builder: m.builder ?? builderFor(id, m.original) });
+  }
+  const t: BoundTransport = { ...DEFAULTS, ...(options.transport ?? {}) };
+
+  // 1. nonce: one slot for the whole set
+  const slot = await allocateSlot(t);
+
+  // 2. fuse: the commitment once, every member's bytes carrying it. The slot
+  //    is held and its TTL is running; a throw here burns it but commits nothing.
+  const commitment = computeSlotCommitment(slot);
+  const commitmentHex = bytesToHex(commitment);
+  const fusedBytes: Uint8Array[] = [];
+  const rows: SetMember[] = [];
+  for (let i = 0; i < checked.length; i++) {
+    const c = checked[i]!;
+    let fused: Uint8Array;
+    try {
+      fused = await c.builder({ commitment, commitmentHex, originDigest: c.originDigest, slot });
+    } catch (err) {
+      throw new FuseError("builder-failed", `member ${i}: the builder threw: ${err instanceof Error ? err.message : String(err)}`, null, i);
+    }
+    if (!(fused instanceof Uint8Array)) throw new FuseError("builder-failed", `member ${i}: the builder must return a Uint8Array`, null, i);
+    const located = requireCommitment(c.placement, fused, commitment, i);
+    // The row's origin must be the origin the bytes embed, else the member
+    // would verify INVALID_ORIGIN_ATTRIBUTION after the slot is spent. Both
+    // facts are checked when both are present: the digest the bytes declare
+    // (container/1's payload) and the bytes they carry, so a builder cannot
+    // pack other bytes under the member's digest and leave a member no
+    // original rebuilds.
+    const declared = located.originDigest;
+    const carried = located.originalBytes !== undefined ? sha256(located.originalBytes) : undefined;
+    if ((declared !== undefined && !bytesEqual(declared, c.originDigest)) || (carried !== undefined && !bytesEqual(carried, c.originDigest))) {
+      throw new FuseError("builder-failed", `member ${i}: the fused bytes embed an origin that is not the member's original; nothing was committed and the slot will expire`, null, i);
+    }
+    fusedBytes.push(fused);
+    rows.push({ artifact: sha256(fused), origin: c.originDigest, placement: c.id });
+  }
+
+  // 3. hash: the canonical manifest is the artifact
+  let manifestBytes: Uint8Array;
+  try {
+    manifestBytes = buildSetManifest(commitment, rows);
+  } catch (err) {
+    throw new FuseError("bad-input", `the set manifest could not be built: ${err instanceof Error ? err.message : String(err)}; nothing was committed and the slot will expire`);
+  }
+  const artifactDigestB64 = bytesToBase64(sha256(manifestBytes));
+  const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as SetManifest;
+
+  // 4. fill: one commit, the parsed manifest riding along as unsigned metadata
+  const body: Record<string, unknown> = {
+    digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
+    slotId: slot.nonceB64,
+    slot,
+    chainId: "bitgraph:main",
+    attribution: fuseAttribution("set/1"),
+    metadata: { [SET_METADATA_KEY]: manifest },
+  };
+  if (options.agency !== undefined) body.agency = options.agency;
+  const { proof, recovered } = await commitUnderSlot(t, body, artifactDigestB64, slot);
+
+  // The manifest is verified by a reader before the proof is called a set proof.
+  const verification = await verifyFuse({ proof, bytes: manifestBytes });
+  if (verification.category !== "FUSED_DIRECT" || verification.placement !== "set/1") {
+    throw new FuseError("verification-failed", `the returned proof does not verify as a set: ${verification.category}${verification.reason ? ` (${verification.reason})` : ""}`);
+  }
+  // The echo is unsigned and advisory. Absent is normal: no production
+  // boundary returns it today (the site proxy does not forward metadata and
+  // the enclave's commitDigest action drops it); differing means a boundary
+  // rewrote the response.
+  const echoed = readSetMetadata(proof);
+  if (echoed !== null && !bytesEqual(echoed, manifestBytes)) {
+    throw new FuseError("verification-failed", `the returned proof echoes a set manifest under metadata["${SET_METADATA_KEY}"] that differs from the committed one`);
+  }
+  const manifestEchoed = echoed !== null;
+  // Every member against the explicit manifest bytes, so no verdict depends on the echo.
+  const keep = options.keepFused === true;
+  const results: FuseSetMemberResult[] = [];
+  for (let i = 0; i < checked.length; i++) {
+    const c = checked[i]!;
+    const fused = fusedBytes[i]!;
+    const memberArtifactB64 = bytesToBase64(rows[i]!.artifact);
+    const v = await verifyFuseMember({ proof, bytes: fused, manifest: manifestBytes });
+    const member = v.set?.member ?? null;
+    if (v.category !== "SET_MEMBER_DIRECT" || member === null || member.fusedDigestB64 !== memberArtifactB64) {
+      throw new FuseError("verification-failed", `member ${i}: the returned proof does not verify this member: ${v.category}${v.reason ? ` (${v.reason})` : ""}`, null, i);
+    }
+    const names = c.name !== null ? fusedNamesFor(c.name, c.id) : null;
+    results.push({
+      index: i,
+      manifestIndex: member.index,
+      placement: c.id,
+      originDigestB64: bytesToBase64(c.originDigest),
+      artifactDigestB64: memberArtifactB64,
+      fusedName: names?.fusedName ?? null,
+      frameName: names?.frameName ?? null,
+      ...(keep ? { fusedBytes: fused } : {}),
+      verification: v,
+    });
+  }
+  return {
+    proof,
+    manifestBytes,
+    manifest,
+    artifactDigestB64,
+    slotCommitmentB64: bytesToBase64(commitment),
+    members: results,
+    recovered,
+    manifestEchoed,
     verification,
   };
 }
