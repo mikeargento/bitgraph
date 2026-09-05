@@ -247,7 +247,7 @@ export function parseFusePayload(bytes: Uint8Array): { commitment: Uint8Array; o
 }
 
 // ---------------------------------------------------------------------------
-// Minimal deterministic ustar (POSIX.1-1988) for container/1
+// Minimal deterministic ustar (POSIX.1-1988) for container/1 and container/2
 // ---------------------------------------------------------------------------
 
 const BLOCK = 512;
@@ -260,7 +260,7 @@ function octal(n: number, width: number): Uint8Array {
 }
 
 function ustarHeader(name: string, size: number): Uint8Array {
-  if (size > MAX_ENTRY) throw new RangeError("container/1 entries are limited to 8 GiB");
+  if (size > MAX_ENTRY) throw new RangeError("container entries are limited to 8 GiB");
   const h = new Uint8Array(BLOCK);
   const nameBytes = utf8(name);
   if (nameBytes.length > 100) throw new RangeError("ustar name too long");
@@ -325,7 +325,7 @@ function parseTar(bytes: Uint8Array): TarEntry[] | null {
 // Placement registry
 // ---------------------------------------------------------------------------
 
-export type PlacementId = "trailer/1" | "container/1" | "produced/1" | "set/1";
+export type PlacementId = "trailer/1" | "container/1" | "container/2" | "produced/1" | "set/1";
 
 export interface Located {
   /** The commitment found in the fused bytes. */
@@ -334,6 +334,12 @@ export interface Located {
   originDigest?: Uint8Array;
   /** The original's bytes as carried inside the fused bytes, for placements that carry them. */
   originalBytes?: Uint8Array;
+}
+
+/** What a Form A or B placement puts around the original: fused = prefix, original, suffix. */
+export interface FusedFrame {
+  prefix: Uint8Array;
+  suffix: Uint8Array;
 }
 
 export interface Placement {
@@ -346,6 +352,19 @@ export interface Placement {
   build(input: { original?: Uint8Array; originDigest?: Uint8Array; commitment: Uint8Array }): Uint8Array;
   /** Find the commitment in fused bytes, or null when the marker is absent or malformed. */
   locate(fused: Uint8Array): Located | null;
+  /**
+   * Forms A and B: the bytes around the original, such that
+   * build({original, originDigest, commitment}) is exactly prefix, original,
+   * suffix. A producer that streams the original once can hash the prefix and
+   * the original as they pass and finish with the suffix later.
+   */
+  frame?(input: { originalSize: number; originDigest: Uint8Array; commitment: Uint8Array }): FusedFrame;
+  /**
+   * The prefix when it depends on the original's size alone, so a scanner can
+   * hash it before any slot exists; null when the prefix carries the
+   * commitment (container/1) and the fused digest needs the bytes again.
+   */
+  scanPrefix?(originalSize: number): Uint8Array | null;
 }
 
 const trailer1: Placement = {
@@ -363,6 +382,13 @@ const trailer1: Placement = {
     if (!bytesEqual(t.subarray(0, 8), utf8(TRAILER_MAGIC))) return null;
     if (!t.subarray(8, 16).every((b) => b === 0)) return null;
     return { commitment: new Uint8Array(t.subarray(16, 48)), originalBytes: fused.subarray(0, fused.length - TRAILER_LENGTH) };
+  },
+  frame({ commitment }) {
+    if (commitment.length !== 32) throw new TypeError("commitment must be 32 bytes");
+    return { prefix: new Uint8Array(0), suffix: concat(utf8(TRAILER_MAGIC), new Uint8Array(8), commitment) };
+  },
+  scanPrefix() {
+    return new Uint8Array(0);
   },
 };
 
@@ -387,6 +413,66 @@ const container1: Placement = {
     if (!bytesEqual(rebuilt, fused)) return null;
     return { commitment: payload.commitment, originDigest: payload.originDigest, originalBytes: o.data };
   },
+  frame({ originalSize, originDigest, commitment }) {
+    const manifest = buildFusePayload(commitment, originDigest);
+    return {
+      prefix: concat(ustarHeader(CONTAINER_MANIFEST_PATH, manifest.length), manifest, new Uint8Array(padTo(manifest.length)), ustarHeader(CONTAINER_ORIGINAL_PATH, originalSize)),
+      suffix: concat(new Uint8Array(padTo(originalSize)), new Uint8Array(BLOCK * 2)),
+    };
+  },
+  scanPrefix() {
+    // The manifest, and so the commitment, comes before the original.
+    return null;
+  },
+};
+
+/**
+ * container/2: the same archive with the original FIRST. Everything before
+ * the original's bytes is its ustar header, which depends on the size alone,
+ * so a scanner that hashes header and original as the file streams by can
+ * finish the fused digest later with the manifest for whatever slot the
+ * set is made under, without reading the file again. Any bytes fit: the
+ * original stays byte-exact inside, and the archive is a plain tar.
+ */
+function buildContainer2(original: Uint8Array, manifest: Uint8Array): Uint8Array {
+  return concat(
+    ustarHeader(CONTAINER_ORIGINAL_PATH, original.length), original, new Uint8Array(padTo(original.length)),
+    ustarHeader(CONTAINER_MANIFEST_PATH, manifest.length), manifest, new Uint8Array(padTo(manifest.length)),
+    new Uint8Array(BLOCK * 2),
+  );
+}
+
+const container2: Placement = {
+  id: "container/2",
+  form: "B",
+  byteExact: true,
+  build({ original, originDigest, commitment }) {
+    if (original === undefined) throw new TypeError("container/2 requires the original bytes");
+    const digest = originDigest ?? sha256(original);
+    return buildContainer2(original, buildFusePayload(commitment, digest));
+  },
+  locate(fused) {
+    const entries = parseTar(fused);
+    if (entries === null || entries.length !== 2) return null;
+    const [o, m] = entries as [TarEntry, TarEntry];
+    if (o.name !== CONTAINER_ORIGINAL_PATH || m.name !== CONTAINER_MANIFEST_PATH) return null;
+    const payload = parseFusePayload(m.data);
+    if (payload === null || payload.originDigest === undefined) return null;
+    // The archive must be the one this module would build: headers included.
+    const rebuilt = buildContainer2(o.data, m.data);
+    if (!bytesEqual(rebuilt, fused)) return null;
+    return { commitment: payload.commitment, originDigest: payload.originDigest, originalBytes: o.data };
+  },
+  frame({ originalSize, originDigest, commitment }) {
+    const manifest = buildFusePayload(commitment, originDigest);
+    return {
+      prefix: ustarHeader(CONTAINER_ORIGINAL_PATH, originalSize),
+      suffix: concat(new Uint8Array(padTo(originalSize)), ustarHeader(CONTAINER_MANIFEST_PATH, manifest.length), manifest, new Uint8Array(padTo(manifest.length)), new Uint8Array(BLOCK * 2)),
+    };
+  },
+  scanPrefix(originalSize) {
+    return ustarHeader(CONTAINER_ORIGINAL_PATH, originalSize);
+  },
 };
 
 const produced1: Placement = {
@@ -407,7 +493,7 @@ const produced1: Placement = {
 };
 
 /** Registered placements in the fixed order a verifier tries them when none is declared. */
-export const PLACEMENTS: readonly Placement[] = Object.freeze([trailer1, container1, produced1]);
+export const PLACEMENTS: readonly Placement[] = Object.freeze([trailer1, container1, container2, produced1]);
 
 // ---------------------------------------------------------------------------
 // Set manifest (placement set/1): N files fused under ONE slot
