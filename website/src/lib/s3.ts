@@ -63,8 +63,10 @@ function isPlainObject(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null && !Array.isArray(x);
 }
 
-/** How many S3 calls one function keeps in flight for a set's member keys and for a lookup's position reads. */
+/** How many S3 calls one lookup keeps in flight for its position reads. */
 const POOL = 16;
+/** How many member keys a set index write keeps in flight: a 2000-member set is 4000 puts, and the route answers only when they are written. */
+const INDEX_POOL = 64;
 
 /**
  * Run `fn` over `items` with at most `limit` in flight, results settled in
@@ -349,7 +351,7 @@ async function indexSetMembers(s3: S3Client, bucket: string, proof: Record<strin
   const body = JSON.stringify(stripSetManifest(proof), null, 2);
   const position = `${toSafe(epochId)}-${String(counter).padStart(12, "0")}`;
   const setDigest = toSafe(artifactDigestB64);
-  const results = await runPool(entries, POOL, (e) => s3.send(new PutObjectCommand({
+  const results = await runPool(entries, INDEX_POOL, (e) => s3.send(new PutObjectCommand({
     Bucket: bucket,
     Key: `by-digest/${toSafe(e.digestB64)}/${position}.json`,
     Body: body,

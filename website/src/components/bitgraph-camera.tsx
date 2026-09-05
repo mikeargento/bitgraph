@@ -31,7 +31,6 @@ import { useRouter } from "next/navigation";
 import { FileDrop } from "@/components/file-drop";
 import { useCameraFit } from "@/lib/use-camera-fit";
 import {
-  hashFile,
   isBitGraphProof,
   verifyProofSignature,
   proofHashB64,
@@ -45,7 +44,9 @@ import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
-import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember } from "@/lib/fuse-client";
+import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
+import { scanPool } from "@/lib/scan-pool";
+import type { SitePlacement } from "@/lib/fuse-placement";
 import { attachSetManifests, bindSet, isSetProof } from "@/lib/fuse-set";
 
 /**
@@ -124,6 +125,10 @@ export interface BitGraphCameraProps {
 interface FileItem {
   file: File;
   digestB64: string;
+  // What the scan learned hashing the bytes once: the placement a fuse would
+  // give them and, for a trailer/1 file, the hasher's saved state, which
+  // finishes the member's fused digest for any slot without a second read.
+  scan?: { placement: SitePlacement; state: Uint8Array | null };
   proof: BitGraphProof | null;
   // Every proof recorded for these bytes, earliest causal position first.
   // The same bits can be BitGraphed more than once; `proof` is the earliest
@@ -203,6 +208,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const [scanPhase, setScanPhase] = useState<"walking" | "reading" | "checking">("reading");
   const [walkCount, setWalkCount] = useState(0);
   const [proveProgress, setProveProgress] = useState({ current: 0, total: 0 });
+  // Bytes per second the last scan hashed, which is this machine's read
+  // speed; the set plan sizes what must be read again by it.
+  const scanRateRef = useRef<number | null>(null);
   // True while a commit is being held because the boundary is mid-rotation
   // (daily key renewal) or the fresh epoch's first anchor has not landed.
   // Files are already hashed; the record flow waits and retries on its own.
@@ -387,13 +395,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     setScanProgress({ current: 0, total: files.length });
 
     // Phase 1 — local work: detect dropped proof.json files, hash everything.
-    // A small worker pool: parallel enough to keep crypto.subtle busy, small
-    // enough that only a few file buffers are in flight at once (iOS Safari
-    // reclaims each buffer between tasks; reading a multi-MB photo as TEXT
-    // allocates a UTF-16 copy and crashes it after ~15 files, hence the
-    // couldBeProof gate).
-    type Scanned = { f: File; digest: string; proofJson: BitGraphProof | null; valid: boolean | null };
+    // Each file is streamed once through a scan worker (one per core) with
+    // the state-saving hasher: the digest for the lookup, the placement from
+    // the bytes, and for a trailer/1 file the hasher's state, so the set can
+    // finish its fused digest later without reading the file again. The
+    // couldBeProof gate stays: reading a multi-MB photo as TEXT allocates a
+    // UTF-16 copy and crashed iOS Safari after ~15 files.
+    type Scanned = { f: File; digest: string; proofJson: BitGraphProof | null; valid: boolean | null; scan: FileItem["scan"] | null };
     const scanned: Scanned[] = new Array(files.length);
+    const pool = scanPool();
+    const scanStart = performance.now();
+    let bytesHashed = 0;
     let hashed = 0;
     let nextFile = 0;
     const hashWorker = async () => {
@@ -407,20 +419,28 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           const proofJson = couldBeProof ? isBitGraphProof(await f.text()) : null;
           if (proofJson) {
             const result = await verifyProofSignature(proofJson);
-            scanned[i] = { f, digest: proofJson.artifact.digestB64, proofJson, valid: result.valid };
+            scanned[i] = { f, digest: proofJson.artifact.digestB64, proofJson, valid: result.valid, scan: null };
           } else {
-            scanned[i] = { f, digest: await hashFile(f), proofJson: null, valid: null };
+            const r = await pool.hash(f);
+            bytesHashed += r.bytes;
+            scanned[i] = { f, digest: r.digestB64, proofJson: null, valid: null, scan: { placement: r.placement, state: r.state } };
           }
         } catch {
-          scanned[i] = { f, digest: await hashFile(f).catch(() => ""), proofJson: null, valid: null };
+          const r = await pool.hash(f).catch(() => null);
+          if (r) bytesHashed += r.bytes;
+          scanned[i] = r
+            ? { f, digest: r.digestB64, proofJson: null, valid: null, scan: { placement: r.placement, state: r.state } }
+            : { f, digest: "", proofJson: null, valid: null, scan: null };
         }
         hashed++;
         setScanProgress({ current: hashed, total: files.length });
-        // Yield so the UI paints and Safari can reclaim the buffer.
+        // Yield so the UI paints between files.
         await new Promise((r) => setTimeout(r, 0));
       }
     };
-    await Promise.all(Array.from({ length: Math.min(4, files.length) }, hashWorker));
+    await Promise.all(Array.from({ length: Math.min(pool.size, files.length) }, hashWorker));
+    const scanSeconds = (performance.now() - scanStart) / 1000;
+    scanRateRef.current = scanSeconds > 0.5 && bytesHashed > 0 ? bytesHashed / scanSeconds : null;
 
     // Phase 2 — batched ledger lookup. Small drops are ONE round trip (the
     // old one-request-per-file loop was the whole wait); large drops are
@@ -517,9 +537,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // ledger's member index names the row (ordinal and count, and whether
         // these bytes are the origin or the new file).
         const member = ordered.map((x) => x.member ?? null);
-        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, member: member.some((m) => m !== null) ? member : null, valid: result.valid, status: "found" as const };
+        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, member: member.some((m) => m !== null) ? member : null, valid: result.valid, status: "found" as const, ...(s.scan ? { scan: s.scan } : {}) };
       }
-      return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const };
+      return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const, ...(s.scan ? { scan: s.scan } : {}) };
     }));
 
     return results;
@@ -925,9 +945,18 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // it cuts).
     const firstOf = new Map<string, FileItem>();
     for (const t of toProve) if (!firstOf.has(t.digestB64)) firstOf.set(t.digestB64, t);
-    const plan = planSets([...firstOf.values()].map((t) => t.file));
+    // The plan reads what the scan learned: a trailer/1 file with its saved
+    // state costs no read, so a folder of photos is ONE set up to the member
+    // cap whatever its size; a file that must be read again fills a set to a
+    // budget set by the scan's own speed, which keeps the fuse phase well
+    // inside the slot TTL. A file the scan could not place goes in a container,
+    // which carries any bytes whole.
+    const rate = scanRateRef.current;
+    const budget = rate === null ? undefined : Math.min(32 * 1024 ** 3, Math.max(512 * 1024 ** 2, rate * 45));
+    const scannedOf = (t: FileItem): ScannedFile => ({ file: t.file, digestB64: t.digestB64, placement: t.scan?.placement ?? "container/1", state: t.scan?.state ?? null });
+    const plan = planSets([...firstOf.values()].map(scannedOf), budget);
     const itemOf = new Map([...firstOf.values()].map((t) => [t.file, t] as const));
-    const tooLarge: FileItem[] = plan.tooLarge.flatMap((f) => { const t = itemOf.get(f); return t ? [t] : []; });
+    const tooLarge: FileItem[] = plan.tooLarge.flatMap((sf) => { const t = itemOf.get(sf.file); return t ? [t] : []; });
     // Progress counts ROWS, so a drop with duplicates still reaches its total.
     const rowsOf = (digests: Iterable<string>) => { const d = new Set(digests); return toProve.filter((t) => d.has(t.digestB64)).length; };
     let done = 0;
@@ -954,7 +983,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     try {
       for (const set of plan.sets) {
         if (set.length === 1) {
-          const t = itemOf.get(set[0]);
+          const t = itemOf.get(set[0].file);
           if (t) await fuseSolo(t);
           continue;
         }
@@ -967,7 +996,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         const out = await heldThroughRotation(() => fuseFiles(set, {
           onProgress: (p) => {
             if (p.phase !== "fuse") return;
-            const built = set.slice(0, p.done).flatMap((f) => { const t = itemOf.get(f); return t ? [t.digestB64] : []; });
+            const built = set.slice(0, p.done).map((sf) => sf.digestB64);
             setProveProgress({ current: done + rowsOf(built), total: toProve.length });
           },
         }));
@@ -975,7 +1004,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // The rows this set covers, and ONLY this set's: the plan holds each
         // digest once, so the set's digests name its rows and a row waiting
         // on a later set is never flipped by this one.
-        const setDigests = new Set(set.flatMap((f) => { const t = itemOf.get(f); return t ? [t.digestB64] : []; }));
+        const setDigests = new Set(set.map((sf) => sf.digestB64));
         const byOrigin = new Map(out.members.map((m) => [m.originDigestB64, m] as const));
         // Every row the set covers flips to the one shared proof. The same
         // bytes dropped twice are one member, and both rows carry it.

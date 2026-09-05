@@ -16,7 +16,8 @@
  * is the one producer of them afterwards, from the original, the proof's slot
  * record and the row's placement.
  */
-import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetProgress, type FuseTransport } from "@mikeargento/bitgraph";
+import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, trailerBytesFor, type FuseSetMember as CoreSetMember, type FuseSetProgress, type FuseTransport } from "@mikeargento/bitgraph";
+import { finishTrailer } from "./scan-hash";
 export type { FuseSetProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest } from "@mikeargento/bitgraph-verify";
 import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
@@ -232,76 +233,102 @@ export interface FusedSet {
   members: FusedSetMember[];
 }
 
-export interface SetPlan {
-  sets: File[][];
-  tooLarge: File[];
+/** A dropped file as the scan left it: hashed once, its placement read from the bytes, and for a trailer/1 file the hasher's saved state. */
+export interface ScannedFile {
+  file: File;
+  /** SHA-256 of the file, standard base64; the member's origin digest. */
+  digestB64: string;
+  placement: SitePlacement;
+  /** The saved hasher state after the last byte, for a trailer/1 file; null when the scan had none (a container/1 file, or a scan without the state-saving hasher). */
+  state: Uint8Array | null;
 }
 
-/** The most original bytes one set holds: every original and every fused copy stay in memory until the commit verifies. */
-export const MAX_SET_BYTES = 256 * 1024 * 1024;
+export interface SetPlan {
+  sets: ScannedFile[][];
+  tooLarge: ScannedFile[];
+}
+
+/**
+ * Bytes a set may need to READ AGAIN while its slot is held: the container/1
+ * members, and any trailer/1 member the scan left without a state. A member
+ * with a state costs no read at all. The budget keeps the set's fuse phase
+ * well inside the slot's 120 s TTL; the camera passes one from the scan's
+ * measured speed, and this is the fallback when it has none.
+ */
+export const DEFAULT_REREAD_BUDGET = 4 * 1024 * 1024 * 1024;
 
 /**
  * Partition a drop: files over MAX_FUSE_BYTES are recorded rather than fused
  * (drop order kept); the rest fill sets greedily in drop order, a new set
- * whenever adding a file would exceed MAX_SET_MEMBERS or a cumulative
- * MAX_SET_BYTES of original bytes.
+ * whenever adding a file would exceed MAX_SET_MEMBERS or the re-read budget.
+ * A drop of photos scanned with their states is one set up to the member
+ * cap, whatever its size.
  */
-export function planSets(files: File[]): SetPlan {
-  const sets: File[][] = [];
-  const tooLarge: File[] = [];
-  let current: File[] = [];
-  let bytes = 0;
+export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUDGET): SetPlan {
+  const sets: ScannedFile[][] = [];
+  const tooLarge: ScannedFile[] = [];
+  let current: ScannedFile[] = [];
+  let reread = 0;
   for (const f of files) {
-    if (f.size > MAX_FUSE_BYTES) {
+    if (f.file.size > MAX_FUSE_BYTES) {
       tooLarge.push(f);
       continue;
     }
-    if (current.length > 0 && (current.length >= MAX_SET_MEMBERS || bytes + f.size > MAX_SET_BYTES)) {
+    const cost = f.state !== null && f.placement === "trailer/1" ? 0 : f.file.size;
+    if (current.length > 0 && (current.length >= MAX_SET_MEMBERS || reread + cost > rereadBudget)) {
       sets.push(current);
       current = [];
-      bytes = 0;
+      reread = 0;
     }
     current.push(f);
-    bytes += f.size;
+    reread += cost;
   }
   if (current.length > 0) sets.push(current);
   return { sets, tooLarge };
 }
 
 /**
- * Fuse ONE set of dropped files through this site's own routes: one slot,
- * one commit. Every file must be under MAX_FUSE_BYTES and there must be 1 to
- * MAX_SET_MEMBERS of them (callers plan first). The same original under the
- * same placement is sent once, the first File carrying the member. A
- * FuseError from the pipeline passes through untouched. No fused bytes are
- * kept.
+ * Fuse ONE set of scanned files through this site's own routes: one slot,
+ * one commit, and no file read before the slot is held. A trailer/1 file
+ * scanned with its state is a hashed member: its fused digest is the saved
+ * state finished with the slot's trailer bytes, so its bytes are never read
+ * again. Any other file is a loaded member: read when it is that member's
+ * turn, checked against the scan's digest, fused, hashed and released. Every
+ * file must be under MAX_FUSE_BYTES and there must be 1 to MAX_SET_MEMBERS
+ * of them (callers plan first). The same original under the same placement
+ * is sent once, the first File carrying the member. A FuseError from the
+ * pipeline passes through untouched. No fused bytes are kept.
  */
-export async function fuseFiles(files: File[], opts: { agency?: unknown; transport?: FuseTransport; onProgress?: (progress: FuseSetProgress) => void } = {}): Promise<FusedSet> {
+export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; transport?: FuseTransport; onProgress?: (progress: FuseSetProgress) => void } = {}): Promise<FusedSet> {
   if (files.length === 0) throw new FuseError("bad-input", "a set lists at least one file");
   if (files.length > MAX_SET_MEMBERS) throw new FuseError("bad-input", `a set lists at most ${MAX_SET_MEMBERS} files (got ${files.length})`);
-  const sent: { file: File; original: Uint8Array; placement: SitePlacement }[] = [];
+  const sent: ScannedFile[] = [];
   const seen = new Set<string>();
   for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (file.size > MAX_FUSE_BYTES) {
-      throw new FuseError("bad-input", `${file.name} is ${(file.size / (1024 * 1024)).toFixed(0)} MB; files over ${MAX_FUSE_BYTES / (1024 * 1024)} MB are recorded rather than fused in the browser`, null, i);
+    const f = files[i];
+    if (f.file.size > MAX_FUSE_BYTES) {
+      throw new FuseError("bad-input", `${f.file.name} is ${(f.file.size / (1024 * 1024)).toFixed(0)} MB; files over ${MAX_FUSE_BYTES / (1024 * 1024)} MB are recorded rather than fused in the browser`, null, i);
     }
-    const original = new Uint8Array(await file.arrayBuffer());
-    const placement = placementFor(original);
-    const key = `${placement}:${await sha256B64(original)}`;
+    const key = `${f.placement}:${f.digestB64}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    sent.push({ file, original, placement });
+    sent.push(f);
   }
-  const r = await fuseSet(
-    sent.map((s) => ({ original: s.original, placement: s.placement, name: s.file.name })),
-    {
-      keepFused: false,
-      ...(opts.agency !== undefined ? { agency: opts.agency } : {}),
-      ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
-      transport: opts.transport ?? { baseUrl: window.location.origin },
-    },
-  );
+  const members: CoreSetMember[] = sent.map((f) => {
+    const originDigest = base64ToBytes(f.digestB64);
+    if (originDigest === null || originDigest.length !== 32) throw new FuseError("bad-input", `${f.file.name}: the scan left no 32-byte digest`);
+    if (f.state !== null && f.placement === "trailer/1") {
+      const state = f.state;
+      return { originDigest, placement: f.placement, name: f.file.name, fusedDigest: ({ commitment }) => finishTrailer(state, trailerBytesFor(commitment)) };
+    }
+    return { load: async () => new Uint8Array(await f.file.arrayBuffer()), originDigest, placement: f.placement, name: f.file.name };
+  });
+  const r = await fuseSet(members, {
+    keepFused: false,
+    ...(opts.agency !== undefined ? { agency: opts.agency } : {}),
+    ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
+    transport: opts.transport ?? { baseUrl: window.location.origin },
+  });
   // A boundary that drops metadata on a held-slot commit returns the proof
   // without its manifest. The site's route attaches it; so does this, so a
   // proof held in the browser always carries what its export needs.
@@ -312,7 +339,7 @@ export async function fuseFiles(files: File[], opts: { agency?: unknown; transpo
     const base = typeof prior === "object" && prior !== null && !Array.isArray(prior) ? prior : {};
     proof.metadata = { ...base, [SET_METADATA_KEY]: manifest };
   }
-  const members: FusedSetMember[] = r.members.map((m) => {
+  const out: FusedSetMember[] = r.members.map((m) => {
     const s = sent[m.index];
     return {
       file: s.file,
@@ -334,7 +361,7 @@ export async function fuseFiles(files: File[], opts: { agency?: unknown; transpo
     manifestEchoed: r.manifestEchoed,
     recovered: r.recovered,
     verification: r.verification,
-    members,
+    members: out,
   };
 }
 
