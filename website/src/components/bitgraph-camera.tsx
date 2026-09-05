@@ -961,7 +961,16 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // All or nothing: a set commits as one, so no member is ever shown
         // proved on its own, and a set already made stays made when a later
         // one in the same drop fails.
-        const out = await heldThroughRotation(() => fuseFiles(set));
+        // The bar moves as the set's members are built, in rows: the core
+        // hashes every original before the slot is held, builds each member
+        // under it, and the count then holds while the one commit is in flight.
+        const out = await heldThroughRotation(() => fuseFiles(set, {
+          onProgress: (p) => {
+            if (p.phase !== "fuse") return;
+            const built = set.slice(0, p.done).flatMap((f) => { const t = itemOf.get(f); return t ? [t.digestB64] : []; });
+            setProveProgress({ current: done + rowsOf(built), total: toProve.length });
+          },
+        }));
         const count = out.members.length;
         // The rows this set covers, and ONLY this set's: the plan holds each
         // digest once, so the set's digests name its rows and a row waiting

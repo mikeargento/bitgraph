@@ -16,7 +16,8 @@
  * is the one producer of them afterwards, from the original, the proof's slot
  * record and the row's placement.
  */
-import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseTransport } from "@mikeargento/bitgraph";
+import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetProgress, type FuseTransport } from "@mikeargento/bitgraph";
+export type { FuseSetProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest } from "@mikeargento/bitgraph-verify";
 import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
 import { MAX_FUSE_BYTES, fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
@@ -206,8 +207,13 @@ export interface FusedSetMember {
   originDigestB64: string;
   artifactDigestB64: string;
   fusedName: string;
-  /** SET_MEMBER_DIRECT against the explicit manifest bytes (manifestSource "argument"). */
-  verification: FuseMemberResult;
+  /**
+   * Present only when the set was made with the core's verifyMembers, which
+   * the site never asks for: every member is bound to the proof by its row
+   * in the committed manifest, and the export and the drop check read a
+   * member with the verifier when they hold its bytes.
+   */
+  verification?: FuseMemberResult;
 }
 
 export interface FusedSet {
@@ -270,7 +276,7 @@ export function planSets(files: File[]): SetPlan {
  * FuseError from the pipeline passes through untouched. No fused bytes are
  * kept.
  */
-export async function fuseFiles(files: File[], opts: { agency?: unknown; transport?: FuseTransport } = {}): Promise<FusedSet> {
+export async function fuseFiles(files: File[], opts: { agency?: unknown; transport?: FuseTransport; onProgress?: (progress: FuseSetProgress) => void } = {}): Promise<FusedSet> {
   if (files.length === 0) throw new FuseError("bad-input", "a set lists at least one file");
   if (files.length > MAX_SET_MEMBERS) throw new FuseError("bad-input", `a set lists at most ${MAX_SET_MEMBERS} files (got ${files.length})`);
   const sent: { file: File; original: Uint8Array; placement: SitePlacement }[] = [];
@@ -292,6 +298,7 @@ export async function fuseFiles(files: File[], opts: { agency?: unknown; transpo
     {
       keepFused: false,
       ...(opts.agency !== undefined ? { agency: opts.agency } : {}),
+      ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
       transport: opts.transport ?? { baseUrl: window.location.origin },
     },
   );
@@ -315,7 +322,7 @@ export async function fuseFiles(files: File[], opts: { agency?: unknown; transpo
       originDigestB64: m.originDigestB64,
       artifactDigestB64: m.artifactDigestB64,
       fusedName: m.fusedName ?? fusedNames(s.file.name, s.placement).fusedName,
-      verification: m.verification,
+      ...(m.verification !== undefined ? { verification: m.verification } : {}),
     };
   });
   return {
