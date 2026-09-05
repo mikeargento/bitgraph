@@ -32,8 +32,8 @@ import {
 import type { BitGraphProof, SlotAllocation, Attribution, SetMember, SetManifest } from "@mikeargento/bitgraph-verify";
 import { makeKey, signBody, b64, utf8 } from "./audit-fixtures.js";
 import type { ManualKey } from "./audit-fixtures.js";
-import { fuse, fuseSet, builderFor, placementForBytes, fusedNamesFor, FuseError, MAX_SET_MEMBERS, digest } from "../fuse.js";
-import type { FuseSetProgress } from "../fuse.js";
+import { fuse, fuseSet, builderFor, placementForBytes, fusedNamesFor, FuseError, MAX_SET_MEMBERS, digest, trailerBytesFor } from "../fuse.js";
+import type { FuseSetProgress, FuseSetBytesMember, FuseSetLoadedMember, FuseSetHashedMember, FusedDigestInput } from "../fuse.js";
 import type { FuseSetMember } from "../fuse.js";
 
 const FIX = fileURLToPath(new URL("../../src/__tests__/fuse-fixtures/", import.meta.url));
@@ -48,7 +48,7 @@ const unrelated = utf8("a file nobody recorded\n");
 // The phase-1 fixtures fuse original.txt as trailer/1 and image.png as
 // container/1, so these members declare those placements; the by-bytes
 // default (placementForBytes) is asserted on its own in test 3.
-const two = (): FuseSetMember[] => [{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }];
+const two = (): FuseSetBytesMember[] => [{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }];
 
 // ---------------------------------------------------------------------------
 // Local signer: slots and proofs minted from a received commit body
@@ -160,9 +160,9 @@ const toUrlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").repla
 interface Oracle { commitment: Uint8Array; fused: Uint8Array[]; rows: SetMember[]; manifest: Uint8Array; digestB64: string; sorted: SetMember[] }
 
 /** The commitment from the slot, each member built by its placement, the canonical manifest and its digest. */
-function oracle(slot: SlotAllocation, members: readonly FuseSetMember[]): Oracle {
+function oracle(slot: SlotAllocation, members: readonly FuseSetBytesMember[]): Oracle {
   const commitment = computeSlotCommitment(slot);
-  const placementOf = (m: FuseSetMember) => m.placement ?? placementForBytes(m.original);
+  const placementOf = (m: FuseSetBytesMember) => m.placement ?? placementForBytes(m.original);
   const fused = members.map((m) => getPlacement(placementOf(m))!.build({ original: m.original, commitment }));
   const rows = members.map((m, i) => ({ artifact: sha256(fused[i]!), origin: sha256(m.original), placement: placementOf(m) }));
   const manifest = buildSetManifest(commitment, rows);
@@ -336,7 +336,7 @@ describe("fuseSet(): a bad member burns the slot and commits nothing", () => {
   test("9. bytes that carry the commitment but embed another member's origin are builder-failed naming the member and the origin", async () => {
     const { calls, transport } = honest(key, slot);
     // Two trailer/1 members; member 1's builder hands back member 0's fused bytes, which carry c but embed member 0's original.
-    const members: FuseSetMember[] = [{ original, placement: "trailer/1" }, { original: note, placement: "trailer/1" }];
+    const members: FuseSetBytesMember[] = [{ original, placement: "trailer/1" }, { original: note, placement: "trailer/1" }];
     members[1]!.builder = ({ commitment }) => getPlacement("trailer/1")!.build({ original, commitment });
     await assert.rejects(fuseSet(members, { transport }), (e: FuseError) => e.code === "builder-failed" && /member 1/.test(e.message) && /origin/.test(e.message) && e.member === 1);
     assert.equal(commits(calls).length, 0);
@@ -345,14 +345,14 @@ describe("fuseSet(): a bad member burns the slot and commits nothing", () => {
 
   test("9b. container/1: bytes that declare the member's origin digest but carry other bytes are builder-failed naming the member; no commit", async () => {
     const { calls, transport } = honest(key, slot);
-    const members: FuseSetMember[] = [{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }];
+    const members: FuseSetBytesMember[] = [{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }];
     // The payload names png's digest (so the declared origin matches) while the tar carries other bytes.
     members[1]!.builder = ({ commitment, originDigest }) => getPlacement("container/1")!.build({ original: utf8("not the member's original\n"), originDigest: originDigest!, commitment });
     await assert.rejects(fuseSet(members, { transport }), (e: FuseError) => e.code === "builder-failed" && /^member 1/.test(e.message) && /origin/.test(e.message) && e.member === 1);
     assert.equal(commits(calls).length, 0, "nothing was committed");
     assert.equal(allocates(calls).length, 1);
     // The mirror: a payload declaring another digest over the member's own bytes is refused the same way.
-    const declared: FuseSetMember[] = [{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }];
+    const declared: FuseSetBytesMember[] = [{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }];
     declared[1]!.builder = ({ commitment }) => getPlacement("container/1")!.build({ original: png, originDigest: sha256(unrelated), commitment });
     const b = honest(key, slot);
     await assert.rejects(fuseSet(declared, { transport: b.transport }), (e: FuseError) => e.code === "builder-failed" && e.member === 1);
@@ -696,5 +696,113 @@ describe("fuseSet(): hashing and progress", () => {
     const thrown = await fuseSet(members, { transport: honest(key, slot).transport, onProgress: () => { calls++; throw new Error("a hook that throws"); } });
     assert.equal(thrown.members.length, 3);
     assert.equal(calls, 8, "every report was attempted");
+  });
+});
+
+describe("fuseSet(): loaded and hashed members", () => {
+  /** The trailer/1 member finished from a hasher state, as a scanner does: hash the original once, keep the state, add the trailer later. */
+  const savedState = (bytes: Uint8Array) => { const h = sha256.create(); h.update(bytes); return h; };
+  const finish = (h: ReturnType<typeof sha256.create>, trailer: Uint8Array) => { const c = h.clone(); c.update(trailer); return c.digest(); };
+
+  test("30. trailerBytesFor is the placement's own suffix: original followed by it hashes to the trailer/1 build, and a saved state finished with it agrees", () => {
+    const commitment = computeSlotCommitment(slot);
+    const t = trailerBytesFor(commitment);
+    assert.equal(t.length, 48);
+    assert.deepEqual(t.subarray(0, 8), utf8("BGFUSE01"));
+    assert.deepEqual(t.subarray(8, 16), new Uint8Array(8));
+    assert.deepEqual(t.subarray(16), commitment);
+    for (const o of [original, png, note, new Uint8Array(0), new Uint8Array(55).fill(1), new Uint8Array(64).fill(2), new Uint8Array(1_000_003).fill(3)]) {
+      const built = getPlacement("trailer/1")!.build({ original: o, commitment });
+      assert.deepEqual(built.subarray(o.length), t, `suffix for ${o.length} bytes`);
+      assert.deepEqual(finish(savedState(o), t), sha256(built), `finished state for ${o.length} bytes`);
+    }
+    assert.throws(() => trailerBytesFor(new Uint8Array(31)), (e: FuseError) => e.code === "bad-input");
+  });
+
+  test("31. a loaded member is read once, after the slot is held, checked against its named digest, and released unless kept", async () => {
+    const { calls, transport } = honest(key, slot);
+    const order: string[] = [];
+    const wrapped = { ...transport, fetch: async (url: string, init?: RequestInit) => { order.push(new URL(url).pathname); return (transport.fetch as (u: string, i?: RequestInit) => Promise<Response>)(url, init); } } as unknown as typeof transport;
+    let loads = 0;
+    const loaded: FuseSetLoadedMember = { load: async () => { loads++; order.push("load"); return original; }, originDigest: sha256(original), placement: "trailer/1", name: "photo.jpg" };
+    const r = await fuseSet([loaded, { original: png, placement: "container/1" }], { transport: wrapped });
+    assert.equal(loads, 1);
+    assert.ok(order.indexOf("load") > order.indexOf("/api/fuse/allocate"), "read after the slot is held");
+    assert.ok(order.indexOf("load") < order.indexOf("/api/fuse/commit"), "read before the commit");
+    const o = oracle(slot, [{ original, placement: "trailer/1" }, { original: png, placement: "container/1" }]);
+    assert.equal(r.members[0]!.artifactDigestB64, bytesToBase64(o.rows[0]!.artifact));
+    assert.equal(r.members[0]!.originDigestB64, bytesToBase64(sha256(original)));
+    assert.equal(r.members[0]!.fusedName, fusedNamesFor("photo.jpg", "trailer/1").fusedName);
+    assert.ok(!("fusedBytes" in r.members[0]!));
+    assert.equal(commits(calls).length, 1);
+    const kept = await fuseSet([{ ...loaded }], { transport: honest(key, slot).transport, keepFused: true });
+    assert.deepEqual(kept.members[0]!.fusedBytes, getPlacement("trailer/1")!.build({ original, commitment: computeSlotCommitment(slot) }));
+    // A wrong named digest burns the slot and commits nothing.
+    const bad = honest(key, slot);
+    await assert.rejects(fuseSet([{ load: () => original, originDigest: sha256(unrelated), placement: "trailer/1" }], { transport: bad.transport }), (e: FuseError) => e.code === "bad-input" && /^member 0: originDigest is not the SHA-256 of the loaded bytes/.test(e.message) && e.member === 0);
+    assert.equal(commits(bad.calls).length, 0);
+    assert.equal(allocates(bad.calls).length, 1);
+    // A loader that throws, or returns something other than bytes, is load-failed naming the member.
+    const thrown = honest(key, slot);
+    await assert.rejects(fuseSet([{ load: () => { throw new Error("gone"); }, originDigest: sha256(original), placement: "trailer/1" }], { transport: thrown.transport }), (e: FuseError) => e.code === "load-failed" && /^member 0: load threw: gone/.test(e.message) && e.member === 0);
+    assert.equal(commits(thrown.calls).length, 0);
+    await assert.rejects(fuseSet([{ original, placement: "trailer/1" }, { load: (() => "text") as never, originDigest: sha256(original), placement: "container/1" }], { transport: honest(key, slot).transport }), (e: FuseError) => e.code === "load-failed" && /^member 1: load must return a Uint8Array/.test(e.message) && e.member === 1);
+    // Without a placement or a digest nothing is requested.
+    const quiet = honest(key, slot);
+    await assert.rejects(fuseSet([{ load: () => original, originDigest: sha256(original) } as never], { transport: quiet.transport }), (e: FuseError) => e.code === "bad-input" && /^member 0: a loaded member names its placement/.test(e.message));
+    await assert.rejects(fuseSet([{ load: () => original, placement: "trailer/1" } as never], { transport: quiet.transport }), (e: FuseError) => e.code === "bad-input" && /^member 0: a loaded member names its originDigest/.test(e.message));
+    assert.equal(quiet.calls.length, 0);
+  });
+
+  test("32. a hashed member answers its fused digest for the held commitment and never shows its bytes; the row is what the real verifier finds", async () => {
+    const { calls, transport } = honest(key, slot);
+    const inputs: FusedDigestInput[] = [];
+    const state = savedState(original);
+    const hashed: FuseSetHashedMember = {
+      originDigest: sha256(original),
+      placement: "trailer/1",
+      name: "photo.jpg",
+      fusedDigest: (input) => { inputs.push(input); return finish(state, trailerBytesFor(input.commitment)); },
+    };
+    const r = await fuseSet([hashed, { original: png, placement: "container/1" }, { load: () => note, originDigest: sha256(note), placement: "container/1" }], { transport, keepFused: true });
+    assert.equal(inputs.length, 1);
+    const commitment = computeSlotCommitment(slot);
+    assert.deepEqual(inputs[0]!.commitment, commitment);
+    assert.equal(inputs[0]!.commitmentHex, bytesToHex(commitment));
+    assert.equal(inputs[0]!.slot.nonceB64, slot.nonceB64);
+    const built = getPlacement("trailer/1")!.build({ original, commitment });
+    assert.equal(r.members[0]!.artifactDigestB64, bytesToBase64(sha256(built)), "the row is the hash of the placement's build");
+    assert.ok(!("fusedBytes" in r.members[0]!), "nothing to keep for a hashed member");
+    assert.ok("fusedBytes" in r.members[1]! && "fusedBytes" in r.members[2]!, "bytes and loaded members are kept");
+    assert.equal(r.members.length, 3);
+    assert.equal(r.manifest.members.length, 3);
+    assert.equal(commits(calls).length, 1);
+    // The real verifier reads the member from the bytes a reader would build, and from its original.
+    const direct = await verifyFuseMember({ proof: r.proof, bytes: built, manifest: r.manifestBytes });
+    assert.equal(direct.category, "SET_MEMBER_DIRECT", direct.reason ?? "");
+    assert.equal(direct.set!.member!.index, r.members[0]!.manifestIndex);
+    const fromOrigin = await verifyFuseMember({ proof: r.proof, bytes: original, manifest: r.manifestBytes });
+    assert.equal(fromOrigin.category, "SET_MEMBER_FROM_ORIGIN", fromOrigin.reason ?? "");
+    // verifyMembers refuses a hashed member before any request; a throwing or short answer is builder-failed naming the member.
+    const quiet = honest(key, slot);
+    await assert.rejects(fuseSet([hashed], { transport: quiet.transport, verifyMembers: true }), (e: FuseError) => e.code === "bad-input" && /^member 0: a hashed member cannot be verified in full/.test(e.message) && e.member === 0);
+    assert.equal(quiet.calls.length, 0);
+    const throwing = honest(key, slot);
+    await assert.rejects(fuseSet([{ ...hashed, fusedDigest: () => { throw new Error("no state"); } }], { transport: throwing.transport }), (e: FuseError) => e.code === "builder-failed" && /^member 0: fusedDigest threw: no state/.test(e.message) && e.member === 0);
+    assert.equal(commits(throwing.calls).length, 0);
+    await assert.rejects(fuseSet([{ ...hashed, fusedDigest: () => new Uint8Array(31) }], { transport: honest(key, slot).transport }), (e: FuseError) => e.code === "builder-failed" && /^member 0: fusedDigest must return a 32-byte digest/.test(e.message));
+    // The same original as a hashed member and as a bytes member under one placement is the duplicate it always was.
+    await assert.rejects(fuseSet([hashed, { original, placement: "trailer/1" }], { transport: honest(key, slot).transport }), (e: FuseError) => e.code === "bad-input" && /^members 0 and 1 are the same original/.test(e.message));
+  });
+
+  test("33. progress counts every shape: hash before the slot for all three, fuse after it, one commit", async () => {
+    const seen: FuseSetProgress[] = [];
+    const state = savedState(original);
+    await fuseSet([
+      { originDigest: sha256(original), placement: "trailer/1", fusedDigest: ({ commitment }) => finish(state, trailerBytesFor(commitment)) },
+      { load: () => note, originDigest: sha256(note), placement: "container/1" },
+      { original: png, placement: "container/1" },
+    ], { transport: honest(key, slot).transport, onProgress: (p) => seen.push({ ...p }) });
+    assert.deepEqual(seen.map((p) => `${p.phase} ${p.done}/${p.total}`), ["hash 1/3", "hash 2/3", "hash 3/3", "fuse 1/3", "fuse 2/3", "fuse 3/3", "commit 0/1", "commit 1/1"]);
   });
 });

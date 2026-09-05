@@ -289,11 +289,23 @@ The signed attribution is name `bitgraph-fuse/1`, title `set/1`, and no
 message, because a set has no single origin. The proof is an ordinary
 `bitgraph/1` proof: one position, N files.
 
-`fuseSet(members, options)` in the core package takes an array of members,
-each an original (never modified) with an optional placement (default: chosen
-from the bytes), an optional name (advisory; it names the virtual fused file)
-and an optional builder. The options mirror `fuse()` (`agency`, `transport`)
-with `keepFused` defaulting to false. Refused before any allocation: an empty
+`fuseSet(members, options)` in the core package takes an array of members
+in one of three shapes, which one set may mix. A bytes member is an original
+(never modified) with an optional placement (default: chosen from the
+bytes), an optional name (advisory; it names the virtual fused file) and an
+optional builder. A loaded member names its placement and origin digest and
+gives a `load` function: its bytes are read only when it is that member's
+turn, after the slot is held, checked against the named digest, fused,
+hashed and released, so one member's bytes are in memory at a time however
+large the set. A hashed member names its placement and origin digest and
+gives a `fusedDigest` function that answers the member's fused digest for
+the held slot's commitment: for `trailer/1` a hasher state saved after the
+original and finished with `trailerBytesFor(commitment)`, the 48 bytes the
+placement appends, so the bytes are read once, when they are scanned, and
+never again. The core never sees a hashed member's bytes, so no byte guard
+runs for it and `keepFused` returns nothing for it; its row is bound to the
+committed manifest by digest like every other. The options mirror `fuse()`
+(`agency`, `transport`) with `keepFused` defaulting to false. Refused before any allocation: an empty
 set, more than `MAX_SET_MEMBERS` (2000) members, a `produced/1`, `set/1` or
 unregistered member placement, and the same original twice under the same
 placement (the same original under two placements is two rows). Burns a slot
@@ -315,7 +327,8 @@ linear in the member count and reads no bytes. `verifyMembers: true` also
 runs `verifyFuseMember` over every member's fused bytes against the explicit
 manifest bytes and returns each verdict under `verification`; it re-hashes
 every member with the verifier's own hasher and its cost grows with the
-square of the member count. A proof that fails any check is not returned.
+square of the member count, and a set with a hashed member refuses it before
+any request. A proof that fails any check is not returned.
 `onProgress` reports the hash, fuse, commit and verify phases as they
 advance; a throw inside the hook is ignored.
 

@@ -49,6 +49,8 @@ import {
   parseSetManifest,
   readSetMetadata,
   SET_METADATA_KEY,
+  TRAILER_LENGTH,
+  TRAILER_MAGIC,
   verifyFuse,
   verifyFuseMember,
   base64ToBytes,
@@ -153,6 +155,7 @@ export type FuseErrorCode =
   | "bad-input"
   | "allocate-failed"
   | "builder-failed"
+  | "load-failed"
   | "commitment-missing"
   | "commit-refused"
   | "slot-unavailable"
@@ -478,7 +481,18 @@ export const MAX_SET_MEMBERS = 2000;
 /** The placements a set member takes: Forms A and B, one original per member. */
 export type SetMemberPlacement = "trailer/1" | "container/1";
 
-export interface FuseSetMember {
+/** What a hashed member's fused digest is computed for: the held slot and its commitment. */
+export interface FusedDigestInput {
+  commitment: Uint8Array;
+  commitmentHex: string;
+  slot: SlotAllocation;
+}
+
+/**
+ * A member given as bytes. The core hashes the original, builds the fused
+ * bytes under the slot's commitment, checks them, and hashes them.
+ */
+export interface FuseSetBytesMember {
   /** The original bytes. Never modified. */
   original: Uint8Array;
   /** Default: placementForBytes(original). */
@@ -489,10 +503,62 @@ export interface FuseSetMember {
   builder?: FuseBuilder;
 }
 
+/**
+ * A member whose bytes are read only when it is that member's turn, after
+ * the slot is held, and released once hashed: one member's bytes in memory
+ * at a time, however large the set. Nothing can be read before allocation
+ * without reading twice, so the caller names the placement and the origin
+ * digest up front; the digest is checked against the loaded bytes, and the
+ * byte guards run as for a bytes member.
+ */
+export interface FuseSetLoadedMember {
+  load: () => Promise<Uint8Array> | Uint8Array;
+  originDigest: Uint8Array;
+  placement: SetMemberPlacement;
+  /** Advisory; feeds fusedNamesFor. */
+  name?: string;
+  /** Default: builderFor(placement, bytes). The locate and origin guards run regardless. */
+  builder?: FuseBuilder;
+}
+
+/**
+ * A member the caller hashes itself: it answers the fused digest for the
+ * held slot's commitment. For trailer/1 that is a hash state saved after
+ * the original and finished with trailerBytesFor(commitment), so the bytes
+ * are read once, when they are scanned, and never again. The core never
+ * sees this member's bytes: no byte guard runs, keepFused returns nothing
+ * for it, and verifyMembers refuses it before any request. Its row is bound
+ * to the committed manifest by digest like every other.
+ */
+export interface FuseSetHashedMember {
+  originDigest: Uint8Array;
+  placement: SetMemberPlacement;
+  fusedDigest: (input: FusedDigestInput) => Promise<Uint8Array> | Uint8Array;
+  /** Advisory; feeds fusedNamesFor. */
+  name?: string;
+}
+
+export type FuseSetMember = FuseSetBytesMember | FuseSetLoadedMember | FuseSetHashedMember;
+
+/**
+ * The 48 bytes trailer/1 appends after the original: the magic, eight
+ * reserved zero bytes, the commitment. A hasher whose state was saved after
+ * the original finishes with these and holds the member's fused digest
+ * without reading the original again. A test pins them against the
+ * placement's own build.
+ */
+export function trailerBytesFor(commitment: Uint8Array): Uint8Array {
+  if (!(commitment instanceof Uint8Array) || commitment.length !== 32) throw new FuseError("bad-input", "a slot commitment is 32 bytes");
+  const out = new Uint8Array(TRAILER_LENGTH);
+  out.set(new TextEncoder().encode(TRAILER_MAGIC), 0);
+  out.set(commitment, TRAILER_LENGTH - 32);
+  return out;
+}
+
 export interface FuseSetProgress {
   /**
-   * "hash": origin digests, one per member, before any request.
-   * "fuse": each member built and its fused digest taken, after the slot is held.
+   * "hash": each member checked before any request (a bytes member's origin digest is taken here).
+   * "fuse": each member's fused digest taken, after the slot is held.
    * "commit": 0 of 1 before the request, 1 of 1 when the proof is back.
    * "verify": only with verifyMembers, one per member.
    */
@@ -502,7 +568,7 @@ export interface FuseSetProgress {
 }
 
 export interface FuseSetOptions {
-  /** Return each member's fused bytes. Default false: they are virtual, rebuilt from the original and the proof. */
+  /** Return each member's fused bytes. Default false: they are virtual, rebuilt from the original and the proof. A hashed member has none to return. */
   keepFused?: boolean;
   /**
    * Run the full verifier (verifyFuseMember) over every member's fused bytes
@@ -510,7 +576,8 @@ export interface FuseSetOptions {
    * false: every member is bound to the returned proof by digest, its row in
    * the committed manifest, which is itself verified FUSED_DIRECT; that is
    * linear and reads no bytes. The full pass re-hashes every member with the
-   * verifier's own hasher and grows with the square of the member count.
+   * verifier's own hasher and grows with the square of the member count. A
+   * set with a hashed member refuses it before any request.
    */
   verifyMembers?: boolean;
   /** Called as the set advances. A throw inside it is ignored: a progress hook never changes the outcome. */
@@ -533,7 +600,7 @@ export interface FuseSetMemberResult {
   fusedName: string | null;
   /** Advisory; no Frame is written for a set member this phase. */
   frameName: string | null;
-  /** Present only when keepFused is true. */
+  /** Present only when keepFused is true and the member's bytes passed through the core (never for a hashed member). */
   fusedBytes?: Uint8Array;
   /** Present only with verifyMembers: the verifier's own verdict against this member's fused bytes. Always SET_MEMBER_DIRECT on success, with set.manifestSource "argument". */
   verification?: FuseMemberResult;
@@ -562,13 +629,28 @@ export interface FuseSetResult {
  * Allocate once, fuse every member with the one commitment, hash the set
  * manifest, fill the slot with it. Returns the proof with the manifest bytes
  * beside it, or throws a FuseError; it never commits a partial set and never
- * allocates a second slot.
+ * allocates a second slot. Members may be given as bytes, as a loader read
+ * one at a time after the slot is held, or as a digest the caller finishes
+ * itself; one set may mix them.
  */
 export async function fuseSet(members: readonly FuseSetMember[], options: FuseSetOptions = {}): Promise<FuseSetResult> {
   // 0. validate, before any request. A refusal here burns nothing.
   if (!Array.isArray(members) || members.length === 0) throw new FuseError("bad-input", "a set lists at least one member");
   if (members.length > MAX_SET_MEMBERS) throw new FuseError("bad-input", `a set lists at most ${MAX_SET_MEMBERS} members (got ${members.length})`);
-  interface Checked { placement: Placement; id: SetMemberPlacement; original: Uint8Array; originDigest: Uint8Array; name: string | null; builder: FuseBuilder }
+  const keep = options.keepFused === true;
+  const verifyMembers = options.verifyMembers === true;
+  type Kind = "bytes" | "loaded" | "hashed";
+  interface Checked {
+    kind: Kind;
+    placement: Placement;
+    id: SetMemberPlacement;
+    originDigest: Uint8Array;
+    name: string | null;
+    original: Uint8Array | null;
+    load: (() => Promise<Uint8Array> | Uint8Array) | null;
+    builder: FuseBuilder | null;
+    fusedDigest: ((input: FusedDigestInput) => Promise<Uint8Array> | Uint8Array) | null;
+  }
   const checked: Checked[] = [];
   const seen = new Map<string, number>();
   const report = (phase: FuseSetProgress["phase"], done: number, total: number) => {
@@ -579,17 +661,23 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
       // a progress hook never changes the outcome
     }
   };
+  const bad = (i: number, message: string) => new FuseError("bad-input", `member ${i}: ${message}`, null, i);
   for (let i = 0; i < members.length; i++) {
-    const m = members[i];
-    // A null, undefined or missing element is refused like any other member without original bytes.
-    if (m === null || typeof m !== "object" || !(m.original instanceof Uint8Array)) throw new FuseError("bad-input", `member ${i}: original must be a Uint8Array`, null, i);
-    const id = m.placement ?? placementForBytes(m.original);
+    const m = members[i] as Partial<FuseSetBytesMember & FuseSetLoadedMember & FuseSetHashedMember> | null | undefined;
+    // A null, undefined or missing element is refused like any other member without bytes, a loader or a digest.
+    if (m === null || typeof m !== "object") throw bad(i, "original must be a Uint8Array, or load or fusedDigest a function");
+    const kind: Kind | null = m.original instanceof Uint8Array ? "bytes" : typeof m.load === "function" ? "loaded" : typeof m.fusedDigest === "function" ? "hashed" : null;
+    if (kind === null) throw bad(i, "original must be a Uint8Array, or load or fusedDigest a function");
+    if (kind !== "bytes" && m.placement === undefined) throw bad(i, `a ${kind} member names its placement`);
+    const id = m.placement ?? placementForBytes(m.original as Uint8Array);
     const placement = getPlacement(id);
     if (placement === undefined) throw new FuseError("bad-placement", `member ${i}: placement "${id}" is not registered`, null, i);
-    if (placement.form === "C") throw new FuseError("bad-input", `member ${i}: ${id} takes no original; a set holds trailer/1 and container/1 members only`, null, i);
-    if (m.name !== undefined && typeof m.name !== "string") throw new FuseError("bad-input", `member ${i}: name must be a string`, null, i);
-    if (m.builder !== undefined && typeof m.builder !== "function") throw new FuseError("bad-input", `member ${i}: builder must be a function`, null, i);
-    const originDigest = await digest(m.original);
+    if (placement.form === "C") throw bad(i, `${id} takes no original; a set holds trailer/1 and container/1 members only`);
+    if (m.name !== undefined && typeof m.name !== "string") throw bad(i, "name must be a string");
+    if (m.builder !== undefined && typeof m.builder !== "function") throw bad(i, "builder must be a function");
+    if (kind !== "bytes" && !(m.originDigest instanceof Uint8Array && m.originDigest.length === 32)) throw bad(i, `a ${kind} member names its originDigest, 32 bytes`);
+    if (kind === "hashed" && verifyMembers) throw bad(i, "a hashed member cannot be verified in full; pass its bytes or drop verifyMembers");
+    const originDigest = kind === "bytes" ? await digest(m.original as Uint8Array) : (m.originDigest as Uint8Array);
     // The same original under the same placement fuses to the same bytes, which one manifest lists once.
     const key = `${id}:${bytesToHex(originDigest)}`;
     const j = seen.get(key);
@@ -597,7 +685,17 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
       throw new FuseError("bad-input", `members ${j} and ${i} are the same original under the same placement (${id}) and would fuse to the same bytes; a set lists each fused artifact once`, null, i);
     }
     seen.set(key, i);
-    checked.push({ placement, id, original: m.original, originDigest, name: m.name ?? null, builder: m.builder ?? builderFor(id, m.original) });
+    checked.push({
+      kind,
+      placement,
+      id,
+      originDigest,
+      name: m.name ?? null,
+      original: kind === "bytes" ? (m.original as Uint8Array) : null,
+      load: kind === "loaded" ? (m.load as Checked["load"]) : null,
+      builder: kind !== "hashed" && m.builder !== undefined ? (m.builder as FuseBuilder) : null,
+      fusedDigest: kind === "hashed" ? (m.fusedDigest as Checked["fusedDigest"]) : null,
+    });
     report("hash", i + 1, members.length);
   }
   const t: BoundTransport = { ...DEFAULTS, ...(options.transport ?? {}) };
@@ -605,41 +703,72 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
   // 1. nonce: one slot for the whole set
   const slot = await allocateSlot(t);
 
-  // 2. fuse: the commitment once, every member's bytes carrying it. The slot
-  //    is held and its TTL is running; a throw here burns it but commits nothing.
+  // 2. fuse: the commitment once, every member's digest under it. The slot
+  //    is held and its TTL is running; a throw here burns it but commits
+  //    nothing. A member's fused bytes are virtual: each is built, hashed
+  //    and released in turn, so memory holds one member's bytes at a time.
+  //    They are held only for a caller who keeps them or asks the full
+  //    verifier to read them.
   const commitment = computeSlotCommitment(slot);
   const commitmentHex = bytesToHex(commitment);
-  const keep = options.keepFused === true;
-  const verifyMembers = options.verifyMembers === true;
-  // A member's fused bytes are virtual: each is built, hashed and released in
-  // turn, so memory holds the originals and one fused copy. They are held only
-  // for a caller who keeps them or asks the full verifier to read them.
   const fusedBytes: (Uint8Array | null)[] = [];
   const rows: SetMember[] = [];
+  const expiring = "nothing was committed and the slot will expire";
   for (let i = 0; i < checked.length; i++) {
     const c = checked[i]!;
-    let fused: Uint8Array;
-    try {
-      fused = await c.builder({ commitment, commitmentHex, originDigest: c.originDigest, slot });
-    } catch (err) {
-      throw new FuseError("builder-failed", `member ${i}: the builder threw: ${err instanceof Error ? err.message : String(err)}`, null, i);
+    let artifact: Uint8Array;
+    let held: Uint8Array | null = null;
+    if (c.kind === "hashed") {
+      let d: unknown;
+      try {
+        d = await c.fusedDigest!({ commitment, commitmentHex, slot });
+      } catch (err) {
+        throw new FuseError("builder-failed", `member ${i}: fusedDigest threw: ${err instanceof Error ? err.message : String(err)}; ${expiring}`, null, i);
+      }
+      if (!(d instanceof Uint8Array) || d.length !== 32) throw new FuseError("builder-failed", `member ${i}: fusedDigest must return a 32-byte digest; ${expiring}`, null, i);
+      artifact = d;
+    } else {
+      let original: Uint8Array;
+      if (c.kind === "loaded") {
+        let loaded: unknown;
+        try {
+          loaded = await c.load!();
+        } catch (err) {
+          throw new FuseError("load-failed", `member ${i}: load threw: ${err instanceof Error ? err.message : String(err)}; ${expiring}`, null, i);
+        }
+        if (!(loaded instanceof Uint8Array)) throw new FuseError("load-failed", `member ${i}: load must return a Uint8Array; ${expiring}`, null, i);
+        original = loaded;
+        // The digest the caller named is the row's origin; it must be these bytes' own.
+        if (!bytesEqual(await digest(original), c.originDigest)) throw new FuseError("bad-input", `member ${i}: originDigest is not the SHA-256 of the loaded bytes; ${expiring}`, null, i);
+      } else {
+        original = c.original!;
+      }
+      const builder = c.builder ?? builderFor(c.id, original);
+      let fused: Uint8Array;
+      try {
+        fused = await builder({ commitment, commitmentHex, originDigest: c.originDigest, slot });
+      } catch (err) {
+        throw new FuseError("builder-failed", `member ${i}: the builder threw: ${err instanceof Error ? err.message : String(err)}`, null, i);
+      }
+      if (!(fused instanceof Uint8Array)) throw new FuseError("builder-failed", `member ${i}: the builder must return a Uint8Array`, null, i);
+      const located = requireCommitment(c.placement, fused, commitment, i);
+      // The row's origin must be the origin the bytes embed, else the member
+      // would verify INVALID_ORIGIN_ATTRIBUTION after the slot is spent. Both
+      // facts are checked when both are present: the digest the bytes declare
+      // (container/1's payload) and the bytes they carry, compared byte for
+      // byte with the member's original rather than hashed again, so a builder
+      // cannot pack other bytes under the member's digest and leave a member no
+      // original rebuilds.
+      const declared = located.originDigest;
+      const carried = located.originalBytes;
+      if ((declared !== undefined && !bytesEqual(declared, c.originDigest)) || (carried !== undefined && !bytesEqual(carried, original))) {
+        throw new FuseError("builder-failed", `member ${i}: the fused bytes embed an origin that is not the member's original; ${expiring}`, null, i);
+      }
+      artifact = await digest(fused);
+      if (keep || verifyMembers) held = fused;
     }
-    if (!(fused instanceof Uint8Array)) throw new FuseError("builder-failed", `member ${i}: the builder must return a Uint8Array`, null, i);
-    const located = requireCommitment(c.placement, fused, commitment, i);
-    // The row's origin must be the origin the bytes embed, else the member
-    // would verify INVALID_ORIGIN_ATTRIBUTION after the slot is spent. Both
-    // facts are checked when both are present: the digest the bytes declare
-    // (container/1's payload) and the bytes they carry, compared byte for
-    // byte with the member's original rather than hashed again, so a builder
-    // cannot pack other bytes under the member's digest and leave a member no
-    // original rebuilds.
-    const declared = located.originDigest;
-    const carried = located.originalBytes;
-    if ((declared !== undefined && !bytesEqual(declared, c.originDigest)) || (carried !== undefined && !bytesEqual(carried, c.original))) {
-      throw new FuseError("builder-failed", `member ${i}: the fused bytes embed an origin that is not the member's original; nothing was committed and the slot will expire`, null, i);
-    }
-    rows.push({ artifact: await digest(fused), origin: c.originDigest, placement: c.id });
-    fusedBytes.push(keep || verifyMembers ? fused : null);
+    rows.push({ artifact, origin: c.originDigest, placement: c.id });
+    fusedBytes.push(held);
     report("fuse", i + 1, checked.length);
   }
 
@@ -648,7 +777,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
   try {
     manifestBytes = buildSetManifest(commitment, rows);
   } catch (err) {
-    throw new FuseError("bad-input", `the set manifest could not be built: ${err instanceof Error ? err.message : String(err)}; nothing was committed and the slot will expire`);
+    throw new FuseError("bad-input", `the set manifest could not be built: ${err instanceof Error ? err.message : String(err)}; ${expiring}`);
   }
   const artifactDigestB64 = bytesToBase64(await digest(manifestBytes));
   const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as SetManifest;
@@ -712,6 +841,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
       report("verify", i + 1, checked.length);
     }
     const names = c.name !== null ? fusedNamesFor(c.name, c.id) : null;
+    const held = fusedBytes[i];
     results.push({
       index: i,
       manifestIndex: k,
@@ -720,7 +850,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
       artifactDigestB64: memberArtifactB64,
       fusedName: names?.fusedName ?? null,
       frameName: names?.frameName ?? null,
-      ...(keep ? { fusedBytes: fusedBytes[i]! } : {}),
+      ...(keep && held !== null ? { fusedBytes: held } : {}),
       ...(verification !== undefined ? { verification } : {}),
     });
   }

@@ -40,9 +40,9 @@ export { Constructor } from "./constructor.js";
 // The producer profile over the primitive (working name Fuse): allocate a
 // slot, write a commitment to it into the artifact, hash, commit under the
 // same slot. The resulting proof is ordinary bitgraph/1.
-export { fuse, fuseSet, MAX_SET_MEMBERS, builderFor, FuseError, digestFromBase64, placementForBytes, fusedNamesFor } from "./fuse.js";
+export { fuse, fuseSet, MAX_SET_MEMBERS, trailerBytesFor, builderFor, FuseError, digestFromBase64, placementForBytes, fusedNamesFor } from "./fuse.js";
 export type { FuseBuilder, BuilderInput, FuseOptions, FuseResult, FuseTransport, FuseErrorCode } from "./fuse.js";
-export type { FuseSetMember, SetMemberPlacement, FuseSetOptions, FuseSetProgress, FuseSetMemberResult, FuseSetResult } from "./fuse.js";
+export type { FuseSetMember, FuseSetBytesMember, FuseSetLoadedMember, FuseSetHashedMember, FusedDigestInput, SetMemberPlacement, FuseSetOptions, FuseSetProgress, FuseSetMemberResult, FuseSetResult } from "./fuse.js";
 // The verify-package types those results are made of, so the core entry names everything it returns.
 export type { FuseFrame, PlacementId, SetManifest, FuseMemberResult, FuseVerifyResult } from "@mikeargento/bitgraph-verify";
 
