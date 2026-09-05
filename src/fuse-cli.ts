@@ -28,7 +28,7 @@ import type { FuseTransport } from "./fuse.js";
 
 const USAGE = `bitgraph-fuse: BitGraph producer harness (profile bitgraph-fuse/1, working name)
 
-  bitgraph-fuse fuse <file> --placement trailer/1|container/1 [options]
+  bitgraph-fuse fuse <file> --placement trailer/1|container/1|container/2 [options]
       Form A or B over an existing file. The file is never modified.
   bitgraph-fuse produce [--origin <file>] [options]
       Form C: a canonical payload naming an optional source.
@@ -104,7 +104,7 @@ async function writeOutputs(outDir: string, label: string, frame: unknown, fused
 async function runFuse(args: Args): Promise<number> {
   const file = args.positional[0];
   const placement = args.flags.get("placement");
-  if (file === undefined || (placement !== "trailer/1" && placement !== "container/1")) { process.stderr.write(USAGE); return 64; }
+  if (file === undefined || (placement !== "trailer/1" && placement !== "container/1" && placement !== "container/2")) { process.stderr.write(USAGE); return 64; }
   const original = new Uint8Array(await readFile(resolve(file)));
   const label = sanitize(basename(file));
   const ext = placement === "trailer/1" ? extname(label) : ".tar";

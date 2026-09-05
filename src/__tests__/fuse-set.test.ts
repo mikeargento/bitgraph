@@ -352,7 +352,7 @@ describe("codec: parseSetManifest", () => {
 
 describe("registry and metadata", () => {
   test("13. PLACEMENTS is unchanged; set/1 resolves through getPlacement as Form C, not byte-exact, locate-only", () => {
-    assert.deepEqual(PLACEMENTS.map((p) => p.id), ["trailer/1", "container/1", "produced/1"]);
+    assert.deepEqual(PLACEMENTS.map((p) => p.id), ["trailer/1", "container/1", "container/2", "produced/1"]);
     const set1 = getPlacement("set/1")!;
     assert.ok(set1);
     assert.equal(set1.id, SET_PLACEMENT_ID);

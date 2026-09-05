@@ -20,8 +20,8 @@ const proofOf = (name: string) => JSON.parse(readFileSync(FIX + name, "utf8")) a
 
 describe("registry", () => {
   test("fixed order and ids", () => {
-    assert.deepEqual(PLACEMENTS.map((p) => p.id), ["trailer/1", "container/1", "produced/1"]);
-    assert.deepEqual(PLACEMENTS.map((p) => p.byteExact), [true, true, false]);
+    assert.deepEqual(PLACEMENTS.map((p) => p.id), ["trailer/1", "container/1", "container/2", "produced/1"]);
+    assert.deepEqual(PLACEMENTS.map((p) => p.byteExact), [true, true, true, false]);
     assert.equal(getPlacement("xmp/9"), undefined);
     assert.equal(getPlacement(""), undefined);
   });
@@ -170,5 +170,74 @@ describe("attribution and Frame", () => {
     assert.equal(f.type, "bitgraph-fuse/1");
     assert.ok(f.fusePayload, "Form C frames carry the parsed payload view");
     assert.throws(() => buildFrame({ proof: proofOf("produced-origin.proof.json"), placement: "produced/1", artifactDigest: new Uint8Array(32), fusedFile: null, fusePayload: new Uint8Array([1]) }), /canonical/);
+  });
+});
+
+describe("container/2: the original first, then the manifest", () => {
+  const p = getPlacement("container/2")!;
+  const commitment = new Uint8Array(32).fill(0x5a);
+  const other = new Uint8Array(32).fill(0xa5);
+  const sizes = [0, 1, 511, 512, 513, 1023, 1024, 1025, 100_000, 1_048_579];
+  const filled = (n: number) => { const b = new Uint8Array(n); for (let i = 0; i < n; i++) b[i] = (i * 13 + 7) & 0xff; return b; };
+
+  test("build carries the original whole and first; locate reads it back and each container refuses the other's bytes", () => {
+    for (const n of sizes) {
+      const original = filled(n);
+      const fused = p.build({ original, commitment });
+      assert.equal(new TextDecoder().decode(fused.subarray(0, 22)), "bitgraph-fuse/original");
+      const l = p.locate(fused);
+      assert.ok(l, `locate ${n}`);
+      assert.deepEqual(l!.commitment, commitment);
+      assert.deepEqual(l!.originDigest, sha256(original));
+      assert.deepEqual(l!.originalBytes, original);
+      const c1 = getPlacement("container/1")!.build({ original, commitment });
+      assert.equal(p.locate(c1), null, `container/2 refuses container/1 bytes (${n})`);
+      assert.equal(getPlacement("container/1")!.locate(fused), null, `container/1 refuses container/2 bytes (${n})`);
+      const tampered = new Uint8Array(fused); tampered[tampered.length - 600] = (tampered[tampered.length - 600] ?? 0) ^ 1;
+      assert.equal(p.locate(tampered), null);
+    }
+  });
+
+  test("frame: prefix, original, suffix is the build, byte for byte, for every Form A and B placement and size", () => {
+    for (const id of ["trailer/1", "container/1", "container/2"] as const) {
+      const q = getPlacement(id)!;
+      for (const n of sizes) {
+        const original = filled(n);
+        const originDigest = sha256(original);
+        for (const c of [commitment, other]) {
+          const f = q.frame!({ originalSize: n, originDigest, commitment: c });
+          const joined = new Uint8Array(f.prefix.length + n + f.suffix.length);
+          joined.set(f.prefix, 0); joined.set(original, f.prefix.length); joined.set(f.suffix, f.prefix.length + n);
+          assert.deepEqual(joined, q.build({ original, originDigest, commitment: c }), `${id} ${n}`);
+        }
+      }
+    }
+  });
+
+  test("scanPrefix: fixed for trailer/1 (empty) and container/2 (the original's header), null for container/1 whose prefix carries the commitment", () => {
+    for (const n of sizes) {
+      const originDigest = sha256(filled(n));
+      assert.deepEqual(getPlacement("trailer/1")!.scanPrefix!(n), new Uint8Array(0));
+      const pre = p.scanPrefix!(n)!;
+      assert.equal(pre.length, 512);
+      for (const c of [commitment, other]) assert.deepEqual(p.frame!({ originalSize: n, originDigest, commitment: c }).prefix, pre, `the same prefix under any commitment (${n})`);
+      assert.equal(getPlacement("container/1")!.scanPrefix!(n), null);
+    }
+    assert.equal(getPlacement("produced/1")!.frame, undefined);
+    assert.equal(getPlacement("set/1")!.frame, undefined);
+  });
+
+  test("a hasher state saved after prefix and original, finished with the suffix, is the fused digest: the file is read once", () => {
+    for (const n of [0, 1, 511, 512, 513, 100_000]) {
+      const original = filled(n);
+      const originDigest = sha256(original);
+      const h = sha256.create();
+      h.update(p.scanPrefix!(n)!);
+      h.update(original);
+      for (const c of [commitment, other]) {
+        const finished = h.clone().update(p.frame!({ originalSize: n, originDigest, commitment: c }).suffix).digest();
+        assert.deepEqual(finished, sha256(p.build({ original, originDigest, commitment: c })), `${n} bytes`);
+      }
+    }
   });
 });

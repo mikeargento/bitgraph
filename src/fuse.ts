@@ -186,12 +186,14 @@ export class FuseError extends Error {
  * safe only where decoders stop at an end marker or read by declared sizes:
  * JPEG (EOI), PNG (IEND), GIF (0x3B), TIFF and the TIFF-based raws such as
  * DNG, CR2, NEF, ARW (offset tables), BMP and RIFF containers such as WebP,
- * WAV, AVI (declared sizes). Everything else goes into `container/1`, a tar
- * that carries the original untouched: PDF, ZIP-based documents, ISO base
+ * WAV, AVI (declared sizes). Everything else goes into `container/2`, a tar
+ * that carries the original untouched and FIRST, so a scanner can hash it
+ * once and finish the fused digest later: PDF, ZIP-based documents, ISO base
  * media video and images, Matroska, MP3, structured and plain text, and any
- * format not recognised here.
+ * format not recognised here. Artifacts made under `container/1` (the
+ * manifest first) stay readable; nothing new is made under it.
  */
-export function placementForBytes(bytes: Uint8Array): "trailer/1" | "container/1" {
+export function placementForBytes(bytes: Uint8Array): "trailer/1" | "container/2" {
   const at = (sig: number[], offset = 0): boolean => bytes.length >= offset + sig.length && sig.every((v, i) => bytes[offset + i] === v);
   const trailerSafe =
     at([0xff, 0xd8, 0xff]) || // JPEG
@@ -200,7 +202,7 @@ export function placementForBytes(bytes: Uint8Array): "trailer/1" | "container/1
     at([0x49, 0x49, 0x2a, 0x00]) || at([0x4d, 0x4d, 0x00, 0x2a]) || // TIFF, DNG, CR2, NEF, ARW
     (at([0x42, 0x4d]) && bytes.length >= 14) || // BMP
     (at([0x52, 0x49, 0x46, 0x46]) && bytes.length >= 12); // RIFF: WebP, WAV, AVI
-  return trailerSafe ? "trailer/1" : "container/1";
+  return trailerSafe ? "trailer/1" : "container/2";
 }
 
 /** Names for a fused artifact and its Frame, from the original's name. */
@@ -209,7 +211,7 @@ export function fusedNamesFor(originalName: string, placement: PlacementId): { f
   const stem = dot > 0 ? originalName.slice(0, dot) : originalName;
   const ext = dot > 0 ? originalName.slice(dot) : "";
   return {
-    fusedName: placement === "trailer/1" ? `${stem}.fused${ext}` : placement === "container/1" ? `${stem}.fused.tar` : `${stem}.produced.json`,
+    fusedName: placement === "trailer/1" ? `${stem}.fused${ext}` : placement.startsWith("container/") ? `${stem}.fused.tar` : `${stem}.produced.json`,
     frameName: `${originalName}.bitgraph-fuse.json`,
   };
 }
@@ -479,7 +481,7 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
 export const MAX_SET_MEMBERS = 2000;
 
 /** The placements a set member takes: Forms A and B, one original per member. */
-export type SetMemberPlacement = "trailer/1" | "container/1";
+export type SetMemberPlacement = "trailer/1" | "container/1" | "container/2";
 
 /** What a hashed member's fused digest is computed for: the held slot and its commitment. */
 export interface FusedDigestInput {
@@ -672,7 +674,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     const id = m.placement ?? placementForBytes(m.original as Uint8Array);
     const placement = getPlacement(id);
     if (placement === undefined) throw new FuseError("bad-placement", `member ${i}: placement "${id}" is not registered`, null, i);
-    if (placement.form === "C") throw bad(i, `${id} takes no original; a set holds trailer/1 and container/1 members only`);
+    if (placement.form === "C") throw bad(i, `${id} takes no original; a set holds trailer/1, container/1 and container/2 members only`);
     if (m.name !== undefined && typeof m.name !== "string") throw bad(i, "name must be a string");
     if (m.builder !== undefined && typeof m.builder !== "function") throw bad(i, "builder must be a function");
     if (kind !== "bytes" && !(m.originDigest instanceof Uint8Array && m.originDigest.length === 32)) throw bad(i, `a ${kind} member names its originDigest, 32 bytes`);

@@ -259,7 +259,7 @@ describe("fuseSet(): one slot, N files, the manifest as the artifact", () => {
     // The by-bytes default: PNG is trailer-safe, plain text goes into a container.
     const d = await fuseSet([{ original: png }, { original }], { transport: honest(key, slot).transport });
     assert.deepEqual(d.members.map((m) => m.placement), [placementForBytes(png), placementForBytes(original)]);
-    assert.deepEqual(d.members.map((m) => m.placement), ["trailer/1", "container/1"]);
+    assert.deepEqual(d.members.map((m) => m.placement), ["trailer/1", "container/2"]);
   });
 
   test("4. each original rebuilds its member (SET_MEMBER_FROM_ORIGIN); with the echo stripped and no explicit bytes nothing is bound", async () => {

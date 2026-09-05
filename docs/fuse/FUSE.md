@@ -101,11 +101,21 @@ proof uses.
 | id | form | byte-exact | bytes |
 |---|---|---|---|
 | `trailer/1` | A | yes | original, then `BGFUSE01`, 8 zero bytes, the 32-byte commitment. Safe only for formats that tolerate trailing bytes. |
-| `container/1` | B | yes | uncompressed ustar: `bitgraph-fuse/manifest.json` (the Form C payload with the origin digest) then `bitgraph-fuse/original`; zeroed mode, uid, gid, mtime, names; two zero blocks. |
+| `container/1` | B | yes | uncompressed ustar: `bitgraph-fuse/manifest.json` (the Form C payload with the origin digest) then `bitgraph-fuse/original`; zeroed mode, uid, gid, mtime, names; two zero blocks. Readable; nothing new is made under it since 2026-09-05. |
+| `container/2` | B | yes | the same archive with `bitgraph-fuse/original` FIRST, then `bitgraph-fuse/manifest.json`. Everything before the original's bytes is its header, which depends on the size alone, so a scanner hashes header and original once and finishes the fused digest later with the manifest for whatever slot the set is made under. The default container. |
 | `produced/1` | C | no | the canonical Form C payload itself: `{"origin":{...},"slotCommitment":{...},"type":"bitgraph-fuse/1"}`, origin omitted when there is no source. |
 
 A verifier tries registered placements in that fixed order when none is
-declared, and never an unregistered one. Metadata placements (XMP, PDF Info,
+declared, and never an unregistered one. Every Form A and B placement also
+states its frame: `frame({originalSize, originDigest, commitment})` returns
+the prefix and suffix such that the build is exactly prefix, original,
+suffix, and `scanPrefix(originalSize)` returns the prefix when it depends on
+the size alone (`trailer/1`: nothing; `container/2`: the original's header)
+or null when it carries the commitment (`container/1`). A producer that
+streams a file once hashes the prefix and the bytes as they pass, saves the
+hasher's state, and finishes it with the suffix once the slot exists; the
+tests pin the frame to the build byte for byte at sizes across the 512-byte
+tar boundaries. Metadata placements (XMP, PDF Info,
 ID3, JSON field) are Form A too but enter the registry only once their
 serialization is pinned and round-trip tested.
 
@@ -136,7 +146,7 @@ origin; it is never modified and never uploaded. In the browser: hash the
 origin, allocate an unused slot through `/api/fuse/allocate`, derive the slot
 commitment, build the fused bytes with the registered placement chosen from
 the bytes (`trailer/1` for formats that ignore trailing data: JPEG, PNG, GIF,
-TIFF and TIFF-based raws, BMP, RIFF such as WebP; `container/1` for everything
+TIFF and TIFF-based raws, BMP, RIFF such as WebP; `container/2` for everything
 else: PDF, ZIP-based documents, ISO base media video and HEIC, Matroska, MP3,
 structured and plain text, unknown formats), hash them, and consume that exact
 slot through `/api/fuse/commit`. The fused bytes are transient: they exist in
@@ -281,7 +291,8 @@ in process memory only.
 
 A set is N files fused under one slot. The commitment is computed once from
 the one slot record and written into every member by that member's own
-placement (`trailer/1` or `container/1`, chosen from the bytes as today). The
+placement (`trailer/1`, `container/2`, or the older `container/1`, chosen from
+the bytes as today). The
 committed artifact is the canonical set manifest, placement `set/1`: one row
 per member holding the fused artifact digest, the origin digest and the
 placement id, rows ascending by artifact digest, plus the commitment itself.
@@ -356,7 +367,7 @@ present (WebCrypto, in browsers and in Node) and the JavaScript library
 otherwise; both give the same digest, and the native path runs about ten
 times faster over large files. Each member's fused bytes are built, hashed
 and released in turn, so memory holds the originals plus one fused copy
-(`container/1` doubles that one member), unless `keepFused` or
+(a container doubles that one member), unless `keepFused` or
 `verifyMembers` asks for all of them. The return-time binding is by digest
 and linear; the `verifyMembers` pass is the quadratic one described above,
 and it runs after the commit, so the slot TTL is not at risk and no slot is
