@@ -26,6 +26,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
+import { merkleLeafHash, merkleRootFromPath, MerkleTree } from "./fuse-merkle.js";
 import { canonicalize } from "./canonical.js";
 import type { Attribution, BitGraphProof, SlotAllocation } from "./types.js";
 
@@ -325,7 +326,7 @@ function parseTar(bytes: Uint8Array): TarEntry[] | null {
 // Placement registry
 // ---------------------------------------------------------------------------
 
-export type PlacementId = "trailer/1" | "container/1" | "container/2" | "produced/1" | "set/1";
+export type PlacementId = "trailer/1" | "container/1" | "container/2" | "produced/1" | "set/1" | "set/2";
 
 export interface Located {
   /** The commitment found in the fused bytes. */
@@ -567,7 +568,7 @@ export function buildSetManifest(commitment: Uint8Array, members: readonly SetMe
     if (m.artifact.length !== 32) throw new TypeError("member artifact digest must be 32 bytes");
     if (m.origin.length !== 32) throw new TypeError("member origin digest must be 32 bytes");
     if (!PLACEMENT_ID_PATTERN.test(m.placement)) throw new TypeError(`member placement "${m.placement}" is not a placement id`);
-    if (m.placement === SET_PLACEMENT_ID) throw new TypeError("a set cannot list a set as a member");
+    if (m.placement === SET_PLACEMENT_ID || m.placement === SET2_PLACEMENT_ID) throw new TypeError("a set cannot list a set as a member");
     const artifact = bytesToHex(m.artifact);
     if (seen.has(artifact)) throw new TypeError(`duplicate member artifact digest ${artifact}`);
     seen.add(artifact);
@@ -631,7 +632,7 @@ export function parseSetManifest(bytes: Uint8Array): { commitment: Uint8Array; m
     const origin = readDigestField(row["origin"]);
     const placement = row["placement"];
     if (artifact === null || origin === null || typeof placement !== "string") return null;
-    if (!PLACEMENT_ID_PATTERN.test(placement) || placement === SET_PLACEMENT_ID) return null;
+    if (!PLACEMENT_ID_PATTERN.test(placement) || placement === SET_PLACEMENT_ID || placement === SET2_PLACEMENT_ID) return null;
     members.push({ artifact, origin, placement });
   }
   let rebuilt: Uint8Array;
@@ -675,15 +676,225 @@ const set1: Placement = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Merkle set (placement set/2): N files under ONE slot, any N
+// ---------------------------------------------------------------------------
+//
+// set/1 commits the whole member list, which is what caps it: the list rides
+// in the commit body and in every copy of the proof. set/2 commits the ROOT
+// of a Merkle tree over the same rows, so the committed artifact is a few
+// hundred bytes whatever N is, and a member proves its place with a path of
+// ceil(log2 N) siblings. The floor is unchanged: every member's fused bytes
+// still carry the slot's commitment through its own placement. Membership
+// and floor stay inseparable in verifyFuseMember; what changes is where the
+// list lives (with the producer and the reader that serves it) and what a
+// member carries (its row, its index and its path, see SetMemberProof).
+//
+// Leaves are the canonical row bytes (the same {artifact, origin, placement}
+// row set/1 lists), hashed with the RFC 6962 leaf prefix, in the same strict
+// order as a set/1 manifest: ascending by artifact digest, no duplicates.
+// So one root stands for exactly one member list, and a reader holding the
+// list can rebuild the tree; a reader holding one member needs its path.
+
+export const SET2_PLACEMENT_ID = "set/2" as const;
+
+/** The proof.metadata key under which a member's own evidence (row, index, count, path) may ride, UNSIGNED, beside the root document. */
+export const SET_MEMBER_METADATA_KEY = `${FUSE_PROFILE}/member` as const;
+
+/** The most members one set/2 tree lists. A limit stated plainly, not a design constant: the tree and the paths are fine far beyond it. */
+export const MAX_SET2_MEMBERS = 1_000_000;
+
+/** The root document as JSON: the type of the value under proof.metadata[SET_METADATA_KEY] for a set/2 proof. */
+export interface SetRoot {
+  count: number;
+  placement: typeof SET2_PLACEMENT_ID;
+  root: { algorithm: "sha256"; digest: string };
+  slotCommitment: { algorithm: "sha256"; digest: string };
+  type: typeof FUSE_PROFILE;
+}
+
+/** One member's evidence as JSON: its row, its leaf index, the tree size, and the sibling path from the leaf up. */
+export interface SetMemberProof {
+  count: number;
+  index: number;
+  member: SetManifest["members"][number];
+  path: string[];
+  placement: typeof SET2_PLACEMENT_ID;
+  type: typeof FUSE_PROFILE;
+}
+
+/** The canonical bytes of one row, exactly as a set/1 manifest lists it; the leaf a set/2 tree hashes. */
+export function canonicalSetRow(m: SetMember): Uint8Array {
+  if (m.artifact.length !== 32) throw new TypeError("member artifact digest must be 32 bytes");
+  if (m.origin.length !== 32) throw new TypeError("member origin digest must be 32 bytes");
+  if (!PLACEMENT_ID_PATTERN.test(m.placement) || m.placement === SET_PLACEMENT_ID || m.placement === SET2_PLACEMENT_ID) throw new TypeError(`member placement "${m.placement}" is not a member placement id`);
+  return canonicalize({
+    artifact: { algorithm: "sha256", digest: bytesToHex(m.artifact) },
+    origin: { algorithm: "sha256", digest: bytesToHex(m.origin) },
+    placement: m.placement,
+  } as unknown as BitGraphProof);
+}
+
+/** The leaf hash of one row: SHA-256(0x00, canonical row bytes). */
+export function setLeaf(m: SetMember): Uint8Array {
+  return merkleLeafHash(canonicalSetRow(m));
+}
+
 /**
- * Resolve a placement by id. set/1 resolves here but is NOT in PLACEMENTS:
+ * Order members as a set/2 tree lists them: strictly ascending by artifact
+ * digest, no duplicate artifact. Throws on a duplicate, an empty list, or a
+ * malformed row, like buildSetManifest.
+ */
+export function sortSetMembers(members: readonly SetMember[]): SetMember[] {
+  if (members.length === 0) throw new TypeError("a set lists at least one member");
+  const sorted = [...members].sort((a, b) => {
+    const x = bytesToHex(a.artifact);
+    const y = bytesToHex(b.artifact);
+    return x < y ? -1 : x > y ? 1 : 0;
+  });
+  for (let i = 0; i < sorted.length; i++) {
+    canonicalSetRow(sorted[i]!);
+    if (i > 0 && bytesEqual(sorted[i]!.artifact, sorted[i - 1]!.artifact)) throw new TypeError(`duplicate member artifact digest ${bytesToHex(sorted[i]!.artifact)}`);
+  }
+  return sorted;
+}
+
+/** The tree over a member list, in tree order (sortSetMembers): the sorted rows, their leaf hashes, the root, and every member's path on demand. */
+export function buildSetTree(members: readonly SetMember[]): { sorted: SetMember[]; leaves: Uint8Array[]; root: Uint8Array; tree: MerkleTree } {
+  const sorted = sortSetMembers(members);
+  const leaves = sorted.map(setLeaf);
+  const tree = new MerkleTree(leaves);
+  return { sorted, leaves, root: tree.root, tree };
+}
+
+/** The inclusion path of the member at `index` in tree order. */
+export function setMemberPath(tree: MerkleTree, index: number): Uint8Array[] {
+  return tree.path(index);
+}
+
+/** Build the canonical set/2 root document bytes: the committed artifact. */
+export function buildSetRoot(commitment: Uint8Array, count: number, root: Uint8Array): Uint8Array {
+  if (commitment.length !== 32) throw new TypeError("commitment must be 32 bytes");
+  if (root.length !== 32) throw new TypeError("root must be 32 bytes");
+  if (!Number.isInteger(count) || count < 1 || count > MAX_SET2_MEMBERS) throw new TypeError(`count must be an integer from 1 to ${MAX_SET2_MEMBERS}`);
+  const doc: SetRoot = {
+    count,
+    placement: SET2_PLACEMENT_ID,
+    root: { algorithm: "sha256", digest: bytesToHex(root) },
+    slotCommitment: { algorithm: "sha256", digest: bytesToHex(commitment) },
+    type: FUSE_PROFILE,
+  };
+  return canonicalize(doc as unknown as BitGraphProof);
+}
+
+/** Strict parse of set/2 root document bytes: exactly the five keys, the literals, 32-byte digests, a count in range, byte-equal to its own rebuild. */
+export function parseSetRoot(bytes: Uint8Array): { commitment: Uint8Array; count: number; root: Uint8Array } | null {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isPlainObject(parsed)) return null;
+  if (Object.keys(parsed).sort().join(",") !== "count,placement,root,slotCommitment,type") return null;
+  if (parsed["type"] !== FUSE_PROFILE || parsed["placement"] !== SET2_PLACEMENT_ID) return null;
+  const count = parsed["count"];
+  if (typeof count !== "number" || !Number.isInteger(count) || count < 1 || count > MAX_SET2_MEMBERS) return null;
+  const commitment = readDigestField(parsed["slotCommitment"]);
+  const root = readDigestField(parsed["root"]);
+  if (commitment === null || root === null) return null;
+  let rebuilt: Uint8Array;
+  try {
+    rebuilt = buildSetRoot(commitment, count, root);
+  } catch {
+    return null;
+  }
+  if (!bytesEqual(rebuilt, bytes)) return null;
+  return { commitment, count, root };
+}
+
+/** Build a member's evidence object (JSON shape) from tree order. */
+export function buildSetMemberProof(member: SetMember, index: number, count: number, path: readonly Uint8Array[]): SetMemberProof {
+  if (!Number.isInteger(index) || !Number.isInteger(count) || count < 1 || index < 0 || index >= count) throw new RangeError("member index out of range");
+  canonicalSetRow(member);
+  return {
+    count,
+    index,
+    member: {
+      artifact: { algorithm: "sha256", digest: bytesToHex(member.artifact) },
+      origin: { algorithm: "sha256", digest: bytesToHex(member.origin) },
+      placement: member.placement,
+    },
+    path: path.map((p) => {
+      if (p.length !== 32) throw new TypeError("a path node is 32 bytes");
+      return bytesToHex(p);
+    }),
+    placement: SET2_PLACEMENT_ID,
+    type: FUSE_PROFILE,
+  };
+}
+
+/** Strict read of a member's evidence from a parsed JSON value: shape, literals, 32-byte hex digests and path nodes, index within count. Null on any deviation. UNBOUND: nothing here touches a root. */
+export function parseSetMemberProof(value: unknown): { member: SetMember; index: number; count: number; path: Uint8Array[] } | null {
+  if (!isPlainObject(value)) return null;
+  if (Object.keys(value).sort().join(",") !== "count,index,member,path,placement,type") return null;
+  if (value["type"] !== FUSE_PROFILE || value["placement"] !== SET2_PLACEMENT_ID) return null;
+  const count = value["count"];
+  const index = value["index"];
+  if (typeof count !== "number" || !Number.isInteger(count) || count < 1 || count > MAX_SET2_MEMBERS) return null;
+  if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= count) return null;
+  const row = value["member"];
+  if (!isPlainObject(row) || Object.keys(row).sort().join(",") !== "artifact,origin,placement") return null;
+  const artifact = readDigestField(row["artifact"]);
+  const origin = readDigestField(row["origin"]);
+  const placement = row["placement"];
+  if (artifact === null || origin === null || typeof placement !== "string") return null;
+  if (!PLACEMENT_ID_PATTERN.test(placement) || placement === SET_PLACEMENT_ID || placement === SET2_PLACEMENT_ID) return null;
+  const list = value["path"];
+  if (!Array.isArray(list)) return null;
+  const path: Uint8Array[] = [];
+  for (const node of list as unknown[]) {
+    if (typeof node !== "string" || !/^[0-9a-f]{64}$/.test(node)) return null;
+    const bytes = hexToBytes(node);
+    if (bytes === null) return null;
+    path.push(bytes);
+  }
+  return { member: { artifact, origin, placement }, index, count, path };
+}
+
+/** Recompute a root from a member's leaf and path; null when the path does not fit. */
+export function setRootFromMember(member: SetMember, index: number, count: number, path: readonly Uint8Array[]): Uint8Array | null {
+  return merkleRootFromPath(setLeaf(member), index, count, path);
+}
+
+const set2: Placement = {
+  id: SET2_PLACEMENT_ID,
+  form: "C",
+  byteExact: false,
+  build() {
+    throw new TypeError("set/2 is built with buildSetRoot(commitment, count, root)");
+  },
+  locate(fused) {
+    const doc = parseSetRoot(fused);
+    return doc === null ? null : { commitment: doc.commitment };
+  },
+};
+
+/**
+ * Resolve a placement by id. set/1 and set/2 resolve here but are NOT in PLACEMENTS:
  * the undeclared scan is for bytes whose placement was not declared, whereas
  * a set manifest is identified by hashing to the signed artifact digest and
  * by its signed title, so the scan order of every existing fixture is
  * literally unchanged.
  */
 export function getPlacement(id: string): Placement | undefined {
-  return [...PLACEMENTS, set1].find((p) => p.id === id);
+  return [...PLACEMENTS, set1, set2].find((p) => p.id === id);
 }
 
 // ---------------------------------------------------------------------------
@@ -698,7 +909,7 @@ export function getPlacement(id: string): Placement | undefined {
  */
 export function fuseAttribution(placement: PlacementId, originDigest?: Uint8Array): Attribution {
   if (originDigest !== undefined && originDigest.length !== 32) throw new TypeError("originDigest must be 32 bytes");
-  if (placement === SET_PLACEMENT_ID && originDigest !== undefined) throw new TypeError("set/1 has no single origin; a set marker carries no origin digest");
+  if ((placement === SET_PLACEMENT_ID || placement === SET2_PLACEMENT_ID) && originDigest !== undefined) throw new TypeError(`${placement} has no single origin; a set marker carries no origin digest`);
   return {
     name: FUSE_ATTRIBUTION_NAME,
     title: placement,

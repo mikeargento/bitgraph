@@ -69,3 +69,6 @@ export { verifyFuse, assembledAfterCommit } from "./fuse-verify.js";
 export type { FuseCategory, FuseSpan, FuseVerifyResult, FuseVerifyOptions } from "./fuse-verify.js";
 export { verifyFuseMember } from "./fuse-member.js";
 export type { FuseMemberCategory, FuseSetEvidence, FuseMemberOptions, FuseMemberResult } from "./fuse-member.js";
+export { SET2_PLACEMENT_ID, SET_MEMBER_METADATA_KEY, MAX_SET2_MEMBERS, canonicalSetRow, setLeaf, sortSetMembers, buildSetTree, setMemberPath, buildSetRoot, parseSetRoot, buildSetMemberProof, parseSetMemberProof, setRootFromMember } from "./fuse.js";
+export type { SetRoot, SetMemberProof } from "./fuse.js";
+export { merkleLeafHash, merkleNodeHash, merkleRoot, merklePath, merkleRootFromPath, MerkleTree } from "./fuse-merkle.js";
