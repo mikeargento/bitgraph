@@ -887,7 +887,14 @@ async function handleRequest(req: Record<string, unknown>): Promise<unknown> {
       const agency = (req as { agency?: AgencyEnvelope }).agency;
       const attribution = (req as { attribution?: { name?: string; title?: string; message?: string } }).attribution;
       const policy = (req as { policy?: PolicyBinding }).policy;
-      const proof = await handleCommit({ slotId, digestB64, agency, attribution, policy });
+      // Advisory, unsigned, stored verbatim on the proof, exactly as the
+      // legacy "commit" action below has always done. A set (bitgraph-fuse/1,
+      // placement set/1) carries its member manifest here; the manifest is
+      // protected by hashing to the signed artifact digest, not by this
+      // field. Dropped here until 2026-09-04, which left the ledger's copy
+      // of a set proof without its manifest.
+      const metadata = (req as { metadata?: Record<string, unknown> }).metadata;
+      const proof = await handleCommit({ slotId, digestB64, agency, attribution, policy, metadata });
       return { proof };
     }
     case "commit": {
