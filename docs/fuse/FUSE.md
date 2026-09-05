@@ -355,6 +355,36 @@ manifest. An older enclave, or a proxy that drops metadata returns
 `manifestBytes` beside the proof and pass them to `verifyFuseMember`;
 explicit bytes always win over the echo.
 
+The Merkle set, `set/2`. A set/1 caps at `MAX_SET_MEMBERS` (2000) because
+its manifest rides in the commit body and in every copy of the proof. A
+set/2 commits the ROOT DOCUMENT instead: `{count, placement: "set/2",
+root, slotCommitment, type}`, a few hundred bytes whatever N is, where
+`root` is the RFC 6962 Merkle root over the same rows a set/1 manifest
+would list, each row's canonical bytes hashed as a leaf (SHA-256 of 0x00
+and the row; inner nodes SHA-256 of 0x01, left, right; a list of n leaves
+splits at the largest power of two below n), rows ascending by artifact
+digest with no duplicates, so one root stands for exactly one list. The
+signed title is `set/2`; the root document rides under the same metadata
+key as a manifest. A member carries its EVIDENCE: `{count, index, member:
+{artifact, origin, placement}, path: [hex...], placement: "set/2", type}`,
+the sibling hashes from its leaf up (`buildSetMemberProof`,
+`parseSetMemberProof`). `verifyFuseMember` binds the root document (hash to
+the signed digest, commitment to the slot), then the evidence (its count is
+the document's, its leaf and path recompute the root), and from there runs
+the same floor and membership checks as set/1, so `SET_MEMBER_DIRECT` and
+`SET_MEMBER_FROM_ORIGIN` mean the same thing under both. Evidence may be
+passed as `member` or ride under `proof.metadata["bitgraph-fuse/1/member"]`
+beside the root document, which is how the site's index and an export's
+`member.json` carry it. Without evidence a member's bytes that carry the
+commitment are `SET_MEMBERSHIP_UNPROVEN` (the floor holds, the place is not
+shown); evidence that does not fit, or fits another member, is
+`INVALID_SET_PATH`. A set/2 cannot show NON-membership: the 51st file is
+"unproven" offline, and only the holder of the whole list can say "not in
+this set". `fuseSet(members, { set: "set/2" })` builds the tree, commits the
+root document and returns each member's `path` and `memberProof`; the
+memoized `MerkleTree` makes every path cost log N. `MAX_SET2_MEMBERS` is
+1,000,000; a producer's own budget is the slot window.
+
 Reading: `verifyFuse` answers for the manifest and `verifyFuseMember` for a
 member or an original. Bytes that carry the commitment but are listed nowhere
 are `SET_NOT_MEMBER`. Render the verifier's own statements; there is no new

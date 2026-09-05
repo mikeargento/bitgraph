@@ -39,6 +39,14 @@ import { sha256 } from "@noble/hashes/sha256";
 import {
   buildFrame,
   buildSetManifest,
+  buildSetMemberProof,
+  buildSetRoot,
+  buildSetTree,
+  parseSetRoot,
+  SET2_PLACEMENT_ID,
+  SET_PLACEMENT_ID as SET_PLACEMENT_ID_LOCAL,
+  setRootFromMember,
+  MAX_SET2_MEMBERS,
   bytesEqual,
   bytesToBase64,
   bytesToHex,
@@ -55,18 +63,7 @@ import {
   verifyFuseMember,
   base64ToBytes,
 } from "@mikeargento/bitgraph-verify";
-import type {
-  BitGraphProof,
-  FuseFrame,
-  FuseMemberResult,
-  FuseVerifyResult,
-  Located,
-  Placement,
-  PlacementId,
-  SetManifest,
-  SetMember,
-  SlotAllocation,
-} from "@mikeargento/bitgraph-verify";
+import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, Located, Placement, PlacementId, SetManifest, SetMember, SetMemberProof, SetRoot, SlotAllocation } from "@mikeargento/bitgraph-verify";
 
 /**
  * SHA-256 over bytes: the platform's native hasher when one is present
@@ -561,15 +558,25 @@ export interface FuseSetProgress {
   /**
    * "hash": each member checked before any request (a bytes member's origin digest is taken here).
    * "fuse": each member's fused digest taken, after the slot is held.
+   * "tree": set/2 only, 0 of 1 before the tree is built, 1 of 1 after.
    * "commit": 0 of 1 before the request, 1 of 1 when the proof is back.
    * "verify": only with verifyMembers, one per member.
    */
-  phase: "hash" | "fuse" | "commit" | "verify";
+  phase: "hash" | "fuse" | "tree" | "commit" | "verify";
   done: number;
   total: number;
 }
 
 export interface FuseSetOptions {
+  /**
+   * "set/1" (default): the committed artifact is the canonical manifest of
+   * every member, which rides in the commit and in the proof; at most
+   * MAX_SET_MEMBERS. "set/2": the committed artifact is the root of a Merkle
+   * tree over the same rows, a few hundred bytes whatever N is; each member
+   * gets its leaf index and path (see FuseSetMemberResult.path), which a
+   * reader needs beside the proof; at most MAX_SET2_MEMBERS.
+   */
+  set?: "set/1" | "set/2";
   /** Return each member's fused bytes. Default false: they are virtual, rebuilt from the original and the proof. A hashed member has none to return. */
   keepFused?: boolean;
   /**
@@ -606,14 +613,22 @@ export interface FuseSetMemberResult {
   fusedBytes?: Uint8Array;
   /** Present only with verifyMembers: the verifier's own verdict against this member's fused bytes. Always SET_MEMBER_DIRECT on success, with set.manifestSource "argument". */
   verification?: FuseMemberResult;
+  /** set/2 only: the member's inclusion path, siblings from the leaf up; with manifestIndex and the set's count it is the member's evidence (memberProof). */
+  path?: Uint8Array[];
+  /** set/2 only: the member's evidence as its JSON object, ready to ride beside the proof or under proof.metadata[SET_MEMBER_METADATA_KEY]. */
+  memberProof?: SetMemberProof;
 }
 
 export interface FuseSetResult {
+  /** Which set kind was made. */
+  set: "set/1" | "set/2";
   proof: BitGraphProof;
-  /** The committed artifact. Keep it beside the proof. */
+  /** The committed artifact: the set/1 manifest, or the set/2 root document. Keep it beside the proof. */
   manifestBytes: Uint8Array;
-  /** JSON.parse of manifestBytes; the exact object sent under metadata. */
-  manifest: SetManifest;
+  /** JSON.parse of manifestBytes; the exact object sent under metadata. For set/2 a SetRoot. */
+  manifest: SetManifest | SetRoot;
+  /** set/2 only: the tree root, standard base64. */
+  treeRootB64?: string;
   /** SHA-256 of manifestBytes; equals proof.artifact.digestB64. */
   artifactDigestB64: string;
   slotCommitmentB64: string;
@@ -638,7 +653,10 @@ export interface FuseSetResult {
 export async function fuseSet(members: readonly FuseSetMember[], options: FuseSetOptions = {}): Promise<FuseSetResult> {
   // 0. validate, before any request. A refusal here burns nothing.
   if (!Array.isArray(members) || members.length === 0) throw new FuseError("bad-input", "a set lists at least one member");
-  if (members.length > MAX_SET_MEMBERS) throw new FuseError("bad-input", `a set lists at most ${MAX_SET_MEMBERS} members (got ${members.length})`);
+  const setKind = options.set ?? "set/1";
+  if (setKind !== "set/1" && setKind !== "set/2") throw new FuseError("bad-input", `set must be "set/1" or "set/2" (got ${String(setKind)})`);
+  const cap = setKind === "set/1" ? MAX_SET_MEMBERS : MAX_SET2_MEMBERS;
+  if (members.length > cap) throw new FuseError("bad-input", `a ${setKind} set lists at most ${cap} members (got ${members.length})`);
   const keep = options.keepFused === true;
   const verifyMembers = options.verifyMembers === true;
   type Kind = "bytes" | "loaded" | "hashed";
@@ -774,23 +792,32 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     report("fuse", i + 1, checked.length);
   }
 
-  // 3. hash: the canonical manifest is the artifact
+  // 3. hash: the committed artifact. set/1: the canonical manifest of every
+  //    row. set/2: the root document over the Merkle tree of the same rows.
   let manifestBytes: Uint8Array;
+  let tree: ReturnType<typeof buildSetTree> | null = null;
   try {
-    manifestBytes = buildSetManifest(commitment, rows);
+    if (setKind === "set/1") {
+      manifestBytes = buildSetManifest(commitment, rows);
+    } else {
+      report("tree", 0, 1);
+      tree = buildSetTree(rows);
+      manifestBytes = buildSetRoot(commitment, tree.sorted.length, tree.root);
+      report("tree", 1, 1);
+    }
   } catch (err) {
-    throw new FuseError("bad-input", `the set manifest could not be built: ${err instanceof Error ? err.message : String(err)}; ${expiring}`);
+    throw new FuseError("bad-input", `the set ${setKind === "set/1" ? "manifest" : "root document"} could not be built: ${err instanceof Error ? err.message : String(err)}; ${expiring}`);
   }
   const artifactDigestB64 = bytesToBase64(await digest(manifestBytes));
-  const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as SetManifest;
+  const manifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as SetManifest | SetRoot;
 
-  // 4. fill: one commit, the parsed manifest riding along as unsigned metadata
+  // 4. fill: one commit, the parsed artifact riding along as unsigned metadata
   const body: Record<string, unknown> = {
     digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
     chainId: "bitgraph:main",
-    attribution: fuseAttribution("set/1"),
+    attribution: fuseAttribution(setKind === "set/1" ? SET_PLACEMENT_ID_LOCAL : SET2_PLACEMENT_ID),
     metadata: { [SET_METADATA_KEY]: manifest },
   };
   if (options.agency !== undefined) body.agency = options.agency;
@@ -798,10 +825,10 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
   const { proof, recovered } = await commitUnderSlot(t, body, artifactDigestB64, slot);
   report("commit", 1, 1);
 
-  // The manifest is verified by a reader before the proof is called a set proof.
+  // The committed artifact is verified by a reader before the proof is called a set proof.
   const verification = await verifyFuse({ proof, bytes: manifestBytes });
-  if (verification.category !== "FUSED_DIRECT" || verification.placement !== "set/1") {
-    throw new FuseError("verification-failed", `the returned proof does not verify as a set: ${verification.category}${verification.reason ? ` (${verification.reason})` : ""}`);
+  if (verification.category !== "FUSED_DIRECT" || verification.placement !== setKind) {
+    throw new FuseError("verification-failed", `the returned proof does not verify as a ${setKind} set: ${verification.category}${verification.reason ? ` (${verification.reason})` : ""}`);
   }
   // The echo is unsigned and advisory. Absent is normal for a boundary that
   // drops metadata on a held-slot commit (enclaves before v6, and a proxy
@@ -818,18 +845,39 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
   // member's bytes are read again. With verifyMembers the full verifier runs
   // over each member's fused bytes as well, against the explicit manifest
   // bytes so no verdict depends on the echo, and its verdict is returned.
-  const parsed = parseSetManifest(manifestBytes);
-  if (parsed === null) throw new FuseError("verification-failed", "the committed manifest does not parse as a set manifest");
+  // set/1: the strictly parsed manifest lists each computed row. set/2: the
+  // strictly parsed root document states the count and the root the tree
+  // over these rows computed, and each member's path recomputes that root
+  // (the verifier's own check, run here once per member).
+  let listedRows: readonly SetMember[];
+  if (setKind === "set/1") {
+    const parsed = parseSetManifest(manifestBytes);
+    if (parsed === null) throw new FuseError("verification-failed", "the committed manifest does not parse as a set manifest");
+    listedRows = parsed.members;
+  } else {
+    const doc = parseSetRoot(manifestBytes);
+    if (doc === null || tree === null) throw new FuseError("verification-failed", "the committed root document does not parse as a set root");
+    if (doc.count !== tree.sorted.length || !bytesEqual(doc.root, tree.root)) throw new FuseError("verification-failed", "the committed root document does not state this tree's count and root");
+    listedRows = tree.sorted;
+  }
   const rowIndex = new Map<string, number>();
-  parsed.members.forEach((row, k) => rowIndex.set(bytesToHex(row.artifact), k));
+  listedRows.forEach((row, k) => rowIndex.set(bytesToHex(row.artifact), k));
   const results: FuseSetMemberResult[] = [];
   for (let i = 0; i < checked.length; i++) {
     const c = checked[i]!;
     const row = rows[i]!;
     const k = rowIndex.get(bytesToHex(row.artifact));
-    const listed = k !== undefined ? parsed.members[k] : undefined;
+    const listed = k !== undefined ? listedRows[k] : undefined;
     if (k === undefined || listed === undefined || !bytesEqual(listed.origin, row.origin) || listed.placement !== row.placement) {
-      throw new FuseError("verification-failed", `member ${i}: the committed manifest does not list this member's fused digest with its origin and placement`, null, i);
+      throw new FuseError("verification-failed", `member ${i}: the committed ${setKind === "set/1" ? "manifest" : "tree"} does not list this member's fused digest with its origin and placement`, null, i);
+    }
+    let path: Uint8Array[] | undefined;
+    let memberProof: SetMemberProof | undefined;
+    if (tree !== null) {
+      path = tree.tree.path(k);
+      const reached = setRootFromMember(row, k, tree.sorted.length, path);
+      if (reached === null || !bytesEqual(reached, tree.root)) throw new FuseError("verification-failed", `member ${i}: its path does not recompute the committed root`, null, i);
+      memberProof = buildSetMemberProof(row, k, tree.sorted.length, path);
     }
     const memberArtifactB64 = bytesToBase64(row.artifact);
     let verification: FuseMemberResult | undefined;
@@ -854,12 +902,16 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
       frameName: names?.frameName ?? null,
       ...(keep && held !== null ? { fusedBytes: held } : {}),
       ...(verification !== undefined ? { verification } : {}),
+      ...(path !== undefined ? { path } : {}),
+      ...(memberProof !== undefined ? { memberProof } : {}),
     });
   }
   return {
+    set: setKind,
     proof,
     manifestBytes,
     manifest,
+    ...(tree !== null ? { treeRootB64: bytesToBase64(tree.root) } : {}),
     artifactDigestB64,
     slotCommitmentB64: bytesToBase64(commitment),
     members: results,

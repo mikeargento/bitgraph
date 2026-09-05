@@ -33,6 +33,7 @@ import type { BitGraphProof, SlotAllocation, Attribution, SetMember, SetManifest
 import { makeKey, signBody, b64, utf8 } from "./audit-fixtures.js";
 import type { ManualKey } from "./audit-fixtures.js";
 import { fuse, fuseSet, builderFor, placementForBytes, fusedNamesFor, FuseError, MAX_SET_MEMBERS, digest, trailerBytesFor } from "../fuse.js";
+import { parseSetRoot } from "@mikeargento/bitgraph-verify";
 import type { FuseSetProgress, FuseSetBytesMember, FuseSetLoadedMember, FuseSetHashedMember, FusedDigestInput } from "../fuse.js";
 import type { FuseSetMember } from "../fuse.js";
 
@@ -376,7 +377,7 @@ describe("fuseSet(): bad input is refused before any request", () => {
     );
     assert.equal(calls.length, 0, "no slot was burned");
     const r = await fuseSet([{ original, placement: "trailer/1" }, { original, placement: "container/1" }], { transport, verifyMembers: true });
-    assert.equal(r.manifest.members.length, 2);
+    assert.equal((r.manifest as SetManifest).members.length, 2);
     assert.deepEqual(r.members.map((m) => m.placement), ["trailer/1", "container/1"]);
     assert.equal(r.members[0]!.originDigestB64, r.members[1]!.originDigestB64);
     assert.notEqual(r.members[0]!.artifactDigestB64, r.members[1]!.artifactDigestB64);
@@ -775,7 +776,7 @@ describe("fuseSet(): loaded and hashed members", () => {
     assert.ok(!("fusedBytes" in r.members[0]!), "nothing to keep for a hashed member");
     assert.ok("fusedBytes" in r.members[1]! && "fusedBytes" in r.members[2]!, "bytes and loaded members are kept");
     assert.equal(r.members.length, 3);
-    assert.equal(r.manifest.members.length, 3);
+    assert.equal((r.manifest as SetManifest).members.length, 3);
     assert.equal(commits(calls).length, 1);
     // The real verifier reads the member from the bytes a reader would build, and from its original.
     const direct = await verifyFuseMember({ proof: r.proof, bytes: built, manifest: r.manifestBytes });
@@ -804,5 +805,48 @@ describe("fuseSet(): loaded and hashed members", () => {
       { original: png, placement: "container/1" },
     ], { transport: honest(key, slot).transport, onProgress: (p) => seen.push({ ...p }) });
     assert.deepEqual(seen.map((p) => `${p.phase} ${p.done}/${p.total}`), ["hash 1/3", "hash 2/3", "hash 3/3", "fuse 1/3", "fuse 2/3", "fuse 3/3", "commit 0/1", "commit 1/1"]);
+  });
+});
+
+describe("fuseSet(): set/2, a Merkle root over the rows", () => {
+  test("34. set/2 commits the root document, returns every member's leaf index, path and evidence, and the real verifier reads each member with it", async () => {
+    const { calls, transport } = honest(key, slot);
+    const members: FuseSetBytesMember[] = [{ original, placement: "trailer/1", name: "photo.jpg" }, { original: png, placement: "container/1" }, { original: note, placement: "container/2" }];
+    const seen: FuseSetProgress[] = [];
+    const r = await fuseSet(members, { transport, set: "set/2", onProgress: (p) => seen.push({ ...p }) });
+    assert.equal(r.set, "set/2");
+    assert.equal(commits(calls).length, 1);
+    assert.equal(r.proof.attribution?.title, "set/2");
+    assert.equal(r.verification.category, "FUSED_DIRECT");
+    assert.equal(r.verification.placement, "set/2");
+    assert.ok(r.treeRootB64);
+    const doc = parseSetRoot(r.manifestBytes)!;
+    assert.equal(doc.count, 3);
+    assert.equal(bytesToBase64(doc.root), r.treeRootB64);
+    assert.equal(bytesToBase64(sha256(r.manifestBytes)), r.proof.artifact.digestB64);
+    assert.deepEqual(r.proof.metadata?.[SET_METADATA_KEY], r.manifest, "the root document rides under metadata");
+    assert.ok(seen.some((p) => p.phase === "tree" && p.done === 1), "a tree phase is reported");
+    const commitment = computeSlotCommitment(slot);
+    for (const m of r.members) {
+      assert.ok(m.path && m.memberProof, `member ${m.index} carries its path and evidence`);
+      assert.equal(m.memberProof!.index, m.manifestIndex);
+      assert.equal(m.memberProof!.count, 3);
+      const built = getPlacement(m.placement)!.build({ original: members[m.index]!.original, commitment });
+      assert.equal(bytesToBase64(sha256(built)), m.artifactDigestB64);
+      const direct = await verifyFuseMember({ proof: r.proof, bytes: built, member: m.memberProof });
+      assert.equal(direct.category, "SET_MEMBER_DIRECT", direct.reason ?? "");
+      assert.equal(direct.set!.member!.index, m.manifestIndex);
+      const fromOrigin = await verifyFuseMember({ proof: r.proof, bytes: members[m.index]!.original, member: m.memberProof });
+      assert.equal(fromOrigin.category, "SET_MEMBER_FROM_ORIGIN", fromOrigin.reason ?? "");
+      assert.equal((await verifyFuseMember({ proof: r.proof, bytes: built })).category, "SET_MEMBERSHIP_UNPROVEN", "no evidence in hand");
+    }
+    // set/1 keeps its cap; set/2 takes more than MAX_SET_MEMBERS.
+    await assert.rejects(fuseSet([{ original, placement: "trailer/1" }], { transport: honest(key, slot).transport, set: "set/3" as never }), (e: FuseError) => e.code === "bad-input");
+    const many: FuseSetMember[] = Array.from({ length: MAX_SET_MEMBERS + 1 }, (_, i) => ({ originDigest: sha256(utf8(`m${i}`)), placement: "trailer/1", fusedDigest: () => sha256(utf8(`f${i}`)) }));
+    await assert.rejects(fuseSet(many, { transport: honest(key, slot).transport }), (e: FuseError) => e.code === "bad-input" && /at most 2000/.test(e.message));
+    const big = await fuseSet(many, { transport: honest(key, slot).transport, set: "set/2" });
+    assert.equal(big.members.length, MAX_SET_MEMBERS + 1);
+    assert.equal(parseSetRoot(big.manifestBytes)!.count, MAX_SET_MEMBERS + 1);
+    assert.ok(big.members.every((m) => m.path!.length <= 11), "paths of at most ceil(log2 2001) = 11 nodes");
   });
 });

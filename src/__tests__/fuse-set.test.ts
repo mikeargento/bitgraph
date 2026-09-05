@@ -364,7 +364,12 @@ describe("registry and metadata", () => {
     assert.equal(set1.locate(bytes("produced-bare.json")), null);
     assert.equal(set1.locate(bytes("fused-trailer.bin")), null);
     assert.equal(set1.locate(original), null);
-    assert.equal(getPlacement("set/2"), undefined);
+    // set/2 resolves the same way: Form C, locate-only, and equally absent from the undeclared scan.
+    const set2 = getPlacement("set/2")!;
+    assert.equal(set2.form, "C");
+    assert.equal(set2.byteExact, false);
+    assert.equal(set2.locate(A.manifest), null, "a set/1 manifest is not a set/2 root document");
+    assert.equal(getPlacement("set/3"), undefined);
   });
 
   test("14. readSetMetadata re-canonicalizes a plain object and returns null for anything else", async () => {

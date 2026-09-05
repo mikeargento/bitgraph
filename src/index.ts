@@ -41,6 +41,7 @@ export { Constructor } from "./constructor.js";
 // slot, write a commitment to it into the artifact, hash, commit under the
 // same slot. The resulting proof is ordinary bitgraph/1.
 export { fuse, fuseSet, MAX_SET_MEMBERS, trailerBytesFor, builderFor, FuseError, digestFromBase64, placementForBytes, fusedNamesFor } from "./fuse.js";
+export { MAX_SET2_MEMBERS, SET2_PLACEMENT_ID, SET_MEMBER_METADATA_KEY } from "@mikeargento/bitgraph-verify";
 export type { FuseBuilder, BuilderInput, FuseOptions, FuseResult, FuseTransport, FuseErrorCode } from "./fuse.js";
 export type { FuseSetMember, FuseSetBytesMember, FuseSetLoadedMember, FuseSetHashedMember, FusedDigestInput, SetMemberPlacement, FuseSetOptions, FuseSetProgress, FuseSetMemberResult, FuseSetResult } from "./fuse.js";
 // The verify-package types those results are made of, so the core entry names everything it returns.
