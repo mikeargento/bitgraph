@@ -11,6 +11,11 @@
  * and hash that (Mike, 2026-09-03). Only digests, sizes, a file's first bytes,
  * slot records and recipe bytes travel; file contents are never uploaded.
  *
+ * Two or more files opened together are ONE BitGraph (2026-09-06): one slot
+ * for all of them, one commit of the set's manifest, one position, each file
+ * a member with its row, the way a drop on the site works. A single file is
+ * fused on its own.
+ *
  * bitgraph_record stays as the compatibility recording of digests alone. This
  * endpoint is a translator in front of the site's own public API, nothing more.
  */
@@ -43,14 +48,24 @@ import {
   HostedFuseError,
   MAX_OPEN_FILES,
   MAX_ORIGIN_BYTES,
+  SET_INSTRUCTIONS,
+  SLOT_TTL_SECONDS,
+  choosePlacement,
   commitHosted,
+  commitHostedSet,
   decodeToken,
+  groupCommitEntries,
   openHosted,
+  openHostedSet,
   recipeJson,
   renderCommitMarkdown,
   renderOpenMarkdown,
   type CommitOutcome,
+  type OpenInput,
   type OpenOutcome,
+  type Opened,
+  type OpenState,
+  type SetOutcome,
 } from "@/lib/mcp/fuse-hosted";
 import type { BitGraphProof } from "@/lib/mcp/types";
 
@@ -58,7 +73,7 @@ export const dynamic = "force-dynamic";
 // One commit chunk of TEE work (~1s/digest) must finish inside this window.
 export const maxDuration = 60;
 
-const SERVER_VERSION = "0.2.0";
+const SERVER_VERSION = "0.3.0";
 
 // Record stays under one commit chunk so a call is all-or-nothing per chunk
 // and fits maxDuration. Check is a cheap S3 lookup; the batch endpoint's cap.
@@ -105,7 +120,7 @@ function hostedErrorText(err: unknown): string {
     case "tee-restarting":
       return `${err.message} The boundary restarts once a day at 23:59 UTC; open the file again afterwards.${retry}`;
     case "slot-unavailable":
-      return `${err.message} Call bitgraph_open again for this file and rebuild the new file from the new recipe.`;
+      return `${err.message} The slot was consumed by an earlier commit, expired (${SLOT_TTL_SECONDS} seconds after open), or the boundary restarted. Call bitgraph_open again for this file (together with the others it should share a set with) and rebuild the new file from the new recipe.`;
     case "rotation-guard":
       return `${err.message}${retry}`;
     default:
@@ -314,13 +329,14 @@ const handler = createMcpHandler(
       {
         title: "Make a BitGraph: open",
         description:
-          "Step one of making a BitGraph the default way, for a caller that holds the file: open a slot for the new fused file and get the recipe to build that file locally. " +
+          "Step one of making a BitGraph, for a caller that holds the files: open a slot and get, per file, the recipe to build its new fused file locally. " +
+          "Everything opened in one call is ONE BitGraph: two or more files share a single slot and become one set, one position for all of them, each with its row; a single file is fused on its own. Open a batch together, never one file at a time. " +
           "Send, per file, its name, exact byte size and SHA-256 digest (base64, either form), plus head_base64: the file's first 16 bytes (the whole file when shorter), which decides the placement. " +
-          "The boundary allocates an unused slot before the new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/2, a tar that carries the original untouched and first, for everything else). " +
-          "Then build the new file exactly as the recipe says, SHA-256 it, and call bitgraph_commit with the fuse_token and that digest. " +
+          "The boundary allocates an unused slot before any new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/2, a tar that carries the original untouched and first, for everything else). " +
+          `Then build each new file exactly as its recipe says, SHA-256 it, and call bitgraph_commit ONCE with every fuse_token and digest, within ${SLOT_TTL_SECONDS} seconds of opening. ` +
           "File contents never travel: only digests, sizes, the first bytes and the recipe. Never alter the original. Only make BitGraphs of files the user asked for, and never generate content just to record it: recordings are permanent. " +
-          "Files already on record (recorded, or the origin of a fused file) are not opened unless again=true; they come back as 'on record' with their proof URL. " +
-          `Up to ${MAX_OPEN_FILES} files per call.`,
+          "Files already on record (recorded, the origin of a fused file, or a member of a set) are not opened unless again=true; they come back as 'on record' with their proof URL. " +
+          `Up to ${MAX_OPEN_FILES} files per call; folders of any size are the stdio package's job (npx @mikeargento/bitgraph-mcp), on the machine that holds them.`,
         inputSchema: z.object({
           files: z
             .array(
@@ -357,7 +373,11 @@ const handler = createMcpHandler(
           const standard = normalized.standard;
           const checked = await batchCheck([...new Set(standard)].map(toUrlSafeB64));
           const baseUrl = apiBaseUrl();
-          const outcomes: OpenOutcome[] = [];
+          const outcomes: OpenOutcome[] = new Array<OpenOutcome>(files.length);
+          // Two passes: what each file is (on record, refused, or a candidate)
+          // costs no slot; then ONE slot for every candidate at once.
+          const candidates: Array<{ i: number; input: OpenInput }> = [];
+          const seen = new Set<string>();
           for (let i = 0; i < files.length; i++) {
             const f = files[i] as (typeof files)[number];
             const digest = standard[i] as string;
@@ -377,32 +397,58 @@ const handler = createMcpHandler(
               error: null,
             };
             if (prior.length > 0 && !again) {
-              outcomes.push({ ...base, outcome: "on record" });
+              outcomes[i] = { ...base, outcome: "on record" };
+              continue;
+            }
+            if (seen.has(digest)) {
+              outcomes[i] = { ...base, outcome: "not opened", error: "the same bytes were listed twice in this call; one member is enough" };
               continue;
             }
             const head = f.head_base64 !== undefined ? new Uint8Array(Buffer.from(f.head_base64, "base64")) : null;
-            try {
-              const opened = await openHosted({ name: f.name, size: f.size, digestB64: digest, head });
-              outcomes.push({
-                ...base,
-                outcome: "opened",
-                placement: opened.state.placement,
-                slot_counter: opened.slotCounter,
-                epoch: opened.epochB64,
-                fused_name: opened.state.fusedName,
-                frame_name: opened.state.frameName,
-                fuse_token: opened.token,
-                recipe: recipeJson(opened.recipe),
-              });
-            } catch (err) {
-              outcomes.push({ ...base, outcome: "not opened", error: hostedErrorText(err) });
+            const placement = choosePlacement(head, f.size);
+            if (typeof placement !== "string") {
+              outcomes[i] = { ...base, outcome: "not opened", error: placement.error };
+              continue;
             }
+            seen.add(digest);
+            outcomes[i] = { ...base, outcome: "not opened", error: "not opened" };
+            candidates.push({ i, input: { name: f.name, size: f.size, digestB64: digest, head } });
           }
+          const openedOutcome = (i: number, o: Opened, set: boolean): OpenOutcome => ({
+            ...(outcomes[i] as OpenOutcome),
+            outcome: "opened",
+            error: null,
+            ...(set ? { set: true } : {}),
+            placement: o.state.placement,
+            slot_counter: o.slotCounter,
+            epoch: o.epochB64,
+            fused_name: o.state.fusedName,
+            frame_name: o.state.frameName,
+            fuse_token: o.token,
+            recipe: recipeJson(o.recipe),
+          });
+          try {
+            if (candidates.length === 1) {
+              const c = candidates[0] as (typeof candidates)[number];
+              outcomes[c.i] = openedOutcome(c.i, await openHosted(c.input), false);
+            } else if (candidates.length > 1) {
+              const opened = await openHostedSet(candidates.map((c) => c.input));
+              candidates.forEach((c, k) => {
+                outcomes[c.i] = openedOutcome(c.i, opened.members[k] as Opened, true);
+              });
+            }
+          } catch (err) {
+            const text = hostedErrorText(err);
+            for (const c of candidates) outcomes[c.i] = { ...(outcomes[c.i] as OpenOutcome), outcome: "not opened", error: text };
+          }
+          const openedRows = outcomes.filter((o) => o.outcome === "opened");
+          const asSet = openedRows.length > 1;
           const structured = {
             results: outcomes,
-            instructions: ASSEMBLY_INSTRUCTIONS,
+            set: asSet ? { slot_counter: openedRows[0]?.slot_counter ?? null, epoch: openedRows[0]?.epoch ?? null, count: openedRows.length } : null,
+            instructions: asSet ? `${ASSEMBLY_INSTRUCTIONS} ${SET_INSTRUCTIONS}` : ASSEMBLY_INSTRUCTIONS,
             summary: {
-              opened: outcomes.filter((o) => o.outcome === "opened").length,
+              opened: openedRows.length,
               on_record: outcomes.filter((o) => o.outcome === "on record").length,
               not_opened: outcomes.filter((o) => o.outcome === "not opened").length,
             },
@@ -425,10 +471,11 @@ const handler = createMcpHandler(
       {
         title: "Make a BitGraph: commit",
         description:
-          "Step two of making a BitGraph the default way: commit the new file built from a bitgraph_open recipe. " +
-          "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. " +
-          "The boundary commits that digest under the exact slot the token names, with the signed marker (profile bitgraph-fuse/1, placement, origin digest), and this returns the proof and the Frame per file. " +
-          "Save each Frame next to the original as frame_name. The new file is virtual: keep the original unchanged and the Frame, and any reader can rebuild the new file and check it. " +
+          "Step two of making a BitGraph: commit the new files built from bitgraph_open recipes. " +
+          "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. Send every file opened together in ONE call: they share a slot and become one set, one position for all of them, and the set is whatever this call carries. " +
+          "For a set, the canonical manifest of the members' digests is built here and committed under the shared slot with the set marker (profile bitgraph-fuse/1, placement set/1); the returned proof is verified against it before any file is called fused, and comes back once as sets[].proof with every member's row. Save it beside the originals. " +
+          "For a single file, the digest is committed under its own slot with the signed marker (placement, origin digest) and this returns the proof and the Frame; save the Frame next to the original as frame_name. " +
+          "New files are virtual: keep the originals unchanged and the proof, and any reader can rebuild a new file and check it; a lookup by an original's digest finds its set. " +
           "Returns, per file, the position just made AND every position those bytes occupy: a file may be BitGraphed any number of times, so report the whole list, not only the newest. " +
           "A 'not fused' outcome says why and what to do (usually: commit again in a few seconds, or open again). Nothing is labelled fused unless the proof came back under the named slot and verified.",
         inputSchema: z.object({
@@ -453,15 +500,18 @@ const handler = createMcpHandler(
       async ({ entries, response_format }) => {
         try {
           const baseUrl = apiBaseUrl();
-          const outcomes: CommitOutcome[] = [];
+          const outcomes: CommitOutcome[] = new Array<CommitOutcome>(entries.length);
           const frames: Array<{ name: string; frame: unknown }> = [];
-          for (const e of entries) {
+          const sets: Array<SetOutcome & { proof: unknown }> = [];
+          const decoded: Array<{ position: number; state: OpenState; artifactDigestB64: string }> = [];
+          for (let position = 0; position < entries.length; position++) {
+            const e = entries[position] as (typeof entries)[number];
             const state = decodeToken(e.fuse_token);
             const trimmed = e.artifact_digest.trim();
             const digestOk = looksLikeDigest(trimmed);
             const artifact = digestOk ? fromUrlSafeB64(trimmed) : "";
             if (state === null || !digestOk) {
-              outcomes.push({
+              outcomes[position] = {
                 name: state?.origin.name ?? "(unknown file)",
                 origin_digest: state ? toUrlSafeB64(state.origin.digestB64) : "",
                 artifact_digest: digestOk ? toUrlSafeB64(artifact) : e.artifact_digest,
@@ -476,34 +526,86 @@ const handler = createMcpHandler(
                 positions: [],
                 recovered: false,
                 error: state === null ? "fuse_token is not one issued by bitgraph_open" : `"${e.artifact_digest}" is not a base64 SHA-256 digest. ${DIGEST_HINT}`,
-              });
+              };
               continue;
             }
-            const common = {
-              name: state.origin.name,
-              origin_digest: toUrlSafeB64(state.origin.digestB64),
-              artifact_digest: toUrlSafeB64(artifact),
-              placement: state.placement,
-              slot_counter: state.slot.counter,
-              fused_name: state.fusedName,
-              frame_name: state.frameName,
-            };
+            decoded.push({ position, state, artifactDigestB64: artifact });
+          }
+          const commonOf = (state: OpenState, artifact: string) => ({
+            name: state.origin.name,
+            origin_digest: toUrlSafeB64(state.origin.digestB64),
+            artifact_digest: toUrlSafeB64(artifact),
+            placement: state.placement,
+            slot_counter: state.slot.counter,
+            fused_name: state.fusedName,
+            frame_name: state.frameName,
+          });
+          const notFused = (state: OpenState, artifact: string, error: string): CommitOutcome => ({
+            ...commonOf(state, artifact),
+            outcome: "not fused",
+            counter: null,
+            epoch: null,
+            proof_url: null,
+            positions: [],
+            recovered: false,
+            error,
+          });
+          const groups = groupCommitEntries(decoded);
+          // Single files: each under its own slot, as before.
+          for (const s of groups.solos) {
             try {
-              const c = await commitHosted(state, artifact);
+              const c = await commitHosted(s.state, s.artifactDigestB64);
               const { counter, epoch } = positionOf(c.proof);
-              outcomes.push({
-                ...common,
+              outcomes[s.position] = {
+                ...commonOf(s.state, s.artifactDigestB64),
                 outcome: "fused",
                 counter,
                 epoch,
-                proof_url: proofUrl(baseUrl, artifact, counter ?? undefined, c.proof.commit?.epochId),
+                proof_url: proofUrl(baseUrl, s.artifactDigestB64, counter ?? undefined, c.proof.commit?.epochId),
                 positions: [],
                 recovered: c.recovered,
                 error: null,
-              });
-              frames.push({ name: state.frameName, frame: c.frame });
+              };
+              frames.push({ name: s.state.frameName, frame: c.frame });
             } catch (err) {
-              outcomes.push({ ...common, outcome: "not fused", counter: null, epoch: null, proof_url: null, positions: [], recovered: false, error: hostedErrorText(err) });
+              outcomes[s.position] = notFused(s.state, s.artifactDigestB64, hostedErrorText(err));
+            }
+          }
+          // Sets: every member that shares a slot, one manifest, one commit, one position.
+          for (const g of groups.sets) {
+            try {
+              const c = await commitHostedSet(g.entries);
+              const { counter, epoch } = positionOf(c.proof);
+              const setDigest = toUrlSafeB64(c.artifactDigestB64);
+              sets.push({
+                slot_counter: g.slot.counter,
+                counter,
+                epoch,
+                count: c.count,
+                artifact_digest: setDigest,
+                proof_url: proofUrl(baseUrl, c.artifactDigestB64, counter ?? undefined, c.proof.commit?.epochId),
+                manifest_echoed: c.manifestEchoed,
+                recovered: c.recovered,
+                proof: c.proof,
+              });
+              g.entries.forEach((e, k) => {
+                outcomes[e.position] = {
+                  ...commonOf(e.state, e.artifactDigestB64),
+                  outcome: "fused",
+                  counter,
+                  epoch,
+                  proof_url: proofUrl(baseUrl, e.state.origin.digestB64, counter ?? undefined, c.proof.commit?.epochId),
+                  positions: [],
+                  recovered: c.recovered,
+                  error: null,
+                  member: (c.rowOf[k] as number) + 1,
+                  member_count: c.count,
+                  set_digest: setDigest,
+                };
+              });
+            } catch (err) {
+              const text = hostedErrorText(err);
+              for (const e of g.entries) outcomes[e.position] = notFused(e.state, e.artifactDigestB64, text);
             }
           }
           /* One ledger read, after the writes, so a caller who asked to BitGraph
@@ -537,14 +639,19 @@ const handler = createMcpHandler(
 
           const structured = {
             results: outcomes,
+            sets,
             frames,
             summary: {
               fused: fusedOutcomes.length,
               not_fused: outcomes.filter((o) => o.outcome === "not fused").length,
+              sets: sets.length,
             },
           };
           if (response_format === "json") return ok(capJson(structured).text);
-          const md = renderCommitMarkdown(outcomes) + (frames.length > 0 ? "\n\nFrames, one per fused file (save each as its frame_name):\n```json\n" + capJson(frames).text + "\n```" : "");
+          const setSummaries: SetOutcome[] = sets.map((s) => ({ slot_counter: s.slot_counter, counter: s.counter, epoch: s.epoch, count: s.count, artifact_digest: s.artifact_digest, proof_url: s.proof_url, manifest_echoed: s.manifest_echoed, recovered: s.recovered }));
+          let md = renderCommitMarkdown(outcomes, setSummaries);
+          if (sets.length > 0) md += "\n\nSet proofs, one per set (save each beside its originals):\n```json\n" + capJson(sets).text + "\n```";
+          if (frames.length > 0) md += "\n\nFrames, one per single fused file (save each as its frame_name):\n```json\n" + capJson(frames).text + "\n```";
           return ok(md);
         } catch (err) {
           return fail(errorText(err));
@@ -559,7 +666,7 @@ const handler = createMcpHandler(
         description:
           "Check whether SHA-256 digests are on record in the BitGraph ledger, without recording anything. " +
           DIGEST_HINT + ". " +
-          "Returns, per digest: on_record (the bytes are on record, as an exact recording or as the original a new file was made from), every position by counter, and the proof page URL. " +
+          "Returns, per digest: on_record (the bytes are on record, as an exact recording, as the original a new file was made from, or as a member of a set), every position by counter with a set member's row, and the proof page URL. " +
           "Read-only. Use bitgraph_record to record digests that turn out not to be on record.",
         inputSchema: z.object({
           digests: z
@@ -587,7 +694,7 @@ const handler = createMcpHandler(
           const outcomes: CheckOutcome[] = normalized.standard.map((standardDigest, i) => {
             const entry = checked.results[toUrlSafeB64(standardDigest)];
             const proofs = entry?.proofs ?? [];
-            const positions = proofs.map((p) => positionOf(p.proof));
+            const positions = proofs.map((p) => ({ ...positionOf(p.proof), ...(p.member ? { member: p.member } : {}) }));
             return {
               input: digests[i] as string,
               digest: toUrlSafeB64(standardDigest),
@@ -702,8 +809,9 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "bitgraph", version: SERVER_VERSION },
     instructions:
-      "BitGraph gives a file's bytes a causal position in a public ledger bracketed by Ethereum anchors. Making a BitGraph the default way is two steps: bitgraph_open (a slot at the boundary, and a recipe for the new fused file) then bitgraph_commit (the digest of the new file you built from the recipe). " +
-      "File contents never travel: only digests, sizes, a file's first bytes, slot records and recipe bytes. The new file is virtual; the original stays unchanged and the Frame rebuilds it. " +
+      "BitGraph gives a file's bytes a causal position in a public ledger bracketed by Ethereum anchors. Making a BitGraph is two steps: bitgraph_open (a slot at the boundary, and a recipe per file for its new fused file) then bitgraph_commit (the digest of each new file you built). " +
+      "Open every file of a batch in ONE call and commit them in ONE call: they share the slot and become one BitGraph, a set with one position, each file a member with its row. A single file is fused on its own. " +
+      "File contents never travel: only digests, sizes, a file's first bytes, slot records and recipe bytes. New files are virtual; the originals stay unchanged and the proof rebuilds them. " +
       "Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
       "bitgraph_record is the compatibility recording of digests alone. bitgraph_check and bitgraph_get_proof are read-only.",
   }

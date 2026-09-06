@@ -416,6 +416,26 @@ under the same fused name are refused before any allocation.
 runs `verifyFuseMember` when the proof is signed `set/1` and the file is not
 the manifest itself.
 
+Both MCP servers follow the site's rule (2026-09-06): a single file is fused
+on its own, two or more are one set. The stdio server
+(`@mikeargento/bitgraph-mcp`, MIT) makes the set from file and directory
+paths, `set/1` up to `MAX_SET_MEMBERS` and `set/2` above it: every member is
+a hashed member whose fused digest is finished from a hasher Node's own
+SHA-256 leaves open after the scan (the placement's prefix and the original,
+then the suffix for the slot), so no file is read twice or held. A set/2's
+evidence is indexed on the site in chunks afterwards, and evidence the site
+could not take is sent again before the next set is made, so a member the
+site cannot find by hash is never made again by mistake. The hosted server
+(`bitgraph.ing/mcp`) holds no file: `bitgraph_open` allocates ONE slot for
+every file in the call and returns each file's recipe and token for that
+slot's commitment; `bitgraph_commit` takes every member's digest, builds the
+canonical `set/1` manifest on the site, commits its digest under the shared
+slot through the site's own commit route (which validates the manifest and
+indexes the members), and verifies the returned proof against the manifest
+bytes before any file is called fused. The slot's 120 s TTL bounds the
+caller's build; a caller that hashes each original with a copyable hasher
+before opening finishes every member in microseconds after.
+
 ### Harness
 
 The site's `/fuse` page and `/api/fuse/harness` route (404 unless

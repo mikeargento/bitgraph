@@ -130,7 +130,10 @@ test("the token round-trips the open state and rejects anything else", () => {
   assert.deepEqual(decodeToken(token), state);
   assert.equal(decodeToken("not a token"), null);
   assert.equal(decodeToken(Buffer.from("{}").toString("base64url")), null);
-  assert.equal(decodeToken(encodeToken({ ...state, placement: "produced/1" as unknown as "trailer/1" })), null, "only the two hosted placements");
+  assert.equal(decodeToken(encodeToken({ ...state, placement: "produced/1" as unknown as "trailer/1" })), null, "only the hosted placements");
+  assert.deepEqual(decodeToken(encodeToken({ ...state, placement: "container/2" })), { ...state, placement: "container/2" }, "container/2 tokens decode");
+  assert.deepEqual(decodeToken(encodeToken({ ...state, set: true })), { ...state, set: true }, "the set flag survives the round trip");
+  assert.equal(decodeToken(encodeToken({ ...state, set: "yes" as unknown as true })), null, "the set flag is true or absent");
   assert.equal(decodeToken(encodeToken({ ...state, origin: { ...state.origin, size: -1 } })), null);
   assert.equal(decodeToken(encodeToken({ ...state, origin: { ...state.origin, digestB64: "x" } })), null);
   assert.equal(decodeToken(encodeToken({ ...state, slot: { ...slot, nonceB64: "short" } })), null, "the slot record is validated");
@@ -148,11 +151,30 @@ test("renderers state outcomes plainly and never claim what did not happen", () 
   assert.match(open, /not opened · c\.txt · the boundary is restarting/);
   assert.match(open, /new_file = original \+ append/);
   const commit = renderCommitMarkdown([
-    { name: "a.jpg", origin_digest: "d1", artifact_digest: "f1", outcome: "fused", placement: "trailer/1", slot_counter: "9", counter: "10", epoch: "e", fused_name: "a.fused.jpg", frame_name: "a.jpg.bitgraph-fuse.json", proof_url: "https://bitgraph.ing/proof/f1", recovered: false, error: null },
-    { name: "c.txt", origin_digest: "d3", artifact_digest: "f3", outcome: "not fused", placement: "container/1", slot_counter: "11", counter: null, epoch: null, fused_name: "c.fused.tar", frame_name: "c.txt.bitgraph-fuse.json", proof_url: null, recovered: false, error: "no anchor since the slot" },
+    { name: "a.jpg", origin_digest: "d1", artifact_digest: "f1", outcome: "fused", placement: "trailer/1", slot_counter: "9", counter: "10", epoch: "e", fused_name: "a.fused.jpg", frame_name: "a.jpg.bitgraph-fuse.json", proof_url: "https://bitgraph.ing/proof/f1", positions: [], recovered: false, error: null },
+    { name: "c.txt", origin_digest: "d3", artifact_digest: "f3", outcome: "not fused", placement: "container/1", slot_counter: "11", counter: null, epoch: null, fused_name: "c.fused.tar", frame_name: "c.txt.bitgraph-fuse.json", proof_url: null, positions: [], recovered: false, error: "no anchor since the slot" },
   ]);
   assert.match(commit, /^1 fused, 1 NOT fused\./);
   assert.match(commit, /fused · slot #9 → #10 · a\.jpg → a\.fused\.jpg/);
   assert.match(commit, /not fused · c\.txt · no anchor since the slot/);
   assert.match(commit, /The new file is virtual/);
+  const set = renderCommitMarkdown(
+    [
+      { name: "a.jpg", origin_digest: "d1", artifact_digest: "f1", outcome: "fused", placement: "trailer/1", slot_counter: "9", counter: "10", epoch: "e", fused_name: "a.fused.jpg", frame_name: "a.jpg.bitgraph-fuse.json", proof_url: "https://bitgraph.ing/proof/d1?counter=10", positions: [], recovered: false, error: null, member: 2, member_count: 2, set_digest: "s1" },
+      { name: "b.txt", origin_digest: "d2", artifact_digest: "f2", outcome: "fused", placement: "container/2", slot_counter: "9", counter: "10", epoch: "e", fused_name: "b.fused.tar", frame_name: "b.txt.bitgraph-fuse.json", proof_url: "https://bitgraph.ing/proof/d2?counter=10", positions: [], recovered: false, error: null, member: 1, member_count: 2, set_digest: "s1" },
+    ],
+    [{ slot_counter: "9", counter: "10", epoch: "e", count: 2, artifact_digest: "s1", proof_url: "https://bitgraph.ing/proof/s1?counter=10", manifest_echoed: true, recovered: false }],
+  );
+  assert.match(set, /^2 fused as one set at #10 \(set of 2\)\./);
+  assert.match(set, /- set · slot #9 → #10 · set of 2\n  https:\/\/bitgraph\.ing\/proof\/s1\?counter=10/);
+  assert.match(set, /- fused · a\.jpg → a\.fused\.jpg \(2 of 2, trailer\/1\)/);
+  assert.match(set, /- fused · b\.txt → b\.fused\.tar \(1 of 2, container\/2\)/);
+  assert.match(set, /sets\[\]\.proof/);
+  const openSet = renderOpenMarkdown([
+    { name: "a.jpg", digest: "d1", outcome: "opened", set: true, placement: "trailer/1", slot_counter: "9", epoch: "e", fused_name: "a.fused.jpg", frame_name: "a.jpg.bitgraph-fuse.json", fuse_token: "t", recipe: { kind: "append", append_base64: "QQ==" }, total_positions: 0, proof_url: null, error: null },
+    { name: "b.txt", digest: "d2", outcome: "opened", set: true, placement: "container/2", slot_counter: "9", epoch: "e", fused_name: "b.fused.tar", frame_name: "b.txt.bitgraph-fuse.json", fuse_token: "t2", recipe: { kind: "wrap", prefix_base64: "QQ==", suffix_base64: "QQ==" }, total_positions: 0, proof_url: null, error: null },
+  ]);
+  assert.match(openSet, /^2 opened under one slot #9 \(one set\), 0 already on record\./);
+  assert.match(openSet, /single bitgraph_commit call/);
+  assert.match(openSet, /expires 120 seconds/);
 });

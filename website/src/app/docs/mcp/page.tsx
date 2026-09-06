@@ -139,8 +139,8 @@ export default function McpPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Five tools</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">bitgraph_open</strong> · Make a BitGraph, step one. The agent sends a file&apos;s name, size, SHA-256 digest and first 16 bytes. An unused slot is allocated at the boundary before the new file exists, and the agent gets back a token and a recipe: the exact bytes the new file adds after the original (<span className="font-mono text-xs">trailer/1</span>, for formats that ignore trailing data) or around it (<span className="font-mono text-xs">container/2</span>, a tar that carries the original untouched and first).</li>
-        <li>• <strong className="text-text">bitgraph_commit</strong> · Step two. The agent builds the new file from the recipe, hashes it, and sends the token and that digest. The boundary commits it under that exact slot with the signed marker, and the agent gets back the proof and the Frame to save next to the original. The new file is virtual: the original plus the Frame rebuilds it.</li>
+        <li>• <strong className="text-text">bitgraph_open</strong> · Make a BitGraph, step one. The agent sends each file&apos;s name, size, SHA-256 digest and first 16 bytes. An unused slot is allocated at the boundary before any new file exists, and the agent gets back, per file, a token and a recipe: the exact bytes the new file adds after the original (<span className="font-mono text-xs">trailer/1</span>, for formats that ignore trailing data) or around it (<span className="font-mono text-xs">container/2</span>, a tar that carries the original untouched and first). Files opened together share the one slot: they are one BitGraph, a set.</li>
+        <li>• <strong className="text-text">bitgraph_commit</strong> · Step two. The agent builds each new file from its recipe, hashes it, and sends every token and digest in one call. For a set the manifest of those digests is committed under the shared slot with the signed marker, and the agent gets back one proof for the whole batch with each file&apos;s row; a single file gets its own proof and Frame. New files are virtual: an original plus the proof rebuilds its new file, and a lookup by the original&apos;s digest finds the set.</li>
         <li>• <strong className="text-text">bitgraph_record</strong> · The compatibility recording: digests alone, no new file. It gives bytes that already exist a position and establishes that they existed no later than the commit.</li>
         <li>• <strong className="text-text">bitgraph_check</strong> · Is this file on record? Read-only. It reports <span className="font-mono text-xs">on_record</span>, every recording of the exact bytes, and <span className="font-mono text-xs">fused_descendants</span>, every fused artifact that names the bytes as its origin, each listed by position with its proof page URL.</li>
         <li>• <strong className="text-text">bitgraph_get_proof</strong> · Fetch a proof and its Ethereum anchor window: BitGraphed between block X and block Y.</li>
@@ -150,14 +150,17 @@ export default function McpPage() {
       <p className="text-[#1f2937] mb-4">
         The endpoint never receives a file. If an agent can hash a file it can build the
         virtual new file and hash that, so the two steps above are all it takes: hash the
-        original, open a slot, build the new file exactly as the recipe says, hash it, commit.
-        Only digests, byte sizes, a file&apos;s first bytes, the signed slot record and the
-        recipe cross the network. Agents with code execution, ChatGPT and Claude among them,
-        do this on any file you give them.
+        originals, open a slot, build each new file exactly as its recipe says, hash it, commit
+        them together. A batch is one position however many files it holds, the same as a drop
+        on the site. Only digests, byte sizes, a file&apos;s first bytes, the signed slot record
+        and the recipes cross the network. Agents with code execution, ChatGPT and Claude among
+        them, do this on any files you give them.
       </p>
       <p className="text-[#1f2937] mb-4">
         For clients that run on your machine, the stdio package does the same in one call from
-        a plain file path:
+        plain file paths, and makes one BitGraph of everything in the call: a folder of any size
+        becomes one set under one slot, the way a drop on the site does. Each file is read once
+        for its digest; the new files are never written.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>

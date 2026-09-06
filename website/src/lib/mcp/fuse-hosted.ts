@@ -19,8 +19,18 @@
  *           signed marker (attribution name = profile, title = placement,
  *           message = origin digest) and returns the proof and the Frame.
  *
+ * Two or more files opened together are ONE BitGraph, a set (placement
+ * set/1), the way a drop on the site is: one slot is allocated for all of
+ * them, every recipe carries the same commitment, each token names the slot
+ * and says it belongs to a set, and the commit takes every member's digest at
+ * once, builds the canonical manifest of them here, commits ITS digest under
+ * the slot with the set marker (title set/1, no origin), verifies the returned
+ * proof against the manifest bytes, and reports each file's row. The site's
+ * commit route indexes every member, so a lookup by any file's own digest
+ * finds the set. A single file is fused on its own, as a single drop is.
+ *
  * Only digests, sizes, slot records and recipe bytes travel. File contents are
- * never uploaded, and the new file is virtual: nothing here keeps it.
+ * never uploaded, and the new files are virtual: nothing here keeps them.
  *
  * The ustar writer below is a verbatim copy of the one in
  * @mikeargento/bitgraph-verify (container/1). The unit test proves
@@ -29,16 +39,24 @@
 import { getPlacement,
   CONTAINER_MANIFEST_PATH,
   CONTAINER_ORIGINAL_PATH,
+  SET_METADATA_KEY,
+  SET_PLACEMENT_ID,
   TRAILER_MAGIC,
   buildFrame,
   buildFusePayload,
+  buildSetManifest,
   base64ToBytes,
+  bytesEqual,
   bytesToBase64,
   computeSlotCommitment,
   fuseAttribution,
+  parseSetManifest,
+  readSetMetadata,
+  verifyFuse,
   verifyProofIntegrity,
   type BitGraphProof as VerifyProof,
   type FuseFrame,
+  type SetMember,
   type SlotAllocation,
 } from "@mikeargento/bitgraph-verify";
 import { fusedNamesFor, placementForBytes } from "@mikeargento/bitgraph";
@@ -49,8 +67,15 @@ import type { BitGraphProof } from "./types.ts";
 
 export type HostedPlacement = "trailer/1" | "container/1" | "container/2";
 
-/** Files per call: each one is a slot allocation now and a commit later, inside the route's window. */
-export const MAX_OPEN_FILES = 10;
+/**
+ * Files per call. Two or more share ONE slot and ONE commit, so the boundary
+ * cost does not grow with the count; what does is the answer, one recipe and
+ * one token per file, which this keeps inside what a client reads back.
+ * Folders of any size are the stdio package's job, on the machine that holds them.
+ */
+export const MAX_OPEN_FILES = 40;
+/** The enclave forgets an unconsumed slot after this long (SLOT_TTL_MS in the enclave). */
+export const SLOT_TTL_SECONDS = 120;
 /** The ustar size field: 8 GiB - 1. The caller hashes; nothing this size comes here. */
 export const MAX_ORIGIN_BYTES = 0o77777777777;
 /** The first bytes of the original, for the placement choice. */
@@ -184,6 +209,8 @@ export interface OpenState {
   origin: { digestB64: string; size: number; name: string };
   fusedName: string;
   frameName: string;
+  /** Present when the slot was opened for two or more files at once: the commit makes one set of every token that shares it. */
+  set?: true;
 }
 
 export function encodeToken(state: OpenState): string {
@@ -201,7 +228,8 @@ export function decodeToken(token: string): OpenState | null {
   const s = parsed as Record<string, unknown>;
   if (s.v !== 1) return null;
   if (!isSlotRecord(s.slot)) return null;
-  if (s.placement !== "trailer/1" && s.placement !== "container/1") return null;
+  if (s.placement !== "trailer/1" && s.placement !== "container/1" && s.placement !== "container/2") return null;
+  if (s.set !== undefined && s.set !== true) return null;
   const origin = s.origin as Record<string, unknown> | undefined;
   if (
     typeof origin !== "object" || origin === null ||
@@ -219,6 +247,7 @@ export function decodeToken(token: string): OpenState | null {
     origin: { digestB64: origin.digestB64, size: origin.size, name: origin.name },
     fusedName: s.fusedName,
     frameName: s.frameName,
+    ...(s.set === true ? { set: true as const } : {}),
   };
 }
 
@@ -282,13 +311,24 @@ export interface Opened {
   epochB64: string;
 }
 
-/** Step one: a slot for this file, and the recipe for the bytes that will occupy it. */
-export async function openHosted(input: { name: string; size: number; digestB64: string; head: Uint8Array | null }): Promise<Opened> {
+export interface OpenInput {
+  name: string;
+  size: number;
+  digestB64: string;
+  head: Uint8Array | null;
+}
+
+/** What the recipe needs from one file, checked before any slot exists so a bad input costs nothing. */
+function memberInput(input: OpenInput): { originDigest: Uint8Array; placement: HostedPlacement } {
   const originDigest = base64ToBytes(input.digestB64);
   if (originDigest === null || originDigest.length !== 32) throw new HostedFuseError("bad-input", "digest must be a base64 SHA-256");
   const placement = choosePlacement(input.head, input.size);
   if (typeof placement !== "string") throw new HostedFuseError("bad-input", placement.error);
+  return { originDigest, placement };
+}
 
+/** One slot from the boundary, through the site's own gate. */
+async function allocateHosted(): Promise<SlotAllocation> {
   const alloc = await boundaryPost("/api/fuse/allocate", {}, ALLOCATE_TIMEOUT_MS);
   if (alloc.status !== 200) {
     throw new HostedFuseError(
@@ -302,17 +342,21 @@ export async function openHosted(input: { name: string; size: number; digestB64:
   if (a === null || !isSlotRecord(a.slot) || a.slotId !== a.slot.nonceB64 || a.chainId !== FUSE_CHAIN) {
     throw new HostedFuseError("allocate-failed", "the allocation response is not a slot record", alloc.status);
   }
-  const slot = a.slot as unknown as SlotAllocation;
-  const commitment = computeSlotCommitment(slot);
-  const recipe = recipeFor(placement, originDigest, input.size, commitment);
-  const names = fusedNamesFor(input.name, placement);
+  return a.slot as unknown as SlotAllocation;
+}
+
+/** The recipe and token for one file under a held slot. Pure once the slot is in hand. */
+function openMember(slot: SlotAllocation, commitment: Uint8Array, input: OpenInput, member: { originDigest: Uint8Array; placement: HostedPlacement }, set: boolean): Opened {
+  const recipe = recipeFor(member.placement, member.originDigest, input.size, commitment);
+  const names = fusedNamesFor(input.name, member.placement);
   const state: OpenState = {
     v: 1,
     slot,
-    placement,
+    placement: member.placement,
     origin: { digestB64: input.digestB64, size: input.size, name: input.name },
     fusedName: names.fusedName,
     frameName: names.frameName,
+    ...(set ? { set: true as const } : {}),
   };
   return {
     token: encodeToken(state),
@@ -321,6 +365,42 @@ export async function openHosted(input: { name: string; size: number; digestB64:
     commitmentB64: bytesToBase64(commitment),
     slotCounter: slot.counter,
     epochB64: toUrlSafeB64(slot.epochId),
+  };
+}
+
+/** Step one for a single file: a slot for it, and the recipe for the bytes that will occupy it. */
+export async function openHosted(input: OpenInput): Promise<Opened> {
+  const member = memberInput(input);
+  const slot = await allocateHosted();
+  return openMember(slot, computeSlotCommitment(slot), input, member, false);
+}
+
+export interface OpenedSet {
+  slot: SlotAllocation;
+  commitmentB64: string;
+  slotCounter: string;
+  epochB64: string;
+  /** In the order given. */
+  members: Opened[];
+}
+
+/**
+ * Step one for two or more files: ONE slot for all of them, and each file's
+ * recipe for that slot's commitment. Every token carries the slot and the
+ * set flag, so the commit makes one set of them. Inputs are checked before
+ * the allocation; a bad one refuses the whole call and costs no slot.
+ */
+export async function openHostedSet(inputs: readonly OpenInput[]): Promise<OpenedSet> {
+  if (inputs.length < 2) throw new HostedFuseError("bad-input", "a set opens two or more files");
+  const members = inputs.map(memberInput);
+  const slot = await allocateHosted();
+  const commitment = computeSlotCommitment(slot);
+  return {
+    slot,
+    commitmentB64: bytesToBase64(commitment),
+    slotCounter: slot.counter,
+    epochB64: toUrlSafeB64(slot.epochId),
+    members: inputs.map((input, i) => openMember(slot, commitment, input, members[i]!, true)),
   };
 }
 
@@ -356,21 +436,18 @@ async function recover(slot: SlotAllocation, artifactDigestB64: string): Promise
   }
 }
 
-/** Step two: consume that exact slot with the digest of the bytes the caller built. */
-export async function commitHosted(state: OpenState, artifactDigestB64: string): Promise<Committed> {
-  const artifactDigest = base64ToBytes(artifactDigestB64);
-  if (artifactDigest === null || artifactDigest.length !== 32) throw new HostedFuseError("bad-input", "artifact digest must be a base64 SHA-256");
-  const originDigest = base64ToBytes(state.origin.digestB64);
-  if (originDigest === null || originDigest.length !== 32) throw new HostedFuseError("bad-input", "the token carries no origin digest");
-  const { slot, placement } = state;
-  const body = {
-    digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
-    slotId: slot.nonceB64,
-    slot,
-    chainId: FUSE_CHAIN,
-    attribution: fuseAttribution(placement, originDigest),
-  };
-
+/**
+ * One commit under a held slot, with the lost-reply and refused-reply
+ * recovery rules, and the two checks no caller may skip: the proof is under
+ * this exact slot for these exact bytes, and it carries the marker that was
+ * sent. What comes back is still unread as a proof; the caller runs the
+ * verification it can.
+ */
+async function commitUnderSlot(
+  slot: SlotAllocation,
+  artifactDigestB64: string,
+  body: { attribution: { name?: string; title?: string; message?: string } } & Record<string, unknown>,
+): Promise<{ proof: BitGraphProof; recovered: boolean }> {
   let proof: BitGraphProof | null = null;
   let recovered = false;
   let reply: { status: number; json: unknown; retryAfterSec: number | null } | null = null;
@@ -412,6 +489,23 @@ export async function commitHosted(state: OpenState, artifactDigestB64: string):
   if (attr?.name !== want.name || attr?.title !== want.title || (attr?.message ?? undefined) !== want.message) {
     throw new HostedFuseError("marker-mismatch", "the returned proof does not carry the signed marker that was sent; nothing is labelled fused");
   }
+  return { proof, recovered };
+}
+
+/** Step two for a single file: consume that exact slot with the digest of the bytes the caller built. */
+export async function commitHosted(state: OpenState, artifactDigestB64: string): Promise<Committed> {
+  const artifactDigest = base64ToBytes(artifactDigestB64);
+  if (artifactDigest === null || artifactDigest.length !== 32) throw new HostedFuseError("bad-input", "artifact digest must be a base64 SHA-256");
+  const originDigest = base64ToBytes(state.origin.digestB64);
+  if (originDigest === null || originDigest.length !== 32) throw new HostedFuseError("bad-input", "the token carries no origin digest");
+  const { slot, placement } = state;
+  const { proof, recovered } = await commitUnderSlot(slot, artifactDigestB64, {
+    digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
+    slotId: slot.nonceB64,
+    slot,
+    chainId: FUSE_CHAIN,
+    attribution: fuseAttribution(placement, originDigest),
+  });
   // A minted proof is checked by a reader before it is called a proof. The
   // bytes are not here, so this is the integrity half: signature, slot binding,
   // attestation. The byte half is the caller's, and any verifier's, with the file.
@@ -429,6 +523,140 @@ export async function commitHosted(state: OpenState, artifactDigestB64: string):
   return { proof, frame, recovered };
 }
 
+/* ── Sets: two or more files under one slot ── */
+
+export interface SetEntry {
+  state: OpenState;
+  /** Standard base64: SHA-256 of the new file the caller built from this member's recipe. */
+  artifactDigestB64: string;
+}
+
+export interface SetManifestBuilt {
+  /** The canonical manifest bytes: the committed artifact. */
+  manifestBytes: Uint8Array;
+  manifestObject: Record<string, unknown>;
+  /** Standard base64 of manifestBytes. */
+  digestB64: string;
+  /** Row ordinal in the canonical manifest, per entry (entries with the same fused digest share a row). */
+  rowOf: number[];
+  count: number;
+}
+
+/**
+ * The canonical set manifest for entries that share a slot: one row per
+ * distinct fused digest {artifact, origin, placement}, rows sorted by the
+ * placement's own rule, the slot's commitment inside. Pure; the boundary
+ * never sees a member's bytes, only this list and its digest.
+ */
+export async function setManifestFor(entries: readonly SetEntry[]): Promise<SetManifestBuilt> {
+  if (entries.length === 0) throw new HostedFuseError("bad-input", "a set commits at least one member");
+  const slot = entries[0]!.state.slot;
+  const commitment = computeSlotCommitment(slot);
+  const members: SetMember[] = [];
+  const seen = new Map<string, number>();
+  for (const e of entries) {
+    if (e.state.slot.nonceB64 !== slot.nonceB64) throw new HostedFuseError("bad-input", "every member of a set commits under the same slot");
+    const artifact = base64ToBytes(e.artifactDigestB64);
+    if (artifact === null || artifact.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: artifact digest must be a base64 SHA-256`);
+    const origin = base64ToBytes(e.state.origin.digestB64);
+    if (origin === null || origin.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: the token carries no origin digest`);
+    if (seen.has(e.artifactDigestB64)) continue;
+    seen.set(e.artifactDigestB64, members.length);
+    members.push({ artifact, origin, placement: e.state.placement });
+  }
+  const manifestBytes = buildSetManifest(commitment, members);
+  const parsed = parseSetManifest(manifestBytes);
+  if (parsed === null) throw new HostedFuseError("bad-input", "the set manifest did not round-trip");
+  const rowIndex = new Map<string, number>();
+  parsed.members.forEach((row, k) => rowIndex.set(bytesToBase64(row.artifact), k));
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", manifestBytes as BufferSource));
+  return {
+    manifestBytes,
+    manifestObject: JSON.parse(new TextDecoder().decode(manifestBytes)) as Record<string, unknown>,
+    digestB64: bytesToBase64(digest),
+    rowOf: entries.map((e) => rowIndex.get(e.artifactDigestB64) as number),
+    count: parsed.members.length,
+  };
+}
+
+export interface CommittedSet {
+  /** The set proof, carrying the manifest under metadata whatever the boundary echoed. */
+  proof: BitGraphProof;
+  manifestBytes: Uint8Array;
+  /** Standard base64: the committed artifact's digest. */
+  artifactDigestB64: string;
+  count: number;
+  /** Per entry, in the order given: the row this member holds in the canonical manifest. */
+  rowOf: number[];
+  recovered: boolean;
+  /** True when the boundary echoed the manifest in the proof's metadata. */
+  manifestEchoed: boolean;
+}
+
+/**
+ * Step two for a set: every member's fused digest at once, the manifest of
+ * them built here, its digest committed under the shared slot with the set
+ * marker, and the returned proof verified against the manifest bytes by the
+ * reader every verifier is (FUSED_DIRECT under set/1) before any file is
+ * called fused. The site's commit route validates the manifest against the
+ * slot before the boundary sees it and indexes every member afterwards.
+ */
+export async function commitHostedSet(entries: readonly SetEntry[]): Promise<CommittedSet> {
+  const built = await setManifestFor(entries);
+  const slot = entries[0]!.state.slot;
+  const { proof, recovered } = await commitUnderSlot(slot, built.digestB64, {
+    digests: [{ digestB64: built.digestB64, hashAlg: "sha256" }],
+    slotId: slot.nonceB64,
+    slot,
+    chainId: FUSE_CHAIN,
+    attribution: fuseAttribution(SET_PLACEMENT_ID),
+    metadata: { [SET_METADATA_KEY]: built.manifestObject },
+  });
+  // The committed bytes ARE in hand here, so the whole verification runs, not only the integrity half.
+  const verification = await verifyFuse({ proof: proof as unknown as VerifyProof, bytes: built.manifestBytes });
+  if (verification.category !== "FUSED_DIRECT" || verification.placement !== SET_PLACEMENT_ID) {
+    throw new HostedFuseError("verification-failed", `the returned proof does not verify as a set: ${verification.category}${verification.reason ? ` (${verification.reason})` : ""}`);
+  }
+  const echoed = readSetMetadata(proof as unknown as VerifyProof);
+  if (echoed !== null && !bytesEqual(echoed, built.manifestBytes)) {
+    throw new HostedFuseError("verification-failed", "the returned proof echoes a different set manifest; nothing is labelled fused");
+  }
+  if (echoed === null) {
+    const prior = proof.metadata;
+    proof.metadata = { ...(typeof prior === "object" && prior !== null && !Array.isArray(prior) ? (prior as Record<string, unknown>) : {}), [SET_METADATA_KEY]: built.manifestObject };
+  }
+  return { proof, manifestBytes: built.manifestBytes, artifactDigestB64: built.digestB64, count: built.count, rowOf: built.rowOf, recovered, manifestEchoed: echoed !== null };
+}
+
+export interface CommitGroups {
+  /** Entries whose tokens name a slot opened for a set, grouped by slot, in first-seen order. */
+  sets: Array<{ slot: SlotAllocation; entries: Array<SetEntry & { position: number }> }>;
+  /** Entries whose tokens were opened one file to a slot. */
+  solos: Array<SetEntry & { position: number }>;
+}
+
+/**
+ * Sort decoded commit entries by what their tokens say: members of one set
+ * commit together under their shared slot, single files commit on their own.
+ * A slot opened for a set but reaching the commit with one member is still a
+ * set of one; the token decides, never the count.
+ */
+export function groupCommitEntries(entries: readonly Array<SetEntry & { position: number }>[number][]): CommitGroups {
+  const sets = new Map<string, { slot: SlotAllocation; entries: Array<SetEntry & { position: number }> }>();
+  const solos: Array<SetEntry & { position: number }> = [];
+  for (const e of entries) {
+    if (e.state.set === true) {
+      const key = e.state.slot.nonceB64;
+      const group = sets.get(key) ?? { slot: e.state.slot, entries: [] };
+      group.entries.push(e);
+      sets.set(key, group);
+    } else {
+      solos.push(e);
+    }
+  }
+  return { sets: [...sets.values()], solos };
+}
+
 // ---------------------------------------------------------------------------
 // Outcomes, in the product's vocabulary, and their rendering.
 // ---------------------------------------------------------------------------
@@ -437,6 +665,8 @@ export interface OpenOutcome {
   name: string;
   digest: string; // origin, URL-safe
   outcome: "opened" | "on record" | "not opened";
+  /** True when this file shares its slot with the others opened in the same call: they commit together as one set. */
+  set?: boolean;
   placement: HostedPlacement | null;
   slot_counter: string | null;
   epoch: string | null;
@@ -472,6 +702,24 @@ export interface CommitOutcome {
   positions: Array<{ counter: string | null; epoch: string | null }>;
   recovered: boolean;
   error: string | null;
+  /** Set members only: this file's row in the set, 1-based, of member_count. */
+  member?: number;
+  member_count?: number;
+  /** Set members only: the set proof's artifact digest (URL-safe), the manifest of every member. */
+  set_digest?: string;
+}
+
+/** The one BitGraph a set commit makes: one position for every member. */
+export interface SetOutcome {
+  slot_counter: string;
+  counter: string | null;
+  epoch: string | null; // URL-safe
+  count: number;
+  /** URL-safe: the manifest's digest, the committed artifact. */
+  artifact_digest: string;
+  proof_url: string;
+  manifest_echoed: boolean;
+  recovered: boolean;
 }
 
 export function recipeJson(recipe: Recipe): NonNullable<OpenOutcome["recipe"]> {
@@ -483,15 +731,21 @@ export function recipeJson(recipe: Recipe): NonNullable<OpenOutcome["recipe"]> {
 export const ASSEMBLY_INSTRUCTIONS =
   "Build each new file locally, exactly: kind 'append' means new_file = original + append; kind 'wrap' means new_file = prefix + original + suffix (all base64-decoded to bytes). " +
   "Never alter the original. Then SHA-256 the new file, base64 that, and call bitgraph_commit with the fuse_token and that digest. " +
-  "The slot is held until the boundary's daily restart (23:59 UTC); commit in the same session.";
+  `The slot expires ${SLOT_TTL_SECONDS} seconds after it is opened: commit inside that window, in the same session. A file need not be read twice: hash it with a copyable hasher before opening (Python's hashlib supports copy()), then finish a copy with the recipe's bytes.`;
+
+export const SET_INSTRUCTIONS =
+  "The files opened together share ONE slot and are ONE BitGraph: commit every one of them in a single bitgraph_commit call, each with its own fuse_token and digest. " +
+  "Whatever that call carries becomes the set; a member left out cannot be added afterwards (the slot is consumed) and would need a new open.";
 
 export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
   const opened = outcomes.filter((o) => o.outcome === "opened");
   const onRecord = outcomes.filter((o) => o.outcome === "on record");
   const failed = outcomes.filter((o) => o.outcome === "not opened");
+  const asSet = opened.length > 0 && opened.every((o) => o.set === true);
   const lines: string[] = [];
-  let headline = `${opened.length} opened, ${onRecord.length} already on record.`;
-  if (failed.length > 0) headline = `${opened.length} opened, ${onRecord.length} already on record, ${failed.length} NOT opened.`;
+  const head = asSet ? `${opened.length} opened under one slot #${opened[0]?.slot_counter ?? "?"} (one set)` : `${opened.length} opened`;
+  let headline = `${head}, ${onRecord.length} already on record.`;
+  if (failed.length > 0) headline = `${head}, ${onRecord.length} already on record, ${failed.length} NOT opened.`;
   lines.push(headline);
   for (const o of outcomes) {
     if (o.outcome === "opened") {
@@ -507,7 +761,9 @@ export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
     }
   }
   if (opened.length > 0) {
-    lines.push("", ASSEMBLY_INSTRUCTIONS, "", "Each opened file's fuse_token and recipe are in the JSON (response_format=json returns them in full).");
+    lines.push("", ASSEMBLY_INSTRUCTIONS);
+    if (asSet) lines.push("", SET_INSTRUCTIONS);
+    lines.push("", "Each opened file's fuse_token and recipe are in the JSON (response_format=json returns them in full).");
   }
   if (onRecord.length > 0) {
     lines.push("", "Files already on record were not opened. To make a new BitGraph of one deliberately, call bitgraph_open with again=true.");
@@ -515,13 +771,24 @@ export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
   return lines.join("\n");
 }
 
-export function renderCommitMarkdown(outcomes: readonly CommitOutcome[]): string {
+export function renderCommitMarkdown(outcomes: readonly CommitOutcome[], sets: readonly SetOutcome[] = []): string {
   const fused = outcomes.filter((o) => o.outcome === "fused");
   const failed = outcomes.filter((o) => o.outcome === "not fused");
   const lines: string[] = [];
-  lines.push(failed.length > 0 ? `${fused.length} fused, ${failed.length} NOT fused.` : `${fused.length} fused.`);
+  const setNote = sets.length === 1 ? ` as one set at #${sets[0]?.counter ?? "?"} (set of ${sets[0]?.count ?? "?"})` : sets.length > 1 ? ` in ${sets.length} sets` : "";
+  lines.push(failed.length > 0 ? `${fused.length} fused${setNote}, ${failed.length} NOT fused.` : `${fused.length} fused${setNote}.`);
+  for (const s of sets) {
+    const rec = s.recovered ? " (recovered from the ledger)" : "";
+    lines.push(`- set · slot #${s.slot_counter} → #${s.counter ?? "?"} · set of ${s.count}${rec}\n  ${s.proof_url}`);
+  }
   for (const o of outcomes) {
-    if (o.outcome === "fused") {
+    if (o.outcome === "fused" && o.member !== undefined) {
+      lines.push(`- fused · ${o.name} → ${o.fused_name} (${o.member} of ${o.member_count ?? "?"}, ${o.placement})`);
+      if (o.positions.length > 1) {
+        const all = o.positions.map((p) => `#${p.counter ?? "?"}`).join(" · ");
+        lines.push(`  ${o.positions.length} positions for these bytes: ${all}`);
+      }
+    } else if (o.outcome === "fused") {
       const rec = o.recovered ? " (recovered from the ledger)" : "";
       lines.push(`- fused · slot #${o.slot_counter ?? "?"} → #${o.counter ?? "?"} · ${o.name} → ${o.fused_name}${rec}\n  ${o.proof_url}`);
       if (o.positions.length > 1) {
@@ -538,7 +805,13 @@ export function renderCommitMarkdown(outcomes: readonly CommitOutcome[]): string
       "A file may occupy any number of positions. Report every position listed above, not only the one just made."
     );
   }
-  if (fused.length > 0) {
+  if (sets.length > 0) {
+    lines.push(
+      "",
+      "Each set's proof (with the manifest listing every member) is in the JSON as sets[].proof; save it once beside the originals. A member's new file is virtual: the original plus the set proof rebuilds it, and a lookup by the original's digest finds the set."
+    );
+  }
+  if (fused.some((o) => o.member === undefined)) {
     lines.push(
       "",
       "Each fused file's Frame (proof plus manifest) is in the JSON as frames[]; save it next to the original as frame_name. The new file is virtual: the original plus the Frame rebuilds it, so keep the original unchanged."

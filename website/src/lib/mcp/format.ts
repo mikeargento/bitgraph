@@ -10,7 +10,7 @@
  */
 
 import { toUrlSafeB64 } from "./encoding";
-import type { BitGraphProof, PositionView, ProofDetailResponse } from "./types";
+import type { BitGraphProof, PositionView, ProofDetailResponse, SetMemberView } from "./types";
 
 export const CHARACTER_LIMIT = 25_000;
 
@@ -50,8 +50,12 @@ export interface CheckOutcome {
   input: string;
   digest: string; // URL-safe
   on_record: boolean;
-  positions: Array<{ counter: string | null; epoch: string | null }>;
+  positions: Array<{ counter: string | null; epoch: string | null; member?: SetMemberView }>;
   proof_url: string | null;
+}
+
+function memberNote(m: SetMemberView | undefined): string {
+  return m ? ` (member ${m.index + 1} of ${m.count})` : "";
 }
 
 export function positionOf(proof: BitGraphProof): { counter: string | null; epoch: string | null } {
@@ -100,7 +104,7 @@ export function renderCheckMarkdown(outcomes: readonly CheckOutcome[]): string {
     if (o.on_record) {
       const first = o.positions[0];
       const extra = o.positions.length > 1 ? ` and ${o.positions.length - 1} more position(s)` : "";
-      lines.push(`- on record · #${first?.counter ?? "?"}${extra} · ${o.input}\n  ${o.proof_url}`);
+      lines.push(`- on record · #${first?.counter ?? "?"}${memberNote(first?.member)}${extra} · ${o.input}\n  ${o.proof_url}`);
     } else {
       lines.push(`- not on record · ${o.input}`);
     }
@@ -131,11 +135,17 @@ export function renderProofMarkdown(
   if (!proof) return "No proof found for that digest.";
   const digest = proof.artifact?.digestB64 ?? "";
   const { counter, epoch } = positionOf(proof);
+  const positions: PositionView[] = detail.positions ?? [];
+  const here = positions.find((p) => p.counter === counter) ?? positions[0];
   const lines: string[] = [];
   lines.push(`# BitGraph #${counter ?? "?"}`);
   lines.push("");
   lines.push(`- Digest (SHA-256): ${toUrlSafeB64(digest)}`);
   if (epoch) lines.push(`- Position: counter ${counter ?? "?"} in epoch ${epoch.slice(0, 12)}…`);
+  if (here?.member) {
+    const role = here.member.role === "fused" ? "its new fused bytes" : "the original";
+    lines.push(`- Set: member ${here.member.index + 1} of ${here.member.count}, as ${role}${here.placement ? ` (${here.placement})` : ""}`);
+  }
   const window = renderWindow(detail);
   if (window) lines.push(`- ${window}`);
   const etherscan =
@@ -151,7 +161,6 @@ export function renderProofMarkdown(
       .join(": ");
     lines.push(`- Submitter's note (self-attributed, not verified): ${note}`);
   }
-  const positions: PositionView[] = detail.positions ?? [];
   if (positions.length > 1) {
     lines.push("");
     lines.push(`## Causal positions (${positions.length})`);
@@ -159,7 +168,7 @@ export function renderProofMarkdown(
       const label = i === 0 ? " · original" : "";
       const bracket =
         p.lowerTime && p.upperTime ? ` · between ${p.lowerTime} and ${p.upperTime}` : "";
-      lines.push(`- #${p.counter ?? "?"}${label}${bracket}`);
+      lines.push(`- #${p.counter ?? "?"}${label}${p.member ? ` · set of ${p.member.count}` : ""}${bracket}`);
     });
   }
   lines.push("");

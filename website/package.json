@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:fuse": "node --test src/lib/__tests__/fuse.test.ts",
-    "test:mcp": "node --test src/lib/__tests__/fuse-hosted.test.ts",
+    "test:mcp": "node --test src/lib/__tests__/fuse-hosted.test.ts src/lib/__tests__/fuse-hosted-set.test.ts",
     "test:ledger": "node --test src/lib/__tests__/ledger-archive.test.ts"
   },
   "dependencies": {
