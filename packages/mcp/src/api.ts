@@ -3,17 +3,15 @@
 /**
  * @mikeargento/bitgraph-mcp: HTTP client for the hosted BitGraph API.
  *
- * All recording goes through the website's /api/commit proxy rather than the
- * TEE directly: the proxy is what maintains the per-position by-digest index
- * that makes every causal position of a file discoverable afterward.
+ * The reads: the batch lookup, the proof detail, the number search. Making a
+ * BitGraph goes through the core package's own transport against the same
+ * site (its /api/fuse routes), which is what maintains the per-position
+ * by-digest index that makes every member of a set discoverable afterward;
+ * the one write here is a set/2's member evidence, indexed after the commit.
  */
 
-import type {
-  BatchCheckResponse,
-  BitGraphProof,
-  ProofDetailResponse,
-  SearchResponse,
-} from "./types.js";
+import { mapConcurrent } from "./encoding.js";
+import type { BatchCheckResponse, ProofDetailResponse, SearchResponse, SetIndexResponse } from "./types.js";
 
 export interface ApiConfig {
   baseUrl: string;
@@ -27,13 +25,13 @@ export function configFromEnv(): ApiConfig {
   return apiKey ? { baseUrl, apiKey } : { baseUrl };
 }
 
-/** Matches the website client: 50 digests per commit request (~1s of TEE work each). */
-export const COMMIT_CHUNK_SIZE = 50;
 /** Matches the batch endpoint's MAX_DIGESTS. */
 export const BATCH_CHECK_LIMIT = 500;
+/** Batch lookups in flight at once: a large folder is many pages. */
+const BATCH_CHECK_CONCURRENCY = 4;
 
 const CHECK_TIMEOUT_MS = 30_000;
-const COMMIT_TIMEOUT_MS = 120_000;
+const SET_INDEX_TIMEOUT_MS = 60_000;
 
 export class ApiError extends Error {
   readonly status: number;
@@ -104,83 +102,44 @@ async function postJson<T>(
 
 /**
  * Look up which digests are on record. Input digests must be URL-safe base64;
- * the response is keyed by the exact strings sent. Batches of up to 500.
+ * the response is keyed by the exact strings sent. Pages of up to 500, a few
+ * in flight at once.
  */
 export async function batchCheck(
   config: ApiConfig,
   urlSafeDigests: readonly string[]
 ): Promise<BatchCheckResponse> {
-  const merged: BatchCheckResponse = { results: {} };
+  const chunks: string[][] = [];
   for (let offset = 0; offset < urlSafeDigests.length; offset += BATCH_CHECK_LIMIT) {
-    const chunk = urlSafeDigests.slice(offset, offset + BATCH_CHECK_LIMIT);
-    const page = await postJson<BatchCheckResponse>(
-      config,
-      "/api/proofs/batch",
-      { digests: chunk },
-      CHECK_TIMEOUT_MS,
-      false
-    );
-    Object.assign(merged.results, page.results);
+    chunks.push(urlSafeDigests.slice(offset, offset + BATCH_CHECK_LIMIT));
   }
+  const pages = await mapConcurrent(chunks, BATCH_CHECK_CONCURRENCY, (chunk) =>
+    postJson<BatchCheckResponse>(config, "/api/proofs/batch", { digests: chunk }, CHECK_TIMEOUT_MS, false)
+  );
+  const merged: BatchCheckResponse = { results: {} };
+  for (const page of pages) Object.assign(merged.results, page.results);
   return merged;
 }
 
-/**
- * Record digests at new causal positions. Input digests must be STANDARD
- * base64 (as stored in proofs). Commits sequentially in chunks of 50, matching
- * the website client; the TEE serializes commits anyway.
- *
- * On a mid-batch failure the error carries how many proofs were already
- * minted (those are permanent); the caller must report partial results
- * honestly rather than pretending all-or-nothing.
- */
-export async function commitDigests(
-  config: ApiConfig,
-  standardDigests: readonly string[],
-  attribution?: { name?: string | undefined; title?: string | undefined; message?: string | undefined }
-): Promise<BitGraphProof[]> {
-  const proofs: BitGraphProof[] = [];
-  for (let offset = 0; offset < standardDigests.length; offset += COMMIT_CHUNK_SIZE) {
-    const chunk = standardDigests.slice(offset, offset + COMMIT_CHUNK_SIZE);
-    const body: Record<string, unknown> = {
-      digests: chunk.map((digestB64) => ({ digestB64, hashAlg: "sha256" })),
-      chainId: "bitgraph:main",
-    };
-    if (attribution) body["attribution"] = attribution;
-    try {
-      const raw = await postJson<BitGraphProof[] | BitGraphProof>(
-        config,
-        "/api/commit",
-        body,
-        COMMIT_TIMEOUT_MS,
-        true
-      );
-      proofs.push(...(Array.isArray(raw) ? raw : [raw]));
-    } catch (err) {
-      throw new PartialCommitError(proofs, standardDigests.length, err);
-    }
-  }
-  return proofs;
+/** One request's worth of a set/2's member evidence, for the site to index. */
+export interface SetIndexRequest {
+  /** The set proof's artifact digest, URL-safe base64. */
+  setDigest: string;
+  /** The set proof's epoch id, URL-safe base64. */
+  epoch: string;
+  /** The set proof's commit counter. */
+  counter: string;
+  members: unknown[];
 }
 
-/** A commit batch failed partway: `minted` proofs are already permanent. */
-export class PartialCommitError extends Error {
-  readonly minted: BitGraphProof[];
-  readonly requested: number;
-  readonly cause2: unknown;
-
-  constructor(minted: BitGraphProof[], requested: number, cause: unknown) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    super(
-      `Recording stopped after ${minted.length} of ${requested} digests: ${reason}` +
-        (cause instanceof ApiError && cause.retryAfterSec !== null
-          ? ` (retry after ${cause.retryAfterSec}s)`
-          : "")
-    );
-    this.minted = minted;
-    this.requested = requested;
-    this.cause2 = cause;
-  }
+/**
+ * Index members of a set/2 from their evidence. The site reads the set proof
+ * from its own position, binds the root document, and checks every member's
+ * path before writing a key; a row that does not bind is rejected, never
+ * written.
+ */
+export async function indexSetMembers(config: ApiConfig, body: SetIndexRequest): Promise<SetIndexResponse> {
+  return postJson<SetIndexResponse>(config, "/api/fuse/set-index", body, SET_INDEX_TIMEOUT_MS, false);
 }
 
 /** Full detail for one digest: proof, all causal positions, anchor window. */

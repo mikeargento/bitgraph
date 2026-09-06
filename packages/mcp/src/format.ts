@@ -9,9 +9,11 @@
  */
 
 import { toUrlSafeB64 } from "./encoding.js";
-import type { BitGraphProof, PositionView, ProofDetailResponse } from "./types.js";
+import type { BitGraphProof, PositionView, ProofDetailResponse, SetMemberView } from "./types.js";
 
 export const CHARACTER_LIMIT = 25_000;
+/** Rows per group a markdown summary lists before "and N more". */
+export const MARKDOWN_ROWS = 50;
 
 /** Public proof page URL for a digest, optionally pinned to one causal position. */
 export function proofUrl(
@@ -31,32 +33,54 @@ export function proofUrl(
 }
 
 /**
- * One outcome per path, in the product's own vocabulary. "fused": a new fused
- * artifact was built from the file and committed under its own slot. "on
- * record": the bytes already had a recording or a fused artifact naming them
- * as origin, and nothing was minted. "not fused": the attempt failed; never
- * claim "on record" for bytes that have no proof.
+ * One outcome per path, in the product's own vocabulary. "fused": the file is
+ * a member of the set just made, its new fused bytes listed by digest in the
+ * committed artifact. "on record": the bytes already had a recording or a
+ * fused artifact naming them as origin, and nothing was made. "not fused":
+ * the attempt failed or the file was left out; never claim "on record" for
+ * bytes that have no proof.
  */
 export interface RecordOutcome {
   path: string;
-  /** The file's own digest (URL-safe): the origin of the fused artifact. */
+  /** The file's own digest (URL-safe): the origin of its fused bytes. */
   digest: string;
   outcome: "fused" | "on record" | "not fused";
-  /** The fused artifact's digest (URL-safe), present on a "fused" outcome. */
+  /** The member's fused digest (URL-safe), present on a "fused" outcome. */
   artifact_digest: string | null;
   placement: string | null;
   counter: string | null;
   epoch: string | null; // URL-safe
+  /** The file's row in the set just made, 1-based, of member_count. */
+  member: number | null;
+  member_count: number | null;
   total_positions: number;
   proof_url: string | null;
   error?: string;
+}
+
+/** The one BitGraph a record call makes: a set, one position for every fused row. */
+export interface SetOutcome {
+  /** "set/1": the committed artifact lists every member. "set/2": it is a Merkle root over the rows, and each member's evidence is indexed on the site. */
+  set: "set/1" | "set/2";
+  count: number;
+  counter: string | null;
+  epoch: string | null; // URL-safe
+  /** The committed artifact's digest (URL-safe): the manifest or the root document. */
+  artifact_digest: string;
+  proof_url: string;
+  /** True when the boundary echoed the committed artifact in the proof's metadata, so the ledger's copy carries it. */
+  manifest_echoed: boolean;
+  /** True when the commit response was lost and the proof was read back by digest. */
+  recovered: boolean;
+  /** set/2 only: members whose evidence the site has indexed, and members still waiting. */
+  index: { written: number; pending: number } | null;
 }
 
 export interface CheckOutcome {
   input: string;
   digest: string; // URL-safe
   on_record: boolean;
-  positions: Array<{ counter: string | null; epoch: string | null }>;
+  positions: Array<{ counter: string | null; epoch: string | null; member?: SetMemberView }>;
   proof_url: string | null;
 }
 
@@ -66,56 +90,94 @@ export function positionOf(proof: BitGraphProof): { counter: string | null; epoc
   return { counter, epoch: epochId !== undefined ? toUrlSafeB64(epochId) : null };
 }
 
-export function renderRecordMarkdown(outcomes: readonly RecordOutcome[]): string {
+const fmt = (n: number): string => n.toLocaleString("en-US");
+
+function memberNote(m: SetMemberView | undefined): string {
+  return m ? ` (member ${fmt(m.index + 1)} of ${fmt(m.count)})` : "";
+}
+
+export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: SetOutcome | null = null, omitted = 0): string {
   const fused = outcomes.filter((o) => o.outcome === "fused");
   const onRecord = outcomes.filter((o) => o.outcome === "on record");
   const notFused = outcomes.filter((o) => o.outcome === "not fused");
   const lines: string[] = [];
-  let headline = `${fused.length} fused, ${onRecord.length} already on record.`;
-  if (notFused.length > 0) {
-    headline = `${fused.length} fused, ${onRecord.length} already on record, ${notFused.length} NOT fused.`;
+  const parts: string[] = [];
+  if (set !== null && fused.length > 0) {
+    parts.push(`${fmt(fused.length)} file${fused.length === 1 ? "" : "s"} BitGraphed as one set at #${set.counter ?? "?"} (set of ${fmt(set.count)})`);
+  } else {
+    parts.push(`${fmt(fused.length)} fused`);
   }
-  lines.push(headline);
-  for (const o of outcomes) {
-    if (o.outcome === "not fused") {
-      lines.push(`- not fused · ${o.path}${o.error ? `: ${o.error}` : ""}`);
-      continue;
+  parts.push(`${fmt(onRecord.length)} already on record`);
+  if (notFused.length > 0) parts.push(`${fmt(notFused.length)} NOT fused`);
+  lines.push(`${parts.join(", ")}.`);
+  if (set !== null && fused.length > 0) {
+    lines.push(`- #${set.counter ?? "?"} · set of ${fmt(set.count)} · ${set.proof_url}`);
+    if (set.index !== null && set.index.pending > 0) {
+      lines.push(`  The set is on the ledger, but the evidence for ${fmt(set.index.pending)} of its ${fmt(set.count)} members is not indexed yet, so those files are not findable by hash until it is. It is sent again at the start of the next bitgraph_record call.`);
     }
-    const note =
-      o.outcome === "on record"
-        ? o.total_positions > 1
-          ? ` (${o.total_positions} positions, earliest shown)`
-          : ""
-        : o.placement
-          ? ` (${o.placement})`
-          : "";
-    lines.push(`- ${o.outcome} · #${o.counter ?? "?"} · ${o.path}${note}\n  ${o.proof_url}`);
+    if (!set.manifest_echoed) {
+      lines.push(`  The boundary did not echo the committed artifact; the ledger's copy of this proof carries no member list. Keep the set's proof page.`);
+    }
   }
-  if (fused.length > 0) {
+  const group = (rows: readonly RecordOutcome[], render: (o: RecordOutcome) => string, more: (n: number) => string) => {
+    for (const o of rows.slice(0, MARKDOWN_ROWS)) lines.push(render(o));
+    if (rows.length > MARKDOWN_ROWS) lines.push(`- ${more(rows.length - MARKDOWN_ROWS)}`);
+  };
+  group(
+    notFused,
+    (o) => `- not fused · ${o.path}${o.error ? `: ${o.error}` : ""}`,
+    (n) => `and ${fmt(n)} more not fused`
+  );
+  group(
+    onRecord,
+    (o) => {
+      const note = o.total_positions > 1 ? ` (${fmt(o.total_positions)} positions, earliest shown)` : "";
+      const row = o.member !== null && o.member_count !== null ? ` (member ${fmt(o.member)} of ${fmt(o.member_count)})` : "";
+      return `- on record · #${o.counter ?? "?"}${row} · ${o.path}${note}\n  ${o.proof_url}`;
+    },
+    (n) => `and ${fmt(n)} more already on record`
+  );
+  group(
+    fused,
+    (o) =>
+      o.member === null
+        ? `- fused · #${o.counter ?? "?"} · ${o.path} (${o.placement ?? "?"})\n  ${o.proof_url}`
+        : `- fused · ${o.path} (${fmt(o.member)} of ${fmt(o.member_count ?? 0)}, ${o.placement ?? "?"})`,
+    (n) => `and ${fmt(n)} more files in the same set`
+  );
+  if (set !== null && fused.length > 0) {
     lines.push(
-      "\nEach fused artifact was built in memory from the file, hashed and committed under its own slot; the file itself is unchanged and was not uploaded. The original plus the proof rebuilds the fused bytes; the Frame for each is in the structured result."
+      "\nOne BitGraph holds every file made here: one slot, one position, and the committed artifact lists each file's new fused bytes by digest. Those bytes were hashed on this machine and never written or uploaded; the file itself is unchanged, and the original plus the set proof rebuilds them. A lookup by any file's own digest finds the set."
+    );
+  } else if (fused.length > 0) {
+    lines.push(
+      "\nThe new fused file was built in memory from the file, hashed and committed under its own slot; the file itself is unchanged and was not uploaded. The original plus the proof rebuilds the new file; its Frame is in the structured result."
     );
   }
   if (onRecord.length > 0) {
     lines.push(
-      "\nFiles already on record were left alone. To make a new fused artifact from one of them deliberately, call bitgraph_record with again=true."
+      "\nFiles already on record were left alone. To make a new BitGraph of them deliberately, call bitgraph_record with again=true."
     );
+  }
+  if (omitted > 0) {
+    lines.push(`\nThe structured result lists the first rows only (${fmt(omitted)} omitted); every fused file shares the set's position above.`);
   }
   return lines.join("\n");
 }
 
 export function renderCheckMarkdown(outcomes: readonly CheckOutcome[]): string {
   const found = outcomes.filter((o) => o.on_record).length;
-  const lines: string[] = [`${found} of ${outcomes.length} on record.`];
-  for (const o of outcomes) {
+  const lines: string[] = [`${fmt(found)} of ${fmt(outcomes.length)} on record.`];
+  for (const o of outcomes.slice(0, MARKDOWN_ROWS)) {
     if (o.on_record) {
       const first = o.positions[0];
-      const extra = o.positions.length > 1 ? ` and ${o.positions.length - 1} more position(s)` : "";
-      lines.push(`- on record · #${first?.counter ?? "?"}${extra} · ${o.input}\n  ${o.proof_url}`);
+      const extra = o.positions.length > 1 ? ` and ${fmt(o.positions.length - 1)} more position(s)` : "";
+      lines.push(`- on record · #${first?.counter ?? "?"}${memberNote(first?.member)}${extra} · ${o.input}\n  ${o.proof_url}`);
     } else {
       lines.push(`- not on record · ${o.input}`);
     }
   }
+  if (outcomes.length > MARKDOWN_ROWS) lines.push(`- and ${fmt(outcomes.length - MARKDOWN_ROWS)} more; the structured result lists every one`);
   return lines.join("\n");
 }
 
@@ -142,11 +204,17 @@ export function renderProofMarkdown(
   if (!proof) return "No proof found for that digest.";
   const digest = proof.artifact?.digestB64 ?? "";
   const { counter, epoch } = positionOf(proof);
+  const positions: PositionView[] = detail.positions ?? [];
+  const here = positions.find((p) => p.counter === counter) ?? positions[0];
   const lines: string[] = [];
   lines.push(`# BitGraph #${counter ?? "?"}`);
   lines.push("");
   lines.push(`- Digest (SHA-256): ${toUrlSafeB64(digest)}`);
   if (epoch) lines.push(`- Position: counter ${counter ?? "?"} in epoch ${epoch.slice(0, 12)}…`);
+  if (here?.member) {
+    const role = here.member.role === "fused" ? "its new fused bytes" : "the original";
+    lines.push(`- Set: member ${fmt(here.member.index + 1)} of ${fmt(here.member.count)}, as ${role}${here.placement ? ` (${here.placement})` : ""}`);
+  }
   const window = renderWindow(detail);
   if (window) lines.push(`- ${window}`);
   const etherscan =
@@ -162,15 +230,14 @@ export function renderProofMarkdown(
       .join(": ");
     lines.push(`- Submitter's note (self-attributed, not verified): ${note}`);
   }
-  const positions: PositionView[] = detail.positions ?? [];
   if (positions.length > 1) {
     lines.push("");
-    lines.push(`## Causal positions (${positions.length})`);
+    lines.push(`## Causal positions (${fmt(positions.length)})`);
     positions.forEach((p, i) => {
       const label = i === 0 ? " · original" : "";
       const bracket =
         p.lowerTime && p.upperTime ? ` · between ${p.lowerTime} and ${p.upperTime}` : "";
-      lines.push(`- #${p.counter ?? "?"}${label}${bracket}`);
+      lines.push(`- #${p.counter ?? "?"}${label}${p.member ? ` · set of ${fmt(p.member.count)}` : ""}${bracket}`);
     });
   }
   lines.push("");

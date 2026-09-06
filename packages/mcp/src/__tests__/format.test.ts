@@ -30,14 +30,36 @@ test("record markdown mentions again=true only when something was already on rec
     total_positions: 1,
     proof_url: "https://bitgraph.ing/proof/x",
   };
-  const fresh = renderRecordMarkdown([{ ...base, path: "/a", outcome: "fused", artifact_digest: "ZnVzZWQ", placement: "container/1" }]);
+  const fresh = renderRecordMarkdown([{ ...base, path: "/a", outcome: "fused", artifact_digest: "ZnVzZWQ", placement: "container/2", member: 1, member_count: 1 }]);
   assert.ok(!fresh.includes("again=true"));
   const mixed = renderRecordMarkdown([
-    { ...base, path: "/a", outcome: "fused", artifact_digest: "ZnVzZWQ", placement: "container/1" },
-    { ...base, path: "/b", outcome: "on record", artifact_digest: null, placement: null },
+    { ...base, path: "/a", outcome: "fused", artifact_digest: "ZnVzZWQ", placement: "container/2", member: 1, member_count: 1 },
+    { ...base, path: "/b", outcome: "on record", artifact_digest: null, placement: null, member: null, member_count: null },
   ]);
   assert.ok(mixed.includes("again=true"));
   assert.ok(mixed.startsWith("1 fused, 1 already on record."));
+});
+
+test("record markdown names the set once and its members by row", () => {
+  const set = {
+    set: "set/1" as const,
+    count: 2,
+    counter: "1386",
+    epoch: toUrlSafeB64(EPOCH),
+    artifact_digest: "c2V0",
+    proof_url: "https://bitgraph.ing/proof/c2V0?counter=1386",
+    manifest_echoed: true,
+    recovered: false,
+    index: null,
+  };
+  const row = { digest: toUrlSafeB64(DIGEST), counter: "1386", epoch: toUrlSafeB64(EPOCH), total_positions: 1, proof_url: "https://bitgraph.ing/proof/x", artifact_digest: "ZnVzZWQ", outcome: "fused" as const, member_count: 2 };
+  const md = renderRecordMarkdown([{ ...row, path: "/a.png", placement: "trailer/1", member: 2 }, { ...row, path: "/b.txt", placement: "container/2", member: 1 }], set);
+  assert.ok(md.startsWith("2 files BitGraphed as one set at #1386 (set of 2), 0 already on record."), md);
+  assert.ok(md.includes("- #1386 · set of 2 · https://bitgraph.ing/proof/c2V0?counter=1386"), md);
+  assert.ok(md.includes("- fused · /a.png (2 of 2, trailer/1)"), md);
+  assert.ok(md.includes("- fused · /b.txt (1 of 2, container/2)"), md);
+  const waiting = renderRecordMarkdown([{ ...row, path: "/a.png", placement: "trailer/1", member: 1 }], { ...set, set: "set/2", index: { written: 0, pending: 2 } });
+  assert.ok(waiting.includes("not findable by hash"), waiting);
 });
 
 test("proof markdown states the window as between lower and upper", () => {

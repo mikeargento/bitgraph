@@ -28,13 +28,32 @@ export interface BitGraphProof {
     attestation?: { format?: string; reportB64?: string };
   };
   attribution?: { name?: string; title?: string; message?: string };
+  metadata?: unknown;
   proofHash?: string;
   [k: string]: unknown;
 }
 
+/** A set member's row as the site reports it: which row of N these bytes are, and whether as the original or the new file. */
+export interface SetMemberView {
+  index: number;
+  count: number;
+  role?: "origin" | "fused";
+}
+
 /** POST /api/proofs/batch response. Keyed by the digest exactly as sent (URL-safe). */
 export interface BatchCheckResponse {
-  results: Record<string, { proofs: Array<{ proof: BitGraphProof; kind?: "recorded" | "fused" }> }>;
+  results: Record<
+    string,
+    { proofs: Array<{ proof: BitGraphProof; kind?: "recorded" | "fused"; member?: SetMemberView; setDigest?: string }> }
+  >;
+}
+
+/** POST /api/fuse/set-index response: how many members' evidence the site wrote. */
+export interface SetIndexResponse {
+  count?: number;
+  written: number;
+  failed: number;
+  rejected: number;
 }
 
 export interface AnchorView {
@@ -51,6 +70,9 @@ export interface PositionView {
   epoch: string | null;
   lowerTime: string | null;
   upperTime: string | null;
+  kind?: "recorded" | "fused";
+  placement?: string | null;
+  member?: SetMemberView;
 }
 
 /**
