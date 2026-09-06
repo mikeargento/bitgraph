@@ -646,6 +646,8 @@ const ANCHOR_MESSAGE_PREFIX = "bitgraph-anchor/1";
 
 /** Ed25519 seed from ANCHOR_SIGNING_KEY_B64, decoded once; null when unset. */
 let anchorSigningKey: Uint8Array | null | undefined;
+/** Base64 public half of the signing key, once derived; null when unset. Reported by getAnchorStatus so the configuration is checkable from outside without the logs. */
+let anchorClaimPublicKeyB64: string | null = null;
 function loadAnchorSigningKey(): Uint8Array | null {
   if (anchorSigningKey !== undefined) return anchorSigningKey;
   const b64 = process.env.ANCHOR_SIGNING_KEY_B64;
@@ -658,7 +660,8 @@ function loadAnchorSigningKey(): Uint8Array | null {
   if (seed.length !== 32) throw new Error("ANCHOR_SIGNING_KEY_B64 must decode to a 32-byte Ed25519 seed");
   anchorSigningKey = seed;
   void getPublicKeyAsync(seed).then((pub) => {
-    console.log(`[eth-anchor] anchor claims signed; public key ${Buffer.from(pub).toString("base64")}`);
+    anchorClaimPublicKeyB64 = Buffer.from(pub).toString("base64");
+    console.log(`[eth-anchor] anchor claims signed; public key ${anchorClaimPublicKeyB64}`);
   });
   return seed;
 }
@@ -883,10 +886,14 @@ export async function manualAnchor(): Promise<{ block: EthBlock; proof: unknown;
   }
 }
 
-export function getAnchorStatus(): { running: boolean; lastAnchoredBlock: number; watermarkSeeded: boolean; source: string; intervalSeconds: number } {
+export function getAnchorStatus(): { running: boolean; lastAnchoredBlock: number; watermarkSeeded: boolean; source: string; intervalSeconds: number; anchorClaimKey: string | null } {
   return {
     running: intervalId !== null,
     lastAnchoredBlock,
+    // Enclave v7: the public key the anchor service signs its claims with, or
+    // null when ANCHOR_SIGNING_KEY_B64 is unset. Must equal the constant baked
+    // into the enclave image before a v7 enclave goes live.
+    anchorClaimKey: anchorClaimPublicKeyB64,
     // False means the watermark has not been restored from the ledger yet, so
     // no anchoring is happening: either the first tick has not run or the seed
     // is failing (see logs). It is never false while anchors are landing.
@@ -898,6 +905,7 @@ export function getAnchorStatus(): { running: boolean; lastAnchoredBlock: number
 
 export function startAnchorService(intervalMs?: number): void {
   if (intervalMs) anchorIntervalMs = intervalMs;
+  loadAnchorSigningKey(); // derive the public key now so the status reports it before the first anchor
   console.log(`[eth-anchor] Starting Ethereum anchor service (interval: ${anchorIntervalMs / 1000}s)`);
 
   // Run immediately, then on interval
