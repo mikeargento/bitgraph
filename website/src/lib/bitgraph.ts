@@ -41,6 +41,10 @@ export interface BitGraphProof {
     epochId?: string;
     slotCounter?: string;
     slotHashB64?: string;
+    /** Enclave v7: the chain's latest Ethereum anchor when this slot was allocated (signed). */
+    slotAnchor?: { counter: string; blockNumber: number; blockHash: string };
+    /** Enclave v7: on anchor proofs, the block this proof anchors (signed). */
+    anchor?: { blockNumber: number; blockHash: string };
   };
   signer: {
     publicKeyB64: string;

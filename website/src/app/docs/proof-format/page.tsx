@@ -33,7 +33,16 @@ export default function ProofFormatPage() {
     "slotHashB64": "<base64>",       // OPTIONAL - SHA-256 of canonical slot body
     "time":     1700000000000,       // OPTIONAL - Unix ms
     "prevB64":  "<base64>",          // OPTIONAL - chain link, 32 bytes
-    "epochId":  "<hex>"              // OPTIONAL - SHA-256 hex
+    "epochId":  "<hex>",             // OPTIONAL - SHA-256 hex
+    "slotAnchor": {                  // OPTIONAL - the chain's latest Ethereum anchor when the slot was allocated (enclave v7)
+      "counter":     "17",           //   counter of that anchor proof on this chain
+      "blockNumber": 25921179,
+      "blockHash":   "0x<hex>"       //   32 bytes, lowercase
+    },
+    "anchor": {                      // OPTIONAL - on Ethereum anchor proofs only: the block this proof anchors (enclave v7)
+      "blockNumber": 25921180,
+      "blockHash":   "0x<hex>"
+    }
   },
   "signer": {
     "publicKeyB64":  "<base64>",     // REQUIRED - Ed25519, 32 bytes
@@ -155,6 +164,14 @@ export default function ProofFormatPage() {
       </div>
       <p className="text-base text-[#4b5563] mb-8">
         The slot has its own Ed25519 signature proving the enclave created it. The commit signature includes <code className="text-xs font-mono">slotHashB64</code>, cryptographically binding the proof to that exact slot.
+      </p>
+
+      <h3 className="text-lg font-semibold mt-8 mb-3">Anchor floor</h3>
+      <p className="text-[#1f2937] mb-4">
+        Since enclave v7 (2026-09-06) the enclave writes the chain&apos;s latest Ethereum anchor into every slot it allocates, and signs it into the proof as <code className="text-xs font-mono">commit.slotAnchor</code>. The floor a proof stands on is chosen by the enclave at allocation, not by whoever presents the proof. A reader checks it offline from the Ethereum block header: the header&apos;s keccak must equal <code className="text-xs font-mono">slotAnchor.blockHash</code>, and the block&apos;s timestamp is then a lower bound on the proof. The field is absent when no anchor had landed on the chain yet in that epoch, and on proofs from older enclaves.
+      </p>
+      <p className="text-base text-[#4b5563] mb-8">
+        Anchor proofs themselves carry <code className="text-xs font-mono">commit.anchor</code>. The enclave writes it only after verifying the anchor service&apos;s Ed25519 signature over the claim against a public key baked into the enclave image, and refuses the attribution name <code className="text-xs font-mono">Ethereum Anchor</code> without it. So a v7 proof whose attribution says anchor but lacks <code className="text-xs font-mono">commit.anchor</code> is not an anchor.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Fused artifacts</h2>

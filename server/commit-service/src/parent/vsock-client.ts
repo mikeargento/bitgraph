@@ -26,6 +26,20 @@ export interface CommitDigestRequest {
   attribution?: { name?: string; title?: string; message?: string };
   /** Optional policy binding — cryptographically sealed into the proof. */
   policy?: PolicyBinding;
+  /**
+   * Anchor service claim (enclave v7): the enclave verifies the Ed25519
+   * signature against the anchor service key baked into its image and, if it
+   * holds, signs commit.anchor into the proof. Passed through by the parent.
+   */
+  anchor?: AnchorClaimRequest;
+}
+
+export interface AnchorClaimRequest {
+  blockNumber: number;
+  /** 0x-prefixed lowercase hex, 32 bytes. */
+  blockHash: string;
+  /** Ed25519 over "bitgraph-anchor/1\n{epochId}\n{chainId}\n{blockNumber}\n{blockHash}". */
+  signatureB64: string;
 }
 
 /** Pre-allocate a causal slot (nonce-first). */

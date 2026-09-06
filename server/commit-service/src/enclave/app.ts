@@ -146,6 +146,96 @@ interface ChainState {
   counter: bigint;
   lastProofHashB64: string | undefined;
   pendingEpochLink: BitGraphProof["commit"]["epochLink"] | undefined;
+  /** Latest authenticated Ethereum anchor committed on this chain this epoch (enclave v7). */
+  latestAnchor: AnchorMark | undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Authenticated Ethereum anchors (enclave v7, 2026-09-06).
+//
+// Until v6 an anchor was an ordinary commit whose attribution said "Ethereum
+// Anchor": the enclave signed whatever attribution the caller sent, so the
+// proof itself could not tell a real anchor from a look-alike, and the only
+// thing separating them was the ledger's anchors/ index. Here the anchor
+// service proves it is the anchor service: it signs
+//   "bitgraph-anchor/1\n{epochId}\n{chainId}\n{blockNumber}\n{blockHash}"
+// with an Ed25519 key whose public half is baked into this image (so a key
+// rotation is a new PCR0). The enclave checks the signature, checks that the
+// artifact digest is SHA-256 of the block hash string, requires block numbers
+// to climb per chain, and only then writes `commit.anchor` into the signed
+// body. The reserved attribution name is refused without a valid anchor.
+//
+// At every allocation the enclave also copies the chain's latest anchor into
+// the slot entry, and at commit writes it into the signed body as
+// `commit.slotAnchor`: the floor a proof stands on is chosen by the enclave,
+// not by the party presenting the proof. Both fields live inside `commit`,
+// which every published verifier copies whole into the signed body, so a v6
+// verifier keeps verifying v7 proofs. The slot record is unchanged.
+// ---------------------------------------------------------------------------
+
+const ANCHOR_SERVICE_PUBLIC_KEY_B64 = "L/zyqG3111Y0hEyKF6NIKI4amSvSBBQxGMjdjLa2520=";
+const ANCHOR_ATTRIBUTION_NAME = "Ethereum Anchor";
+const ANCHOR_MESSAGE_PREFIX = "bitgraph-anchor/1";
+const anchorServicePublicKey = new Uint8Array(Buffer.from(ANCHOR_SERVICE_PUBLIC_KEY_B64, "base64"));
+
+interface AnchorMark {
+  /** Counter of the anchor proof on its chain (decimal string). */
+  counter: string;
+  blockNumber: number;
+  /** 0x-prefixed lowercase hex, 32 bytes. */
+  blockHash: string;
+}
+
+/** What the anchor service sends alongside an anchor commit. */
+interface AnchorClaim {
+  blockNumber?: unknown;
+  blockHash?: unknown;
+  signatureB64?: unknown;
+}
+
+const BLOCK_HASH_RE = /^0x[0-9a-f]{64}$/;
+
+/**
+ * Authenticate an anchor claim. Throws on anything short of a fully valid
+ * claim; returns the block fields the enclave will sign. A rejected claim
+ * has already consumed its slot, like any other rejected commit.
+ */
+async function verifyAnchorClaim(
+  claim: AnchorClaim,
+  digestB64: string,
+  chainId: string,
+  chain: ChainState,
+): Promise<{ blockNumber: number; blockHash: string }> {
+  const { blockNumber, blockHash, signatureB64 } = claim;
+  if (typeof blockNumber !== "number" || !Number.isSafeInteger(blockNumber) || blockNumber <= 0) {
+    throw new Error("anchor.blockNumber must be a positive integer");
+  }
+  if (typeof blockHash !== "string" || !BLOCK_HASH_RE.test(blockHash)) {
+    throw new Error("anchor.blockHash must be 0x-prefixed lowercase hex, 32 bytes");
+  }
+  if (typeof signatureB64 !== "string") {
+    throw new Error("anchor.signatureB64 is required");
+  }
+  const expectedDigest = Buffer.from(sha256(new TextEncoder().encode(blockHash))).toString("base64");
+  if (expectedDigest !== digestB64) {
+    throw new Error("anchor digest must be SHA-256 of the block hash string");
+  }
+  if (chain.latestAnchor && blockNumber <= chain.latestAnchor.blockNumber) {
+    throw new Error(`anchor block ${blockNumber} does not advance past block ${chain.latestAnchor.blockNumber}`);
+  }
+  const message = new TextEncoder().encode(
+    `${ANCHOR_MESSAGE_PREFIX}\n${epochId}\n${chainId}\n${blockNumber}\n${blockHash}`,
+  );
+  const sig = new Uint8Array(Buffer.from(signatureB64, "base64"));
+  if (sig.length !== 64) throw new Error("anchor.signatureB64 must be a 64-byte Ed25519 signature");
+  let ok = false;
+  try {
+    ok = await verifyAsync(sig, message, anchorServicePublicKey);
+  } catch {
+    ok = false;
+  }
+  if (!ok) throw new Error("anchor signature does not verify against the anchor service key");
+  return { blockNumber, blockHash };
 }
 
 const chains = new Map<string, ChainState>();
@@ -155,7 +245,7 @@ function getChain(chainId?: string): ChainState {
   const id = chainId ?? DEFAULT_CHAIN;
   let chain = chains.get(id);
   if (!chain) {
-    chain = { counter: 0n, lastProofHashB64: undefined, pendingEpochLink: undefined };
+    chain = { counter: 0n, lastProofHashB64: undefined, pendingEpochLink: undefined, latestAnchor: undefined };
     chains.set(id, chain);
     console.log(`[enclave] chain created: ${id}`);
   }
@@ -233,6 +323,8 @@ interface SlotEntry {
   record: SlotAllocation;
   chainId: string;
   expiresAt: number;
+  /** The chain's latest authenticated anchor when the slot was allocated (enclave v7). */
+  anchorAtAllocation: AnchorMark | undefined;
 }
 
 const pendingSlots = new Map<string, SlotEntry>(); // nonceB64 → SlotEntry
@@ -296,7 +388,14 @@ async function handleAllocateSlot(chainId?: string): Promise<{ slotId: string; s
   };
 
   // 6. Store as single-use resource
-  pendingSlots.set(nonceB64, { record, chainId: resolvedChainId, expiresAt: Date.now() + SLOT_TTL_MS });
+  // 7. Fix the floor now, at allocation: the latest real anchor on this
+  // chain. It is signed into the proof at commit as commit.slotAnchor.
+  pendingSlots.set(nonceB64, {
+    record,
+    chainId: resolvedChainId,
+    expiresAt: Date.now() + SLOT_TTL_MS,
+    anchorAtAllocation: chain.latestAnchor,
+  });
 
   console.log(`[enclave] slot allocated: chain=${resolvedChainId} counter=${record.counter} (${pendingSlots.size} pending)`);
   return { slotId: nonceB64, slot: record, chainId: resolvedChainId };
@@ -484,6 +583,8 @@ async function handleCommit(req: {
   agency?: AgencyEnvelope;
   attribution?: { name?: string; title?: string; message?: string };
   policy?: PolicyBinding;
+  /** Anchor service claim; authenticated by verifyAnchorClaim (enclave v7). */
+  anchor?: AnchorClaim;
 }): Promise<BitGraphProof> {
   // ── Slot consumption — BitGraph causal gate ──
   // The slot MUST exist before any artifact can be committed.
@@ -505,6 +606,15 @@ async function handleCommit(req: {
   const digestBytes = Buffer.from(digestB64, "base64");
   if (digestBytes.length !== 32) {
     throw new Error(`Invalid SHA-256 digest length: ${digestBytes.length}`);
+  }
+
+  // Authenticated anchor (enclave v7). The reserved attribution name is
+  // refused unless the claim verifies, so a look-alike cannot be signed.
+  let anchorMark: { blockNumber: number; blockHash: string } | undefined;
+  if (req.anchor !== undefined) {
+    anchorMark = await verifyAnchorClaim(req.anchor, digestB64, chainId, chain);
+  } else if (req.attribution?.name === ANCHOR_ATTRIBUTION_NAME) {
+    throw new Error(`attribution.name "${ANCHOR_ATTRIBUTION_NAME}" is reserved for authenticated anchor commits`);
   }
 
   // Verify agency — supports single artifact and batch modes.
@@ -585,6 +695,14 @@ async function handleCommit(req: {
   // Proof chaining: include prevB64 from THIS chain's last proof
   if (chain.lastProofHashB64 !== undefined) {
     commitFields.prevB64 = chain.lastProofHashB64;
+  }
+
+  // Enclave v7: the floor fixed at allocation, and the anchor itself.
+  if (slotEntry.anchorAtAllocation) {
+    commitFields.slotAnchor = { ...slotEntry.anchorAtAllocation };
+  }
+  if (anchorMark) {
+    commitFields.anchor = { blockNumber: anchorMark.blockNumber, blockHash: anchorMark.blockHash };
   }
 
   // Include chainId in commit fields (omit for global/default chain for backward compat)
@@ -706,6 +824,13 @@ async function handleCommit(req: {
   // Update THIS chain's proof state: hash this proof for the next proof's prevB64
   const proofCanonicalBytes = canonicalize(proof);
   chain.lastProofHashB64 = Buffer.from(sha256(proofCanonicalBytes)).toString("base64");
+
+  // Enclave v7: an authenticated anchor becomes the floor for every slot
+  // allocated on this chain from now on.
+  if (anchorMark) {
+    chain.latestAnchor = { counter: counterStr, blockNumber: anchorMark.blockNumber, blockHash: anchorMark.blockHash };
+    console.log(`[enclave] anchor authenticated: chain=${chainId} counter=${counterStr} block=${anchorMark.blockNumber}`);
+  }
 
   return proof;
 }
@@ -894,7 +1019,8 @@ async function handleRequest(req: Record<string, unknown>): Promise<unknown> {
       // field. Dropped here until 2026-09-04, which left the ledger's copy
       // of a set proof without its manifest.
       const metadata = (req as { metadata?: Record<string, unknown> }).metadata;
-      const proof = await handleCommit({ slotId, digestB64, agency, attribution, policy, metadata });
+      const anchor = (req as { anchor?: AnchorClaim }).anchor;
+      const proof = await handleCommit({ slotId, digestB64, agency, attribution, policy, metadata, anchor });
       return { proof };
     }
     case "commit": {
@@ -918,7 +1044,8 @@ async function handleRequest(req: Record<string, unknown>): Promise<unknown> {
       const attribution = (req as { attribution?: { name?: string; title?: string; message?: string } }).attribution;
       const policy = (req as { policy?: PolicyBinding }).policy;
       const metadata = (req as { metadata?: Record<string, unknown> }).metadata;
-      const proof = await handleCommit({ slotId, digestB64, agency, attribution, policy, metadata });
+      const anchor = (req as { anchor?: AnchorClaim }).anchor;
+      const proof = await handleCommit({ slotId, digestB64, agency, attribution, policy, metadata, anchor });
       return { proof };
     }
     // "convertBW" was removed 2026-07-29. See the pure pass-through note in

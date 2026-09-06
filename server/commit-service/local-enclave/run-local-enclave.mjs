@@ -45,6 +45,14 @@ patch(
   "listen",
 );
 
+// 3. Enclave v7: the anchor service public key is a measured constant. The
+//    harness swaps in a test key so anchor-v7.mts can sign claims itself.
+if (process.env["HARNESS_ANCHOR_PUBKEY_B64"]) {
+  const m = code.match(/const ANCHOR_SERVICE_PUBLIC_KEY_B64 = "[A-Za-z0-9+/=]+";/);
+  if (!m) throw new Error("harness: ANCHOR_SERVICE_PUBLIC_KEY_B64 constant not found; app.ts changed, refresh the harness");
+  patch(m[0], `const ANCHOR_SERVICE_PUBLIC_KEY_B64 = "${process.env["HARNESS_ANCHOR_PUBKEY_B64"]}"; // LOCAL HARNESS ONLY`, "anchor key");
+}
+
 writeFileSync(out, code);
 const child = spawn(process.execPath, ["--import", "tsx/esm", out], { stdio: "inherit", env: process.env });
 child.on("exit", (c) => process.exit(c ?? 1));

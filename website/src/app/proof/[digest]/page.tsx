@@ -1248,6 +1248,15 @@ export default function ProofPage() {
             {!slot && commit.nonceB64 && <Field label="Nonce" value={commit.nonceB64} mono />}
             {!slot && commit.slotCounter != null && <Field label="Slot Counter" value={`#${commit.slotCounter}`} />}
             {commit.slotHashB64 && <Field label="Slot Hash" value={commit.slotHashB64} mono />}
+            {/* Enclave v7: the floor fixed at allocation (the chain's latest
+                Ethereum anchor when this slot was reserved), and, on anchor
+                proofs, the block this proof anchors. Both are signed. */}
+            {commit.slotAnchor && (
+              <Field label="Anchor at Allocation" value={`Ethereum block ${commit.slotAnchor.blockNumber} (anchor #${commit.slotAnchor.counter})`} />
+            )}
+            {commit.slotAnchor && <Field label="Anchor Block Hash" value={commit.slotAnchor.blockHash} mono />}
+            {commit.anchor && <Field label="Anchored Block" value={`Ethereum block ${commit.anchor.blockNumber}`} highlight />}
+            {commit.anchor && <Field label="Anchored Block Hash" value={commit.anchor.blockHash} mono />}
           </CollapsibleCard>
 
           {/* 4. Signer — the proof's own fingerprint (the proofHash) first, then

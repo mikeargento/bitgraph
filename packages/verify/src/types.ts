@@ -155,6 +155,35 @@ export interface BitGraphProof {
     slotHashB64?: string;
 
     /**
+     * Enclave v7 (2026-09-06). Present on Ethereum anchor proofs only: the
+     * block this proof anchors, written by the enclave after it verified the
+     * anchor service's signature over the claim. SIGNED. A proof whose
+     * attribution says "Ethereum Anchor" but lacks this field was signed by
+     * an enclave older than v7, or is not an anchor at all.
+     */
+    anchor?: {
+      blockNumber: number;
+      /** 0x-prefixed lowercase hex, 32 bytes. */
+      blockHash: string;
+    };
+
+    /**
+     * Enclave v7 (2026-09-06). The chain's latest authenticated anchor at the
+     * moment this proof's slot was ALLOCATED, chosen by the enclave and
+     * SIGNED: the floor this proof stands on. Absent when no anchor had been
+     * committed on the chain yet in this epoch, or on proofs from older
+     * enclaves. Verify the floor with the Ethereum block header: the block's
+     * keccak must equal blockHash, and the block's timestamp is then a lower
+     * bound the presenter did not choose.
+     */
+    slotAnchor?: {
+      /** Counter of the anchor proof on this chain (decimal string). */
+      counter: string;
+      blockNumber: number;
+      blockHash: string;
+    };
+
+    /**
      * Epoch lineage link — present only on the FIRST proof of a new epoch.
      *
      * Establishes cryptographic succession: this epoch consumed the final

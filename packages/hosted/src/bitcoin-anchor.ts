@@ -19,6 +19,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
+import { getPublicKeyAsync, signAsync } from "@noble/ed25519";
 
 /**
  * Ledger identity hash — the FROZEN signed-body subset, not the full signed
@@ -583,29 +584,36 @@ async function getLatestBlock(): Promise<EthBlock> {
  * other proofs on this chain. It IS the chain.
  */
 async function commitAnchor(block: EthBlock): Promise<{ proof: unknown; digestB64: string } | null> {
-  const hashBytes = sha256(new TextEncoder().encode(block.hash));
+  const blockHash = block.hash.toLowerCase();
+  const hashBytes = sha256(new TextEncoder().encode(blockHash));
   const digestB64 = toBase64(hashBytes);
 
   try {
+    // Enclave v7: prove to the enclave that this is the anchor service, so the
+    // enclave signs commit.anchor into the proof. Without the key (local dev)
+    // the commit goes out as before; an enclave older than v7 ignores the
+    // field, and v7 refuses the reserved attribution name without it.
+    const anchor = await signAnchorClaim(ANCHOR_CHAIN_ID, block.number, blockHash);
     const res = await fetch(`${TEE_URL}/commit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         digests: [{ digestB64, hashAlg: "sha256" }],
-        chainId: "bitgraph:main",
+        chainId: ANCHOR_CHAIN_ID,
         // Attribution is SIGNED — block data is tamper-evident
         attribution: {
           name: "Ethereum Anchor",
-          message: block.hash,
+          message: blockHash,
           title: `https://etherscan.io/block/${block.number}`,
         },
+        ...(anchor ? { anchor } : {}),
         // Metadata is NOT signed — advisory only
         metadata: {
           type: "ethereum-anchor",
           anchor: {
             network: "mainnet",
             blockNumber: block.number,
-            blockHash: block.hash,
+            blockHash,
             blockTime: block.timestamp,
             blockTimeISO: new Date(block.timestamp * 1000).toISOString(),
           },
@@ -622,13 +630,62 @@ async function commitAnchor(block: EthBlock): Promise<{ proof: unknown; digestB6
     // Awaited, not fire-and-forget: the watermark is seeded by reading
     // anchors/{epoch}/ back, so a write still in flight lets a starting instance
     // read a ledger that trails what we just committed and re-anchor this block.
-    await persistAnchor(proof, { blockNumber: block.number, blockHash: block.hash });
+    await persistAnchor(proof, { blockNumber: block.number, blockHash });
 
     return { proof, digestB64 };
   } catch (err) {
     console.error("[eth-anchor] TEE commit failed:", (err as Error).message);
     return null;
   }
+}
+
+/* ── Anchor claim signing (enclave v7) ── */
+
+const ANCHOR_CHAIN_ID = "bitgraph:main";
+const ANCHOR_MESSAGE_PREFIX = "bitgraph-anchor/1";
+
+/** Ed25519 seed from ANCHOR_SIGNING_KEY_B64, decoded once; null when unset. */
+let anchorSigningKey: Uint8Array | null | undefined;
+function loadAnchorSigningKey(): Uint8Array | null {
+  if (anchorSigningKey !== undefined) return anchorSigningKey;
+  const b64 = process.env.ANCHOR_SIGNING_KEY_B64;
+  if (!b64) {
+    anchorSigningKey = null;
+    console.warn("[eth-anchor] ANCHOR_SIGNING_KEY_B64 unset: anchors go out without an enclave-authenticated claim");
+    return null;
+  }
+  const seed = new Uint8Array(Buffer.from(b64, "base64"));
+  if (seed.length !== 32) throw new Error("ANCHOR_SIGNING_KEY_B64 must decode to a 32-byte Ed25519 seed");
+  anchorSigningKey = seed;
+  void getPublicKeyAsync(seed).then((pub) => {
+    console.log(`[eth-anchor] anchor claims signed; public key ${Buffer.from(pub).toString("base64")}`);
+  });
+  return seed;
+}
+
+/**
+ * Sign "bitgraph-anchor/1\n{epochId}\n{chainId}\n{blockNumber}\n{blockHash}"
+ * for the enclave's current epoch. The epoch id is in the message so a claim
+ * cannot be replayed into a later epoch. Returns null when no key is set;
+ * throws when a key is set but the epoch cannot be read (the tick is skipped
+ * rather than anchoring without the claim).
+ */
+async function signAnchorClaim(
+  chainId: string,
+  blockNumber: number,
+  blockHash: string,
+): Promise<{ blockNumber: number; blockHash: string; signatureB64: string } | null> {
+  const seed = loadAnchorSigningKey();
+  if (!seed) return null;
+  const res = await fetch(`${TEE_URL}/key`);
+  if (!res.ok) throw new Error(`TEE /key ${res.status} (needed to sign the anchor claim)`);
+  const { epochId } = (await res.json()) as { epochId?: string };
+  if (!epochId) throw new Error("TEE /key returned no epochId (needed to sign the anchor claim)");
+  const message = new TextEncoder().encode(
+    `${ANCHOR_MESSAGE_PREFIX}\n${epochId}\n${chainId}\n${blockNumber}\n${blockHash}`,
+  );
+  const sig = await signAsync(message, seed);
+  return { blockNumber, blockHash, signatureB64: Buffer.from(sig).toString("base64") };
 }
 
 /* ── State & scheduling ── */

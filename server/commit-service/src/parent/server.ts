@@ -27,7 +27,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { verify } from "bitgraph";
 import type { BitGraphProof, VerificationPolicy, AgencyEnvelope, PolicyBinding } from "bitgraph";
-import { VsockClient, type EnclaveClient } from "./vsock-client.js";
+import { VsockClient, type EnclaveClient, type AnchorClaimRequest } from "./vsock-client.js";
 import { requestTimestamp } from "./tsa-client.js";
 import { getClientIp, tryConsumeDigests, rateLimitConfig, allocationLimiter } from "./rate-limit.js";
 import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js";
@@ -258,6 +258,8 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
     agency?: AgencyEnvelope;
     attribution?: { name?: string; title?: string; message?: string };
     policy?: PolicyBinding;
+    /** Anchor service claim, forwarded verbatim; the enclave authenticates it (v7). */
+    anchor?: AnchorClaimRequest;
     chainId?: string;
     /** Client-held slot from POST /allocate-slot (BitGraph Fuse). */
     slotId?: unknown;
@@ -390,6 +392,7 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
       attribution: body.attribution,
       policy: body.policy,
       metadata: body.metadata,
+      anchor: body.anchor,
     });
 
     if (!commitResult.ok || !commitResult.data) {
