@@ -5,22 +5,27 @@ re-derive the **identical PCR0**. Change any one of these and the PCR0 changes.
 This file is the authoritative record; the `Dockerfile.enclave`, `build-eif.sh`,
 and `eif-builder.Dockerfile` all reference these exact pins.
 
-Last resolved: 2026-09-05 (resolved on the production Nitro host, linux/amd64).
-Source: tag `enclave-v6` (`30a97c60`).
+Last resolved: 2026-09-06 (resolved on the production Nitro host, linux/amd64).
+Source: tag `enclave-v7` (`448e2fdb`).
 
 ## Published measurement
 
 ```
-PCR0 = cd8ba52d340fb1be78610b59953ded2ceca23be1cfcc7ab504a26b8fdcd7ba92090f49e28a32d008df046ec4212f77bf
+PCR0 = 394c3cf515651dc27187d85e4716c12dfeb99c1227f1fe0eacfaa427d80018e1a28ebba9469e99c7936601f901d74e1d
 ```
 
-Built and deployed **2026-09-05**, and **verified by two independent builds on
-that date**: the pipeline was run twice from a clean context at `30a97c60` and
-both produced this identical PCR0 (a third, the deliverable build, agreed as well).
-The only source change since `enclave-v5` is one line: the `commitDigest` action
-keeps a held-slot commit's advisory `metadata`, which a set's manifest rides in. Rebuild from this source on any linux/amd64
-host and you will re-derive exactly this value; the production enclave at
-`nitro.occproof.com` reports it as its `measurement`.
+Built **2026-09-06**, and **verified by two independent builds on that date**:
+the pipeline was run twice from a clean context at `448e2fdb` and both produced
+this identical PCR0 (a third, the deliverable build, agreed as well). The source
+change since `enclave-v6` is authenticated anchors: the anchor service signs
+its claim with an Ed25519 key whose public half is a constant in
+`src/enclave/app.ts` (`ANCHOR_SERVICE_PUBLIC_KEY_B64`), the enclave verifies
+it and signs `commit.anchor`, refuses the attribution name "Ethereum Anchor"
+without it, and signs the chain's latest anchor at allocation time into every
+proof as `commit.slotAnchor`. Rotating that key is a new PCR0 by design.
+Rebuild from this source on any linux/amd64 host and you will re-derive exactly
+this value; the production enclave at `nitro.occproof.com` reports it as its
+`measurement`.
 
 Note on what "reproducible" means precisely: **PCR0 reproduces, the `.eif` file
 does not.** The two verification builds produced different file hashes
@@ -33,7 +38,7 @@ Companion measurements of this build:
 
 ```
 PCR1 = 4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493
-PCR2 = 4d745480fffc6efffbf57edbf5506e74d2e75aec509fe7065942ffc5d54f28ec4aa98f3e6a780e4780acd91b2ee4f362
+PCR2 = 94ec635be77fc5bcf039b13c5170ff067b39f36aad5728bfd3f8abcc1ecbda1040276edcdb95c3d75cf445ead5d21e04
 ```
 
 PCR1 is unchanged from every prior build: it measures AWS's signed kernel, which
@@ -47,6 +52,7 @@ old proofs to verify.
 
 | PCR0 | Period | Note |
 |------|--------|------|
+| `cd8ba52d340fb1be78610b59953ded2ceca23be1cfcc7ab504a26b8fdcd7ba92090f49e28a32d008df046ec4212f77bf` | 2026-09-05 → 2026-09-06 | v6-repro (`enclave-v6`, `30a97c60`). Verified by two clean builds 2026-09-05. |
 | `6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f` | 2026-07-29 → 2026-09-05 | v5-repro (`enclave-v5`, `f8fa324d`). Verified by two clean builds 2026-07-29. |
 | `e2fccbae77ee40aac4830e84f195e05d69eb4547bbd961f4d3459feba10807140424aca42ad03810354982598c86b9cb` | 2026-07-05 → 2026-07-29 | v4-repro, the value production actually ran until this rebuild. **This file did not record it at the time** — see the warning below. |
 | `bb9dd158703603ec222fe565495ceaa7edc08f665da5c1cddad91442ac2211731390267036d79deb720d13fb704f648a` | 2026-06-27 → 2026-07-05 | v2-repro. Verified by two clean-room builds 2026-06-27. |
