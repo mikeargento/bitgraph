@@ -51,7 +51,7 @@ import {
 import { expandPaths, fusedDigestFor, scanFile, type ScannedFile } from "./scan.js";
 import type { BitGraphProof } from "./types.js";
 
-export const SERVER_VERSION = "0.4.0";
+export const SERVER_VERSION = "0.4.1";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */

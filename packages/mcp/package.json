@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-mcp",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "MCP server for BitGraph. Make a BitGraph of files or folders (one set, one position for all of it), check whether bytes are on record, and fetch proofs from any MCP client.",
   "license": "MIT",
   "homepage": "https://bitgraph.ing",
