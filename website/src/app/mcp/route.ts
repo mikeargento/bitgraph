@@ -146,185 +146,6 @@ function normalizeDigests(inputs: readonly string[]): { standard: string[] } | {
 const handler = createMcpHandler(
   (server) => {
     server.registerTool(
-      "bitgraph_record",
-      {
-        title: "Make a BitGraph",
-        description:
-          "Compatibility recording: give SHA-256 digests of existing files a causal position in the BitGraph ledger (bitgraph.ing) without a new file. It establishes that the bytes existed no later than the commit. " +
-          "Prefer bitgraph_open then bitgraph_commit whenever the file is at hand: that is making a BitGraph the default way (a new fused file under a slot that existed first), and it needs nothing more than the ability to hash. " +
-          DIGEST_HINT + ". " +
-          "Hash an existing file where it lives; never generate content just to record it, and only record files the user asked to record: recordings are permanent (10-year retention, no deletes). " +
-          "Digests already on record are NOT re-recorded by default; they come back as 'on record' with their existing proof. " +
-          "Pass again=true to deliberately record already-recorded bytes at a new causal position. " +
-          "Returns one outcome per digest: 'recorded' (newly minted) or 'on record' (was already there), with its position number and proof page URL. " +
-          "Use bitgraph_check instead when the user only wants to know whether a file is on record.",
-        inputSchema: z.object({
-          digests: z
-            .array(z.string().min(1).max(100))
-            .min(1)
-            .max(MAX_RECORD)
-            .describe(`SHA-256 digests to record, base64 (either form), up to ${MAX_RECORD}.`),
-          attribution: z
-            .object({
-              name: z.string().max(200).optional().describe("Submitter's name (self-attributed)."),
-              title: z.string().max(200).optional(),
-              message: z.string().max(2000).optional(),
-            })
-            .optional()
-            .describe(
-              "Optional self-attributed submitter's note, stored in the signed proof. Rendered as a note, never as verified identity."
-            ),
-          again: z
-            .boolean()
-            .default(false)
-            .describe(
-              "false (default): digests already on record are returned as-is, nothing minted. true: record every digest at a new causal position even if already on record."
-            ),
-          response_format: responseFormatSchema,
-        }),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: false,
-          openWorldHint: true,
-        },
-      },
-      async ({ digests, attribution, again, response_format }) => {
-        try {
-          const normalized = normalizeDigests(digests);
-          if ("error" in normalized) return fail(normalized.error);
-
-          // Unique digests, first input string wins for display.
-          const byDigest = new Map<string, string[]>();
-          normalized.standard.forEach((d, i) => {
-            const list = byDigest.get(d) ?? [];
-            list.push(digests[i] as string);
-            byDigest.set(d, list);
-          });
-          const unique = [...byDigest.keys()];
-
-          const checked = await batchCheck(unique.map(toUrlSafeB64));
-          const existing = new Map<string, Array<{ proof: BitGraphProof }>>();
-          for (const d of unique) {
-            const entry = checked.results[toUrlSafeB64(d)];
-            if (entry && entry.proofs.length > 0) existing.set(d, entry.proofs);
-          }
-
-          const toMint = again ? unique : unique.filter((d) => !existing.has(d));
-
-          let minted: BitGraphProof[] = [];
-          let partial: PartialCommitError | null = null;
-          if (toMint.length > 0) {
-            try {
-              minted = await commitDigests(toMint, attribution);
-              // A 200 with fewer proofs than digests is still a partial failure;
-              // never let it reach the success path looking complete.
-              if (minted.length < toMint.length) {
-                partial = new PartialCommitError(
-                  minted,
-                  toMint.length,
-                  new Error("commit returned fewer proofs than digests sent")
-                );
-              }
-            } catch (err) {
-              if (err instanceof PartialCommitError) {
-                minted = err.minted;
-                partial = err;
-              } else {
-                throw err;
-              }
-            }
-          }
-
-          const mintedByDigest = new Map<string, BitGraphProof>();
-          for (const p of minted) {
-            const d = p.artifact?.digestB64;
-            if (d !== undefined) mintedByDigest.set(d, p);
-          }
-
-          const baseUrl = apiBaseUrl();
-          const outcomes: RecordOutcome[] = [];
-          for (const [digest, inputList] of byDigest) {
-            const mintedProof = mintedByDigest.get(digest);
-            const prior = existing.get(digest);
-            for (const input of inputList) {
-              if (mintedProof) {
-                const { counter, epoch } = positionOf(mintedProof);
-                outcomes.push({
-                  input,
-                  digest: toUrlSafeB64(digest),
-                  outcome: "recorded",
-                  counter,
-                  epoch,
-                  total_positions: (prior?.length ?? 0) + 1,
-                  proof_url: proofUrl(baseUrl, digest, counter ?? undefined, mintedProof.commit?.epochId),
-                });
-              } else if (prior) {
-                const first = prior[0]?.proof;
-                const { counter, epoch } = first ? positionOf(first) : { counter: null, epoch: null };
-                outcomes.push({
-                  input,
-                  digest: toUrlSafeB64(digest),
-                  outcome: "on record",
-                  counter,
-                  epoch,
-                  total_positions: prior.length,
-                  proof_url: proofUrl(baseUrl, digest),
-                });
-              } else {
-                // Neither minted nor previously on record: lost to a partial
-                // failure. The honest outcome is "not recorded", never a claim.
-                outcomes.push({
-                  input,
-                  digest: toUrlSafeB64(digest),
-                  outcome: "not recorded",
-                  counter: null,
-                  epoch: null,
-                  total_positions: 0,
-                  proof_url: null,
-                });
-              }
-            }
-          }
-
-          if (partial) {
-            const unrecorded = toMint.length - minted.length;
-            const retryGuidance = again
-              ? `Some 'not recorded' digests MAY still have been recorded server-side if the failure was a timeout. Run bitgraph_check on the 'not recorded' digests first, then re-run bitgraph_record with again=true for only the digests still missing.`
-              : `Re-run bitgraph_record with the same digests: already-recorded ones will come back as 'on record' and only the missing ones will mint.`;
-            return {
-              isError: true,
-              content: [
-                {
-                  type: "text",
-                  text:
-                    `${errorText(partial.cause2)}\n` +
-                    `${minted.length} of ${toMint.length} digests were recorded before the failure (those recordings are permanent); ${unrecorded} were not. ` +
-                    `${retryGuidance}\n\n` +
-                    renderRecordMarkdown(outcomes),
-                },
-              ],
-            };
-          }
-
-          const structured = {
-            results: outcomes,
-            summary: {
-              recorded: outcomes.filter((o) => o.outcome === "recorded").length,
-              on_record: outcomes.filter((o) => o.outcome === "on record").length,
-              not_recorded: outcomes.filter((o) => o.outcome === "not recorded").length,
-            },
-          };
-          return ok(
-            response_format === "json" ? capJson(structured).text : renderRecordMarkdown(outcomes)
-          );
-        } catch (err) {
-          return fail(errorText(err));
-        }
-      }
-    );
-
-    server.registerTool(
       "bitgraph_open",
       {
         title: "Make a BitGraph: open",
@@ -805,6 +626,185 @@ const handler = createMcpHandler(
         }
       }
     );
+
+    server.registerTool(
+      "bitgraph_record",
+      {
+        title: "Record a digest (compatibility only)",
+        description:
+          "NOT the way to make a BitGraph of a file you can read: use bitgraph_open then bitgraph_commit for that. This is the compatibility recording for a digest alone, when the bytes themselves are out of reach: it gives an existing SHA-256 digest a causal position in the BitGraph ledger (bitgraph.ing) with no new file, no set and no row, and establishes only that the bytes existed no later than the commit. " +
+          "If you can hash the file you can make the real thing: open a slot, build the new file from the recipe, hash it, commit. " +
+          DIGEST_HINT + ". " +
+          "Hash an existing file where it lives; never generate content just to record it, and only record files the user asked to record: recordings are permanent (10-year retention, no deletes). " +
+          "Digests already on record are NOT re-recorded by default; they come back as 'on record' with their existing proof. " +
+          "Pass again=true to deliberately record already-recorded bytes at a new causal position. " +
+          "Returns one outcome per digest: 'recorded' (newly minted) or 'on record' (was already there), with its position number and proof page URL. " +
+          "Use bitgraph_check instead when the user only wants to know whether a file is on record.",
+        inputSchema: z.object({
+          digests: z
+            .array(z.string().min(1).max(100))
+            .min(1)
+            .max(MAX_RECORD)
+            .describe(`SHA-256 digests to record, base64 (either form), up to ${MAX_RECORD}.`),
+          attribution: z
+            .object({
+              name: z.string().max(200).optional().describe("Submitter's name (self-attributed)."),
+              title: z.string().max(200).optional(),
+              message: z.string().max(2000).optional(),
+            })
+            .optional()
+            .describe(
+              "Optional self-attributed submitter's note, stored in the signed proof. Rendered as a note, never as verified identity."
+            ),
+          again: z
+            .boolean()
+            .default(false)
+            .describe(
+              "false (default): digests already on record are returned as-is, nothing minted. true: record every digest at a new causal position even if already on record."
+            ),
+          response_format: responseFormatSchema,
+        }),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
+      },
+      async ({ digests, attribution, again, response_format }) => {
+        try {
+          const normalized = normalizeDigests(digests);
+          if ("error" in normalized) return fail(normalized.error);
+
+          // Unique digests, first input string wins for display.
+          const byDigest = new Map<string, string[]>();
+          normalized.standard.forEach((d, i) => {
+            const list = byDigest.get(d) ?? [];
+            list.push(digests[i] as string);
+            byDigest.set(d, list);
+          });
+          const unique = [...byDigest.keys()];
+
+          const checked = await batchCheck(unique.map(toUrlSafeB64));
+          const existing = new Map<string, Array<{ proof: BitGraphProof }>>();
+          for (const d of unique) {
+            const entry = checked.results[toUrlSafeB64(d)];
+            if (entry && entry.proofs.length > 0) existing.set(d, entry.proofs);
+          }
+
+          const toMint = again ? unique : unique.filter((d) => !existing.has(d));
+
+          let minted: BitGraphProof[] = [];
+          let partial: PartialCommitError | null = null;
+          if (toMint.length > 0) {
+            try {
+              minted = await commitDigests(toMint, attribution);
+              // A 200 with fewer proofs than digests is still a partial failure;
+              // never let it reach the success path looking complete.
+              if (minted.length < toMint.length) {
+                partial = new PartialCommitError(
+                  minted,
+                  toMint.length,
+                  new Error("commit returned fewer proofs than digests sent")
+                );
+              }
+            } catch (err) {
+              if (err instanceof PartialCommitError) {
+                minted = err.minted;
+                partial = err;
+              } else {
+                throw err;
+              }
+            }
+          }
+
+          const mintedByDigest = new Map<string, BitGraphProof>();
+          for (const p of minted) {
+            const d = p.artifact?.digestB64;
+            if (d !== undefined) mintedByDigest.set(d, p);
+          }
+
+          const baseUrl = apiBaseUrl();
+          const outcomes: RecordOutcome[] = [];
+          for (const [digest, inputList] of byDigest) {
+            const mintedProof = mintedByDigest.get(digest);
+            const prior = existing.get(digest);
+            for (const input of inputList) {
+              if (mintedProof) {
+                const { counter, epoch } = positionOf(mintedProof);
+                outcomes.push({
+                  input,
+                  digest: toUrlSafeB64(digest),
+                  outcome: "recorded",
+                  counter,
+                  epoch,
+                  total_positions: (prior?.length ?? 0) + 1,
+                  proof_url: proofUrl(baseUrl, digest, counter ?? undefined, mintedProof.commit?.epochId),
+                });
+              } else if (prior) {
+                const first = prior[0]?.proof;
+                const { counter, epoch } = first ? positionOf(first) : { counter: null, epoch: null };
+                outcomes.push({
+                  input,
+                  digest: toUrlSafeB64(digest),
+                  outcome: "on record",
+                  counter,
+                  epoch,
+                  total_positions: prior.length,
+                  proof_url: proofUrl(baseUrl, digest),
+                });
+              } else {
+                // Neither minted nor previously on record: lost to a partial
+                // failure. The honest outcome is "not recorded", never a claim.
+                outcomes.push({
+                  input,
+                  digest: toUrlSafeB64(digest),
+                  outcome: "not recorded",
+                  counter: null,
+                  epoch: null,
+                  total_positions: 0,
+                  proof_url: null,
+                });
+              }
+            }
+          }
+
+          if (partial) {
+            const unrecorded = toMint.length - minted.length;
+            const retryGuidance = again
+              ? `Some 'not recorded' digests MAY still have been recorded server-side if the failure was a timeout. Run bitgraph_check on the 'not recorded' digests first, then re-run bitgraph_record with again=true for only the digests still missing.`
+              : `Re-run bitgraph_record with the same digests: already-recorded ones will come back as 'on record' and only the missing ones will mint.`;
+            return {
+              isError: true,
+              content: [
+                {
+                  type: "text",
+                  text:
+                    `${errorText(partial.cause2)}\n` +
+                    `${minted.length} of ${toMint.length} digests were recorded before the failure (those recordings are permanent); ${unrecorded} were not. ` +
+                    `${retryGuidance}\n\n` +
+                    renderRecordMarkdown(outcomes),
+                },
+              ],
+            };
+          }
+
+          const structured = {
+            results: outcomes,
+            summary: {
+              recorded: outcomes.filter((o) => o.outcome === "recorded").length,
+              on_record: outcomes.filter((o) => o.outcome === "on record").length,
+              not_recorded: outcomes.filter((o) => o.outcome === "not recorded").length,
+            },
+          };
+          return ok(
+            response_format === "json" ? capJson(structured).text : renderRecordMarkdown(outcomes)
+          );
+        } catch (err) {
+          return fail(errorText(err));
+        }
+      }
+    );
   },
   {
     serverInfo: { name: "bitgraph", version: SERVER_VERSION },
@@ -813,7 +813,7 @@ const handler = createMcpHandler(
       "Open every file of a batch in ONE call and commit them in ONE call: they share the slot and become one BitGraph, a set with one position, each file a member with its row. A single file is fused on its own. " +
       "File contents never travel: only digests, sizes, a file's first bytes, slot records and recipe bytes. New files are virtual; the originals stay unchanged and the proof rebuilds them. " +
       "Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
-      "bitgraph_record is the compatibility recording of digests alone. bitgraph_check and bitgraph_get_proof are read-only.",
+      "Never use bitgraph_record for a file you can read: it records a digest alone, with no new file and no set, and exists only for bytes that are out of reach. bitgraph_check and bitgraph_get_proof are read-only.",
   }
 );
 
