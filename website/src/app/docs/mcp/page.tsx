@@ -99,13 +99,13 @@ export default function McpPage() {
           <>Open <Ui>Settings</Ui>, then <Ui>Security and login</Ui>, and turn on <Ui>Developer mode</Ui>.</>,
           <>Go to <Ui>chatgpt.com/plugins</Ui> and click <Ui>+</Ui>.</>,
           <>Name it BitGraph, paste the URL, and choose <Ui>No authentication</Ui>. The URL already ends in <code>/mcp</code>, so paste it exactly as it is.</>,
-          <>Create the connection. ChatGPT lists the five tools it found, which is your confirmation that it worked.</>,
+          <>Create the connection. ChatGPT lists the four tools it found, which is your confirmation that it worked.</>,
           <>In a new chat, open the <Ui>+</Ui> menu, choose <Ui>Developer mode</Ui>, and select BitGraph.</>,
         ]}
       />
       <p className="text-base text-[#4b5563] mb-8">
-        ChatGPT treats opening, committing and recording as write actions and asks you to
-        confirm each one, showing what it is about to send. Checking and fetching proofs are
+        ChatGPT treats opening and committing as write actions and asks you to confirm
+        each one, showing what it is about to send. Checking and fetching proofs are
         read-only. Every new conversation starts from the same cautious default.
       </p>
 
@@ -137,11 +137,10 @@ export default function McpPage() {
         Asking is read-only and writes nothing to the ledger, so it is a safe first move.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Five tools</h2>
+      <h2 className="text-xl font-semibold mt-12 mb-4">Four tools</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
         <li>• <strong className="text-text">bitgraph_open</strong> · Make a BitGraph, step one. The agent sends each file&apos;s name, size, SHA-256 digest and first 16 bytes. An unused slot is allocated at the boundary before any new file exists, and the agent gets back, per file, a token and a recipe: the exact bytes the new file adds after the original (<span className="font-mono text-xs">trailer/1</span>, for formats that ignore trailing data) or around it (<span className="font-mono text-xs">container/2</span>, a tar that carries the original untouched and first). Files opened together share the one slot: they are one BitGraph, a set.</li>
         <li>• <strong className="text-text">bitgraph_commit</strong> · Step two. The agent builds each new file from its recipe, hashes it, and sends every token and digest in one call. For a set the manifest of those digests is committed under the shared slot with the signed marker, and the agent gets back one proof for the whole batch with each file&apos;s row; a single file gets its own proof and Frame. New files are virtual: an original plus the proof rebuilds its new file, and a lookup by the original&apos;s digest finds the set.</li>
-        <li>• <strong className="text-text">bitgraph_record</strong> · The compatibility recording: digests alone, no new file. It gives bytes that already exist a position and establishes that they existed no later than the commit.</li>
         <li>• <strong className="text-text">bitgraph_check</strong> · Is this file on record? Read-only. It reports <span className="font-mono text-xs">on_record</span>, every recording of the exact bytes, and <span className="font-mono text-xs">fused_descendants</span>, every fused artifact that names the bytes as its origin, each listed by position with its proof page URL.</li>
         <li>• <strong className="text-text">bitgraph_get_proof</strong> · Fetch a proof and its Ethereum anchor window: BitGraphed between block X and block Y.</li>
       </ul>
@@ -171,7 +170,7 @@ export default function McpPage() {
       <ul className="space-y-2 text-sm text-[#1f2937]">
         <li>• <strong className="text-text">Files are never uploaded.</strong> Only SHA-256 digests, byte sizes, a file&apos;s first bytes, signed slot records and recipe bytes cross the network, to either endpoint.</li>
         <li>• <strong className="text-text">Recordings are permanent.</strong> The ledger has 10-year retention and no deletes. Agents are instructed to record only files you asked to record.</li>
-        <li>• <strong className="text-text">Two operations.</strong> A fused file is new bytes built from the original under a slot that existed first, so those bytes could not have been finalized before the slot: that is what open and commit make. A recording gives bytes that already exist a position, and only says they existed no later than the commit: that is what bitgraph_record makes.</li>
+        <li>• <strong className="text-text">One way.</strong> A BitGraph is new bytes built from the original under a slot that existed first, so those bytes could not have been finalized before the slot: that is what open and commit make, one file on its own or a batch as one set. The endpoint offers no digest-only recording; that compatibility path lives on the HTTP API for clients that hold no bytes.</li>
         <li>• <strong className="text-text">One ledger.</strong> Whatever MCP makes lands on the same ledger as everything else, and a lookup by the original&apos;s digest finds its fused artifacts by position and placement, never ranked.</li>
       </ul>
     </article>

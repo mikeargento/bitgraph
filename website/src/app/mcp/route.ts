@@ -16,18 +16,19 @@
  * a member with its row, the way a drop on the site works. A single file is
  * fused on its own.
  *
- * bitgraph_record stays as the compatibility recording of digests alone. This
- * endpoint is a translator in front of the site's own public API, nothing more.
+ * There is no digest-only tool here (2026-09-06): every model handed one
+ * reached for it and made a plain recording of a file it could have fused.
+ * The compatibility recording of a digest alone stays on the HTTP API
+ * (POST /api/commit) for clients that hold no bytes. This endpoint is a
+ * translator in front of the site's own public API, nothing more.
  */
 
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import {
   ApiError,
-  PartialCommitError,
   apiBaseUrl,
   batchCheck,
-  commitDigests,
   getProofDetail,
   search,
 } from "@/lib/mcp/api";
@@ -38,9 +39,7 @@ import {
   proofUrl,
   renderCheckMarkdown,
   renderProofMarkdown,
-  renderRecordMarkdown,
   type CheckOutcome,
-  type RecordOutcome,
 } from "@/lib/mcp/format";
 import {
   ASSEMBLY_INSTRUCTIONS,
@@ -67,7 +66,6 @@ import {
   type OpenState,
   type SetOutcome,
 } from "@/lib/mcp/fuse-hosted";
-import type { BitGraphProof } from "@/lib/mcp/types";
 
 export const dynamic = "force-dynamic";
 // One commit chunk of TEE work (~1s/digest) must finish inside this window.
@@ -75,9 +73,7 @@ export const maxDuration = 60;
 
 const SERVER_VERSION = "0.3.0";
 
-// Record stays under one commit chunk so a call is all-or-nothing per chunk
-// and fits maxDuration. Check is a cheap S3 lookup; the batch endpoint's cap.
-const MAX_RECORD = 40;
+// Check is a cheap S3 lookup; the batch endpoint's cap.
 const MAX_CHECK = 500;
 
 const DIGEST_HINT =
@@ -488,7 +484,7 @@ const handler = createMcpHandler(
           "Check whether SHA-256 digests are on record in the BitGraph ledger, without recording anything. " +
           DIGEST_HINT + ". " +
           "Returns, per digest: on_record (the bytes are on record, as an exact recording, as the original a new file was made from, or as a member of a set), every position by counter with a set member's row, and the proof page URL. " +
-          "Read-only. Use bitgraph_record to record digests that turn out not to be on record.",
+          "Read-only. Use bitgraph_open then bitgraph_commit to make a BitGraph of files that turn out not to be on record.",
         inputSchema: z.object({
           digests: z
             .array(z.string().min(1).max(100))
@@ -613,7 +609,7 @@ const handler = createMcpHandler(
           const detail = await getProofDetail(urlSafeDigest, selCounter, selEpoch);
           if (detail.proofs.length === 0) {
             return fail(
-              `Not on record: no proof exists for digest ${urlSafeDigest}. Use bitgraph_record to record the file.`
+              `Not on record: no proof exists for digest ${urlSafeDigest}. Use bitgraph_open then bitgraph_commit to make a BitGraph of the file.`
             );
           }
 
@@ -621,185 +617,6 @@ const handler = createMcpHandler(
             return ok(capJson(detail).text);
           }
           return ok(renderProofMarkdown(detail, apiBaseUrl()));
-        } catch (err) {
-          return fail(errorText(err));
-        }
-      }
-    );
-
-    server.registerTool(
-      "bitgraph_record",
-      {
-        title: "Record a digest (compatibility only)",
-        description:
-          "NOT the way to make a BitGraph of a file you can read: use bitgraph_open then bitgraph_commit for that. This is the compatibility recording for a digest alone, when the bytes themselves are out of reach: it gives an existing SHA-256 digest a causal position in the BitGraph ledger (bitgraph.ing) with no new file, no set and no row, and establishes only that the bytes existed no later than the commit. " +
-          "If you can hash the file you can make the real thing: open a slot, build the new file from the recipe, hash it, commit. " +
-          DIGEST_HINT + ". " +
-          "Hash an existing file where it lives; never generate content just to record it, and only record files the user asked to record: recordings are permanent (10-year retention, no deletes). " +
-          "Digests already on record are NOT re-recorded by default; they come back as 'on record' with their existing proof. " +
-          "Pass again=true to deliberately record already-recorded bytes at a new causal position. " +
-          "Returns one outcome per digest: 'recorded' (newly minted) or 'on record' (was already there), with its position number and proof page URL. " +
-          "Use bitgraph_check instead when the user only wants to know whether a file is on record.",
-        inputSchema: z.object({
-          digests: z
-            .array(z.string().min(1).max(100))
-            .min(1)
-            .max(MAX_RECORD)
-            .describe(`SHA-256 digests to record, base64 (either form), up to ${MAX_RECORD}.`),
-          attribution: z
-            .object({
-              name: z.string().max(200).optional().describe("Submitter's name (self-attributed)."),
-              title: z.string().max(200).optional(),
-              message: z.string().max(2000).optional(),
-            })
-            .optional()
-            .describe(
-              "Optional self-attributed submitter's note, stored in the signed proof. Rendered as a note, never as verified identity."
-            ),
-          again: z
-            .boolean()
-            .default(false)
-            .describe(
-              "false (default): digests already on record are returned as-is, nothing minted. true: record every digest at a new causal position even if already on record."
-            ),
-          response_format: responseFormatSchema,
-        }),
-        annotations: {
-          readOnlyHint: false,
-          destructiveHint: false,
-          idempotentHint: false,
-          openWorldHint: true,
-        },
-      },
-      async ({ digests, attribution, again, response_format }) => {
-        try {
-          const normalized = normalizeDigests(digests);
-          if ("error" in normalized) return fail(normalized.error);
-
-          // Unique digests, first input string wins for display.
-          const byDigest = new Map<string, string[]>();
-          normalized.standard.forEach((d, i) => {
-            const list = byDigest.get(d) ?? [];
-            list.push(digests[i] as string);
-            byDigest.set(d, list);
-          });
-          const unique = [...byDigest.keys()];
-
-          const checked = await batchCheck(unique.map(toUrlSafeB64));
-          const existing = new Map<string, Array<{ proof: BitGraphProof }>>();
-          for (const d of unique) {
-            const entry = checked.results[toUrlSafeB64(d)];
-            if (entry && entry.proofs.length > 0) existing.set(d, entry.proofs);
-          }
-
-          const toMint = again ? unique : unique.filter((d) => !existing.has(d));
-
-          let minted: BitGraphProof[] = [];
-          let partial: PartialCommitError | null = null;
-          if (toMint.length > 0) {
-            try {
-              minted = await commitDigests(toMint, attribution);
-              // A 200 with fewer proofs than digests is still a partial failure;
-              // never let it reach the success path looking complete.
-              if (minted.length < toMint.length) {
-                partial = new PartialCommitError(
-                  minted,
-                  toMint.length,
-                  new Error("commit returned fewer proofs than digests sent")
-                );
-              }
-            } catch (err) {
-              if (err instanceof PartialCommitError) {
-                minted = err.minted;
-                partial = err;
-              } else {
-                throw err;
-              }
-            }
-          }
-
-          const mintedByDigest = new Map<string, BitGraphProof>();
-          for (const p of minted) {
-            const d = p.artifact?.digestB64;
-            if (d !== undefined) mintedByDigest.set(d, p);
-          }
-
-          const baseUrl = apiBaseUrl();
-          const outcomes: RecordOutcome[] = [];
-          for (const [digest, inputList] of byDigest) {
-            const mintedProof = mintedByDigest.get(digest);
-            const prior = existing.get(digest);
-            for (const input of inputList) {
-              if (mintedProof) {
-                const { counter, epoch } = positionOf(mintedProof);
-                outcomes.push({
-                  input,
-                  digest: toUrlSafeB64(digest),
-                  outcome: "recorded",
-                  counter,
-                  epoch,
-                  total_positions: (prior?.length ?? 0) + 1,
-                  proof_url: proofUrl(baseUrl, digest, counter ?? undefined, mintedProof.commit?.epochId),
-                });
-              } else if (prior) {
-                const first = prior[0]?.proof;
-                const { counter, epoch } = first ? positionOf(first) : { counter: null, epoch: null };
-                outcomes.push({
-                  input,
-                  digest: toUrlSafeB64(digest),
-                  outcome: "on record",
-                  counter,
-                  epoch,
-                  total_positions: prior.length,
-                  proof_url: proofUrl(baseUrl, digest),
-                });
-              } else {
-                // Neither minted nor previously on record: lost to a partial
-                // failure. The honest outcome is "not recorded", never a claim.
-                outcomes.push({
-                  input,
-                  digest: toUrlSafeB64(digest),
-                  outcome: "not recorded",
-                  counter: null,
-                  epoch: null,
-                  total_positions: 0,
-                  proof_url: null,
-                });
-              }
-            }
-          }
-
-          if (partial) {
-            const unrecorded = toMint.length - minted.length;
-            const retryGuidance = again
-              ? `Some 'not recorded' digests MAY still have been recorded server-side if the failure was a timeout. Run bitgraph_check on the 'not recorded' digests first, then re-run bitgraph_record with again=true for only the digests still missing.`
-              : `Re-run bitgraph_record with the same digests: already-recorded ones will come back as 'on record' and only the missing ones will mint.`;
-            return {
-              isError: true,
-              content: [
-                {
-                  type: "text",
-                  text:
-                    `${errorText(partial.cause2)}\n` +
-                    `${minted.length} of ${toMint.length} digests were recorded before the failure (those recordings are permanent); ${unrecorded} were not. ` +
-                    `${retryGuidance}\n\n` +
-                    renderRecordMarkdown(outcomes),
-                },
-              ],
-            };
-          }
-
-          const structured = {
-            results: outcomes,
-            summary: {
-              recorded: outcomes.filter((o) => o.outcome === "recorded").length,
-              on_record: outcomes.filter((o) => o.outcome === "on record").length,
-              not_recorded: outcomes.filter((o) => o.outcome === "not recorded").length,
-            },
-          };
-          return ok(
-            response_format === "json" ? capJson(structured).text : renderRecordMarkdown(outcomes)
-          );
         } catch (err) {
           return fail(errorText(err));
         }
@@ -813,7 +630,7 @@ const handler = createMcpHandler(
       "Open every file of a batch in ONE call and commit them in ONE call: they share the slot and become one BitGraph, a set with one position, each file a member with its row. A single file is fused on its own. " +
       "File contents never travel: only digests, sizes, a file's first bytes, slot records and recipe bytes. New files are virtual; the originals stay unchanged and the proof rebuilds them. " +
       "Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
-      "Never use bitgraph_record for a file you can read: it records a digest alone, with no new file and no set, and exists only for bytes that are out of reach. bitgraph_check and bitgraph_get_proof are read-only.",
+      "There is no digest-only recording here: a BitGraph is made with bitgraph_open then bitgraph_commit. bitgraph_check and bitgraph_get_proof are read-only.",
   }
 );
 
