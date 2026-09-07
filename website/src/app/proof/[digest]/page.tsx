@@ -520,8 +520,14 @@ export default function ProofPage() {
   // placement id stays out of it, as it has since 2026-09-03: a verifier
   // detail, in the attribution and the Raw JSON.
   const placementId = attr?.name === "bitgraph-fuse/1" ? attr.title ?? null : null;
+  // profile bitgraph-run/1: the artifact was MADE with the commitment in it,
+  // so there is no original and no placement to name. The declared commitment
+  // is shown, which is what lets a reader find it in the bytes themselves.
+  const isRun = attr?.name === "bitgraph-run/1";
+  const runCommitment = isRun && typeof attr?.message === "string" && attr.message.length > 0 ? attr.message : null;
   const carriedBy =
-    placementId === null ? "Not declared"
+    isRun ? "In the artifact's own bytes"
+    : placementId === null ? "Not declared"
     : placementId.startsWith("set/") ? "In each member's bytes"
     : placementId.startsWith("container/") ? "In the file's bytes, in a wrapper"
     : placementId === "trailer/1" ? "In the file's bytes, appended"
@@ -1024,6 +1030,7 @@ export default function ProofPage() {
                 names) adds its own two, read from the BOUND manifest. */}
             <CollapsibleCard title="Hashes">
               <Field label="Commitment" value={carriedBy} />
+              {runCommitment && <Field label="Slot commitment" value={runCommitment} mono />}
               {isSet ? (
                 <>
                   {viewingRow && <Field label="New file hash" value={viewingRow.fusedDigestB64} mono />}
@@ -1392,8 +1399,10 @@ export default function ProofPage() {
               when it actually holds a URL; agents routinely put prose there,
               which used to render as a link to nowhere. */}
           {/* A fused proof's attribution is the signed marker, not a person's note:
-              it is read into the two hash lines above and stays in Raw JSON. */}
-          {attr && !isEth && !isInterval && attr.name !== "bitgraph-fuse/1" && (
+              it is read into the two hash lines above and stays in Raw JSON. The
+              same is true of a run's (bitgraph-run/1), which the Hashes card
+              reads instead. */}
+          {attr && !isEth && !isInterval && attr.name !== "bitgraph-fuse/1" && !isRun && (
             <CollapsibleCard title="Submitter's Note">
               {attr.name && <Field label="Submitted by" value={attr.name} />}
               {attr.message && <Field label="Note" value={attr.message} mono />}
