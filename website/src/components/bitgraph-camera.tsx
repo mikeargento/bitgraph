@@ -1082,14 +1082,36 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // The bar moves as the set's members are built, in rows: the core
         // hashes every original before the slot is held, builds each member
         // under it, and the count then holds while the one commit is in flight.
-        const setRows = rowsOf(set.map((sf) => sf.digestB64));
+        // Rows covered by this set's first i members, precomputed.
+        //
+        // ⚠️ THE CALLBACK BELOW RUNS ~90,000 TIMES FOR A 30,000 FILE SET, so
+        // nothing in it may walk the drop. It used to call rowsOf(set.slice(0,
+        // p.done)), which slices, maps, builds a Set and filters every row, on
+        // every event: billions of operations, and the tab simply stops (Mike,
+        // 2026-09-07: "i click and this screen just stays"). Counting once, up
+        // front, makes each event a single array read.
+        const rowsPerDigest = new Map<string, number>();
+        for (const t of toProve) rowsPerDigest.set(t.digestB64, (rowsPerDigest.get(t.digestB64) ?? 0) + 1);
+        const rowsUpTo = new Int32Array(set.length + 1);
+        for (let i = 0; i < set.length; i++) rowsUpTo[i + 1] = rowsUpTo[i] + (rowsPerDigest.get(set[i].digestB64) ?? 0);
+        const setRows = rowsUpTo[set.length];
+        // One render per event is the other half of the same mistake: 90,000
+        // state writes is its own freeze, and no one can read a number that
+        // changes 90,000 times. Report a step of the bar, not an event.
+        const step = Math.max(1, Math.floor(setRows / 200));
+        let lastPhase = "";
+        let lastWalked = -step;
         const out = await heldThroughRotation(() => fuseFiles(set, {
           onProgress: (p) => {
+            const counts = p.phase === "hash" || p.phase === "fuse" || p.phase === "verify";
+            if (p.phase === lastPhase && counts && p.done < lastWalked + step && p.done < set.length) return;
+            lastPhase = p.phase;
+            lastWalked = p.done;
             // Counted in ROWS of this set, as the bar is: the phases walk
             // files, and a file dropped twice is one file to hash and two
             // rows. A drop that fits one set is the ordinary case and its
             // counts run to the drop's own total.
-            const walked = rowsOf(set.slice(0, p.done).map((sf) => sf.digestB64));
+            const walked = counts ? rowsUpTo[Math.min(p.done, set.length)] : 0;
             const third = setRows / 3;
             const at = p.phase === "hash" ? done + walked / 3
               : p.phase === "fuse" ? done + third + walked / 3
