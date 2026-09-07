@@ -20,6 +20,7 @@ import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetMemb
 import { finishState } from "./scan-hash";
 export type { FuseSetProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest, SetMemberProof, SetRoot } from "@mikeargento/bitgraph-verify";
+import { paintFrame, PAINT_EVERY_MS } from "./paint-frame";
 import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, isCarryEncoding, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
 import { MAX_FUSE_BYTES, fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
 import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
@@ -339,31 +340,6 @@ export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUD
  * is sent once, the first File carrying the member. A FuseError from the
  * pipeline passes through untouched. No fused bytes are kept.
  */
-/**
- * Wait for the browser to actually draw a frame.
- *
- * ⚠️ THE PRIMITIVE IS THE WHOLE POINT, and I got it wrong twice. setTimeout is
- * throttled to about one a second in a hidden tab. scheduler.yield() and
- * MessageChannel are cheap and hand control back to the event loop, but
- * NEITHER GUARANTEES A PAINT: the browser draws when it decides to. Shipping
- * those bought all the cost of yielding and none of the visible progress, and
- * turned a 48,000 member fuse pass into 46s of a 54.6s run (measured on the
- * live site, 2026-09-07) while still showing a frozen label.
- *
- * requestAnimationFrame resolves when a frame is being painted, which is the
- * actual requirement. It is also self-limiting at the display rate, and it
- * does not fire at all in a hidden tab, where there is nothing to paint and a
- * cheap macrotask is the right fallback.
- */
-const paintFrame = (): Promise<void> =>
-  typeof requestAnimationFrame === "function" && document.visibilityState === "visible"
-    ? new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-    : new Promise<void>((resolve) => {
-        const c = new MessageChannel();
-        c.port1.onmessage = () => { c.port1.close(); resolve(); };
-        c.port2.postMessage(0);
-      });
-
 export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; transport?: FuseTransport; onProgress?: (progress: FuseSetProgress) => void; set?: "set/1" | "set/2" } = {}): Promise<FusedSet> {
   if (files.length === 0) throw new FuseError("bad-input", "a set lists at least one file");
   // The kind follows the count unless the caller says: the list up to
@@ -411,7 +387,7 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
     // A quarter second between frames: four visible updates a second is
     // plenty to show a count moving, and it keeps the cost to roughly four
     // frames a second rather than twenty.
-    if (performance.now() - lastYield < 250) return;
+    if (performance.now() - lastYield < PAINT_EVERY_MS) return;
     const t0 = performance.now();
     await paintFrame();
     yieldMs += performance.now() - t0;

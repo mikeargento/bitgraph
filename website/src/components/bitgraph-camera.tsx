@@ -49,6 +49,7 @@ import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseT
 import { scanPool } from "@/lib/scan-pool";
 import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
 import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
+import { paintFrame, PAINT_EVERY_MS } from "@/lib/paint-frame";
 
 /**
  * One /api/proofs/batch answer, with every set member entry's manifest put
@@ -597,6 +598,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     let bytesHashed = 0;
     let hashed = 0;
     let nextFile = 0;
+    let lastPaint = performance.now();
     const hashWorker = async () => {
       while (nextFile < files.length) {
         const i = nextFile++;
@@ -622,13 +624,26 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             : { f, digest: "", proofJson: null, valid: null, scan: null };
         }
         hashed++;
-        setScanProgress({ current: hashed, total: files.length });
-        // Yield so the UI paints between files.
-        await new Promise((r) => setTimeout(r, 0));
+        // ⚠️ ON A TIME BUDGET, NOT PER FILE. This used to report progress and
+        // yield with setTimeout(0) for every single file: on a 48,000 file
+        // drop that is 48,000 React renders and 48,000 timer yields, and a
+        // chained setTimeout clamps to 4ms, so across the worker pool the
+        // waiting alone ran into tens of seconds. Same mistake, same shape, as
+        // the fuse pass that took 85s to do 2s of work (2026-09-07). One
+        // painted frame per 250ms of hashing is four updates a second, which
+        // is all a moving count needs.
+        if (performance.now() - lastPaint >= PAINT_EVERY_MS) {
+          lastPaint = performance.now();
+          setScanProgress({ current: hashed, total: files.length });
+          await paintFrame();
+          lastPaint = performance.now();
+        }
       }
     };
     await Promise.all(Array.from({ length: Math.min(pool.size, files.length) }, hashWorker));
-    const scanSeconds = (performance.now() - scanStart) / 1000;
+    setScanProgress({ current: hashed, total: files.length });
+    const hashDoneAt = performance.now();
+    const scanSeconds = (hashDoneAt - scanStart) / 1000;
     scanRateRef.current = scanSeconds > 0.5 && bytesHashed > 0 ? bytesHashed / scanSeconds : null;
 
     // Phase 2 — batched ledger lookup. Small drops are ONE round trip (the
@@ -637,13 +652,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // spinner. Falls back to the per-digest endpoint, parallelized, if the
     // batch endpoint is unavailable.
     //
-    // 500 per request, five in flight, measured against a real 30,000-file
-    // folder on 2026-09-07: 50x3 took 99s, 500x3 took 79s, 500x5 took 53s.
-    // 500 is the endpoint's own MAX_DIGESTS. Five is deliberately short of
-    // what the server's S3 fan-out will bear: its own concurrency was cut
-    // from 16 to 8 because a large drop pushed the reads into throttling, and
-    // the client multiplies that. The remaining cost is one S3 listing per
-    // digest, which no client-side batching can remove.
+    // BATCH_CHUNK per request, five in flight. Measured against a real
+    // 30,000-file folder on 2026-09-07: at 50x3 it took 99s, 500x3 79s, 500x5
+    // 53s. The digest index then removed the per-digest S3 listing entirely
+    // for bytes that are not on record, which is nearly all of a fresh drop,
+    // so the chunk went to 2,000 and 48,000 files became 5 rounds of latency
+    // instead of 20. Five in flight stays: it is deliberately short of what
+    // the server's S3 fan-out will bear, since its own concurrency was cut
+    // from 16 to 8 after a large drop pushed the reads into throttling, and
+    // the client multiplies that.
     const lookupKeys = [...new Set(
       scanned.filter((s) => !s.proofJson && s.digest).map((s) => toUrlSafeB64(s.digest)),
     )];
@@ -703,6 +720,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // recorded for the bytes (earliest causal position first): the same bits
     // can occupy several positions when BitGraphed more than once. Signature
     // checks are WebCrypto, cheap to run together.
+    const lookupDoneAt = performance.now();
     const results: FileItem[] = await Promise.all(scanned.map(async (s) => {
       const { f, digest, proofJson, valid } = s;
       if (proofJson) {
@@ -739,6 +757,19 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const, ...(s.scan ? { scan: s.scan } : {}) };
     }));
 
+    // The same measurement discipline as the making, for the half that runs
+    // before the button appears: reasoning about which step is slow has been
+    // wrong every time today, and the number has been right every time.
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("timing")) {
+      const ms = (a: number, b: number) => `${((b - a) / 1000).toFixed(1)}s`;
+      const end = performance.now();
+      setRecordMessage(
+        `checked ${files.length} files · hash ${ms(scanStart, hashDoneAt)}` +
+        ` · lookup ${ms(hashDoneAt, lookupDoneAt)}` +
+        ` · assemble ${ms(lookupDoneAt, end)}` +
+        ` · total ${ms(scanStart, end)}`,
+      );
+    }
     return results;
   }
 
