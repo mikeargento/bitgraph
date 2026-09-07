@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProofsByDigest, readSetPosition, runPool, LedgerUnavailableError } from "@/lib/s3";
+import { digestIndex } from "@/lib/digest-index";
 import { fromUrlSafeB64 } from "@/lib/explorer";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bad request" }, { status: 400 });
     }
     const unique = [...new Set(digests as string[])];
+
+    // Nearly every digest in a big drop is new, and every one of them costs an
+    // S3 listing that returns nothing: 30,000 files was 30,000 listings, and
+    // batching them only halved the wait (measured 2026-09-07). The digest
+    // index answers "certainly not on record" from memory, so only the few it
+    // cannot rule out reach S3 at all. It reports no opinion whenever it might
+    // be out of date, and then this route does exactly what it always did.
+    const index = await digestIndex();
+    const toRead = index === null ? unique : unique.filter((d) => !index.absent(fromUrlSafeB64(d)));
+    const skipped = unique.length - toRead.length;
     const results: Record<string, {
       proofs: Array<{
         proof: unknown;
@@ -43,11 +54,15 @@ export async function POST(req: NextRequest) {
       /** The read FAILED. Not an answer about these bytes; see below. */
       unavailable?: true;
     }> = {};
+    // A digest the index ruled out is answered here, with the same shape a
+    // read would have produced for bytes that are not on record.
+    const reading = new Set(toRead);
+    for (const d of unique) if (!reading.has(d)) results[d] = { proofs: [] };
     let next = 0;
     await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, unique.length) }, async () => {
-        while (next < unique.length) {
-          const d = unique[next++];
+      Array.from({ length: Math.min(CONCURRENCY, toRead.length) }, async () => {
+        while (next < toRead.length) {
+          const d = toRead[next++];
           try {
             // Member entries come back WITHOUT their set's manifest: a batch
             // over a set's originals would otherwise carry one N-row manifest

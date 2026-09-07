@@ -7,6 +7,7 @@
  */
 
 import { Agent } from "node:https";
+import { journalDigests } from "./digest-index";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
 import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
@@ -247,6 +248,11 @@ export async function storeProofByDigest(proof: Record<string, unknown>, priorLe
     const s3 = getClient();
     const bucket = getBucket();
     const artifact = proof.artifact as { digestB64: string };
+    // BEFORE the keys, never after: the digest index rejects what it has not
+    // heard of, so a key with no journal entry behind it would make a lookup
+    // answer "not on record" about something the ledger holds. The reverse,
+    // a journal entry whose keys then fail to write, costs one wasted read.
+    await journalDigests([artifact.digestB64]);
     const body = JSON.stringify(proof, null, 2);
     const safeDigest = toSafe(artifact.digestB64);
 
@@ -373,6 +379,9 @@ async function writeMemberKeys(
 ): Promise<{ written: number; failed: number }> {
   const position = `${toSafe(epochId)}-${String(counter).padStart(12, "0")}`;
   const setDigest = toSafe(artifactDigestB64);
+  // Same rule as storeProofByDigest: the index hears about a member before
+  // its key exists, so it can never reject a member the ledger holds.
+  await journalDigests(entries.map((e) => e.digestB64));
   const results = await runPool(entries, INDEX_POOL, (e) => s3.send(new PutObjectCommand({
     Bucket: bucket,
     Key: `by-digest/${toSafe(e.digestB64)}/${position}.json`,
