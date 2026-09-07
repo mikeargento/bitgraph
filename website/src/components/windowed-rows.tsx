@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 /**
  * Which slice of a long list of uniform rows is worth putting in the DOM.
@@ -19,13 +19,32 @@ import { useEffect, useRef, useState } from "react";
  * list's position in the viewport rather than a container's scrollTop.
  */
 export function useWindowedRows(count: number, rowHeight: number, overscan = 16) {
-  const ref = useRef<HTMLDivElement>(null);
+  /**
+   * A callback ref, not useRef, and that is the whole point.
+   *
+   * ⚠️ A plain ref made this silently do nothing on the path that matters. The
+   * effect that attaches the scroll listener can only run when its
+   * dependencies change, and `count` is set when the rows arrive, not when the
+   * list appears. After a commit those are different moments: the rows flip to
+   * proved while the page is still on the proving step and the list is not
+   * mounted, so the effect ran against a null ref and returned; by the time
+   * setStep put the list on the page, `count` had not changed, the effect
+   * never ran again, and no listener was ever attached. The reader saw the
+   * first screenful and then blank for the rest of the drop (Mike,
+   * 2026-09-07: "the list just kinda stops"). A check-only drop hides this
+   * completely, because there the rows and the list arrive in one batch.
+   *
+   * The node in state means the effect re-runs when the element actually
+   * mounts, whenever that happens to be.
+   */
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
+  const ref = useCallback((el: HTMLDivElement | null) => setNode(el), []);
   // Null until measured, so the first paint shows a screenful without the
   // effect having to write state before the browser has laid anything out.
   const [range, setRange] = useState<{ first: number; last: number } | null>(null);
 
   useEffect(() => {
-    const el = ref.current;
+    const el = node;
     if (!el) return;
     let shown = { first: -1, last: -1 };
     // Measured straight from the scroll event, not from a requestAnimationFrame.
@@ -53,7 +72,7 @@ export function useWindowedRows(count: number, rowHeight: number, overscan = 16)
       window.removeEventListener("scroll", measure);
       window.removeEventListener("resize", measure);
     };
-  }, [count, rowHeight, overscan]);
+  }, [node, count, rowHeight, overscan]);
 
   return { ref, first: range?.first ?? 0, last: range?.last ?? Math.min(count, 60) };
 }
