@@ -204,6 +204,23 @@ export function memberOf(bound: { members: SetMemberRow[] }, digestB64: string):
   return null;
 }
 
+/**
+ * The digests a DROP on a set page may match.
+ *
+ * A member page is reached by that member's own digest, so only that member's
+ * two digests count: an all-rows search let a dropped folder match whichever
+ * member the walk reached first, and the page then switched to it, because the
+ * held member outranks the row the URL names. On the SET's own page no member
+ * is named and every row is fair game, which is the case the wide search is for.
+ */
+export function dropDigestsFor(rows: SetMemberRow[], pageDigestB64: string): Set<string> {
+  const named = memberOf({ members: rows }, pageDigestB64);
+  const scope = named ? [named] : rows;
+  const out = new Set<string>();
+  for (const m of scope) { out.add(m.originDigestB64); out.add(m.fusedDigestB64); }
+  return out;
+}
+
 /* ── The commit route's half ── */
 
 export type SetCommitVerdict =

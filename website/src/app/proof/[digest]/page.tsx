@@ -29,7 +29,7 @@ function slotCommitmentOf(proof: unknown): string | null {
     return bytesToBase64(computeSlotCommitment(slot as never)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   } catch { return null; }
 }
-import { SET_KEY, bindSet, bindSetMember, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
+import { SET_KEY, bindSet, bindSetMember, dropDigestsFor, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
@@ -1722,11 +1722,22 @@ function BringYourFile({
         // member's two digests finds it; the verifier then accepts the
         // original by reconstruction or the new file directly.
         if (setBound) {
+          // WHICH member this page is about decides what the drop may accept.
+          // A member's page is reached by that member's own digest, so the
+          // search is scoped to its two digests. Searching every row instead
+          // (473 of them, 946 digests) meant a dropped FOLDER matched whichever
+          // member came first in the walk, which was usually the first file the
+          // set was made from: the page then switched to it, because the held
+          // member outranks the row the URL names. That looked like the page
+          // resetting to the first recorded file (Mike, 2026-09-07).
+          //
+          // The all-rows search survives for the one case that wants it: the
+          // page reached by the SET's own digest, where no member is named and
+          // any member found in the drop is the right answer.
           // set/1: every listed row. set/2: the one member whose evidence came with this copy of the proof.
           const evidenceRow = setBound.kind === "set/2" ? bindSetMember(setBound, memberEvidenceOf(proof as unknown as Record<string, unknown>)) : null;
-          const rows: SetMemberRow[] = setBound.kind === "set/2" ? (evidenceRow ? [evidenceRow] : []) : setBound.members;
-          const digests = new Set<string>();
-          for (const m of rows) { digests.add(m.originDigestB64); digests.add(m.fusedDigestB64); }
+          const allRows: SetMemberRow[] = setBound.kind === "set/2" ? (evidenceRow ? [evidenceRow] : []) : setBound.members;
+          const digests = dropDigestsFor(allRows, cacheKey);
           const hit = Array.isArray(source)
             ? await findAnyMatchInFiles(source, digests)
             : await findAnyMatchInDrop(source, digests);

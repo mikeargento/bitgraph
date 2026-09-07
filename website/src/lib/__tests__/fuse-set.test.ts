@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SET_KEY, attachSetManifests } from "../fuse-set.ts";
+import { SET_KEY, attachSetManifests, dropDigestsFor } from "../fuse-set.ts";
 
 // The batch route sends a member's set proof stripped of its manifest and
 // each distinct set once; the camera puts the manifest back per entry. A
@@ -85,4 +85,34 @@ test("set/2: bindSet binds a root document to the signed digest and the slot; bi
   assert.ok(!asSet1.ok, "a root document under a set/1 title is not a manifest");
   const noMeta = await validateSetCommit({ title: SET2_TITLE, metadata: undefined, digestB64, slot });
   assert.ok(!noMeta.ok && /requires metadata/.test(noMeta.error));
+});
+
+// A drop on a set page: which digests it may match.
+//
+// The bug this pins (Mike, 2026-09-07): on a 473-member set page, dragging in a
+// whole folder matched whichever member the walk reached first, usually the
+// first file the set was made from, and the page switched to it because the
+// held member outranks the row the URL names. It looked like the page resetting
+// to the first recorded file.
+const row = (n: number) => ({ index: n, originDigestB64: `ORIGIN${n}`, fusedDigestB64: `FUSED${n}`, placement: "trailer/1" }) as unknown as Parameters<typeof dropDigestsFor>[0][number];
+const rows = [row(0), row(1), row(2)];
+
+test("a member page searches only that member, by its original OR its new file", () => {
+  for (const [pageDigest, keep] of [["ORIGIN1", 1], ["FUSED1", 1], ["ORIGIN2", 2]] as const) {
+    const d = dropDigestsFor(rows, pageDigest);
+    assert.deepEqual([...d].sort(), [`FUSED${keep}`, `ORIGIN${keep}`], `page ${pageDigest} should search member ${keep} alone`);
+    assert.equal(d.has("ORIGIN0"), false, "another member's original must not be accepted");
+    assert.equal(d.has("FUSED0"), false, "nor its new file");
+  }
+});
+
+test("the set's own page names no member, so every row stays fair game", () => {
+  const d = dropDigestsFor(rows, "THE_MANIFEST_DIGEST");
+  assert.equal(d.size, 6);
+  for (const n of [0, 1, 2]) { assert.equal(d.has(`ORIGIN${n}`), true); assert.equal(d.has(`FUSED${n}`), true); }
+});
+
+test("a set/2 page, whose rows are already the one member with evidence, is unchanged", () => {
+  assert.deepEqual([...dropDigestsFor([row(1)], "ORIGIN1")].sort(), ["FUSED1", "ORIGIN1"]);
+  assert.deepEqual([...dropDigestsFor([row(1)], "THE_MANIFEST_DIGEST")].sort(), ["FUSED1", "ORIGIN1"]);
 });

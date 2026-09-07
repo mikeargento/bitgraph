@@ -14,16 +14,16 @@ test("formats that ignore trailing data take trailer/1", () => {
   assert.equal(placementFor(bytes(0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50)), "trailer/1", "RIFF WebP");
 });
 
-test("everything else takes container/1", () => {
-  assert.equal(placementFor(new TextEncoder().encode("%PDF-1.7\n")), "container/1", "PDF");
-  assert.equal(placementFor(bytes(0x50, 0x4b, 0x03, 0x04)), "container/1", "ZIP, Office, EPUB");
-  assert.equal(placementFor(bytes(0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70)), "container/1", "ISO base media: MP4, MOV, HEIC");
-  assert.equal(placementFor(bytes(0x1a, 0x45, 0xdf, 0xa3)), "container/1", "Matroska, WebM");
-  assert.equal(placementFor(bytes(0x49, 0x44, 0x33)), "container/1", "MP3 with ID3v2");
-  assert.equal(placementFor(new TextEncoder().encode('{"a":1}')), "container/1", "JSON");
-  assert.equal(placementFor(new TextEncoder().encode("<svg xmlns=")), "container/1", "SVG");
-  assert.equal(placementFor(new TextEncoder().encode("# A markdown document\n")), "container/1", "Markdown");
-  assert.equal(placementFor(new Uint8Array(0)), "container/1", "empty");
+test("everything else takes container/2 (the default since 2026-09-05)", () => {
+  assert.equal(placementFor(new TextEncoder().encode("%PDF-1.7\n")), "container/2", "PDF");
+  assert.equal(placementFor(bytes(0x50, 0x4b, 0x03, 0x04)), "container/2", "ZIP, Office, EPUB");
+  assert.equal(placementFor(bytes(0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70)), "container/2", "ISO base media: MP4, MOV, HEIC");
+  assert.equal(placementFor(bytes(0x1a, 0x45, 0xdf, 0xa3)), "container/2", "Matroska, WebM");
+  assert.equal(placementFor(bytes(0x49, 0x44, 0x33)), "container/2", "MP3 with ID3v2");
+  assert.equal(placementFor(new TextEncoder().encode('{"a":1}')), "container/2", "JSON");
+  assert.equal(placementFor(new TextEncoder().encode("<svg xmlns=")), "container/2", "SVG");
+  assert.equal(placementFor(new TextEncoder().encode("# A markdown document\n")), "container/2", "Markdown");
+  assert.equal(placementFor(new Uint8Array(0)), "container/2", "empty");
   assert.equal(toleratesTrailer(new Uint8Array([0x42, 0x4d, 0x00])), false, "a BMP signature without a header is not enough");
 });
 
