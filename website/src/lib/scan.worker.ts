@@ -22,10 +22,11 @@ import { hashBlob } from "./scan-hash";
  * a folder of photos cannot, or eight workers reading hundreds of multi-MB
  * files at once is hundreds of megabytes held for no reason.
  *
- * So the budget is bytes, not files: each tier holds about 4-8MB in flight per
+ * So the budget is bytes, not files: each tier holds a few MB in flight per
  * worker, so at the pool's eight workers the whole scan holds tens of MB
- * whatever the drop is made of. Going from 8 reads to 64 on 48,000 tiny files
- * took the scan from 6.6s to 2.0s (measured 2026-09-07).
+ * whatever the drop is made of. Going from 1 read to 8 on 48,000 tiny files
+ * took the scan from 6.6s to 2.0s (measured 2026-09-07). Going to 64 broke it;
+ * see below.
  *
  * The large-file tiers are also tighter than the flat 8 they replace: eight
  * workers reading eight 4MB files each was 256MB held at once on a photo
@@ -35,8 +36,14 @@ function readsInFlight(files: File[]): number {
   let total = 0;
   for (const f of files) total += f.size;
   const avg = files.length === 0 ? 0 : total / files.length;
-  if (avg <= 64 * 1024) return 64;        // <= 4MB per worker, 32MB across the pool
-  if (avg <= 512 * 1024) return 16;       // <= 8MB per worker, 64MB across the pool
+  // ⚠️ 8, NOT MORE. 64 here was 512 files open at once across the pool and the
+  // scan visibly stuck (Mike, 2026-09-07). Almost certainly handle exhaustion:
+  // a read that fails falls back to re-reading on the main thread, so a wave of
+  // failures turns into 48,000 main-thread reads, which looks exactly like a
+  // hang. 8 a worker is the value that measured 2.0s for 48,000 files; going
+  // wider needs a way to detect the ceiling rather than a bigger guess.
+  if (avg <= 64 * 1024) return 8;         // 64 open across the pool
+  if (avg <= 512 * 1024) return 8;        // <= 4MB per worker, 32MB across the pool
   if (avg <= 4 * 1024 * 1024) return 4;   // <= 16MB per worker
   return 2;                               // big files: a couple at a time
 }
