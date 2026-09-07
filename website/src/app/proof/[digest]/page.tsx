@@ -6,7 +6,7 @@ import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams } from "next/navigation";
 // Nav is in root layout
 import { hashFile, hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
-import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop } from "@/lib/folder-check";
+import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, walkEntries, type CapturedDrop } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
@@ -147,6 +147,12 @@ export default function ProofPage() {
   // The manifest row the file in hand belongs to, when this is a set proof:
   // named by the verifier, which is also what decides the role below.
   const [heldMember, setHeldMember] = useState<SetMemberRow | null>(null);
+  // A set/2 page reached by the SET's own digest has no member list and no
+  // evidence, so a dropped member cannot be recognised locally: there is
+  // nothing to compare it against. The drop asks the ledger instead, and what
+  // comes back is kept here (Mike, 2026-09-07: "it works on home drop but not
+  // proof card drop").
+  const [resolvedMember, setResolvedMember] = useState<SetMemberRow | null>(null);
   useEffect(() => {
     const marker = (proof?.attribution as { name?: string; message?: string } | undefined);
     if (!cachedFile || !proof || marker?.name !== "bitgraph-fuse/1") { setCachedRole(null); setHeldMember(null); return; }
@@ -162,7 +168,6 @@ export default function ProofPage() {
       }).catch(() => { if (!cancelled) { setCachedRole(null); setHeldMember(null); } });
       return () => { cancelled = true; };
     }
-    setHeldMember(null);
     void hashBytes(new Uint8Array(cachedFile.data)).then((h) => {
       if (cancelled) return;
       setCachedRole(h === marker.message ? "original" : h === proof.artifact.digestB64 ? "new" : null);
@@ -574,7 +579,7 @@ export default function ProofPage() {
   // set/1 lists every row; set/2 knows one member, the one whose evidence
   // rode along with this copy of the proof (the lookup that served it).
   const evidenceRow: SetMemberRow | null = setBound?.kind === "set/2" ? bindSetMember(setBound, memberEvidenceOf(asRecord(proof))) : null;
-  const viewingRow: SetMemberRow | null = heldMember ?? (setBound ? (setBound.kind === "set/2" ? evidenceRow : memberOf(setBound, stdDigest(digestParam))) : null);
+  const viewingRow: SetMemberRow | null = heldMember ?? resolvedMember ?? (setBound ? (setBound.kind === "set/2" ? evidenceRow : memberOf(setBound, stdDigest(digestParam))) : null);
   const setRows: SetMemberRow[] = setBound ? (setBound.kind === "set/2" ? (viewingRow ? [viewingRow] : []) : setBound.members) : [];
   const isTee = proof.environment?.enforcement === "measured-tee";
   const ts = (proof.timestamps as Record<string, Record<string, unknown>> | undefined)?.artifact;
@@ -1033,7 +1038,7 @@ export default function ProofPage() {
                 <FileCard cachedFile={cachedFile} />
               ) : (
                 <div style={{ padding: 16 }}>
-                  <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} />
+                  <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} />
                 </div>
               )}
               {/* The fingerprint lives with the file: this SHA-256 IS the file's
@@ -1682,6 +1687,7 @@ function BringYourFile({
   setBound,
   cacheKey,
   onMatch,
+  onResolvedMember,
 }: {
   proof: BitGraphProof;
   /** The bound set manifest when this is a set proof: a drop is searched for
@@ -1692,6 +1698,8 @@ function BringYourFile({
    *  member's digest, which is not the proof's artifact digest. */
   cacheKey: string;
   onMatch: (rec: { name: string; data: ArrayBuffer; c2pa: C2PAReadResult | null; c2paChecked: boolean }) => void;
+  /** A set/2 member the ledger recognised: local matching cannot find one, there being no member list. */
+  onResolvedMember?: (row: SetMemberRow | null) => void;
 }) {
   const [state, setState] = useState<"idle" | "reading" | "checking" | "mismatch">("idle");
   const [dragOver, setDragOver] = useState(false);
@@ -1760,6 +1768,41 @@ function BringYourFile({
             const u = await unpackSetMember(proof, new Uint8Array(await hit.match.arrayBuffer()), hit.match.name, setBound.bytes);
             const c = u.verification.category;
             if (c === "SET_MEMBER_FROM_ORIGIN" || c === "SET_MEMBER_DIRECT") { await accept(hit.match); return; }
+          }
+          // Nothing local could match: a set/2 knows its members only by a
+          // Merkle root, so on the set's own page there is no list to compare
+          // against and every genuine member reported "No match". The ledger
+          // does know, from each member's indexed evidence, so ask it: hash
+          // what was dropped, and take the file whose entry names THIS set.
+          // The evidence that comes back binds against the root before the
+          // page shows anything, so the answer is still verified here.
+          if (digests.size === 0) {
+            const files = Array.isArray(source) ? source : (source.entries ? (await walkEntries(source.entries)).map((w: { file: File }) => w.file) : source.files);
+            const capped = files.slice(0, 2000);
+            const byDigest = new Map<string, File>();
+            for (const f of capped) {
+              const d = await hashFile(f).catch(() => null);
+              if (d) byDigest.set(toUrlSafeB64(d), f);
+            }
+            if (byDigest.size > 0) {
+              try {
+                const r = await fetch("/api/proofs/batch", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ digests: [...byDigest.keys()].slice(0, 500) }),
+                });
+                if (r.ok) {
+                  const answer = (await r.json()) as { results?: Record<string, { proofs?: Array<{ proof?: unknown; setDigest?: string }> }> };
+                  const mine = toUrlSafeB64(proof.artifact.digestB64);
+                  for (const [d, f] of byDigest) {
+                    const entry = answer.results?.[d]?.proofs?.find((p) => p.setDigest === mine || toUrlSafeB64(String((p.proof as { artifact?: { digestB64?: string } })?.artifact?.digestB64 ?? "")) === mine);
+                    if (!entry) continue;
+                    const row = bindSetMember(setBound, memberEvidenceOf(entry.proof as Record<string, unknown>));
+                    if (row) { onResolvedMember?.(row); await accept(f); return; }
+                  }
+                }
+              } catch { /* the ledger is not required to answer; fall through to mismatch */ }
+            }
           }
         }
         // A fused proof's page is reached with the ORIGINAL in hand. Find the
