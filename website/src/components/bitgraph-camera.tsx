@@ -25,7 +25,7 @@
  *     property of ITS strategy, not of the camera.
  */
 
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
 import { FileDrop } from "@/components/file-drop";
@@ -39,7 +39,8 @@ import {
 import type { CommitStrategy } from "@/lib/commit-strategy";
 import { toUrlSafeB64 } from "@/lib/explorer";
 import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
-import { CheckedList, fmtRowWhen, useFileThumbs } from "@/components/folder-list";
+import { CheckedList, fmtRowWhen } from "@/components/folder-list";
+import { useWindowedRows } from "@/components/windowed-rows";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
@@ -58,6 +59,12 @@ import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CH
  * skeptic's drop can verify, exactly as before the table existed.
  */
 /** Digests per lookup request: the batch endpoint's own MAX_DIGESTS. */
+/**
+ * One results line, in pixels. Fixed on purpose: the window over the list is
+ * measured in rows, so a row that grew with its content would put the spacers
+ * and the scrollbar out of step with what is on screen.
+ */
+const RESULT_ROW_H = 34;
 const BATCH_CHUNK = 500;
 /** Lookup requests in flight. Each multiplies the server's S3 fan-out, so this stays modest. */
 const BATCH_IN_FLIGHT = 5;
@@ -450,11 +457,66 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // is represented by the count banner and the "BitGraph N remaining" button,
   // never a blank pending row.
   const shown = items.filter(i => i.status === "found" || i.status === "proved" || i.status === "error");
+  /**
+   * The results list is a receipt, not a browser.
+   *
+   * It used to be one card per file, roughly sixteen elements each, every one
+   * of them mounted. At 30,000 files that is around 400,000 nodes and the
+   * browser freezes (Mike, 2026-09-07). It also repeated one fact 30,000
+   * times: a set is ONE BitGraph, so every member row carries the same
+   * position. Your own machine is where you look at your files, and a file is
+   * found again by dropping its folder in or by the member lookup on the set's
+   * page, so this needs to be legible at thirty thousand lines, not browsable.
+   *
+   * So: one plain line per BitGraph, fixed height, three elements, windowed.
+   * A proof dropped looking for its file is not a line, it carries an
+   * interactive check, so those keep their own block above the list.
+   */
+  /**
+   * The interactive match check belongs to the gesture it was built for: ONE
+   * proof dropped, looking for its file. A folder of recordings carries a
+   * proof.json beside every file, and 2,851 of them rendered 25,659 nodes,
+   * 99% of the page, with the windowed list underneath costing 45 rows
+   * (measured 2026-09-07). Past one, a proof is a line like anything else.
+   */
+  const matching = useMemo(() => {
+    const pj = shown.filter((i) => i.fromProofJson);
+    return pj.length === 1 ? pj : [];
+  }, [shown]);
+  const lines = useMemo(() => {
+    const solo = shown.filter((i) => i.fromProofJson).length === 1;
+    return shown.filter((i) => !(solo && i.fromProofJson)).flatMap((item) => {
+      const ps: Array<BitGraphProof | null> = item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
+      return ps.map((p, k) => ({ item, p, k, of: ps.length }));
+    });
+  }, [shown]);
+  const { ref: resultListRef, first: rowFirst, last: rowLast } = useWindowedRows(lines.length, RESULT_ROW_H);
+
+  /** Open one row's position. Same-tab: the recordings also live in the Ledger. */
+  function openProof(item: FileItem, p: BitGraphProof, k: number) {
+    // Use the proof's digest (from the TEE) for the URL, not the browser's
+    // hash; ?counter=&epoch= pins THIS row's causal position. A set member is
+    // the exception: its proof's digest is the manifest's, one page for N
+    // files, so the row opens by the bytes in hand and the page finds the
+    // cached bytes under exactly the digest it was asked for.
+    const asMember = !!item.setMember || !!item.member?.[k];
+    const proofDigest = asMember && item.digestB64 ? item.digestB64 : p.artifact.digestB64;
+    const c = p.commit?.counter;
+    const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
+    const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
+    // Cache the artifact bytes (and any embedded C2PA manifest) in the
+    // background; the client-side push keeps this JS context alive and the
+    // proof page polls IndexedDB, so navigation never waits on the ~6 MB C2PA
+    // toolkit. For a dropped proof.json the file in hand is the JSON, not the
+    // artifact, so only cache a real file.
+    const artifactFile = item.fromProofJson ? item.matchedFile : item.file;
+    if (artifactFile) void cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+    router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
+  }
   // Tiny thumbs from the dropped bytes, for recognition in the results list
   // (record and check alike): you dropped forty photos, the rows should look
   // like your photos, not forty filenames. For a dropped proof.json the
   // artifact is the matched file, when one was found.
-  const resultThumbs = useFileThumbs(shown.map((it) => (it.fromProofJson ? it.matchedFile : it.file)));
   const allDone = items.length > 0 && items.every(i => i.status === "found" || i.status === "proved");
 
   /* ── Drop → Scan ── */
@@ -2028,161 +2090,93 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
               </div>
               </div>
 
-              {/* File list: one card per file separated by a gap so each file's
-                  set of BitGraphs reads as a distinct block. Within a card,
-                  recordings share hairline separators; the gap between cards is
-                  the file boundary. 10px matches the explorer/Ledger row gap, so
-                  every openable-card surface spaces its cards identically. */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {shown.map((item, i) => {
-                // One row per BitGraph. Chronological, ORIGINAL first: a
-                // file's card reads as its provenance story (first existed at
-                // #N, recorded again at #M), so the earliest causal position
-                // leads and carries the "original" mark. Pending files are not
-                // listed here; an errored file shows a single row.
-                const rowProofs: Array<BitGraphProof | null> =
-                  item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
-                const openProof = (p: BitGraphProof, k: number) => {
-                  // Same-tab navigation: the recordings also live in the explorer/
-                  // Ledger, so leaving this page loses nothing. Use the proof's digest
-                  // (from TEE) for the URL, not the browser-computed hash;
-                  // ?counter=&epoch= pins THIS row's causal position.
-                  // A member of a set is the exception: its proof's digest is the
-                  // manifest's, one page for N files, so the row opens by the bytes
-                  // in hand (the member's origin, or its new file), and the page
-                  // finds the cached bytes under exactly the digest it was asked for.
-                  const asMember = !!item.setMember || !!item.member?.[k];
-                  const proofDigest = asMember && item.digestB64 ? item.digestB64 : p.artifact.digestB64;
-                  const c = p.commit?.counter;
-                  const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
-                  const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}` : "";
-                  // Cache the artifact bytes (and any embedded C2PA manifest) in the
-                  // background; the client-side push keeps this JS context alive and
-                  // the proof page polls IndexedDB, so navigation never waits on the
-                  // ~6 MB C2PA toolkit. For a dropped proof.json the file in hand is
-                  // the JSON, not the artifact, so only cache a real file.
-                  const artifactFile = item.fromProofJson ? item.matchedFile : item.file;
-                  if (artifactFile) {
-                    void cacheArtifactToIDB(artifactFile, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
-                  }
-                  router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
-                };
-                // Rows without a counter yet show their state in the left slot.
-                const pendingLabel =
-                  item.status === "new" ? "Not yet BitGraphed"
-                  : item.status === "proving" ? "BitGraphing…"
-                  : item.status === "error" ? "Error"
-                  : null;
-                // Every recording is the same explorer-style row: the # position
-                // on the left, Open on the right. A file with SEVERAL recordings
-                // (the same bytes BitGraphed again) stacks its rows in the one
-                // card, each labelled "(k of N)" with the earliest marked as the
-                // original, so the group reads as one file's provenance.
-                const proofCount = item.proofs.length || (item.proof ? 1 : 0);
+              {/* A proof dropped looking for its file: not a line, it carries
+                  an interactive check, and you drop one at a time. */}
+              {matching.map((item) => {
+                const p = item.proof ?? null;
+                const counter = p?.commit?.counter;
                 return (
-                  <div key={item.file.name + i} className="bitgraph-file-card" data-clickable={proofCount > 0} style={{ border: "1px solid #d0d5dd", animation: `slideIn 0.2s ease-out ${i * 0.04}s both` }}>
-                  {rowProofs.map((p, k) => {
-                    const clickable = !!p;
-                    const counter = p?.commit?.counter;
-                    return (
-                  <div
-                    key={`${item.file.name}-${counter ?? "pending"}-${k}`}
-                    role={clickable ? "button" : undefined}
-                    tabIndex={clickable ? 0 : undefined}
-                    onClick={clickable ? () => openProof(p, k) : undefined}
-                    onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(p, k); } } : undefined}
-                    className={`bitgraph-result-row${clickable ? " bitgraph-file-row" : ""}`}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: "14px 16px",
-                      // The card boundary + gap separates files; within a card,
-                      // hairlines separate a file's recordings (k > 0).
-                      borderTop: k > 0 ? "1px solid #eef0f1" : "none",
-                      animation: item.status === "proved"
-                        ? `proveReveal 1.1s ease-out ${(i + k) * 0.04}s both`
-                        : undefined,
-                      cursor: clickable ? "pointer" : "default",
-                    }}
-                  >
-                    {/* The file's tiny thumb (or its type label), once per
-                        card on the first row — recognition for a forty-photo
-                        drop, same cell the checked day uses. Later rows of a
-                        multi-recording card keep a spacer so the #s align. */}
-                    {(() => {
-                      const f = item.fromProofJson ? item.matchedFile : item.file;
-                      if (k > 0) return <span style={{ width: 48, flexShrink: 0 }} aria-hidden />;
-                      const thumb = f ? resultThumbs.get(f) : undefined;
-                      const name = f?.name ?? item.file.name;
-                      const ext = name.slice(name.lastIndexOf(".") + 1).toUpperCase().slice(0, 4);
-                      return thumb ? (
-                        <img src={thumb} alt="" style={{ width: 48, height: 48, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e5e9", display: "block" }} />
-                      ) : (
-                        <span style={{ width: 48, height: 48, flexShrink: 0, border: "1px solid #e2e5e9", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#6b7280", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                          {ext}
-                        </span>
-                      );
-                    })()}
-                    {/* Left — the position number (or the pending state for rows
-                        not yet BitGraphed). No "BitGraph" prefix: everything on
-                        this card is one, the # carries it. */}
-                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400, color: counter != null ? "#374151" : item.status === "error" ? "#dc2626" : "#4b5563" }}>
-                      {counter != null
-                        ? <span style={{ fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
-                        : pendingLabel}
-                    </span>
-                    {/* When the same bytes were BitGraphed more than once, place
-                        each row in the sequence "(k of N)" and mark the earliest
-                        (k === 0) as the original. Single recordings show nothing
-                        here, so an ordinary row stays just "# … Open". */}
-                    {(() => {
-                      // One kind of row: the original and the new file find the same
-                      // proof, so a position is a position (Mike, 2026-09-03). With
-                      // more than one, each keeps its ordinal and the earliest says so.
-                      // "original" is reserved for the file a new file was made from.
-                      const count = rowProofs.length;
-                      // A position held as one member of a set says so in the
-                      // same slot: "set of N", one label.
-                      const setOf = item.member?.[k]?.count ?? null;
-                      if (count <= 1 && setOf === null) return null;
-                      const ordinal = count > 1 ? `(${k + 1} of ${count}${k === 0 ? " · earliest" : ""})` : "";
-                      return <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap" }}>{[ordinal, setOf !== null ? `set of ${setOf}` : ""].filter(Boolean).join(" ")}</span>;
-                    })()}
-                    {/* Whose key is on this recording, when one is. Read off
-                        the proof itself, never assumed from the page: a name
-                        appears only when the page is entitled to print one for
-                        that key (/actor, its own); any other actor shows as
-                        its key, and a recording with no actor shows nothing
-                        rather than borrowing this browser's name. */}
-                    {/* Right side matches the ledger's row anatomy: compact
-                        anchor time, then the chevron. Unanchored rows (fresh
-                        recordings) simply leave the time blank. */}
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#4b5563", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                      {fmtRowWhen(item.times?.[k])}
-                    </span>
-                    {clickable && (
-                      <span aria-label="Open" style={{ display: "inline-flex", flexShrink: 0, color: "#0065A4" }}>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
-                      </span>
-                    )}
-                  </div>
-                    );
-                  })}
-                  {item.fromProofJson && item.proof && (
-                    <div style={{ padding: "0 16px 14px" }}>
-                      {item.matchedFile ? (
-                        <div style={{ padding: "12px 14px", border: "1px solid #0065A4", background: "#fff", fontSize: 13, fontWeight: 600, color: "#0065A4", display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontWeight: 700 }}>✓</span>
-                          <span>This file matches the proof. Open to view it.</span>
-                        </div>
-                      ) : (
-                        <FileMatchCheck proof={item.proof} onMatched={(f) => handleMatched(i, f)} />
+                  <div key={`pj-${item.file.name}`} className="bitgraph-file-card" style={{ border: "1px solid #d0d5dd", marginBottom: 10 }}>
+                    <div
+                      role={p ? "button" : undefined}
+                      tabIndex={p ? 0 : undefined}
+                      onClick={p ? () => openProof(item, p, 0) : undefined}
+                      onKeyDown={p ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(item, p, 0); } } : undefined}
+                      className={`bitgraph-result-row${p ? " bitgraph-file-row" : ""}`}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: p ? "pointer" : "default" }}
+                    >
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "#111827" }}>{item.file.name}</span>
+                      {counter != null && (
+                        <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
                       )}
                     </div>
-                  )}
+                    {item.proof && (
+                      <div style={{ padding: "0 16px 14px" }}>
+                        {item.matchedFile ? (
+                          <div style={{ padding: "12px 14px", border: "1px solid #0065A4", background: "#fff", fontSize: 13, fontWeight: 600, color: "#0065A4", display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontWeight: 700 }}>&#10003;</span>
+                            <span>This file matches the proof. Open to view it.</span>
+                          </div>
+                        ) : (
+                          /* Indexed against `items`, which is what handleMatched
+                             reads: the old call passed the filtered list's index,
+                             which was the wrong row whenever anything was still
+                             pending. */
+                          <FileMatchCheck proof={item.proof} onMatched={(f) => handleMatched(items.indexOf(item), f)} />
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
-            </div>
+
+              {/* The list itself: one line per BitGraph, name on the left and
+                  the position it holds on the right. Fixed height, because the
+                  window above and below it is measured in rows. */}
+              {lines.length > 0 && (
+                <div ref={resultListRef} style={{ border: "1px solid #d0d5dd", background: "#ffffff" }}>
+                  <div style={{ height: rowFirst * RESULT_ROW_H }} aria-hidden />
+                  {lines.slice(rowFirst, rowLast).map(({ item, p, k, of }, n) => {
+                    const idx = rowFirst + n;
+                    const counter = p?.commit?.counter;
+                    const clickable = !!p;
+                    const when = fmtRowWhen(item.times?.[k]);
+                    // One line of type on the right: the position, its ordinal
+                    // when the same bytes hold more than one, and the anchor
+                    // time. A row with no position yet says its state there.
+                    const right = counter != null
+                      ? `#${Number(counter).toLocaleString()}${of > 1 ? ` (${k + 1}/${of})` : ""}${when ? ` · ${when}` : ""}`
+                      : item.status === "error" ? "error"
+                      : item.status === "proving" ? "BitGraphing…"
+                      : "not yet BitGraphed";
+                    return (
+                      <div
+                        key={`${item.file.name}-${counter ?? "pending"}-${k}`}
+                        role={clickable ? "button" : undefined}
+                        tabIndex={clickable ? 0 : undefined}
+                        onClick={clickable ? () => openProof(item, p, k) : undefined}
+                        onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProof(item, p, k); } } : undefined}
+                        className={clickable ? "bitgraph-file-row" : undefined}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 12,
+                          height: RESULT_ROW_H, padding: "0 14px", overflow: "hidden",
+                          borderTop: idx > 0 ? "1px solid #eef0f1" : "none",
+                          cursor: clickable ? "pointer" : "default",
+                        }}
+                      >
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "#111827" }}>{item.file.name}</span>
+                        <span style={{
+                          flexShrink: 0, fontSize: 13, fontVariantNumeric: "tabular-nums",
+                          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                          fontWeight: counter != null ? 700 : 400,
+                          color: counter != null ? "#0065A4" : item.status === "error" ? "#dc2626" : "#4b5563",
+                        }}>{right}</span>
+                      </div>
+                    );
+                  })}
+                  <div style={{ height: (lines.length - rowLast) * RESULT_ROW_H }} aria-hidden />
+                </div>
+              )}
             </>)}
 
           </div>
