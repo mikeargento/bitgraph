@@ -40,7 +40,14 @@ export async function POST(req: NextRequest) {
     // be out of date, and then this route does exactly what it always did.
     const index = await digestIndex();
     const toRead = index === null ? unique : unique.filter((d) => !index.absent(fromUrlSafeB64(d)));
-    const skipped = unique.length - toRead.length;
+    // How much the index actually saved. A healthy filter rules out nearly
+    // every digest in a fresh drop; ruling out fewer than half of a large one
+    // is the signature of a filter carrying more entries than it was sized
+    // for, which is exactly how the 2026-09-07 sizing bug hid (correct answers
+    // at 57x the reads). Logged only when it looks wrong, so it stays quiet.
+    if (index !== null && unique.length >= 100 && toRead.length * 2 > unique.length) {
+      console.warn(`[batch] digest index ruled out only ${unique.length - toRead.length}/${unique.length}; the filter may be past its capacity (rebuild it)`);
+    }
     const results: Record<string, {
       proofs: Array<{
         proof: unknown;

@@ -43,6 +43,22 @@ export interface BloomParams {
 }
 
 /** Bits and hashes for n items at false-positive rate p, the standard sizing. */
+/**
+ * The one spelling the filter speaks: padded standard base64.
+ *
+ * by-digest keys are url-safe and unpadded, journals carry whichever form
+ * their writer had, and the route asks with padded standard base64. Everything
+ * is normalised on the way in and on the way out, so any writer's spelling is
+ * admitted and one digest costs exactly one entry. Holding two spellings of
+ * each digest is what put a filter built for a 0.1% false-positive rate at
+ * 5.7% on 2026-09-07: twice the entries in the same bits.
+ */
+export function canon(digest: string): string {
+  let d = digest.replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, "");
+  while (d.length % 4 !== 0) d += "=";
+  return d;
+}
+
 export function bloomParamsFor(n: number, p = 0.001): BloomParams {
   const m = Math.ceil((-n * Math.log(p)) / (Math.LN2 * Math.LN2));
   const k = Math.max(1, Math.round((m / n) * Math.LN2));

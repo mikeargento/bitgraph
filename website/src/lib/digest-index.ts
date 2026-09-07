@@ -35,7 +35,7 @@
  * scripts/build-digest-filter.mjs.
  */
 import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { DigestFilter } from "./digest-filter";
+import { canon, DigestFilter } from "./digest-filter";
 
 const BASE_KEY = "digest-index/filter.bin";
 const META_KEY = "digest-index/meta.json";
@@ -44,6 +44,22 @@ export const JOURNAL_PREFIX = "digest-journal/";
 const LIST_EVERY_MS = 2_000;
 /** A journal this far past the base's cutoff is still folded; older ones are already in the base. */
 const STAMP_WIDTH = 13;
+/** Journal objects read at once while folding. */
+const FOLD_CONCURRENCY = 24;
+/**
+ * The widest journal window a load will pay for, in objects.
+ *
+ * Journals are written on every by-digest write — about 12,000 a day at a 12s
+ * anchor interval — and folding happens inside the request that needed the
+ * index. Past this many the window is too wide to fold in a request, so the
+ * load gives up and the caller does what it did before. That is a slower
+ * lookup, never a wrong one, and it is the signal that compaction has not run:
+ * `node scripts/build-digest-filter.mjs --compact`.
+ */
+const MAX_FOLD_KEYS = 4_000;
+/** After a failed load, hold off this long before paying for another attempt. */
+const RETRY_AFTER_MS = 30_000;
+
 
 export const journalKeyFor = (at = Date.now()): string =>
   `${JOURNAL_PREFIX}${String(at).padStart(STAMP_WIDTH, "0")}-${Math.random().toString(16).slice(2, 8)}.json`;
@@ -61,6 +77,8 @@ interface Loaded {
 // Module scope: one per warm function instance, which is the point.
 let loaded: Loaded | null = null;
 let loading: Promise<Loaded | null> | null = null;
+/** When a failed load may be retried. Without it a broken base is re-downloaded per request. */
+let coldUntil = 0;
 
 function client(): S3Client {
   return new S3Client({ region: process.env.LEDGER_REGION || "us-east-2" });
@@ -77,40 +95,60 @@ async function readAll(s3: S3Client, Bucket: string, Key: string): Promise<Uint8
   }
 }
 
-/** Fold every journal after `lastKey` into the filter. Returns the new last key, or null if the listing failed. */
+/**
+ * Fold every journal after `lastKey` into the filter. Returns the new last
+ * key, or null if the window was too wide or anything could not be read.
+ *
+ * The keys are listed first and read in parallel: read one at a time, a day's
+ * journals cost minutes, and this runs inside a request. Null is always safe
+ * here — it means the caller asks S3 about every digest, as it always did.
+ */
 async function foldJournal(s3: S3Client, Bucket: string, filter: DigestFilter, lastKey: string): Promise<string | null> {
-  let key = lastKey;
+  const keys: string[] = [];
   let token: string | undefined;
   try {
     do {
       const listed = await s3.send(new ListObjectsV2Command({
         Bucket,
         Prefix: JOURNAL_PREFIX,
-        StartAfter: key,
+        StartAfter: lastKey,
         ContinuationToken: token,
         MaxKeys: 1000,
       }));
-      for (const o of listed.Contents ?? []) {
-        if (!o.Key) continue;
-        const bytes = await readAll(s3, Bucket, o.Key);
-        // A journal that cannot be read is a hole in what the filter knows,
-        // and a hole means a rejection might be wrong. Refuse the whole load.
-        if (!bytes) return null;
-        try {
-          const entry = JSON.parse(new TextDecoder().decode(bytes)) as { digests?: unknown };
-          if (!Array.isArray(entry.digests)) return null;
-          for (const d of entry.digests) if (typeof d === "string") filter.add(d);
-        } catch {
-          return null;
-        }
-        key = o.Key;
+      for (const o of listed.Contents ?? []) if (o.Key) keys.push(o.Key);
+      if (keys.length > MAX_FOLD_KEYS) {
+        console.warn(`[digest-index] ${keys.length}+ journals since the base's cutoff; standing down until compaction runs`);
+        return null;
       }
       token = listed.IsTruncated ? listed.NextContinuationToken : undefined;
     } while (token);
-    return key;
   } catch {
     return null;
   }
+  if (keys.length === 0) return lastKey;
+
+  // A journal that cannot be read is a hole in what the filter knows, and a
+  // hole means a rejection might be wrong. One bad read voids the whole load.
+  let next = 0;
+  let ok = true;
+  await Promise.all(Array.from({ length: Math.min(FOLD_CONCURRENCY, keys.length) }, async () => {
+    while (ok && next < keys.length) {
+      const key = keys[next++];
+      const bytes = await readAll(s3, Bucket, key);
+      if (!bytes) { ok = false; return; }
+      try {
+        const entry = JSON.parse(new TextDecoder().decode(bytes)) as { digests?: unknown };
+        if (!Array.isArray(entry.digests)) { ok = false; return; }
+        for (const d of entry.digests) if (typeof d === "string") filter.add(canon(d));
+      } catch {
+        ok = false;
+        return;
+      }
+    }
+  }));
+  // Keys carry a zero-padded millisecond stamp, so the last listed is the
+  // furthest along; only claim it once every earlier one is actually folded.
+  return ok ? keys[keys.length - 1] : null;
 }
 
 async function load(): Promise<Loaded | null> {
@@ -141,21 +179,22 @@ async function load(): Promise<Loaded | null> {
 export async function digestIndex(): Promise<{ absent: (digest: string) => boolean; builtAt: number } | null> {
   if (process.env.DIGEST_INDEX === "off") return null;
   if (loaded === null) {
+    if (Date.now() < coldUntil) return null;
     loading ??= load().finally(() => { loading = null; });
     loaded = await loading;
-    if (loaded === null) return null;
+    if (loaded === null) { coldUntil = Date.now() + RETRY_AFTER_MS; return null; }
   } else if (Date.now() - loaded.listedAt > LIST_EVERY_MS) {
     const Bucket = bucket();
     if (!Bucket) return null;
     const folded = await foldJournal(client(), Bucket, loaded.filter, loaded.lastKey);
     // A failed refresh means the filter may not know about a recent write, so
     // it stops answering rather than answering out of date.
-    if (folded === null) { loaded = null; return null; }
+    if (folded === null) { loaded = null; coldUntil = Date.now() + RETRY_AFTER_MS; return null; }
     loaded.lastKey = folded;
     loaded.listedAt = Date.now();
   }
   const l = loaded;
-  return { absent: (d: string) => !l.filter.has(d), builtAt: l.meta.builtAt };
+  return { absent: (d: string) => !l.filter.has(canon(d)), builtAt: l.meta.builtAt };
 }
 
 /**
@@ -182,4 +221,4 @@ export async function journalDigests(digests: readonly string[]): Promise<void> 
 }
 
 /** Tests only: forget what this instance loaded. */
-export function resetDigestIndex(): void { loaded = null; loading = null; }
+export function resetDigestIndex(): void { loaded = null; loading = null; coldUntil = 0; }
