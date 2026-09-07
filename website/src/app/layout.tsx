@@ -1,11 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
+import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
@@ -54,7 +48,7 @@ import { ScrollToTop } from "@/components/scroll-to-top";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={jetbrainsMono.variable}>
       <head>
         <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
         {/* Runs during parse, before the browser restores scroll. On a reload

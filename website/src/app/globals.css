@@ -22,7 +22,6 @@
   --color-error: #ef4444;
   --color-info: #3b82f6;
   --font-sans: "acumin-pro", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  --font-serif: var(--font-inter), Georgia, serif;
   --font-mono: var(--font-jetbrains-mono), "SF Mono", SFMono-Regular, monospace;
 }
 
