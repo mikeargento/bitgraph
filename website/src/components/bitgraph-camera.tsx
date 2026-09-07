@@ -1211,6 +1211,22 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         let lastPhase = "";
         let lastWalked = -step;
         let since = Date.now();
+        /**
+         * Where the wall clock actually goes, per phase.
+         *
+         * Reasoning from the code got the last one wrong: a phase that blocks
+         * the thread cannot be timed by watching the screen, because the
+         * screen is the thing that stopped. This measures inside the run and
+         * reports afterwards, when painting works again. Shown only with
+         * ?timing=1 on the URL.
+         */
+        const spent = new Map<string, number>();
+        let phaseStart = Date.now();
+        const chargeTo = (ph: string) => {
+          const now = Date.now();
+          spent.set(ph, (spent.get(ph) ?? 0) + (now - phaseStart));
+          phaseStart = now;
+        };
         const out = await heldThroughRotation(() => fuseFiles(set, {
           onProgress: (p) => {
             // ⚠️ The core opens the set's slot BETWEEN the last hash report and
@@ -1228,7 +1244,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             const phase = p.phase === "hash" && p.done >= p.total ? "slot" : p.phase;
             const counts = phase === "hash" || phase === "fuse" || phase === "verify";
             if (phase === lastPhase && counts && p.done < lastWalked + step && p.done < set.length) return;
-            if (phase !== lastPhase) since = Date.now();
+            if (phase !== lastPhase) { if (lastPhase) chargeTo(lastPhase); since = Date.now(); }
             lastPhase = phase;
             lastWalked = p.done;
             // Counted in ROWS of this set, as the bar is: the phases walk
@@ -1248,7 +1264,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             setProvePhase({ phase, done: walked, total: setRows, at, since });
           },
         }));
+        if (lastPhase) chargeTo(lastPhase);
         setProvePhase(null);
+        if (new URLSearchParams(window.location.search).has("timing")) {
+          const parts = [...spent.entries()].map(([k, ms]) => `${k} ${(ms / 1000).toFixed(1)}s`);
+          const total = [...spent.values()].reduce((a, b) => a + b, 0);
+          setRecordMessage(`${set.length} files · ${parts.join(" · ")} · total ${(total / 1000).toFixed(1)}s`);
+        }
         const count = out.members.length;
         // The rows this set covers, and ONLY this set's: the plan holds each
         // digest once, so the set's digests name its rows and a row waiting
