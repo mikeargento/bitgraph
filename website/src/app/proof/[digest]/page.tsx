@@ -511,6 +511,21 @@ export default function ProofPage() {
   // original digest or a member's new-file digest; the row it describes is the
   // file in hand when there is one, else the row the URL digest names.
   const isSet = isSetProof(proof);
+  // Every BitGraph answers the same question, so the page asks it the same way
+  // and only the answer changes: how does this artifact carry the commitment
+  // to the slot it consumed? A fused file carries it in its own bytes, a set
+  // member in each member's bytes, and a digest-only recording (the
+  // compatibility path) does not say. That is a field, not a different page
+  // (Mike, 2026-09-07: "all bitgraphs should render the same way"). The
+  // placement id stays out of it, as it has since 2026-09-03: a verifier
+  // detail, in the attribution and the Raw JSON.
+  const placementId = attr?.name === "bitgraph-fuse/1" ? attr.title ?? null : null;
+  const carriedBy =
+    placementId === null ? "Not declared"
+    : placementId.startsWith("set/") ? "In each member's bytes"
+    : placementId.startsWith("container/") ? "In the file's bytes, in a wrapper"
+    : placementId === "trailer/1" ? "In the file's bytes, appended"
+    : "In the file's bytes";
   // set/1 lists every row; set/2 knows one member, the one whose evidence
   // rode along with this copy of the proof (the lookup that served it).
   const evidenceRow: SetMemberRow | null = setBound?.kind === "set/2" ? bindSetMember(setBound, memberEvidenceOf(asRecord(proof))) : null;
@@ -979,17 +994,10 @@ export default function ProofPage() {
               {/* The fingerprint lives with the file: this SHA-256 IS the file's
                   pre-existing identity. In the no-file state it is also the
                   value a dropped file is checked against. */}
-              {/* A fused artifact (profile bitgraph-fuse/1) carries two hashes:
-                  the original file's, which is what the visitor holds and what
-                  the card above shows, and the new file's, the fused bytes the
-                  proof commits. Both come from the signed proof: the origin
-                  digest from the attribution, the artifact digest from the
-                  commit. The placement is not shown: it is a verifier detail,
-                  in the attribution and the Raw JSON (Mike, 2026-09-03). An
-                  ordinary recording keeps the single File Hash. */}
-              {attr?.name !== "bitgraph-fuse/1" && (
-                <Field label="File Hash" value={proof.artifact.digestB64} mono topBorder />
-              )}
+              {/* The committed digest used to sit here for a recording and in
+                  the Hashes card for a fused artifact, which made one kind of
+                  BitGraph look like a different kind of object. Both now put
+                  every hash in the Hashes card below (Mike, 2026-09-07). */}
               {/* Export — the card's own closing action, in its bottom box.
                   Same link idiom as every other action on the page; it carries
                   a touch more type weight because it is the primary one. */}
@@ -1014,22 +1022,23 @@ export default function ProofPage() {
             {/* A set proof's artifact is the manifest, so its hash is the Set
                 hash. A member (the file in hand, or the row the URL digest
                 names) adds its own two, read from the BOUND manifest. */}
-            {attr?.name === "bitgraph-fuse/1" && (
-              <CollapsibleCard title="Hashes">
-                {isSet ? (
-                  <>
-                    {viewingRow && <Field label="New file hash" value={viewingRow.fusedDigestB64} mono />}
-                    {viewingRow && <Field label="Original file hash" value={viewingRow.originDigestB64} mono />}
-                    <Field label="Set hash" value={proof.artifact.digestB64} mono />
-                  </>
-                ) : (
-                  <>
-                    <Field label="New file hash" value={proof.artifact.digestB64} mono />
-                    <Field label="Original file hash" value={attr.message ?? "not declared"} mono />
-                  </>
-                )}
-              </CollapsibleCard>
-            )}
+            <CollapsibleCard title="Hashes">
+              <Field label="Commitment" value={carriedBy} />
+              {isSet ? (
+                <>
+                  {viewingRow && <Field label="New file hash" value={viewingRow.fusedDigestB64} mono />}
+                  {viewingRow && <Field label="Original file hash" value={viewingRow.originDigestB64} mono />}
+                  <Field label="Set hash" value={proof.artifact.digestB64} mono />
+                </>
+              ) : placementId !== null ? (
+                <>
+                  <Field label="New file hash" value={proof.artifact.digestB64} mono />
+                  <Field label="Original file hash" value={attr?.message ?? "not declared"} mono />
+                </>
+              ) : (
+                <Field label="File hash" value={proof.artifact.digestB64} mono />
+              )}
+            </CollapsibleCard>
             {/* The set's members, in manifest order, from the bound manifest
                 only. Each row is a position-row: ordinal, the placement that
                 carries the commitment, the original's digest. The member in
