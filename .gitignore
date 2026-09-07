@@ -23,3 +23,8 @@ packages/player/PLAN.md
 
 # IAM notes: internal security reasoning, kept local.
 docs/iam/
+
+# Local C2PA dev signing material (a private key lives here). Never commit.
+website/.c2pa-dev/
+# Local dev fixtures served by the dev server only.
+website/public/__dev/

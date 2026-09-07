@@ -936,6 +936,57 @@ export interface FuseMarker {
 }
 
 /** Read the fused marker from a proof's signed attribution, or null when the proof is not marked fused. */
+// ---------------------------------------------------------------------------
+// Carry encodings
+//
+// The marker's title answers one question, "how does this artifact carry the
+// commitment", in either of two vocabularies:
+//
+//   a PLACEMENT id   there is a recipe. The commitment was written into the
+//                    bytes of an existing file, so a holder of the ORIGINAL can
+//                    rebuild the committed artifact byte for byte.
+//   an ENCODING id   there is no recipe and no original. The artifact was MADE
+//                    with the commitment inside it (a prompt, a build id, a
+//                    commit message), so the only thing to do is look for it.
+//
+// These were two profiles for a day, bitgraph-fuse/1 and bitgraph-run/1, which
+// was one idea wearing two names (2026-09-07). A marker whose title is an
+// encoding declares no origin: there is no original to name, and a 32-byte
+// message would otherwise be read as one.
+// ---------------------------------------------------------------------------
+
+/** The commitment as unpadded base64url ASCII, the form a producer pastes into a prompt or a header. */
+export const ENCODING_BASE64URL = "base64url";
+
+const ENCODINGS: readonly string[] = [ENCODING_BASE64URL];
+
+/** True when the marker's title names a carry encoding rather than a placement. */
+export function isCarryEncoding(id: string | null | undefined): boolean {
+  return typeof id === "string" && ENCODINGS.includes(id);
+}
+
+/**
+ * Every byte offset at which the commitment, in the given encoding, occurs in
+ * the artifact. Empty when it is absent.
+ */
+export function findCommitment(bytes: Uint8Array, commitment: Uint8Array, encoding: string): number[] {
+  if (encoding !== ENCODING_BASE64URL) return [];
+  const text = bytesToBase64(commitment).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const needle = new TextEncoder().encode(text);
+  const out: number[] = [];
+  if (needle.length === 0 || needle.length > bytes.length) return out;
+  outer: for (let i = 0; i + needle.length <= bytes.length; i++) {
+    for (let j = 0; j < needle.length; j++) if (bytes[i + j] !== needle[j]) continue outer;
+    out.push(i);
+  }
+  return out;
+}
+
+/** The attribution a producer sends for an artifact made with the commitment inside it. */
+export function inlineAttribution(): { name: string; title: string } {
+  return { name: FUSE_ATTRIBUTION_NAME, title: ENCODING_BASE64URL };
+}
+
 export function readFuseAttribution(proof: BitGraphProof): FuseMarker | null {
   const a = proof.attribution;
   if (a === undefined || a.name !== FUSE_ATTRIBUTION_NAME) return null;

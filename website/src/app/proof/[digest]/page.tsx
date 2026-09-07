@@ -15,7 +15,20 @@ import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/l
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
-import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkRun } from "@/lib/fuse-client";
+import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkInline, isInlineProof } from "@/lib/fuse-client";
+import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64 } from "@mikeargento/bitgraph-verify";
+
+/** Carry encodings this page knows; anything else in the title is a placement. */
+const ENCODING_IDS: string[] = [ENCODING_BASE64URL];
+
+/** The commitment from a proof’s own slot record, base64url, for the row that lets a reader search the file. */
+function slotCommitmentOf(proof: unknown): string | null {
+  const slot = (proof as { slotAllocation?: unknown } | null)?.slotAllocation;
+  if (!slot) return null;
+  try {
+    return bytesToBase64(computeSlotCommitment(slot as never)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  } catch { return null; }
+}
 import { SET_KEY, bindSet, bindSetMember, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
@@ -156,18 +169,18 @@ export default function ProofPage() {
     }).catch(() => { if (!cancelled) setCachedRole(null); });
     return () => { cancelled = true; };
   }, [cachedFile, proof]);
-  // A run proof's marker declares that the commitment sits in the artifact's
-  // own bytes. When the bytes are on this device the page checks that rather
-  // than repeating it: category, and the offset where it actually is. Null
-  // until the check runs, so the row can say which of the two it is showing.
-  const [runFound, setRunFound] = useState<{ category: string; offset: number | null } | null>(null);
+  // An inline marker declares that the commitment sits in the artifact's own
+  // bytes. When the bytes are on this device the page checks that rather than
+  // repeating it: category, the offset where it actually is, and the
+  // commitment recomputed from the proof's own slot record. Null until the
+  // check runs, so the row can say which of the two it is showing.
+  const [inlineFound, setInlineFound] = useState<{ category: string; offset: number | null; commitmentB64: string | null } | null>(null);
   useEffect(() => {
-    const name = (proof?.attribution as { name?: string } | undefined)?.name;
-    if (!cachedFile || !proof || name !== "bitgraph-run/1") { setRunFound(null); return; }
+    if (!cachedFile || !proof || !isInlineProof(proof)) { setInlineFound(null); return; }
     let cancelled = false;
-    void checkRun(proof, new Uint8Array(cachedFile.data))
-      .then((r) => { if (!cancelled) setRunFound({ category: r.category, offset: r.offset }); })
-      .catch(() => { if (!cancelled) setRunFound(null); });
+    void checkInline(proof, new Uint8Array(cachedFile.data))
+      .then((r) => { if (!cancelled) setInlineFound(r); })
+      .catch(() => { if (!cancelled) setInlineFound(null); });
     return () => { cancelled = true; };
   }, [cachedFile, proof]);
 
@@ -534,19 +547,23 @@ export default function ProofPage() {
   // (Mike, 2026-09-07: "all bitgraphs should render the same way"). The
   // placement id stays out of it, as it has since 2026-09-03: a verifier
   // detail, in the attribution and the Raw JSON.
-  const placementId = attr?.name === "bitgraph-fuse/1" ? attr.title ?? null : null;
-  // profile bitgraph-run/1: the artifact was MADE with the commitment in it,
-  // so there is no original and no placement to name. The declared commitment
-  // is shown, which is what lets a reader find it in the bytes themselves.
-  const isRun = attr?.name === "bitgraph-run/1";
-  const runCommitment = isRun && typeof attr?.message === "string" && attr.message.length > 0 ? attr.message : null;
+  // One marker, and its title answers "how is the commitment carried" in either
+  // of two vocabularies: a placement id (a recipe exists, so the artifact
+  // rebuilds from an original) or an encoding id (there is no original; the
+  // artifact was MADE with the commitment inside it, so it is looked for).
+  const carryId = attr?.name === "bitgraph-fuse/1" ? attr.title ?? null : null;
+  const isInline = carryId !== null && ENCODING_IDS.includes(carryId);
+  const placementId = isInline ? null : carryId;
+  // The value to look for. From the check when the file is here; otherwise from
+  // the proof's own slot record, which is where the check gets it too.
+  const inlineCommitment = isInline ? inlineFound?.commitmentB64 ?? slotCommitmentOf(proof) : null;
   const carriedBy =
-    isRun
-      ? runFound === null
+    isInline
+      ? inlineFound === null
         ? "In the artifact's own bytes"
-        : runFound.category === "RUN_CONFIRMED"
-          ? `In the artifact's own bytes, found at byte ${runFound.offset}`
-          : runFound.category === "COMMITMENT_ABSENT"
+        : inlineFound.category === "CARRIED_INLINE"
+          ? `In the artifact's own bytes, found at byte ${inlineFound.offset}`
+          : inlineFound.category === "COMMITMENT_ABSENT"
             ? "Declared, but not present in the file on this device"
             : "Declared, but the file on this device does not verify against this proof"
     : placementId === null ? "Not declared"
@@ -1052,7 +1069,7 @@ export default function ProofPage() {
                 names) adds its own two, read from the BOUND manifest. */}
             <CollapsibleCard title="Hashes">
               <Field label="Commitment" value={carriedBy} />
-              {runCommitment && <Field label="Slot commitment" value={runCommitment} mono />}
+              {inlineCommitment && <Field label="Slot commitment" value={inlineCommitment} mono />}
               {isSet ? (
                 <>
                   {viewingRow && <Field label="New file hash" value={viewingRow.fusedDigestB64} mono />}
@@ -1420,11 +1437,9 @@ export default function ProofPage() {
               the recording by whoever made it. The title slot is a link ONLY
               when it actually holds a URL; agents routinely put prose there,
               which used to render as a link to nowhere. */}
-          {/* A fused proof's attribution is the signed marker, not a person's note:
-              it is read into the two hash lines above and stays in Raw JSON. The
-              same is true of a run's (bitgraph-run/1), which the Hashes card
-              reads instead. */}
-          {attr && !isEth && !isInterval && attr.name !== "bitgraph-fuse/1" && !isRun && (
+          {/* The signed marker is not a person's note: the Hashes card reads it
+              into the lines above and it stays in Raw JSON. */}
+          {attr && !isEth && !isInterval && attr.name !== "bitgraph-fuse/1" && (
             <CollapsibleCard title="Submitter's Note">
               {attr.name && <Field label="Submitted by" value={attr.name} />}
               {attr.message && <Field label="Note" value={attr.message} mono />}

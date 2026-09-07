@@ -73,9 +73,8 @@ export { SET2_PLACEMENT_ID, SET_MEMBER_METADATA_KEY, MAX_SET2_MEMBERS, canonical
 export type { SetRoot, SetMemberProof } from "./fuse.js";
 export { merkleLeafHash, merkleNodeHash, merkleRoot, merklePath, merkleRootFromPath, MerkleTree } from "./fuse-merkle.js";
 
-// BitGraph Run (profile bitgraph-run/1): an artifact MADE with its slot
-// commitment inside it, rather than wrapped around an original afterwards.
-// Fuse rebuilds from an original; a run has none, so the check is that the
-// commitment the enclave signed is present in the committed bytes.
-export { verifyRun, readRunAttribution, runAttribution, RUN_PROFILE, RUN_ENCODING_BASE64URL } from "./run.js";
-export type { RunCategory, RunMarker, RunVerifyResult, RunVerifyOptions } from "./run.js";
+// One marker, two vocabularies for how the commitment is carried: a placement
+// (a recipe exists, rebuild from the original) or an encoding (the artifact was
+// MADE with the commitment inside it, so look for it). verifyFuse handles both;
+// these were briefly two profiles, which was one idea wearing two names.
+export { ENCODING_BASE64URL, isCarryEncoding, findCommitment, inlineAttribution } from "./fuse.js";

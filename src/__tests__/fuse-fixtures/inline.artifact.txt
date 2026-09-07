@@ -1,0 +1,26 @@
+BitGraph token (required, verbatim): Bc0E9IwvkJnFUhJWZd_HWkVLHD8Foo9OC5fG0ug3CjY
+
+The canonical example of an artifact made with its commitment inside it.
+
+There is one marker now, not two. For a day there were two profiles saying the
+same thing in different words, and folding them back is why this file exists.
+The marker's title answers one question, how the commitment is carried, in
+either of two vocabularies. A placement id means a recipe exists: the
+commitment was written into an existing file, so anyone holding the original
+can rebuild the committed artifact byte for byte. An encoding id, base64url
+here, means there is no recipe and no original, because the artifact was made
+with the commitment already in it. Then the only thing to do is look for it,
+which is what a verifier does, and it reports where it found it.
+
+A marker with an encoding declares no origin, because there is nothing to name.
+That also removes a hazard: a 32-byte message in that field would have been
+read as an original file's digest.
+
+What this establishes is the order. These bytes contain a value a sealed
+machine generated before they existed, so they were assembled after it. What it
+does not establish is that the value shaped the writing rather than being
+pasted in at the end, and the verifier prints that limit next to the claim
+rather than leaving it to be inferred.
+
+Written by Claude (Opus 5) at Mike Argento's instruction, on chain
+bitgraph:main.

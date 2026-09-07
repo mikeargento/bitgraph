@@ -20,8 +20,7 @@ import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetMemb
 import { finishState } from "./scan-hash";
 export type { FuseSetProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest, SetMemberProof, SetRoot } from "@mikeargento/bitgraph-verify";
-import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember, verifyRun } from "@mikeargento/bitgraph-verify";
-import type { RunVerifyResult } from "@mikeargento/bitgraph-verify";
+import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, isCarryEncoding, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
 import { MAX_FUSE_BYTES, fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
 import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
 
@@ -30,15 +29,25 @@ import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
 const asVerify = (proof: SiteProof): BitGraphProof => proof as unknown as BitGraphProof;
 const asSite = (proof: BitGraphProof): SiteProof => proof as unknown as SiteProof;
 
+/** True when the marker says the commitment is in the artifact's own bytes rather than placed by a recipe. */
+export function isInlineProof(proof: SiteProof | null | undefined): boolean {
+  if (!proof) return false;
+  const m = readFuseAttribution(asVerify(proof));
+  return m !== null && isCarryEncoding(m.placement);
+}
+
 /**
- * A run proof (profile bitgraph-run/1) says the commitment is inside the
- * artifact's own bytes. With the bytes in hand that stops being a claim and
- * becomes a check: verifyRun re-verifies the proof against them, recomputes
- * the commitment from the proof's own slot record, and locates it. Nothing
- * here touches the network.
+ * An inline marker says the commitment is inside the artifact's own bytes.
+ * With the bytes in hand that stops being a claim and becomes a check:
+ * verifyFuse re-verifies the proof against them, recomputes the commitment
+ * from the proof's own slot record, and locates it. No network.
  */
-export async function checkRun(proof: SiteProof, bytes: Uint8Array): Promise<RunVerifyResult> {
-  return verifyRun({ proof: asVerify(proof), bytes });
+export async function checkInline(proof: SiteProof, bytes: Uint8Array): Promise<{ category: string; offset: number | null; commitmentB64: string | null }> {
+  const r = await verifyFuse({ proof: asVerify(proof), bytes });
+  // base64url, always: this is the string that is IN the artifact, so it has to
+  // be the string a reader can copy out of the page and search the file for.
+  const commitmentB64 = r.slotCommitmentB64 === null ? null : r.slotCommitmentB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return { category: r.category, offset: r.offsets[0] ?? null, commitmentB64 };
 }
 
 export interface FusedOutcome {

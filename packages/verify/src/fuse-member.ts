@@ -341,7 +341,10 @@ export async function verifyFuseMember(opts: FuseMemberOptions): Promise<FuseMem
     slotCommitmentB64: extra.slotCommitmentB64 ?? null,
     span: extra.span ?? null,
     policy: extra.policy ?? { spanExceeded: false, maxPositions: null },
+    offsets: extra.offsets ?? [],
     statements: extra.statements ?? [],
+    limits: [],
+    carriedBy: extra.carriedBy ?? (extra.placement ? { kind: "placement" as const, id: extra.placement } : null),
     reason,
     set: extra.set ?? null,
   });
@@ -467,7 +470,10 @@ export async function verifyFuseMember(opts: FuseMemberOptions): Promise<FuseMem
       slotCommitmentB64,
       span,
       policy,
+      offsets: [],
       statements,
+      limits: [],
+      carriedBy: { kind: "placement" as const, id: placement.id },
       reason: null,
       set: evidence({ index: shown, placement: placement.id, fusedDigestB64: bytesToBase64(row.artifact), originDigestB64: bytesToBase64(row.origin) }),
     };

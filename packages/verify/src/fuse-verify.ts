@@ -31,7 +31,9 @@ import {
   bytesEqual,
   bytesToBase64,
   computeSlotCommitment,
+  findCommitment,
   getPlacement,
+  isCarryEncoding,
   PLACEMENTS,
   mergeMarkers,
   parseFrame,
@@ -43,6 +45,7 @@ import {
 
 export type FuseCategory =
   | "RECORDED"
+  | "CARRIED_INLINE"
   | "FUSED_DIRECT"
   | "FUSED_FROM_ORIGIN"
   | "RECONSTRUCTION_MISMATCH"
@@ -50,6 +53,7 @@ export type FuseCategory =
   | "INVALID_ORIGIN_ATTRIBUTION"
   | "INVALID_UNDERLYING_PROOF"
   | "UNDETERMINED_PLACEMENT"
+  | "COMMITMENT_ABSENT"
   | "NO_MATCH";
 
 export interface FuseSpan {
@@ -77,8 +81,18 @@ export interface FuseVerifyResult {
   span: FuseSpan | null;
   /** Optional span policy (spec 12.1); distinct from cryptographic validity. */
   policy: { spanExceeded: boolean; maxPositions: string | null };
+  /** Byte offsets of the commitment inside the artifact; CARRIED_INLINE only. */
+  offsets: number[];
   /** The bounded statements of spec 10.7, without the wall-clock floor clause. */
   statements: string[];
+  /**
+   * What the result does NOT establish, stated rather than left to inference.
+   * Carried on CARRIED_INLINE, where the gap is real: bytes appended to a
+   * finished file pass the same check as bytes the commitment shaped.
+   */
+  limits: string[];
+  /** How the artifact carries the commitment: a placement (a recipe exists) or an encoding (it does not). */
+  carriedBy: { kind: "placement" | "encoding"; id: string } | null;
   reason: string | null;
 }
 
@@ -141,6 +155,23 @@ function statements(category: FuseCategory, span: FuseSpan | null, originMatched
   return out;
 }
 
+/**
+ * An inline artifact was made with the commitment in it, so there is nothing to
+ * rebuild and nothing to compare an original against. What is established is
+ * the order; what is not established is stated alongside it.
+ */
+function inlineStatements(span: FuseSpan | null, offset: number): string[] {
+  if (span === null) return [];
+  return [
+    `The enclave signed the slot at position ${span.slotCounter} before this artifact's digest reached it.`,
+    `These exact bytes contain that slot's commitment, first at byte ${offset}, so they were assembled after the slot existed and were committed at position ${span.commitCounter}.`,
+  ];
+}
+
+const INLINE_LIMITS = [
+  "Containing the commitment does not show it was an input to the artifact's production: bytes appended to a finished file pass the same check. What the commitment was to the work is the producer's claim, not this result's.",
+];
+
 export async function verifyFuse(opts: FuseVerifyOptions): Promise<FuseVerifyResult> {
   const { proof, bytes } = opts;
   const frame: FuseFrame | null = opts.frame === undefined || opts.frame === null ? null : (parseFrame(opts.frame) ?? null);
@@ -159,7 +190,10 @@ export async function verifyFuse(opts: FuseVerifyOptions): Promise<FuseVerifyRes
     slotCommitmentB64: extra.slotCommitmentB64 ?? null,
     span: extra.span ?? null,
     policy: extra.policy ?? { spanExceeded: false, maxPositions: null },
+    offsets: extra.offsets ?? [],
     statements: extra.statements ?? [],
+    limits: category === "CARRIED_INLINE" ? INLINE_LIMITS : [],
+    carriedBy: extra.carriedBy ?? null,
     reason,
   });
 
@@ -204,6 +238,34 @@ export async function verifyFuse(opts: FuseVerifyOptions): Promise<FuseVerifyRes
       return base("INVALID_SLOT_COMMITMENT", common, `commitment could not be recomputed: ${err instanceof Error ? err.message : String(err)}`);
     }
     const slotCommitmentB64 = bytesToBase64(expected);
+
+    // The title names an encoding, not a placement: no recipe, no original,
+    // so the commitment is looked for rather than rebuilt.
+    if (isCarryEncoding(marker.placement)) {
+      const encoding = marker.placement as string;
+      const carriedBy = { kind: "encoding" as const, id: encoding };
+      if (originDigest !== undefined) {
+        return base(
+          "INVALID_ORIGIN_ATTRIBUTION",
+          { ...common, slotCommitmentB64, carriedBy },
+          "the marker declares an origin, but an artifact made with the commitment inside it has no original",
+        );
+      }
+      const offsets = findCommitment(bytes, expected, encoding);
+      if (offsets.length === 0) {
+        return base(
+          "COMMITMENT_ABSENT",
+          { ...common, slotCommitmentB64, carriedBy },
+          `the artifact's bytes do not contain the commitment in encoding "${encoding}"`,
+        );
+      }
+      return base(
+        "CARRIED_INLINE",
+        { ...common, slotCommitmentB64, carriedBy, offsets, statements: inlineStatements(span, offsets[0]!) },
+        null,
+      );
+    }
+
     let placement = marker.placement === null ? undefined : getPlacement(marker.placement);
     let located = placement === undefined ? null : placement.locate(bytes);
     if (marker.placement === null) {
@@ -241,7 +303,7 @@ export async function verifyFuse(opts: FuseVerifyOptions): Promise<FuseVerifyRes
         originMatched = true;
       }
     }
-    return base("FUSED_DIRECT", { ...common, slotCommitmentB64, placement: placement.id, statements: statements("FUSED_DIRECT", span, originMatched) }, null);
+    return base("FUSED_DIRECT", { ...common, slotCommitmentB64, placement: placement.id, carriedBy: { kind: "placement", id: placement.id }, statements: statements("FUSED_DIRECT", span, originMatched) }, null);
   }
 
   // 4. The file is the original: rebuild the fused bytes.
@@ -272,7 +334,7 @@ export async function verifyFuse(opts: FuseVerifyOptions): Promise<FuseVerifyRes
         continue;
       }
       if (bytesToBase64(sha256(rebuilt)) === artifactDigest) {
-        return base("FUSED_FROM_ORIGIN", { ...common, slotCommitmentB64, placement: p.id, statements: statements("FUSED_FROM_ORIGIN", span, true) }, null);
+        return base("FUSED_FROM_ORIGIN", { ...common, slotCommitmentB64, placement: p.id, carriedBy: { kind: "placement", id: p.id }, statements: statements("FUSED_FROM_ORIGIN", span, true) }, null);
       }
     }
     return base(
