@@ -254,6 +254,8 @@ export interface FusedSet {
   recovered: boolean;
   /** verifyFuse over manifestBytes: FUSED_DIRECT under set/1. */
   verification: FuseVerifyResult;
+  /** Frames given back to the browser during the fuse pass, and what they cost. Diagnostic. */
+  paints?: { count: number; ms: number };
   /** In the order sent. */
   members: FusedSetMember[];
 }
@@ -338,26 +340,29 @@ export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUD
  * pipeline passes through untouched. No fused bytes are kept.
  */
 /**
- * Give the event loop a turn: scheduler.yield() where it exists, a
- * MessageChannel message everywhere else.
+ * Wait for the browser to actually draw a frame.
  *
- * ⚠️ NOT setTimeout. A background or hidden tab throttles timers to about one
- * a second, so a yield that should cost microseconds costs a second, and a
- * pass that yields a couple of hundred times would take minutes instead of
- * seconds. Measured on 2026-09-07: scheduler.yield() 0.008ms, MessageChannel
- * 0.03ms, and sixty setTimeout(0) calls in a hidden tab did not finish inside
- * 45 seconds. A MessageChannel message is a macrotask like a timer is, so the
- * browser gets to paint, without the timer clamp.
+ * ⚠️ THE PRIMITIVE IS THE WHOLE POINT, and I got it wrong twice. setTimeout is
+ * throttled to about one a second in a hidden tab. scheduler.yield() and
+ * MessageChannel are cheap and hand control back to the event loop, but
+ * NEITHER GUARANTEES A PAINT: the browser draws when it decides to. Shipping
+ * those bought all the cost of yielding and none of the visible progress, and
+ * turned a 48,000 member fuse pass into 46s of a 54.6s run (measured on the
+ * live site, 2026-09-07) while still showing a frozen label.
+ *
+ * requestAnimationFrame resolves when a frame is being painted, which is the
+ * actual requirement. It is also self-limiting at the display rate, and it
+ * does not fire at all in a hidden tab, where there is nothing to paint and a
+ * cheap macrotask is the right fallback.
  */
-const yieldToBrowser = (): Promise<void> => {
-  const s = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
-  if (typeof s?.yield === "function") return s.yield();
-  return new Promise<void>((resolve) => {
-    const c = new MessageChannel();
-    c.port1.onmessage = () => { c.port1.close(); resolve(); };
-    c.port2.postMessage(0);
-  });
-};
+const paintFrame = (): Promise<void> =>
+  typeof requestAnimationFrame === "function" && document.visibilityState === "visible"
+    ? new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    : new Promise<void>((resolve) => {
+        const c = new MessageChannel();
+        c.port1.onmessage = () => { c.port1.close(); resolve(); };
+        c.port2.postMessage(0);
+      });
 
 export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; transport?: FuseTransport; onProgress?: (progress: FuseSetProgress) => void; set?: "set/1" | "set/2" } = {}): Promise<FusedSet> {
   if (files.length === 0) throw new FuseError("bad-input", "a set lists at least one file");
@@ -398,12 +403,19 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
    * about 20fps for roughly a second of overhead across a set this size.
    */
   let lastYield = performance.now();
+  // Counted, because the last two attempts at this were argued rather than
+  // measured. fuseFiles reports them so the caller can show what they cost.
+  let yieldCount = 0;
+  let yieldMs = 0;
   const breathe = async (): Promise<void> => {
-    // Time-based, and this gate is what makes the cost safe whatever the
-    // primitive turns out to cost: at most one yield per 50ms of work, so
-    // about twenty a second however long the pass runs.
-    if (performance.now() - lastYield < 50) return;
-    await yieldToBrowser();
+    // A quarter second between frames: four visible updates a second is
+    // plenty to show a count moving, and it keeps the cost to roughly four
+    // frames a second rather than twenty.
+    if (performance.now() - lastYield < 250) return;
+    const t0 = performance.now();
+    await paintFrame();
+    yieldMs += performance.now() - t0;
+    yieldCount++;
     lastYield = performance.now();
   };
 
@@ -470,6 +482,7 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
     recovered: r.recovered,
     verification: r.verification,
     members: out,
+    paints: { count: yieldCount, ms: Math.round(yieldMs) },
   };
 }
 

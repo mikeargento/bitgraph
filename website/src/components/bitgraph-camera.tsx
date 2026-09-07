@@ -1269,7 +1269,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         if (new URLSearchParams(window.location.search).has("timing")) {
           const parts = [...spent.entries()].map(([k, ms]) => `${k} ${(ms / 1000).toFixed(1)}s`);
           const total = [...spent.values()].reduce((a, b) => a + b, 0);
-          setRecordMessage(`${set.length} files · ${parts.join(" · ")} · total ${(total / 1000).toFixed(1)}s`);
+          // What the repainting itself cost, so the next argument about it is
+          // settled by a number rather than by reasoning about primitives.
+          const p = out.paints;
+          const paints = p ? ` · ${p.count} paints ${(p.ms / 1000).toFixed(1)}s` : "";
+          setRecordMessage(`${set.length} files · ${parts.join(" · ")} · total ${(total / 1000).toFixed(1)}s${paints}`);
         }
         const count = out.members.length;
         // The rows this set covers, and ONLY this set's: the plan holds each
