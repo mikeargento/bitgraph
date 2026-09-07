@@ -337,6 +337,28 @@ export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUD
  * is sent once, the first File carrying the member. A FuseError from the
  * pipeline passes through untouched. No fused bytes are kept.
  */
+/**
+ * Give the event loop a turn: scheduler.yield() where it exists, a
+ * MessageChannel message everywhere else.
+ *
+ * ⚠️ NOT setTimeout. A background or hidden tab throttles timers to about one
+ * a second, so a yield that should cost microseconds costs a second, and a
+ * pass that yields a couple of hundred times would take minutes instead of
+ * seconds. Measured on 2026-09-07: scheduler.yield() 0.008ms, MessageChannel
+ * 0.03ms, and sixty setTimeout(0) calls in a hidden tab did not finish inside
+ * 45 seconds. A MessageChannel message is a macrotask like a timer is, so the
+ * browser gets to paint, without the timer clamp.
+ */
+const yieldToBrowser = (): Promise<void> => {
+  const s = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (typeof s?.yield === "function") return s.yield();
+  return new Promise<void>((resolve) => {
+    const c = new MessageChannel();
+    c.port1.onmessage = () => { c.port1.close(); resolve(); };
+    c.port2.postMessage(0);
+  });
+};
+
 export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; transport?: FuseTransport; onProgress?: (progress: FuseSetProgress) => void; set?: "set/1" | "set/2" } = {}): Promise<FusedSet> {
   if (files.length === 0) throw new FuseError("bad-input", "a set lists at least one file");
   // The kind follows the count unless the caller says: the list up to
@@ -356,6 +378,35 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
     seen.add(key);
     sent.push(f);
   }
+  /**
+   * Hand the browser a frame back, now and then.
+   *
+   * ⚠️ WITHOUT THIS THE PAGE FREEZES FOR THE WHOLE FUSE PASS. A member scanned
+   * with its state fuses synchronously: fusedDigest below finishes a saved
+   * hash state and returns a value, not a promise, so the core's `await` on it
+   * resolves as a microtask and the loop never returns to the event loop.
+   * 44,000 of those in a row is twelve seconds in which nothing repaints, no
+   * timer fires and every onProgress update is computed and thrown away
+   * unseen. The page sat on whichever label was painted last, which made the
+   * slot allocation look like it took twelve seconds when it takes 0.19
+   * (Mike, 2026-09-07: "each ONLY showed static ... no indication of progress
+   * between the 2"). The tell was the elapsed counter never appearing: a timer
+   * that cannot tick says the thread is blocked, not that the step is slow.
+   *
+   * Time-based, not every-nth-member: a yield costs a few milliseconds, so
+   * one per member would cost minutes, while one per 50ms of work repaints at
+   * about 20fps for roughly a second of overhead across a set this size.
+   */
+  let lastYield = performance.now();
+  const breathe = async (): Promise<void> => {
+    // Time-based, and this gate is what makes the cost safe whatever the
+    // primitive turns out to cost: at most one yield per 50ms of work, so
+    // about twenty a second however long the pass runs.
+    if (performance.now() - lastYield < 50) return;
+    await yieldToBrowser();
+    lastYield = performance.now();
+  };
+
   const members: CoreSetMember[] = sent.map((f) => {
     const originDigest = base64ToBytes(f.digestB64);
     if (originDigest === null || originDigest.length !== 32) throw new FuseError("bad-input", `${f.file.name}: the scan left no 32-byte digest`);
@@ -364,9 +415,18 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
       const state = f.state;
       const frame = placement.frame.bind(placement);
       const originalSize = f.file.size;
-      return { originDigest, placement: f.placement, name: f.file.name, fusedDigest: ({ commitment }) => finishState(state, frame({ originalSize, originDigest, commitment }).suffix) };
+      return {
+        originDigest, placement: f.placement, name: f.file.name,
+        fusedDigest: async ({ commitment }) => {
+          await breathe();
+          return finishState(state, frame({ originalSize, originDigest, commitment }).suffix);
+        },
+      };
     }
-    return { load: async () => new Uint8Array(await f.file.arrayBuffer()), originDigest, placement: f.placement, name: f.file.name };
+    return {
+      load: async () => { await breathe(); return new Uint8Array(await f.file.arrayBuffer()); },
+      originDigest, placement: f.placement, name: f.file.name,
+    };
   });
   const r = await fuseSet(members, {
     set: setKind,
