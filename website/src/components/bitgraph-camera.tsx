@@ -68,11 +68,17 @@ import { paintFrame, PAINT_EVERY_MS } from "@/lib/paint-frame";
  * drop where 24 will do.
  */
 /**
- * Files per scan-worker round trip. A File posts as a handle, so the batch
- * costs about what one file cost, and the pool's messaging stops being the
- * thing a large drop waits on.
+ * Files per scan-worker round trip.
+ *
+ * The count only advances when a whole batch comes back, so this is also how
+ * chunky the progress looks: at 100 it moved in jumps of a hundred, which
+ * reads as stuck whenever a batch is slow (Mike, 2026-09-07: "seemed like it
+ * was doing 100 at a time"). 25 is four times smoother and costs nothing,
+ * because batching turned out not to be the win it was introduced as: hash
+ * did not move when it went from 1 file a message to 100, and 1,920 messages
+ * for 48,000 files is still far from the 48,000 it replaced.
  */
-const SCAN_BATCH = 100;
+const SCAN_BATCH = 25;
 const BATCH_CHUNK = 2_000;
 /** Lookup requests in flight. Each multiplies the server's S3 fan-out, so this stays modest. */
 const BATCH_IN_FLIGHT = 5;

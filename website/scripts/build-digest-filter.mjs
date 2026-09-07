@@ -2,7 +2,7 @@
  * Build the ledger's digest index: the Bloom filter the lookup consults
  * before touching S3.
  *
- *   node scripts/build-digest-filter.mjs [--fp 0.001] [--stage] [--dry-run]
+ *   node scripts/build-digest-filter.mjs [--fp 0.001] [--capacity N] [--stage] [--dry-run]
  *   node scripts/build-digest-filter.mjs --compact [--stage]
  *   node scripts/build-digest-filter.mjs --activate
  *
@@ -36,6 +36,17 @@ const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
 const dryRun = has("--dry-run"), stage = has("--stage");
 const fp = Number((args[args.indexOf("--fp") + 1] ?? "").trim()) || 0.001;
+/**
+ * Entries the filter is built to hold, overriding the headroom rule below.
+ *
+ * The size of this file is what a cold function instance downloads before it
+ * can answer anything, and that is most of the lookup wait on a big drop:
+ * 3.3s cold against 275ms warm (measured 2026-09-07). Precision past a point
+ * buys nothing, because what a false positive costs is one S3 read: at
+ * capacity 2.2M and fp 0.003 the filter is 3.17MB and a 48,000 file drop pays
+ * 14 extra reads, against 4.33MB and 1 read at the original settings.
+ */
+const capacityArg = Number((args[args.indexOf("--capacity") + 1] ?? "").trim()) || 0;
 
 /**
  * Room to grow before the filter's false-positive rate drifts off target.
@@ -153,7 +164,7 @@ do {
 } while (token);
 console.log(`listed ${keys} keys, ${digests.size} distinct digests in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 
-const capacity = Math.max(Math.ceil(digests.size * HEADROOM), digests.size + 500_000);
+const capacity = capacityArg > 0 ? Math.max(capacityArg, digests.size) : Math.max(Math.ceil(digests.size * HEADROOM), digests.size + 500_000);
 const params = bloomParamsFor(capacity, fp);
 const filter = new DigestFilter(params);
 for (const d of digests) filter.add(d);
