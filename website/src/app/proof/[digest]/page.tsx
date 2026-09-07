@@ -16,7 +16,7 @@ import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkInline, isInlineProof } from "@/lib/fuse-client";
-import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64 } from "@mikeargento/bitgraph-verify";
+import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64, bytesToHex } from "@mikeargento/bitgraph-verify";
 
 /** Carry encodings this page knows; anything else in the title is a placement. */
 const ENCODING_IDS: string[] = [ENCODING_BASE64URL];
@@ -1093,6 +1093,21 @@ export default function ProofPage() {
                 digest, the way the camera opens a member. */}
             {setBound && (
               <CollapsibleCard title={`Set (${setBound.count})`}>
+                {/* A set/2 commits its members by a Merkle root, so the proof
+                    carries no member list: rows exist only for the member whose
+                    evidence came with this copy, or the one whose file is in
+                    hand. With neither, this card used to open on nothing at all
+                    (Mike, 2026-09-07). What the signed artifact DOES hold is the
+                    count and the root, so it says those. */}
+                {setRows.length === 0 && (
+                  <>
+                    <Field label="Members" value={setBound.count.toLocaleString()} />
+                    {setBound.root && <Field label="Set root" value={bytesToHex(setBound.root)} mono />}
+                    <div style={{ padding: "0 16px 12px", fontSize: 12.5, color: "#4b5563" }}>
+                      A member's row comes with the member: drop one of these files above.
+                    </div>
+                  </>
+                )}
                 {setRows.map((m, i) => {
                   const isHeld = viewingRow !== null && viewingRow.index === m.index;
                   const ordinal = setBound.kind === "set/2" ? m.index + 1 : i + 1;
