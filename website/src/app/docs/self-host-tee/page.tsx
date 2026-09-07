@@ -122,22 +122,22 @@ cd bitgraph
 # --reproducible mode, and packs the EIF with a pinned nitro-cli. Requires
 # Docker + git on a linux/amd64 host; Nitro hardware is NOT needed to build the
 # EIF (only to run it). Build the tagged enclave source release: the production
-# enclave is built from the enclave-v7 tag, not necessarily the latest commit.
-./server/commit-service/reproducible-build/build-eif.sh enclave-v7
+# enclave is built from the enclave-v8 tag, not necessarily the latest commit.
+./server/commit-service/reproducible-build/build-eif.sh enclave-v8
 
 # PCR0 is printed at the end and written to eif-out/pcr0.txt.`}</pre>
       </div>
 
       <h2>Step 5: Verify the PCR0 is reproducible</h2>
-      <p>PCR0 is a SHA-384 measurement of the entire EIF, and it is the enclave&apos;s identity that every proof embeds. Because the build above pins all of its inputs, you can prove the build is deterministic: build it twice and confirm the PCR0 is byte-identical, and that it equals the value BitGraph publishes. If it matches, you have independently confirmed the production enclave runs exactly the code at the tagged enclave source release (<code>enclave-v7</code>) in this repository, trusting no one.</p>
+      <p>PCR0 is a SHA-384 measurement of the entire EIF, and it is the enclave&apos;s identity that every proof embeds. Because the build above pins all of its inputs, you can prove the build is deterministic: build it twice and confirm the PCR0 is byte-identical, and that it equals the value BitGraph publishes. If it matches, you have independently confirmed the production enclave runs exactly the code at the tagged enclave source release (<code>enclave-v8</code>) in this repository, trusting no one.</p>
       <div className="code-block">
         <div className="code-block-header">Shell<CopyCode /></div>
         <pre>{`# Build twice from clean state and assert identical PCR0 == the published value:
-./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v7 \\
-  394c3cf515651dc27187d85e4716c12dfeb99c1227f1fe0eacfaa427d80018e1a28ebba9469e99c7936601f901d74e1d
+./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v8 \\
+  eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b
 
 # PASS: two independent builds produced identical PCR0:
-#   394c3cf5...d74e1d
+#   eccfc1c7...05c72b
 # PASS: matches the published PCR0.
 
 # See server/commit-service/reproducible-build/PINS.md for every pinned
@@ -148,7 +148,7 @@ cd bitgraph
         <div style={{ fontSize: 14, fontWeight: 700, color: "#0065A4", marginBottom: 8 }}>BitGraph&apos;s published measurement</div>
         <p style={{ marginTop: 0, marginBottom: 10 }}>The BitGraph enclave image in production measures as:</p>
         <div style={{ fontSize: 12, fontFamily: "var(--font-mono), monospace", wordBreak: "break-all", background: "#fff", border: "1px solid #d0d5dd", padding: "10px 12px", marginBottom: 10 }}>
-          PCR0 394c3cf515651dc27187d85e4716c12dfeb99c1227f1fe0eacfaa427d80018e1a28ebba9469e99c7936601f901d74e1d
+          PCR0 eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b
         </div>
         <p style={{ marginTop: 0, marginBottom: 0, color: "#374151" }}>
           This is the value BitGraph publishes and stands behind. Every proof embeds this measurement, and the &quot;Verify Attestation&quot; check confirms the attestation&apos;s PCR0 matches it. The measurement is <strong>reproducible</strong>: rebuild from this source on any linux/amd64 host with <code>verify-pcr0.sh</code> and you will re-derive exactly this PCR0. (The <code>.eif</code> file itself is not byte-identical between builds, because its header embeds a build timestamp. PCR0 measures the enclave contents, not that header, which is why the measurement is stable while the file hash is not.) You do not have to trust BitGraph&apos;s assertion, you can recompute it yourself. The one input you trust AWS for is their signed enclave kernel, which is what PCR1 independently measures; everything else folded into PCR0 is built from the auditable source in this repository.

@@ -147,7 +147,7 @@ describe("check: real export fixture (disk)", () => {
   it("recognizes the enclave v5 measurement from PINS.md", () => {
     const enclave = report.recordings[0]!.lines.find((l) => l.name === "enclave")!;
     assert.match(enclave.detail, /enclave v5/);
-    assert.equal(KNOWN_ENCLAVE_MEASUREMENTS.length, 6);
+    assert.equal(KNOWN_ENCLAVE_MEASUREMENTS.length, 7);
   });
 
   it("serializes deterministically: no timestamps, no machine paths", async () => {

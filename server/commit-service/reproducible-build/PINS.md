@@ -5,19 +5,23 @@ re-derive the **identical PCR0**. Change any one of these and the PCR0 changes.
 This file is the authoritative record; the `Dockerfile.enclave`, `build-eif.sh`,
 and `eif-builder.Dockerfile` all reference these exact pins.
 
-Last resolved: 2026-09-06 (resolved on the production Nitro host, linux/amd64).
-Source: tag `enclave-v7` (`448e2fdb`).
+Last resolved: 2026-09-07 (resolved on the production Nitro host, linux/amd64).
+Source: tag `enclave-v8` (`3b3568d4`).
 
 ## Published measurement
 
 ```
-PCR0 = 394c3cf515651dc27187d85e4716c12dfeb99c1227f1fe0eacfaa427d80018e1a28ebba9469e99c7936601f901d74e1d
+PCR0 = eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b
 ```
 
-Built **2026-09-06**, and **verified by two independent builds on that date**:
-the pipeline was run twice from a clean context at `448e2fdb` and both produced
+Built **2026-09-07**, and **verified by two independent builds on that date**:
+the pipeline was run twice from a clean context at `3b3568d4` and both produced
 this identical PCR0 (a third, the deliverable build, agreed as well). The source
-change since `enclave-v6` is authenticated anchors: the anchor service signs
+change since `enclave-v7` is the floor gate: on the anchored chain
+(`bitgraph:main`) the enclave refuses to sign a proof whose slot was allocated
+before that epoch's first authenticated anchor, so no proof on that chain can
+lack a floor. Authenticated anchor commits are exempt, which is what lets the
+epoch's first anchor land. The change v7 made over `enclave-v6` was authenticated anchors: the anchor service signs
 its claim with an Ed25519 key whose public half is a constant in
 `src/enclave/app.ts` (`ANCHOR_SERVICE_PUBLIC_KEY_B64`), the enclave verifies
 it and signs `commit.anchor`, refuses the attribution name "Ethereum Anchor"
@@ -38,7 +42,7 @@ Companion measurements of this build:
 
 ```
 PCR1 = 4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493
-PCR2 = 94ec635be77fc5bcf039b13c5170ff067b39f36aad5728bfd3f8abcc1ecbda1040276edcdb95c3d75cf445ead5d21e04
+PCR2 = 36974f9a1f1bc77d01a2b4c6b11242d1e9df042c4797bf70e2f75abf65246a56d2132dc7576d83b7fbb89ecf69a7c990
 ```
 
 PCR1 is unchanged from every prior build: it measures AWS's signed kernel, which
@@ -52,6 +56,7 @@ old proofs to verify.
 
 | PCR0 | Period | Note |
 |------|--------|------|
+| `394c3cf515651dc27187d85e4716c12dfeb99c1227f1fe0eacfaa427d80018e1a28ebba9469e99c7936601f901d74e1d` | 2026-09-06 → 2026-09-07 | v7-repro (`enclave-v7`, `448e2fdb`). Verified by two clean builds 2026-09-06. |
 | `cd8ba52d340fb1be78610b59953ded2ceca23be1cfcc7ab504a26b8fdcd7ba92090f49e28a32d008df046ec4212f77bf` | 2026-09-05 → 2026-09-06 | v6-repro (`enclave-v6`, `30a97c60`). Verified by two clean builds 2026-09-05. |
 | `6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f` | 2026-07-29 → 2026-09-05 | v5-repro (`enclave-v5`, `f8fa324d`). Verified by two clean builds 2026-07-29. |
 | `e2fccbae77ee40aac4830e84f195e05d69eb4547bbd961f4d3459feba10807140424aca42ad03810354982598c86b9cb` | 2026-07-05 → 2026-07-29 | v4-repro, the value production actually ran until this rebuild. **This file did not record it at the time** — see the warning below. |
