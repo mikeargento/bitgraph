@@ -58,22 +58,29 @@ import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CH
  * manifest. Rows that hold the whole proof export a proof.json the
  * skeptic's drop can verify, exactly as before the table existed.
  */
-/** Digests per lookup request: the batch endpoint's own MAX_DIGESTS. */
 /**
- * One results line, in pixels. Fixed on purpose: the window over the list is
- * measured in rows, so a row that grew with its content would put the spacers
- * and the scrollbar out of step with what is on screen.
+ * Digests per lookup request: the batch endpoint's own MAX_DIGESTS.
+ *
+ * 500 until 2026-09-07, from when every digest cost an S3 listing. The digest
+ * index made a ruled-out digest free, and a fresh drop rules out essentially
+ * all of them, so what remained at 500 was 96 round trips for a 48,000 file
+ * drop where 24 will do.
  */
+const BATCH_CHUNK = 2_000;
+/** Lookup requests in flight. Each multiplies the server's S3 fan-out, so this stays modest. */
+const BATCH_IN_FLIGHT = 5;
 /**
  * Set-index chunks in flight. Each one writes SET_INDEX_CHUNK member keys, so
  * this is deliberately small: the lookup path went into S3 throttling at
  * sixteen concurrent readers, and these are writers.
  */
 const SET_INDEX_IN_FLIGHT = 3;
+/**
+ * One results line, in pixels. Fixed on purpose: the window over the list is
+ * measured in rows, so a row that grew with its content would put the spacers
+ * and the scrollbar out of step with what is on screen.
+ */
 const RESULT_ROW_H = 34;
-const BATCH_CHUNK = 500;
-/** Lookup requests in flight. Each multiplies the server's S3 fan-out, so this stays modest. */
-const BATCH_IN_FLIGHT = 5;
 
 function batchAnswer(json: { results?: Record<string, BatchEntry>; sets?: Record<string, Record<string, unknown>> }): Record<string, BatchEntry> {
   const results = json.results || {};

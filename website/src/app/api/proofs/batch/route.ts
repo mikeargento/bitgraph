@@ -4,12 +4,34 @@ import { digestIndex } from "@/lib/digest-index";
 import { fromUrlSafeB64 } from "@/lib/explorer";
 
 export const dynamic = "force-dynamic";
+/**
+ * A request that has to READ every digest it was sent is the slow case: at
+ * CONCURRENCY below, 2,000 reads is roughly 2,000/8 rounds of S3 latency, well
+ * over the platform default. A fresh drop, where the index rules everything
+ * out, returns in about a tenth of a second and never comes near this.
+ */
+export const maxDuration = 60;
 
 // Batch form of GET /api/proofs/[digest]: one round trip for a whole drop.
 // Same lookup, same per-digest payload shape, keyed by the url-safe digest
 // exactly as the caller sent it. Checking N files costs one HTTP round trip
 // instead of N; the S3 fan-out happens here, capped.
-const MAX_DIGESTS = 500;
+/**
+ * Digests one request may carry.
+ *
+ * 500 was calibrated when EVERY digest cost an S3 listing, so the cap was
+ * really a cap on reads. The digest index changed that: a digest the filter
+ * rules out costs nothing at all, and a fresh drop rules out essentially all
+ * of them, so the only remaining cost there is the round trip itself. At 500 a
+ * 48,000 file drop was 96 round trips; at 2,000 it is 24 (Mike, 2026-09-07:
+ * "why does checking only go in chunks of 500").
+ *
+ * The slow case is unchanged rather than made worse: a drop of files that are
+ * all on record still costs one read each at the same CONCURRENCY, so the same
+ * total S3 work happens in fewer, longer requests. That is what maxDuration
+ * above is sized for.
+ */
+const MAX_DIGESTS = 2_000;
 // ⚠️ This multiplies. The viewer keeps three of these requests in flight, so
 // the real S3 fan-out is 3 x CONCURRENCY x (1 listing + n position reads),
 // from one function instance. At 16 a 2000-recording drop pushed the reads
