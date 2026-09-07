@@ -64,6 +64,12 @@ import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CH
  * measured in rows, so a row that grew with its content would put the spacers
  * and the scrollbar out of step with what is on screen.
  */
+/**
+ * Set-index chunks in flight. Each one writes SET_INDEX_CHUNK member keys, so
+ * this is deliberately small: the lookup path went into S3 throttling at
+ * sixteen concurrent readers, and these are writers.
+ */
+const SET_INDEX_IN_FLIGHT = 3;
 const RESULT_ROW_H = 34;
 const BATCH_CHUNK = 500;
 /** Lookup requests in flight. Each multiplies the server's S3 fan-out, so this stays modest. */
@@ -274,25 +280,46 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     let done = 0;
     setIndexProgress({ current: 0, total });
     for (const set of pending) {
-      while (set.members.length > 0) {
-        const chunk = set.members.slice(0, SET_INDEX_CHUNK);
-        let ok = false;
-        for (let attempt = 0; attempt < 2 && !ok; attempt++) {
-          try {
-            const r = await fetch("/api/fuse/set-index", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ setDigest: set.setDigest, epoch: set.epoch, counter: set.counter, members: chunk }) });
-            ok = r.ok;
-          } catch {
-            ok = false;
+      // The chunks are independent: every request re-reads the set from its
+      // own position, re-binds the root document, and each member's evidence
+      // has to recompute that root before it earns a key. Nothing carries
+      // between them, so they go a few at a time rather than one after
+      // another. 100,000 members took 453s strictly sequentially (measured
+      // 2026-09-07); each request also writes 2,500 keys, which is why this
+      // is a small number and not a large one. Sixteen concurrent readers
+      // once pushed S3 into throttling on the lookup path.
+      const chunks: unknown[][] = [];
+      for (let i = 0; i < set.members.length; i += SET_INDEX_CHUNK) chunks.push(set.members.slice(i, i + SET_INDEX_CHUNK));
+      const landed = new Array<boolean>(chunks.length).fill(false);
+      let next = 0;
+      let stopped = false;
+      await Promise.all(Array.from({ length: Math.min(SET_INDEX_IN_FLIGHT, chunks.length) }, async () => {
+        while (!stopped) {
+          const i = next++;
+          if (i >= chunks.length) return;
+          let ok = false;
+          for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+            try {
+              const r = await fetch("/api/fuse/set-index", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ setDigest: set.setDigest, epoch: set.epoch, counter: set.counter, members: chunks[i] }) });
+              ok = r.ok;
+            } catch {
+              ok = false;
+            }
           }
+          // One failure stops the set. The rest of its chunks are left unsent
+          // rather than raced past, so the retry sends exactly what is missing.
+          if (!ok) { stopped = true; return; }
+          landed[i] = true;
+          done += chunks[i].length;
+          setIndexProgress({ current: done, total });
         }
-        if (!ok) {
-          setIndexProgress(null);
-          setRecordMessage(`The set is on the ledger, but ${total - done} of its ${total} files are not yet findable by hash. Indexing stopped; retry below.`);
-          return;
-        }
-        set.members.splice(0, chunk.length);
-        done += chunk.length;
-        setIndexProgress({ current: done, total });
+      }));
+      // Whatever did not land stays pending, in order, for the retry.
+      set.members = chunks.filter((_, i) => !landed[i]).flat();
+      if (stopped) {
+        setIndexProgress(null);
+        setRecordMessage(`The set is on the ledger, but ${total - done} of its ${total} files are not yet findable by hash. Indexing stopped; retry below.`);
+        return;
       }
     }
     pendingIndexRef.current = [];
