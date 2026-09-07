@@ -51,13 +51,14 @@ const toB64 = (b: Uint8Array): string => {
  * state.
  */
 export async function hashChunks(chunks: AsyncIterable<Uint8Array>, size?: number): Promise<ScanHash> {
-  const origin: IHasher = await createSHA256();
+  const origin: IHasher = await takeHasher();
   origin.init();
   // A second hasher runs over prefix and bytes when the prefix is not empty;
   // with an empty prefix the origin hasher's own state is the fused state.
   // (Held in one object: the closures below assign it, which the type
   // checker's narrowing of a plain variable would not see.)
   const run: { fused: IHasher | null; stateless: boolean; placement: SitePlacement | null } = { fused: null, stateless: false, placement: null };
+  try {
   let head: Uint8Array | null = null;
   let bytes = 0;
   const start = async (p: SitePlacement) => {
@@ -65,7 +66,7 @@ export async function hashChunks(chunks: AsyncIterable<Uint8Array>, size?: numbe
     const prefix = size === undefined ? null : getPlacement(p)?.scanPrefix?.(size) ?? null;
     if (prefix === null) run.stateless = true;
     else if (prefix.length > 0) {
-      const h = await createSHA256();
+      const h = await takeHasher();
       h.init();
       h.update(prefix);
       run.fused = h;
@@ -97,6 +98,10 @@ export async function hashChunks(chunks: AsyncIterable<Uint8Array>, size?: numbe
   const state = run.stateless ? null : run.fused !== null ? run.fused.save() : origin.save();
   const digest = origin.digest("binary");
   return { digestB64: toB64(digest), placement: run.placement!, state, bytes };
+  } finally {
+    giveHasher(origin);
+    giveHasher(run.fused);
+  }
 }
 
 /** Hash a Blob or File by streaming it. */
@@ -122,8 +127,40 @@ async function* readChunks(blob: Blob): AsyncIterable<Uint8Array> {
  * suffix for the slot (getPlacement(id).frame({...}).suffix): the hash of
  * prefix, original, suffix, which is exactly the placement's build.
  */
+/**
+ * One hasher, reused.
+ *
+ * ⚠️ THIS USED TO CALL createSHA256() PER MEMBER, and that is what made fusing
+ * a large set take minutes. Node caches the compiled module so a fresh
+ * instance costs 0.03ms there, which is why it never showed up in a bench; a
+ * browser pays a real WebAssembly.instantiate every time. Measured on the live
+ * site 2026-09-07: a 48,000 member set spent 85.3s of a 94.3s run in this
+ * function, 1.78ms a member, which is instantiation and nothing else.
+ *
+ * Reuse is safe because load/update/digest run with no await between them, so
+ * a call owns the instance for its whole sequence however many callers there
+ * are. The promise is cached rather than the hasher so concurrent first calls
+ * cannot each build one.
+ */
+let finisher: Promise<IHasher> | null = null;
+
+/**
+ * Hashers for the scan, returned when a file is done.
+ *
+ * Same instantiation cost as finishState, paid twice per file here (one for
+ * the origin, one for the fused prefix), so a 48,000 file scan built 96,000
+ * WebAssembly instances. Unlike finishState these are held across the whole
+ * read, with awaits throughout, so two scans can overlap and a single shared
+ * instance would corrupt both. A free list reuses what is idle and builds one
+ * only when everything is busy.
+ */
+const idle: IHasher[] = [];
+const takeHasher = async (): Promise<IHasher> => idle.pop() ?? (await createSHA256());
+const giveHasher = (h: IHasher | null): void => { if (h !== null && idle.length < 8) idle.push(h); };
+
 export async function finishState(state: Uint8Array, suffix: Uint8Array): Promise<Uint8Array> {
-  const h = await createSHA256();
+  finisher ??= createSHA256();
+  const h = await finisher;
   h.load(state);
   h.update(suffix);
   return h.digest("binary");
