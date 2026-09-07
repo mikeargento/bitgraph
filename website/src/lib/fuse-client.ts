@@ -20,7 +20,8 @@ import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetMemb
 import { finishState } from "./scan-hash";
 export type { FuseSetProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest, SetMemberProof, SetRoot } from "@mikeargento/bitgraph-verify";
-import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
+import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember, verifyRun } from "@mikeargento/bitgraph-verify";
+import type { RunVerifyResult } from "@mikeargento/bitgraph-verify";
 import { MAX_FUSE_BYTES, fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
 import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
 
@@ -28,6 +29,17 @@ import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
 // package narrows it. Every cast between the two lives in this file.
 const asVerify = (proof: SiteProof): BitGraphProof => proof as unknown as BitGraphProof;
 const asSite = (proof: BitGraphProof): SiteProof => proof as unknown as SiteProof;
+
+/**
+ * A run proof (profile bitgraph-run/1) says the commitment is inside the
+ * artifact's own bytes. With the bytes in hand that stops being a claim and
+ * becomes a check: verifyRun re-verifies the proof against them, recomputes
+ * the commitment from the proof's own slot record, and locates it. Nothing
+ * here touches the network.
+ */
+export async function checkRun(proof: SiteProof, bytes: Uint8Array): Promise<RunVerifyResult> {
+  return verifyRun({ proof: asVerify(proof), bytes });
+}
 
 export interface FusedOutcome {
   placement: SitePlacement;

@@ -15,7 +15,7 @@ import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/l
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
-import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember } from "@/lib/fuse-client";
+import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkRun } from "@/lib/fuse-client";
 import { SET_KEY, bindSet, bindSetMember, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
 import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
@@ -156,6 +156,21 @@ export default function ProofPage() {
     }).catch(() => { if (!cancelled) setCachedRole(null); });
     return () => { cancelled = true; };
   }, [cachedFile, proof]);
+  // A run proof's marker declares that the commitment sits in the artifact's
+  // own bytes. When the bytes are on this device the page checks that rather
+  // than repeating it: category, and the offset where it actually is. Null
+  // until the check runs, so the row can say which of the two it is showing.
+  const [runFound, setRunFound] = useState<{ category: string; offset: number | null } | null>(null);
+  useEffect(() => {
+    const name = (proof?.attribution as { name?: string } | undefined)?.name;
+    if (!cachedFile || !proof || name !== "bitgraph-run/1") { setRunFound(null); return; }
+    let cancelled = false;
+    void checkRun(proof, new Uint8Array(cachedFile.data))
+      .then((r) => { if (!cancelled) setRunFound({ category: r.category, offset: r.offset }); })
+      .catch(() => { if (!cancelled) setRunFound(null); });
+    return () => { cancelled = true; };
+  }, [cachedFile, proof]);
+
   // Export fetches the two ETH anchors and their block-header witnesses before
   // zipping, so it is a real wait, not an instant download. The link reports it.
   const [exporting, setExporting] = useState(false);
@@ -526,7 +541,14 @@ export default function ProofPage() {
   const isRun = attr?.name === "bitgraph-run/1";
   const runCommitment = isRun && typeof attr?.message === "string" && attr.message.length > 0 ? attr.message : null;
   const carriedBy =
-    isRun ? "In the artifact's own bytes"
+    isRun
+      ? runFound === null
+        ? "In the artifact's own bytes"
+        : runFound.category === "RUN_CONFIRMED"
+          ? `In the artifact's own bytes, found at byte ${runFound.offset}`
+          : runFound.category === "COMMITMENT_ABSENT"
+            ? "Declared, but not present in the file on this device"
+            : "Declared, but the file on this device does not verify against this proof"
     : placementId === null ? "Not declared"
     : placementId.startsWith("set/") ? "In each member's bytes"
     : placementId.startsWith("container/") ? "In the file's bytes, in a wrapper"
