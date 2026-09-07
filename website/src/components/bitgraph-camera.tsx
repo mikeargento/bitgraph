@@ -223,6 +223,22 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const [scanPhase, setScanPhase] = useState<"walking" | "reading" | "checking">("reading");
   const [walkCount, setWalkCount] = useState(0);
   const [proveProgress, setProveProgress] = useState({ current: 0, total: 0 });
+  /**
+   * The phase a set is in, while it is in it.
+   *
+   * A set reports five phases and the label used to speak for one of them, so
+   * a 30,000 file set sat on "BitGraphing 0 of 30000" for the whole hash pass
+   * and again through the commit, which reads as hung (Mike, 2026-09-07: "it
+   * stops and hangs"). It never was; the label simply had nothing to say
+   * during the longest parts of the run.
+   *
+   * `at` is where the bar belongs, in rows, counted across the whole drop.
+   * THREE of the five walk every file: hash, fuse and verify. They carry the
+   * bar over one third of the set's span apiece, in the order they run, so it
+   * never jumps back. tree and commit are single steps, so they hold the bar
+   * where fuse left it and say what they are rather than counting to one.
+   */
+  const [provePhase, setProvePhase] = useState<{ phase: "hash" | "fuse" | "tree" | "commit" | "verify"; done: number; total: number; at: number } | null>(null);
   // Bytes per second the last scan hashed, which is this machine's read
   // speed; the set plan sizes what must be read again by it.
   const scanRateRef = useRef<number | null>(null);
@@ -1066,13 +1082,25 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // The bar moves as the set's members are built, in rows: the core
         // hashes every original before the slot is held, builds each member
         // under it, and the count then holds while the one commit is in flight.
+        const setRows = rowsOf(set.map((sf) => sf.digestB64));
         const out = await heldThroughRotation(() => fuseFiles(set, {
           onProgress: (p) => {
-            if (p.phase !== "fuse") return;
-            const built = set.slice(0, p.done).map((sf) => sf.digestB64);
-            setProveProgress({ current: done + rowsOf(built), total: toProve.length });
+            // Counted in ROWS of this set, as the bar is: the phases walk
+            // files, and a file dropped twice is one file to hash and two
+            // rows. A drop that fits one set is the ordinary case and its
+            // counts run to the drop's own total.
+            const walked = rowsOf(set.slice(0, p.done).map((sf) => sf.digestB64));
+            const third = setRows / 3;
+            const at = p.phase === "hash" ? done + walked / 3
+              : p.phase === "fuse" ? done + third + walked / 3
+              : p.phase === "verify" ? done + 2 * third + walked / 3
+              // tree and commit: every member is built and the position is
+              // being taken, so the bar waits where fuse left it.
+              : done + 2 * third;
+            setProvePhase({ phase: p.phase, done: walked, total: setRows, at });
           },
         }));
+        setProvePhase(null);
         const count = out.members.length;
         // The rows this set covers, and ONLY this set's: the plan holds each
         // digest once, so the set's digests name its rows and a row waiting
@@ -1132,6 +1160,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       setRecordMessage(strategy.errorMessage?.(e, "commit") ?? (e instanceof Error ? e.message : null));
       setItems(prev => prev.map(i => i.status === "proving" ? { ...i, status: "new" as const } : i));
     }
+    setProvePhase(null);
     setStep("results");
     if (minted > 0) startAnchorCountdown();
     // An again run gives no row a place it did not have; the count is the rows on record.
@@ -1780,6 +1809,25 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 nothing is moving. */}
             {recordStatus ? (
               <div style={waitLabel}>{recordStatus}…</div>
+            ) : provePhase ? (
+              /* A set says which of its five phases is running. hash, fuse and
+                 verify each walk every file and so carry a count; tree and
+                 commit are one step each and carry only their name, because a
+                 count of one is not progress. The bar spans the three walking
+                 phases in order and holds through the other two, so it never
+                 runs backwards. */
+              <>
+                <div style={waitLabel}>
+                  {provePhase.phase === "hash" ? `Reading ${provePhase.done} of ${provePhase.total}`
+                    : provePhase.phase === "fuse" ? `BitGraphing ${provePhase.done} of ${provePhase.total}`
+                    : provePhase.phase === "verify" ? `Verifying ${provePhase.done} of ${provePhase.total}`
+                    : provePhase.phase === "tree" ? "Building the set…"
+                    : "Committing the set…"}
+                </div>
+                <div style={waitTrack}>
+                  <div style={waitFill(proveProgress.total ? Math.min(100, (provePhase.at / proveProgress.total) * 100) : 0)} />
+                </div>
+              </>
             ) : proveProgress.total > (fuseByDefault ? 1 : 50) ? (
               <>
                 <div style={waitLabel}>BitGraphing {proveAnimCount} of {proveProgress.total}</div>
