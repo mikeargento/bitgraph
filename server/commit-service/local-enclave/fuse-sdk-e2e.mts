@@ -4,7 +4,7 @@ import { startStack } from "./lib.mts";
 import { fuse, builderFor } from "../../../dist/fuse.js";
 import { verifyFuse, assembledAfterCommit } from "../../../packages/verify/dist/index.js";
 
-const stack = await startStack({ quiet: true, parentEnv: { FUSE_ENABLED: "true" } });
+const stack = await startStack({ quiet: true, anchor: true, parentEnv: { FUSE_ENABLED: "true" } });
 let pass = 0;
 const ok = (name: string, cond: boolean, detail?: unknown) => { if (!cond) { console.error("FAIL", name, JSON.stringify(detail ?? "").slice(0, 300)); process.exitCode = 1; } else { pass++; console.log("ok  ", name); } };
 try {
@@ -36,7 +36,7 @@ console.log(`\n${pass} checks passed${process.exitCode ? ", with failures" : ""}
   const { mkdtempSync, writeFileSync, readFileSync, existsSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
-  const stack2 = await startStack({ quiet: true, parentEnv: { FUSE_ENABLED: "true" } });
+  const stack2 = await startStack({ quiet: true, anchor: true, parentEnv: { FUSE_ENABLED: "true" } });
   let cliPass = 0;
   const okc = (name: string, cond: boolean, detail?: unknown) => { if (!cond) { console.error("FAIL", name, String(detail ?? "").slice(0, 400)); process.exitCode = 1; } else { cliPass++; console.log("ok  ", name); } };
   try {

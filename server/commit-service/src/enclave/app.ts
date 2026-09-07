@@ -174,6 +174,10 @@ interface ChainState {
 // ---------------------------------------------------------------------------
 
 const ANCHOR_SERVICE_PUBLIC_KEY_B64 = "L/zyqG3111Y0hEyKF6NIKI4amSvSBBQxGMjdjLa2520=";
+// The chain the anchor service anchors. Enclave v8 refuses to commit a
+// floorless proof on it: see the gate in handleCommit. Every other chain is
+// unanchored by design and unaffected.
+const ANCHORED_CHAIN_ID = "bitgraph:main";
 const ANCHOR_ATTRIBUTION_NAME = "Ethereum Anchor";
 const ANCHOR_MESSAGE_PREFIX = "bitgraph-anchor/1";
 const anchorServicePublicKey = new Uint8Array(Buffer.from(ANCHOR_SERVICE_PUBLIC_KEY_B64, "base64"));
@@ -615,6 +619,30 @@ async function handleCommit(req: {
     anchorMark = await verifyAnchorClaim(req.anchor, digestB64, chainId, chain);
   } else if (req.attribution?.name === ANCHOR_ATTRIBUTION_NAME) {
     throw new Error(`attribution.name "${ANCHOR_ATTRIBUTION_NAME}" is reserved for authenticated anchor commits`);
+  }
+
+  // ── Floor gate (enclave v8) ──
+  // A slot allocated before this epoch's first authenticated anchor carries no
+  // floor, and a proof without a floor is exactly the one an issuer would wait
+  // for: nothing in it bounds the artifact from below in time. So on the
+  // anchored chain the enclave refuses to sign one. The gate reads the SLOT's
+  // floor, not the chain's current state, so waiting for an anchor and then
+  // spending an older slot does not get past it.
+  //
+  // Anchors themselves are exempt, which is what keeps this from deadlocking:
+  // an authenticated anchor claim may always be committed, so the epoch's first
+  // anchor lands and every slot allocated after it has a floor. The cost is a
+  // narrow refusal window at each epoch start (the epoch-cycle script asks the
+  // anchor service for an immediate anchor, so it is a second or two), and a
+  // dependency: if the anchor service is down when an epoch begins, the
+  // anchored chain refuses commits until it returns. That is the intended
+  // trade: no floorless proofs on the chain whose proofs claim floors.
+  if (!anchorMark && chainId === ANCHORED_CHAIN_ID && !slotEntry.anchorAtAllocation) {
+    throw new Error(
+      "no-anchor-floor: this slot was allocated before an authenticated anchor existed on " +
+        `${ANCHORED_CHAIN_ID} in epoch ${epochId.slice(0, 12)}…, so its proof would carry no floor. ` +
+        "Allocate a new slot once an anchor has landed (seconds, at an epoch boundary).",
+    );
   }
 
   // Verify agency — supports single artifact and batch modes.

@@ -395,6 +395,15 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
       anchor: body.anchor,
     });
 
+    // Enclave v8's floor gate: the anchored chain has no anchor yet this epoch,
+    // so a proof made now would carry no floor and the enclave refuses to sign
+    // one. It is a wait, not a fault: 503 with Retry-After, not a 500.
+    if (!commitResult.ok && (commitResult.error ?? "").includes("no-anchor-floor")) {
+      res.setHeader("Retry-After", "15");
+      sendError(res, 503, commitResult.error ?? "no anchor floor yet");
+      return;
+    }
+
     if (!commitResult.ok || !commitResult.data) {
       // A held slot the enclave no longer has: consumed by an earlier
       // commit whose response was lost, expired past the TTL, or wiped by an

@@ -3,7 +3,9 @@
 import { startStack, post, randomDigestB64 } from "./lib.mts";
 import { strict as assert } from "node:assert";
 
-const stack = await startStack({ quiet: true, parentEnv: { RL_ALLOC_PER_IP_CAPACITY: "5", RL_ALLOC_GLOBAL_PER_WINDOW: "100" } });
+// anchor: true lands the epoch's first anchor, which enclave v8 requires before
+// the anchored chain will commit anything (see anchor-v8.mts).
+const stack = await startStack({ quiet: true, anchor: true, parentEnv: { RL_ALLOC_PER_IP_CAPACITY: "5", RL_ALLOC_GLOBAL_PER_WINDOW: "100" } });
 const U = stack.parentUrl;
 let pass = 0;
 const ok = (name: string, cond: boolean, detail?: unknown) => { if (!cond) { console.error("FAIL", name, detail ?? ""); process.exitCode = 1; } else { pass++; console.log("ok  ", name); } };

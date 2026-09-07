@@ -64,13 +64,11 @@ try {
   const { epochId } = (await (await fetch(`${U}/key`)).json()) as { epochId: string };
   assert.ok(epochId);
 
-  // 1. Before any anchor: nothing new on the proof.
-  const p1 = proofOf(await plain());
-  ok("ordinary proof before any anchor has no slotAnchor", p1?.commit && !("slotAnchor" in p1.commit) && !("anchor" in p1.commit), p1?.commit);
-
-  // 2. A slot held from before the first anchor (its floor is fixed now).
-  const held = await post(`${U}/allocate-slot`, { chainId: CHAIN });
-  ok("held slot allocated on the anchored chain", held.status === 200 && typeof held.json?.slotId === "string", held.json);
+  // 1. Before any anchor, a proof on an UNANCHORED chain carries neither field.
+  //    (On the anchored chain, v8's floor gate refuses this commit outright;
+  //    anchor-v8.mts is where that is tested.)
+  const p1 = proofOf(await plain({ chainId: "bitgraph:test" }));
+  ok("proof on an unanchored chain has no slotAnchor", p1?.commit && !("slotAnchor" in p1.commit) && !("anchor" in p1.commit), p1?.commit);
 
   // 3. The reserved name without a claim is refused.
   const r3 = await anchorCommit(100, epochId, { omitAnchor: true });
@@ -86,6 +84,11 @@ try {
   const v4 = await verifyProofIntegrity({ proof: a100 });
   ok("anchor proof verifies (workspace verify)", v4.valid === true, v4);
 
+  // 4b. A slot allocated NOW, while anchor 100 is the latest, to prove later that
+  //     the floor is fixed at allocation and not at commit.
+  const held = await post(`${U}/allocate-slot`, { chainId: CHAIN });
+  ok("slot allocated while anchor 100 is the latest", held.status === 200 && typeof held.json?.slotId === "string", held.json);
+
   // 5. Every slot allocated from now on carries that anchor as its floor.
   const p5 = proofOf(await plain());
   ok("ordinary proof after the anchor carries slotAnchor", p5?.commit?.slotAnchor?.blockNumber === 100 && p5?.commit?.slotAnchor?.blockHash === blockHashFor(100), p5?.commit);
@@ -93,44 +96,46 @@ try {
   const v5 = await verifyProofIntegrity({ proof: p5 });
   ok("floored proof verifies (workspace verify)", v5.valid === true, v5);
 
-  // 6. The held slot from step 2 commits now, but its floor was fixed at
-  //    allocation: no anchor existed then, so no slotAnchor.
+  // 6. A second anchor lands, and only THEN is the held slot spent. Its floor is
+  //    still anchor 100, the latest at the moment it was allocated.
+  const rMid = await anchorCommit(101, epochId);
+  ok("a second anchor lands while the slot is held", rMid.status === 200, rMid.json);
   const r6 = await post(`${U}/commit`, { digests: [{ digestB64: randomDigestB64(), hashAlg: "sha256" }], slotId: held.json.slotId });
   const p6 = proofOf(r6);
-  ok("held slot commits after the anchor", r6.status === 200, r6.json);
-  ok("floor is fixed at allocation, not at commit", p6?.commit && !("slotAnchor" in p6.commit), p6?.commit);
+  ok("held slot commits", r6.status === 200, r6.json);
+  ok("floor is fixed at allocation, not at commit", p6?.commit?.slotAnchor?.blockNumber === 100, p6?.commit?.slotAnchor);
 
   // 7. Negative claims: each refused, and the floor stays at block 100.
   const neg: Array<[string, Promise<{ status: number; json: any }>, RegExp]> = [
-    ["replayed block 100", anchorCommit(100, epochId), /advance/],
+    ["replayed block 101", anchorCommit(101, epochId), /advance/],
     ["block 99 goes backwards", anchorCommit(99, epochId), /advance/],
-    ["signed by another key", anchorCommit(101, epochId, { seed: otherSeed }), /signature/],
-    ["signed for another epoch", anchorCommit(101, epochId, { epochId: "not-this-epoch" }), /signature/],
-    ["signed for another chain", anchorCommit(101, epochId, { chainId: "bitgraph:test" }), /signature/],
-    ["blockNumber altered after signing", anchorCommit(101, epochId, { sentBlockNumber: 102 }), /signature/],
-    ["digest is not SHA-256 of the block hash", anchorCommit(101, epochId, { digestB64: randomDigestB64() }), /SHA-256 of the block hash/],
-    ["uppercase block hash", anchorCommit(101, epochId, { blockHash: blockHashFor(101).toUpperCase().replace("0X", "0x") }), /lowercase/],
-    ["wrong message prefix", anchorCommit(101, epochId, { prefix: "bitgraph-anchor/0" }), /signature/],
+    ["signed by another key", anchorCommit(102, epochId, { seed: otherSeed }), /signature/],
+    ["signed for another epoch", anchorCommit(102, epochId, { epochId: "not-this-epoch" }), /signature/],
+    ["signed for another chain", anchorCommit(102, epochId, { chainId: "bitgraph:test" }), /signature/],
+    ["blockNumber altered after signing", anchorCommit(102, epochId, { sentBlockNumber: 103 }), /signature/],
+    ["digest is not SHA-256 of the block hash", anchorCommit(102, epochId, { digestB64: randomDigestB64() }), /SHA-256 of the block hash/],
+    ["uppercase block hash", anchorCommit(102, epochId, { blockHash: blockHashFor(102).toUpperCase().replace("0X", "0x") }), /lowercase/],
+    ["wrong message prefix", anchorCommit(102, epochId, { prefix: "bitgraph-anchor/0" }), /signature/],
   ];
   for (const [name, p, re] of neg) {
     const r = await p;
     ok(`refused: ${name}`, r.status !== 200 && re.test(errOf(r)), { status: r.status, body: r.json });
   }
   const p7 = proofOf(await plain());
-  ok("floor still block 100 after the refused claims", p7?.commit?.slotAnchor?.blockNumber === 100, p7?.commit?.slotAnchor);
+  ok("floor still block 101 after the refused claims", p7?.commit?.slotAnchor?.blockNumber === 101, p7?.commit?.slotAnchor);
 
-  // 8. The next real anchor: it stands on 100, and everything after stands on it.
-  const r8 = await anchorCommit(101, epochId);
+  // 8. The next real anchor: it stands on 101, and everything after stands on it.
+  const r8 = await anchorCommit(102, epochId);
   const a101 = proofOf(r8);
-  ok("second anchor is 200", r8.status === 200, r8.json);
-  ok("second anchor stands on the first", a101?.commit?.slotAnchor?.blockNumber === 100 && a101?.commit?.anchor?.blockNumber === 101, a101?.commit);
+  ok("third anchor is 200", r8.status === 200, r8.json);
+  ok("that anchor stands on the previous one", a101?.commit?.slotAnchor?.blockNumber === 101 && a101?.commit?.anchor?.blockNumber === 102, a101?.commit);
   const p8 = proofOf(await plain());
-  ok("floor advanced to block 101", p8?.commit?.slotAnchor?.blockNumber === 101 && p8?.commit?.slotAnchor?.counter === a101?.commit?.counter, p8?.commit?.slotAnchor);
+  ok("floor advanced to block 102", p8?.commit?.slotAnchor?.blockNumber === 102 && p8?.commit?.slotAnchor?.counter === a101?.commit?.counter, p8?.commit?.slotAnchor);
 
   // 9. Another chain has its own (empty) anchor state.
   const p9 = proofOf(await plain({ chainId: "bitgraph:test" }));
   ok("unanchored chain carries no floor", p9?.commit && !("slotAnchor" in p9.commit), p9?.commit);
-  const r9 = await anchorCommit(102, epochId, { chainIdBody: "bitgraph:test" });
+  const r9 = await anchorCommit(103, epochId, { chainIdBody: "bitgraph:test" });
   ok("claim signed for main is refused on test chain", r9.status !== 200 && /signature/.test(errOf(r9)), { status: r9.status, body: r9.json });
 
   // 10. Both new fields are signed: tampering breaks the proof.
