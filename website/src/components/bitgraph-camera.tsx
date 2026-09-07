@@ -67,6 +67,12 @@ import { paintFrame, PAINT_EVERY_MS } from "@/lib/paint-frame";
  * all of them, so what remained at 500 was 96 round trips for a 48,000 file
  * drop where 24 will do.
  */
+/**
+ * Files per scan-worker round trip. A File posts as a handle, so the batch
+ * costs about what one file cost, and the pool's messaging stops being the
+ * thing a large drop waits on.
+ */
+const SCAN_BATCH = 100;
 const BATCH_CHUNK = 2_000;
 /** Lookup requests in flight. Each multiplies the server's S3 fan-out, so this stays modest. */
 const BATCH_IN_FLIGHT = 5;
@@ -601,29 +607,52 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     let lastPaint = performance.now();
     const hashWorker = async () => {
       while (nextFile < files.length) {
-        const i = nextFile++;
-        const f = files[i];
-        try {
-          const couldBeProof =
-            f.size <= 1_000_000 &&
-            (f.type === "application/json" || /\.(json|proof)$/i.test(f.name));
-          const proofJson = couldBeProof ? isBitGraphProof(await f.text()) : null;
+        // ⚠️ A WHOLE BATCH PER WORKER ROUND TRIP. One file per message made a
+        // 48,000 file drop 48,000 trips through the pool to hash 57 bytes
+        // apiece, and the messaging was the wait: 2.7MB of content in total
+        // took 6.9s (measured 2026-09-07). A File posts as a handle, so a
+        // hundred cost about what one costs.
+        const from = nextFile;
+        nextFile = Math.min(nextFile + SCAN_BATCH, files.length);
+        const at: number[] = [];
+        const toHash: File[] = [];
+        for (let i = from; i < nextFile; i++) {
+          const f = files[i];
+          // A dropped proof.json is decided here, in the page, and never
+          // reaches the hasher. The size gate stays: reading a multi-MB photo
+          // as TEXT allocates a UTF-16 copy and crashed iOS Safari after ~15.
+          let proofJson: BitGraphProof | null = null;
+          try {
+            const couldBeProof =
+              f.size <= 1_000_000 &&
+              (f.type === "application/json" || /\.(json|proof)$/i.test(f.name));
+            proofJson = couldBeProof ? isBitGraphProof(await f.text()) : null;
+          } catch { proofJson = null; }
           if (proofJson) {
-            const result = await verifyProofSignature(proofJson);
+            const result = await verifyProofSignature(proofJson).catch(() => ({ valid: false }));
             scanned[i] = { f, digest: proofJson.artifact.digestB64, proofJson, valid: result.valid, scan: null };
+            hashed++;
           } else {
-            const r = await pool.hash(f);
-            bytesHashed += r.bytes;
-            scanned[i] = { f, digest: r.digestB64, proofJson: null, valid: null, scan: { placement: r.placement, state: r.state } };
+            at.push(i);
+            toHash.push(f);
           }
-        } catch {
-          const r = await pool.hash(f).catch(() => null);
-          if (r) bytesHashed += r.bytes;
-          scanned[i] = r
-            ? { f, digest: r.digestB64, proofJson: null, valid: null, scan: { placement: r.placement, state: r.state } }
-            : { f, digest: "", proofJson: null, valid: null, scan: null };
         }
-        hashed++;
+        if (toHash.length > 0) {
+          // hashBatch never rejects: a file the worker could not read falls
+          // back to the page, and past that to the native hasher.
+          const rs = await pool.hashBatch(toHash);
+          for (let k = 0; k < at.length; k++) {
+            const i = at[k];
+            const r = rs[k];
+            if (r) {
+              bytesHashed += r.bytes;
+              scanned[i] = { f: files[i], digest: r.digestB64, proofJson: null, valid: null, scan: { placement: r.placement, state: r.state } };
+            } else {
+              scanned[i] = { f: files[i], digest: "", proofJson: null, valid: null, scan: null };
+            }
+            hashed++;
+          }
+        }
         // ⚠️ ON A TIME BUDGET, NOT PER FILE. This used to report progress and
         // yield with setTimeout(0) for every single file: on a 48,000 file
         // drop that is 48,000 React renders and 48,000 timer yields, and a

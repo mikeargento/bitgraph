@@ -7,7 +7,7 @@
  * Browser-only: it makes Workers.
  */
 import { hashBlob, type ScanHash } from "./scan-hash";
-import type { ScanReply, ScanRequest } from "./scan.worker";
+import type { ScanReply, ScanRequest, ScanResult } from "./scan.worker";
 import { placementForBytes } from "@mikeargento/bitgraph";
 import { hashFile } from "./bitgraph";
 
@@ -20,7 +20,7 @@ interface Slot {
   worker: Worker;
   busy: boolean;
   /** The one job in flight on this worker. */
-  job: { id: number; resolve: (r: ScanHash) => void; reject: (e: Error) => void } | null;
+  job: { id: number; resolve: (r: ScanResult[]) => void; reject: (e: Error) => void } | null;
 }
 
 export class ScanPool {
@@ -29,20 +29,48 @@ export class ScanPool {
   private broken = typeof Worker === "undefined";
   private nextId = 1;
 
-  constructor(readonly size: number = scanPoolSize()) {}
+  readonly size: number;
+  // A plain field, not a parameter property: node's type stripping refuses
+  // those, and that alone made this file impossible to exercise from a test.
+  constructor(size: number = scanPoolSize()) { this.size = size; }
 
   /** Hash one file. Never rejects for a hashing failure: the last resort is the native hasher, which leaves no state. */
   async hash(file: File): Promise<ScanHash> {
+    return (await this.hashBatch([file]))[0];
+  }
+
+  /**
+   * Hash many files in ONE worker round trip, answering in the order sent.
+   *
+   * ⚠️ The batch is the point. One file per message made a 48,000 file drop
+   * 48,000 round trips to hash 57 bytes each, and the messaging was the wait:
+   * 2.7MB of content took 6.9s (measured 2026-09-07). Never rejects for a
+   * hashing failure, per file or for the batch: the last resort is the native
+   * hasher, which leaves no state and so costs that file its fast fuse later,
+   * but never the drop.
+   */
+  async hashBatch(files: File[]): Promise<ScanHash[]> {
+    if (files.length === 0) return [];
     if (!this.broken) {
       const slot = await this.acquire();
       if (slot !== null) {
         try {
-          return await this.run(slot, file);
+          const results = await this.run(slot, files);
+          // Loud, not silent: a short or long batch would pair files with
+          // other files' digests, which is worse than any slowness.
+          if (results.length !== files.length) throw new Error(`scan worker answered ${results.length} of ${files.length}`);
+          return await Promise.all(results.map((r, i) => (r.ok
+            ? { digestB64: r.digestB64, placement: r.placement, state: r.state, bytes: r.bytes }
+            : this.inPage(files[i]))));
         } catch {
           this.retire(slot);
         }
       }
     }
+    return Promise.all(files.map((f) => this.inPage(f)));
+  }
+
+  private async inPage(file: File): Promise<ScanHash> {
     try {
       return await hashBlob(file);
     } catch {
@@ -63,7 +91,7 @@ export class ScanPool {
         const job = slot.job;
         if (job === null || e.data.id !== job.id) return;
         slot.job = null;
-        if (e.data.ok) job.resolve({ digestB64: e.data.digestB64, placement: e.data.placement, state: e.data.state, bytes: e.data.bytes });
+        if (e.data.ok) job.resolve(e.data.results);
         else job.reject(new Error(e.data.error));
       };
       worker.onerror = (e) => {
@@ -123,11 +151,11 @@ export class ScanPool {
     }
   }
 
-  private run(slot: Slot, file: File): Promise<ScanHash> {
+  private run(slot: Slot, files: File[]): Promise<ScanResult[]> {
     const id = this.nextId++;
-    return new Promise<ScanHash>((resolve, reject) => {
+    return new Promise<ScanResult[]>((resolve, reject) => {
       slot.job = { id, resolve, reject };
-      const request: ScanRequest = { id, file };
+      const request: ScanRequest = { id, files };
       slot.worker.postMessage(request);
     }).finally(() => {
       if (this.slots.includes(slot)) this.release(slot);
