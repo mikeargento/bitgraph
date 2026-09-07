@@ -44,19 +44,28 @@ export const JOURNAL_PREFIX = "digest-journal/";
 const LIST_EVERY_MS = 2_000;
 /** A journal this far past the base's cutoff is still folded; older ones are already in the base. */
 const STAMP_WIDTH = 13;
-/** Journal objects read at once while folding. */
-const FOLD_CONCURRENCY = 24;
+/**
+ * Journal objects read at once while folding. Measured against the real
+ * ledger on 2026-09-07: 24 gave 353 journals a second, 48 gave 606.
+ */
+const FOLD_CONCURRENCY = 48;
 /**
  * The widest journal window a load will pay for, in objects.
  *
- * Journals are written on every by-digest write — about 12,000 a day at a 12s
- * anchor interval — and folding happens inside the request that needed the
- * index. Past this many the window is too wide to fold in a request, so the
- * load gives up and the caller does what it did before. That is a slower
- * lookup, never a wrong one, and it is the signal that compaction has not run:
- * `node scripts/build-digest-filter.mjs --compact`.
+ * Journals are written on every by-digest write, and folding happens inside
+ * the request that needed the index, so this is a latency budget and not a
+ * capacity: at 606 journals a second (measured 2026-09-07) 1,500 costs about
+ * two and a half seconds, and 4,000, where this started, would have cost
+ * eleven. Past the cap the load gives up and the caller does what it did
+ * before, which is a slower lookup and never a wrong one.
+ *
+ * Reaching it means compaction has not run:
+ *   node scripts/build-digest-filter.mjs --compact
+ * How long that takes is entirely the anchor interval. At the 12s interval
+ * used for testing, two writers journal every anchor and the window reaches
+ * this in a couple of hours; at the ordinary hourly interval, months.
  */
-const MAX_FOLD_KEYS = 4_000;
+const MAX_FOLD_KEYS = 1_500;
 /** After a failed load, hold off this long before paying for another attempt. */
 const RETRY_AFTER_MS = 30_000;
 
