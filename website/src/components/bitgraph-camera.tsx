@@ -251,7 +251,18 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
    * never jumps back. tree and commit are single steps, so they hold the bar
    * where fuse left it and say what they are rather than counting to one.
    */
-  const [provePhase, setProvePhase] = useState<{ phase: "hash" | "slot" | "fuse" | "tree" | "commit" | "verify"; done: number; total: number; at: number } | null>(null);
+  const [provePhase, setProvePhase] = useState<{ phase: "hash" | "slot" | "fuse" | "tree" | "commit" | "verify"; done: number; total: number; at: number; since: number } | null>(null);
+  /**
+   * Seconds the current phase has been running, for the ones that cannot
+   * count. A spinner over a fixed label says a thing is happening; it does not
+   * say the thing is still happening (Mike, 2026-09-07, on 35,000 files: "it
+   * just stays on holding a slot for a while with no indication of what's
+   * happening"). A number that moves is the difference, and it is also the
+   * only way to find out which step is actually slow: the slot allocation
+   * itself measures 0.19s against production, so a long wait here is
+   * something else wearing its name.
+   */
+  const [phaseSeconds, setPhaseSeconds] = useState(0);
   // Bytes per second the last scan hashed, which is this machine's read
   // speed; the set plan sizes what must be read again by it.
   const scanRateRef = useRef<number | null>(null);
@@ -406,6 +417,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     if (pending?.length) void handleFiles(pending);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The elapsed clock for a phase that has nothing to count.
+  const phaseSince = provePhase?.since ?? 0;
+  useEffect(() => {
+    if (!phaseSince) return;
+    const tick = () => setPhaseSeconds(Math.floor((Date.now() - phaseSince) / 1000));
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [phaseSince]);
 
   // Smooth-tick the displayed proving counter toward each chunk's real value.
   // The TEE signs atomically per chunk, so the truthful count only updates every
@@ -1190,6 +1210,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         const step = Math.max(1, Math.floor(setRows / 200));
         let lastPhase = "";
         let lastWalked = -step;
+        let since = Date.now();
         const out = await heldThroughRotation(() => fuseFiles(set, {
           onProgress: (p) => {
             // ⚠️ The core opens the set's slot BETWEEN the last hash report and
@@ -1207,6 +1228,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             const phase = p.phase === "hash" && p.done >= p.total ? "slot" : p.phase;
             const counts = phase === "hash" || phase === "fuse" || phase === "verify";
             if (phase === lastPhase && counts && p.done < lastWalked + step && p.done < set.length) return;
+            if (phase !== lastPhase) since = Date.now();
             lastPhase = phase;
             lastWalked = p.done;
             // Counted in ROWS of this set, as the bar is: the phases walk
@@ -1223,7 +1245,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
               // tree and commit: every member is built and the position is
               // being taken, so the bar waits where fuse left it.
               : done + 2 * third;
-            setProvePhase({ phase, done: walked, total: setRows, at });
+            setProvePhase({ phase, done: walked, total: setRows, at, since });
           },
         }));
         setProvePhase(null);
@@ -1944,12 +1966,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                  backwards. */
               <>
                 <div style={waitLabel}>
-                  {provePhase.phase === "slot" ? "Holding a slot…"
-                    : provePhase.phase === "hash" ? `Reading ${provePhase.done} of ${provePhase.total}`
+                  {provePhase.phase === "hash" ? `Reading ${provePhase.done} of ${provePhase.total}`
                     : provePhase.phase === "fuse" ? `BitGraphing ${provePhase.done} of ${provePhase.total}`
                     : provePhase.phase === "verify" ? `Verifying ${provePhase.done} of ${provePhase.total}`
-                    : provePhase.phase === "tree" ? "Building the set…"
-                    : "Committing the set…"}
+                    : /* The three that cannot count say how long they have been
+                         at it instead, once it is long enough to wonder. */
+                      `${provePhase.phase === "slot" ? "Holding a slot" : provePhase.phase === "tree" ? "Building the set" : "Committing the set"}…${phaseSeconds >= 3 ? ` ${phaseSeconds}s` : ""}`}
                 </div>
                 <div style={waitTrack}>
                   <div style={waitFill(proveProgress.total ? Math.min(100, (provePhase.at / proveProgress.total) * 100) : 0)} />
