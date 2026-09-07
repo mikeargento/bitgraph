@@ -57,6 +57,11 @@ import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CH
  * manifest. Rows that hold the whole proof export a proof.json the
  * skeptic's drop can verify, exactly as before the table existed.
  */
+/** Digests per lookup request: the batch endpoint's own MAX_DIGESTS. */
+const BATCH_CHUNK = 500;
+/** Lookup requests in flight. Each multiplies the server's S3 fan-out, so this stays modest. */
+const BATCH_IN_FLIGHT = 5;
+
 function batchAnswer(json: { results?: Record<string, BatchEntry>; sets?: Record<string, Record<string, unknown>> }): Record<string, BatchEntry> {
   const results = json.results || {};
   attachSetManifests(results as unknown as Parameters<typeof attachSetManifests>[0], json.sets);
@@ -496,9 +501,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
 
     // Phase 2 — batched ledger lookup. Small drops are ONE round trip (the
     // old one-request-per-file loop was the whole wait); large drops are
-    // chunked 50 digests per request, same rhythm as recording, so the wait
-    // shows REAL progress instead of an uncounted spinner. Falls back to the
-    // per-digest endpoint, parallelized, if the batch endpoint is unavailable.
+    // chunked, so the wait shows REAL progress instead of an uncounted
+    // spinner. Falls back to the per-digest endpoint, parallelized, if the
+    // batch endpoint is unavailable.
+    //
+    // 500 per request, five in flight, measured against a real 30,000-file
+    // folder on 2026-09-07: 50x3 took 99s, 500x3 took 79s, 500x5 took 53s.
+    // 500 is the endpoint's own MAX_DIGESTS. Five is deliberately short of
+    // what the server's S3 fan-out will bear: its own concurrency was cut
+    // from 16 to 8 because a large drop pushed the reads into throttling, and
+    // the client multiplies that. The remaining cost is one S3 listing per
+    // digest, which no client-side batching can remove.
     const lookupKeys = [...new Set(
       scanned.filter((s) => !s.proofJson && s.digest).map((s) => toUrlSafeB64(s.digest)),
     )];
@@ -507,10 +520,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     setScanPhase("checking");
     if (lookupKeys.length) {
       try {
-        if (lookupKeys.length > 50) {
+        if (lookupKeys.length > BATCH_CHUNK) {
           setCheckProgress({ current: 0, total: lookupKeys.length });
           const chunks: string[][] = [];
-          for (let i = 0; i < lookupKeys.length; i += 50) chunks.push(lookupKeys.slice(i, i + 50));
+          for (let i = 0; i < lookupKeys.length; i += BATCH_CHUNK) chunks.push(lookupKeys.slice(i, i + BATCH_CHUNK));
           let done = 0;
           let nextChunk = 0;
           const chunkWorker = async () => {
@@ -527,7 +540,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
               setCheckProgress({ current: done, total: lookupKeys.length });
             }
           };
-          await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, chunkWorker));
+          await Promise.all(Array.from({ length: Math.min(BATCH_IN_FLIGHT, chunks.length) }, chunkWorker));
         } else {
           const r = await fetch("/api/proofs/batch", {
             method: "POST",
