@@ -316,6 +316,8 @@ export async function storeProofByDigest(proof: Record<string, unknown>, priorLe
     const originDigest = fusedOriginDigestOf(proof);
     const c = proof.commit as { epochId?: string; counter?: string } | undefined;
     if (originDigest !== null && originDigest !== artifact.digestB64 && c?.epochId && c?.counter) {
+      // The origin earns a key too, so the index has to hear about it as well.
+      await journalDigests([originDigest]);
       puts.push(s3.send(new PutObjectCommand({
         Bucket: bucket,
         Key: `by-digest/${toSafe(originDigest)}/${toSafe(c.epochId)}-${String(c.counter).padStart(12, "0")}.json`,

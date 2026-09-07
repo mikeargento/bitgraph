@@ -98,6 +98,7 @@ async function persistAnchor(
     // By-digest index (artifact hash → proof). Legacy single-object key.
     const artifact = proof.artifact as { digestB64: string };
     const safeDigest = artifact.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    await journalDigests({ client: s3, PutObjectCommand } as unknown as S3Ops, bucket, [artifact.digestB64, safeDigest]);
     await s3.send(new PutObjectCommand({
       Bucket: bucket,
       Key: `by-digest/${safeDigest}.json`,
@@ -636,6 +637,35 @@ async function commitAnchor(block: EthBlock): Promise<{ proof: unknown; digestB6
   } catch (err) {
     console.error("[eth-anchor] TEE commit failed:", (err as Error).message);
     return null;
+  }
+}
+
+/* ── Digest index journal ── */
+
+/**
+ * Tell the digest index about digests this service is about to index.
+ *
+ * The site's lookup answers "certainly not on record" from a Bloom filter
+ * rather than an S3 listing per digest, and the only way that answer can be
+ * wrong is if the filter never heard about a write. Anchors are written from
+ * here, not from the site, so they journal from here. Written BEFORE the keys
+ * for the same reason the site does it that way: a journal entry with no key
+ * behind it costs one wasted read, a key with no journal entry is a wrong
+ * answer. Best effort, and loud when it fails.
+ */
+async function journalDigests(ops: S3Ops, bucket: string, digests: readonly string[]): Promise<void> {
+  if (digests.length === 0) return;
+  const at = Date.now();
+  const key = `digest-journal/${String(at).padStart(13, "0")}-${Math.random().toString(16).slice(2, 8)}.json`;
+  try {
+    await ops.client.send(new ops.PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: JSON.stringify({ at, digests: [...new Set(digests)] }),
+      ContentType: "application/json",
+    }));
+  } catch (err) {
+    console.error("[eth-anchor] digest journal write failed; the site's index may not know this anchor until the next rebuild:", (err as Error).message);
   }
 }
 

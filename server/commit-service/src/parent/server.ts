@@ -103,6 +103,22 @@ async function persistToLedger(proofs: BitGraphProof[]): Promise<void> {
       // Also write a by-digest index for fast lookups by artifact hash
       const safeDigest = proof.artifact.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       const digestKey = `by-digest/${safeDigest}.json`;
+      // The site's lookup answers "certainly not on record" from a filter over
+      // every indexed digest, and the one way that can be wrong is not having
+      // heard about a write. This parent writes by-digest keys directly, so it
+      // says so here, BEFORE the key exists. A journal entry with no key costs
+      // a wasted read; a key with no journal entry is a wrong answer.
+      try {
+        const at = Date.now();
+        await s3.send(new PutObjectCommand({
+          Bucket: LEDGER_BUCKET,
+          Key: `digest-journal/${String(at).padStart(13, "0")}-${Math.random().toString(16).slice(2, 8)}.json`,
+          Body: JSON.stringify({ at, digests: [proof.artifact.digestB64, safeDigest] }),
+          ContentType: "application/json",
+        }));
+      } catch (e) {
+        console.warn(`[parent] digest journal failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
       await s3.send(new PutObjectCommand({
         Bucket: LEDGER_BUCKET,
         Key: digestKey,
