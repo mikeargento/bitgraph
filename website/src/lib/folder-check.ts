@@ -407,13 +407,27 @@ export async function findAnyMatchInFiles(
   files: File[],
   digests: ReadonlySet<string>,
   onProgress?: (done: number, total: number) => void,
+  /**
+   * Filled with digest -> file as the pass goes, when the caller wants to keep
+   * what this cost. Hashing a folder is the expensive part of every one of
+   * these searches, and a set's page needs the same digests again straight
+   * afterwards to ask the ledger which file is its member. Without this it
+   * hashed everything twice and then looked at only the first 2,000 files
+   * (Mike, 2026-09-07: "it gets hung on that first 30k of 30k screen").
+   * Partial when the pass short-circuits on a match, which is fine: the second
+   * use only happens when there was none.
+   */
+  collect?: Map<string, File>,
 ): Promise<{ match: File | null; digest: string | null; checked: number }> {
   let done = 0;
   for (const f of files) {
     const d = await hashFile(f).catch(() => null);
     done++;
     onProgress?.(done, files.length);
-    if (d !== null && digests.has(d)) return { match: f, digest: d, checked: done };
+    if (d !== null) {
+      if (collect && !collect.has(d)) collect.set(d, f);
+      if (digests.has(d)) return { match: f, digest: d, checked: done };
+    }
     await new Promise((r) => setTimeout(r, 0));
   }
   return { match: null, digest: null, checked: done };
@@ -425,8 +439,9 @@ export async function findMatchInFiles(
   files: File[],
   digestB64: string,
   onProgress?: (done: number, total: number) => void,
+  collect?: Map<string, File>,
 ): Promise<{ match: File | null; checked: number }> {
-  const { match, checked } = await findAnyMatchInFiles(files, new Set([digestB64]), onProgress);
+  const { match, checked } = await findAnyMatchInFiles(files, new Set([digestB64]), onProgress, collect);
   return { match, checked };
 }
 
@@ -474,11 +489,12 @@ export async function findAnyMatchInDrop(
    *  begin. Dropping a Pictures folder here is the case this box is for, and
    *  the read is the longest silent stretch of it. */
   onWalk?: (files: number) => void,
+  collect?: Map<string, File>,
 ): Promise<{ match: File | null; digest: string | null; checked: number }> {
   const files = captured.entries
     ? (await walkEntries(captured.entries, onWalk)).map((w) => w.file)
     : captured.files;
-  return findAnyMatchInFiles(files, digests, onProgress);
+  return findAnyMatchInFiles(files, digests, onProgress, collect);
 }
 
 /** The one-digest form of findAnyMatchInDrop. */
@@ -487,8 +503,9 @@ export async function findMatchInDrop(
   digestB64: string,
   onProgress?: (done: number, total: number) => void,
   onWalk?: (files: number) => void,
+  collect?: Map<string, File>,
 ): Promise<{ match: File | null; checked: number }> {
-  const { match, checked } = await findAnyMatchInDrop(captured, new Set([digestB64]), onProgress, onWalk);
+  const { match, checked } = await findAnyMatchInDrop(captured, new Set([digestB64]), onProgress, onWalk, collect);
   return { match, checked };
 }
 

@@ -5,8 +5,8 @@ import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams } from "next/navigation";
 // Nav is in root layout
-import { hashFile, hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
-import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, walkEntries, type CapturedDrop } from "@/lib/folder-check";
+import { hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
+import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
@@ -1701,7 +1701,7 @@ function BringYourFile({
   /** A set/2 member the ledger recognised: local matching cannot find one, there being no member list. */
   onResolvedMember?: (row: SetMemberRow | null) => void;
 }) {
-  const [state, setState] = useState<"idle" | "reading" | "checking" | "mismatch">("idle");
+  const [state, setState] = useState<"idle" | "reading" | "checking" | "looking" | "mismatch">("idle");
   const [dragOver, setDragOver] = useState(false);
   const [hover, setHover] = useState(false);
   // How many files the last run hashed (for the mismatch wording) and live
@@ -1727,8 +1727,12 @@ function BringYourFile({
     setProgress({ done: 0, total: 0 });
     setReadCount(0);
     try {
+      // Every digest the pass computes, kept: the set branch below needs the
+      // same ones straight afterwards, and hashing a folder twice was most of
+      // what made this look hung.
+      const seen = new Map<string, File>();
       const { match, checked } = Array.isArray(source)
-        ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }))
+        ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }), seen)
         : await findMatchInDrop(
             source,
             proof.artifact.digestB64,
@@ -1737,6 +1741,7 @@ function BringYourFile({
             (done, total) => { setState("checking"); setProgress({ done, total }); },
             // A dropped folder is read before a single hash can be taken.
             (files) => { setReadCount(files); setState("reading"); },
+            seen,
           );
       setCheckedCount(checked);
       if (!match) {
@@ -1776,32 +1781,55 @@ function BringYourFile({
           // what was dropped, and take the file whose entry names THIS set.
           // The evidence that comes back binds against the root before the
           // page shows anything, so the answer is still verified here.
-          if (digests.size === 0) {
-            const files = Array.isArray(source) ? source : (source.entries ? (await walkEntries(source.entries)).map((w: { file: File }) => w.file) : source.files);
-            const capped = files.slice(0, 2000);
+          if (digests.size === 0 && seen.size > 0) {
+            // ⚠️ This used to hash the drop a SECOND time, then look at the
+            // first 2,000 files and ask about the first 500 digests of those.
+            // On a 30,000 file folder that is under two percent of it, so
+            // whether your file was found came down to where it fell in the
+            // walk, and the counter sat frozen on "30,000 of 30,000" for the
+            // whole of it. The digests are already in hand from the pass that
+            // just ran, so ask about all of them, and say so while it happens.
+            setState("looking");
             const byDigest = new Map<string, File>();
-            for (const f of capped) {
-              const d = await hashFile(f).catch(() => null);
-              if (d) byDigest.set(toUrlSafeB64(d), f);
-            }
-            if (byDigest.size > 0) {
-              try {
-                const r = await fetch("/api/proofs/batch", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ digests: [...byDigest.keys()].slice(0, 500) }),
-                });
-                if (r.ok) {
+            for (const [d, f] of seen) byDigest.set(toUrlSafeB64(d), f);
+            const all = [...byDigest.keys()];
+            setProgress({ done: 0, total: all.length });
+            const mine = toUrlSafeB64(proof.artifact.digestB64);
+            const chunks: string[][] = [];
+            for (let i = 0; i < all.length; i += 500) chunks.push(all.slice(i, i + 500));
+            let asked = 0;
+            let found: { row: SetMemberRow; file: File } | null = null;
+            let next = 0;
+            try {
+              await Promise.all(Array.from({ length: Math.min(4, chunks.length) }, async () => {
+                while (!found && next < chunks.length) {
+                  const chunk = chunks[next++];
+                  const r = await fetch("/api/proofs/batch", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ digests: chunk }),
+                  });
+                  asked += chunk.length;
+                  setProgress({ done: asked, total: all.length });
+                  if (!r.ok) continue;
                   const answer = (await r.json()) as { results?: Record<string, { proofs?: Array<{ proof?: unknown; setDigest?: string }> }> };
-                  const mine = toUrlSafeB64(proof.artifact.digestB64);
-                  for (const [d, f] of byDigest) {
+                  for (const d of chunk) {
                     const entry = answer.results?.[d]?.proofs?.find((p) => p.setDigest === mine || toUrlSafeB64(String((p.proof as { artifact?: { digestB64?: string } })?.artifact?.digestB64 ?? "")) === mine);
                     if (!entry) continue;
                     const row = bindSetMember(setBound, memberEvidenceOf(entry.proof as Record<string, unknown>));
-                    if (row) { onResolvedMember?.(row); await accept(f); return; }
+                    const f = byDigest.get(d);
+                    // The evidence binds against the root here, before the page
+                    // shows anything, so the ledger's answer is still checked.
+                    if (row && f) { found = { row, file: f }; return; }
                   }
                 }
-              } catch { /* the ledger is not required to answer; fall through to mismatch */ }
+              }));
+            } catch { /* the ledger is not required to answer; fall through to mismatch */ }
+            if (found !== null) {
+              const hit: { row: SetMemberRow; file: File } = found;
+              onResolvedMember?.(hit.row);
+              await accept(hit.file);
+              return;
             }
           }
         }
@@ -1918,6 +1946,17 @@ function BringYourFile({
           {progress.total > 1
             ? `Searching… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`
             : "Searching…"}
+        </div>
+      ) : state === "looking" ? (
+        /* A set knows its members by a Merkle root, so nothing on this page
+           can be compared against the drop and the ledger has to be asked
+           which file belongs here. It is a second phase with its own count,
+           and saying nothing during it is what made a finished search look
+           like a hung one. */
+        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
+          {progress.total > 1
+            ? `Checking the ledger… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`
+            : "Checking the ledger…"}
         </div>
       ) : mismatch ? (
         <>
