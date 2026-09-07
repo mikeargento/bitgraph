@@ -105,8 +105,29 @@ export async function hashChunks(chunks: AsyncIterable<Uint8Array>, size?: numbe
 }
 
 /** Hash a Blob or File by streaming it. */
+/**
+ * Files read whole rather than streamed. Above this, streaming keeps a large
+ * file out of memory; below it, streaming is nearly all overhead.
+ */
+const WHOLE_READ_MAX = 4 * 1024 * 1024;
+
 export async function hashBlob(blob: Blob): Promise<ScanHash> {
-  return hashChunks(readChunks(blob), blob.size);
+  // ⚠️ A SMALL FILE IS READ IN ONE CALL. blob.stream().getReader() builds a
+  // ReadableStream and does two async reads to fetch 57 bytes, which measured
+  // 24.8us a file against 1.8us for arrayBuffer(), fourteen times the cost
+  // (2026-09-07). A 48,000 file drop spends that per file and none of it is
+  // hashing. Large files still stream so one of them is never held whole.
+  return hashChunks(blob.size <= WHOLE_READ_MAX ? oneChunk(blob) : readChunks(blob), blob.size);
+}
+
+async function* oneChunk(blob: Blob): AsyncIterable<Uint8Array> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  // ⚠️ An empty file yields NOTHING, exactly as the stream does. Yielding one
+  // empty chunk instead feeds a zero-length update to the hasher, and the
+  // state it then saves is not the state the streamed path saves, so a
+  // zero-byte member would finish to a different fused digest than a verifier
+  // recomputes. Caught by the equivalence test at 0 bytes.
+  if (bytes.length > 0) yield bytes;
 }
 
 async function* readChunks(blob: Blob): AsyncIterable<Uint8Array> {

@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hashChunks, finishState } from "../scan-hash.ts";
+import { hashBlob, hashChunks, finishState } from "../scan-hash.ts";
 import { trailerBytesFor } from "@mikeargento/bitgraph";
 import { getPlacement, bytesToBase64, computeSlotCommitment } from "@mikeargento/bitgraph-verify";
 
@@ -76,4 +76,40 @@ test("a container/2 file (text, PDF, video) saves a state too: header and bytes 
   assert.equal(blind.placement, "container/2");
   assert.equal(blind.state, null);
   assert.equal(blind.digestB64, bytesToBase64(await native(text(5000))));
+});
+
+/*
+ * hashBlob reads a small file whole and a large one in chunks, because
+ * blob.stream() costs 24.8us a file against arrayBuffer()'s 1.8us and a drop
+ * of 48,000 tiny files pays that per file (2026-09-07). The two paths must
+ * not be able to disagree about a digest, a placement or a saved state.
+ */
+test("reading whole and reading in chunks give the same answer", async () => {
+  const sizes = [0, 1, 63, 64, 65, 512, 4096, 100_000];
+  for (const n of sizes) {
+    const bytes = new Uint8Array(n);
+    for (let i = 0; i < n; i++) bytes[i] = (i * 31 + 7) & 0xff;
+    const whole = await hashBlob(new Blob([bytes]));
+    const streamed = await hashChunks((async function* () {
+      for (let i = 0; i < n; i += 97) yield bytes.subarray(i, Math.min(i + 97, n));
+    })(), n);
+    assert.equal(whole.digestB64, streamed.digestB64, `digest differs at ${n} bytes`);
+    assert.equal(whole.placement, streamed.placement, `placement differs at ${n} bytes`);
+    assert.equal(whole.bytes, streamed.bytes, `byte count differs at ${n} bytes`);
+    assert.equal(whole.state === null, streamed.state === null, `state presence differs at ${n} bytes`);
+    if (whole.state !== null && streamed.state !== null) {
+      // ⚠️ NOT the state's bytes. hash-wasm's save() leaves scratch it does
+      // not zero, so two saves of the same logical state differ byte-wise and
+      // an assertion on them fails for no reason. What has to hold is what
+      // the state is FOR: finishing it with a suffix must give the digest a
+      // verifier recomputes from prefix + bytes + suffix.
+      const p = getPlacement(whole.placement)!;
+      const originDigest = await native(bytes);
+      const { suffix } = p.frame({ originalSize: n, originDigest, commitment: new Uint8Array(32).fill(5) });
+      const a = bytesToBase64(await finishState(whole.state, suffix));
+      const b = bytesToBase64(await finishState(streamed.state, suffix));
+      assert.equal(a, b, `the two read paths finish to different digests at ${n} bytes`);
+    }
+    assert.equal(whole.digestB64, bytesToBase64(await native(bytes)), `digest is not the native one at ${n} bytes`);
+  }
 });
