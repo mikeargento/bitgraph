@@ -1707,53 +1707,32 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      cannot reconstruct is the signed proofs, and a set is one position sharing
      one proof, so that folder is three proofs: about 23 KB, instant at any
      size. See lib/bitgraphs-file.ts. */
+  /* ⚠️ A MAKE MUST NOT END IN A SAVE DIALOG.
+   *
+   * This used to download bitgraphs.json on every make. With Chrome's "ask
+   * where to save each file" on — which Mike has on, as anyone who cares where
+   * their files go does — that is a modal file picker in front of the
+   * product's most common gesture, every single time. He sent a screenshot of
+   * it: "see cause this isnt right". It is not.
+   *
+   * So making writes to THIS BROWSER and nothing else. The copy on disk
+   * becomes a deliberate act you take when you want one, from the folder
+   * modal, one dialog you asked for.
+   *
+   * ⚠️ AND THAT IS NOT AS DURABLE AS IT SOUNDS. navigator.storage.persist()
+   * returns FALSE here — Chromium grants persistence on engagement, not on
+   * request — so this store is evictable and a page cannot make it otherwise.
+   * It is asked for anyway (it is granted later as the site is used), the
+   * modal says plainly when it was refused, and this is the clearest argument
+   * there is for the folder living in a real app rather than a tab.
+   */
   const saveBitGraphs = (rows: FileItem[], source: string | null) => {
-    /* ⚠️ ONE LEDGER, ONE FILE. It used to write one file PER DROP, named after
-     * whatever was dropped, so a folder filled up with
-     * "Screenshot 2026-08-13 at 11.29.00 AM-bitgraphs.json" and friends — one
-     * json per photo, each labelled with a filename. Mike: "its labelling
-     * files as bitgraph", and "it should literally be EXACTLY like before but
-     * instead of S3 its just on your computer".
-     *
-     * That is the right frame and it settles this: S3 was ONE ledger, so the
-     * folder is one ledger. Every make writes bitgraphs.json holding
-     * EVERYTHING this browser holds — the new positions folded into the ones
-     * already connected — and you keep the newest. Names stop multiplying,
-     * and a single file is the whole of what you have.
-     *
-     * ⚠️ The cost, stated: a page cannot update a file in place, so this is
-     * re-downloaded whole every time. At 8 KB a position that is fine into the
-     * hundreds and heavy in the thousands (1,000 positions ≈ 7.7 MB a save).
-     * If that day comes the answer is an explicit export rather than a save on
-     * every make — not a per-drop file, which is what this replaced. */
     const doc = buildBitGraphsFile(
-      [...ledger.proofs.map((p) => ({ proof: p, proofs: [p] })), ...rows], source);
+      [...ledger.proofs.map((pr) => ({ proof: pr, proofs: [pr] })), ...rows], source);
     if (!doc.proofs.length) return;
-    const name = "bitgraphs.json";
-    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(url);
-    // The net, under the file that is now the only copy.
-    void putPackageToIDB(doc.proofs[0]?.commit?.counter ?? String(Date.now()), {
-      name, blob, savedAt: Date.now(),
-      positions: doc.proofs.map((pr) => `${pr.commit?.epochId ?? ""} ${pr.commit?.counter ?? ""}`),
-    });
-    /* Said in BOTH places, because the two make paths end on different
-       screens: a batch stays here and reads the card, a lone file navigates to
-       its proof page and would otherwise be told nothing at all. */
-    const n = doc.proofs.length;
-    const said =
-      `Saved ${name} — your whole ledger, ${n} BitGraph${n === 1 ? "" : "s"}. Keep it ` +
-      `somewhere you back up or sync and replace the older copy; your files are ` +
-      `untouched. Drag it back here any time to check files or collect anchors.`;
-    setPackageNote(said);
-    setSavedNotice(said);
-    // The browser's own copy is the live ledger, the way S3 was: fold the new
-    // positions in so the next drop knows them without a re-connect.
+    // Best effort, no prompt: Chromium may grant this once the site has been
+    // used enough, and it costs nothing to keep asking.
+    void navigator.storage?.persist?.().catch(() => {});
     setLedger((prev) => {
       const next = addProofs(prev, doc.proofs, source,
         (pr) => { try { return fusedMarkerOf(pr)?.originDigestB64 ?? null; } catch { return null; } });
@@ -1761,6 +1740,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       if (typeof window !== "undefined") window.dispatchEvent(new Event(LEDGER_CHANGED));
       return next;
     });
+    const n = doc.proofs.length;
+    const said =
+      `Kept in this browser — ${n} BitGraph${n === 1 ? "" : "s"} now. Nothing was uploaded ` +
+      `and your files are untouched. Save a copy from the light in the corner ` +
+      `whenever you want one on disk.`;
+    setPackageNote(said);
+    setSavedNotice(said);
   };
 
   const saveMinted = (source: string | null) => {

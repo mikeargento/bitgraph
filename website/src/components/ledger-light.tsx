@@ -25,6 +25,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { loadLedger, addProofs, readBitGraphsFiles, saveLedger, emptyLedger } from "@/lib/local-ledger";
+import { buildBitGraphsFile } from "@/lib/bitgraphs-file";
 import { entriesFromDataTransfer, walkEntries } from "@/lib/folder-check";
 import { fusedMarkerOf } from "@/lib/fuse-client";
 
@@ -85,6 +86,25 @@ export function LedgerLight() {
     }
   };
 
+  /* The one place a copy is written to disk, because it is the one place you
+     asked for one. A make writes to this browser and nothing else: doing it on
+     every make meant a save dialog every time for anyone with "ask where to
+     save each file" on, which is a modal in front of the product's main
+     gesture. */
+  const saveCopy = async () => {
+    const l = await loadLedger(originOf);
+    const doc = buildBitGraphsFile(l.proofs.map((p) => ({ proof: p, proofs: [p] })), "your BitGraphs");
+    if (!doc.proofs.length) return;
+    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "bitgraphs.json";
+    a.click();
+    URL.revokeObjectURL(url);
+    setOpen(false);
+  };
+
   const forget = async () => {
     await saveLedger(emptyLedger());
     setCount(0);
@@ -142,8 +162,8 @@ export function LedgerLight() {
             </div>
             <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#4b5563", marginBottom: 18 }}>
               {on
-                ? "Connected. This browser knows what you hold, so dropping a file tells you whether it already has a BitGraph."
-                : "Every BitGraph you make is saved to bitgraphs.json. Keep those in one folder, then drag that folder in here so this browser knows what you hold."}
+                ? `${count.toLocaleString()} BitGraph${count === 1 ? " is" : "s are"} kept in this browser. Save a copy to keep ${count === 1 ? "it" : "them"} somewhere you back up — a browser can clear its storage, and it will not ask first.`
+                : "Nothing connected yet. Drag in a folder of BitGraphs files, or make one and it is kept here."}
             </div>
             <div
               style={{
@@ -165,13 +185,25 @@ export function LedgerLight() {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
               {on ? (
-                <button type="button" onClick={() => void forget()} className="bg-action-link" style={{ padding: 0, fontSize: 13 }}>
-                  <span>Forget it</span>
+                <button type="button" onClick={() => void saveCopy()} className="bg-action-link" style={{ padding: 0, fontSize: 13 }}>
+                  <span>Save a copy</span>
+                  <span className="arrow" aria-hidden>&rarr;</span>
                 </button>
               ) : <span />}
-              <button type="button" onClick={() => setOpen(false)} className="bg-action-link" style={{ padding: 0, fontSize: 13 }}>
-                <span>Close</span>
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                {/* The only way to undo connecting the wrong folder: the ledger
+                    accumulates, so there is nothing finer-grained to offer. */}
+                {on && (
+                  <button type="button" onClick={() => void forget()}
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
+                             fontFamily: "inherit", fontSize: 12.5, color: "#6b7280" }}>
+                    Forget it
+                  </button>
+                )}
+                <button type="button" onClick={() => setOpen(false)} className="bg-action-link" style={{ padding: 0, fontSize: 13 }}>
+                  <span>Close</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
