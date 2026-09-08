@@ -8,6 +8,7 @@
 
 import { Agent } from "node:https";
 import { journalDigests } from "./digest-index";
+import { isAnchorProof } from "./anchor-kind";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
 import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
@@ -867,7 +868,9 @@ export async function getAnchorsAfterCounter(proofCounter: number, epochId: stri
             const body = await gr.Body?.transformToString();
             if (!body) continue;
             const p = JSON.parse(body);
-            if ((p.attribution as { name?: string })?.name === "Ethereum Anchor") foundAnchors.push(p);
+            // Signed commit.anchor first; the attribution name is the pre-v7
+            // fallback and is all the older half of the ledger carries.
+            if (isAnchorProof(p)) foundAnchors.push(p);
           } catch { /* skip */ }
         }
         if (!r.IsTruncated) break;

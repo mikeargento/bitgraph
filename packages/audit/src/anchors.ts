@@ -25,6 +25,7 @@
  * verification status; identification itself reads only the signed body.
  */
 
+import { anchorKindOf, anchorMarkOf } from "@mikeargento/bitgraph-verify";
 import type {
   AnchorIdentification,
   AnchorRecord,
@@ -33,7 +34,6 @@ import type {
   ObservedProof,
 } from "./types.js";
 
-const ANCHOR_ATTRIBUTION_NAME = "Ethereum Anchor";
 const ANCHOR_METADATA_TYPE = "ethereum-anchor";
 
 /**
@@ -54,11 +54,16 @@ export function identifyAnchors(ingest: IngestResult): AnchorIdentification {
   const findings: AuditFinding[] = [];
 
   for (const proof of ingest.proofs) {
-    const attributionName = readAttributionField(proof, "name");
     const metadataType = readMetadataType(proof);
-    const signedAnchor = attributionName === ANCHOR_ATTRIBUTION_NAME;
+    // ⚠️ Two forms, and they are not equally strong. "authenticated" means the
+    // enclave wrote commit.anchor after verifying the anchor service's
+    // signature over the claim; "legacy-attribution" means only the signed
+    // name says so, which is every anchor written before enclave v7
+    // (2026-09-06) and most of the ledger. Both are anchors; only one is
+    // backed by something inside the proof.
+    const kind = anchorKindOf(proof.proof);
 
-    if (!signedAnchor) {
+    if (kind === null) {
       if (metadataType === ANCHOR_METADATA_TYPE) {
         // Unsigned claim with no signed backing: recorded, never trusted.
         metadataOnlyProofHashes.push(proof.proofHash);
@@ -66,9 +71,9 @@ export function identifyAnchors(ingest: IngestResult): AnchorIdentification {
           code: "anchor-metadata-only-claim",
           ...pathOf(proof),
           message:
-            "unsigned metadata.type claims ethereum-anchor, but the signed attribution does not " +
-            "identify this proof as an anchor. Metadata is advisory and unsigned; the proof is " +
-            "not treated as an anchor.",
+            "unsigned metadata.type claims ethereum-anchor, but the proof carries neither a signed " +
+            "commit.anchor nor the signed attribution name. Metadata is advisory and unsigned; the " +
+            "proof is not treated as an anchor.",
           details: { proofHash: proof.proofHash },
         });
       }
@@ -89,16 +94,30 @@ export function identifyAnchors(ingest: IngestResult): AnchorIdentification {
         code: "anchor-metadata-disagreement",
         ...pathOf(proof),
         message:
-          `signed attribution identifies an Ethereum anchor, but unsigned metadata.type is ` +
+          `this proof is a signed Ethereum anchor, but unsigned metadata.type is ` +
           `${JSON.stringify(metadataType)}. The signed field governs; the disagreement is recorded.`,
         details: { proofHash: proof.proofHash, metadataType: metadataType as string },
       });
     }
 
-    const blockHash = readAttributionField(proof, "message");
+    // An authenticated anchor carries its block in commit.anchor, which the
+    // enclave signed. Reading it from there rather than from attribution is
+    // what lets an anchor's attribution be used for something else — a
+    // bitgraph-fuse/1 marker, for instance — without the block becoming
+    // unreadable. Legacy anchors keep the old path exactly.
+    const authenticated = anchorMarkOf(proof.proof);
+    const blockHash = authenticated?.blockHash ?? readAttributionField(proof, "message");
     const title = readAttributionField(proof, "title");
-    const blockNumber = title !== undefined ? (ETHERSCAN_BLOCK_URL.exec(title)?.[1] ?? undefined) : undefined;
-    if (blockNumber === undefined) {
+    const blockNumber =
+      authenticated !== null
+        ? String(authenticated.blockNumber)
+        : title !== undefined
+          ? (ETHERSCAN_BLOCK_URL.exec(title)?.[1] ?? undefined)
+          : undefined;
+    // Only a legacy anchor depends on the title for its block number; an
+    // authenticated one has already answered, so an absent title is not a
+    // finding against it.
+    if (blockNumber === undefined && kind === "legacy-attribution") {
       findings.push({
         code: "anchor-title-unparseable",
         ...pathOf(proof),

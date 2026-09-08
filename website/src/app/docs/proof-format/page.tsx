@@ -171,7 +171,10 @@ export default function ProofFormatPage() {
         Since enclave v7 (2026-09-06) the enclave writes the chain&apos;s latest Ethereum anchor into every slot it allocates, and signs it into the proof as <code className="text-xs font-mono">commit.slotAnchor</code>. The floor a proof stands on is chosen by the enclave at allocation, not by whoever presents the proof. A reader checks it offline from the Ethereum block header: the header&apos;s keccak must equal <code className="text-xs font-mono">slotAnchor.blockHash</code>, and the block&apos;s timestamp is then a lower bound on the proof. The field is absent when no anchor had landed on the chain yet in that epoch, and on proofs from older enclaves.
       </p>
       <p className="text-base text-[#4b5563] mb-8">
-        Anchor proofs themselves carry <code className="text-xs font-mono">commit.anchor</code>. The enclave writes it only after verifying the anchor service&apos;s Ed25519 signature over the claim against a public key baked into the enclave image, and refuses the attribution name <code className="text-xs font-mono">Ethereum Anchor</code> without it. So a v7 proof whose attribution says anchor but lacks <code className="text-xs font-mono">commit.anchor</code> is not an anchor.
+        Anchor proofs themselves carry <code className="text-xs font-mono">commit.anchor</code>, holding the block number and hash the enclave signed. The enclave writes it only after verifying the anchor service&apos;s Ed25519 signature over the claim against a public key baked into the enclave image, and refuses the attribution name <code className="text-xs font-mono">Ethereum Anchor</code> without it. So a v7 proof whose attribution says anchor but lacks <code className="text-xs font-mono">commit.anchor</code> is not an anchor.
+      </p>
+      <p className="text-base text-[#4b5563] mb-8">
+        <code className="text-xs font-mono">commit.anchor</code> is what identifies an anchor, and where its block should be read from. The attribution name is the older test and remains valid for proofs written before v7, which carry nothing else; it is not a requirement, and an anchor is free to spend its signed attribution on something else, such as the fuse marker below.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Fused artifacts</h2>

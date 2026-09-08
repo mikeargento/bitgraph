@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ANCHOR_ATTRIBUTION_NAME, anchorMarkOf, isAnchorProof } from "@/lib/anchor-kind";
 import { fusedOriginDigestOf, isFusedProof } from "@/lib/fuse-core";
 import { bindSet, isSetProof, memberOf } from "@/lib/fuse-set";
 import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
@@ -28,7 +29,14 @@ async function buildAnchorView(anchor: Record<string, unknown>): Promise<AnchorV
   const anchorAttr = (anchorProof?.attribution || anchor.attribution) as { name?: string; title?: string; message?: string } | undefined;
   const anchorArtifact = (anchorProof?.artifact || anchor.artifact) as { digestB64?: string } | undefined;
   const eth = anchor.ethereum as { blockNumber?: number; blockHash?: string; blockTime?: number; blockTimeISO?: string } | undefined;
-  const blockNumber = eth?.blockNumber?.toString() || anchorAttr?.title?.match(/\/block\/(\d+)/)?.[1];
+  // The signed mark is the authority on which block this is. Attribution says
+  // the same thing on every anchor since v7, but only by convention, and a
+  // fused anchor spends its attribution on the fuse marker instead.
+  const mark = anchorMarkOf(anchorProof ?? anchor);
+  const blockNumber =
+    mark?.blockNumber?.toString()
+    ?? eth?.blockNumber?.toString()
+    ?? anchorAttr?.title?.match(/\/block\/(\d+)/)?.[1];
 
   const anchorMetadata = ((anchorProof?.metadata || anchor.metadata) as
     { anchor?: { blockTimeISO?: string; blockTime?: number } } | undefined)?.anchor;
@@ -64,10 +72,13 @@ async function buildAnchorView(anchor: Record<string, unknown>): Promise<AnchorV
 
   return {
     counter: (anchor.counter as string) || anchorCommit?.counter || "?",
-    attrName: anchorAttr?.name || "Ethereum Anchor",
+    // The label names what the proof IS, not what its attribution happens to
+    // say: a fused anchor's attribution reads "bitgraph-fuse/1", which is true
+    // and useless here.
+    attrName: isAnchorProof(anchorProof ?? anchor) ? ANCHOR_ATTRIBUTION_NAME : (anchorAttr?.name || ANCHOR_ATTRIBUTION_NAME),
     blockNumber: blockNumber ? parseInt(blockNumber, 10) : null,
-    blockHash: eth?.blockHash || anchorAttr?.message || null,
-    etherscanUrl: anchorAttr?.title || (blockNumber ? `https://etherscan.io/block/${blockNumber}` : null),
+    blockHash: mark?.blockHash ?? eth?.blockHash ?? anchorAttr?.message ?? null,
+    etherscanUrl: blockNumber ? `https://etherscan.io/block/${blockNumber}` : (anchorAttr?.title || null),
     blockTime,
     digestB64: anchorArtifact?.digestB64 || null,
   };

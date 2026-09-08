@@ -8,6 +8,15 @@
  * can verify a proof without asking permission.
  */
 
+export {
+  ANCHOR_ATTRIBUTION_NAME,
+  anchorKindOf,
+  anchorMarkOf,
+  isAnchorProof,
+  type AnchorKind,
+  type AnchorMark,
+} from "./anchor.js";
+
 export type {
   BitGraphProof,
   BitGraphPolicy,

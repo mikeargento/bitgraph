@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { anchorMarkOf, isAnchorProof } from "./anchor-kind";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { dayIndexKey, pageKey, type DayIndex, type DayPage, type LedgerFilter } from "./ledger-archive";
 import { setCountOf } from "./fuse-set";
@@ -107,7 +108,9 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
   const attribution = (p.attribution as Record<string, unknown>) || {};
   const counter = parseInt(String(commit.counter ?? "0"), 10);
   if (!counter) return null;
-  const isAnchor = attribution.name === "Ethereum Anchor";
+  // The signed commit.anchor first, the attribution name only for the pre-v7
+  // history that has nothing else. See anchor-kind.ts for why both.
+  const isAnchor = isAnchorProof(p);
   // An interval recurrence re-commits an anchor's exact block-hash bytes 25
   // anchors later. Same artifact digest, new causal position, distinct label.
   const isInterval = attribution.name === "Interval";
@@ -117,9 +120,18 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
   let etherscanUrl: string | null = null;
   if (isAnchor || isInterval) {
     const meta = ((p.metadata as Record<string, unknown>)?.interval as { originalBlockNumber?: number }) || null;
-    etherscanUrl = (attribution.title as string) || null;
-    const m = (etherscanUrl || "").match(/\/block\/(\d+)/);
-    blockNumber = m ? parseInt(m[1], 10) : (meta?.originalBlockNumber ?? null);
+    // An authenticated anchor carries its block in the signed mark, so it does
+    // not depend on attribution.title being an Etherscan URL — which a fused
+    // anchor's attribution has no room to be.
+    const mark = anchorMarkOf(p);
+    if (mark !== null) {
+      blockNumber = mark.blockNumber;
+      etherscanUrl = `https://etherscan.io/block/${mark.blockNumber}`;
+    } else {
+      etherscanUrl = (attribution.title as string) || null;
+      const m = (etherscanUrl || "").match(/\/block\/(\d+)/);
+      blockNumber = m ? parseInt(m[1], 10) : (meta?.originalBlockNumber ?? null);
+    }
   }
   const isNew = !isAnchor && !isInterval && !!lastModifiedMs && Date.now() - lastModifiedMs < NEW_MS;
   const epochId = String(commit.epochId || "");
