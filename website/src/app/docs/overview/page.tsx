@@ -60,7 +60,7 @@ export default function OverviewPage() {
       {/* 24 below the h1: the 4px it wore before was paid for by the opener
           paragraph's own 18px top margin, and the opener is gone. */}
       <h1 style={{ margin: "0 0 24px" }}>
-        A clock that ticks when you ask it to.
+        Overview
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just

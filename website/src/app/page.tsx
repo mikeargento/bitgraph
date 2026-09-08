@@ -46,18 +46,25 @@ export default function BitGraphPage() {
         strategy={anonymous}
         fuseByDefault
         acceptsPendingDrop
-        /* The page is the instrument and one line over it, which is what it
-           was before an evening of trying to make it explain itself. That
-           version grew a hero, a mechanism, a guarantee, verification,
-           integration, a trust model and a licence, and Mike put it back:
-           "just return the homepage to what it was this afternoon when it was
-           just a dropbox but this headline". Everything it grew has a better
-           home in the docs, and the docs already had it.
+        /* ⚠️ NO HEADLINE. The page is the instrument, and now only the
+           instrument (Mike, 2026-09-08). It had carried one line over the
+           frame since the evening it was cut back from a hero, a mechanism, a
+           guarantee, verification, integration, a trust model and a licence
+           ("just return the homepage to what it was this afternoon when it was
+           just a dropbox but this headline"); this takes the last of that
+           away, and the dashed frame IS the page.
 
-           No terminal period: this is the app surface. The h1 stays a quiet
-           link to the overview (colour inherit, hover only), the one path
-           there from this page besides Docs. */
-        title={<a href="/docs/overview">A clock that ticks when you ask it to</a>}
+           A line here has to name the whole product in one clause, and every
+           candidate traded one fault for another: "gives bits a place" said
+           nothing happened, "prove you were first" claims first-existence we
+           do not prove, and a precise one ("a cryptographic logical clock")
+           gates everyone who does not already know the term. The frame asks
+           the only question this page needs to ask.
+
+           useCameraFit takes the title selector and null-checks it, so the
+           viewport fit is unaffected: there is simply less chrome to subtract.
+           /docs/overview keeps its own path from the nav and from the link
+           below the frame. */
         /* The what-happens pair, inside the frame since 2026-08-27; shared
            with /actor. Wording rules live on the component. */
         belowClassName="hero-more"

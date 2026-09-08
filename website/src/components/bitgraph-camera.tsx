@@ -1968,9 +1968,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
            like that should be centered"). It went left that afternoon, when
            the row also carried a link on its right and sat over a left-aligned
            "BitGraph Found"; with the link gone and home's title now the claim
-           itself ("A clock that ticks when you ask it to"), what is left is one
-           sentence over a symmetric box, and a sentence like that reads as a
-           statement, which wants the centre. Only the title: the box's own
+           itself, what was left was one sentence over a symmetric box, and a
+           sentence like that reads as a statement, which wants the centre.
+           (Home has carried no headline since 2026-09-08, so this centres
+           nothing today; it is the rule any future title inherits.) Only the title: the box's own
            copy was always centred, and the block under the box (/actor's
            "Forget this device") stays where Mike put it, bottom left. ── */
         .bitgraph-tagline { text-align: center; }
@@ -2026,20 +2027,25 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
            ladder (.bg-page-title is clamp(26px, 6vw, 32px), a flat 32 on
            desktop; home had been 34..40 since the frame started scaling with
            the window). So: the docs size from 433px up, identical to every
-           other title, and below that the floor is small only so the sentence
-           holds ONE LINE on phones (Mike, 2026-09-08: "one line on phones
-           obviously"), which is the rule this size has always served.
+           other title, and below that the floor is 22 rather than 26 only so
+           the sentence holds one line on small phones (23.4px at 390, 22 at
+           360; 26 would wrap at 375). Same rule on both camera pages.
 
-           ⚠️ THIS NUMBER IS A FUNCTION OF THE TITLE. Measured in this face
-           with canvas measureText, the sentence is 16.3x its font size ("A
-           BitGraph gives bits a place" was 13.13x, and the 13.2 written here
-           before was right). One line inside a 90vw column therefore needs
-           90/16.3 = 5.52vw, so 5.4 leaves a hair: 17.3px at 320, 19.4 at 360,
-           21.1 at 390, 23.2 at 430, and the docs size of 32 flat from 593px
-           up. The old 6vw with a 22px floor wrapped this title on every
-           phone. If the title changes again, re-measure and re-solve; do not
-           nudge these by eye. Same rule on both camera pages. */
-        .bitgraph-tagline { font-size: clamp(17px, 5.4vw, 32px); }
+           ⚠️ NOTHING USES THIS TODAY. Home dropped its headline on 2026-09-08
+           and is the only page mounting a camera, so no title prop is passed
+           and this h1 never renders. Kept because the rule is correct for the
+           title it was measured against, and because the measurement below is
+           what a future one needs.
+
+           ⚠️ AND THE NUMBER IS A FUNCTION OF THE TITLE, so re-solve it before
+           reusing it. Measured with canvas measureText in the shipped face: "A
+           BitGraph gives bits a place" is 13.13x its font size (the 13.2 above
+           was right) and "A clock that ticks when you ask it to", which led
+           for a few hours the same day, is 16.3x. One line inside the 90vw
+           column needs 90/ratio vw, so the 37-character line wanted
+           clamp(17px, 5.4vw, 32px) where 6vw wrapped it on every phone with an
+           orphaned "it to". Measure, solve, do not nudge by eye. */
+        .bitgraph-tagline { font-size: clamp(22px, 6vw, 32px); }
         .bitgraph-tagline .accent { color: inherit; }
         /* The block under the frame (home's one link, /actor's Rename ·
            Forget) is the page's: its class and its margin live in the page's
