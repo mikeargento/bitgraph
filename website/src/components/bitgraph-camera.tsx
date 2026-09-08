@@ -50,6 +50,7 @@ import { scanPool } from "@/lib/scan-pool";
 import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
 import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
 import { paintFrame, PAINT_EVERY_MS } from "@/lib/paint-frame";
+import { attachEnvironments } from "@/lib/proof-environment";
 
 /**
  * One /api/proofs/batch answer, with every set member entry's manifest put
@@ -95,13 +96,20 @@ const SET_INDEX_IN_FLIGHT = 3;
  */
 const RESULT_ROW_H = 34;
 
-function batchAnswer(json: { results?: Record<string, BatchEntry>; sets?: Record<string, Record<string, unknown>> }): Record<string, BatchEntry> {
+function batchAnswer(json: { results?: Record<string, BatchEntry>; sets?: Record<string, Record<string, unknown>>; environments?: Record<string, Record<string, unknown>> }): Record<string, BatchEntry> {
   const results = json.results || {};
+  // FIRST: the attestation travels once per epoch rather than once per proof,
+  // so a proof is not whole until this runs. Everything below and everything
+  // downstream (the signature check, the export, the proof page) reads a
+  // restored proof. See lib/proof-environment.ts.
+  const env = attachEnvironments(results as unknown as Parameters<typeof attachEnvironments>[0], json.environments);
+  if (env.unresolved) console.warn(`[batch] ${env.unresolved} proofs arrived naming an environment the answer did not carry`);
   attachSetManifests(results as unknown as Parameters<typeof attachSetManifests>[0], json.sets);
   return results;
 }
 type BatchEntry = {
-  proofs?: Array<{ proof: BitGraphProof; kind?: string; writeTime?: number | null; member?: { index: number; count: number; role: "origin" | "fused" } | null; setDigest?: string }>;
+  /** `envRef` is transport only: batchAnswer resolves it and removes it. */
+  proofs?: Array<{ proof: BitGraphProof; kind?: string; writeTime?: number | null; member?: { index: number; count: number; role: "origin" | "fused" } | null; setDigest?: string; envRef?: string }>;
   /** The read FAILED: not an answer about these bytes. */
   unavailable?: true;
 };
@@ -716,7 +724,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
               const r = await fetch("/api/proofs/batch", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ digests: mine }),
+                body: JSON.stringify({ digests: mine, environments: "table" }),
               });
               if (!r.ok) throw new Error();
               Object.assign(lookup, batchAnswer(await r.json()));
@@ -729,7 +737,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           const r = await fetch("/api/proofs/batch", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ digests: lookupKeys }),
+            body: JSON.stringify({ digests: lookupKeys, environments: "table" }),
           });
           if (!r.ok) throw new Error();
           Object.assign(lookup, batchAnswer(await r.json()));
@@ -756,7 +764,30 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // can occupy several positions when BitGraphed more than once. Signature
     // checks are WebCrypto, cheap to run together.
     const lookupDoneAt = performance.now();
-    const results: FileItem[] = await Promise.all(scanned.map(async (s) => {
+    /**
+     * ⚠️ NO SIGNATURE CHECK RUNS HERE, and `valid` stays null, which is this
+     * type's "not checked" and what a row that was never looked up already
+     * carries.
+     *
+     * It used to verify the earliest proof of EVERY found file. Measured
+     * 2026-09-07 on the real 48,000 file folder, re-dropped so every digest
+     * hit: @noble/ed25519 is pure JS, 1.24 ms a proof, so 48,000 files was
+     * 60 SECONDS of main-thread work inside one Promise.all over 48,000
+     * pending promises, nothing yielding, the tab frozen throughout. It is
+     * most of what "checking takes FOREVER" was (Mike, 2026-09-07).
+     *
+     * And nothing displayed the answer: `valid` is written here and read
+     * NOWHERE in the UI (folder-list.tsx does not mention it). Sixty seconds
+     * bought a field no one sees.
+     *
+     * ⚠️ IF A PER-ROW VERIFIED MARK IS EVER WANTED, it must not come back as
+     * a loop over every file. Verify the rows the window actually renders,
+     * about thirty of them, and leave the rest null: null must keep meaning
+     * NOT CHECKED and must never be drawn as if it verified. The full check
+     * still runs, unchanged, in the two places that show a verdict: a dropped
+     * proof.json (below, via `s.valid`) and the proof page a row opens.
+     */
+    const results: FileItem[] = scanned.map((s) => {
       const { f, digest, proofJson, valid } = s;
       if (proofJson) {
         return { file: f, digestB64: digest, proof: proofJson, proofs: [proofJson], valid, status: "found" as const, fromProofJson: true };
@@ -777,7 +808,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       const entries = (rec?.proofs || []).filter((x) => x.proof?.version === "bitgraph/1");
       const ordered = [...entries.filter((x) => x.kind !== "fused"), ...entries.filter((x) => x.kind === "fused")];
       if (ordered.length > 0) {
-        const result = await verifyProofSignature(ordered[0].proof);
         // The ledger write moment rides along per row so rows can show a
         // compact "when", same as the ledger. Legacy/backfilled entries have
         // none and just leave the slot blank.
@@ -787,10 +817,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // ledger's member index names the row (ordinal and count, and whether
         // these bytes are the origin or the new file).
         const member = ordered.map((x) => x.member ?? null);
-        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, member: member.some((m) => m !== null) ? member : null, valid: result.valid, status: "found" as const, ...(s.scan ? { scan: s.scan } : {}) };
+        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, member: member.some((m) => m !== null) ? member : null, valid: null, status: "found" as const, ...(s.scan ? { scan: s.scan } : {}) };
       }
       return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const, ...(s.scan ? { scan: s.scan } : {}) };
-    }));
+    });
 
     // The same measurement discipline as the making, for the half that runs
     // before the button appears: reasoning about which step is slow has been

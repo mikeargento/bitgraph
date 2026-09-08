@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProofsByDigest, readSetPosition, runPool, LedgerUnavailableError } from "@/lib/s3";
 import { digestIndex } from "@/lib/digest-index";
 import { fromUrlSafeB64 } from "@/lib/explorer";
+import { splitEnvironments } from "@/lib/proof-environment";
+import { createHash } from "node:crypto";
 
 export const dynamic = "force-dynamic";
 /**
@@ -71,6 +73,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bad request" }, { status: 400 });
     }
     const unique = [...new Set(digests as string[])];
+    /**
+     * Send each distinct `environment` ONCE, in a side table, instead of
+     * inside every proof.
+     *
+     * ⚠️ OPT-IN, AND IT MUST STAY OPT-IN. This endpoint is public and has
+     * consumers that cannot be updated in step with it: the published
+     * @mikeargento/bitgraph-mcp, the Zapier app, the export client, and this
+     * site's own folder-check, which VERIFIES SIGNATURES. A proof missing its
+     * `environment` does not verify, so making the table the default would
+     * turn every one of those into a checker that calls genuine recordings
+     * invalid. Callers that know to put the table back ask for it; everyone
+     * else gets exactly the bytes they got yesterday.
+     */
+    const envTable = body?.environments === "table";
 
     // Nearly every digest in a big drop is new, and every one of them costs an
     // S3 listing that returns nothing: 30,000 files was 30,000 listings, and
@@ -157,7 +173,22 @@ export async function POST(req: NextRequest) {
       for (const r of read) if (r.status === "rejected") console.error("[batch] set position read failed:",
         r.reason instanceof LedgerUnavailableError ? r.reason.message : r.reason);
     }
-    return NextResponse.json(wanted.size ? { results, sets } : { results });
+    // The attestation is ~6 KB and identical for every proof in an epoch, so
+    // a re-drop of a large folder answered with the same two blobs thousands
+    // of times: 64% of a 37.4 MB response for 2,000 digests, measured
+    // 2026-09-07. Sent once each and named from the entry instead; the client
+    // puts them back before it reads a proof. See lib/proof-environment.ts.
+    const environments = envTable
+      ? splitEnvironments(
+          results as unknown as Parameters<typeof splitEnvironments>[0],
+          (json) => createHash("sha256").update(json).digest("base64url").slice(0, 16),
+        )
+      : {};
+    return NextResponse.json({
+      results,
+      ...(wanted.size ? { sets } : {}),
+      ...(Object.keys(environments).length ? { environments } : {}),
+    });
   } catch (e) {
     console.error("POST /api/proofs/batch error:", e);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
