@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ANCHOR_ATTRIBUTION_NAME, anchorMarkOf, isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { fusedOriginDigestOf, isFusedProof } from "@/lib/fuse-core";
 import { bindSet, isSetProof, memberOf } from "@/lib/fuse-set";
-import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
+import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError, DISCOVERY_RETIRED, ledgerWritesOn } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +95,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     const all = await getProofsByDigest(standardB64);
     if (all.length === 0) {
       // A miss can become a hit once the bytes are recorded, so keep it brief.
-      return NextResponse.json({ proofs: [] }, { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } });
+      // A miss is no longer a finding: see DISCOVERY_RETIRED. Additive —
+      // `proofs: []` keeps the shape every existing reader parses.
+      return NextResponse.json({ proofs: [], ...(ledgerWritesOn() ? {} : DISCOVERY_RETIRED) },
+        { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } });
     }
     const selCounter = req.nextUrl.searchParams.get("counter");
     const selEpoch = req.nextUrl.searchParams.get("epoch");

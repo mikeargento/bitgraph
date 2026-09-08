@@ -215,6 +215,9 @@ export async function digestIndex(): Promise<{ absent: (digest: string) => boole
  */
 export async function journalDigests(digests: readonly string[]): Promise<void> {
   const Bucket = bucket();
+  // Phase 2: the journal exists to serve discovery, which is retired.
+  // Gated with the same reverse switch as the per-proof keys.
+  if (process.env.LEDGER_WRITES !== "on") return;
   if (!Bucket || digests.length === 0 || process.env.DIGEST_INDEX === "off") return;
   const at = Date.now();
   try {

@@ -14,6 +14,65 @@ import { fusedOriginDigestOf } from "@/lib/fuse-core";
 import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
 import { SET_MEMBER_CHUNK, decodeChunkInto, encodeChunk, setMembersKey, setMembersPrefix, type MemberKind, type SetMemberRef } from "@/lib/set-members";
 
+
+/* ── PHASE 2: THE LEDGER KEEPS ONLY ANCHORS ────────────────────────────────
+ *
+ * The service is a TEE plus an anchor publisher. Proofs are made and kept
+ * next to the files they are about; the bucket keeps `anchors/` and nothing
+ * else.
+ *
+ * Why the per-proof writes go: discovery cost almost everything and is not
+ * needed. If you do not have the proof you probably do not have the file
+ * either — BitGraph is evidence you HOLD AND PRESENT, not a registry you
+ * search. Measured: 19.4s to ask the ledger about 48,000 files against free
+ * from proofs in hand. Anchors are ~2% of the bucket (7.7 KB each, 7,200/day,
+ * ~$4.69/month after a decade), while ONE 48,000 file drop writes 0.8 GB of
+ * by-digest keys — more than two weeks of anchoring, for a folder already on
+ * somebody's own disk. It also closes a real leak: today anyone holding a copy
+ * of your file can derive its digest and learn when you recorded it.
+ *
+ * ⚠️ GOING FORWARD ONLY. Three million digests are already written under
+ * Object Lock COMPLIANCE for ten years and cannot be removed by anyone,
+ * including us. Reads keep serving them; see the discovery-retired answer in
+ * the proof routes for what a MISS now means.
+ *
+ * ⚠️ THE PRECONDITION IS THAT MAKING ENDS IN A FILE. The ledger was quietly
+ * the backup: while every proof is written here, a package you forget to save
+ * is an inconvenience. Once this is off, the file on your disk IS the
+ * BitGraph. Do not turn this off until a mint saves itself (it does — see
+ * saveBitGraphs in bitgraph-camera.tsx).
+ *
+ * The env var is the reverse switch: set LEDGER_WRITES=on to restore the old
+ * behaviour instantly, without a deploy, from Vercel's env panel.
+ */
+export const ledgerWritesOn = () => process.env.LEDGER_WRITES === "on";
+
+/**
+ * What a MISS means once the per-proof writes have stopped.
+ *
+ * ⚠️ "NOT ON THE LEDGER" STOPS BEING A TRUE SENTENCE. Before phase 2 a miss
+ * meant these bytes were never recorded. After it, a miss means EITHER that,
+ * or that they were recorded and the proof lives in the holder's folder where
+ * it belongs. The endpoint cannot tell, so it must not imply either — that is
+ * the same failure family as reporting a failed read as an absence, which is
+ * what [[project_ledger_read_honesty]] is about.
+ *
+ * Attached to every miss so the published readers degrade honestly: copies of
+ * @mikeargento/bitgraph-mcp 0.4.1 and the Zapier app are already installed and
+ * cannot be updated by a push, and they will keep asking these routes forever.
+ * The three million digests written before the cutover keep resolving exactly
+ * as they always did — they are under a ten-year lock regardless — so only new
+ * recordings reach this, and they reach it with an explanation rather than a
+ * verdict.
+ */
+export const DISCOVERY_RETIRED = {
+  discovery: "retired",
+  note: "BitGraph no longer keeps an index of proofs by digest, so a miss here " +
+    "is not a finding: it means either these bytes were never recorded, or they " +
+    "were and the proof is in the holder's own BitGraphs folder. A BitGraph is " +
+    "evidence you hold and present. Check the folder, or ask whoever has it.",
+} as const;
+
 /**
  * Raised when the ledger could not be READ. It is not an answer about the
  * ledger's contents, and callers must never degrade it into one: "we could
@@ -246,6 +305,7 @@ async function readLegacyDigest(digestB64: string, strict: boolean): Promise<Rec
  * key is read here (best effort, race-prone).
  */
 export async function storeProofByDigest(proof: Record<string, unknown>, priorLegacy?: Record<string, unknown> | null): Promise<void> {
+  if (!ledgerWritesOn()) return;  // phase 2: the bucket keeps only anchors
   try {
     const s3 = getClient();
     const bucket = getBucket();
@@ -412,6 +472,9 @@ export async function indexSetMemberEvidence(
   bound: BoundSet,
   evidence: unknown[],
 ): Promise<{ written: number; failed: number; rejected: number }> {
+  // phase 2: nothing is written, and nothing was REJECTED either — the
+  // caller is told the truth about what happened, which is nothing.
+  if (!ledgerWritesOn()) return { written: 0, failed: 0, rejected: 0 };
   const c = proof.commit as { epochId?: string; counter?: string } | undefined;
   const artifact = (proof.artifact as { digestB64?: string } | undefined)?.digestB64;
   if (!c?.epochId || !c?.counter || !artifact || bound.kind !== "set/2") return { written: 0, failed: 0, rejected: evidence.length };
@@ -1037,6 +1100,7 @@ export async function writeSetMemberList(
   meta: { setDigest: string; epochId: string; counter: string; count: number; writeTime: number | null },
   entries: Array<{ digestB64: string; kind: MemberKind; index: number }>,
 ): Promise<number> {
+  if (!ledgerWritesOn()) return 0;  // phase 2
   const s3 = getClient();
   const bucket = getBucket();
   const chunks: Array<{ key: string; body: string }> = [];

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProofsByDigest, readSetPosition, readSetMemberList, runPool, LedgerUnavailableError } from "@/lib/s3";
+import { getProofsByDigest, readSetPosition, readSetMemberList, runPool, LedgerUnavailableError, DISCOVERY_RETIRED, ledgerWritesOn } from "@/lib/s3";
 import { digestIndex } from "@/lib/digest-index";
 import { fromUrlSafeB64 } from "@/lib/explorer";
 import { splitEnvironments } from "@/lib/proof-environment";
@@ -386,10 +386,16 @@ export async function POST(req: NextRequest) {
      * ON THE LEDGER — bytes that hold a permanent position offered up to be
      * recorded again. Caught on production before any drop hit it.
      */
+    /* The retired-discovery note rides ONCE at the top level, never per
+       entry: a 48,000 digest answer must not carry 48,000 copies of the same
+       sentence. It is additive — `results` keeps the exact shape every
+       existing reader parses, including the published MCP and the Zapier app,
+       which is why this route's answer can change at all. */
     return NextResponse.json({
       results,
       ...(Object.keys(sets).length ? { sets } : {}),
       ...(Object.keys(environments).length ? { environments } : {}),
+      ...(ledgerWritesOn() ? {} : DISCOVERY_RETIRED),
     });
   } catch (e) {
     console.error("POST /api/proofs/batch error:", e);
