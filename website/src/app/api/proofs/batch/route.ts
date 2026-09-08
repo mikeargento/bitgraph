@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProofsByDigest, readSetPosition, readSetMemberList, runPool, LedgerUnavailableError, DISCOVERY_RETIRED, ledgerWritesOn } from "@/lib/s3";
-import { digestIndex } from "@/lib/digest-index";
 import { fromUrlSafeB64 } from "@/lib/explorer";
 import { splitEnvironments } from "@/lib/proof-environment";
 import { liftSetProofs, toSafe as toSafeB64 } from "@/lib/set-members";
@@ -109,22 +108,21 @@ export async function POST(req: NextRequest) {
      */
     const useLists = body?.members !== "full";
 
-    // Nearly every digest in a big drop is new, and every one of them costs an
-    // S3 listing that returns nothing: 30,000 files was 30,000 listings, and
-    // batching them only halved the wait (measured 2026-09-07). The digest
-    // index answers "certainly not on record" from memory, so only the few it
-    // cannot rule out reach S3 at all. It reports no opinion whenever it might
-    // be out of date, and then this route does exactly what it always did.
-    const index = await digestIndex();
-    const toRead = index === null ? unique : unique.filter((d) => !index.absent(fromUrlSafeB64(d)));
-    // How much the index actually saved. A healthy filter rules out nearly
-    // every digest in a fresh drop; ruling out fewer than half of a large one
-    // is the signature of a filter carrying more entries than it was sized
-    // for, which is exactly how the 2026-09-07 sizing bug hid (correct answers
-    // at 57x the reads). Logged only when it looks wrong, so it stays quiet.
-    if (index !== null && unique.length >= 100 && toRead.length * 2 > unique.length) {
-      console.warn(`[batch] digest index ruled out only ${unique.length - toRead.length}/${unique.length}; the filter may be past its capacity (rebuild it)`);
-    }
+    /* ❄️ THE DIGEST INDEX IS GONE (2026-09-08).
+     *
+     * A Bloom filter over every digest ever written used to sit here and
+     * answer "certainly not on record" from memory, so that a fresh drop of
+     * 30,000 files did not cost 30,000 S3 listings that return nothing. It was
+     * built for the SITE's drops, and the site no longer asks this route
+     * anything: it answers from the folder you connected. What is left here is
+     * the published MCP and the Zapier app, which ask about a handful of
+     * digests at a time, where the reads it saved are not worth a filter that
+     * has to be journalled, compacted and kept inside its sizing.
+     *
+     * ⚠️ It ruled digests OUT, never in, so removing it cannot change a single
+     * answer this route gives - only how many reads it takes to give it.
+     */
+    const toRead = unique;
     /**
      * ⚠️ A SET IS ONE POSITION, AND WE WERE ASKING ABOUT IT ONCE PER MEMBER.
      *

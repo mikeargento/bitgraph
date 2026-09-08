@@ -366,65 +366,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // The strategy's sentence about a failed run, shown in the receipt card
   // until the next run or drop. Home's strategy has none; its rows say Error.
   const [recordMessage, setRecordMessage] = useState<string | null>(null);
-  // A set/2 lands with only its root on the ledger; its members are indexed
-  // afterwards, evidence by evidence, so a drop of any of them finds the set.
-  // The count moves as chunks land; on failure the pending evidence waits
-  // here for a retry.
-  const [indexProgress, setIndexProgress] = useState<{ current: number; total: number } | null>(null);
-  const pendingIndexRef = useRef<Array<{ setDigest: string; epoch: string; counter: string; members: unknown[] }>>([]);
-
-  async function indexSetEvidence(): Promise<void> {
-    const pending = pendingIndexRef.current;
-    const total = pending.reduce((n, p) => n + p.members.length, 0);
-    if (total === 0) { setIndexProgress(null); return; }
-    let done = 0;
-    setIndexProgress({ current: 0, total });
-    for (const set of pending) {
-      // The chunks are independent: every request re-reads the set from its
-      // own position, re-binds the root document, and each member's evidence
-      // has to recompute that root before it earns a key. Nothing carries
-      // between them, so they go a few at a time rather than one after
-      // another. 100,000 members took 453s strictly sequentially (measured
-      // 2026-09-07); each request also writes 2,500 keys, which is why this
-      // is a small number and not a large one. Sixteen concurrent readers
-      // once pushed S3 into throttling on the lookup path.
-      const chunks: unknown[][] = [];
-      for (let i = 0; i < set.members.length; i += SET_INDEX_CHUNK) chunks.push(set.members.slice(i, i + SET_INDEX_CHUNK));
-      const landed = new Array<boolean>(chunks.length).fill(false);
-      let next = 0;
-      let stopped = false;
-      await Promise.all(Array.from({ length: Math.min(SET_INDEX_IN_FLIGHT, chunks.length) }, async () => {
-        while (!stopped) {
-          const i = next++;
-          if (i >= chunks.length) return;
-          let ok = false;
-          for (let attempt = 0; attempt < 2 && !ok; attempt++) {
-            try {
-              const r = await fetch("/api/fuse/set-index", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ setDigest: set.setDigest, epoch: set.epoch, counter: set.counter, members: chunks[i] }) });
-              ok = r.ok;
-            } catch {
-              ok = false;
-            }
-          }
-          // One failure stops the set. The rest of its chunks are left unsent
-          // rather than raced past, so the retry sends exactly what is missing.
-          if (!ok) { stopped = true; return; }
-          landed[i] = true;
-          done += chunks[i].length;
-          setIndexProgress({ current: done, total });
-        }
-      }));
-      // Whatever did not land stays pending, in order, for the retry.
-      set.members = chunks.filter((_, i) => !landed[i]).flat();
-      if (stopped) {
-        setIndexProgress(null);
-        setRecordMessage(`The set is on the ledger, but ${total - done} of its ${total} files are not yet findable by hash. Indexing stopped; retry below.`);
-        return;
-      }
-    }
-    pendingIndexRef.current = [];
-    setIndexProgress(null);
-  }
+  /* ❄️ SET MEMBER INDEXING IS GONE (2026-09-08).
+     A set/2 used to land with only its root on the ledger, and its members
+     were indexed afterwards, evidence by evidence, so that dropping any one
+     of them would find the set. Nothing is indexed by digest any more - the
+     bucket keeps only anchors - so there is nothing to make findable and no
+     retry to offer. The set proof itself carries the manifest, and the folder
+     you hold is what answers for its members. */
   // On a results page the box is CLOSED behind one link until asked for
   // (Mike, 2026-08-19: "what if there IS a link, and it says something like
   // make more, and it EXPANDS the dropbox full size"). Opened by the link, or
@@ -1577,8 +1525,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // the results are on the page.
         if (out.set === "set/2") {
           const c = out.proof.commit;
-          const evidence = out.members.map((m) => m.memberProof).filter((e) => e !== undefined);
-          if (c?.epochId && c?.counter && evidence.length) pendingIndexRef.current.push({ setDigest: out.artifactDigestB64, epoch: toUrlSafeB64(c.epochId), counter: String(c.counter), members: evidence });
         }
         await tick();
       }
@@ -1616,7 +1562,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     if (minted > 0) { setPackageNote(null); saveMinted(dropNameRef.current); }
     // An again run gives no row a place it did not have; the count is the rows on record.
     setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + (again ? 0 : minted));
-    if (pendingIndexRef.current.length > 0) void indexSetEvidence();
   }
 
   async function recordRemaining() {
@@ -2784,9 +2729,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                       row and proof page already uses. */}
                   <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
                     {animCount} of {items.length} file{items.length === 1 ? "" : "s"}{positionCount > 0 ? ` \u00b7 ${positionCount} position${positionCount === 1 ? "" : "s"}` : ""}
-                    {indexProgress && (
-                      <span style={{ fontWeight: 400, color: "#4b5563" }}>{` \u00b7 indexing ${indexProgress.current} of ${indexProgress.total}`}</span>
-                    )}
                   </span>
                   {found.length > 0 && (
                     // Same action-link idiom as every other action in the
@@ -2852,17 +2794,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
                     <button type="button" className="bg-action-link" onClick={() => fuseRemaining(true)}>
                       <span>{againRows.length === 1 ? "BitGraph this file again" : `BitGraph these ${againRows.length} files again`}</span>
-                      <span className="arrow" aria-hidden>&rarr;</span>
-                    </button>
-                  </div>
-                )}
-                {/* What the strategy has to say about a run that did not
-                    finish, in the card, under the row that offers the retry.
-                    One sentence, the error colour, same voice as the hints. */}
-                {recordMessage && pendingIndexRef.current.length > 0 && !indexProgress && (
-                  <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
-                    <button type="button" className="bg-action-link" onClick={() => { setRecordMessage(null); void indexSetEvidence(); }}>
-                      <span>Retry indexing</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
                   </div>

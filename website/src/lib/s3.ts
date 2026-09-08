@@ -7,12 +7,11 @@
  */
 
 import { Agent } from "node:https";
-import { journalDigests } from "./digest-index";
 import { isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
 import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
-import { SET_MEMBER_CHUNK, decodeChunkInto, encodeChunk, setMembersKey, setMembersPrefix, type MemberKind, type SetMemberRef } from "@/lib/set-members";
+import { decodeChunkInto, setMembersPrefix, type SetMemberRef } from "@/lib/set-members";
 
 
 /* ── PHASE 2: THE LEDGER KEEPS ONLY ANCHORS ────────────────────────────────
@@ -310,11 +309,6 @@ export async function storeProofByDigest(proof: Record<string, unknown>, priorLe
     const s3 = getClient();
     const bucket = getBucket();
     const artifact = proof.artifact as { digestB64: string };
-    // BEFORE the keys, never after: the digest index rejects what it has not
-    // heard of, so a key with no journal entry behind it would make a lookup
-    // answer "not on record" about something the ledger holds. The reverse,
-    // a journal entry whose keys then fail to write, costs one wasted read.
-    await journalDigests([artifact.digestB64]);
     const body = JSON.stringify(proof, null, 2);
     const safeDigest = toSafe(artifact.digestB64);
 
@@ -379,7 +373,6 @@ export async function storeProofByDigest(proof: Record<string, unknown>, priorLe
     const c = proof.commit as { epochId?: string; counter?: string } | undefined;
     if (originDigest !== null && originDigest !== artifact.digestB64 && c?.epochId && c?.counter) {
       // The origin earns a key too, so the index has to hear about it as well.
-      await journalDigests([originDigest]);
       puts.push(s3.send(new PutObjectCommand({
         Bucket: bucket,
         Key: `by-digest/${toSafe(originDigest)}/${toSafe(c.epochId)}-${String(c.counter).padStart(12, "0")}.json`,
@@ -443,9 +436,6 @@ async function writeMemberKeys(
 ): Promise<{ written: number; failed: number }> {
   const position = `${toSafe(epochId)}-${String(counter).padStart(12, "0")}`;
   const setDigest = toSafe(artifactDigestB64);
-  // Same rule as storeProofByDigest: the index hears about a member before
-  // its key exists, so it can never reject a member the ledger holds.
-  await journalDigests(entries.map((e) => e.digestB64));
   const results = await runPool(entries, INDEX_POOL, (e) => s3.send(new PutObjectCommand({
     Bucket: bucket,
     Key: `by-digest/${toSafe(e.digestB64)}/${position}.json`,
@@ -455,51 +445,6 @@ async function writeMemberKeys(
   })));
   const failed = results.filter((r) => r.status === "rejected").length;
   return { written: results.length - failed, failed };
-}
-
-/**
- * set/2: index members from their evidence. Each evidence object is bound
- * to the set (bindSetMember: strict parse, the set's count, leaf and path
- * recomputing the committed root) before it earns its two keys, under the
- * member's origin digest and its fused digest; the key's body is the set
- * proof with the member's own evidence riding under metadata, so a lookup
- * by either digest returns everything a reader needs to verify the member
- * offline. Evidence that does not bind is counted and skipped, never
- * written. The caller has already read the set proof from its own position.
- */
-export async function indexSetMemberEvidence(
-  proof: Record<string, unknown>,
-  bound: BoundSet,
-  evidence: unknown[],
-): Promise<{ written: number; failed: number; rejected: number }> {
-  // phase 2: nothing is written, and nothing was REJECTED either — the
-  // caller is told the truth about what happened, which is nothing.
-  if (!ledgerWritesOn()) return { written: 0, failed: 0, rejected: 0 };
-  const c = proof.commit as { epochId?: string; counter?: string } | undefined;
-  const artifact = (proof.artifact as { digestB64?: string } | undefined)?.digestB64;
-  if (!c?.epochId || !c?.counter || !artifact || bound.kind !== "set/2") return { written: 0, failed: 0, rejected: evidence.length };
-  const entries: Array<SetIndexEntry & { body: string }> = [];
-  let rejected = 0;
-  const seen = new Set<string>([artifact]);
-  for (const ev of evidence) {
-    const m = bindSetMember(bound, ev);
-    if (m === null) {
-      rejected++;
-      continue;
-    }
-    const withMember = { ...proof, metadata: { ...(isPlainObject(proof.metadata) ? proof.metadata : {}), [SET_MEMBER_KEY]: m.proof } };
-    const body = JSON.stringify(withMember, null, 2);
-    if (!seen.has(m.originDigestB64)) {
-      seen.add(m.originDigestB64);
-      entries.push({ digestB64: m.originDigestB64, kind: "fused-descendant", index: m.index, count: m.count, body });
-    }
-    if (!seen.has(m.fusedDigestB64)) {
-      seen.add(m.fusedDigestB64);
-      entries.push({ digestB64: m.fusedDigestB64, kind: "set-member", index: m.index, count: m.count, body });
-    }
-  }
-  const written = await writeMemberKeys(getClient(), getBucket(), entries, artifact, c.epochId, c.counter);
-  return { ...written, rejected };
 }
 
 export interface DigestProofEntry {
@@ -1094,30 +1039,3 @@ async function readSetMemberListUncached(
 
 /** Chunks read at once. A list is ~20 objects, so this finishes in one round. */
 const SET_LIST_POOL = 24;
-
-/** Write a set's member list. Chunked; returns how many objects were written. */
-export async function writeSetMemberList(
-  meta: { setDigest: string; epochId: string; counter: string; count: number; writeTime: number | null },
-  entries: Array<{ digestB64: string; kind: MemberKind; index: number }>,
-): Promise<number> {
-  if (!ledgerWritesOn()) return 0;  // phase 2
-  const s3 = getClient();
-  const bucket = getBucket();
-  const chunks: Array<{ key: string; body: string }> = [];
-  for (let i = 0, n = 0; i < entries.length; i += SET_MEMBER_CHUNK, n++) {
-    chunks.push({
-      key: setMembersKey(meta.epochId, meta.counter, n),
-      body: encodeChunk(meta, entries.slice(i, i + SET_MEMBER_CHUNK), i),
-    });
-  }
-  const done = await runPool(chunks, 8, async (c) => {
-    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: c.key, Body: c.body, ContentType: "application/json" }));
-  });
-  const failed = done.filter((d) => d.status === "rejected");
-  if (failed.length) {
-    // A partial list is safe (unnamed digests fall back), but it must be
-    // visible rather than look like a complete one.
-    console.error(`[set-members] ${meta.epochId}/${meta.counter}: ${failed.length} of ${chunks.length} chunks failed to write`);
-  }
-  return chunks.length - failed.length;
-}
