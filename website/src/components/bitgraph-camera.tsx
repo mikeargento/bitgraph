@@ -141,6 +141,9 @@ type BatchEntry = {
   proofs?: Array<{ proof: BitGraphProof; kind?: string; writeTime?: number | null; member?: { index: number; count: number; role: "origin" | "fused" } | null; setDigest?: string; envRef?: string; setRef?: string }>;
   /** The read FAILED: not an answer about these bytes. */
   unavailable?: true;
+  /** Positions came from set member lists without the per-digest listing:
+   *  positions these bytes hold, NOT a complete count. */
+  partial?: true;
 };
 import { SET_METADATA_KEY, readSetMetadata, type BitGraphProof as VerifyProof } from "@mikeargento/bitgraph-verify";
 
@@ -213,6 +216,15 @@ interface FileItem {
   // legacy/backfilled entries, which predate per-position write times.
   times?: (number | null)[];
   valid: boolean | null;
+  /**
+   * The ledger was not asked to enumerate every position for these bytes.
+   *
+   * ⚠️ A row with this set MUST NOT print a position count (Mike, 2026-09-08:
+   * "the row shouldnt claim a count until you open it"). The positions shown
+   * are ones these bytes really hold; there may be others. Opening the row
+   * reads everything, and an export asks with `members: "full"`.
+   */
+  partial?: boolean;
   status: "found" | "new" | "proving" | "proved" | "error";
   // True when this item came from a dropped proof.json rather than an artifact.
   // The `file` in hand is then the JSON, not the thing the proof is about, so we
@@ -550,7 +562,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const againRows = items.filter(isAgainRow);
   // The distinct positions the dropped files hold, across every row: a set is
   // one position for many files, and a file BitGraphed twice holds two.
-  const positionCount = new Set(items.flatMap((i) => (i.proofs.length ? i.proofs : i.proof ? [i.proof] : []).map((p) => `${p.commit?.epochId ?? ""}:${p.commit?.counter ?? ""}`))).size;
+  // ⚠️ ZERO when any row's positions were not fully enumerated, which hides
+  // the summary rather than printing a total that is only a floor. Same
+  // ruling as the per-row count: nothing claims a number it did not count.
+  const anyPartial = items.some((i) => i.partial);
+  const positionCount = anyPartial ? 0 : new Set(items.flatMap((i) => (i.proofs.length ? i.proofs : i.proof ? [i.proof] : []).map((p) => `${p.commit?.epochId ?? ""}:${p.commit?.counter ?? ""}`))).size;
   // What the export label counts. These mirror downloadZip's own filter, so the
   // label always names what the zip actually holds: one entry per file, and one
   // proof.json per causal position that file occupies.
@@ -591,7 +607,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const solo = shown.filter((i) => i.fromProofJson).length === 1;
     return shown.filter((i) => !(solo && i.fromProofJson)).flatMap((item) => {
       const ps: Array<BitGraphProof | null> = item.proofs.length ? item.proofs : item.proof ? [item.proof] : [null];
-      return ps.map((p, k) => ({ item, p, k, of: ps.length }));
+      // `of` is 0 when the answer did not enumerate every position: the row
+      // then prints no count at all rather than an incomplete one.
+      return ps.map((p, k) => ({ item, p, k, of: item.partial ? 0 : ps.length }));
     });
   }, [shown]);
   const { ref: resultListRef, first: rowFirst, last: rowLast } = useWindowedRows(lines.length, RESULT_ROW_H);
@@ -875,7 +893,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // ledger's member index names the row (ordinal and count, and whether
         // these bytes are the origin or the new file).
         const member = ordered.map((x) => x.member ?? null);
-        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, member: member.some((m) => m !== null) ? member : null, valid: null, status: "found" as const, ...(s.scan ? { scan: s.scan } : {}) };
+        return { file: f, digestB64: digest, proof: ordered[0].proof, proofs: ordered.map((x) => x.proof), kinds, times, member: member.some((m) => m !== null) ? member : null, valid: null, status: "found" as const, ...(rec?.partial ? { partial: true } : {}), ...(s.scan ? { scan: s.scan } : {}) };
       }
       return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "new" as const, ...(s.scan ? { scan: s.scan } : {}) };
     });
@@ -2436,6 +2454,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     // One line of type on the right: the position, its ordinal
                     // when the same bytes hold more than one, and the anchor
                     // time. A row with no position yet says its state there.
+                    // ⚠️ `of` is 0 when the answer came from a set's member
+                    // list without the per-digest listing, and the ordinal is
+                    // then omitted: the positions shown are real, but they
+                    // were never counted, so the row says no number.
                     const right = counter != null
                       ? `#${Number(counter).toLocaleString()}${of > 1 ? ` (${k + 1}/${of})` : ""}${when ? ` · ${when}` : ""}`
                       : item.status === "error" ? "error"

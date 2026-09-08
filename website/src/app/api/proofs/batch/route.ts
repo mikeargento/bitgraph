@@ -148,7 +148,17 @@ export async function POST(req: NextRequest) {
      */
     const probeCount = useLists ? Math.min(SET_PROBE, toRead.length) : 0;
     const sets: Record<string, unknown> = {};
-    const memberOf = new Map<string, { ref: string; writeTime: number | null; index: number; count: number; role: "origin" | "fused" }>();
+    type MemberAt = { ref: string; writeTime: number | null; index: number; count: number; role: "origin" | "fused" };
+    const memberOf = new Map<string, MemberAt>();
+    /**
+     * Every position a digest holds IN AN EXPANDED SET, keyed by digest.
+     *
+     * ⚠️ THIS IS NOT NECESSARILY ALL OF ITS POSITIONS, which is the whole
+     * reason answers built from it are marked `partial`. A digest can also
+     * sit in a set nothing probed, or hold a plain recording of its own, and
+     * only the per-digest listing knows that. See the ruling below.
+     */
+    const memberPositions = new Map<string, MemberAt[]>();
     const setsTried = new Set<string>();
     async function expandSetsFrom(entries: Array<{ proof: unknown; setDigest?: string }>): Promise<void> {
       for (const e of entries) {
@@ -171,7 +181,7 @@ export async function POST(req: NextRequest) {
             // and those are two spellings of the same value.
             const at = `${toSafeB64(c.epochId)}/${c.counter}|${d}`;
             if (memberOf.has(at)) continue;
-            memberOf.set(at, {
+            const rec: MemberAt = {
               ref: m.setDigest,
               writeTime: m.writeTime,
               index: m.index,
@@ -180,7 +190,11 @@ export async function POST(req: NextRequest) {
               // "fused-descendant" key is its origin. Same mapping as
               // memberOfHeaders, which these lists stand in for.
               role: m.kind === "set-member" ? "fused" : "origin",
-            });
+            };
+            memberOf.set(at, rec);
+            const held = memberPositions.get(d);
+            if (held) held.push(rec);
+            else memberPositions.set(d, [rec]);
           }
           console.log(`[batch] set ${at} expanded: ${list.size} members from its list`);
         } catch (err) {
@@ -204,6 +218,12 @@ export async function POST(req: NextRequest) {
       }>;
       /** The read FAILED. Not an answer about these bytes; see below. */
       unavailable?: true;
+      /**
+       * These positions came from set member lists, WITHOUT the per-digest
+       * listing, so they are positions this digest holds and not necessarily
+       * ALL of them. A reader must not present a count.
+       */
+      partial?: true;
     }> = {};
     // A digest the index ruled out is answered here, with the same shape a
     // read would have produced for bytes that are not on record.
@@ -265,11 +285,53 @@ export async function POST(req: NextRequest) {
       await expandSetsFrom(probed.flatMap((r) => (r.status === "fulfilled" ? r.value : [])));
     }
 
-    const rest = toRead.slice(probeCount);
+    /**
+     * ⚠️ RULING (Mike, 2026-09-08): "the row shouldnt claim a count until you
+     * open it."
+     *
+     * This is what makes a check cost what a make costs. Making 48,000
+     * BitGraphs is ONE request, because the set is one tick; checking them
+     * was 48,000 separate questions about that same tick, and came out FOUR
+     * TIMES more expensive than making them (make ~16s, check 64s). The
+     * listing per digest was the whole remaining cost, and it exists for one
+     * purpose: to promise the positions returned are ALL of them.
+     *
+     * That promise is worth paying for when you open a row. It is not worth
+     * paying 48,000 times to draw a list. So a digest a member list already
+     * places is answered from the list alone, no listing, and the entry says
+     * `partial` — these are positions it holds, not a complete count. The row
+     * prints no "1 of 3", the proof page still reads everything when opened,
+     * and an export asks with `members: "full"`, which restores the listing.
+     *
+     * A digest no list places is looked up exactly as before.
+     */
+    const fromList: string[] = [];
+    const mustRead: string[] = [];
+    for (const d of toRead.slice(probeCount)) (memberPositions.has(d) ? fromList : mustRead).push(d);
+    for (const d of fromList) {
+      const held = memberPositions.get(d)!;
+      results[d] = {
+        partial: true,
+        proofs: held
+          .filter((m) => sets[m.ref])
+          .map((m) => ({
+            proof: sets[m.ref] as Record<string, unknown>,
+            writeTime: m.writeTime,
+            kind: "fused" as const,
+            member: { index: m.index, count: m.count, role: m.role },
+            setDigest: m.ref,
+          })),
+      };
+      // A list that placed it but whose set is not in hand answers nothing,
+      // so read it properly rather than report an empty position list.
+      if (results[d].proofs.length === 0) { delete results[d]; mustRead.push(d); }
+    }
+    if (fromList.length) console.log(`[batch] ${fromList.length} digests answered from member lists, ${mustRead.length} read`);
+
     let next = 0;
     await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, rest.length) }, async () => {
-        while (next < rest.length) await lookupOne(rest[next++]);
+      Array.from({ length: Math.min(CONCURRENCY, mustRead.length) }, async () => {
+        while (next < mustRead.length) await lookupOne(mustRead[next++]);
       }),
     );
     // The side table: every set named by a member entry, ONCE, as its own
