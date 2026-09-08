@@ -53,10 +53,15 @@ test("nothing lists the files, because matching is by content", () => {
 
 test("the name carries the folder, and says nothing it does not know", () => {
   assert.equal(bitgraphsFileName("Photos 2024"), "Photos 2024-bitgraphs.json");
-  // A drop of loose files has no folder name to borrow. Rather than invent
-  // one, it leans on the browser's own de-duplication.
-  assert.equal(bitgraphsFileName(null), "bitgraphs.json");
-  assert.equal(bitgraphsFileName("  "), "bitgraphs.json");
+  /* A drop of loose files has no folder name to borrow. It used to fall back
+     to the bare "bitgraphs.json" and lean on the browser's de-duplication,
+     which produced "bitgraphs (1).json" and told the reader nothing about what
+     was in it or when. A timestamp is not a good name; it is a name. */
+  const at = new Date(2026, 8, 8, 17, 46);
+  assert.equal(bitgraphsFileName(null, at), "bitgraphs-2026-09-08-1746.json");
+  assert.equal(bitgraphsFileName("  ", at), "bitgraphs-2026-09-08-1746.json");
+  // Two loose drops a minute apart cannot collide.
+  assert.notEqual(bitgraphsFileName(null, at), bitgraphsFileName(null, new Date(2026, 8, 8, 17, 47)));
   // Path separators and control characters cannot escape the filename.
   assert.equal(bitgraphsFileName("a/b:c*d"), "a b c d-bitgraphs.json");
 });

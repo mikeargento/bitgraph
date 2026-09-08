@@ -14,7 +14,8 @@ import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
-import { takeFreshProof } from "@/lib/fresh-proof";
+import { takeFreshProof, takeSavedNotice } from "@/lib/fresh-proof";
+import { loadLedger, heldFor } from "@/lib/local-ledger";
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkInline, isInlineProof } from "@/lib/fuse-client";
 import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64, bytesToHex } from "@mikeargento/bitgraph-verify";
@@ -31,7 +32,7 @@ function slotCommitmentOf(proof: unknown): string | null {
   } catch { return null; }
 }
 import { SET_KEY, bindSet, bindSetMember, dropDigestsFor, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
-import { toUrlSafeB64, truncateHash } from "@/lib/explorer";
+import { toUrlSafeB64, fromUrlSafeB64, truncateHash } from "@/lib/explorer";
 import { Shell, ProofSkeleton } from "./proof-skeleton";
 // QR code removed — replaced with Ethereum Seal card
 
@@ -134,6 +135,11 @@ export default function ProofPage() {
      emptiness is not a claim about these bytes. */
   const [retired, setRetired] = useState(false);
   const [dragging, setDragging] = useState(false);
+  /* What the make that landed here saved, and what to do with it. Read once
+     on mount: this screen is where a solo make ends up, and until now it was
+     told nothing about the file that had just appeared in its downloads. */
+  const [savedNotice] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : takeSavedNotice());
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
   // Which file the page holds for a fused proof: the original (accepted by
   // reconstruction) or the new file itself. Names the export action; an
@@ -485,7 +491,24 @@ export default function ProofPage() {
         // or strict-mode double-invoked) effect, and without this a cancelled run
         // would clobber a good render with a spurious "not found".
         if (!cancelled && data?.discovery === "retired") setRetired(true);
-        if (!cancelled && !applyData(data) && !seeded) setError("BitGraph not found");
+        if (cancelled || applyData(data) || seeded) return;
+        /* ⚠️ ASK THIS BROWSER BEFORE SAYING THERE IS NOTHING.
+         *
+         * The hosted lookup can no longer find a proof made after 2026-09-08 —
+         * that is the point — so this page went straight to "Nothing here to
+         * look up" for a BitGraph its own owner had made seconds earlier, and
+         * would do it again on every reload and every browser-back. The
+         * connected BitGraphs folder IS the ledger now, and it is right here.
+         *
+         * Only ever ADDS a record; it cannot contradict one, and a browser
+         * that holds nothing simply falls through to the honest empty state. */
+        const mine = heldFor(await loadLedger(), fromUrlSafeB64(digestParam));
+        if (cancelled) return;
+        if (mine.length && applyData({ proofs: mine.map((pr) => ({ proof: pr })) })) {
+          setLoading(false);
+          return;
+        }
+        setError("BitGraph not found");
         // Staleness guard. The CDN serves settled responses stale-while-
         // revalidate, so right after the same bytes are BitGraphed again a
         // cached copy can predate the very position this page is displaying —
@@ -576,7 +599,7 @@ export default function ProofPage() {
               a finding about those bytes: they may never have been recorded, or
               they may hold a position and the proof is in the folder of whoever
               made it. Drop the BitGraph package below, or its <code>proof.json</code>, and it
-              is read in your browser \u2014 nothing uploaded, nothing asked of us.
+              is read in your browser — nothing uploaded, nothing asked of us.
             </div>
           </>
         ) : (
@@ -1100,6 +1123,19 @@ export default function ProofPage() {
               right column can drop below the date. Gated on the recording info it
               shows, not on proofHash (which is absent from exported/older
               proofs). */}
+          {/* ⚠️ WHAT WAS JUST SAVED, on the screen a solo make actually lands on.
+              Making ends in a file now, and the sentence explaining that file
+              lived only on the results card — which a lone file never reaches,
+              because it navigates straight here. So the most common gesture in
+              the product downloaded something and said nothing about it, and
+              the first anyone knew was a stray json in their downloads (Mike,
+              minutes after it shipped: "it didnt create a FOLDER called
+              bitgraph on my desktop"). Shown once, on arrival. */}
+          {savedNotice && (
+            <div style={{ background: "#fff", border: "1px solid #d0d5dd", padding: "14px 16px", fontSize: 13, lineHeight: 1.6, color: "#4b5563" }}>
+              {savedNotice}
+            </div>
+          )}
           {/* Interval proofs have no content card, so the "when" is its own
               small card here. File proofs show it inside the BitGraphed File
               card, and Ethereum anchors inside the BitGraphed Ethereum Block

@@ -42,7 +42,7 @@ import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, find
 import { CheckedList, fmtRowWhen } from "@/components/folder-list";
 import { useWindowedRows } from "@/components/windowed-rows";
 import { takePendingDrop } from "@/lib/pending-drop";
-import { setFreshProof } from "@/lib/fresh-proof";
+import { setFreshProof, setSavedNotice } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
 import {
   positionsNeedingAnchors, positionCount as countPositions, readDropShape, anchorStatusDoc, isSettled,
@@ -50,8 +50,9 @@ import {
 } from "@/lib/anchor-export";
 import { fetchAnchorsFor, packAnchorZip, anchorZipName } from "@/lib/anchor-package";
 import { cacheArtifactToIDB, putPackageToIDB } from "@/lib/file-cache";
-import { buildBitGraphsFile, bitgraphsFileName, BITGRAPHS_DIR } from "@/lib/bitgraphs-file";
+import { buildBitGraphsFile } from "@/lib/bitgraphs-file";
 import { emptyLedger, addProofs, readBitGraphsFiles, heldFor, stateLine, saveLedger, loadLedger, type LocalLedger } from "@/lib/local-ledger";
+import { LEDGER_CHANGED } from "@/components/ledger-light";
 import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
 import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
@@ -852,6 +853,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       const next = addProofs(prev, proofs, sources[0] ?? null,
         (p) => { try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; } });
       void saveLedger(next);
+      // The nav's indicator lives on every page and cannot see this state.
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(LEDGER_CHANGED));
       return next;
     });
     return rest;
@@ -952,26 +955,19 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         return;
       }
       if (solo.status === "new" && solo.digestB64) {
-        /* ── THE GATE IS ON MINTING, NOT ON DRAGGING ──
+        /* ❄️ NO GATE. A lone new file auto-records, exactly as it always has.
          *
-         * ⚠️ AUTO-RECORD NEEDS A LEDGER TO BE HONEST. Mike's July ruling — a
-         * lone new file auto-records, the drop is the shutter — rests on being
-         * able to say the file is NEW. With nothing connected, "new" is
-         * unknowable, and the shutter silently becomes "record something that
-         * may already be recorded", permanently, consuming a position nobody
-         * asked for. The rule did not change; its precondition did.
+         * I put a gate here — with nothing connected, ask before minting,
+         * because "new" is unknowable without a ledger. It was the wrong call
+         * and Mike said so plainly: it should be EXACTLY like before, with the
+         * folder standing where S3 stood. The gate was not a storage change,
+         * it was a new question in front of the product's most common gesture.
          *
-         * "I have no record of this" is not "there is no record of this."
-         *
-         * So with nothing connected it ASKS: the results card offers to make
-         * them, and says why it is asking. Dragging stays free — this costs a
-         * first-time visitor one click, and costs them nothing permanent. */
-        if (ledger.proofs.length === 0) {
-          setItems(results);
-          setStep("results");
-          setAnimCount(0);
-          return;
-        }
+         * And his own earlier ruling had already removed its justification:
+         * losing dedup is a CORRECTION, not a loss — a clock that ticks when
+         * you ask should tick every time you ask. If a second position for the
+         * same bytes is correct, there is nothing to protect anyone from, and
+         * nothing to ask about. */
         // Auto-record the lone new file, then open its fresh proof. Show the
         // proving spinner while the TEE signs (a second or two).
         setItems(results);
@@ -1055,7 +1051,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       // before anyone knew what was in the folder, so it has to be retired
       // here even when the answer is "nothing".
       if (strays.length) void handleFiles(strays);
-      else { setStep("drop"); setBoxOpen(true); }
+      else {
+        // Connect-only drop: nothing to read, so retire the walking phase
+        // with the step rather than leaving it for the next screen to inherit.
+        setScanPhase("reading");
+        setStep("drop");
+        setBoxOpen(true);
+      }
       return;
     }
     // The day renders the moment the local scan finishes; verdicts stream
@@ -1706,9 +1708,28 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      one proof, so that folder is three proofs: about 23 KB, instant at any
      size. See lib/bitgraphs-file.ts. */
   const saveBitGraphs = (rows: FileItem[], source: string | null) => {
-    const doc = buildBitGraphsFile(rows, source);
+    /* ⚠️ ONE LEDGER, ONE FILE. It used to write one file PER DROP, named after
+     * whatever was dropped, so a folder filled up with
+     * "Screenshot 2026-08-13 at 11.29.00 AM-bitgraphs.json" and friends — one
+     * json per photo, each labelled with a filename. Mike: "its labelling
+     * files as bitgraph", and "it should literally be EXACTLY like before but
+     * instead of S3 its just on your computer".
+     *
+     * That is the right frame and it settles this: S3 was ONE ledger, so the
+     * folder is one ledger. Every make writes bitgraphs.json holding
+     * EVERYTHING this browser holds — the new positions folded into the ones
+     * already connected — and you keep the newest. Names stop multiplying,
+     * and a single file is the whole of what you have.
+     *
+     * ⚠️ The cost, stated: a page cannot update a file in place, so this is
+     * re-downloaded whole every time. At 8 KB a position that is fine into the
+     * hundreds and heavy in the thousands (1,000 positions ≈ 7.7 MB a save).
+     * If that day comes the answer is an explicit export rather than a save on
+     * every make — not a per-drop file, which is what this replaced. */
+    const doc = buildBitGraphsFile(
+      [...ledger.proofs.map((p) => ({ proof: p, proofs: [p] })), ...rows], source);
     if (!doc.proofs.length) return;
-    const name = bitgraphsFileName(source);
+    const name = "bitgraphs.json";
     const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1721,10 +1742,25 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       name, blob, savedAt: Date.now(),
       positions: doc.proofs.map((pr) => `${pr.commit?.epochId ?? ""} ${pr.commit?.counter ?? ""}`),
     });
-    setPackageNote(
-      `Saved ${name}. Keep it in a ${BITGRAPHS_DIR} folder you back up or sync — ` +
-      `it is the BitGraph now, and your files are unchanged. Drop that folder in ` +
-      `any time to check them or to collect their Ethereum anchors.`);
+    /* Said in BOTH places, because the two make paths end on different
+       screens: a batch stays here and reads the card, a lone file navigates to
+       its proof page and would otherwise be told nothing at all. */
+    const n = doc.proofs.length;
+    const said =
+      `Saved ${name} — your whole ledger, ${n} BitGraph${n === 1 ? "" : "s"}. Keep it ` +
+      `somewhere you back up or sync and replace the older copy; your files are ` +
+      `untouched. Drag it back here any time to check files or collect anchors.`;
+    setPackageNote(said);
+    setSavedNotice(said);
+    // The browser's own copy is the live ledger, the way S3 was: fold the new
+    // positions in so the next drop knows them without a re-connect.
+    setLedger((prev) => {
+      const next = addProofs(prev, doc.proofs, source,
+        (pr) => { try { return fusedMarkerOf(pr)?.originDigestB64 ?? null; } catch { return null; } });
+      void saveLedger(next);
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(LEDGER_CHANGED));
+      return next;
+    });
   };
 
   const saveMinted = (source: string | null) => {
@@ -2459,7 +2495,20 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                    whole reason minting can still be safe without a hosted
                    ledger, so it belongs where the gesture happens rather than
                    in the nav. A count, never a dot; nothing red. */
-                stateLine={stateLine(ledger, scanPhase === "walking" ? walkCount : null)}
+                /* ⚠️ NEVER A READING COUNT HERE. It read the walk's phase, and
+                   that phase is not reset when a walk ends without a scan —
+                   exactly what a BitGraphs folder does, since it connects and
+                   returns to the drop screen. The line then sat on
+                   "Reading 2…" forever over an idle box, which reads as a hang
+                   (Mike: "stuck there").
+
+                   The deeper reason it was wrong: this box is only rendered on
+                   the drop and results steps, never while scanning — the walk
+                   has its own full-screen wait — so a reading count could not
+                   be true here even in principle. The typechecker said so once
+                   the step was named. The line states what is CONNECTED, which
+                   is the one thing it always knows. */
+                stateLine={stateLine(ledger, null)}
               />
             </div>
             {/* The page's block, under the box, left (Mike, 2026-08-19: "move
@@ -2764,17 +2813,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     making a BitGraph is the operation, and the digest-only
                     commit is an API and MCP compatibility path, not a second
                     choice put in front of whoever dropped the files. */}
-                {/* Why this is a question and not a shutter. Only when
-                    nothing is connected, and worded as the normal state it is
-                    rather than as a fault. */}
-                {unproven.length > 0 && ledger.proofs.length === 0 && (
-                  <div style={{ borderTop: "1px solid #eef0f1", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "#4b5563" }}>
-                    No BitGraphs folder is connected, so I cannot tell whether
-                    {unproven.length === 1 ? " this file is" : " these files are"} already recorded.
-                    Drag it in first, or make {unproven.length === 1 ? "it" : "them"} anyway
-                    &mdash; each one takes a new position.
-                  </div>
-                )}
                 {unproven.length > 0 && (
                   <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
                     <button type="button" className="bg-action-link" onClick={proveRemaining}>

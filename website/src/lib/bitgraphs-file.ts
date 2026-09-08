@@ -69,8 +69,16 @@ export function buildBitGraphsFile(
   }
   return {
     version: BITGRAPHS_VERSION,
+    /* ⚠️ NOT EVIDENCE. This is the browser's own clock, kept so a human
+     * opening the file months later knows which one it is. Nothing verifies
+     * against it, and the record's actual time comes from the Ethereum anchors
+     * inside the proofs — the product does not assert time from an untrusted
+     * source, and this file is written on one. */
     savedAt: savedAt.toISOString(),
-    source,
+    /* What was dropped. Never null now: a loose drop that has no folder name
+     * to borrow says so in as many words rather than leaving a null for a
+     * reader to interpret. */
+    source: source ?? `${seen.size} file${seen.size === 1 ? "" : "s"} dropped on their own`,
     proofs: [...seen.values()],
   };
 }
@@ -88,9 +96,21 @@ export function buildBitGraphsFile(
  * own de-duplication rather than inventing a name that claims more than it
  * knows.
  */
-export function bitgraphsFileName(source: string | null): string {
+export function bitgraphsFileName(source: string | null, at: Date = new Date()): string {
   const safe = (source ?? "").replace(/[\x00-\x1f\x7f/\\:*?"<>|]/g, " ").trim();
-  return safe ? `${safe}-bitgraphs.json` : "bitgraphs.json";
+  if (safe) return `${safe}-bitgraphs.json`;
+  /* ⚠️ NEVER THE BARE `bitgraphs.json`. A drop of loose files has no folder
+   * name to borrow, and leaning on the browser's de-duplication gave the worst
+   * name in the scheme: the first save is `bitgraphs.json`, the second
+   * `bitgraphs (1).json`, and neither says what is in it or when it was made.
+   * Mike hit this within minutes of the feature existing. A timestamp is not a
+   * good name, but it is a name: it cannot collide, it sorts, and it tells you
+   * something true. Local time, because it is read by the person who made it.
+   */
+  const two = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}` +
+    `-${two(at.getHours())}${two(at.getMinutes())}`;
+  return `bitgraphs-${stamp}.json`;
 }
 
 /** Read a BitGraphs file back, or null if this is not one. Tolerant on

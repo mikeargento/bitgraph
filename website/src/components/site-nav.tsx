@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LedgerLight } from "@/components/ledger-light";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-sections";
@@ -153,6 +154,11 @@ export function SiteNav() {
             A 12-character label ("Applications", before this settled on "Uses")
             left only 7px between the wordmark and the first link at 320px. */}
         <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
+          {/* Whether your BitGraphs folder is connected, on every page. The box
+              says it too, but only on home and only when you look at the box —
+              which is how Mike made a BitGraph without ever learning a file had
+              been saved. See ledger-light.tsx for why it is not red/green. */}
+          <LedgerLight />
           {/* Ledger → Docs: the ledger, then the spec. The page of what you
               point the camera at lived here for months under four names
               (Uses → Why → Subjects → Applications → "Use cases", each a
