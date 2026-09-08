@@ -934,6 +934,27 @@ export async function getAnchorsAfterCounter(proofCounter: number, epochId: stri
 // ---------------------------------------------------------------------------
 
 /**
+ * Member lists held in function memory between requests.
+ *
+ * ⚠️ WITHOUT THIS THE LISTS MADE THINGS BARELY BETTER. A drop is dozens of
+ * requests, and each one was reading every chunk of every set it touched —
+ * for the 48,000 file folder that is 43 objects and ~12 MB PER REQUEST, used
+ * once and dropped. Measured on production 2026-09-08: a TEN digest request
+ * cost 1.5-2.1s, all of it this, and a 48,000 file check spent 64s where the
+ * per-request numbers had promised far less.
+ *
+ * A list is an index over append-only keys, so a cached one can only ever be
+ * missing entries that were added since, never wrong about the ones it has —
+ * and a digest it does not name falls through to a real lookup anyway. The
+ * TTL is short regardless, because a set indexed in chunks gains members over
+ * minutes and a stale list would keep sending them the slow way.
+ */
+const SET_LIST_TTL_MS = 5 * 60_000;
+/** Sets held at once. A drop touches a few; this bounds the memory a lambda keeps. */
+const SET_LIST_MAX = 6;
+const setListCache = new Map<string, { list: Map<string, SetMemberRef> | null; at: number }>();
+
+/**
  * Every member of one set position, keyed by url-safe digest.
  *
  * Returns null when there is no usable list, which is not a statement about
@@ -942,6 +963,24 @@ export async function getAnchorsAfterCounter(proofCounter: number, epochId: stri
  * reason — a digest it does not name simply is not answered here.
  */
 export async function readSetMemberList(
+  epochId: string,
+  counter: string,
+): Promise<Map<string, SetMemberRef> | null> {
+  const at = setMembersPrefix(epochId, counter);
+  const hit = setListCache.get(at);
+  if (hit && Date.now() - hit.at < SET_LIST_TTL_MS) return hit.list;
+  const list = await readSetMemberListUncached(epochId, counter);
+  // The absence of a list is cached too: a set that has none would otherwise
+  // cost a fresh listing on every request of a drop, for nothing.
+  setListCache.set(at, { list, at: Date.now() });
+  if (setListCache.size > SET_LIST_MAX) {
+    const oldest = [...setListCache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+    if (oldest) setListCache.delete(oldest[0]);
+  }
+  return list;
+}
+
+async function readSetMemberListUncached(
   epochId: string,
   counter: string,
 ): Promise<Map<string, SetMemberRef> | null> {
