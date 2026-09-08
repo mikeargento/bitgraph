@@ -55,6 +55,10 @@ interface FileDropProps {
    *  the box, under "Your file never leaves your device", so the block under
    *  the frame is one line on both pages and the two frames match). */
   note?: ReactNode;
+  /** The fourth line inside the frame: what this browser knows about what you
+   *  hold ("1,240 BitGraphs connected", or an invitation to drag the folder
+   *  in). Renders BELOW hint and subhint, unlike `note`. */
+  stateLine?: ReactNode;
   /** When set, the empty state shows a blue CTA button with this label
       (instead of the icon + headline). The whole box still accepts drops. */
   buttonLabel?: string;
@@ -87,6 +91,7 @@ export function FileDrop({
   hint,
   subhint,
   note,
+  stateLine,
   buttonLabel,
   shutter,
   browseLabel = "browse",
@@ -518,6 +523,30 @@ export function FileDrop({
                 }}
               >
                 {subhint}
+              </div>
+            )}
+            {/* ── The fourth line: what this browser actually knows ──
+                Mike, 2026-09-08: "oh inside i like that". BELOW the other
+                three, not above them and not in the nav — above the frame is
+                the slot the headline was removed from that same morning, and
+                the nav would recreate the two-meanings-of-Ledger problem.
+
+                ⚠️ A COUNT, NEVER A DOT: it carries the same signal and adds
+                information. ⚠️ NOTHING RED — not-connected is the normal first
+                state, not a fault, and red is off-palette anyway (green
+                retired 2026-07-19, the brand is #0065A4). Same WEIGHT as the
+                lines above it, one step down the size ladder. */}
+            {stateLine && (
+              <div
+                className="mt-1.5 text-center"
+                style={{
+                  color: "var(--fd-subhint, #4b5563)",
+                  fontSize: "var(--fd-state-size, min(11.5px, 2.7vw))",
+                  lineHeight: 1.5,
+                  textWrap: "balance",
+                }}
+              >
+                {stateLine}
               </div>
             )}
             {refusalNote}

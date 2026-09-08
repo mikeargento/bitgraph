@@ -51,6 +51,7 @@ import {
 import { fetchAnchorsFor, packAnchorZip, anchorZipName } from "@/lib/anchor-package";
 import { cacheArtifactToIDB, putPackageToIDB } from "@/lib/file-cache";
 import { buildBitGraphsFile, bitgraphsFileName, BITGRAPHS_DIR } from "@/lib/bitgraphs-file";
+import { emptyLedger, addProofs, readBitGraphsFiles, heldFor, stateLine, saveLedger, loadLedger, type LocalLedger } from "@/lib/local-ledger";
 import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
 import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
@@ -922,7 +923,54 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         ` · total ${ms(scanStart, end)}`,
       );
     }
+
+    /* ── What YOU already hold ──
+     *
+     * The connected folder answers the same question the hosted ledger does,
+     * about your own files, for free. Folded in AFTER the lookup so it can
+     * only ever ADD: a row the hosted ledger already settled keeps its answer,
+     * and a row it could not settle can still be recognised from your folder.
+     *
+     * ⚠️ IT ONLY EVER TURNS "new" INTO "found", NEVER THE REVERSE. The local
+     * ledger is a record of what you happen to have shown this browser, so its
+     * SILENCE means nothing at all — exactly the distinction that mattered
+     * four times on 2026-09-07. It can miss a match; it must never erase one.
+     */
+    if (ledger.proofs.length) {
+      for (const r of results) {
+        if (r.status !== "new" || !r.digestB64) continue;
+        const held = heldFor(ledger, r.digestB64);
+        if (!held.length) continue;
+        r.proofs = held;
+        r.proof = held[0];
+        r.status = "found";
+        // Not asserted: nothing here verified a signature, and the row's
+        // own verify path is what earns that.
+        r.valid = null;
+      }
+    }
     return results;
+  }
+
+  /**
+   * Take any BitGraphs files out of a drop and connect them.
+   *
+   * ⚠️ CONNECTING IS DRAGGING, and it can never mint. A drop that is only
+   * BitGraphs files is a connection and nothing else: it ends here, with the
+   * count in the box changed and no slot consumed anywhere. A mixed drop
+   * connects what it can and carries on with the rest, so dragging a whole
+   * BitGraphs folder in alongside photos does the obvious thing.
+   */
+  async function connectFrom(files: File[]): Promise<File[]> {
+    const { proofs, sources, rest } = await readBitGraphsFiles(files);
+    if (!proofs.length) return rest;
+    setLedger((prev) => {
+      const next = addProofs(prev, proofs, sources[0] ?? null,
+        (p) => { try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; } });
+      void saveLedger(next);
+      return next;
+    });
+    return rest;
   }
 
   async function handleFiles(files: File[]) {
@@ -939,6 +987,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // A new drop retires the last run's sentence; the rows are the answer now.
     setRecordMessage(null);
     setBoxOpen(false);
+    // Connect first. A drop of nothing but BitGraphs files IS the connection
+    // gesture and ends right here — nothing is hashed, nothing is minted, the
+    // count in the box just changes.
+    const rest = await connectFrom(files);
+    if (rest.length === 0) { setStep("drop"); setBoxOpen(true); return; }
+    files = rest;
     const results = await scanFiles(files);
 
     // One file in, one page out. A single artifact drop always lands on its
@@ -1014,6 +1068,26 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         return;
       }
       if (solo.status === "new" && solo.digestB64) {
+        /* ── THE GATE IS ON MINTING, NOT ON DRAGGING ──
+         *
+         * ⚠️ AUTO-RECORD NEEDS A LEDGER TO BE HONEST. Mike's July ruling — a
+         * lone new file auto-records, the drop is the shutter — rests on being
+         * able to say the file is NEW. With nothing connected, "new" is
+         * unknowable, and the shutter silently becomes "record something that
+         * may already be recorded", permanently, consuming a position nobody
+         * asked for. The rule did not change; its precondition did.
+         *
+         * "I have no record of this" is not "there is no record of this."
+         *
+         * So with nothing connected it ASKS: the results card offers to make
+         * them, and says why it is asking. Dragging stays free — this costs a
+         * first-time visitor one click, and costs them nothing permanent. */
+        if (ledger.proofs.length === 0) {
+          setItems(results);
+          setStep("results");
+          setAnimCount(0);
+          return;
+        }
         // Auto-record the lone new file, then open its fresh proof. Show the
         // proving spinner while the TEE signs (a second or two).
         setItems(results);
@@ -1085,12 +1159,19 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     setRecordMessage(null);
     setBoxOpen(false);
     const scan = discoverDrop(walked);
+    /* Connect before anything else is decided. A dragged BitGraphs folder IS
+       the connection gesture — it holds no proof.json, so discoverDrop finds
+       no exports and every file in it is a "stray" that would otherwise be
+       hashed and looked up like a photo. Connecting first also means a folder
+       holding BOTH exports and a BitGraphs file does the obvious thing.
+       ⚠️ This can never mint: it only reads JSON already on the machine. */
+    const strays = await connectFrom(scan.strays);
     if (scan.exports.length === 0) {
       // Hand off, or put the drop zone back: the reading state was raised
       // before anyone knew what was in the folder, so it has to be retired
       // here even when the answer is "nothing".
-      if (scan.strays.length) void handleFiles(scan.strays);
-      else setStep("drop");
+      if (strays.length) void handleFiles(strays);
+      else { setStep("drop"); setBoxOpen(true); }
       return;
     }
     // The day renders the moment the local scan finishes; verdicts stream
@@ -1148,8 +1229,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // Files in the drop that belong to no export are just files: hash and
     // look them up like any other drop (their card renders below the
     // verdicts), with none of the solo routing.
-    if (scan.strays.length) {
-      void scanFiles(scan.strays).then((strayItems) => {
+    if (strays.length) {
+      void scanFiles(strays).then((strayItems) => {
         setItems(strayItems);
         setAnimCount(strayItems.filter((r) => r.status === "found").length);
       }).catch(() => { /* strays are secondary; the ledger stands */ });
@@ -1702,6 +1783,19 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
    * updater is handed the settled state and returns it untouched, so this
    * costs no extra render and cannot read a stale row.
    */
+  /* ── What this browser knows about what you hold ──
+     The local ledger. Empty is the NORMAL first state, not a fault: a
+     first-time visitor has no folder, and there is no gate in front of the
+     drop. Connecting is dragging your BitGraphs folder in. */
+  const [ledger, setLedger] = useState<LocalLedger>(emptyLedger);
+  useEffect(() => {
+    // Remembered from a previous visit, so the common case needs no drag and
+    // no permission prompt. A cache of what you showed us, never the
+    // authority — the folder on disk is that.
+    void loadLedger((p) => { try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; } })
+      .then((l) => { if (l.proofs.length) setLedger(l); });
+  }, []);
+
   /* What was dropped, so the saved file can borrow its name. A folder gives
      its own name; a drop of loose files has none to borrow, which is the
      weakest point in the naming scheme and is still open. */
@@ -2466,6 +2560,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 // would not have.
                 subhint={dropSubhint}
                 note={frameNote}
+                /* The fourth line: what this browser actually knows. It is the
+                   whole reason minting can still be safe without a hosted
+                   ledger, so it belongs where the gesture happens rather than
+                   in the nav. A count, never a dot; nothing red. */
+                stateLine={stateLine(ledger, scanPhase === "walking" ? walkCount : null)}
               />
             </div>
             {/* The page's block, under the box, left (Mike, 2026-08-19: "move
@@ -2705,9 +2804,22 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   and is not rendered (see the note in the hero). */}
               {!boxOpen && (
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+                  {/* ⚠️ THE HEADING MAY NOT CLAIM A VERDICT IT DOES NOT HAVE.
+                      It said "BitGraph Found" over "0 of 1 file" whenever a
+                      drop found nothing — harmless when that was rare, and the
+                      FIRST thing a new visitor sees now that minting waits for
+                      a connected folder. Worse, "not found" is not a claim we
+                      can make either: with nothing connected we genuinely do
+                      not know. So when nothing was found and nothing was made,
+                      the heading counts files and says nothing else; the card
+                      below explains. Mike's 2026-08-19 rule (say Found until
+                      something is recorded) still governs the other two. */}
                   <div className="bg-page-title">
-                    BitGraph{items.length === 1 ? "" : "s"}{" "}
-                    {items.some((i) => i.status === "proved") ? "Recorded" : "Found"}
+                    {items.some((i) => i.status === "proved")
+                      ? `BitGraph${items.length === 1 ? "" : "s"} Recorded`
+                      : found.length > 0
+                        ? `BitGraph${items.length === 1 ? "" : "s"} Found`
+                        : `${items.length} File${items.length === 1 ? "" : "s"}`}
                   </div>
                   {/* The link to reopen the camera, on the first heading only:
                       when a folder's Ledger is above this, it carries it. */}
@@ -2760,6 +2872,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     making a BitGraph is the operation, and the digest-only
                     commit is an API and MCP compatibility path, not a second
                     choice put in front of whoever dropped the files. */}
+                {/* Why this is a question and not a shutter. Only when
+                    nothing is connected, and worded as the normal state it is
+                    rather than as a fault. */}
+                {unproven.length > 0 && ledger.proofs.length === 0 && (
+                  <div style={{ borderTop: "1px solid #eef0f1", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "#4b5563" }}>
+                    No BitGraphs folder is connected, so I cannot tell whether
+                    {unproven.length === 1 ? " this file is" : " these files are"} already recorded.
+                    Drag it in first, or make {unproven.length === 1 ? "it" : "them"} anyway
+                    &mdash; each one takes a new position.
+                  </div>
+                )}
                 {unproven.length > 0 && (
                   <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
                     <button type="button" className="bg-action-link" onClick={proveRemaining}>
