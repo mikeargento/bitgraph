@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { BitGraphCamera } from "@/components/bitgraph-camera";
+import { LedgerLight } from "@/components/ledger-light";
 import { anonymous } from "@/lib/commit-strategy";
 
 /**
@@ -92,13 +93,22 @@ export default function BitGraphPage() {
                 exactly that), and "No cost." stays rejected (recording is the
                 licensed side of the deck's money line). See memory
                 project_home_no_crypto_line before restoring anything here. */}
-            <Link
-              href="/docs/overview"
-              className="bg-arrow-link"
-              style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
-            >
-              How BitGraph works <span className="arrow" aria-hidden="true">&rarr;</span>
-            </Link>
+            {/* The connection light sits with the gesture it is about, not in
+                the nav: whether your folder is connected is a fact about this
+                box, and the header belongs to the site. Beside home's one
+                existing link, so the row under the frame stays a single line
+                and the frame above it is untouched — that space above the box
+                is where the headline was removed from and stays empty. */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, flexWrap: "wrap" }}>
+              <Link
+                href="/docs/overview"
+                className="bg-arrow-link"
+                style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
+              >
+                How BitGraph works <span className="arrow" aria-hidden="true">&rarr;</span>
+              </Link>
+              <LedgerLight />
+            </div>
           </>
         }
       />

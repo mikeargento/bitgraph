@@ -59,8 +59,20 @@ export default function OverviewPage() {
           the 2026-08-03 handoff). ── */}
       {/* 24 below the h1: the 4px it wore before was paid for by the opener
           paragraph's own 18px top margin, and the opener is gone. */}
+      {/* ⚠️ THIS LINE HAS A HISTORY, and it is not being re-proposed — it is
+          Mike's, twice. It led the README, the h1, the title, the OG tag and
+          this page for one morning on 2026-09-08, and he pulled it the same
+          day (72c58cbb), taking home's headline away entirely rather than
+          replacing it. What he removed was the line standing ALONE as the
+          product's slogan, everywhere at once.
+
+          This is the other thing: the subject is named, it sits on the page
+          whose whole job is to explain the mechanism, and home stays the frame
+          with no headline at all. A definition at the top of the explanation
+          is not a tagline on the front door. See reference_clock_definition
+          for the rejected list before touching it again. */}
       <h1 style={{ margin: "0 0 24px" }}>
-        Overview
+        BitGraph is a clock that ticks when you ask it to
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just
