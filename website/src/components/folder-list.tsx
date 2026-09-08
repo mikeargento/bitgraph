@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isUnchecked, type ExportCheckResult } from "@/lib/folder-check";
 import { MonthCalendar, MonthShelf, type CalendarDay } from "@/components/month-calendar";
+import { useWindowedRows } from "@/components/windowed-rows";
 
 // Compact recorded time for a result row, e.g. "Jul 17, 9:22 PM" — the same
 // format the ledger's rows use, so the two lists read as one system.
@@ -26,20 +27,43 @@ const IMAGE_THUMB_EXT = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "sv
 /** Tiny thumbs from in-hand bytes, for any list of dropped files: decode
  *  once, draw at 96px (2x the 48px cell), keep only the few-KB blob's object
  *  URL. Keyed by the FILE (stable across re-renders); URLs revoked on
- *  unmount. Four decodes in flight, in the caller's given order — pass files
- *  in render order so pictures fill from the top of what is on screen. */
+ *  unmount. Four decodes in flight, in the caller's given order.
+ *
+ *  ⚠️ PASS ONLY THE ROWS ON SCREEN. This used to be handed every row in the
+ *  folder and decoded all of them at full resolution, including rows nobody
+ *  would ever scroll to.
+ *
+ *  ⚠️ AND IT PUBLISHED ONCE PER THUMBNAIL. `setThumbs(new Map(...))` after
+ *  every decode re-rendered the whole list, so N thumbnails cost N renders of
+ *  N rows: 425 rows was ~180,000 row renders, and a 6,000 recording folder
+ *  would be 36 million. Same shape as the progress callback that walked the
+ *  whole drop per event (2026-09-07) — per-item work must never be
+ *  proportional to the list. Decodes now publish in batches, on a timer. */
 export function useFileThumbs(files: Array<File | null | undefined>): Map<File, string> {
   const [thumbs, setThumbs] = useState<Map<File, string>>(() => new Map());
   const mapRef = useRef<Map<File, string>>(new Map());
   useEffect(() => () => { for (const u of mapRef.current.values()) URL.revokeObjectURL(u); }, []);
-  // Re-run when the SET of files changes, not the array identity: result
-  // arrays are rebuilt per verdict and restarting the loop each time is the
-  // old 24-restarts bug.
-  const key = files.filter(Boolean).length;
+  // Re-run when WHICH files are wanted changes, not how many: a window that
+  // scrolls keeps its length and would otherwise never ask for the new rows.
+  const key = files.map((f) => (f ? `${f.name}:${f.size}:${f.lastModified}` : "-")).join("|");
   useEffect(() => {
     let dead = false;
     const list = files.filter((f): f is File => !!f);
     let next = 0;
+    let dirty = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const publish = () => {
+      timer = null;
+      if (dead || !dirty) return;
+      dirty = false;
+      setThumbs(new Map(mapRef.current));
+    };
+    const mark = () => {
+      dirty = true;
+      // One render per batch of decodes rather than one per decode. The
+      // last thumbnail still lands, because a final flush runs on cleanup.
+      if (timer === null) timer = setTimeout(publish, 120);
+    };
     const worker = async () => {
       while (!dead) {
         const i = next++;
@@ -59,12 +83,17 @@ export function useFileThumbs(files: Array<File | null | undefined>): Map<File, 
           const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.75));
           if (!blob || dead || mapRef.current.has(f)) continue;
           mapRef.current.set(f, URL.createObjectURL(blob));
-          setThumbs(new Map(mapRef.current));
+          mark();
         } catch { /* a row without a thumb shows its type label */ }
       }
     };
     void Promise.all(Array.from({ length: 4 }, worker));
-    return () => { dead = true; };
+    return () => {
+      dead = true;
+      if (timer !== null) clearTimeout(timer);
+      // Whatever decoded before this window moved is still wanted.
+      if (dirty) setThumbs(new Map(mapRef.current));
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return thumbs;
@@ -74,6 +103,16 @@ export function useFileThumbs(files: Array<File | null | undefined>): Map<File, 
    browser's IndexedDB memory was removed with that page (2026-08-07). This
    list renders drops whose bytes are in hand; thumbs are generated from
    those bytes and live for the visit. */
+/**
+ * One row's height, in pixels, including the 10px gap below it.
+ *
+ * Fixed on purpose: the window is measured in rows, so a row that grew with
+ * its content would put the spacers and the scrollbar out of step with what
+ * is on screen. 48px thumb + 10px padding top and bottom + 1px border each
+ * side = 70, and the column's gap is 10.
+ */
+const CHECKED_ROW_H = 80;
+
 export function CheckedList({ checked, onOpen, heading = "BitGraphs in this folder", aside }: {
   checked: ExportCheckResult[];
   onOpen: (r: ExportCheckResult) => void;
@@ -138,15 +177,31 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
   const [shelf, setShelf] = useState(false);
   const dayIdx = day === null ? -1 : groups.findIndex((g) => g.key === day);
   const view = day === null ? null : groups[dayIdx] ?? null;
-  const shownGroups = view ? [view] : groups;
+  const shownGroups = useMemo(() => (view ? [view] : groups), [view, groups]);
   const older = day === null ? (groups.length > 1 ? groups[1] : null) : groups[dayIdx + 1] ?? null;
   const newer = day === null ? null : dayIdx > 0 ? groups[dayIdx - 1] : null;
 
   const stepLink: React.CSSProperties = { color: "#0065A4", fontWeight: 600, fontSize: 13.5, textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" };
 
-  // Thumbs from the dropped bytes, in the day's render order so pictures
-  // fill from the top of what is on screen (see useFileThumbs).
-  const thumbs = useFileThumbs(ordered.map((r) => r.artifactFile));
+  /**
+   * One flat list of rows, windowed, exactly like the drop's results list.
+   *
+   * ⚠️ THIS USED TO RENDER EVERY ROW. The day groups only wrap their rows in
+   * a spacer div (the day itself is named by the stepper above, not by a
+   * heading between rows), so flattening them changes nothing on screen and
+   * lets the same window the drop uses apply here. 425 rows was survivable;
+   * a folder of several thousand is the frozen tab this already cost once
+   * (Mike, 2026-09-07: "didnt we just change this to list form?").
+   */
+  const flat = useMemo(
+    () => shownGroups.flatMap((g) => g.rows.map((r) => ({ r, groupKey: g.key }))),
+    [shownGroups],
+  );
+  const { ref: listRef, first: rowFirst, last: rowLast } = useWindowedRows(flat.length, CHECKED_ROW_H);
+  const visible = flat.slice(rowFirst, rowLast);
+  // Thumbs for the rows ON SCREEN, in render order, so pictures fill from the
+  // top of what is visible and nothing decodes for a row nobody scrolls to.
+  const thumbs = useFileThumbs(visible.map((v) => v.r.artifactFile));
 
   const okCount = checked.filter((c) => c.ok === true).length;
   const pending = checked.filter((c) => c.ok === null).length;
@@ -237,15 +292,22 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
           onLive={() => { setDay(null); setShelf(false); }}
         />
       )}
-      {!shelf && shownGroups.map((g) => (
-        <div key={g.key} style={{ marginTop: 10 }}>
+      {!shelf && (
+        <div ref={listRef} style={{ marginTop: 10 }}>
+          {/* The list keeps its true height from a spacer above and below, so
+              the scrollbar behaves as if every row were mounted. */}
+          <div style={{ height: rowFirst * CHECKED_ROW_H }} />
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {g.rows.map((r, i) => {
+            {visible.map(({ r, groupKey }, k) => {
+              const i = rowFirst + k;
               const clickable = r.onLedger && !!r.digestUrlSafe;
               const thumb = r.artifactFile ? thumbs.get(r.artifactFile) : undefined;
               const ext = r.fileName ? r.fileName.slice(r.fileName.lastIndexOf(".") + 1).toUpperCase() : "";
               return (
-                <div key={r.dirName + i} className="bitgraph-file-card" data-clickable={clickable} style={{ border: "1px solid #d0d5dd", animation: `slideIn 0.2s ease-out ${Math.min(i, 12) * 0.03}s both` }}>
+                // ⚠️ The entrance animation is for the FIRST screenful only.
+                // Windowed rows mount as you scroll, and staggering those
+                // makes the list flicker its way down the page.
+                <div key={`${groupKey}:${r.dirName}:${i}`} className="bitgraph-file-card" data-clickable={clickable} style={{ border: "1px solid #d0d5dd", height: CHECKED_ROW_H - 10, boxSizing: "border-box", ...(i < 12 ? { animation: `slideIn 0.2s ease-out ${i * 0.03}s both` } : {}) }}>
                   <div
                     role={clickable ? "button" : undefined}
                     tabIndex={clickable ? 0 : undefined}
@@ -267,7 +329,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
                     {/* An unchecked row keeps the ordinary blue: nothing is
                         wrong with it, we simply did not get an answer. */}
                     <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: r.ok === false && !isUnchecked(r) ? "#dc2626" : "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                      {r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "—"}
+                      {r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "\u2014"}
                     </span>
                     <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {r.fileName ?? r.dirName}
@@ -288,8 +350,9 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
               );
             })}
           </div>
+          <div style={{ height: Math.max(0, (flat.length - rowLast) * CHECKED_ROW_H) }} />
         </div>
-      ))}
+      )}
     </div>
   );
 }

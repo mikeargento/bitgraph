@@ -51,6 +51,7 @@ import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
 import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
 import { paintFrame, PAINT_EVERY_MS } from "@/lib/paint-frame";
 import { attachEnvironments } from "@/lib/proof-environment";
+import { attachSetProofs } from "@/lib/set-members";
 
 /**
  * One /api/proofs/batch answer, with every set member entry's manifest put
@@ -126,6 +127,10 @@ function batchAnswer(json: { results?: Record<string, BatchEntry>; sets?: Record
   // so a proof is not whole until this runs. Everything below and everything
   // downstream (the signature check, the export, the proof page) reads a
   // restored proof. See lib/proof-environment.ts.
+  // A set member's entry names its set instead of copying the proof, so this
+  // runs FIRST: there is no proof to restore an environment into otherwise.
+  const set = attachSetProofs(results as unknown as Parameters<typeof attachSetProofs>[0], json.sets);
+  if (set.unresolved) console.warn(`[batch] ${set.unresolved} entries named a set the answer did not carry`);
   const env = attachEnvironments(results as unknown as Parameters<typeof attachEnvironments>[0], json.environments);
   if (env.unresolved) console.warn(`[batch] ${env.unresolved} proofs arrived naming an environment the answer did not carry`);
   attachSetManifests(results as unknown as Parameters<typeof attachSetManifests>[0], json.sets);
@@ -133,7 +138,7 @@ function batchAnswer(json: { results?: Record<string, BatchEntry>; sets?: Record
 }
 type BatchEntry = {
   /** `envRef` is transport only: batchAnswer resolves it and removes it. */
-  proofs?: Array<{ proof: BitGraphProof; kind?: string; writeTime?: number | null; member?: { index: number; count: number; role: "origin" | "fused" } | null; setDigest?: string; envRef?: string }>;
+  proofs?: Array<{ proof: BitGraphProof; kind?: string; writeTime?: number | null; member?: { index: number; count: number; role: "origin" | "fused" } | null; setDigest?: string; envRef?: string; setRef?: string }>;
   /** The read FAILED: not an answer about these bytes. */
   unavailable?: true;
 };
@@ -1595,6 +1600,46 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   async function downloadZip() {
     const withProofs = items.filter(i => i.proof);
     if (!withProofs.length) return;
+
+    /**
+     * ⚠️ READ BACK ANY MEMBER ANSWERED FROM A SET'S LIST.
+     *
+     * A set member's position can be answered without reading its object,
+     * from the set's member list, which holds the row's index and count but
+     * NOT its Merkle path. That is everything a results row shows and
+     * nothing an export can ship: `member.json` carries the path, and
+     * without it no reader can place that member under the set's root. The
+     * zip would look complete and be unverifiable.
+     *
+     * So before anything is written, every position that names a member but
+     * carries no evidence is read in full (`members: "full"`, which turns
+     * the shortcut off) and put back. A read that fails leaves the position
+     * as it was: the export is then short a member.json, which is visible,
+     * rather than wrong.
+     */
+    const missing = withProofs.filter((i) =>
+      (i.member?.some((m) => m !== null) ?? false) &&
+      i.proofs.some((p) => memberEvidenceOf(p as unknown as Record<string, unknown>) === null));
+    if (missing.length) {
+      const keys = [...new Set(missing.map((i) => toUrlSafeB64(i.digestB64)))];
+      const full: Record<string, BatchEntry> = {};
+      for (let i = 0; i < keys.length; i += BATCH_CHUNK) {
+        try {
+          const r = await fetch("/api/proofs/batch", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ digests: keys.slice(i, i + BATCH_CHUNK), environments: "table", members: "full" }),
+          });
+          if (r.ok) Object.assign(full, batchAnswer(await r.json()));
+        } catch (err) { console.error("[export] could not re-read member evidence:", err); }
+      }
+      for (const it of missing) {
+        const got = (full[toUrlSafeB64(it.digestB64)]?.proofs ?? []).filter((x) => x.proof?.version === "bitgraph/1");
+        if (!got.length) continue;
+        const ordered = [...got.filter((x) => x.kind !== "fused"), ...got.filter((x) => x.kind === "fused")];
+        it.proofs = ordered.map((x) => x.proof);
+        it.proof = ordered[0].proof;
+      }
+    }
 
     setStep("exporting");
     const totalSteps = withProofs.length + 2; // files + anchors + zip

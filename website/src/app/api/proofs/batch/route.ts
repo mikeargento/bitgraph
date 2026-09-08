@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProofsByDigest, readSetPosition, runPool, LedgerUnavailableError } from "@/lib/s3";
+import { getProofsByDigest, readSetPosition, readSetMemberList, runPool, LedgerUnavailableError } from "@/lib/s3";
 import { digestIndex } from "@/lib/digest-index";
 import { fromUrlSafeB64 } from "@/lib/explorer";
 import { splitEnvironments } from "@/lib/proof-environment";
+import { liftSetProofs, toSafe as toSafeB64 } from "@/lib/set-members";
 import { createHash } from "node:crypto";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +60,16 @@ const MAX_DIGESTS = 2_000;
  * own per-prefix ceiling. 32 also measured clean if this ever needs more.
  */
 const CONCURRENCY = 24;
+/**
+ * Digests looked up the ordinary way before the sets they name are expanded.
+ *
+ * Enough to find every set a drop touches without paying for many: a folder
+ * made in one go is a handful of sets, and each probe reports EVERY position
+ * its digest holds, so one probe that lands on a thrice-made file names all
+ * three sets at once. Digests not covered by any expanded list are looked up
+ * exactly as before, so a low number costs speed, never correctness.
+ */
+const SET_PROBE = 24;
 
 export async function POST(req: NextRequest) {
   try {
@@ -87,6 +98,16 @@ export async function POST(req: NextRequest) {
      * else gets exactly the bytes they got yesterday.
      */
     const envTable = body?.environments === "table";
+    /**
+     * `members: "full"` turns the member-list shortcut OFF and reads every
+     * position, so each set member entry carries its OWN evidence again.
+     *
+     * ⚠️ AN EXPORT MUST ASK FOR THIS. A member answered from a set's list
+     * gets the set's proof with the row's index and count but NOT its Merkle
+     * path, and without the path no reader can place that member under the
+     * root. Checking never needs it; a zip always does.
+     */
+    const useLists = body?.members !== "full";
 
     // Nearly every digest in a big drop is new, and every one of them costs an
     // S3 listing that returns nothing: 30,000 files was 30,000 listings, and
@@ -104,6 +125,73 @@ export async function POST(req: NextRequest) {
     if (index !== null && unique.length >= 100 && toRead.length * 2 > unique.length) {
       console.warn(`[batch] digest index ruled out only ${unique.length - toRead.length}/${unique.length}; the filter may be past its capacity (rebuild it)`);
     }
+    /**
+     * ⚠️ A SET IS ONE POSITION, AND WE WERE ASKING ABOUT IT ONCE PER MEMBER.
+     *
+     * A set/2 of 48,000 files holds ONE position, but every member has its
+     * own `by-digest` key holding the whole set proof, so re-dropping the
+     * folder cost 48,000 listings and ~104,000 reads: about 152,000 S3
+     * operations, 70s measured against production on 2026-09-07, while the
+     * SAME folder checked in 4.0s before it was ever recorded.
+     *
+     * Mike's read of it: "look up the FIRST available proof and if it's in a
+     * big group it looks up the rest by logic". So a few digests are probed
+     * normally; a probe that lands on a set member names its set, and that
+     * set's member list answers every other file in the drop from memory.
+     * ~25 reads instead of 152,000.
+     *
+     * ⚠️ THE LIST IS AN INDEX AND NEVER A VERDICT. A digest the list does not
+     * name is looked up exactly as before, so a missing, stale or partial
+     * list costs speed and nothing else. And a set is only used once its
+     * PROOF has actually been read: claiming membership while unable to
+     * produce the proof would be an answer with nothing behind it.
+     */
+    const probeCount = useLists ? Math.min(SET_PROBE, toRead.length) : 0;
+    const sets: Record<string, unknown> = {};
+    const memberOf = new Map<string, { ref: string; writeTime: number | null; index: number; count: number; role: "origin" | "fused" }>();
+    const setsTried = new Set<string>();
+    async function expandSetsFrom(entries: Array<{ proof: unknown; setDigest?: string }>): Promise<void> {
+      for (const e of entries) {
+        const c = (e.proof as { commit?: { epochId?: string; counter?: string } }).commit;
+        if (!e.setDigest || !c?.epochId || c?.counter === undefined) continue;
+        const at = `${c.epochId}/${c.counter}`;
+        if (setsTried.has(at)) continue;
+        setsTried.add(at);
+        try {
+          const proof = await readSetPosition(e.setDigest, c.epochId, String(c.counter));
+          if (proof === null) continue;
+          const list = await readSetMemberList(c.epochId, String(c.counter));
+          if (list === null) continue;
+          sets[e.setDigest] = proof;
+          for (const [d, m] of list) {
+            // Keyed by POSITION and digest, because the listing asks about
+            // one position at a time and a digest may sit in several sets.
+            // ⚠️ url-safe on BOTH sides: the resolver is handed the epoch
+            // parsed out of an S3 key, while this one comes from the proof,
+            // and those are two spellings of the same value.
+            const at = `${toSafeB64(c.epochId)}/${c.counter}|${d}`;
+            if (memberOf.has(at)) continue;
+            memberOf.set(at, {
+              ref: m.setDigest,
+              writeTime: m.writeTime,
+              index: m.index,
+              count: m.count,
+              // bg-kind "set-member" is the member's FUSED bytes; a
+              // "fused-descendant" key is its origin. Same mapping as
+              // memberOfHeaders, which these lists stand in for.
+              role: m.kind === "set-member" ? "fused" : "origin",
+            });
+          }
+          console.log(`[batch] set ${at} expanded: ${list.size} members from its list`);
+        } catch (err) {
+          // A set that cannot be read is simply not expanded. Its members
+          // fall through to the per-digest path, which is what happened
+          // before this existed.
+          console.warn(`[batch] set ${at} not expanded:`, err instanceof Error ? err.message : err);
+        }
+      }
+    }
+
     const results: Record<string, {
       proofs: Array<{
         proof: unknown;
@@ -121,33 +209,67 @@ export async function POST(req: NextRequest) {
     // read would have produced for bytes that are not on record.
     const reading = new Set(toRead);
     for (const d of unique) if (!reading.has(d)) results[d] = { proofs: [] };
+
+    /** The resolver handed to the lookup: a position a member list already describes. */
+    const resolveMember = (digestSafe: string, epochId: string, counter: string) => {
+      const m = memberOf.get(`${toSafeB64(epochId)}/${counter}|${digestSafe}`);
+      if (!m) return null;
+      const proof = sets[m.ref];
+      // Only ever answer with a proof actually in hand. Without it there is
+      // nothing behind the claim, so fall through to the read.
+      if (!proof) return null;
+      return {
+        proof: proof as Record<string, unknown>,
+        writeTime: m.writeTime,
+        // The set's artifact is its root document, never a member's bytes,
+        // so a member position is always "fused"; the role below says which
+        // side of the row these bytes are. Same mapping as memberOfHeaders.
+        kind: "fused" as const,
+        member: { index: m.index, count: m.count, role: m.role },
+        setDigest: m.ref,
+      };
+    };
+
+    const lookupOne = async (d: string) => {
+      try {
+        // Member entries come back WITHOUT their set's manifest: a batch
+        // over a set's originals would otherwise carry one N-row manifest
+        // per row (N squared bytes; 400 members passed the 4.5 MB
+        // function limit) and fetch the same set key once per digest.
+        // Each distinct set is read once below and sent once, in `sets`.
+        const entries = await getProofsByDigest(fromUrlSafeB64(d), { hydrate: false, ...(useLists ? { resolveMember } : {}) });
+        // writeTime (ledger write moment, ms) rides along so result rows
+        // can show a compact "when" like the ledger's rows.
+        results[d] = { proofs: entries.map(({ proof, writeTime, kind, member, setDigest }) => ({ proof, writeTime: writeTime ?? null, kind, ...(member ? { member } : {}), ...(setDigest ? { setDigest } : {}) })) };
+        return entries;
+      } catch (err) {
+        // ⚠️ THIS USED TO REPORT `{ proofs: [] }`, and it was the whole
+        // bug: an empty list is the wire form of "these bytes were never
+        // recorded", so every throttled read became a public accusation
+        // that a genuine recording was not on the ledger. A reader cannot
+        // recover the distinction once it is erased here, so it is kept:
+        // `unavailable` means we failed, not that the ledger is silent.
+        console.error("[batch] lookup failed for one digest:",
+          err instanceof LedgerUnavailableError ? err.message : err);
+        results[d] = { proofs: [], unavailable: true };
+        return [];
+      }
+    };
+
+    // Probe first, so the sets this drop touches are known before the rest
+    // is read. Nothing is skipped by probing: these are ordinary lookups
+    // whose answers are kept.
+    const probe = toRead.slice(0, probeCount);
+    if (probe.length) {
+      const probed = await runPool(probe, Math.min(CONCURRENCY, probe.length), lookupOne);
+      await expandSetsFrom(probed.flatMap((r) => (r.status === "fulfilled" ? r.value : [])));
+    }
+
+    const rest = toRead.slice(probeCount);
     let next = 0;
     await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, toRead.length) }, async () => {
-        while (next < toRead.length) {
-          const d = toRead[next++];
-          try {
-            // Member entries come back WITHOUT their set's manifest: a batch
-            // over a set's originals would otherwise carry one N-row manifest
-            // per row (N squared bytes; 400 members passed the 4.5 MB
-            // function limit) and fetch the same set key once per digest.
-            // Each distinct set is read once below and sent once, in `sets`.
-            const entries = await getProofsByDigest(fromUrlSafeB64(d), { hydrate: false });
-            // writeTime (ledger write moment, ms) rides along so result rows
-            // can show a compact "when" like the ledger's rows.
-            results[d] = { proofs: entries.map(({ proof, writeTime, kind, member, setDigest }) => ({ proof, writeTime: writeTime ?? null, kind, ...(member ? { member } : {}), ...(setDigest ? { setDigest } : {}) })) };
-          } catch (err) {
-            // ⚠️ THIS USED TO REPORT `{ proofs: [] }`, and it was the whole
-            // bug: an empty list is the wire form of "these bytes were never
-            // recorded", so every throttled read became a public accusation
-            // that a genuine recording was not on the ledger. A reader cannot
-            // recover the distinction once it is erased here, so it is kept:
-            // `unavailable` means we failed, not that the ledger is silent.
-            console.error("[batch] lookup failed for one digest:",
-              err instanceof LedgerUnavailableError ? err.message : err);
-            results[d] = { proofs: [], unavailable: true };
-          }
-        }
+      Array.from({ length: Math.min(CONCURRENCY, rest.length) }, async () => {
+        while (next < rest.length) await lookupOne(rest[next++]);
       }),
     );
     // The side table: every set named by a member entry, ONCE, as its own
@@ -159,12 +281,13 @@ export async function POST(req: NextRequest) {
     const wanted = new Map<string, { epochId: string; counter: string }>();
     for (const r of Object.values(results)) {
       for (const e of r.proofs) {
-        if (!e.setDigest || wanted.has(e.setDigest)) continue;
+        // A set expanded above is already in `sets`; re-reading its
+        // position here would be the same object fetched twice.
+        if (!e.setDigest || wanted.has(e.setDigest) || sets[e.setDigest]) continue;
         const c = (e.proof as { commit?: { epochId?: string; counter?: string } }).commit;
         if (c?.epochId && c?.counter) wanted.set(e.setDigest, { epochId: c.epochId, counter: String(c.counter) });
       }
     }
-    const sets: Record<string, unknown> = {};
     if (wanted.size) {
       const read = await runPool([...wanted.entries()], CONCURRENCY, async ([digest, pos]) => {
         const proof = await readSetPosition(digest, pos.epochId, pos.counter);
@@ -178,6 +301,11 @@ export async function POST(req: NextRequest) {
     // of times: 64% of a 37.4 MB response for 2,000 digests, measured
     // 2026-09-07. Sent once each and named from the entry instead; the client
     // puts them back before it reads a proof. See lib/proof-environment.ts.
+    // A set member's proof is the set's, already in `sets`. Send it once.
+    // This is what makes a set re-drop small: 48,000 members referencing one
+    // proof instead of carrying 48,000 copies of it.
+    const lifted = envTable ? liftSetProofs(results, sets) : 0;
+    if (lifted) console.log(`[batch] ${lifted} member entries reference their set instead of copying it`);
     const environments = envTable
       ? splitEnvironments(
           results as unknown as Parameters<typeof splitEnvironments>[0],

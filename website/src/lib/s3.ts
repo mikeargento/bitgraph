@@ -12,6 +12,7 @@ import { isAnchorProof } from "./anchor-kind";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
 import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
+import { SET_MEMBER_CHUNK, decodeChunkInto, encodeChunk, setMembersKey, setMembersPrefix, type MemberKind, type SetMemberRef } from "@/lib/set-members";
 
 /**
  * Raised when the ledger could not be READ. It is not an answer about the
@@ -579,6 +580,28 @@ export interface LookupOptions {
    * was fetched once per digest. Unhydrated member entries carry setDigest.
    */
   hydrate?: boolean;
+  /**
+   * Answer one position WITHOUT reading its object, when a set's member list
+   * already knows what it says.
+   *
+   * ⚠️ THE LISTING STILL DECIDES WHICH POSITIONS EXIST. This only supplies
+   * the contents of a position the listing already found, so a digest that
+   * sits in several sets, or in a set and a plain recording, still reports
+   * every one of them. Skipping the listing instead would silently
+   * under-report positions, which is a wrong answer about the ledger.
+   *
+   * Return null for anything not covered and the read happens as usual.
+   */
+  resolveMember?: (digestSafe: string, epochId: string, counter: string) => DigestProofEntry | null;
+}
+
+/** `by-digest/<d>/<epoch>-<counter>.json` -> its position. Null if the key is not that shape. */
+export function positionFromKey(key: string): { epochId: string; counter: string } | null {
+  const base = key.slice(key.lastIndexOf("/") + 1);
+  // The epoch is url-safe base64 and MAY contain "-", so the counter is
+  // pinned by its fixed 12-digit padding rather than by splitting on "-".
+  const m = /^(.+)-(\d{12})\.json$/.exec(base);
+  return m === null ? null : { epochId: m[1], counter: String(parseInt(m[2], 10)) };
 }
 
 export async function getProofsByDigest(digestB64: string, options: LookupOptions = {}): Promise<DigestProofEntry[]> {
@@ -609,6 +632,14 @@ export async function getProofsByDigest(digestB64: string, options: LookupOption
     } while (token);
     const fetched = await runPool(objects, POOL, async (obj): Promise<IndexedRead | null> => {
       try {
+        // A position a set's member list already describes needs no read.
+        // The listing above still found it, so nothing is missed; this only
+        // saves the GET, which is ~68% of the S3 work in a set re-drop.
+        if (options.resolveMember) {
+          const at = positionFromKey(obj.key);
+          const known = at ? options.resolveMember(safeDigest, at.epochId, at.counter) : null;
+          if (known) return { entry: known, setDigest: known.setDigest ?? null };
+        }
         const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.key }));
         const body = await result.Body?.transformToString();
         if (!body) return null;
@@ -894,4 +925,65 @@ export async function getAnchorsAfterCounter(proofCounter: number, epochId: stri
     console.error("[s3] getAnchorsAfterCounter failed:", (err as Error).message);
     return [];
   }
+}
+
+// ---------------------------------------------------------------------------
+// A set's member list: one position answered once, not once per member.
+// See lib/set-members.ts for the layout and for why this is only ever an
+// index — the per-digest keys above stay the sole source of a proof.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every member of one set position, keyed by url-safe digest.
+ *
+ * Returns null when there is no usable list, which is not a statement about
+ * any digest: the caller must then look those digests up exactly as before.
+ * A list that is partly unreadable returns what it could read, for the same
+ * reason — a digest it does not name simply is not answered here.
+ */
+export async function readSetMemberList(
+  epochId: string,
+  counter: string,
+): Promise<Map<string, SetMemberRef> | null> {
+  const keys = await listKeysUnderPrefix(setMembersPrefix(epochId, counter), 10_000);
+  if (keys.length === 0) return null;
+  const into = new Map<string, SetMemberRef>();
+  const texts = await runPool(keys.sort(), SET_LIST_POOL, (k) => getObjectText(k));
+  let ok = 0;
+  for (const t of texts) {
+    if (t.status !== "fulfilled" || t.value === null) continue;
+    if (decodeChunkInto(t.value, { epochId, counter }, into)) ok++;
+  }
+  if (ok === 0) return null;
+  if (ok < keys.length) console.warn(`[set-members] ${epochId}/${counter}: read ${ok} of ${keys.length} chunks; the rest fall back to per-digest lookups`);
+  return into;
+}
+
+/** Chunks read at once. A list is ~20 objects, so this finishes in one round. */
+const SET_LIST_POOL = 24;
+
+/** Write a set's member list. Chunked; returns how many objects were written. */
+export async function writeSetMemberList(
+  meta: { setDigest: string; epochId: string; counter: string; count: number; writeTime: number | null },
+  entries: Array<{ digestB64: string; kind: MemberKind; index: number }>,
+): Promise<number> {
+  const s3 = getClient();
+  const bucket = getBucket();
+  const chunks: Array<{ key: string; body: string }> = [];
+  for (let i = 0, n = 0; i < entries.length; i += SET_MEMBER_CHUNK, n++) {
+    chunks.push({
+      key: setMembersKey(meta.epochId, meta.counter, n),
+      body: encodeChunk(meta, entries.slice(i, i + SET_MEMBER_CHUNK), i),
+    });
+  }
+  const done = await runPool(chunks, 8, async (c) => {
+    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: c.key, Body: c.body, ContentType: "application/json" }));
+  });
+  const failed = done.filter((d) => d.status === "rejected");
+  if (failed.length) {
+    // A partial list is safe (unnamed digests fall back), but it must be
+    // visible rather than look like a complete one.
+    console.error(`[set-members] ${meta.epochId}/${meta.counter}: ${failed.length} of ${chunks.length} chunks failed to write`);
+  }
+  return chunks.length - failed.length;
 }
