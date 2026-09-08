@@ -19,6 +19,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
+import { headerRlpFor, type RpcBlockHeader } from "./eth-header.js";
 import { getPublicKeyAsync, signAsync } from "@noble/ed25519";
 
 /**
@@ -533,6 +534,15 @@ interface EthBlock {
   hash: string;
   number: number;
   timestamp: number;
+  /**
+   * The RPC's own header fields, kept rather than discarded.
+   *
+   * They arrive with every block we already fetch, and they are what lets an
+   * anchor carry its own evidence: keccak256 of their RLP is the block hash
+   * this anchor signs. Optional so a response that omits any of them simply
+   * yields no header, never a wrong one.
+   */
+  header?: RpcBlockHeader;
 }
 
 async function getLatestBlock(): Promise<EthBlock> {
@@ -556,13 +566,14 @@ async function getLatestBlock(): Promise<EthBlock> {
       });
 
       if (!res.ok) continue;
-      const data = await res.json() as { result?: { hash: string; number: string; timestamp: string } };
+      const data = await res.json() as { result?: RpcBlockHeader };
       if (!data.result?.hash) continue;
 
       return {
         hash: data.result.hash,
         number: parseInt(data.result.number, 16),
         timestamp: parseInt(data.result.timestamp, 16),
+        header: data.result,
       };
     } catch { continue; }
   }
@@ -588,6 +599,9 @@ async function commitAnchor(block: EthBlock): Promise<{ proof: unknown; digestB6
   const blockHash = block.hash.toLowerCase();
   const hashBytes = sha256(new TextEncoder().encode(blockHash));
   const digestB64 = toBase64(hashBytes);
+  // Self-checked: null unless keccak256 of the encoding IS this block hash.
+  const headerRlp = headerRlpFor(block.header, blockHash);
+  if (!headerRlp) console.warn(`[eth-anchor] no header witness for block ${block.number}; it will need an RPC to check`);
 
   try {
     // Enclave v7: prove to the enclave that this is the anchor service, so the
@@ -617,6 +631,17 @@ async function commitAnchor(block: EthBlock): Promise<{ proof: unknown; digestB6
             blockHash,
             blockTime: block.timestamp,
             blockTimeISO: new Date(block.timestamp * 1000).toISOString(),
+            /**
+             * The header these bytes hash to, so the anchor is checkable
+             * with nothing but itself. Unsigned like the rest of metadata
+             * and never trusted as a field: a reader recomputes keccak256
+             * of it and compares against the SIGNED blockHash above, so a
+             * tampered header fails to reproduce the hash. Absent when the
+             * encoder cannot reproduce the hash (a header field newer than
+             * it knows), which is the same state every anchor before this
+             * was in — a reader falls back to an RPC.
+             */
+            ...(headerRlp ? { headerRlpHex: headerRlp } : {}),
           },
         },
       }),
