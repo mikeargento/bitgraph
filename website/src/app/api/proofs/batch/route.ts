@@ -32,13 +32,31 @@ export const maxDuration = 60;
  * above is sized for.
  */
 const MAX_DIGESTS = 2_000;
-// ⚠️ This multiplies. The viewer keeps three of these requests in flight, so
-// the real S3 fan-out is 3 x CONCURRENCY x (1 listing + n position reads),
-// from one function instance. At 16 a 2000-recording drop pushed the reads
-// into throttling, which is what surfaced the reporting bug below. Eight
-// leaves the sweep comfortably fast (the cost is round trips, not S3 ops)
-// with far more headroom.
-const CONCURRENCY = 8;
+/**
+ * Reads in flight per request.
+ *
+ * ⚠️ This multiplies: the viewer keeps five of these requests going, so the
+ * real fan-out is 5 x CONCURRENCY from one function instance.
+ *
+ * Eight dates from before the digest index, when EVERY digest cost a listing
+ * and a 2,000-file drop meant 2,000 of them per request. Sixteen throttled
+ * under that load. The index changed the shape completely: a digest it rules
+ * out costs nothing at all, so the only work left is genuine hits, and a hit
+ * is two serialised round trips (a listing, then the read) — latency, not
+ * throughput.
+ *
+ * That made eight the wrong number for the one case that is still slow:
+ * re-dropping a folder already on record. Every digest hits, 2,000 of them
+ * took 25s, and a 48,000 file re-drop spent about two minutes in lookups
+ * (Mike, 2026-09-07: "checking takes FOREVER").
+ *
+ * Measured against the real bucket on the same data, per digest:
+ *   8 -> 15.0ms   16 -> 7.6ms   32 -> 3.8ms   64 -> 2.9ms
+ * with zero throttling at any level. 24 is three times faster than eight and
+ * keeps the total in flight at 120, well under both that measurement and S3's
+ * own per-prefix ceiling. 32 also measured clean if this ever needs more.
+ */
+const CONCURRENCY = 24;
 
 export async function POST(req: NextRequest) {
   try {
