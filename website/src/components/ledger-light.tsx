@@ -135,7 +135,9 @@ export function LedgerLight() {
             background: on ? "#16a34a" : "#dc2626",
           }}
         />
-        {on ? "Connected" : "Not connected"}
+        {/* Names the noun. Under the box this is the only line there is, so
+            "Connected" alone would not say connected to WHAT. */}
+        {on ? "Folder connected" : "Folder not connected"}
       </button>
 
       {open && (

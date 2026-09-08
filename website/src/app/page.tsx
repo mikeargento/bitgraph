@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { BitGraphCamera } from "@/components/bitgraph-camera";
 import { LedgerLight } from "@/components/ledger-light";
 import { anonymous } from "@/lib/commit-strategy";
@@ -93,20 +92,23 @@ export default function BitGraphPage() {
                 exactly that), and "No cost." stays rejected (recording is the
                 licensed side of the deck's money line). See memory
                 project_home_no_crypto_line before restoring anything here. */}
-            {/* The connection light sits with the gesture it is about, not in
-                the nav: whether your folder is connected is a fact about this
-                box, and the header belongs to the site. Beside home's one
-                existing link, so the row under the frame stays a single line
-                and the frame above it is untouched — that space above the box
-                is where the headline was removed from and stays empty. */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, flexWrap: "wrap" }}>
-              <Link
-                href="/docs/overview"
-                className="bg-arrow-link"
-                style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", textDecoration: "none" }}
-              >
-                How BitGraph works <span className="arrow" aria-hidden="true">&rarr;</span>
-              </Link>
+            {/* ❄️ "How BitGraph works →" IS GONE from under the box, replaced by
+                the folder's status (Mike, 2026-09-08). It was home's one
+                in-page exit to the overview, and the h1 that was also a link
+                went on 2026-09-04 — so the overview is now reached only from
+                the Docs menu. That is the right trade once the site is
+                documentation plus a verifier: the one line under the box
+                should say whether this browser can answer for your files, not
+                offer reading material.
+
+                It sits here rather than in the nav because whether YOUR folder
+                is connected is a fact about this box, and the header belongs
+                to the site. The space above the frame stays empty — that is
+                where the headline was removed from. */}
+            {/* Centred under the frame, where the link it replaced sat. The
+                light is a flex row itself, so it needs a centring parent or it
+                hangs off the left edge of the column. */}
+            <div style={{ display: "flex", justifyContent: "center" }}>
               <LedgerLight />
             </div>
           </>
