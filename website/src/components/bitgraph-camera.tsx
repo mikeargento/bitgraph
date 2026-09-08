@@ -49,7 +49,7 @@ import {
   ANCHOR_STATUS_FILE, type ExportSite, type PositionNeed, type BoundReport, type BoundState,
 } from "@/lib/anchor-export";
 import { fetchAnchorsFor, packAnchorZip, anchorZipName } from "@/lib/anchor-package";
-import { cacheArtifactToIDB } from "@/lib/file-cache";
+import { cacheArtifactToIDB, putPackageToIDB } from "@/lib/file-cache";
 import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
 import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
@@ -943,7 +943,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const solo = results.length === 1 ? results[0] : null;
     // fresh=true plays the capture flash on the proof page (a just-recorded
     // BitGraph), never on a lookup of something already on record.
-    const openProofPage = (p: BitGraphProof, file: File, fresh = false) => {
+    const openProofPage = (p: BitGraphProof, file: File, fresh = false, fused: FusedOutcome | null = null) => {
       const proofDigest = p.artifact.digestB64;
       const c = p.commit?.counter;
       const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
@@ -956,6 +956,20 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       // paints the record instantly (image + hash + "Recorded"), no skeleton.
       // The causal window / anchor stay pending until the background fetch fills
       // them in — correct, since a new proof's sealing anchor hasn't landed yet.
+      /* Making ends in a file, on the solo path too: this screen is about to be
+         replaced by the proof page, and a mint that leaves nothing on disk is
+         exactly the loss the ledger used to absorb for us.
+
+         ⚠️ THE ROW IS BUILT HERE, NOT READ FROM `items`. On this path the proof
+         is never written into items — a solo make goes straight to its proof
+         page — so a save driven off state finds a row with no proof on it and
+         silently exports nothing. It did exactly that the first time. */
+      if (fresh) {
+        void downloadZip([{
+          file, digestB64: p.artifact.digestB64, proof: p, proofs: [p],
+          valid: true, status: "proved", ...(fused ? { fused } : {}),
+        } as FileItem]);
+      }
       if (fresh) {
         setFreshProof(toUrlSafeB64(proofDigest), {
           proofs: [{ proof: p }],
@@ -1007,15 +1021,16 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           // allocated for it, and the fused bytes built in memory consume
           // that slot. The proof page then shows the visitor's own file,
           // which rebuilds the committed artifact (see BringYourFile).
-          const p = fuseByDefault
+          const made = fuseByDefault
             ? await fuseOrRecordOne(solo.file, solo.digestB64, () => { begun = true; })
             : await (async () => {
                 await commitThroughRotation(() => beginRun([solo.digestB64]));
                 begun = true;
-                return commitThroughRotation(() => strategy.one(solo.digestB64));
+                return { proof: await commitThroughRotation(() => strategy.one(solo.digestB64)), fused: null };
               })();
+          const p = made.proof;
           void announceRecorded([p]);
-          openProofPage(p, solo.file, true);
+          openProofPage(p, solo.file, true, made.fused);
           return;
         } catch (e) {
           // Recording failed: fall back to the results card so the user can
@@ -1259,15 +1274,20 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   }
   // A file too large to build in memory is recorded as itself instead, the
   // compatibility operation, through the strategy's ordinary path.
-  async function fuseOrRecordOne(file: File, digestB64: string, onBegun: () => void): Promise<BitGraphProof> {
+  /* Returns the fused OUTCOME, not just its proof: the export writes the new
+     file's bytes under new-file/, and a solo make now saves its own package,
+     so throwing the outcome away here would quietly hand a solo maker a
+     package missing what the manual export puts in. */
+  async function fuseOrRecordOne(file: File, digestB64: string, onBegun: () => void): Promise<{ proof: BitGraphProof; fused: FusedOutcome | null }> {
     try {
-      return (await fuseOne(file)).proof;
+      const out = await fuseOne(file);
+      return { proof: out.proof, fused: out };
     } catch (e) {
       if (!(e instanceof FuseTooLargeError)) throw e;
     }
     await commitThroughRotation(() => beginRun([digestB64]));
     onBegun();
-    return commitThroughRotation(() => strategy.one(digestB64));
+    return { proof: await commitThroughRotation(() => strategy.one(digestB64)), fused: null };
   }
   async function beginRun(digests: string[]) {
     if (!strategy.begin) return;
@@ -1541,6 +1561,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         const epoch = last.out.proof.commit?.epochId ? toUrlSafeB64(last.out.proof.commit.epochId) : "";
         const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
         void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+        saveMinted();
         router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
         return;
       }
@@ -1550,7 +1571,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     }
     setProvePhase(null);
     setStep("results");
-    if (minted > 0) setPackageNote(null);
+    if (minted > 0) { setPackageNote(null); saveMinted(); }
     // An again run gives no row a place it did not have; the count is the rows on record.
     setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + (again ? 0 : minted));
     if (pendingIndexRef.current.length > 0) void indexSetEvidence();
@@ -1599,6 +1620,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           // &fresh=1 → capture flash on arrival (this is a just-made recording).
           const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
           void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+          saveMinted();
           router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
           return;
         }
@@ -1640,7 +1662,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     }
 
     setStep("results");
-    if (minted > 0) setPackageNote(null);
+    if (minted > 0) { setPackageNote(null); saveMinted(); }
 
     // Show the final count directly (see the note in handleFiles): the per-tick
     // animation re-rendered the whole list each increment and dragged on large
@@ -1650,8 +1672,43 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
 
   /* ── Export zip with ETH anchors ── */
 
-  async function downloadZip() {
-    const withProofs = items.filter(i => i.proof);
+  /* ── MAKING ENDS IN A FILE ────────────────────────────────────────────────
+   *
+   * ⚠️ THE LEDGER WAS QUIETLY THE BACKUP. Discovery and sharing were
+   * replaceable; durability was not. While every proof is written to the
+   * bucket, a package you forget to save is an inconvenience — the proof is
+   * still ours to hand back. Once only anchors are written, the package IS the
+   * BitGraph, and forgetting to click a link loses evidence whose position
+   * stays minted and consumed forever.
+   *
+   * So there is no second step. A mint hands the file over on its own, and
+   * keeps a copy in the browser as a net (see file-cache.ts). Never a terminal
+   * success state for a BitGraph that is not saved anywhere.
+   *
+   * The rows come from a functional setItems updater rather than from `items`,
+   * because at this moment `items` is still the PRE-MINT list: the chunk loops
+   * above queued their updates and React has not rendered them yet. The
+   * updater is handed the settled state and returns it untouched, so this
+   * costs no extra render and cannot read a stale row.
+   */
+  const savingRef = useRef(false);
+  const saveMinted = () => {
+    setItems((settled) => {
+      // StrictMode invokes an updater twice in development; the flag keeps
+      // that from becoming two downloads.
+      if (!savingRef.current) {
+        savingRef.current = true;
+        void downloadZip(settled).finally(() => { savingRef.current = false; });
+      }
+      return settled;
+    });
+  };
+
+  /* `source` lets a caller hand in rows directly instead of waiting for React
+     state. The auto-save below runs the instant a mint returns, when `items`
+     is still the pre-mint list, so it must pass what it just made. */
+  async function downloadZip(source?: FileItem[]) {
+    const withProofs = (source ?? items).filter(i => i.proof);
     if (!withProofs.length) return;
 
     /**
@@ -2007,6 +2064,19 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       : `BitGraph (${withProofs.length} files).zip`;
     a.click();
     URL.revokeObjectURL(url);
+
+    /* The net. Downloads is the least durable folder on the machine, and once
+     * only anchors are written this file IS the BitGraph. A copy here turns
+     * "gone forever" into "gone if you also lose this browser profile", which
+     * is a different kind of bad. Best effort by design: it must never be able
+     * to break the download that has already happened. */
+    {
+      const positions = [...new Set(withProofs.flatMap((i) =>
+        (i.proofs.length ? i.proofs : i.proof ? [i.proof] : [])
+          .map((pr) => `${pr.commit?.epochId ?? ""} ${pr.commit?.counter ?? ""}`)))];
+      void putPackageToIDB(positions[0] || String(Date.now()),
+        { name: a.download, blob, savedAt: Date.now(), positions });
+    }
 
     /* ⚠️ THE PACKAGE MUST SAY WHAT IT WENT OUT SHORT OF.
      *
@@ -2617,7 +2687,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     // package is one thing whatever it holds, and the count
                     // sits on its left. It was "Download .zip" before that,
                     // which described the plumbing rather than the contents.
-                    <button onClick={downloadZip} className="bg-action-link" style={{ padding: 0 }}>
+                    <button onClick={() => void downloadZip()} className="bg-action-link" style={{ padding: 0 }}>
                       <span>Export BitGraph package</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>

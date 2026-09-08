@@ -82,3 +82,94 @@ export async function putPreviewToIDB(proofDigest: string, preview: Blob): Promi
     db.close();
   } catch { /* a preview that is not remembered is converted again next time */ }
 }
+
+/* ── The net under a BitGraph that has not been filed anywhere yet ──
+ *
+ * ⚠️ THE LEDGER USED TO BE THE BACKUP AND IS ABOUT TO STOP BEING ONE.
+ * Discovery and sharing were replaceable; durability was not. While every
+ * proof is written to the bucket, a package you forget to save is merely
+ * inconvenient — the proof is still ours to hand back. Once only anchors are
+ * written, the package IS the BitGraph, and losing it loses evidence whose
+ * position stays minted and consumed forever.
+ *
+ * So making now ends in a file automatically, and a copy of that same file is
+ * kept here. Downloads is the least durable folder on the machine; this turns
+ * "gone forever" into "gone if you also lose this browser profile", which is
+ * a different kind of bad. It is a net, not a home: the folder on disk is the
+ * real thing, and this exists for the minutes and days before someone files
+ * it somewhere they trust.
+ *
+ * Same database and store as the artifact bytes, under a key no digest can
+ * collide with, so no version bump and no second open() site.
+ */
+
+const PACKAGE_PREFIX = "package:";
+const packageKey = (id: string) => `${PACKAGE_PREFIX}${id}`;
+
+export interface SavedPackage {
+  /** The download's own filename, so it can be handed back under it. */
+  name: string;
+  blob: Blob;
+  savedAt: number;
+  /** Positions it holds, "epoch counter" each — what was minted, for a
+   *  reader deciding whether this copy is still worth keeping. */
+  positions: string[];
+}
+
+/** Keep a copy of a package that was just handed to the browser. Best effort
+ *  in every direction: a private window, a full disk or a browser that
+ *  refuses storage must never break the download that already happened. */
+export async function putPackageToIDB(id: string, pkg: SavedPackage): Promise<void> {
+  try {
+    const db = await openFilesDB();
+    const tx = db.transaction("files", "readwrite");
+    tx.objectStore("files").put(pkg, packageKey(id));
+    await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
+    db.close();
+  } catch (e) {
+    console.warn("[bitgraph] could not keep a copy of the package:", e);
+  }
+}
+
+/** Every package still held, newest first. */
+export async function listPackagesFromIDB(): Promise<Array<SavedPackage & { id: string }>> {
+  try {
+    const db = await openFilesDB();
+    const tx = db.transaction("files", "readonly");
+    const store = tx.objectStore("files");
+    const keys = await new Promise<IDBValidKey[]>((res, rej) => {
+      const r = store.getAllKeys();
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    const wanted = keys.filter((k): k is string => typeof k === "string" && k.startsWith(PACKAGE_PREFIX));
+    const out: Array<SavedPackage & { id: string }> = [];
+    for (const k of wanted) {
+      const v = await new Promise<SavedPackage | undefined>((res, rej) => {
+        const r = store.get(k);
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+      if (v?.blob) out.push({ ...v, id: k.slice(PACKAGE_PREFIX.length) });
+    }
+    db.close();
+    return out.sort((a, b) => b.savedAt - a.savedAt);
+  } catch (e) {
+    console.warn("[bitgraph] could not read kept packages:", e);
+    return [];
+  }
+}
+
+/** Drop a kept copy. Called once its positions are known to be in a folder
+ *  the person actually holds — never on a timer, and never to make room. */
+export async function forgetPackageInIDB(id: string): Promise<void> {
+  try {
+    const db = await openFilesDB();
+    const tx = db.transaction("files", "readwrite");
+    tx.objectStore("files").delete(packageKey(id));
+    await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = j; });
+    db.close();
+  } catch (e) {
+    console.warn("[bitgraph] could not forget a kept package:", e);
+  }
+}
