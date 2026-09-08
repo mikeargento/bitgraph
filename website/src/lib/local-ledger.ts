@@ -196,21 +196,3 @@ export async function loadLedger(originOf?: OriginReader): Promise<LocalLedger> 
     return emptyLedger();
   }
 }
-
-/* ── The state line ──
- *
- * ⚠️ A COUNT, NEVER A DOT. It carries the same signal and adds information.
- * ⚠️ NOTHING RED. Not-connected is the normal first state, not a fault, and
- * red is off-palette anyway (green retired 2026-07-19; the brand is #0065A4).
- *
- * The count is of POSITIONS, not files, because that is what is actually held:
- * a 48,000 photo folder is three proofs. Saying "3 BitGraphs connected" is
- * true and will read as wrong to someone who just dropped 48,000 files, so the
- * file count rides along whenever it is known.
- */
-export function stateLine(ledger: LocalLedger, reading: number | null): string {
-  if (reading !== null) return `Reading ${reading.toLocaleString()}…`;
-  const n = ledger.proofs.length;
-  if (n === 0) return "Drag your BitGraphs folder to connect it";
-  return `${n.toLocaleString()} BitGraph${n === 1 ? "" : "s"} connected`;
-}

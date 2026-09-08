@@ -12,7 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  emptyLedger, addProofs, heldFor, stateLine, isBitGraphsFileName,
+  emptyLedger, addProofs, heldFor, isBitGraphsFileName,
 } from "../local-ledger.ts";
 import type { BitGraphProof } from "../bitgraph.ts";
 
@@ -52,18 +52,6 @@ test("adding is immutable, so a failed read cannot corrupt what is connected", (
   const after = addProofs(before, [proof("11", "BBB=")]);
   assert.equal(before.proofs.length, 1, "the previous ledger is untouched");
   assert.equal(after.proofs.length, 2);
-});
-
-test("the state line is a count, never a dot, and never alarming", () => {
-  assert.equal(stateLine(emptyLedger(), null), "Drag your BitGraphs folder to connect it");
-  assert.equal(stateLine(addProofs(emptyLedger(), [proof("10", "A")]), null), "1 BitGraph connected");
-  const many = addProofs(emptyLedger(), Array.from({ length: 1240 }, (_, i) => proof(String(i), `d${i}`)));
-  assert.equal(stateLine(many, null), "1,240 BitGraphs connected");
-  assert.equal(stateLine(many, 4300), "Reading 4,300…");
-  // Nothing here may read as a fault: not-connected is the normal first state.
-  for (const s of [stateLine(emptyLedger(), null), stateLine(many, null)]) {
-    assert.ok(!/error|fail|missing|not found/i.test(s), s);
-  }
 });
 
 test("a BitGraphs file is recognised by name, and only by name as a first pass", () => {

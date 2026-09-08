@@ -51,7 +51,7 @@ import {
 import { fetchAnchorsFor, packAnchorZip, anchorZipName } from "@/lib/anchor-package";
 import { cacheArtifactToIDB, putPackageToIDB } from "@/lib/file-cache";
 import { buildBitGraphsFile } from "@/lib/bitgraphs-file";
-import { emptyLedger, addProofs, readBitGraphsFiles, heldFor, stateLine, saveLedger, loadLedger, type LocalLedger } from "@/lib/local-ledger";
+import { emptyLedger, addProofs, readBitGraphsFiles, heldFor, saveLedger, loadLedger, type LocalLedger } from "@/lib/local-ledger";
 import { LEDGER_CHANGED } from "@/components/ledger-light";
 import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
@@ -2039,6 +2039,38 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       const fusedOut = withProofs[i].fused;
       const setOut = withProofs[i].setMember;
       const madeHere = fusedOut?.proof ?? setOut?.proof;
+
+      /* ⚠️ A BITGRAPH MADE EARLIER COULD NOT PRODUCE ITS FUSED FILE.
+       *
+       * `madeHere` is only set when the fuse happened in THIS drop, so a file
+       * matched from your own folder exported the original and the proof and
+       * nothing else — no new-file/ — even though everything needed to rebuild
+       * it was in hand: the proof carries the slot commitment and the
+       * placement, and the original bytes are the file you just dropped. Mike:
+       * "bitgraph doesnt have a way to rebuild the new fused copy either".
+       *
+       * It matters more now than it did. While the ledger held every proof,
+       * the fused bytes could always be fetched back through the proof page.
+       * Local-first means the package IS the artifact, so a package that
+       * cannot produce the bytes its own digest describes is incomplete.
+       *
+       * Rebuilt from the origin, exactly as the proof page does. A rebuild
+       * that does not reproduce the committed digest writes NOTHING rather
+       * than a wrong file — the same rule the set-member path already keeps. */
+      if (!madeHere && p && fusedMarkerOf(p)?.originDigestB64) {
+        try {
+          const rebuilt = await rebuildFromOrigin(p, fileBytes, f.name);
+          // fusedBytes is null unless the rebuild actually reproduced the
+          // committed artifact; both are checked so a wrong file is impossible.
+          if (rebuilt.verification.category === "FUSED_FROM_ORIGIN" && rebuilt.fusedBytes) {
+            const entry = new ZipPassThrough(`${prefix}new-file/${f.name}`);
+            z.add(entry);
+            entry.push(rebuilt.fusedBytes, true);
+          }
+        } catch (e) {
+          console.warn("[export] could not rebuild the fused file:", e);
+        }
+      }
       if (madeHere) {
         const own = allPositions.length > 1
           ? allPositions.find((pos) => pos.commit?.counter === madeHere.commit?.counter &&
@@ -2495,20 +2527,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                    whole reason minting can still be safe without a hosted
                    ledger, so it belongs where the gesture happens rather than
                    in the nav. A count, never a dot; nothing red. */
-                /* ⚠️ NEVER A READING COUNT HERE. It read the walk's phase, and
-                   that phase is not reset when a walk ends without a scan —
-                   exactly what a BitGraphs folder does, since it connects and
-                   returns to the drop screen. The line then sat on
-                   "Reading 2…" forever over an idle box, which reads as a hang
-                   (Mike: "stuck there").
-
-                   The deeper reason it was wrong: this box is only rendered on
-                   the drop and results steps, never while scanning — the walk
-                   has its own full-screen wait — so a reading count could not
-                   be true here even in principle. The typechecker said so once
-                   the step was named. The line states what is CONNECTED, which
-                   is the one thing it always knows. */
-                stateLine={stateLine(ledger, null)}
+                /* ❄️ NO STATE LINE IN THE BOX. It lived here as a fourth line
+                   for a few hours; Mike moved it out — "no dialog in dropbox" —
+                   once the corner light existed. The box is for the gesture;
+                   whether a folder is connected belongs somewhere visible from
+                   every page, which the box is not. See ledger-light.tsx. */
               />
             </div>
             {/* The page's block, under the box, left (Mike, 2026-08-19: "move

@@ -1,85 +1,181 @@
 "use client";
 
-/* Is your BitGraphs folder connected? — in the corner, on every page.
+/* Is your BitGraphs folder connected? — a light in the corner, on every page.
  *
- * Mike asked for this after making a BitGraph and not being able to tell:
- * "there should be a clear indicator if your local folder was connected or not
- * in upper corner with a red or green light."
+ * Mike's call, and it overrides two standing rules on purpose. "A count, never
+ * a dot" and "nothing red" were both his, made the same day, and he changed
+ * them once he had used the thing: "not connected should be red and connected
+ * should be green and clicking it should open a nice modal asking for the
+ * location of your BitGraph folder. no amount of proofs needed and no dialog
+ * in dropbox."
  *
- * ⚠️ IT IS NOT A RED/GREEN LIGHT, and that is a deliberate departure from the
- * literal ask. Two standing rules stand against one:
- *   - Green was RETIRED site-wide on 2026-07-19; the trust colour is the brand
- *     blue #0065A4. A green light here would be the only green on the site.
- *   - "Nothing red." Not-connected is the NORMAL first state — every
- *     first-time visitor is in it, and nothing is broken — so a red light
- *     reports a fault where there is none, which is the thing this whole
- *     product is about not doing.
- * What Mike actually needed is to be able to TELL AT A GLANCE, from anywhere,
- * and that is what this gives: a dot for glanceability plus the count, since
- * "a count, never a dot" was his own ruling the same day and the count says
- * strictly more. Blue when connected, hollow grey when not.
+ * So: no count, no line inside the drop box, and a literal red/green light.
+ * The reasoning that produced the old rules was that not-connected is the
+ * normal first state rather than a fault — which is true, and is exactly why
+ * the light is a DOOR: it is the one place that tells you what is missing and
+ * lets you fix it in the same gesture.
  *
- * ⚠️ It reads the same IndexedDB the camera writes, and re-reads on focus and
- * on the camera's own event, because connecting happens on the home page while
- * this sits in the nav on every page.
+ * ⚠️ A PAGE CANNOT ASK FOR A PATH. There is no way for a web page to be told
+ * "/Users/you/BitGraphs" and read it; the File System Access API is the only
+ * thing close and it needs a permission grant, cannot reach a folder's parent,
+ * and does not exist in Brave, Safari or Firefox. So the modal asks for the
+ * folder the only way a browser allows: you drag it in. The copy says that
+ * plainly rather than pretending to a file dialog it cannot open.
  */
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { loadLedger } from "@/lib/local-ledger";
+import { useCallback, useEffect, useState } from "react";
+import { loadLedger, addProofs, readBitGraphsFiles, saveLedger, emptyLedger } from "@/lib/local-ledger";
+import { entriesFromDataTransfer, walkEntries } from "@/lib/folder-check";
+import { fusedMarkerOf } from "@/lib/fuse-client";
 
-/** Fired by the camera whenever the connected ledger changes, so the nav does
- *  not have to poll or wait for a navigation to catch up. */
+/** Fired whenever the connected ledger changes, so the light updates without
+ *  a navigation — connecting happens here and in the camera. */
 export const LEDGER_CHANGED = "bitgraph:ledger-changed";
 
+const originOf = (p: Parameters<typeof fusedMarkerOf>[0]) => {
+  try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; }
+};
+
 export function LedgerLight() {
-  // null = not read yet. Distinct from 0, so the first paint says nothing
-  // rather than flashing "not connected" at someone who is.
+  // null = not read yet, so the first paint says nothing rather than flashing
+  // red at someone who is connected.
   const [count, setCount] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const read = useCallback(() => {
+    void loadLedger().then((l) => setCount(l.proofs.length));
+  }, []);
 
   useEffect(() => {
-    let dead = false;
-    const read = () => {
-      void loadLedger().then((l) => { if (!dead) setCount(l.proofs.length); });
-    };
     read();
     window.addEventListener(LEDGER_CHANGED, read);
     window.addEventListener("focus", read);
     return () => {
-      dead = true;
       window.removeEventListener(LEDGER_CHANGED, read);
       window.removeEventListener("focus", read);
     };
-  }, []);
+  }, [read]);
+
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [open]);
+
+  /* Connecting: read every BitGraphs file in what was dropped and fold it in.
+     ⚠️ THIS CANNOT MINT. It only parses JSON already on the machine. */
+  const connect = async (dt: DataTransfer) => {
+    setBusy(true);
+    try {
+      const entries = entriesFromDataTransfer(dt);
+      const files = entries ? (await walkEntries(entries)).map((w) => w.file) : Array.from(dt.files);
+      const { proofs, sources } = await readBitGraphsFiles(files);
+      if (!proofs.length) return;
+      const next = addProofs(await loadLedger(originOf), proofs, sources[0] ?? null, originOf);
+      await saveLedger(next);
+      setCount(next.proofs.length);
+      window.dispatchEvent(new Event(LEDGER_CHANGED));
+      setOpen(false);
+    } finally {
+      setBusy(false);
+      setDragging(false);
+    }
+  };
+
+  const forget = async () => {
+    await saveLedger(emptyLedger());
+    setCount(0);
+    window.dispatchEvent(new Event(LEDGER_CHANGED));
+  };
 
   if (count === null) return null;
   const on = count > 0;
 
   return (
-    <Link
-      href="/"
-      title={on
-        ? `${count.toLocaleString()} BitGraph${count === 1 ? "" : "s"} connected from your folder`
-        : "No BitGraphs folder connected — drag yours onto the box to connect it"}
-      style={{
-        display: "flex", alignItems: "center", gap: 6,
-        fontSize: 13, fontWeight: 700, textDecoration: "none",
-        color: on ? "#0065A4" : "#6b7280", whiteSpace: "nowrap",
-      }}
-    >
-      <span
-        aria-hidden
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        title={on ? "Your BitGraphs folder is connected" : "No BitGraphs folder connected"}
+        aria-label={on ? "BitGraphs folder connected" : "No BitGraphs folder connected"}
         style={{
-          width: 8, height: 8, borderRadius: "50%",
-          // Filled when connected, hollow when not: the shape carries the
-          // state as well as the colour, so it survives being glanced at and
-          // does not rely on colour alone.
-          background: on ? "#0065A4" : "transparent",
-          border: on ? "none" : "1.5px solid #9ca3af",
-          flex: "none",
+          display: "flex", alignItems: "center", gap: 7, padding: 0,
+          background: "none", border: "none", cursor: "pointer",
+          fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+          color: "#111827", whiteSpace: "nowrap",
         }}
-      />
-      {on ? count.toLocaleString() : "Not connected"}
-    </Link>
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 9, height: 9, borderRadius: "50%", flex: "none",
+            background: on ? "#16a34a" : "#dc2626",
+          }}
+        />
+        {on ? "Connected" : "Not connected"}
+      </button>
+
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 60,
+            background: "rgba(17,24,39,0.35)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => { e.preventDefault(); void connect(e.dataTransfer); }}
+            style={{
+              background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0,
+              width: "min(480px, 100%)", padding: 24,
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#111827", marginBottom: 8, letterSpacing: "-0.01em" }}>
+              Your BitGraphs folder
+            </div>
+            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#4b5563", marginBottom: 18 }}>
+              {on
+                ? "Connected. This browser knows what you hold, so dropping a file tells you whether it already has a BitGraph."
+                : "Every BitGraph you make is saved to bitgraphs.json. Keep those in one folder, then drag that folder in here so this browser knows what you hold."}
+            </div>
+            <div
+              style={{
+                border: `1px dashed ${dragging ? "#16a34a" : "#b3bac2"}`,
+                padding: "34px 20px", textAlign: "center",
+                fontSize: 13.5, fontWeight: 600,
+                color: dragging ? "#16a34a" : "#4b5563",
+                background: dragging ? "rgba(22,163,74,0.05)" : "transparent",
+              }}
+            >
+              {busy ? "Reading…" : "Drag your BitGraphs folder here"}
+            </div>
+            {/* Said once, plainly, instead of implying a file dialog that a web
+                page is not allowed to open. */}
+            <div style={{ fontSize: 12, lineHeight: 1.55, color: "#6b7280", marginTop: 12 }}>
+              A web page cannot browse your disk or be told a path, so dragging is
+              the way in. Nothing is uploaded and nothing is recorded — this only
+              reads the JSON.
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
+              {on ? (
+                <button type="button" onClick={() => void forget()} className="bg-action-link" style={{ padding: 0, fontSize: 13 }}>
+                  <span>Forget it</span>
+                </button>
+              ) : <span />}
+              <button type="button" onClick={() => setOpen(false)} className="bg-action-link" style={{ padding: 0, fontSize: 13 }}>
+                <span>Close</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
