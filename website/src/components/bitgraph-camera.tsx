@@ -80,9 +80,33 @@ import { attachEnvironments } from "@/lib/proof-environment";
  * for 48,000 files is still far from the 48,000 it replaced.
  */
 const SCAN_BATCH = 25;
-const BATCH_CHUNK = 2_000;
-/** Lookup requests in flight. Each multiplies the server's S3 fan-out, so this stays modest. */
-const BATCH_IN_FLIGHT = 5;
+/**
+ * Digests per lookup request.
+ *
+ * ⚠️ 2,000 IS PAST A CLIFF. Measured against production on the real 48,000
+ * file folder, re-dropped so every digest hits, five requests at once:
+ *
+ *   500  ->  4.9 - 8.0s     1,000 ->  9.2 - 12.4s     2,000 -> 24s ... 60s
+ *
+ * 500 and 1,000 scale linearly; at 2,000 THREE OF FIVE hit the function's
+ * 60s maxDuration. A timeout is the expensive kind of failure, so the chunk
+ * sits where the request still finishes comfortably inside the limit.
+ */
+const BATCH_CHUNK = 1_000;
+/** The smallest a failing chunk is split to before it counts as unanswered. */
+const BATCH_MIN_CHUNK = 125;
+/** Retries once a chunk is already at its smallest, before reporting unavailable. */
+const BATCH_MIN_RETRIES = 2;
+/**
+ * Lookup requests in flight.
+ *
+ * Total throughput measured the same day, digests answered per second:
+ *   1,000 x 5  ->  5,000 in 12.4s (403/s)
+ *   1,000 x 10 -> 10,000 in 18.3s (546/s)
+ * Ten is a third faster and every request still finished; the ceiling here is
+ * the 60s per request, and smaller chunks are what keeps room under it.
+ */
+const BATCH_IN_FLIGHT = 10;
 /**
  * Set-index chunks in flight. Each one writes SET_INDEX_CHUNK member keys, so
  * this is deliberately small: the lookup path went into S3 throttling at
@@ -711,52 +735,73 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     setCheckProgress({ current: 0, total: 0 });
     setScanPhase("checking");
     if (lookupKeys.length) {
-      try {
-        if (lookupKeys.length > BATCH_CHUNK) {
-          setCheckProgress({ current: 0, total: lookupKeys.length });
-          const chunks: string[][] = [];
-          for (let i = 0; i < lookupKeys.length; i += BATCH_CHUNK) chunks.push(lookupKeys.slice(i, i + BATCH_CHUNK));
-          let done = 0;
-          let nextChunk = 0;
-          const chunkWorker = async () => {
-            while (nextChunk < chunks.length) {
-              const mine = chunks[nextChunk++];
-              const r = await fetch("/api/proofs/batch", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ digests: mine, environments: "table" }),
-              });
-              if (!r.ok) throw new Error();
-              Object.assign(lookup, batchAnswer(await r.json()));
-              done += mine.length;
-              setCheckProgress({ current: done, total: lookupKeys.length });
-            }
-          };
-          await Promise.all(Array.from({ length: Math.min(BATCH_IN_FLIGHT, chunks.length) }, chunkWorker));
-        } else {
+      setCheckProgress({ current: 0, total: lookupKeys.length });
+      let done = 0;
+      const advance = (n: number) => {
+        done += n;
+        setCheckProgress({ current: done, total: lookupKeys.length });
+      };
+      /**
+       * One chunk, and what happens when it does not come back.
+       *
+       * ⚠️ A FAILED CHUNK USED TO DESTROY THE WHOLE LOOKUP. One `throw` left
+       * the try block, threw away every chunk that had already succeeded, and
+       * dropped into a fallback that fetched all N digests ONE AT A TIME at
+       * six concurrent. For 48,000 files that is about thirteen minutes, and
+       * the fallback never touched setCheckProgress, so the counter froze at
+       * whatever it last showed while the tab ground on. That is exactly what
+       * "Checking 0 of 48000, stuck" was (Mike, 2026-09-07).
+       *
+       * A chunk fails here for one reason in practice: it asked for more than
+       * a 60s function can answer. Measured against production, 2,000 digests
+       * that all hit took 24s alone but THREE OF FIVE concurrent requests ran
+       * into maxDuration at 60s. So a failure is a signal to ask for less,
+       * and halving is the response: the same digests come back as two
+       * cheaper questions, and only a chunk that fails at its smallest still
+       * counts as unanswered.
+       */
+      const lookupChunk = async (keys: string[], depth: number): Promise<void> => {
+        try {
           const r = await fetch("/api/proofs/batch", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ digests: lookupKeys, environments: "table" }),
+            body: JSON.stringify({ digests: keys, environments: "table" }),
           });
-          if (!r.ok) throw new Error();
+          if (!r.ok) throw new Error(`batch ${r.status}`);
           Object.assign(lookup, batchAnswer(await r.json()));
-        }
-      } catch {
-        let nextKey = 0;
-        const fetchWorker = async () => {
-          while (nextKey < lookupKeys.length) {
-            const k = lookupKeys[nextKey++];
-            try {
-              const resp = await fetch(`/api/proofs/${encodeURIComponent(k)}`);
-              lookup[k] = resp.ok ? (await resp.json()) as BatchEntry : { proofs: [] };
-            } catch {
-              lookup[k] = { proofs: [] };
-            }
+          advance(keys.length);
+        } catch (err) {
+          if (keys.length > BATCH_MIN_CHUNK) {
+            const mid = Math.ceil(keys.length / 2);
+            // Sequentially, not in parallel: the thing that just failed was
+            // too much at once, so a retry must not re-create the load.
+            await lookupChunk(keys.slice(0, mid), depth + 1);
+            await lookupChunk(keys.slice(mid), depth + 1);
+            return;
           }
-        };
-        await Promise.all(Array.from({ length: Math.min(6, lookupKeys.length) }, fetchWorker));
-      }
+          if (depth < BATCH_MIN_RETRIES) {
+            await new Promise((r) => setTimeout(r, 400 * (depth + 1)));
+            await lookupChunk(keys, depth + 1);
+            return;
+          }
+          // ⚠️ `unavailable`, NEVER `{ proofs: [] }`. An empty list is the
+          // wire form of "these bytes were never recorded", so writing one
+          // here would tell a visitor their genuine recording is not on the
+          // ledger, and offer to record it AGAIN, minting a second permanent
+          // position for bytes that already had one. The old per-digest
+          // fallback did exactly that on every non-ok response.
+          console.error("[check] giving up on", keys.length, "digests:", err);
+          for (const k of keys) lookup[k] = { proofs: [], unavailable: true };
+          advance(keys.length);
+        }
+      };
+      const chunks: string[][] = [];
+      for (let i = 0; i < lookupKeys.length; i += BATCH_CHUNK) chunks.push(lookupKeys.slice(i, i + BATCH_CHUNK));
+      let nextChunk = 0;
+      const chunkWorker = async () => {
+        while (nextChunk < chunks.length) await lookupChunk(chunks[nextChunk++], 0);
+      };
+      await Promise.all(Array.from({ length: Math.min(BATCH_IN_FLIGHT, chunks.length) }, chunkWorker));
     }
 
     // Phase 3 — assemble in drop order. The lookup returns EVERY proof
@@ -805,6 +850,14 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       // the fused BitGraph it produced. A fused descendant is still not a
       // recording of the bytes themselves; the row's label says so and the
       // proof page says where the artifact came from.
+      // ⚠️ A FAILED READ IS NOT A VERDICT. `unavailable` means the ledger
+      // could not be read, which is not the same as "these bytes are not on
+      // it". Falling through to "new" here would offer to record bytes that
+      // may already hold a position, minting a permanent second one. The row
+      // says error instead, and the visitor can still choose to record.
+      if (rec?.unavailable) {
+        return { file: f, digestB64: digest, proof: null, proofs: [], valid: null, status: "error" as const, ...(s.scan ? { scan: s.scan } : {}) };
+      }
       const entries = (rec?.proofs || []).filter((x) => x.proof?.version === "bitgraph/1");
       const ordered = [...entries.filter((x) => x.kind !== "fused"), ...entries.filter((x) => x.kind === "fused")];
       if (ordered.length > 0) {
