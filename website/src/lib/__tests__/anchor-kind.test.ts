@@ -12,11 +12,15 @@
  * would make it impossible for an anchor to be fused, because a fused proof
  * needs its one attribution name for the `bitgraph-fuse/1` marker.
  *
+ * ⚠️ This now tests the PUBLISHED package, not a local copy. The site's
+ * mirror of these helpers is gone (bitgraph-verify 1.11.0 owns them), so
+ * what this pins is the behaviour the site actually installs.
+ *
  * Run: node --test src/lib/__tests__/anchor-kind.test.ts
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { anchorKindOf, anchorMarkOf, isAnchorProof, ANCHOR_ATTRIBUTION_NAME } from "../anchor-kind.ts";
+import { anchorKindOf, anchorMarkOf, isAnchorProof, ANCHOR_ATTRIBUTION_NAME } from "@mikeargento/bitgraph-verify";
 
 const BLOCK = 25928913;
 const HASH = "0x0ce4f044093cdd272ce4d7f47903a2f77e9195c4a5267a3eb7200e3a7d9ba7fa";

@@ -8,7 +8,7 @@
 
 import { Agent } from "node:https";
 import { journalDigests } from "./digest-index";
-import { isAnchorProof } from "./anchor-kind";
+import { isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
 import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
@@ -898,7 +898,10 @@ export async function getAnchorsAfterCounter(proofCounter: number, epochId: stri
             const gr = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key }));
             const body = await gr.Body?.transformToString();
             if (!body) continue;
-            const p = JSON.parse(body);
+            // Typed as the parsed record it is: isAnchorProof narrows to
+            // BitGraphProof, which has no index signature, so an untyped
+            // parse cannot go back into this list afterwards.
+            const p: Record<string, unknown> = JSON.parse(body);
             // Signed commit.anchor first; the attribution name is the pre-v7
             // fallback and is all the older half of the ledger carries.
             if (isAnchorProof(p)) foundAnchors.push(p);

@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { anchorMarkOf, isAnchorProof } from "./anchor-kind";
+import { anchorMarkOf, isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { dayIndexKey, pageKey, type DayIndex, type DayPage, type LedgerFilter } from "./ledger-archive";
 import { setCountOf } from "./fuse-set";
@@ -109,7 +109,7 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
   const counter = parseInt(String(commit.counter ?? "0"), 10);
   if (!counter) return null;
   // The signed commit.anchor first, the attribution name only for the pre-v7
-  // history that has nothing else. See anchor-kind.ts for why both.
+  // history that has nothing else. See bitgraph-verify's anchor.ts for why both.
   const isAnchor = isAnchorProof(p);
   // An interval recurrence re-commits an anchor's exact block-hash bytes 25
   // anchors later. Same artifact digest, new causal position, distinct label.

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ANCHOR_ATTRIBUTION_NAME, anchorMarkOf, isAnchorProof } from "@/lib/anchor-kind";
+import { ANCHOR_ATTRIBUTION_NAME, anchorMarkOf, isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { fusedOriginDigestOf, isFusedProof } from "@/lib/fuse-core";
 import { bindSet, isSetProof, memberOf } from "@/lib/fuse-set";
 import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
