@@ -414,7 +414,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const [boxOpen, setBoxOpen] = useState(false);
   const [proveAnimCount, setProveAnimCount] = useState(0);
   const proveAnimRef = useRef(0);
-  const [, setExportProgress] = useState({ current: 0, total: 0 });
+  /**
+   * ⚠️ THE VALUE WAS DISCARDED. This read `const [, setExportProgress]`, so
+   * five call sites updated a number nothing could render and the export
+   * showed a bare "Packaging…" from click to download — for a 30,000 file
+   * folder, minutes of it (Mike, 2026-09-08: "seems like it isnt even doing
+   * anything"). `phase` separates the two halves, because they count
+   * different things and a bar that restarts at zero reads as a stall.
+   */
+  const [exportProgress, setExportProgress] = useState<{ current: number; total: number; phase: "preparing" | "packaging" }>({ current: 0, total: 0, phase: "packaging" });
   const [animCount, setAnimCount] = useState(() =>
     (cachedResults.get(id) ?? []).filter(i => i.status === "found" || i.status === "proved").length);
   const [anchorCountdown, setAnchorCountdown] = useState(0);
@@ -1640,16 +1648,35 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       i.proofs.some((p) => memberEvidenceOf(p as unknown as Record<string, unknown>) === null));
     if (missing.length) {
       const keys = [...new Set(missing.map((i) => toUrlSafeB64(i.digestB64)))];
+      // ⚠️ The step goes up BEFORE this loop. It used to run ahead of it, so
+      // a set export spent every one of these round trips with no spinner at
+      // all and the click read as dead.
+      setStep("exporting");
+      setExportProgress({ current: 0, total: keys.length, phase: "preparing" });
       const full: Record<string, BatchEntry> = {};
-      for (let i = 0; i < keys.length; i += BATCH_CHUNK) {
-        try {
-          const r = await fetch("/api/proofs/batch", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ digests: keys.slice(i, i + BATCH_CHUNK), environments: "table", members: "full" }),
-          });
-          if (r.ok) Object.assign(full, batchAnswer(await r.json()));
-        } catch (err) { console.error("[export] could not re-read member evidence:", err); }
-      }
+      const chunks: string[][] = [];
+      for (let i = 0; i < keys.length; i += BATCH_CHUNK) chunks.push(keys.slice(i, i + BATCH_CHUNK));
+      let nextChunk = 0;
+      let readDone = 0;
+      // ⚠️ CONCURRENT, and it has to be. This ran one chunk at a time, and
+      // every chunk is on the SLOW path by design (members: "full" turns the
+      // member-list shortcut off so each position is really read), so a
+      // 30,000 file set spent about thirty sequential round trips of several
+      // seconds each before the zip began. Same width as the check.
+      await Promise.all(Array.from({ length: Math.min(BATCH_IN_FLIGHT, chunks.length) }, async () => {
+        while (nextChunk < chunks.length) {
+          const mine = chunks[nextChunk++];
+          try {
+            const r = await fetch("/api/proofs/batch", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ digests: mine, environments: "table", members: "full" }),
+            });
+            if (r.ok) Object.assign(full, batchAnswer(await r.json()));
+          } catch (err) { console.error("[export] could not re-read member evidence:", err); }
+          readDone += mine.length;
+          setExportProgress({ current: readDone, total: keys.length, phase: "preparing" });
+        }
+      }));
       for (const it of missing) {
         const got = (full[toUrlSafeB64(it.digestB64)]?.proofs ?? []).filter((x) => x.proof?.version === "bitgraph/1");
         if (!got.length) continue;
@@ -1661,7 +1688,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
 
     setStep("exporting");
     const totalSteps = withProofs.length + 2; // files + anchors + zip
-    setExportProgress({ current: 0, total: totalSteps });
+    setExportProgress({ current: 0, total: totalSteps, phase: "packaging" });
     const multi = withProofs.length > 1;
 
     // Streaming zip: chunks accumulate as each file is added
@@ -1762,7 +1789,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // Add files one at a time, updating progress between each
     const singles: BitGraphProof[] = [];
     for (let i = 0; i < withProofs.length; i++) {
-      setExportProgress({ current: i + 1, total: totalSteps });
+      setExportProgress({ current: i + 1, total: totalSteps, phase: "packaging" });
       await tick();
       const { file: f, proof: p } = withProofs[i];
       const base = f.name.replace(/\.[^.]+$/, "");
@@ -1857,7 +1884,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // Bracket the single-recording proofs with a batch-level anchor window:
     // "after" follows the highest counter, "before" precedes the lowest.
     // Multi-recording files already carry per-recording anchors above.
-    setExportProgress({ current: withProofs.length + 1, total: totalSteps });
+    setExportProgress({ current: withProofs.length + 1, total: totalSteps, phase: "packaging" });
     await tick();
     if (singles.length > 0) {
       const last = singles.reduce((a, b) =>
@@ -1878,14 +1905,14 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // drop: the whole folder onto bitgraph.ing, checked against the ledger in
     // the reader's own browser.
 
-    setExportProgress({ current: totalSteps - 1, total: totalSteps });
+    setExportProgress({ current: totalSteps - 1, total: totalSteps, phase: "packaging" });
     await tick();
     z.end();
     // Wait for streaming zip to finish (it's synchronous internally but need to drain)
     while (!zipDone && !zipError) await tick();
     if (zipError) throw zipError;
 
-    setExportProgress({ current: totalSteps, total: totalSteps });
+    setExportProgress({ current: totalSteps, total: totalSteps, phase: "packaging" });
     const totalSize = chunks.reduce((s, c) => s + c.length, 0);
     const merged = new Uint8Array(totalSize);
     let offset = 0;
@@ -2262,12 +2289,25 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
 
         {/* ── Exporting: the .zip step count doesn't map to the file count, so
             it just spins. Same look as the others. ── */}
-        {step === "exporting" && (
-          <div className="bitgraph-wait">
-            <div role="status" aria-label="Packaging" style={waitSpinner} />
-            <div style={waitLabel}>Packaging…</div>
-          </div>
-        )}
+        {step === "exporting" && (() => {
+          // Same shape the checking phase uses: a count once there is enough
+          // to count, the bare word when there is not.
+          const word = exportProgress.phase === "preparing" ? "Preparing" : "Packaging";
+          const counted = exportProgress.total > 1;
+          return (
+            <div className="bitgraph-wait">
+              <div role="status" aria-label={word} style={waitSpinner} />
+              <div style={waitLabel}>
+                {counted ? `${word} ${exportProgress.current} of ${exportProgress.total}` : `${word}\u2026`}
+              </div>
+              {counted && (
+                <div style={{ width: "min(320px, 70vw)", height: 3, background: "#e2e5e9", marginTop: 12 }}>
+                  <div style={{ width: `${Math.round((exportProgress.current / exportProgress.total) * 100)}%`, height: "100%", background: "#0065A4", transition: "width .2s ease" }} />
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Results ── */}
         {step === "results" && (items.length > 0 || checked.length > 0) && (
