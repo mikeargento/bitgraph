@@ -50,6 +50,7 @@ import {
 } from "@/lib/anchor-export";
 import { fetchAnchorsFor, packAnchorZip, anchorZipName } from "@/lib/anchor-package";
 import { cacheArtifactToIDB, putPackageToIDB } from "@/lib/file-cache";
+import { buildBitGraphsFile, bitgraphsFileName, BITGRAPHS_DIR } from "@/lib/bitgraphs-file";
 import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
 import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
@@ -925,6 +926,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   }
 
   async function handleFiles(files: File[]) {
+    /* A loose-file drop borrows the folder the browser reports for the files,
+       when there is one (a folder chosen through the picker carries
+       webkitRelativePath); otherwise there is genuinely no name to take, and
+       the saved file says so rather than inventing one. A folder DROP sets
+       this in handleFolder before the files ever get here. */
+    if (dropNameRef.current === null) {
+      const rel = (files[0] as File & { webkitRelativePath?: string })?.webkitRelativePath;
+      dropNameRef.current = rel && rel.includes("/") ? rel.split("/")[0] : null;
+    }
     setStep("scanning");
     // A new drop retires the last run's sentence; the rows are the answer now.
     setRecordMessage(null);
@@ -965,10 +975,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
          page — so a save driven off state finds a row with no proof on it and
          silently exports nothing. It did exactly that the first time. */
       if (fresh) {
-        void downloadZip([{
+        saveBitGraphs([{
           file, digestB64: p.artifact.digestB64, proof: p, proofs: [p],
-          valid: true, status: "proved", ...(fused ? { fused } : {}),
-        } as FileItem]);
+          valid: true, status: "proved",
+        } as FileItem], file.name.replace(/\.[^.]+$/, ""));
       }
       if (fresh) {
         setFreshProof(toUrlSafeB64(proofDigest), {
@@ -1102,6 +1112,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
        3-file site export shows 3 exports, 0 of which see anchors. Reading the
        walk means this converges on folders the check cannot fully see, and
        needs no change to the check. */
+    dropNameRef.current = walked[0]?.path[0] ?? null;
     const { dirPathOf, rootAnchors } = readDropShape(walked);
     const { done } = startFolderCheck(scan.exports, {
       onRows: (rows) => {
@@ -1561,7 +1572,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         const epoch = last.out.proof.commit?.epochId ? toUrlSafeB64(last.out.proof.commit.epochId) : "";
         const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
         void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
-        saveMinted();
+        saveMinted(dropNameRef.current);
         router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
         return;
       }
@@ -1571,7 +1582,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     }
     setProvePhase(null);
     setStep("results");
-    if (minted > 0) { setPackageNote(null); saveMinted(); }
+    if (minted > 0) { setPackageNote(null); saveMinted(dropNameRef.current); }
     // An again run gives no row a place it did not have; the count is the rows on record.
     setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + (again ? 0 : minted));
     if (pendingIndexRef.current.length > 0) void indexSetEvidence();
@@ -1620,7 +1631,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           // &fresh=1 → capture flash on arrival (this is a just-made recording).
           const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
           void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
-          saveMinted();
+          saveMinted(dropNameRef.current);
           router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
           return;
         }
@@ -1662,7 +1673,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     }
 
     setStep("results");
-    if (minted > 0) { setPackageNote(null); saveMinted(); }
+    if (minted > 0) { setPackageNote(null); saveMinted(dropNameRef.current); }
 
     // Show the final count directly (see the note in handleFiles): the per-tick
     // animation re-rendered the whole list each increment and dragged on large
@@ -1691,14 +1702,53 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
    * updater is handed the settled state and returns it untouched, so this
    * costs no extra render and cannot read a stale row.
    */
+  /* What was dropped, so the saved file can borrow its name. A folder gives
+     its own name; a drop of loose files has none to borrow, which is the
+     weakest point in the naming scheme and is still open. */
+  const dropNameRef = useRef<string | null>(null);
   const savingRef = useRef(false);
-  const saveMinted = () => {
+
+  /* ⚠️ THIS SAVES THE PROOFS, NOT THE PACKAGE, and that is the whole design.
+     The package carries your original bytes — right for handing to a stranger
+     who has none of them, catastrophic as the thing a make writes to your own
+     disk, because auto-saving a 48,000 photo drop that way rebuilds the entire
+     folder in memory and hands you back gigabytes you already have. What you
+     cannot reconstruct is the signed proofs, and a set is one position sharing
+     one proof, so that folder is three proofs: about 23 KB, instant at any
+     size. See lib/bitgraphs-file.ts. */
+  const saveBitGraphs = (rows: FileItem[], source: string | null) => {
+    const doc = buildBitGraphsFile(rows, source);
+    if (!doc.proofs.length) return;
+    const name = bitgraphsFileName(source);
+    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+    // The net, under the file that is now the only copy.
+    void putPackageToIDB(doc.proofs[0]?.commit?.counter ?? String(Date.now()), {
+      name, blob, savedAt: Date.now(),
+      positions: doc.proofs.map((pr) => `${pr.commit?.epochId ?? ""} ${pr.commit?.counter ?? ""}`),
+    });
+    setPackageNote(
+      `Saved ${name}. Keep it in a ${BITGRAPHS_DIR} folder you back up or sync — ` +
+      `it is the BitGraph now, and your files are unchanged. Drop that folder in ` +
+      `any time to check them or to collect their Ethereum anchors.`);
+  };
+
+  const saveMinted = (source: string | null) => {
     setItems((settled) => {
+      // The rows come from the updater, not from `items`: at a mint ending
+      // `items` is still the PRE-mint list, because the chunk loops queued
+      // their updates and React has not rendered them yet. Returning `settled`
+      // untouched costs no extra render.
       // StrictMode invokes an updater twice in development; the flag keeps
       // that from becoming two downloads.
       if (!savingRef.current) {
         savingRef.current = true;
-        void downloadZip(settled).finally(() => { savingRef.current = false; });
+        try { saveBitGraphs(settled, source); } finally { savingRef.current = false; }
       }
       return settled;
     });
@@ -2390,8 +2440,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             <div className="bitgraph-camera">
               <FileDrop
                 multiple
-                onFile={(f) => handleFiles([f])}
-                onFiles={handleFiles}
+                onFile={(f) => { dropNameRef.current = null; void handleFiles([f]); }}
+                onFiles={(fs) => { dropNameRef.current = null; void handleFiles(fs); }}
                 onFolder={handleFolder}
                 onFolderScan={handleFolderScan}
                 // The title names BOTH functions, because the box is one

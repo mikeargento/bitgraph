@@ -9,7 +9,7 @@
     "build": "npm run copy-c2pa-assets && next build",
     "start": "next start",
     "lint": "eslint",
-    "test:fuse": "node --test src/lib/__tests__/fuse.test.ts src/lib/__tests__/fuse-set.test.ts src/lib/__tests__/fuse-placement.test.ts src/lib/__tests__/scan-hash.test.ts src/lib/__tests__/version-client-parity.test.ts src/lib/__tests__/digest-filter.test.ts src/lib/__tests__/anchor-kind.test.ts src/lib/__tests__/proof-environment.test.ts src/lib/__tests__/set-members.test.ts src/lib/__tests__/anchor-export.test.ts",
+    "test:fuse": "node --test src/lib/__tests__/fuse.test.ts src/lib/__tests__/fuse-set.test.ts src/lib/__tests__/fuse-placement.test.ts src/lib/__tests__/scan-hash.test.ts src/lib/__tests__/version-client-parity.test.ts src/lib/__tests__/digest-filter.test.ts src/lib/__tests__/anchor-kind.test.ts src/lib/__tests__/proof-environment.test.ts src/lib/__tests__/set-members.test.ts src/lib/__tests__/anchor-export.test.ts src/lib/__tests__/bitgraphs-file.test.ts",
     "test:mcp": "node --test src/lib/__tests__/fuse-hosted.test.ts src/lib/__tests__/fuse-hosted-set.test.ts",
     "test:ledger": "node --test src/lib/__tests__/ledger-archive.test.ts"
   },
