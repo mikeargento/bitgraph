@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
 import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
+import { anchorStatusDoc, isSettled, ANCHOR_STATUS_FILE, type BoundReport } from "@/lib/anchor-export";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
@@ -881,21 +882,53 @@ export default function ProofPage() {
       // witnesses) go in an ethereum-anchors/ subfolder so they don't clutter
       // the bundle root. Audit discovery is by schema shape, not path, so the
       // nesting is transparent to the verifier.
-      if (afterResp.ok) {
-        const data = await afterResp.json();
-        if (Array.isArray(data.anchors) && data.anchors.length > 0) {
-          files["ethereum-anchors/anchor-after.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
-          await addWitness("ethereum-anchors/anchor-after-witness.json", data.anchors[0]);
+      /* ⚠️ AN ABSENT ANCHOR FILE USED TO SAY NOTHING, HERE TOO. This is the
+       * second of the two places that build an ethereum-anchors/ folder, and
+       * it swallowed the same four different situations into one silence: the
+       * ledger saying "not yet", saying "never", being unreadable, and the
+       * request throwing. A package could not tell its reader whether no upper
+       * bound had been FETCHED or none EXISTED. Fixing only the camera's copy
+       * would have left the bug alive on the path a stranger actually uses —
+       * a fallback is where a fixed bug survives (2026-09-07). */
+      const readSide = async (resp: Response, name: string, witnessName: string): Promise<BoundReport> => {
+        if (!resp.ok) {
+          return { state: "unavailable", note: resp.status === 503
+            ? "The ledger could not be read when this package was built. That is a gap in what was asked, not a fact about the ledger."
+            : `The ledger answered ${resp.status} when this package was built, so this side was never learned.` };
         }
-      }
-      if (beforeResp.ok) {
-        const data = await beforeResp.json();
+        const data = await resp.json();
         if (Array.isArray(data.anchors) && data.anchors.length > 0) {
-          files["ethereum-anchors/anchor-before.json"] = strToU8(JSON.stringify(data.anchors[0], null, 2));
-          await addWitness("ethereum-anchors/anchor-before-witness.json", data.anchors[0]);
+          files[name] = strToU8(JSON.stringify(data.anchors[0], null, 2));
+          await addWitness(witnessName, data.anchors[0]);
+          return { state: "anchored", note: "An Ethereum anchor bounds this position on this side." };
         }
+        const b = data.bound as { state?: string; note?: string } | undefined;
+        if (!b?.state) {
+          return { state: "unavailable", note: "The ledger returned no anchor and gave no reason, so nothing can be concluded from this absence." };
+        }
+        return { state: b.state as BoundReport["state"], note: b.note ?? "" };
+      };
+      const [upperReport, lowerReport] = await Promise.all([
+        readSide(afterResp, "ethereum-anchors/anchor-after.json", "ethereum-anchors/anchor-after-witness.json"),
+        readSide(beforeResp, "ethereum-anchors/anchor-before.json", "ethereum-anchors/anchor-before-witness.json"),
+      ]);
+      // Only when something is missing: a complete package is byte-for-byte
+      // what it was before this change.
+      if (!isSettled(upperReport.state, lowerReport.state)) {
+        files[`ethereum-anchors/${ANCHOR_STATUS_FILE}`] = strToU8(JSON.stringify(
+          anchorStatusDoc({ epochId: commit.epochId || "", counter: String(counter ?? "") }, upperReport, lowerReport),
+          null, 2));
       }
-    } catch (_) { /* ignore */ }
+    } catch (e) {
+      // Even a throw has to leave a trace: a package that silently lacks its
+      // anchors is the exact ambiguity this file exists to remove.
+      console.error("[bitgraph] anchors for package:", e);
+      files[`ethereum-anchors/${ANCHOR_STATUS_FILE}`] = strToU8(JSON.stringify(anchorStatusDoc(
+        { epochId: commit.epochId || "", counter: String(commit.counter ?? "") },
+        { state: "unavailable", note: `This side was not fetched: the request did not complete (${(e as Error).message}). Ask again.` },
+        { state: "unavailable", note: `This side was not fetched: the request did not complete (${(e as Error).message}). Ask again.` },
+      ), null, 2));
+    }
 
     // ❄️ NO index.html. An export carries evidence, not a rendering of it.
     //

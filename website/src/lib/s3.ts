@@ -796,8 +796,15 @@ export async function getProofsAroundCounter(
 /**
  * Get the most recent ETH anchor BEFORE a given counter on the same chain.
  * Scans backwards from the counter to find the latest anchor.
+ *
+ * `strict` throws LedgerUnavailableError instead of returning null on a read
+ * failure, exactly as getProofByDigest does. Null means TWO things here — "no
+ * anchor precedes this counter" (true of the first proof of an epoch) and "we
+ * could not find out" — and a caller writing a package needs them apart: an
+ * absent anchor-before.json otherwise reads as both. Default OFF so the check
+ * path (/api/proofs/digest) keeps the behaviour it has.
  */
-export async function getAnchorBeforeCounter(proofCounter: number, epochId: string): Promise<Record<string, unknown> | null> {
+export async function getAnchorBeforeCounter(proofCounter: number, epochId: string, strict = false): Promise<Record<string, unknown> | null> {
   try {
     const s3 = getClient();
     const bucket = getBucket();
@@ -850,15 +857,35 @@ export async function getAnchorBeforeCounter(proofCounter: number, epochId: stri
       }
       // No anchor found in the window. If we already reached the epoch start,
       // there is genuinely no anchor before this proof (very early proof).
-      if (start === 0 || window >= 8_388_608) return null;
+      if (start === 0) return null;
+      // ⚠️ THE WINDOW RAN OUT BEFORE THE EPOCH DID, which is a different fact
+      // and used to be the same null. "We stopped looking" is not "there is
+      // nothing there", and a caller writing a package turns the second into a
+      // PERMANENT claim — a lower bound is the one side that can never arrive
+      // later, so `none` says "and it never will". Strict callers get the
+      // honest answer; the check path keeps the null it has always had.
+      if (window >= 8_388_608) {
+        if (strict) throw new LedgerUnavailableError("anchor before counter: search window exhausted before the epoch start");
+        return null;
+      }
     }
   } catch (err) {
     console.error("[s3] getAnchorBeforeCounter failed:", (err as Error).message);
+    if (strict) throw new LedgerUnavailableError("anchor before counter", err);
     return null;
   }
 }
 
-export async function getAnchorsAfterCounter(proofCounter: number, epochId: string, limit = 2): Promise<Array<Record<string, unknown>>> {
+/**
+ * The ETH anchors that FOLLOW a counter (the upper time bound).
+ *
+ * ⚠️ An empty array is not one answer, it is four: nothing is anchored past
+ * this counter yet, the epoch is closed and nothing ever will be, we have no
+ * anchors for that epoch at all, or the read failed. `strict` peels the last
+ * one off by throwing; classifyEmptyAnchorAnswer below separates the rest.
+ * Default OFF so the check path keeps the behaviour it has.
+ */
+export async function getAnchorsAfterCounter(proofCounter: number, epochId: string, limit = 2, strict = false): Promise<Array<Record<string, unknown>>> {
   try {
     const s3 = getClient();
     const bucket = getBucket();
@@ -926,6 +953,7 @@ export async function getAnchorsAfterCounter(proofCounter: number, epochId: stri
     return anchors;
   } catch (err) {
     console.error("[s3] getAnchorsAfterCounter failed:", (err as Error).message);
+    if (strict) throw new LedgerUnavailableError("anchors after counter", err);
     return [];
   }
 }

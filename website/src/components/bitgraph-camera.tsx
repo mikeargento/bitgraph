@@ -44,6 +44,11 @@ import { useWindowedRows } from "@/components/windowed-rows";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
+import {
+  positionsNeedingAnchors, positionCount as countPositions, readDropShape, anchorStatusDoc, isSettled,
+  ANCHOR_STATUS_FILE, type ExportSite, type PositionNeed, type BoundReport, type BoundState,
+} from "@/lib/anchor-export";
+import { fetchAnchorsFor, packAnchorZip, anchorZipName } from "@/lib/anchor-package";
 import { cacheArtifactToIDB } from "@/lib/file-cache";
 import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
@@ -292,6 +297,19 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // checking wait shows a live count even for small folders (each export is
   // its own round trips, unlike the one-request digest lookup).
   const [folderChecking, setFolderChecking] = useState(false);
+  /* ── The anchors export ──────────────────────────────────────────────────
+     The dropped folder's positions and which of them are short an Ethereum
+     anchor. Making is instant and leaves the upper bound DEFERRED; this is
+     where it is completed, deliberately, on a folder you already hold.
+     Null until a folder drop produces exports. */
+  const [anchorPlan, setAnchorPlan] = useState<{ positions: number; needs: PositionNeed[]; dropName: string | null } | null>(null);
+  const [anchorBusy, setAnchorBusy] = useState<{ current: number; total: number } | null>(null);
+  /* What the last run found, in one line under the card. It exists for the
+     outcomes that are NOT a download: nothing was missing, or the ledger could
+     not be reached, or a position simply has no upper bound yet. An export
+     that silently produced no file would be the same absent-answer bug in a
+     new place. */
+  const [anchorNote, setAnchorNote] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
   // Ledger-check progress (digests looked up). Only meaningful when the check
   // is chunked (large drops); a single-request check has nothing to count.
@@ -425,7 +443,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number; phase: "preparing" | "packaging" }>({ current: 0, total: 0, phase: "packaging" });
   const [animCount, setAnimCount] = useState(() =>
     (cachedResults.get(id) ?? []).filter(i => i.status === "found" || i.status === "proved").length);
-  const [anchorCountdown, setAnchorCountdown] = useState(0);
+  /* What the package that was just downloaded is short, if anything.
+     ⚠️ THIS REPLACES A FIFTEEN SECOND WAIT. The export used to be withheld for
+     15s after minting so the next Ethereum anchor would land first, because an
+     absent anchor-after.json was indistinguishable from a broken one and a
+     package could not say which. It can now say exactly which, so the wait is
+     no longer buying anything — but going silent instead would hand someone a
+     package they believe is complete, which is the same bug the wait existed
+     to avoid. The line below is what the wait was standing in for. */
+  const [packageNote, setPackageNote] = useState<string | null>(null);
 
   // Mirror the live batch into the module cache so browser-back from a proof
   // page restores this list (see cachedResults above).
@@ -435,25 +461,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   useEffect(() => {
     if (step === "results" && checked.length > 0) cachedChecked.set(id, checked);
   }, [id, step, checked]);
-
-  // Start 15s countdown when proofs finish (waiting for next ETH anchor)
-  const endTimeRef = useRef<number>(0);
-  const rafRef = useRef<number>(0);
-  const startAnchorCountdown = () => {
-    endTimeRef.current = Date.now() + 15000;
-    setAnchorCountdown(15);
-    cancelAnimationFrame(rafRef.current);
-    const tick = () => {
-      const remaining = Math.ceil((endTimeRef.current - Date.now()) / 1000);
-      if (remaining <= 0) {
-        setAnchorCountdown(0);
-      } else {
-        setAnchorCountdown(remaining);
-        rafRef.current = requestAnimationFrame(tick);
-      }
-    };
-    rafRef.current = requestAnimationFrame(tick);
-  };
 
   useEffect(() => {
     if (step !== "drop") window.scrollTo(0, 0);
@@ -480,11 +487,6 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      custom properties and the frame falls back to its CSS sizing, which is
      what a page that has stopped being viewport-fitted should use. */
   useCameraFit(fitViewport && step === "drop", ".bitgraph-tagline", belowClassName ? `.${belowClassName}` : ".bitgraph-nothing-below");
-
-  // Cleanup rAF on unmount only
-  useEffect(() => {
-    return () => { cancelAnimationFrame(rafRef.current); };
-  }, []);
 
   // Files dropped on a proof page's camera strip arrive via the pending-drop
   // slot: pick them up on mount and run the normal drop flow.
@@ -1070,15 +1072,40 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // in per row behind it. No full-screen wait at all: browsing must be
     // instant, verification merely prompt.
     setFolderChecking(true);
+    setAnchorPlan(null);
+    setAnchorNote(null);
     // Cleared ONCE, here, rather than inside onRows. Both halves of a mixed
     // drop are in flight at the same time, and onRows fires whenever the
     // export scan happens to finish — so clearing there raced the stray scan
     // and silently ate every loose file whenever the strays landed first.
     setItems([]);
+    /* The drop's own shape, for the anchors export: where each export dir
+       sits, and what anchor files the drop already holds. Read from the WALK,
+       not from scan.exports, because a multi-file package export writes one
+       batch-level ethereum-anchors/ at the TOP of the drop and discoverDrop
+       only claims ethereum-anchors/ found inside an export dir — measured: a
+       3-file site export shows 3 exports, 0 of which see anchors. Reading the
+       walk means this converges on folders the check cannot fully see, and
+       needs no change to the check. */
+    const { dirPathOf, rootAnchors } = readDropShape(walked);
     const { done } = startFolderCheck(scan.exports, {
       onRows: (rows) => {
         setChecked(rows);
         setStep("results");
+        // Proofs are parsed by the time the rows exist, so the plan is free
+        // here; `rows` is index-aligned with scan.exports by construction.
+        const sites: ExportSite[] = scan.exports.map((cand, i) => ({
+          dirPath: dirPathOf.get(cand.proofFile) ?? [],
+          epochId: rows[i]?.proof?.commit?.epochId ?? null,
+          counter: rows[i]?.proof?.commit?.counter ?? null,
+          hasUpper: !!cand.anchors.after,
+          hasLower: !!cand.anchors.before,
+        }));
+        setAnchorPlan({
+          positions: countPositions(sites),
+          needs: positionsNeedingAnchors(sites, rootAnchors),
+          dropName: walked[0]?.path[0] ?? null,
+        });
       },
       onUpdate: (index, row) => {
         setChecked((prev) => prev.map((r, i) => (i === index ? row : r)));
@@ -1523,7 +1550,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     }
     setProvePhase(null);
     setStep("results");
-    if (minted > 0) startAnchorCountdown();
+    if (minted > 0) setPackageNote(null);
     // An again run gives no row a place it did not have; the count is the rows on record.
     setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + (again ? 0 : minted));
     if (pendingIndexRef.current.length > 0) void indexSetEvidence();
@@ -1613,7 +1640,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     }
 
     setStep("results");
-    if (minted > 0) startAnchorCountdown();
+    if (minted > 0) setPackageNote(null);
 
     // Show the final count directly (see the note in handleFiles): the per-tick
     // animation re-rendered the whole list each increment and dragged on large
@@ -1716,6 +1743,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // by addAnchorsFor via the witness it downloads.
     const built: { dir: string; fileName: string; proof: Record<string, unknown>;
                    sides: { before: AnchorSide; after: AnchorSide } }[] = [];
+    // One entry per position addAnchorsFor was asked about, so the receipt can
+    // report what actually came back rather than assuming it was everything.
+    const anchorOutcomes: { upper: BoundState; lower: BoundState }[] = [];
     const sidesFor = new Map<string, { before: AnchorSide; after: AnchorSide }>();
     const sidesOf = (dir: string) => {
       let v = sidesFor.get(dir);
@@ -1756,34 +1786,82 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       } catch { /* non-critical: the bundle is valid without the witness */ }
     };
 
+    /* ⚠️ AN ABSENCE HERE USED TO SAY NOTHING AT ALL.
+     *
+     * Every path that failed to produce an anchor omitted its file and said no
+     * more: the ledger answering "not yet", the ledger answering "never", the
+     * request throwing, and — because the route returned an empty list with a
+     * 200 for all four — the ledger simply being unreadable. So a package that
+     * had no anchor-after.json could not tell its reader whether no upper
+     * bound had been FETCHED or none EXISTED, which are opposite claims about
+     * the same folder. That is the same family as the three bugs found on
+     * 2026-09-07: an absent answer shipping as a complete one.
+     *
+     * The route now says which of those happened (`bound`), and any position
+     * that does not come back fully anchored carries anchors-status.json
+     * saying so. The anchor files themselves are unchanged, so this is purely
+     * additive: nothing that used to be written stops being written.
+     */
     const addAnchorsFor = async (dir: string, afterCounter: string, beforeCounter: string, epoch: string) => {
-      try {
-        if (!epoch) return;
-        const enc = encodeURIComponent(epoch);
-        const [afterResp, beforeResp] = await Promise.all([
-          fetch(`/api/proofs/anchors?counter=${afterCounter}&epoch=${enc}`),
-          fetch(`/api/proofs/anchors?counter=${beforeCounter}&epoch=${enc}&before=1`),
-        ]);
-        // The four ETH anchor files (before/after anchor + their block-header
-        // witnesses) live together in an ethereum-anchors/ subfolder so they
-        // don't clutter the bundle root. Audit discovery is by schema shape,
-        // not filename or path, so nesting is transparent to the verifier.
-        const anchorDir = `${dir}ethereum-anchors/`;
-        if (afterResp.ok) {
-          const data = await afterResp.json();
-          if (data.anchors?.length > 0) {
-            addText(`${anchorDir}anchor-after.json`, JSON.stringify(data.anchors[0], null, 2));
-            await addWitnessFor(`${anchorDir}anchor-after-witness.json`, data.anchors[0]);
+      const anchorDir = `${dir}ethereum-anchors/`;
+      if (!epoch) {
+        // No epoch, so nothing can be looked up: the anchor routes are keyed
+        // by counter AND epoch. Say that rather than write four silent gaps.
+        addText(`${anchorDir}${ANCHOR_STATUS_FILE}`, JSON.stringify(anchorStatusDoc(
+          { epochId: "", counter: afterCounter },
+          { state: "unavailable", note: "This proof names no epoch, so its anchors cannot be looked up: the ledger's anchor index is keyed by counter within an epoch." },
+          { state: "unavailable", note: "This proof names no epoch, so its anchors cannot be looked up: the ledger's anchor index is keyed by counter within an epoch." },
+        ), null, 2));
+        anchorOutcomes.push({ upper: "unavailable", lower: "unavailable" });
+        return;
+      }
+      const enc = encodeURIComponent(epoch);
+      // The four ETH anchor files (before/after anchor + their block-header
+      // witnesses) live together in an ethereum-anchors/ subfolder so they
+      // don't clutter the bundle root. Audit discovery is by schema shape,
+      // not filename or path, so nesting is transparent to the verifier.
+      const side = async (url: string, name: string, witnessName: string): Promise<BoundReport> => {
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            return { state: "unavailable", note: resp.status === 503
+              ? "The ledger could not be read when this package was built. That is a gap in what was asked, not a fact about the ledger."
+              : `The ledger answered ${resp.status} when this package was built, so this side was never learned.` };
           }
-        }
-        if (beforeResp.ok) {
-          const data = await beforeResp.json();
+          const data = await resp.json();
           if (data.anchors?.length > 0) {
-            addText(`${anchorDir}anchor-before.json`, JSON.stringify(data.anchors[0], null, 2));
-            await addWitnessFor(`${anchorDir}anchor-before-witness.json`, data.anchors[0]);
+            addText(name, JSON.stringify(data.anchors[0], null, 2));
+            await addWitnessFor(witnessName, data.anchors[0]);
+            return { state: "anchored", note: "An Ethereum anchor bounds this position on this side." };
           }
+          const b = data.bound as { state?: string; note?: string } | undefined;
+          if (!b?.state) {
+            return { state: "unavailable", note: "The ledger returned no anchor and gave no reason, so nothing can be concluded from this absence." };
+          }
+          return { state: b.state as BoundReport["state"], note: b.note ?? "" };
+        } catch (e) {
+          return { state: "unavailable", note: `This side was not fetched: the request did not complete (${(e as Error).message}). Ask again.` };
         }
-      } catch { /* non-critical */ }
+      };
+      const [upper, lower] = await Promise.all([
+        side(`/api/proofs/anchors?counter=${afterCounter}&epoch=${enc}`, `${anchorDir}anchor-after.json`, `${anchorDir}anchor-after-witness.json`),
+        side(`/api/proofs/anchors?counter=${beforeCounter}&epoch=${enc}&before=1`, `${anchorDir}anchor-before.json`, `${anchorDir}anchor-before-witness.json`),
+      ]);
+      // Collected so the receipt can say what the package went out short of.
+      // Without this, removing the 15s wait would make a package that is
+      // missing its upper bound look exactly like one that is not.
+      anchorOutcomes.push({ upper: upper.state, lower: lower.state });
+      // Only when something is missing: a finished package stays exactly as it
+      // is today, and 2,566 complete recordings do not sprout a file saying
+      // "fine". The file's presence IS the signal.
+      if (!isSettled(upper.state, lower.state)) {
+        addText(`${anchorDir}${ANCHOR_STATUS_FILE}`, JSON.stringify(
+          // beforeCounter differs from afterCounter for the package-level
+          // bracket, which spans the batch: say so rather than let both
+          // reports read as claims about one position.
+          anchorStatusDoc({ epochId: epoch, counter: afterCounter }, upper, lower, new Date(), beforeCounter),
+          null, 2));
+      }
     };
 
     // Add files one at a time, updating progress between each
@@ -1929,9 +2007,105 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       : `BitGraph (${withProofs.length} files).zip`;
     a.click();
     URL.revokeObjectURL(url);
+
+    /* ⚠️ THE PACKAGE MUST SAY WHAT IT WENT OUT SHORT OF.
+     *
+     * Making no longer waits fifteen seconds for the next Ethereum anchor —
+     * the floor is already in the signed body, and waiting was, in Mike's
+     * words, too clever. The upper bound is DEFERRED, not lost: the counter is
+     * in the signed proof and anchors are permanent, so this package completes
+     * whenever anyone drops the folder back in, today or in a year.
+     *
+     * But deferred has to be SAID. The old wait was the interface admitting
+     * the anchor had not landed; removing it and saying nothing would hand
+     * someone an incomplete package that looks complete, which is the very
+     * thing the wait was there to prevent. */
+    const pending = anchorOutcomes.filter((o) => o.upper === "pending").length;
+    const unknown = anchorOutcomes.filter((o) =>
+      o.upper === "unavailable" || o.upper === "undetermined" ||
+      o.lower === "unavailable" || o.lower === "undetermined").length;
+    const said: string[] = [];
+    if (pending > 0) {
+      said.push(`${pending === 1 ? "This BitGraph has" : `${pending} of these BitGraphs have`} no Ethereum anchor after ${pending === 1 ? "it" : "them"} yet — one lands within seconds. Nothing is lost and nothing expires: drop this folder back in whenever you like and the package completes.`);
+    }
+    if (unknown > 0) {
+      said.push(`${unknown} position${unknown === 1 ? "'s anchors" : "s' anchors"} could not be read from the ledger. That is our gap, not a fact about your files — drop the folder back in to try again.`);
+    }
+    setPackageNote(said.length ? said.join(" ") : null);
     setStep("results");
   }
 
+
+  /* ── Export anchors for the dropped folder ──────────────────────────────
+   *
+   * The deferred half of making a BitGraph, done deliberately on a folder you
+   * already hold. Making is instant because the floor is already in the signed
+   * body; the upper bound is fetched later, by anyone, at any time — the
+   * counter is in the signed body and anchors are permanent.
+   *
+   * ONE request pair per POSITION, not per file: the 48,000 file folder is
+   * three sets, so it is three pairs. And ONE file out, because Chromium
+   * prompts "wants to download multiple files" on the second one.
+   *
+   * ⚠️ EVERY OUTCOME SPEAKS. A run that fetched nothing says why — nothing was
+   * missing, or a position has no upper bound yet, or the ledger could not be
+   * reached — because a button that silently produced no file would be this
+   * phase's own bug wearing a different hat.
+   */
+  async function exportAnchors() {
+    if (!anchorPlan || anchorBusy) return;
+    const needs = anchorPlan.needs;
+    if (!needs.length) { setAnchorNote("Every position in this folder already has both of its anchors."); return; }
+    setAnchorNote(null);
+    setAnchorBusy({ current: 0, total: needs.length });
+    try {
+      const summary = await fetchAnchorsFor(needs, (current, total) => setAnchorBusy({ current, total }));
+      const parts: string[] = [];
+      if (summary.fileCount > 0) {
+        const blob = packAnchorZip(summary);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const name = anchorZipName(anchorPlan.dropName);
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(url);
+        // ⚠️ Only say what happened. "0 positions completed" led this line on
+        // a run that fetched a lower bound and honestly reported the upper one
+        // as not-yet — a true outcome announced as a failure.
+        const anchored = summary.positions.filter((p) => p.upper.state === "anchored" && p.lower.state === "anchored").length;
+        if (anchored > 0) parts.push(`${anchored} position${anchored === 1 ? "" : "s"} completed.`);
+        parts.push(`Unzip ${name} beside this folder and merge: it holds only what the folder is missing, so nothing is overwritten.`);
+      }
+      // Never silent, and never cheerful about a gap that is ours.
+      if (summary.pending > 0) {
+        parts.push(`${summary.pending} position${summary.pending === 1 ? " has" : "s have"} no anchor yet: ${summary.pending === 1 ? "it was" : "they were"} recorded too recently for one to have landed. Nothing is lost — drop this folder in again later and ${summary.pending === 1 ? "it completes" : "they complete"}.`);
+      }
+      if (summary.closed > 0) {
+        parts.push(`${summary.closed} position${summary.closed === 1 ? "'s" : "s'"} epoch closed with no anchor after ${summary.closed === 1 ? "it" : "them"}, so no upper bound exists. The lower bound stands.`);
+      }
+      if (summary.unavailable > 0) {
+        parts.push(`${summary.unavailable} position${summary.unavailable === 1 ? "" : "s"} could not be read from the ledger. That is our gap, not a finding about the folder — try again.`);
+      }
+      if (!parts.length) parts.push("Nothing to fetch: this folder is already complete.");
+      setAnchorNote(parts.join(" "));
+      // What was just written is now in the folder the user will re-drop, but
+      // this tab still holds the plan it started with. Recompute from the run
+      // so the card stops offering work that is done.
+      setAnchorPlan((prev) => prev && ({
+        ...prev,
+        needs: prev.needs.filter((n) => {
+          const got = summary.positions.find((p) => p.need.counter === n.counter && p.need.epochId === n.epochId);
+          return !got || !isSettled(got.upper.state, got.lower.state);
+        }),
+      }));
+    } catch (e) {
+      console.error("[bitgraph] anchors export failed:", e);
+      setAnchorNote("The anchors could not be packaged. Nothing was changed; try again.");
+    } finally {
+      setAnchorBusy(null);
+    }
+  }
 
   // A visitor supplied a file that hashes to a dropped proof.json's digest. Mark
   // the row matched and cache the real artifact so opening the proof shows it.
@@ -2333,6 +2507,55 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   the dropped bytes themselves, the verdict in the two-outcome
                   colors — blue "matches the ledger", red naming the side that
                   differed. NO buttons: the drop triggered everything. ── */}
+              {/* ── The anchors card ────────────────────────────────────────
+                  Making is instant and leaves the upper bound deferred; this
+                  is where the folder is completed. Same receipt anatomy as the
+                  drop's own card: the count on the left, one action link on
+                  the right, a line under it when there is something to say.
+
+                  ⚠️ ABOVE the list, not below it. The page itself scrolls and
+                  the list keeps its true height from spacers, so a card under
+                  a 48,000 row folder is 3.8 million pixels down the page.
+
+                  The count is stated even when there is nothing to do, because
+                  "3 positions · all anchored" is a finding: it is the folder
+                  telling you it is finished. */}
+              {anchorPlan && anchorPlan.positions > 0 && (
+                <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
+                  <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
+                      {anchorPlan.positions} position{anchorPlan.positions === 1 ? "" : "s"}
+                      <span style={{ fontWeight: 400, color: "#4b5563" }}>
+                        {/* "not fully anchored" rather than "needs anchors":
+                            a position with a lower bound and no upper one has
+                            half its evidence, and the count reads at every
+                            arity ("1 needs anchors" did not). */}
+                        {anchorPlan.needs.length === 0
+                          ? " · all anchored"
+                          : ` · ${anchorPlan.needs.length} not fully anchored`}
+                      </span>
+                    </span>
+                    {anchorBusy ? (
+                      <span style={{ fontSize: 13, color: "#4b5563", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                        Fetching {anchorBusy.current} of {anchorBusy.total}
+                      </span>
+                    ) : anchorPlan.needs.length > 0 ? (
+                      <button type="button" onClick={exportAnchors} className="bg-action-link" style={{ padding: 0 }}>
+                        <span>Export anchors for {anchorPlan.needs.length} position{anchorPlan.needs.length === 1 ? "" : "s"}</span>
+                        <span className="arrow" aria-hidden>&rarr;</span>
+                      </button>
+                    ) : null}
+                  </div>
+                  {/* What the run found, including when it found nothing. A
+                      fetch that produces no file must still say so. */}
+                  {anchorNote && (
+                    <div style={{ borderTop: "1px solid #eef0f1", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "#4b5563" }}>
+                      {anchorNote}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {checked.length > 0 && <CheckedList checked={checked} onOpen={openCheckedRow} heading={boxOpen ? null : "BitGraphs in this folder"} aside={openLink} />}
 
               {/* The whole batch state lives in one receipt card (same anatomy
@@ -2383,11 +2606,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                       <span style={{ fontWeight: 400, color: "#4b5563" }}>{` \u00b7 indexing ${indexProgress.current} of ${indexProgress.total}`}</span>
                     )}
                   </span>
-                  {found.length > 0 && (anchorCountdown > 0 ? (
-                    <span style={{ fontSize: 13, color: "#4b5563", whiteSpace: "nowrap" }}>
-                      Download in {anchorCountdown}s
-                    </span>
-                  ) : (
+                  {found.length > 0 && (
                     // Same action-link idiom as every other action in the
                     // product. Paired with the count on its left, so it hangs
                     // on the right the way "Open →" does on a file row.
@@ -2402,8 +2621,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                       <span>Export BitGraph package</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
-                  ))}
+                  )}
                 </div>
+                {/* What the package that just downloaded is short, and what to
+                    do about it. Only ever rendered when something IS short. */}
+                {packageNote && (
+                  <div style={{ borderTop: "1px solid #eef0f1", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "#4b5563" }}>
+                    {packageNote}
+                  </div>
+                )}
                 {/* Files not yet on record get their action as a receipt row:
                     the same arrow-link voice as "See an example …" on the
                     drop screen. Writing to the ledger stays deliberate — a
