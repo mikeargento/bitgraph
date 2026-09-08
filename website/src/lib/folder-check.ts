@@ -952,10 +952,23 @@ export function startFolderCheck(
         if (normCounter(c.counter) !== normCounter(w.counter)) return false;
         return !w.epochId || c.epochId === w.epochId;
       });
-      if (!claimed) {
-        w.failure = entries.length === 0 ? "not on the ledger" : "not on the ledger at its claimed position";
-        return;
-      }
+      /* ⚠️ "NOT ON THE LEDGER" IS NO LONGER A FAULT, AND SAYING IT WOULD BE
+       * THE WORST THING THIS SCREEN CAN DO.
+       *
+       * It was a real finding while every proof was written to the bucket: a
+       * validly signed proof that the ledger did not hold meant something was
+       * wrong. Since 2026-09-08 the bucket keeps only anchors, so a proof
+       * absent from it is the ORDINARY case — it is a BitGraph whose evidence
+       * lives, correctly, in the folder you are looking at.
+       *
+       * And the proof does not need the ledger to stand up: the signature, the
+       * attestation to the AWS root, the slot binding and the floor are all
+       * checked above, from the bytes in hand. So an absence simply ends this
+       * side with nothing to compare, and the verdict is unchanged.
+       *
+       * The comparison below still runs for the three million proofs written
+       * before the cutover, where it remains worth making. */
+      if (!claimed) return;
       w.onLedger = true;
       w.writeTime = claimed.writeTime ?? null;
       w.ledgerProof = claimed.proof;

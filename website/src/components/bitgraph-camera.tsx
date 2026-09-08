@@ -747,97 +747,33 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const hashDoneAt = performance.now();
     const scanSeconds = (hashDoneAt - scanStart) / 1000;
     scanRateRef.current = scanSeconds > 0.5 && bytesHashed > 0 ? bytesHashed / scanSeconds : null;
-
-    // Phase 2 — batched ledger lookup. Small drops are ONE round trip (the
-    // old one-request-per-file loop was the whole wait); large drops are
-    // chunked, so the wait shows REAL progress instead of an uncounted
-    // spinner. Falls back to the per-digest endpoint, parallelized, if the
-    // batch endpoint is unavailable.
-    //
-    // BATCH_CHUNK per request, five in flight. Measured against a real
-    // 30,000-file folder on 2026-09-07: at 50x3 it took 99s, 500x3 79s, 500x5
-    // 53s. The digest index then removed the per-digest S3 listing entirely
-    // for bytes that are not on record, which is nearly all of a fresh drop,
-    // so the chunk went to 2,000 and 48,000 files became 5 rounds of latency
-    // instead of 20. Five in flight stays: it is deliberately short of what
-    // the server's S3 fan-out will bear, since its own concurrency was cut
-    // from 16 to 8 after a large drop pushed the reads into throttling, and
-    // the client multiplies that.
-    const lookupKeys = [...new Set(
-      scanned.filter((s) => !s.proofJson && s.digest).map((s) => toUrlSafeB64(s.digest)),
-    )];
+    /* ── PHASE 3: THE SITE NO LONGER ASKS ─────────────────────────────────
+     *
+     * This was the check path: a batched lookup of every dropped digest
+     * against the hosted ledger, with a Bloom filter in front of it, member
+     * lists to keep a set from being asked about 48,000 times, chunking,
+     * split-retry and a concurrency budget tuned against a real 30,000 file
+     * folder. All of it existed to answer ONE question — "do these bytes
+     * already have a proof?" — for anyone who asked, about anything.
+     *
+     * That question is now answered from the BitGraphs folder you connected,
+     * which is free, private, and about YOUR files (see lib/local-ledger.ts
+     * and the fold-in at the end of this function). So the whole subsystem
+     * goes. It was a week of work and it was worth building: what it cost to
+     * make discovery bearable is the measure of what discovery was costing.
+     *
+     * ⚠️ THE ENDPOINTS STAY. /api/proofs/batch and the digest routes keep
+     * serving the three million digests written before the cutover — copies of
+     * @mikeargento/bitgraph-mcp 0.4.1 and the Zapier app are installed and
+     * cannot be updated by a push, and those digests are under a ten-year lock
+     * regardless. What changed is that the SITE stopped depending on them.
+     *
+     * ⚠️ A row nobody can place is "new" to you, not "never recorded". Nothing
+     * here may say otherwise: with no folder connected the drop asks before it
+     * mints, which is the gate in handleFiles.
+     */
     const lookup: Record<string, BatchEntry> = {};
     setCheckProgress({ current: 0, total: 0 });
-    setScanPhase("checking");
-    if (lookupKeys.length) {
-      setCheckProgress({ current: 0, total: lookupKeys.length });
-      let done = 0;
-      const advance = (n: number) => {
-        done += n;
-        setCheckProgress({ current: done, total: lookupKeys.length });
-      };
-      /**
-       * One chunk, and what happens when it does not come back.
-       *
-       * ⚠️ A FAILED CHUNK USED TO DESTROY THE WHOLE LOOKUP. One `throw` left
-       * the try block, threw away every chunk that had already succeeded, and
-       * dropped into a fallback that fetched all N digests ONE AT A TIME at
-       * six concurrent. For 48,000 files that is about thirteen minutes, and
-       * the fallback never touched setCheckProgress, so the counter froze at
-       * whatever it last showed while the tab ground on. That is exactly what
-       * "Checking 0 of 48000, stuck" was (Mike, 2026-09-07).
-       *
-       * A chunk fails here for one reason in practice: it asked for more than
-       * a 60s function can answer. Measured against production, 2,000 digests
-       * that all hit took 24s alone but THREE OF FIVE concurrent requests ran
-       * into maxDuration at 60s. So a failure is a signal to ask for less,
-       * and halving is the response: the same digests come back as two
-       * cheaper questions, and only a chunk that fails at its smallest still
-       * counts as unanswered.
-       */
-      const lookupChunk = async (keys: string[], depth: number): Promise<void> => {
-        try {
-          const r = await fetch("/api/proofs/batch", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ digests: keys, environments: "table" }),
-          });
-          if (!r.ok) throw new Error(`batch ${r.status}`);
-          Object.assign(lookup, batchAnswer(await r.json()));
-          advance(keys.length);
-        } catch (err) {
-          if (keys.length > BATCH_MIN_CHUNK) {
-            const mid = Math.ceil(keys.length / 2);
-            // Sequentially, not in parallel: the thing that just failed was
-            // too much at once, so a retry must not re-create the load.
-            await lookupChunk(keys.slice(0, mid), depth + 1);
-            await lookupChunk(keys.slice(mid), depth + 1);
-            return;
-          }
-          if (depth < BATCH_MIN_RETRIES) {
-            await new Promise((r) => setTimeout(r, 400 * (depth + 1)));
-            await lookupChunk(keys, depth + 1);
-            return;
-          }
-          // ⚠️ `unavailable`, NEVER `{ proofs: [] }`. An empty list is the
-          // wire form of "these bytes were never recorded", so writing one
-          // here would tell a visitor their genuine recording is not on the
-          // ledger, and offer to record it AGAIN, minting a second permanent
-          // position for bytes that already had one. The old per-digest
-          // fallback did exactly that on every non-ok response.
-          console.error("[check] giving up on", keys.length, "digests:", err);
-          for (const k of keys) lookup[k] = { proofs: [], unavailable: true };
-          advance(keys.length);
-        }
-      };
-      const chunks: string[][] = [];
-      for (let i = 0; i < lookupKeys.length; i += BATCH_CHUNK) chunks.push(lookupKeys.slice(i, i + BATCH_CHUNK));
-      let nextChunk = 0;
-      const chunkWorker = async () => {
-        while (nextChunk < chunks.length) await lookupChunk(chunks[nextChunk++], 0);
-      };
-      await Promise.all(Array.from({ length: Math.min(BATCH_IN_FLIGHT, chunks.length) }, chunkWorker));
-    }
 
     // Phase 3 — assemble in drop order. The lookup returns EVERY proof
     // recorded for the bytes (earliest causal position first): the same bits
@@ -1242,7 +1178,21 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // caching differing bytes under the proof's digest would show the wrong
   // image on the record's own page.
   function openCheckedRow(r: ExportCheckResult) {
-    if (!r.onLedger || !r.digestUrlSafe) return;
+    /* ⚠️ A ROW NO LONGER HAS TO BE ON THE LEDGER TO BE OPENED. The gate was
+       `onLedger`, which was right when the proof page could only look things
+       up — clicking through to a page that would say "not found" helped
+       nobody. The page is a VIEWER now, so the row hands it the proof it is
+       already holding and the record renders with no lookup behind it at all.
+       Without this, every row from your own BitGraphs folder would be inert. */
+    if (!r.digestUrlSafe) return;
+    if (r.proof) {
+      setFreshProof(r.digestUrlSafe, {
+        proofs: [{ proof: r.proof }],
+        positions: r.counter ? [{ counter: r.counter, epoch: r.epochUrlSafe, lowerTime: null, upperTime: null }] : [],
+        causalWindow: null,
+        anchorBlock: null,
+      });
+    }
     if (r.matchedFile && r.proof) {
       void cacheArtifactToIDB(r.matchedFile, r.proof.artifact.digestB64).catch((e) => console.error("[bitgraph] cache error:", e));
     }

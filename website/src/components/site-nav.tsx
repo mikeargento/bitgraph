@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { warm, LEDGER_FEED_KEY } from "@/lib/warm";
 import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-sections";
 
 // Warm the ledger feed the moment the user signals intent to open it, so the page
@@ -11,7 +10,6 @@ import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-
 // when there's real intent, never on every page load — and is a no-op once a
 // fresh copy is in flight or cached. Next already prefetches the route CODE on
 // hover; this brings the DATA, the actual latency.
-const warmLedger = () => warm(LEDGER_FEED_KEY);
 
 export function SiteNav() {
   const pathname = usePathname();
@@ -166,20 +164,22 @@ export function SiteNav() {
               a PERMANENT 308 to /uses on 2026-07-27, and /uses 308s onward,
               so reviving either path as a real page risks a cached-redirect
               loop for anyone holding the old redirect. */}
-          {/* The ledger, on its own /day page (no longer embedded under the
-              home camera), so the nav is its way in. Labelled Ledger until
-              2026-09-03, a photography word for an audience that is now
-              developers; the route stays /day so no link anywhere breaks. */}
-          <Link
-            href="/ledger"
-            aria-current={pathname === "/ledger" ? "page" : undefined}
-            onMouseEnter={warmLedger}
-            onFocus={warmLedger}
-            onTouchStart={warmLedger}
-            style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
-          >
-            Ledger
-          </Link>
+          {/* ❄️ THE LEDGER IS OUT OF THE NAV (Mike, 2026-09-08): "ledger can be
+              invisible now since the eth anchors are on proof pages". It was
+              the way in to a browsable roll of every recording. There is no
+              such roll any more — the bucket keeps only anchors — and the
+              anchors that remain are already shown where they do their work,
+              on the record they bracket. A nav entry pointing at a surface
+              whose contents moved onto the proof page is a second, thinner
+              copy of it.
+
+              ⚠️ INVISIBLE, NOT DELETED. /ledger STAYS REACHABLE and must. It
+              is the target of PERMANENT 308s from /roll, /rolls and
+              /api/ledger/head's predecessors, and a cached permanent redirect
+              pointing at a 404 cannot be taken back — the same trap that keeps
+              "Use cases" on the /subjects route two comments above. Removing
+              the route is not a smaller version of this change; it is a
+              different and irreversible one. */}
           {/* Docs opens the section list rather than navigating.
               It used to be a plain link to /docs, and every docs page then
               carried a full-width sticky bar of its own holding this menu. That
