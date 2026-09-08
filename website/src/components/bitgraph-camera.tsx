@@ -1968,7 +1968,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
            like that should be centered"). It went left that afternoon, when
            the row also carried a link on its right and sat over a left-aligned
            "BitGraph Found"; with the link gone and home's title now the claim
-           itself ("A BitGraph gives bits a place"), what is left is one
+           itself ("A clock that ticks when you ask it to"), what is left is one
            sentence over a symmetric box, and a sentence like that reads as a
            statement, which wants the centre. Only the title: the box's own
            copy was always centred, and the block under the box (/actor's
@@ -2014,7 +2014,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
            rule had already flatlined. Deliberate, and the number to dial if it
            ever reads as too much. */
         /* ⚠️ The 34px floor above was for "A camera for bits" (17 characters).
-           The title is now "A BitGraph gives bits a place" (29), which at 34px
+           It was then "A BitGraph gives bits a place" (29), which at 34px
            is ~450px wide and wraps to two lines in a phone's ~350px column
            (Mike, 2026-08-19: "on mobile it wraps. has to be smaller i suppose
            on mobile"). So on phones the size follows the viewport: the
@@ -2026,10 +2026,20 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
            ladder (.bg-page-title is clamp(26px, 6vw, 32px), a flat 32 on
            desktop; home had been 34..40 since the frame started scaling with
            the window). So: the docs size from 433px up, identical to every
-           other title, and below that the floor is 22 rather than 26 only so
-           the sentence holds one line on small phones (23.4px at 390, 22 at
-           360; 26 would wrap at 375). Same rule on both camera pages. */
-        .bitgraph-tagline { font-size: clamp(22px, 6vw, 32px); }
+           other title, and below that the floor is small only so the sentence
+           holds ONE LINE on phones (Mike, 2026-09-08: "one line on phones
+           obviously"), which is the rule this size has always served.
+
+           ⚠️ THIS NUMBER IS A FUNCTION OF THE TITLE. Measured in this face
+           with canvas measureText, the sentence is 16.3x its font size ("A
+           BitGraph gives bits a place" was 13.13x, and the 13.2 written here
+           before was right). One line inside a 90vw column therefore needs
+           90/16.3 = 5.52vw, so 5.4 leaves a hair: 17.3px at 320, 19.4 at 360,
+           21.1 at 390, 23.2 at 430, and the docs size of 32 flat from 593px
+           up. The old 6vw with a 22px floor wrapped this title on every
+           phone. If the title changes again, re-measure and re-solve; do not
+           nudge these by eye. Same rule on both camera pages. */
+        .bitgraph-tagline { font-size: clamp(17px, 5.4vw, 32px); }
         .bitgraph-tagline .accent { color: inherit; }
         /* The block under the frame (home's one link, /actor's Rename ·
            Forget) is the page's: its class and its margin live in the page's
