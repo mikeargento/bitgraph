@@ -129,6 +129,33 @@ test("NEGATIVE: an entry naming a set the answer lacks gets NO proof", () => {
   assert.equal(results.a.proofs[0].setRef, "MISSING", "and the unresolved name is kept, not erased");
 });
 
+test("REGRESSION: every lifted entry's set must be in the answer", () => {
+  // ⚠️ The bug this exists for. The route sent `sets` only when its
+  // per-digest pass had asked for one; a set expanded from a member list
+  // never goes through that pass, so an answer went out with thousands of
+  // entries naming a set it did not carry. attachSetProofs then leaves those
+  // entries with NO proof, and a row with no proof reads as not on the
+  // ledger — an offer to re-record bytes that already hold a position.
+  const proof = { version: "bitgraph/1", artifact: { digestB64: "root" } };
+  const sets: Record<string, unknown> = { SETDIGEST: proof };
+  const results = {
+    a: { proofs: [{ proof, setDigest: "SETDIGEST" }] },
+    b: { proofs: [{ proof, setDigest: "SETDIGEST" }] },
+  };
+  liftSetProofs(results, sets);
+  const named = Object.values(results).flatMap((r) => r.proofs).map((e) => (e as { setRef?: string }).setRef).filter(Boolean);
+  assert.equal(named.length, 2, "both entries reference their set");
+  for (const ref of named) assert.ok(ref! in sets, `the answer must carry ${ref}`);
+  // And with that table they all come back whole.
+  const { attached, unresolved } = attachSetProofs(results, sets);
+  assert.equal(attached, 2);
+  assert.equal(unresolved, 0);
+  // Shipping the same answer WITHOUT the table is the bug, and it is loud.
+  const dropped = { a: { proofs: [{ setRef: "SETDIGEST" }] } };
+  assert.equal(attachSetProofs(dropped, undefined).unresolved, 1);
+  assert.equal(dropped.a.proofs[0].proof, undefined);
+});
+
 test("nonsense never throws", () => {
   assert.equal(liftSetProofs({ a: undefined }, {}), 0);
   assert.deepEqual(attachSetProofs({ a: undefined }, undefined), { attached: 0, unresolved: 0 });

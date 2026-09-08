@@ -312,9 +312,21 @@ export async function POST(req: NextRequest) {
           (json) => createHash("sha256").update(json).digest("base64url").slice(0, 16),
         )
       : {};
+    /**
+     * ⚠️ SEND `sets` WHENEVER IT HAS ANYTHING, never when `wanted` does.
+     *
+     * This said `wanted.size`, which was true only while every set arrived
+     * through the per-digest read path. Expanding a set from its member list
+     * populates `sets` WITHOUT ever putting it in `wanted` (it is already in
+     * hand, so the later pass skips re-reading it), and the answer then went
+     * out with 5,928 entries naming a set it did not carry. Those entries
+     * lose their proof on the client, and a row with no proof reads as NOT
+     * ON THE LEDGER — bytes that hold a permanent position offered up to be
+     * recorded again. Caught on production before any drop hit it.
+     */
     return NextResponse.json({
       results,
-      ...(wanted.size ? { sets } : {}),
+      ...(Object.keys(sets).length ? { sets } : {}),
       ...(Object.keys(environments).length ? { environments } : {}),
     });
   } catch (e) {
