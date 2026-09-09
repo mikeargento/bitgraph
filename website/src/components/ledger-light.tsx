@@ -173,9 +173,16 @@ export function LedgerLight() {
             <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", marginBottom: 6, letterSpacing: "-0.01em" }}>
               Your BitGraphs folder
             </div>
-            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#4b5563", marginBottom: 16 }}>
+            {/* ⚠️ textWrap "pretty" because THE COUNT CHANGES THE WRAP. At five
+                BitGraphs the last line was the single word "asking." — a widow
+                — and no amount of rewriting fixes that for every count from 1
+                to 1,240, since the number's own width moves every break after
+                it. "pretty" is the rule for running text (balance is for
+                headings); the browsers without it get the shorter sentence,
+                which is better anyway. */}
+            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#4b5563", marginBottom: 16, textWrap: "pretty" }}>
               {on
-                ? `${count.toLocaleString()} BitGraph${count === 1 ? " is" : "s are"} kept in this browser. Save a copy to keep ${count === 1 ? "it" : "them"} somewhere you back up — a browser can clear its storage without asking.`
+                ? `${count.toLocaleString()} BitGraph${count === 1 ? " is" : "s are"} kept in this browser. Save a copy somewhere you back up: a browser can clear its storage without asking.`
                 : "Nothing connected yet. Drag in a folder of BitGraphs files, or make one and it is kept here."}
             </div>
             <div
@@ -191,7 +198,7 @@ export function LedgerLight() {
             </div>
             {/* Said once, plainly, instead of implying a file dialog that a web
                 page is not allowed to open. */}
-            <div style={{ fontSize: 12, lineHeight: 1.55, color: "#6b7280", marginTop: 10 }}>
+            <div style={{ fontSize: 12, lineHeight: 1.55, color: "#6b7280", marginTop: 10, textWrap: "pretty" }}>
               A web page cannot browse your disk or be told a path, so dragging is
               the way in. Nothing is uploaded and nothing is recorded.
             </div>
