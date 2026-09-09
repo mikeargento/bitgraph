@@ -713,7 +713,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      *
      * ⚠️ THE ENDPOINTS STAY. /api/proofs/batch and the digest routes keep
      * serving the three million digests written before the cutover — copies of
-     * @mikeargento/bitgraph-mcp 0.4.1 and the Zapier app are installed and
+     * @mikeargento/bitgraph-mcp 0.4.1 is installed elsewhere and
      * cannot be updated by a push, and those digests are under a ten-year lock
      * regardless. What changed is that the SITE stopped depending on them.
      *

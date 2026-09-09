@@ -5,8 +5,8 @@ import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams } from "next/navigation";
 // Nav is in root layout
-import { hashBytes, proofHashB64, isBitGraphProof, type BitGraphProof } from "@/lib/bitgraph";
-import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, entriesFromDataTransfer, walkEntries, type CapturedDrop } from "@/lib/folder-check";
+import { hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
+import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { anchorStatusDoc, isSettled, ANCHOR_STATUS_FILE, type BoundReport } from "@/lib/anchor-export";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
@@ -134,7 +134,6 @@ export default function ProofPage() {
   /* The lookup came back empty AND said why: discovery is retired, so the
      emptiness is not a claim about these bytes. */
   const [retired, setRetired] = useState(false);
-  const [dragging, setDragging] = useState(false);
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
   // Which file the page holds for a fused proof: the original (accepted by
   // reconstruction) or the new file itself. Names the export action; an
@@ -606,62 +605,43 @@ export default function ProofPage() {
    * (signature, attestation to the AWS root, slot binding, floor), so the page
    * has everything it needs the moment you hand it one — which is exactly what
    * the drop below already does. */
-  /* Take a proof the visitor hands over. This is what makes the page a VIEWER
-     rather than a lookup: a proof verifies with no ledger at all, so the moment
-     one is in hand there is nothing left to ask anyone for. Accepts a folder
-     (the package) or a loose proof.json; everything is read in the browser. */
-  const takeSuppliedProof = async (dt: DataTransfer) => {
-    const entries = entriesFromDataTransfer(dt);
-    const files = entries ? (await walkEntries(entries)).map((w) => w.file) : Array.from(dt.files);
-    for (const f of files) {
-      // Only plausible candidates are read as text: a multi-MB photo read as
-      // text allocates a UTF-16 copy and has crashed iOS Safari before.
-      if (!f.name.endsWith(".json") || f.size > 2_000_000) continue;
-      try {
-        // Takes the TEXT, not a parsed object, and returns the proof or null.
-        // It also unwraps a Frame (bitgraph-fuse/1), so a dropped Frame is read
-        // as the proof it carries rather than as bytes to record.
-        const p = isBitGraphProof(await f.text());
-        if (p) { setProof(p); setError(""); return; }
-      } catch { /* not a proof; keep looking */ }
-    }
-    setError("No proof.json in what you dropped.");
-  };
-
+  /* ⚠️ NOTHING TO LOOK UP IS NOT NOTHING TO SAY, but it is very little.
+   *
+   * This screen briefly carried the whole viewer: a paragraph plus a drop zone
+   * that took a package or a proof.json and rendered it. Mike: "site doesnt
+   * need this does it?" — it does not. /verify IS that, properly: the offline
+   * verifier, one file, no network, the thing you send someone. A second
+   * weaker copy of it living inside an error state is exactly the drift that
+   * killed the old page generator.
+   *
+   * So the page says the one true thing and points at the tool. The sentence
+   * still matters: an empty lookup is NOT a finding about those bytes, and
+   * saying "not found" here would accuse a file whose proof is sitting in
+   * somebody's folder working perfectly.
+   */
   if (error || !proof) return (
     <Shell>
-      <div style={{ padding: "80px 20px", textAlign: "center", maxWidth: 560, margin: "0 auto" }}>
+      <div style={{ padding: "80px 20px", textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
         {retired ? (
           <>
             <div style={{ fontSize: 16, color: "#111827", marginBottom: 12, fontWeight: 700 }}>
               Nothing here to look up
             </div>
             <div style={{ fontSize: 14, color: "#4b5563", lineHeight: 1.6, marginBottom: 20 }}>
-              BitGraph no longer keeps an index of proofs by digest, so this is not
-              a finding about those bytes: they may never have been recorded, or
-              they may hold a position and the proof is in the folder of whoever
-              made it. Drop the BitGraph package below, or its <code>proof.json</code>, and it
-              is read in your browser — nothing uploaded, nothing asked of us.
+              BitGraph keeps no index of proofs by digest, so this is not a finding
+              about those bytes. If you have the BitGraph itself, check it offline.
             </div>
+            <a href="/verify" className="bg-action-link" style={{ fontSize: 14 }}>
+              <span>Verify a BitGraph</span>
+              <span className="arrow" aria-hidden>&rarr;</span>
+            </a>
           </>
         ) : (
-          <div style={{ fontSize: 16, color: "#f87171", marginBottom: 12 }}>{error || "BitGraph not found"}</div>
+          <>
+            <div style={{ fontSize: 16, color: "#f87171", marginBottom: 12 }}>{error || "BitGraph not found"}</div>
+            <a href="/" style={{ fontSize: 14, color: "var(--c-accent)" }}>BitGraph</a>
+          </>
         )}
-        {retired && (
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); void takeSuppliedProof(e.dataTransfer); }}
-            style={{
-              border: `1px dashed ${dragging ? "#0065A4" : "#b3bac2"}`,
-              padding: "28px 20px", marginBottom: 20, fontSize: 13,
-              color: dragging ? "#0065A4" : "#4b5563",
-            }}
-          >
-            Drop the folder, or its proof.json
-          </div>
-        )}
-        <a href="/" style={{ fontSize: 14, color: "var(--c-accent)" }}>BitGraph</a>
       </div>
     </Shell>
   );

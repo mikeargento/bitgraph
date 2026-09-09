@@ -57,7 +57,7 @@ export const ledgerWritesOn = () => process.env.LEDGER_WRITES === "on";
  * what [[project_ledger_read_honesty]] is about.
  *
  * Attached to every miss so the published readers degrade honestly: copies of
- * @mikeargento/bitgraph-mcp 0.4.1 and the Zapier app are already installed and
+ * @mikeargento/bitgraph-mcp 0.4.1 is already installed elsewhere and
  * cannot be updated by a push, and they will keep asking these routes forever.
  * The three million digests written before the cutover keep resolving exactly
  * as they always did — they are under a ten-year lock regardless — so only new

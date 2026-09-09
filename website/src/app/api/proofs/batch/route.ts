@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
      *
      * ⚠️ OPT-IN, AND IT MUST STAY OPT-IN. This endpoint is public and has
      * consumers that cannot be updated in step with it: the published
-     * @mikeargento/bitgraph-mcp, the Zapier app, the export client, and this
+     * @mikeargento/bitgraph-mcp, the export client, and this
      * site's own folder-check, which VERIFIES SIGNATURES. A proof missing its
      * `environment` does not verify, so making the table the default would
      * turn every one of those into a checker that calls genuine recordings
@@ -115,8 +115,7 @@ export async function POST(req: NextRequest) {
      * 30,000 files did not cost 30,000 S3 listings that return nothing. It was
      * built for the SITE's drops, and the site no longer asks this route
      * anything: it answers from the folder you connected. What is left here is
-     * the published MCP and the Zapier app, which ask about a handful of
-     * digests at a time, where the reads it saved are not worth a filter that
+     * the published MCP, which asks about a handful of digests at a time, where the reads it saved are not worth a filter that
      * has to be journalled, compacted and kept inside its sizing.
      *
      * ⚠️ It ruled digests OUT, never in, so removing it cannot change a single
@@ -387,7 +386,7 @@ export async function POST(req: NextRequest) {
     /* The retired-discovery note rides ONCE at the top level, never per
        entry: a 48,000 digest answer must not carry 48,000 copies of the same
        sentence. It is additive — `results` keeps the exact shape every
-       existing reader parses, including the published MCP and the Zapier app,
+       existing reader parses, including the published MCP,
        which is why this route's answer can change at all. */
     return NextResponse.json({
       results,
