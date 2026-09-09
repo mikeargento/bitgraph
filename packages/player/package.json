@@ -35,7 +35,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@mikeargento/bitgraph-audit": "^0.4.1",
+    "@mikeargento/bitgraph-audit": "^0.5.0",
     "@mikeargento/bitgraph-verify": "^1.7.0"
   },
   "devDependencies": {
