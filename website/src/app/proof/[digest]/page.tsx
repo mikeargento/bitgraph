@@ -347,19 +347,28 @@ export default function ProofPage() {
     if (!needUpper) { setEthWait(false); return; }
     let cancelled = false;
     setEthWait(true);
+    /* ⚠️ THE POLL WAS KNOCKING ON THE DEAD DOOR. It asked
+     * /api/proofs/digest/{digest} every four seconds — the lookup that finds
+     * nothing for a proof made after the cutover — so for a local-first
+     * BitGraph it could never resolve. It ran its full five minutes, gave up,
+     * and the page kept its unfinished window with nothing said. Live in
+     * principle, never live in fact (Mike: "shouldnt this be a live change").
+     *
+     * The window endpoint is keyed by COUNTER, which is what survived phase 2,
+     * and the proof carries its own counter and epoch in its signed body — so
+     * this asks with what it is holding rather than what the URL happens to
+     * say. A shared link with no ?counter= polled with no selector at all
+     * before, and got the wrong position's window when the bytes held several.
+     */
+    const c = proof?.commit as { counter?: string; epochId?: string } | undefined;
     const poll = setInterval(async () => {
+      if (!c?.counter || !c?.epochId) return;
       try {
-        const qs = new URLSearchParams(window.location.search);
-        const sel = new URLSearchParams();
-        if (qs.get("counter")) sel.set("counter", qs.get("counter")!);
-        if (qs.get("epoch")) sel.set("epoch", qs.get("epoch")!);
-        const selStr = sel.toString();
-        const r = await fetch(`/api/proofs/digest/${digestParam}${selStr ? `?${selStr}` : ""}`);
-        if (!r.ok) return;
+        const r = await fetch(`/api/proofs/window?counter=${encodeURIComponent(c.counter)}&epoch=${encodeURIComponent(toUrlSafeB64(c.epochId))}`);
+        if (!r.ok) return;   // 503 is "could not look", not "not yet"
         const data = await r.json();
         if (!cancelled && data.causalWindow?.anchorAfter?.blockTime) {
           setCausalWindow(data.causalWindow);
-          if (Array.isArray(data.positions)) setPositions(data.positions);
         }
       } catch { /* transient; next poll retries */ }
     }, 4000);

@@ -996,26 +996,30 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
     };
     if (solo && !solo.fromProofJson) {
-      /* ⚠️ A lone file ALREADY ON RECORD stays here (Mike, 2026-08-19). It used
-         to open its existing proof, on the reading that a lookup's answer IS
-         its proof page. The objection is that nothing happened: no slot was
-         allocated, no position consumed, nothing recorded. Navigating on a
-         drop that recorded something and navigating on a drop that recorded
-         nothing makes the two outcomes look identical, when telling them apart
-         is the entire job of this gesture (one gesture, two outcomes, and the
-         RESULTS are what say which).
+      /* A lone file already on record OPENS ITS PROOF (Mike, 2026-09-08:
+         "dropping a single file should simply just pull up its coorasponding
+         proof").
 
-         The card is the honest answer and it is also the better one: it shows
-         every position these bytes already hold, "1 of 5 · original" and the
-         rest, which a single proof page cannot. The row is still one click
-         from any of them. /actor was fixed the same way earlier today. */
+         ⚠️ THIS REVERSES HIS OWN RULING OF 2026-08-19, deliberately and by his
+         word. That ruling kept a found file on the results card, because
+         navigating on a drop that recorded something and on a drop that
+         recorded nothing made the two outcomes look identical, when telling
+         them apart is the job of the gesture. The counter-argument then was
+         that the card showed every position the bytes hold, which one proof
+         page could not.
+
+         What changed is what the card is worth. It was a window onto a hosted
+         ledger; there is no hosted ledger now, and the proof page itself
+         carries every position in its Causal Positions card — so the card's
+         one advantage moved into the destination. What is left of it is a
+         one-row list in front of the thing you asked for.
+
+         The two outcomes are still told apart, just not by whether the screen
+         moves: a make lands on a page that says Recorded and its BitGraph is
+         in the browser; a lookup lands on a page that was already there. */
       if (solo.status === "found" && solo.proof) {
         setItems(results);
-        setStep("results");
-        // ⚠️ The count travels with the step. Every other path into the results
-        // view sets both on adjacent lines, and leaving it out here rendered
-        // "0 of 1" over a file that plainly has a proof.
-        setAnimCount(results.filter((r) => r.status === "found").length);
+        openProofPage(solo.proof, solo.file);
         return;
       }
       if (solo.status === "new" && solo.digestB64) {
