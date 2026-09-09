@@ -296,6 +296,41 @@ export default function ProofPage() {
     }
   }, [flashArmed, loading, proof]);
 
+  /* ⚠️ THE WINDOW NO LONGER ARRIVES WITH THE PROOF, so ask for it.
+   *
+   * It used to come from /api/proofs/digest/{digest}, which finds nothing for
+   * a proof made after 2026-09-08 — the ledger keeps only anchors. A BitGraph
+   * opened from its own holder's folder therefore showed no time at all, and
+   * the anchor card sat on "Waiting for the next Ethereum block…" forever,
+   * which was false: the anchors had landed and nobody was asking (Mike: "eth
+   * anchors dont load into proofs but they should. they are accessible from
+   * the s3").
+   *
+   * The proof carries its own counter and epoch in its SIGNED body, and
+   * anchors are indexed by counter — that is why that index survived the
+   * cutover. So this asks by position, never by digest: nothing about the file
+   * is sent, and the privacy the cutover bought is untouched.
+   *
+   * Only when the window is missing, so a page that already has one from the
+   * ledger costs nothing extra. */
+  useEffect(() => {
+    if (!proof || causalWindow) return;
+    const c = proof.commit as { counter?: string; epochId?: string } | undefined;
+    if (!c?.counter || !c?.epochId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch(`/api/proofs/window?counter=${encodeURIComponent(c.counter!)}&epoch=${encodeURIComponent(toUrlSafeB64(c.epochId!))}`);
+        if (!r.ok || cancelled) return;   // 503 is "we could not look", not "none"
+        const d = await r.json();
+        if (!cancelled && (d?.causalWindow?.anchorBefore || d?.causalWindow?.anchorAfter)) {
+          setCausalWindow(d.causalWindow);
+        }
+      } catch { /* leave it unknown; the card says so rather than guessing */ }
+    })();
+    return () => { cancelled = true; };
+  }, [proof, causalWindow]);
+
   // A fresh recording arrives with only its lower bound: the sealing anchor
   // hasn't been mined yet. Instead of a static "after X" line, poll the same
   // endpoint until the upper anchor lands, then fill the window in place, no

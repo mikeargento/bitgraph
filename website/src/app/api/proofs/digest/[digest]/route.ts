@@ -4,85 +4,10 @@ import { fusedOriginDigestOf, isFusedProof } from "@/lib/fuse-core";
 import { bindSet, isSetProof, memberOf } from "@/lib/fuse-set";
 import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError, DISCOVERY_RETIRED, ledgerWritesOn } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
+import { buildAnchorView, computeWindow } from "@/lib/causal-window";
 
 export const dynamic = "force-dynamic";
 
-type AnchorView = {
-  counter: string;
-  attrName: string;
-  blockNumber: number | null;
-  blockHash: string | null;
-  etherscanUrl: string | null;
-  blockTime: string | null;
-  digestB64: string | null;
-};
-
-// Build the display view for one anchor (a raw anchor proof object from S3).
-// Block timestamp is read from the anchor's own metadata.anchor.blockTimeISO,
-// written at commit time — fast, reliable, no runtime dependency on a third-party
-// Ethereum RPC. The RPC fallback only fires for the rare anchor that lacks the
-// field, with a tight timeout and multiple endpoints so a slow node cannot hang
-// the page.
-async function buildAnchorView(anchor: Record<string, unknown>): Promise<AnchorView> {
-  const anchorProof = anchor.proof as Record<string, unknown> | undefined;
-  const anchorCommit = (anchorProof?.commit || anchor.commit) as { counter?: string } | undefined;
-  const anchorAttr = (anchorProof?.attribution || anchor.attribution) as { name?: string; title?: string; message?: string } | undefined;
-  const anchorArtifact = (anchorProof?.artifact || anchor.artifact) as { digestB64?: string } | undefined;
-  const eth = anchor.ethereum as { blockNumber?: number; blockHash?: string; blockTime?: number; blockTimeISO?: string } | undefined;
-  // The signed mark is the authority on which block this is. Attribution says
-  // the same thing on every anchor since v7, but only by convention, and a
-  // fused anchor spends its attribution on the fuse marker instead.
-  const mark = anchorMarkOf(anchorProof ?? anchor);
-  const blockNumber =
-    mark?.blockNumber?.toString()
-    ?? eth?.blockNumber?.toString()
-    ?? anchorAttr?.title?.match(/\/block\/(\d+)/)?.[1];
-
-  const anchorMetadata = ((anchorProof?.metadata || anchor.metadata) as
-    { anchor?: { blockTimeISO?: string; blockTime?: number } } | undefined)?.anchor;
-  let blockTime: string | null =
-    anchorMetadata?.blockTimeISO
-    ?? eth?.blockTimeISO
-    ?? (anchorMetadata?.blockTime ? new Date(anchorMetadata.blockTime * 1000).toISOString() : null)
-    ?? (eth?.blockTime ? new Date(eth.blockTime * 1000).toISOString() : null);
-
-  if (!blockTime && blockNumber) {
-    const rpcEndpoints = [
-      "https://ethereum-rpc.publicnode.com",
-      "https://cloudflare-eth.com",
-      "https://rpc.ankr.com/eth",
-    ];
-    for (const endpoint of rpcEndpoints) {
-      try {
-        const rpcRes = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jsonrpc: "2.0", method: "eth_getBlockByNumber", params: ["0x" + parseInt(blockNumber, 10).toString(16), false], id: 1 }),
-          signal: AbortSignal.timeout(2500),
-        });
-        if (!rpcRes.ok) continue;
-        const rpcData = await rpcRes.json() as { result?: { timestamp?: string } };
-        if (rpcData.result?.timestamp) {
-          blockTime = new Date(parseInt(rpcData.result.timestamp, 16) * 1000).toISOString();
-          break;
-        }
-      } catch (_) { /* try next endpoint */ }
-    }
-  }
-
-  return {
-    counter: (anchor.counter as string) || anchorCommit?.counter || "?",
-    // The label names what the proof IS, not what its attribution happens to
-    // say: a fused anchor's attribution reads "bitgraph-fuse/1", which is true
-    // and useless here.
-    attrName: isAnchorProof(anchorProof ?? anchor) ? ANCHOR_ATTRIBUTION_NAME : (anchorAttr?.name || ANCHOR_ATTRIBUTION_NAME),
-    blockNumber: blockNumber ? parseInt(blockNumber, 10) : null,
-    blockHash: mark?.blockHash ?? eth?.blockHash ?? anchorAttr?.message ?? null,
-    etherscanUrl: blockNumber ? `https://etherscan.io/block/${blockNumber}` : (anchorAttr?.title || null),
-    blockTime,
-    digestB64: anchorArtifact?.digestB64 || null,
-  };
-}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ digest: string }> }) {
   try {
@@ -170,17 +95,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
     // (lower time bound). anchorAfter is the HIGHER counter (later block) — the
     // proof was BitGraphed BEFORE it (upper time bound). Together they bracket
     // the proof to roughly one anchor interval of public Ethereum time.
-    const computeWindow = async (counter: number, epochId: string) => {
-      const [anchorsAfter, anchorBeforeRaw] = await Promise.all([
-        getAnchorsAfterCounter(counter, epochId, 1),
-        getAnchorBeforeCounter(counter, epochId),
-      ]);
-      const [anchorAfter, anchorBefore] = await Promise.all([
-        anchorsAfter.length > 0 ? buildAnchorView(anchorsAfter[0]) : Promise.resolve(null),
-        anchorBeforeRaw ? buildAnchorView(anchorBeforeRaw) : Promise.resolve(null),
-      ]);
-      return { anchorBefore, anchorAfter };
-    };
 
     // Compute EVERY position's anchor window in parallel. The anchor window is
     // the defensible time statement (the S3 write time is just our server
