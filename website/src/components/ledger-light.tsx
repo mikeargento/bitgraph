@@ -157,20 +157,31 @@ export function LedgerLight() {
             style={{
               background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0,
               width: "min(480px, 100%)", padding: 24,
+              /* ⚠️ SET EXPLICITLY, DO NOT INHERIT. The light lives inside a
+                 centring wrapper under the box on home, so every line in here
+                 was arriving centred no matter what the card said — the whole
+                 modal read as a poster. The drop zone below sets its own
+                 centre, because a target's label centred is what says it is a
+                 target. */
+              textAlign: "left",
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#111827", marginBottom: 8, letterSpacing: "-0.01em" }}>
+            {/* Left-aligned throughout (Mike), except the drop zone's own
+                label: that one is a target, and a centred label is what says
+                so. Everything else is prose, and prose read against a ragged
+                left edge is slower — the site sets every other card this way. */}
+            <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", marginBottom: 6, letterSpacing: "-0.01em" }}>
               Your BitGraphs folder
             </div>
-            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#4b5563", marginBottom: 18 }}>
+            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#4b5563", marginBottom: 16 }}>
               {on
-                ? `${count.toLocaleString()} BitGraph${count === 1 ? " is" : "s are"} kept in this browser. Save a copy to keep ${count === 1 ? "it" : "them"} somewhere you back up — a browser can clear its storage, and it will not ask first.`
+                ? `${count.toLocaleString()} BitGraph${count === 1 ? " is" : "s are"} kept in this browser. Save a copy to keep ${count === 1 ? "it" : "them"} somewhere you back up — a browser can clear its storage without asking.`
                 : "Nothing connected yet. Drag in a folder of BitGraphs files, or make one and it is kept here."}
             </div>
             <div
               style={{
                 border: `1px dashed ${dragging ? "#16a34a" : "#b3bac2"}`,
-                padding: "34px 20px", textAlign: "center",
+                padding: "30px 20px", textAlign: "center",
                 fontSize: 13.5, fontWeight: 600,
                 color: dragging ? "#16a34a" : "#4b5563",
                 background: dragging ? "rgba(22,163,74,0.05)" : "transparent",
@@ -180,21 +191,18 @@ export function LedgerLight() {
             </div>
             {/* Said once, plainly, instead of implying a file dialog that a web
                 page is not allowed to open. */}
-            <div style={{ fontSize: 12, lineHeight: 1.55, color: "#6b7280", marginTop: 12 }}>
+            <div style={{ fontSize: 12, lineHeight: 1.55, color: "#6b7280", marginTop: 10 }}>
               A web page cannot browse your disk or be told a path, so dragging is
-              the way in. Nothing is uploaded and nothing is recorded — this only
-              reads the JSON.
+              the way in. Nothing is uploaded and nothing is recorded.
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 16, marginTop: 20 }}>
               {on ? (
                 <button type="button" onClick={() => void saveCopy()} className="bg-action-link" style={{ padding: 0, fontSize: 13 }}>
                   <span>Save a copy</span>
                   <span className="arrow" aria-hidden>&rarr;</span>
                 </button>
               ) : <span />}
-              <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-                {/* The only way to undo connecting the wrong folder: the ledger
-                    accumulates, so there is nothing finer-grained to offer. */}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
                 {on && (
                   <button type="button" onClick={() => void forget()}
                     style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
