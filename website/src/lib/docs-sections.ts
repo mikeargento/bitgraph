@@ -84,11 +84,13 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
     label: "Tools",
     items: [
       { href: "/docs/verification", label: "Verification" },
-      /* The offline verifier itself, not a page about it. Rewritten from
-         public/verify.html (see next.config.ts): one file, no network, the
-         thing you actually send someone. It leaves the docs shell when opened,
-         which is correct — it has to work with nothing around it. */
-      { href: "/verify", label: "Verify a BitGraph" },
+      /* ❄️ "Verify a BitGraph" (/verify, serving public/verify.html) lived here
+         for a few hours on 2026-09-08 and Mike removed it: "they are trusting a
+         fucking web browser. not any better. they can run in their terminal if
+         they really want to." He is right — a page served from bitgraph.ing is
+         trusted the same way a binary from bitgraph.ing is, inside a far larger
+         attack surface. Verification lives in the app, in
+         `npx @mikeargento/bitgraph-audit`, and in the MCP. Do not re-add it. */
       { href: "/docs/audit", label: "Audit a Bundle" },
       { href: "/docs/mcp", label: "MCP" },
     ],

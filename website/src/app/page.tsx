@@ -5,14 +5,16 @@ import Overview from "@/app/docs/overview/page";
  * Home is the documentation now (Mike, 2026-09-08: "so yes homepage will get
  * demoted and docs page will now live home").
  *
- * The site is becoming documentation plus a verifier: making moves to a
- * desktop app, because every wall this product hit in the browser — no folder,
- * no path, no writing beside a file, no durable store — is one wall. What the
- * web keeps is explaining and verifying, and both of those want a page, not a
- * box.
+ * The site is A SPEC AND A SOFTWARE DOWNLOAD (Mike, 2026-09-08). Making and
+ * checking both move to a desktop app, because every wall this product hit in
+ * the browser — no folder, no path, no writing beside a file, no durable store
+ * — is one wall, and checking in a browser is trusting the same server you are
+ * checking. What the web keeps is EXPLAINING, which wants a page, not a box.
  *
- * ⚠️ THE CAMERA IS NOT GONE, IT IS AT /make, and it must stay until the app
- * ships: right now it is the only way to make a BitGraph in the world.
+ * ⚠️ /make AND /verify ARE BOTH GONE. Removing the camera did not remove the
+ * ability to record: the published MCP, the hosted /mcp and the two-call API
+ * all make BitGraphs, which is what made it safe to cut today rather than
+ * after the app ships. Do not restore either route.
  *
  * The overview's own component is rendered rather than copied, so there is one
  * source for it and /docs/overview keeps working for every link that already

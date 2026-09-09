@@ -61,20 +61,21 @@ export default function FolderRetiredPage() {
       <p>
         Nothing about retiring the tool touches what it recorded. Positions on the ledger are permanent and public, and each export is self-contained: <code>proof.json</code>, the file itself, and the Ethereum anchors that bracket its position. They verify with no network, no account, and no BitGraph software running anywhere.
       </p>
-      <p>Three ways to check them, none of which need Folder:</p>
+      {/* ⚠️ THIS LIST LOST TWO OF ITS THREE ENTRIES ON 2026-09-08 and both
+          losses point the same way (Mike: "no verifying or making will happen
+          in browser anymore"). We no longer serve verify.html, and the site no
+          longer checks a dropped folder. Checking a recording by loading a page
+          from bitgraph.ing means trusting bitgraph.ing, which is the thing
+          being checked; the command below trusts a signed package and a
+          reproducible PCR0 instead. Do not re-add either. */}
+      <p>The way to check them, which never needed Folder:</p>
       <ul>
         <li>
-          <a href="/verify.html" className="text-[#0065A4] font-medium no-underline">verify.html</a> is the offline verifier that used to ship inside the installer. Save it and open it from disk. It makes no network request of any kind.
-        </li>
-        <li>
-          <code>npx @mikeargento/bitgraph-audit &lt;folder&gt;</code> audits a whole archive. It finds proofs by schema shape rather than by filename, so the layout does not matter.
-        </li>
-        <li>
-          Drag your <code>Recordings</code> folder onto <a href="/" className="text-[#0065A4] font-medium no-underline">bitgraph.ing</a> to read it as a day, every row checked against the public ledger. Dragging a single day folder scopes it, which is much faster on a large archive.
+          <code>npx @mikeargento/bitgraph-audit &lt;folder&gt;</code> audits a whole archive. It finds proofs by schema shape rather than by filename, so the layout does not matter, and it needs no account and no network.
         </li>
       </ul>
       <p>
-        A <code>verify.html</code> that predates this change still works. It carries its own copy of the code and always did.
+        A <code>verify.html</code> you already have still works, and always will. It carries its own copy of the code and makes no network request of any kind — which is exactly why we stopped serving fresh ones: a copy you hold is a copy nobody can change under you.
       </p>
 
       <h2>Why the installers were withdrawn</h2>

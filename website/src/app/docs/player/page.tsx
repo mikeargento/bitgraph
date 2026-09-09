@@ -167,12 +167,20 @@ export default function PlayerPage() {
         </tbody>
       </table>
 
-      <h2>Without installing anything</h2>
+      {/* ⚠️ WAS "Without installing anything", which pointed at a verify.html
+          we served. Removed 2026-09-08 (Mike: "no verifying or making will
+          happen in browser anymore"). The argument that section made was
+          right — a recording must stay checkable years from now by someone who
+          does not have Node — and it survives here, because the answer to it is
+          a file you already hold, not a page we hand you on the day you ask.
+          The player still builds the page (dist-web/verify.html); we simply do
+          not host it. Do not restore the link. */}
+      <h2>Offline, on a machine that never heard of us</h2>
       <p>
-        The same checks run in a browser page that carries its own copy of the code. <a href="/verify.html" className="text-[#0065A4] font-medium no-underline">verify.html</a> takes a recording folder by drop or by picker and renders the same <code>bitgraph-check/1</code> report the CLI prints, computed by the same bundled implementation.
+        Nothing in a check reaches the network. The bundle carries the proof, the file and the Ethereum anchors that bracket its position; the verifier carries its own copy of the code and the enclave measurement it will accept. Pull the cable and the verdict is the same, which is the whole design: a recording has to stay checkable years from now, by someone who should not have to trust a server to tell them what their own bytes say.
       </p>
       <p>
-        Save it. The page makes no network request of any kind, loads no font, script, or image from anywhere, and runs with the machine offline. That is the point of it: a recording has to stay checkable years from now, on a machine that has never heard of this site, by someone who does not have Node and should not need to trust a server to tell them what their own bytes say.
+        That is also why the check does not live on this site. A page loaded from <code>bitgraph.ing</code> is trusted exactly as far as <code>bitgraph.ing</code> is, and we are the party being checked. A signed package you install once, pinned to a version, is a smaller thing to trust — and the PCR0 it enforces is reproducible from published inputs, so you can confirm it names the enclave we say it does.
       </p>
 
       <h2>Same evidence. Same verdict.</h2>

@@ -14,23 +14,6 @@ const nextConfig: NextConfig = {
       },
     },
   },
-  /* The verifier gets a real address.
-   *
-   * public/verify.html is the whole offline verifier: ~296 KB, ZERO fetch()
-   * calls, one external link. That is the product's best property — the person
-   * you send a folder to needs nothing from us, not our servers, not our
-   * uptime, not our permission — and it is the whole of "verification is
-   * free".
-   *
-   * ⚠️ A REWRITE, NOT A PAGE. Rebuilding it as a React route under the docs
-   * shell would give it navigation and lose the only thing that matters about
-   * it: that it is ONE FILE you can email, put on a USB stick, or open with
-   * the network off. It is served as-is at a URL that does not end in .html,
-   * so it can be linked from the docs like anything else.
-   */
-  async rewrites() {
-    return [{ source: "/verify", destination: "/verify.html" }];
-  },
   async redirects() {
     return [
       { source: "/overview", destination: "/docs/overview", permanent: true },

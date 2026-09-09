@@ -631,8 +631,13 @@ export default function ProofPage() {
               BitGraph keeps no index of proofs by digest, so this is not a finding
               about those bytes. If you have the BitGraph itself, check it offline.
             </div>
-            <a href="/verify" className="bg-action-link" style={{ fontSize: 14 }}>
-              <span>Verify a BitGraph</span>
+            {/* ⚠️ WAS /verify, WHICH NO LONGER EXISTS (Mike, 2026-09-08). The
+                offline check is a command, not a page you load from us: a page
+                served from bitgraph.ing is trusted exactly as much as we are,
+                which is the thing being checked. /docs/verification names the
+                command. */}
+            <a href="/docs/verification" className="bg-action-link" style={{ fontSize: 14 }}>
+              <span>How to check it offline</span>
               <span className="arrow" aria-hidden>&rarr;</span>
             </a>
           </>

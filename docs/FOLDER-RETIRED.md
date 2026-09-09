@@ -23,13 +23,11 @@ Nothing about retiring the tool touches what it recorded.
 
 Positions on the ledger are permanent and public. The exports in your `BitGraph/Recordings` folder are self-contained: each one holds `proof.json`, the file itself, and the Ethereum anchors that bracket its position. They verify with no network, no account, and no BitGraph software running anywhere.
 
-Three ways to check them, none of which need Folder:
+The way to check them, which never needed Folder:
 
-- **[bitgraph.ing/verify.html](https://bitgraph.ing/verify.html)** is the offline verifier that used to ship inside the installer. Save the page and open it from disk. It makes no network request of any kind. Drop a recording folder on it and it renders the same report the CLI prints.
-- **`npx @mikeargento/bitgraph-audit <folder>`** audits a whole archive. It finds proofs by schema shape rather than by filename, so it does not care how the folder is laid out.
-- **Drag `Recordings` onto [bitgraph.ing](https://bitgraph.ing)** to read the archive as a roll, with every row checked against the public ledger. Dragging a single day folder scopes it, which is much faster on a large archive.
+- **`npx @mikeargento/bitgraph-audit <folder>`** audits a whole archive. It finds proofs by schema shape rather than by filename, so it does not care how the folder is laid out. No account, no network, no BitGraph service involved.
 
-If your `verify.html` predates this change it still works. It carries its own copy of the code and always did.
+If you already have a `verify.html`, it still works and always will. It carries its own copy of the code and makes no network request of any kind. As of 2026-09-08 bitgraph.ing no longer serves one, and no longer checks a folder dropped on the site: loading a checker from us means trusting us, and we are the party being checked.
 
 ## Why the releases were delisted rather than left up
 
