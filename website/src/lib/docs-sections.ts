@@ -84,6 +84,11 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
     label: "Tools",
     items: [
       { href: "/docs/verification", label: "Verification" },
+      /* The offline verifier itself, not a page about it. Rewritten from
+         public/verify.html (see next.config.ts): one file, no network, the
+         thing you actually send someone. It leaves the docs shell when opened,
+         which is correct — it has to work with nothing around it. */
+      { href: "/verify", label: "Verify a BitGraph" },
       { href: "/docs/audit", label: "Audit a Bundle" },
       { href: "/docs/mcp", label: "MCP" },
     ],
