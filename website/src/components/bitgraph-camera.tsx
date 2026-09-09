@@ -43,7 +43,7 @@ import { CheckedList, fmtRowWhen } from "@/components/folder-list";
 import { useWindowedRows } from "@/components/windowed-rows";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { setFreshProof } from "@/lib/fresh-proof";
-import { Zip, ZipPassThrough } from "fflate";
+import { Zip, ZipPassThrough, unzipSync } from "fflate";
 import {
   positionsNeedingAnchors, positionCount as countPositions, readDropShape, anchorStatusDoc, isSettled,
   ANCHOR_STATUS_FILE, type ExportSite, type PositionNeed, type BoundReport, type BoundState,
@@ -874,6 +874,70 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // A new drop retires the last run's sentence; the rows are the answer now.
     setRecordMessage(null);
     setBoxOpen(false);
+    /* ⚠️ AND IT RETIRES THE LAST FOLDER'S VERDICTS. handleFolder clears
+       `items` when a folder lands, but nothing cleared `checked` when FILES
+       landed — so a file dropped after a folder rendered the old folder's
+       verdicts above the new answer, as though they were part of it. Latent
+       before (two drops in a row, one of each); ordinary now that a dropped
+       zip takes the folder path. */
+    setChecked([]);
+    setAnchorPlan(null);
+    setAnchorNote(null);
+
+    /* ⚠️ THE PRODUCT COULD NOT READ ITS OWN EXPORT.
+     *
+     * "Export BitGraph package" produces a .zip. Dropping that zip back in did
+     * nothing useful: discoverDrop looks for a literal proof.json in the walk,
+     * a zip is one opaque file, so it was hashed as bytes and came back NOT
+     * RECORDED — the worst answer available, about a package this site had
+     * just written. Mike called it before testing: "exporting a package
+     * creates a zip which i bet wont work until its unzipped".
+     *
+     * The site already ships fflate for WRITING zips; reading one costs an
+     * import. So a dropped zip is opened here and its entries walk through
+     * exactly the same path a dragged folder does.
+     *
+     * ⚠️ SIZE IS THE ONE REAL RISK: unzipSync is synchronous and holds
+     * everything in memory, and a package carries the original bytes, so a
+     * folder of raws is gigabytes. Past the cap the zip is left alone and
+     * treated as an ordinary file, which is the old behaviour and honest —
+     * never a frozen tab. */
+    const zips = files.filter((f) => f.name.toLowerCase().endsWith(".zip"));
+    if (zips.length) {
+      const UNZIP_CAP = 256 * 1024 * 1024;
+      const walked: WalkedFile[] = [];
+      const opened = new Set<File>();
+      for (const z of zips) {
+        if (z.size > UNZIP_CAP) continue;
+        try {
+          const entries = unzipSync(new Uint8Array(await z.arrayBuffer()));
+          const root = z.name.replace(/\.zip$/i, "");
+          for (const [path, bytes] of Object.entries(entries)) {
+            // Directory entries carry no bytes and no name.
+            if (path.endsWith("/") || !bytes.length) continue;
+            const segs = path.split("/").filter(Boolean);
+            if (!segs.length) continue;
+            walked.push({
+              file: new File([bytes as Uint8Array<ArrayBuffer>], segs[segs.length - 1]),
+              // Rooted at the zip's own name, so the export inside it keeps the
+              // shape a folder drop would have had.
+              path: [root, ...segs],
+            });
+          }
+          opened.add(z);
+        } catch (e) {
+          // Not a readable zip, or not a zip at all: it stays an ordinary file.
+          console.warn("[bitgraph] could not open a dropped zip:", e);
+        }
+      }
+      if (walked.length) {
+        const rest = files.filter((f) => !opened.has(f));
+        if (rest.length) walked.push(...rest.map((f) => ({ file: f, path: [f.name] })));
+        void handleFolder(walked);
+        return;
+      }
+    }
+
     // Connect first. A drop of nothing but BitGraphs files IS the connection
     // gesture and ends right here — nothing is hashed, nothing is minted, the
     // count in the box just changes.
