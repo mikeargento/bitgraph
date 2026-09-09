@@ -492,16 +492,22 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // one link on the results heading until asked for (see the render).
   const showingResults = step === "results" && (items.length > 0 || checked.length > 0);
 
-  // The one link on a closed results page. It sits on the right of the
-  // first results heading (the folder's Ledger when there is one, else the
-  // files' heading) and opens the whole camera, title and full-size box,
-  // above the results. In the action-link voice; "Make or check BitGraphs"
-  // is the box's own headline, so the link names exactly what it reveals
-  // (Mike, 2026-08-19: "more BitGraphs", not "more": the noun stays).
+  /* The one link on a closed results page. It sits on the right of the first
+     results heading (the folder's list when there is one, else the files'
+     heading) and opens the whole camera, title and full-size box, above the
+     results. In the action-link voice, and the noun stays — Mike, 2026-08-19:
+     "more BitGraphs", not "more".
+
+     ⚠️ IT SAYS VIEW, NOT MAKE (Mike, 2026-09-08). It read "Make or check more
+     BitGraphs", which mirrored the box's own headline. That mirroring is what
+     went wrong: the site is becoming a VIEWER — making moves to the desktop
+     app — and the verb on the one link above a list of BitGraphs you already
+     hold should not be the one that mints. Looking at more of what you have is
+     what this actually does. */
   const openLink = showingResults && !boxOpen ? (
     <button type="button" className="bg-arrow-link" onClick={() => setBoxOpen(true)}
       style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", whiteSpace: "nowrap", flexShrink: 0 }}>
-      <span className="bg-long">Make or check more BitGraphs</span><span className="bg-short">More</span> <span className="arrow" aria-hidden="true">&rarr;</span>
+      <span className="bg-long">View more BitGraphs</span><span className="bg-short">More</span> <span className="arrow" aria-hidden="true">&rarr;</span>
     </button>
   ) : null;
 
