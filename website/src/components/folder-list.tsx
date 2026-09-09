@@ -5,7 +5,7 @@
  * you keep. Everything here is a READ of bytes already on the machine.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { isUnchecked, type ExportCheckResult } from "@/lib/folder-check";
 import { MonthCalendar, MonthShelf, type CalendarDay } from "@/components/month-calendar";
 import { useWindowedRows } from "@/components/windowed-rows";
@@ -22,82 +22,7 @@ export const fmtRowWhen = (ms?: number | null) =>
    the exports' own proof.json and witness files; thumbnails are object URLs
    over the dropped bytes, never uploaded, revoked on unmount. ── */
 
-const IMAGE_THUMB_EXT = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "svg"];
 
-/** Tiny thumbs from in-hand bytes, for any list of dropped files: decode
- *  once, draw at 96px (2x the 48px cell), keep only the few-KB blob's object
- *  URL. Keyed by the FILE (stable across re-renders); URLs revoked on
- *  unmount. Four decodes in flight, in the caller's given order.
- *
- *  ⚠️ PASS ONLY THE ROWS ON SCREEN. This used to be handed every row in the
- *  folder and decoded all of them at full resolution, including rows nobody
- *  would ever scroll to.
- *
- *  ⚠️ AND IT PUBLISHED ONCE PER THUMBNAIL. `setThumbs(new Map(...))` after
- *  every decode re-rendered the whole list, so N thumbnails cost N renders of
- *  N rows: 425 rows was ~180,000 row renders, and a 6,000 recording folder
- *  would be 36 million. Same shape as the progress callback that walked the
- *  whole drop per event (2026-09-07) — per-item work must never be
- *  proportional to the list. Decodes now publish in batches, on a timer. */
-export function useFileThumbs(files: Array<File | null | undefined>): Map<File, string> {
-  const [thumbs, setThumbs] = useState<Map<File, string>>(() => new Map());
-  const mapRef = useRef<Map<File, string>>(new Map());
-  useEffect(() => () => { for (const u of mapRef.current.values()) URL.revokeObjectURL(u); }, []);
-  // Re-run when WHICH files are wanted changes, not how many: a window that
-  // scrolls keeps its length and would otherwise never ask for the new rows.
-  const key = files.map((f) => (f ? `${f.name}:${f.size}:${f.lastModified}` : "-")).join("|");
-  useEffect(() => {
-    let dead = false;
-    const list = files.filter((f): f is File => !!f);
-    let next = 0;
-    let dirty = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const publish = () => {
-      timer = null;
-      if (dead || !dirty) return;
-      dirty = false;
-      setThumbs(new Map(mapRef.current));
-    };
-    const mark = () => {
-      dirty = true;
-      // One render per batch of decodes rather than one per decode. The
-      // last thumbnail still lands, because a final flush runs on cleanup.
-      if (timer === null) timer = setTimeout(publish, 120);
-    };
-    const worker = async () => {
-      while (!dead) {
-        const i = next++;
-        if (i >= list.length) return;
-        const f = list[i];
-        if (mapRef.current.has(f)) continue;
-        const ext = f.name.slice(f.name.lastIndexOf(".") + 1).toLowerCase();
-        if (!IMAGE_THUMB_EXT.includes(ext)) continue;
-        try {
-          const bmp = await createImageBitmap(f);
-          const w = Math.min(96, bmp.width);
-          const h = Math.max(1, Math.round((bmp.height / bmp.width) * w));
-          const c = document.createElement("canvas");
-          c.width = w; c.height = h;
-          c.getContext("2d")?.drawImage(bmp, 0, 0, w, h);
-          bmp.close();
-          const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.75));
-          if (!blob || dead || mapRef.current.has(f)) continue;
-          mapRef.current.set(f, URL.createObjectURL(blob));
-          mark();
-        } catch { /* a row without a thumb shows its type label */ }
-      }
-    };
-    void Promise.all(Array.from({ length: 4 }, worker));
-    return () => {
-      dead = true;
-      if (timer !== null) clearTimeout(timer);
-      // Whatever decoded before this window moved is still wanted.
-      if (dirty) setThumbs(new Map(mapRef.current));
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return thumbs;
-}
 
 /* The cachedThumbs / onThumb / cachedComplete plumbing that fed the /folder
    browser's IndexedDB memory was removed with that page (2026-08-07). This
@@ -111,7 +36,7 @@ export function useFileThumbs(files: Array<File | null | undefined>): Map<File, 
  * is on screen. 48px thumb + 10px padding top and bottom + 1px border each
  * side = 70, and the column's gap is 10.
  */
-const CHECKED_ROW_H = 80;
+const CHECKED_ROW_H = 34;
 
 export function CheckedList({ checked, onOpen, heading = "BitGraphs in this folder", aside }: {
   checked: ExportCheckResult[];
@@ -199,9 +124,13 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
   );
   const { ref: listRef, first: rowFirst, last: rowLast } = useWindowedRows(flat.length, CHECKED_ROW_H);
   const visible = flat.slice(rowFirst, rowLast);
-  // Thumbs for the rows ON SCREEN, in render order, so pictures fill from the
-  // top of what is visible and nothing decodes for a row nobody scrolls to.
-  const thumbs = useFileThumbs(visible.map((v) => v.r.artifactFile));
+  /* ❄️ NO THUMBNAILS, AND useFileThumbs IS GONE WITH THEM. Each row carried a
+     48px thumb decoded from the dropped bytes, which is why the row was 80px.
+     Mike asked for a flat text list, and at forty thousand rows he is plainly
+     right: a picture of file-18930.txt tells you nothing, and the decode
+     pipeline behind it — four in flight, batched publishes, object URLs
+     revoked on unmount, all of it hard-won after it froze a 6,000 file drop —
+     was machinery serving that nothing. Nothing else called it. */
 
   const okCount = checked.filter((c) => c.ok === true).length;
   const pending = checked.filter((c) => c.ok === null).length;
@@ -297,55 +226,52 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
           {/* The list keeps its true height from a spacer above and below, so
               the scrollbar behaves as if every row were mounted. */}
           <div style={{ height: rowFirst * CHECKED_ROW_H }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
             {visible.map(({ r, groupKey }, k) => {
               const i = rowFirst + k;
-              const clickable = r.onLedger && !!r.digestUrlSafe;
-              const thumb = r.artifactFile ? thumbs.get(r.artifactFile) : undefined;
-              const ext = r.fileName ? r.fileName.slice(r.fileName.lastIndexOf(".") + 1).toUpperCase() : "";
+              // Every row opens its proof now: the page is a viewer, so a row
+              // the ledger never heard of still has somewhere to go.
+              const clickable = !!r.digestUrlSafe;
+              const when = fmtRowWhen(r.ts ? r.ts * 1000 : r.writeTime);
+              const verdict = r.ok === true ? "" : r.ok === false ? (r.failure ?? "") : "checking\u2026";
+              const right = (r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "\u2014")
+                + (when ? ` \u00b7 ${when}` : "");
               return (
-                // ⚠️ The entrance animation is for the FIRST screenful only.
-                // Windowed rows mount as you scroll, and staggering those
-                // makes the list flicker its way down the page.
-                <div key={`${groupKey}:${r.dirName}:${i}`} className="bitgraph-file-card" data-clickable={clickable} style={{ border: "1px solid #d0d5dd", height: CHECKED_ROW_H - 10, boxSizing: "border-box", ...(i < 12 ? { animation: `slideIn 0.2s ease-out ${i * 0.03}s both` } : {}) }}>
-                  <div
-                    role={clickable ? "button" : undefined}
-                    tabIndex={clickable ? 0 : undefined}
-                    onClick={clickable ? () => onOpen(r) : undefined}
-                    onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(r); } } : undefined}
-                    className={`bitgraph-result-row${clickable ? " bitgraph-file-row" : ""}`}
-                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px 10px 10px", cursor: clickable ? "pointer" : "default" }}
-                  >
-                    {/* The small thumb, from the dropped bytes themselves. A
-                        non-image shows its type the way the sheet's cells
-                        did; square corners, the card's own border. */}
-                    {thumb ? (
-                      <img src={thumb} alt="" style={{ width: 48, height: 48, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e5e9", display: "block" }} />
-                    ) : (
-                      <span style={{ width: 48, height: 48, flexShrink: 0, border: "1px solid #e2e5e9", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#6b7280", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                        {ext.slice(0, 4)}
-                      </span>
-                    )}
-                    {/* An unchecked row keeps the ordinary blue: nothing is
-                        wrong with it, we simply did not get an answer. */}
-                    <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: r.ok === false && !isUnchecked(r) ? "#dc2626" : "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                      {r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "\u2014"}
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.fileName ?? r.dirName}
-                    </span>
-                    <span style={{ flexShrink: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }} className="bg-day-when">
-                      {fmtRowWhen(r.ts ? r.ts * 1000 : r.writeTime)}
-                    </span>
-                    <span style={{ flexShrink: 0, maxWidth: "40%", fontSize: 12.5, fontWeight: 600, color: r.ok === true ? "#0065A4" : r.ok === false ? (isUnchecked(r) ? "#6b7280" : "#dc2626") : "#9ca3af", textAlign: "right" }}>
-                      {r.ok === true ? "matches the ledger" : r.ok === false ? r.failure : "checking\u2026"}
-                    </span>
-                    {clickable && (
-                      <span aria-label="Open" style={{ display: "inline-flex", flexShrink: 0, color: "#0065A4" }}>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
-                      </span>
-                    )}
-                  </div>
+                <div
+                  key={`${groupKey}:${r.dirName}:${i}`}
+                  role={clickable ? "button" : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  onClick={clickable ? () => onOpen(r) : undefined}
+                  onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(r); } } : undefined}
+                  className={clickable ? "bitgraph-file-row" : undefined}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    height: CHECKED_ROW_H, padding: "0 14px", overflow: "hidden",
+                    borderTop: i > 0 ? "1px solid #eef0f1" : "none",
+                    cursor: clickable ? "pointer" : "default",
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "#111827" }}>
+                    {r.fileName ?? r.dirName}
+                  </span>
+                  {/* Only a row with something WRONG says anything here. "matches
+                      the ledger" on forty thousand lines is forty thousand
+                      repetitions of the normal case; the exceptions are the
+                      information. An unchecked row keeps the quiet grey: nothing
+                      is wrong with it, we simply have no answer. */}
+                  {verdict && (
+                    <span style={{
+                      flexShrink: 0, maxWidth: "45%", fontSize: 12.5, textAlign: "right",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      color: r.ok === false ? (isUnchecked(r) ? "#6b7280" : "#dc2626") : "#9ca3af",
+                    }}>{verdict}</span>
+                  )}
+                  <span style={{
+                    flexShrink: 0, fontSize: 13, fontVariantNumeric: "tabular-nums",
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    fontWeight: r.counter != null ? 700 : 400,
+                    color: r.ok === false && !isUnchecked(r) ? "#dc2626" : r.counter != null ? "#0065A4" : "#4b5563",
+                  }}>{right}</span>
                 </div>
               );
             })}
