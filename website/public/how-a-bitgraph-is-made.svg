@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 248" width="600" height="248" role="img" aria-labelledby="t d">
+  <title id="t">A position is opened before the file, and filled after it</title>
+  <desc id="d">One horizontal sequence. Positions run left to right as small marks. At position N an empty dashed square is opened while no file exists. The file is then built above it, drawn as an outline that carries the commitment down to that square. At the next position the square is solid: the finished bytes have been committed. Two Ethereum anchors, one before and one after, bracket the pair.</desc>
+
+  <style><![CDATA[
+    /* The line is the sequence and the geometry is the argument: the empty
+       square sits on it before anything is above it, and the solid one comes
+       after the file. No box holds prose. The words that would have gone in
+       boxes belong in the copy beside the figure. */
+
+    text { font-family: "acumin-pro", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+    .lbl  { font-size: 11.5px; fill: #4b5563; }
+    .lbl-em { font-size: 11.5px; fill: #111827; font-weight: 600; }
+    .num  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; fill: #111827; }
+    .anch { font-size: 10.5px; fill: #9ca3af; }
+
+    .line  { stroke: #d0d5dd; stroke-width: 1.5; }
+    .tick  { stroke: #d0d5dd; stroke-width: 1.5; }
+    .anchor-tick { stroke: #9ca3af; stroke-width: 1.5; }
+    .slot  { fill: none; stroke: #111827; stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .filled { fill: #111827; }
+    .doc   { fill: #fff; stroke: #111827; stroke-width: 1.5; }
+    .drop  { stroke: #0065A4; stroke-width: 1.2; stroke-dasharray: 3 3; fill: none; }
+    .span  { stroke: #9ca3af; stroke-width: 1; }
+  ]]></style>
+
+  <!-- The sequence. Other positions are plain marks; two of ours are not. -->
+  <line class="line" x1="20" y1="150" x2="580" y2="150" />
+  <line class="tick" x1="70"  y1="144" x2="70"  y2="156" />
+  <line class="tick" x1="118" y1="144" x2="118" y2="156" />
+  <line class="tick" x1="166" y1="144" x2="166" y2="156" />
+  <line class="tick" x1="430" y1="144" x2="430" y2="156" />
+  <line class="tick" x1="478" y1="144" x2="478" y2="156" />
+
+  <!-- The two anchors that bracket the pair. -->
+  <line class="anchor-tick" x1="46" y1="138" x2="46" y2="162" />
+  <line class="anchor-tick" x1="530" y1="138" x2="530" y2="162" />
+  <text class="anch" x="46" y="176" text-anchor="middle">anchor</text>
+  <text class="anch" x="530" y="176" text-anchor="middle">anchor</text>
+  <line class="span" x1="46" y1="216" x2="530" y2="216" />
+  <text class="anch" x="288" y="234" text-anchor="middle">two Ethereum block hashes nobody could predict</text>
+
+  <!-- The file, built above the sequence, after the position below it exists.
+       Its folded corner is part of the same outline. -->
+  <path class="doc" d="M262 24 H310 L328 42 V104 H262 Z M310 24 V42 H328" stroke-linejoin="miter" />
+  <text class="lbl-em" x="344" y="52">the new file</text>
+  <text class="lbl" x="344" y="70">built to carry the</text>
+  <text class="lbl" x="344" y="86">commitment down</text>
+
+  <!-- The commitment, travelling from the file to the position it names. -->
+  <path class="drop" d="M295 104 V138" />
+
+  <!-- Position N: opened while nothing is above it. -->
+  <rect class="slot" x="283" y="139" width="22" height="22" />
+  <text class="num" x="294" y="176" text-anchor="middle">N</text>
+  <text class="lbl-em" x="294" y="194" text-anchor="middle">opened, empty</text>
+
+  <!-- Position N+1: the finished bytes, committed. -->
+  <rect class="filled" x="367" y="139" width="22" height="22" />
+  <text class="num" x="378" y="176" text-anchor="middle">N+1</text>
+  <text class="lbl-em" x="378" y="194" text-anchor="middle">committed</text>
+</svg>
