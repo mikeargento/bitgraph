@@ -52,6 +52,28 @@ import type {
 import { makeKey, signBody, b64, utf8 } from "./audit-fixtures.js";
 import type { ManualKey } from "./audit-fixtures.js";
 
+/* ⚠️ UPPERCASE THE WHOLE DIGEST, NOT ITS FIRST EIGHT CHARACTERS.
+ *
+ * Both call sites used to do `.replace(/"digest":"([0-9a-f]{8})/, upper)`, and
+ * that is a COIN FLIP. A manifest is sorted ascending by artifact digest, so
+ * the first digest in the text is the minimum of the set — which skews toward
+ * leading zeros and digits — and when all eight of those characters happen to
+ * be 0-9, uppercasing them changes nothing at all. The bytes stay canonical,
+ * parseSetManifest correctly accepts them, and the assertion that it should
+ * have REFUSED them fails. Measured: about 3-4% of runs, so roughly one red CI
+ * run in twenty-five, on a test that is not wrong about anything.
+ *
+ * A full 64-character hex digest with no letter in it has probability ~1e-15.
+ * And the assertion below turns the remaining impossibility into a loud
+ * failure rather than a silent no-op that passes for the wrong reason — which
+ * is what the old version did every time it did not flake.
+ */
+function withUppercasedDigest(text: string): string {
+  const upper = text.replace(/"digest":"([0-9a-f]{64})"/, (_m, h: string) => `"digest":"${h.toUpperCase()}"`);
+  assert.notEqual(upper, text, "the fixture has no lowercase hex digest to uppercase; this check would pass vacuously");
+  return upper;
+}
+
 const FIX = fileURLToPath(new URL("../../src/__tests__/fuse-fixtures/", import.meta.url));
 const bytes = (name: string) => new Uint8Array(readFileSync(FIX + name));
 const proofOf = (name: string) => JSON.parse(readFileSync(FIX + name, "utf8")) as BitGraphProof;
@@ -296,7 +318,7 @@ describe("codec: parseSetManifest", () => {
 
   test("8. digests: uppercase hex, 63- and 65-char hex, and other algorithm spellings are refused", () => {
     const text = dec(A.manifest);
-    assert.equal(parseSetManifest(enc(text.replace(/"digest":"([0-9a-f]{8})/, (_m, h: string) => `"digest":"${h.toUpperCase()}`))), null, "uppercase");
+    assert.equal(parseSetManifest(enc(withUppercasedDigest(text))), null, "uppercase");
     const o = asObject(A.manifest);
     const short = structuredClone(o); short.members[0]!.artifact.digest = short.members[0]!.artifact.digest.slice(0, 63);
     assert.equal(parseSetManifest(compact(short)), null, "63 chars");
@@ -770,7 +792,7 @@ describe("verifyFuseMember: manifest binding", () => {
     const text = dec(A.manifest);
     const bad: Array<[string, Uint8Array]> = [
       ["duplicate keys", enc(text.replace('"type":"bitgraph-fuse/1"', '"type":"bitgraph-fuse/1","type":"bitgraph-fuse/1"'))],
-      ["uppercase hex", enc(text.replace(/"digest":"([0-9a-f]{8})/, (_m, h: string) => `"digest":"${h.toUpperCase()}`))],
+      ["uppercase hex", enc(withUppercasedDigest(text))],
       ["whitespace", enc(JSON.stringify(asObject(A.manifest), null, 1))],
     ];
     for (const [label, explicit] of bad) {
