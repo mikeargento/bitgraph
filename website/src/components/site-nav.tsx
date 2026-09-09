@@ -153,6 +153,18 @@ export function SiteNav() {
             A 12-character label ("Applications", before this settled on "Uses")
             left only 7px between the wordmark and the first link at 320px. */}
         <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
+          {/* ⚠️ THE ONLY WAY TO MAKE A BITGRAPH, until the desktop app exists.
+              Home was the camera until 2026-09-08; it is the documentation
+              now, and making moved to /make. This link is not decoration — cut
+              it and the product has no maker. It comes out when the app
+              ships. */}
+          <Link
+            href="/make"
+            aria-current={pathname === "/make" ? "page" : undefined}
+            style={{ fontSize: 14, fontWeight: 700, textDecoration: "none" }}
+          >
+            Make
+          </Link>
           {/* ❄️ THE CONNECTION LIGHT IS NOT IN THE HEADER (Mike, 2026-09-08:
               "like how home is set up now but the connection indicator wont be
               in header"). It sat here for an hour. The nav is the site's
