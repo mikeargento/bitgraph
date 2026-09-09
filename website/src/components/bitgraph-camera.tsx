@@ -42,7 +42,7 @@ import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, find
 import { CheckedList, fmtRowWhen } from "@/components/folder-list";
 import { useWindowedRows } from "@/components/windowed-rows";
 import { takePendingDrop } from "@/lib/pending-drop";
-import { setFreshProof, setSavedNotice } from "@/lib/fresh-proof";
+import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough } from "fflate";
 import {
   positionsNeedingAnchors, positionCount as countPositions, readDropShape, anchorStatusDoc, isSettled,
@@ -1740,13 +1740,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       if (typeof window !== "undefined") window.dispatchEvent(new Event(LEDGER_CHANGED));
       return next;
     });
-    const n = doc.proofs.length;
-    const said =
-      `Kept in this browser — ${n} BitGraph${n === 1 ? "" : "s"} now. Nothing was uploaded ` +
-      `and your files are untouched. Save a copy from the light in the corner ` +
-      `whenever you want one on disk.`;
-    setPackageNote(said);
-    setSavedNotice(said);
+    /* ❄️ NO NOTICE. A make used to explain itself in a paragraph, on the
+       results card and again on the proof page it navigates to. Mike: "i dont
+       like this" — and he is right twice over. It sat on top of the record you
+       came to look at, and it had already gone stale, telling people to use
+       "the light in the corner" after the light moved under the box. The
+       record is on screen and the light says what this browser holds; a
+       paragraph restating both is furniture. */
   };
 
   const saveMinted = (source: string | null) => {

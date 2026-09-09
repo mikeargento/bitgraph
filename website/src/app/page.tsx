@@ -27,5 +27,21 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  return <Overview />;
+  /* ⚠️ THE COLUMN COMES FROM THE DOCS LAYOUT, AND HOME IS NOT UNDER IT.
+   *
+   * app/docs/layout.tsx is what gives every docs page its reading column and
+   * its 40px under the nav; the pages themselves declare `maxWidth: "none"`
+   * and lean on it entirely. Rendering the overview at / without that wrapper
+   * put the text full-bleed against the left edge of the viewport with no top
+   * padding — the same words, unreadable (Mike: "you fucked up spacing on
+   * homepage").
+   *
+   * Same numbers, deliberately, not approximately: 90% to 800px, 40 above and
+   * 80 below, matching /subjects and every docs route. If the docs column ever
+   * changes, this changes with it. */
+  return (
+    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
+      <Overview />
+    </div>
+  );
 }
