@@ -35,6 +35,16 @@ struct MenuView: View {
                         .foregroundStyle(Style.quiet)
                         .lineLimit(1)
                         .truncationMode(.head)
+                    /* What is happening, with the rest of the status, and
+                     * nothing when nothing is. It sat between the counts and
+                     * the button, crowding both (Mike, 2026-09-10). */
+                    if let activity = state.activity {
+                        Text(activity)
+                            .font(Style.small)
+                            .foregroundStyle(Style.quiet)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
+                    }
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
@@ -100,14 +110,6 @@ struct MenuView: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 0) {
-            /* Says what is happening, and says nothing when nothing is. */
-            if let activity = state.activity {
-                Text(activity)
-                    .font(Style.small)
-                    .foregroundStyle(Style.quiet)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 8)
-            }
             /* ⚠️ ONE WAY IN. "this is crowded and perhaps too much going on"
              * (Mike, 2026-09-09): the window has the actions. */
             Pill(title: "Open BitGraph Recorder", style: .filled, icon: "macwindow") { state.openBox() }

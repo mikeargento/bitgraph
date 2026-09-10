@@ -499,7 +499,11 @@ final class AppState: ObservableObject {
              * that everything is fine. */
             activity = nil
         case .anchors(let root, let pass) where pass.landed > 0:
-            activity = "\(name(root)): \(pass.landed) anchor\(pass.landed == 1 ? "" : "s") arrived."
+            /* No folder name when the folder is the library itself: "Recordings:
+             * 2 anchors arrived" labelled the news with the name of the place
+             * (Mike, 2026-09-10: "a bit crowded yes?"). */
+            let place = (root == status?.library || root == status?.folder) ? "" : "\(name(root)): "
+            activity = "\(place)\(pass.landed) anchor\(pass.landed == 1 ? "" : "s") arrived."
             /* The calendar's dots and an open page both show what just landed. */
             Task { await refresh(); await reloadProofPage() }
         case .anchors:
