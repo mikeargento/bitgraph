@@ -24,16 +24,17 @@ export default function RecorderPage() {
         A macOS app. Drop files or a folder on it and each drop becomes a <strong>recording</strong>: one self-contained folder holding the files, the proof, and the Ethereum anchors. Hand somebody the folder and they have the whole BitGraph.
       </p>
 
+      {/* The app's own pill (.bg-download-pill in globals.css), the one
+          rounded filled button on the site: the download looks like the
+          app it delivers. */}
       {DOWNLOAD_URL !== null ? (
         <p className="mb-10">
-          <a className="bg-action-link" href={DOWNLOAD_URL}>
-            Download for Mac <span className="arrow" aria-hidden="true">&rarr;</span>
-          </a>
+          <a className="bg-download-pill" href={DOWNLOAD_URL}>Download for Mac</a>
         </p>
       ) : (
         <p className="mb-10" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          <button className="bg-action-link" type="button" disabled aria-describedby="recorder-soon">
-            Download for Mac <span className="arrow" aria-hidden="true">&rarr;</span>
+          <button className="bg-download-pill" type="button" disabled aria-describedby="recorder-soon">
+            Download for Mac
           </button>
           <span id="recorder-soon" className="text-[#4b5563]" style={{ fontSize: 14 }}>Coming soon. macOS 14 or later, Apple silicon.</span>
         </p>
