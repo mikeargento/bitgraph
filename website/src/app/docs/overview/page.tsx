@@ -69,7 +69,7 @@ export default function OverviewPage() {
         {/* "verifiable order" is glued: a line that breaks before the last
             word leaves "order" hanging alone (Mike, 2026-09-09: "so word
             doesnt hang"). The word stays; the break moves. */}
-        BitGraph gives every AI agent action a verifiable&nbsp;order
+        BitGraph gives AI agent actions a verifiable&nbsp;order
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just
