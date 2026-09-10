@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>BitGraph Recorder</string>
+  <key>CFBundleDisplayName</key>
+  <string>BitGraph Recorder</string>
+  <key>CFBundleIdentifier</key>
+  <string>ing.bitgraph.recorder</string>
+  <key>CFBundleExecutable</key>
+  <string>BitGraphRecorder</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>__VERSION__</string>
+  <key>CFBundleVersion</key>
+  <string>__VERSION__</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>14.0</string>
+  <!-- A menu bar app: no Dock icon, no window on launch. -->
+  <key>LSUIElement</key>
+  <true/>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+
+  <!--
+    ⚠️ The app OWNS .bitgraph. Without this macOS shows a generic "?" for every
+    BitGraph in every folder, which makes the one durable artifact this product
+    creates look like debris. Owning the type gives them an icon and makes a
+    double-click open the BitGraph.
+
+    A .bitgraph IS json, and says so: it conforms to public.json, so anything
+    that reads JSON still opens one.
+  -->
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>ing.bitgraph.evidence</string>
+      <key>UTTypeDescription</key>
+      <string>BitGraph</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.json</string>
+      </array>
+      <key>UTTypeIconFile</key>
+      <string>AppIcon</string>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>bitgraph</string>
+        </array>
+        <key>public.mime-type</key>
+        <array>
+          <string>application/vnd.bitgraph+json</string>
+        </array>
+      </dict>
+    </dict>
+  </array>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>BitGraph</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Owner</string>
+      <key>CFBundleTypeIconFile</key>
+      <string>AppIcon</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>ing.bitgraph.evidence</string>
+      </array>
+    </dict>
+  </array>
+
+  <!--
+    ⚠️ WHY THE PERMISSION PROMPT SAYS SOMETHING. The BitGraph folder lives
+    wherever the person put it, and Desktop, Documents, Downloads and outside
+    volumes are each behind a macOS privacy grant keyed by THIS bundle id.
+    Without these strings the prompt is a bare request; with them it says what
+    the app is doing there. Renaming the bundle id loses every grant (Mike,
+    2026-09-09: the day the app was renamed, macOS answered EPERM on the index
+    the app had written an hour before).
+  -->
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>BitGraph Recorder reads and writes recordings in your BitGraph folder, and reads the files you drop on it.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>BitGraph Recorder reads and writes recordings in your BitGraph folder, and reads the files you drop on it.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>BitGraph Recorder reads the files you drop on it.</string>
+  <key>NSRemovableVolumesUsageDescription</key>
+  <string>BitGraph Recorder reads the files you drop on it, and keeps recordings where your BitGraph folder lives.</string>
+  <key>NSNetworkVolumesUsageDescription</key>
+  <string>BitGraph Recorder reads the files you drop on it, and keeps recordings where your BitGraph folder lives.</string>
+
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright (c) Mike Argento. All rights reserved.</string>
+</dict>
+</plist>

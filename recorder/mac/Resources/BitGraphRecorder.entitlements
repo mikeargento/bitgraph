@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Node's JIT needs these two under the hardened runtime. They are the
+    standard pair every app that embeds a JavaScript engine ships with.
+  -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <!--
+    NOT sandboxed. The app's whole job is to write a proof beside a file in a
+    folder the person chose, and a sandboxed app can only reach what it was
+    handed through a panel in this launch. Sandboxing it would mean re-asking
+    for every watched folder on every start, or storing security-scoped
+    bookmarks, which is a pile of state for no gain: the app reads bytes and
+    speaks HTTPS to one host.
+  -->
+</dict>
+</plist>

@@ -1,0 +1,32 @@
+{
+  "name": "@bitgraph/recorder-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BitGraph Recorder: the Node core. Hashing, making, writing beside the file, anchors, checking.",
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "bitgraph-recorder": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test dist/__tests__/*.test.js",
+    "test:e2e": "npm run build && node --import tsx/esm e2e/make-and-check.mts && node --import tsx/esm e2e/watch-and-daemon.mts && node --import tsx/esm e2e/drop-and-proof.mts && node --import tsx/esm e2e/bundle.mts",
+    "test:app": "node --import tsx/esm e2e/shipped-app.mts"
+  },
+  "dependencies": {
+    "@mikeargento/bitgraph": "^1.9.0",
+    "@mikeargento/bitgraph-audit": "^0.5.0",
+    "@mikeargento/bitgraph-player": "^0.14.0",
+    "@mikeargento/bitgraph-verify": "^1.11.0",
+    "@noble/hashes": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.4.0"
+  }
+}
