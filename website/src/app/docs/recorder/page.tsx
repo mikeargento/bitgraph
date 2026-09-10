@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import feed from "../../../../public/recorder/latest.json";
 
 export const metadata: Metadata = {
   title: "BitGraph Recorder",
@@ -35,7 +36,10 @@ export default function RecorderPage() {
       {DOWNLOAD_URL !== null ? (
         <p className="mb-10" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
           <a className="bg-download-pill" href={DOWNLOAD_URL}>Download for Mac</a>
-          <span className="text-[#4b5563]" style={{ fontSize: 14 }}>macOS 14 or later, Apple silicon. <a href="https://github.com/mikeargento/bitgraph/releases/latest" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>Release notes and checksum</a></span>
+          {/* The version comes from the feed the release script wrote, the
+              same file the app reads, so this line and the app can never
+              disagree. The button's label never changes. */}
+          <span className="text-[#4b5563]" style={{ fontSize: 14 }}>Version {feed.version}. macOS 14 or later, Apple silicon. <a href="https://github.com/mikeargento/bitgraph/releases/latest" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>Release notes and checksum</a></span>
         </p>
       ) : (
         <p className="mb-10" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
