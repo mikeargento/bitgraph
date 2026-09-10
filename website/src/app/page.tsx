@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Overview from "@/app/docs/overview/page";
+import { DocsPageNav } from "@/components/docs-page-nav";
 
 /**
  * Home is the documentation now (Mike, 2026-09-08: "so yes homepage will get
@@ -44,6 +45,9 @@ export default function HomePage() {
   return (
     <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
       <Overview />
+      {/* The overview's own previous/next pair, which the docs layout gives it
+          at /docs/overview and this wrapper has to give it here. */}
+      <DocsPageNav current="/docs/overview" />
     </div>
   );
 }

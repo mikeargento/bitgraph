@@ -23,9 +23,14 @@ import { DOCS_SECTIONS } from "@/lib/docs-sections";
  * chrome), so this introduces no new treatment. The only addition is the back
  * arrow, which travels left on hover instead of right.
  */
-export function DocsPageNav() {
+/* `current`: which section this page IS, when the URL does not say. Home
+   renders the overview at "/", so it passes "/docs/overview" and gets the
+   overview's pair; without it the trail was missing from the home page
+   (Mike, 2026-09-09: "the links at bottom of overview page got lost when
+   moved to homepage"). Every docs route still reads its own pathname. */
+export function DocsPageNav({ current }: { current?: string } = {}) {
   const pathname = usePathname();
-  const i = DOCS_SECTIONS.findIndex((s) => s.href === pathname);
+  const i = DOCS_SECTIONS.findIndex((s) => s.href === (current ?? pathname));
   // A docs route that is not a listed section (or a stray render) gets nothing
   // rather than a wrong neighbour.
   if (i === -1) return null;
