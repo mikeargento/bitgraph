@@ -83,6 +83,12 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
   {
     label: "Tools",
     items: [
+      /* The software, first in TOOLS (Mike, 2026-09-09: "we will just add
+         software as a download from the tools section using a menu item and
+         separate page"). It is the no-code way in, so it leads the column
+         that runs easiest to hardest. A download button at the top of home
+         was built and removed the same evening; the page is the door. */
+      { href: "/docs/recorder", label: "BitGraph Recorder" },
       { href: "/docs/verification", label: "Verification" },
       /* ❄️ "Verify a BitGraph" (/verify, serving public/verify.html) lived here
          for a few hours on 2026-09-08 and Mike removed it: "they are trusting a

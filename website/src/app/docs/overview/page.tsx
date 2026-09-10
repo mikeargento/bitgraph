@@ -66,7 +66,7 @@ export default function OverviewPage() {
           REASON with, not copy to ship. Do not put it back. See
           reference_clock_definition for the rejected list. */}
       <h1 style={{ margin: "0 0 24px" }}>
-        Overview
+        A recorder that gives every AI agent action a verifiable order
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just
@@ -116,6 +116,10 @@ export default function OverviewPage() {
           opener above it, a page-width "Overview" title directly under the h1
           was furniture. ── */}
       <p>
+        An agent&rsquo;s action leaves a record: a call, a result, a file. A record is bytes. BitGraph gives those bytes a position.
+      </p>
+
+      <p>
         BitGraphs are not labels or metadata added after the fact. They are new computations created when your file&rsquo;s hash <em>fills</em> a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state. Your file never leaves your device to get one.
       </p>
 
@@ -130,6 +134,10 @@ export default function OverviewPage() {
       <blockquote>
         This exact digital state was committed through this measured process, in this order, under these constraints.
       </blockquote>
+
+      <p>
+        The recorder is the product. This page describes the protocol it writes.
+      </p>
 
       <h2>The primitive</h2>
 
@@ -214,7 +222,7 @@ export default function OverviewPage() {
 
       <p>BitGraph proves causal order. It does not assert a clock time.</p>
 
-      <h2>Establishing wall clock time</h2>
+      <h2>Establishing wall-clock time</h2>
 
       <p>
         BitGraph&rsquo;s internal ordering does not require Ethereum. The chain creates internal order through slot allocation, consumption, counters, signatures, and chained proof history. What that order lacks, on its own, is a clock. The enclave keeps no trusted one; any clock reading inside a proof is advisory.
@@ -296,11 +304,11 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        <strong>Media.</strong> Photos, videos, audio, edited files, generative outputs. The question shifts from &ldquo;is this real?&rdquo; to &ldquo;what position does this exact digital state occupy?&rdquo;
+        <strong>AI agent actions.</strong> Each action an agent takes, and what it produced, bound to a causal position, without the agent running inside an enclave. A separate trust domain that other attestation standards can reference.
       </p>
 
       <p>
-        <strong>AI outputs.</strong> Model results bound to a causal position, without requiring the model to run inside an enclave.
+        <strong>Media.</strong> Photos, videos, audio, edited files, generative outputs. The question shifts from &ldquo;is this real?&rdquo; to &ldquo;what position does this exact digital state occupy?&rdquo;
       </p>
 
       <p>
