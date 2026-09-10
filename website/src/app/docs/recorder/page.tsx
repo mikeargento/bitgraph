@@ -14,7 +14,10 @@ export const metadata: Metadata = {
    until there is a signed build to link: set DOWNLOAD_URL to the DMG's path
    and the link goes live. A button for this at the top of home was built
    and removed the same evening; this page is the door. */
-const DOWNLOAD_URL: string | null = null;
+/* The GitHub Release's versionless asset: the URL never changes between
+   versions, so this page never goes stale on a release (the lesson Folder
+   taught). Version and checksum live on the release itself. */
+const DOWNLOAD_URL: string | null = "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraph-Recorder.dmg";
 
 export default function RecorderPage() {
   return (
@@ -28,8 +31,9 @@ export default function RecorderPage() {
           rounded filled button on the site: the download looks like the
           app it delivers. */}
       {DOWNLOAD_URL !== null ? (
-        <p className="mb-10">
+        <p className="mb-10" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
           <a className="bg-download-pill" href={DOWNLOAD_URL}>Download for Mac</a>
+          <span className="text-[#4b5563]" style={{ fontSize: 14 }}>macOS 14 or later, Apple silicon. <a href="https://github.com/mikeargento/bitgraph/releases/latest" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>Release notes and checksum</a></span>
         </p>
       ) : (
         <p className="mb-10" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
