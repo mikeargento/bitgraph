@@ -36,26 +36,53 @@ mkdir -p "$out"
 rm -f "$pkg" "$zip" "$out"/*.dmg "$out"/*.sha256
 
 # ── 1. the signed build, checked by build.sh itself ─────────────────────────
-OUT="$out" SIGN_IDENTITY="$identity" "$here/build.sh"
+# REUSE_APP=1 skips the build and the app's notarization when a stapled app
+# already sits in $out: for re-cutting the package alone.
+if [ "${REUSE_APP:-}" = "1" ] && xcrun stapler validate "$app" >/dev/null 2>&1; then
+  say "reusing the notarized app in $out"
+else
+  OUT="$out" SIGN_IDENTITY="$identity" "$here/build.sh"
 
-# ── 2. notarize the app ─────────────────────────────────────────────────────
-say "notarizing the app"
-ditto -c -k --keepParent "$app" "$zip"
-xcrun notarytool submit "$zip" --keychain-profile "$profile" --wait 2>&1 | grep -E "^  status:" | tail -1 | grep -q "Accepted" || die "the app was not accepted by the notary service"
-rm -f "$zip"
-xcrun stapler staple "$app" >/dev/null
-xcrun stapler validate "$app" >/dev/null || die "the app's ticket did not staple"
-spctl --assess --type execute "$app" 2>/dev/null || die "Gatekeeper does not accept the stapled app"
-say "  ok   the app is notarized and stapled"
+  # ── 2. notarize the app ───────────────────────────────────────────────────
+  say "notarizing the app"
+  ditto -c -k --keepParent "$app" "$zip"
+  xcrun notarytool submit "$zip" --keychain-profile "$profile" --wait 2>&1 | grep -E "^  status:" | tail -1 | grep -q "Accepted" || die "the app was not accepted by the notary service"
+  rm -f "$zip"
+  xcrun stapler staple "$app" >/dev/null
+  xcrun stapler validate "$app" >/dev/null || die "the app's ticket did not staple"
+  spctl --assess --type execute "$app" 2>/dev/null || die "Gatekeeper does not accept the stapled app"
+  say "  ok   the app is notarized and stapled"
+fi
 
 # ── 3. the installer package: the app, into /Applications ──────────────────
 # A package rather than a drag-to-install DMG (Mike, 2026-09-10: "there's no
 # installer?"): the standard Installer puts the app where it goes, replaces an
 # older version on update, and works with the tools institutions deploy with.
 say "building the installer package"
-pkgbuild --component "$app" --install-location /Applications \
+# ⚠️ NOT RELOCATABLE. A component package is relocatable by default: the
+# Installer looks for an app with the same identity anywhere on the disk and
+# installs over THAT copy. On the machine it was built on it found the repo's
+# build folder, wrote the receipt as "Applications", and put nothing there
+# (Mike, 2026-09-10: "now cant find software on my machine?").
+staging="$(mktemp -d)"
+mkdir -p "$staging/root" "$staging/scripts"
+cp -R "$app" "$staging/root/"
+pkgbuild --analyze --root "$staging/root" "$staging/component.plist" >/dev/null
+/usr/libexec/PlistBuddy -c 'Set :0:BundleIsRelocatable false' "$staging/component.plist"
+# After installing, open the app for the person who ran the Installer, so the
+# welcome screen is the next thing they see rather than a search for the app.
+cat > "$staging/scripts/postinstall" <<'SH'
+#!/bin/bash
+who="$(stat -f %Su /dev/console 2>/dev/null || echo "$USER")"
+[ -n "$who" ] && [ "$who" != "root" ] && sudo -u "$who" open -a "/Applications/BitGraph Recorder.app" >/dev/null 2>&1
+exit 0
+SH
+chmod +x "$staging/scripts/postinstall"
+pkgbuild --root "$staging/root" --component-plist "$staging/component.plist" \
+  --scripts "$staging/scripts" --install-location /Applications \
   --identifier "$bundle_id" --version "$version" \
   --sign "$installer" --timestamp "$pkg" >/dev/null
+rm -rf "$staging"
 
 # ── 4. notarize the package too, so it opens without a word ─────────────────
 say "notarizing the package"
@@ -75,6 +102,8 @@ pkgutil --expand "$pkg" "$x"
 inner_version="$(sed -n 's/.*<pkg-info[^>]* version="\([^"]*\)".*/\1/p' "$x/PackageInfo" | head -1)"
 [ "$inner_version" = "$version" ] || die "the package says $inner_version, VERSION says $version"
 grep -q 'install-location="/Applications"' "$x/PackageInfo" || die "the package does not install to /Applications"
+grep -q 'relocatable="false"' "$x/PackageInfo" || die "the package is relocatable, and would install over a stray copy"
+[ -x "$x/Scripts/postinstall" ] || die "the package carries no postinstall (the app would not open after installing)"
 # The app inside, byte for byte. ⚠️ --expand-full, never gunzip+cpio by hand:
 # the hand unpack dropped enough that the app inside failed codesign on the
 # second run (2026-09-10), while the package itself was fine.
