@@ -1,11 +1,12 @@
 #!/bin/bash
-# Release BitGraph Recorder: signed build → notarize → staple → DMG → notarize
-# the DMG → staple → checksum. Everything a download needs, in one run.
+# Release BitGraph Recorder: signed build → notarize → staple → installer
+# package → notarize the package → staple → checksum → update feed. Everything
+# a download needs, in one run.
 #
 #   mac/release.sh            builds into mac/release/ (never over a running build/)
 #
-# ⚠️ NO SECRETS HERE. Signing uses the Developer ID Application identity in the
-# login keychain and notarization uses the keychain profile named `notary`
+# ⚠️ NO SECRETS HERE. Signing uses the Developer ID Application and Installer
+# identities in the login keychain and notarization uses the keychain profile named `notary`
 # (made once with `xcrun notarytool store-credentials notary`). Both are the
 # machine's, not the repository's.
 #
@@ -17,19 +18,22 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 version="$(tr -d '[:space:]' < "$here/VERSION")"
 identity="${SIGN_IDENTITY:-Developer ID Application: Michael Argento (8HP853ALXL)}"
+installer="${INSTALLER_IDENTITY:-Developer ID Installer: Michael Argento (8HP853ALXL)}"
 profile="${NOTARY_PROFILE:-notary}"
 out="${OUT:-$here/release}"
 app="$out/BitGraph Recorder.app"
-dmg="$out/BitGraph-Recorder-$version.dmg"
+pkg="$out/BitGraph-Recorder-$version.pkg"
 zip="$out/BitGraph Recorder.zip"
+bundle_id="ing.bitgraph.recorder"
 
 say() { printf '\033[2m%s\033[0m\n' "$*"; }
 die() { printf 'FAIL %s\n' "$*" >&2; exit 1; }
 
 say "releasing BitGraph Recorder $version"
 security find-identity -v -p codesigning | grep -q "$identity" || die "identity not in the keychain: $identity"
+security find-identity -v | grep -q "$installer" || die "installer identity not in the keychain: $installer"
 mkdir -p "$out"
-rm -f "$dmg" "$zip"
+rm -f "$pkg" "$zip" "$out"/*.dmg "$out"/*.sha256
 
 # ── 1. the signed build, checked by build.sh itself ─────────────────────────
 OUT="$out" SIGN_IDENTITY="$identity" "$here/build.sh"
@@ -44,38 +48,50 @@ xcrun stapler validate "$app" >/dev/null || die "the app's ticket did not staple
 spctl --assess --type execute "$app" 2>/dev/null || die "Gatekeeper does not accept the stapled app"
 say "  ok   the app is notarized and stapled"
 
-# ── 3. the DMG: the app and a link to Applications ──────────────────────────
-say "building the DMG"
-stage="$(mktemp -d)"
-cp -R "$app" "$stage/"
-ln -s /Applications "$stage/Applications"
-hdiutil create -volname "BitGraph Recorder" -srcfolder "$stage" -ov -format UDZO -quiet "$dmg"
-rm -rf "$stage"
-codesign --force --sign "$identity" --timestamp "$dmg" >/dev/null 2>&1
+# ── 3. the installer package: the app, into /Applications ──────────────────
+# A package rather than a drag-to-install DMG (Mike, 2026-09-10: "there's no
+# installer?"): the standard Installer puts the app where it goes, replaces an
+# older version on update, and works with the tools institutions deploy with.
+say "building the installer package"
+pkgbuild --component "$app" --install-location /Applications \
+  --identifier "$bundle_id" --version "$version" \
+  --sign "$installer" --timestamp "$pkg" >/dev/null
 
-# ── 4. notarize the DMG too, so the download opens without a word ───────────
-say "notarizing the DMG"
-xcrun notarytool submit "$dmg" --keychain-profile "$profile" --wait 2>&1 | grep -E "^  status:" | tail -1 | grep -q "Accepted" || die "the DMG was not accepted by the notary service"
-xcrun stapler staple "$dmg" >/dev/null
-xcrun stapler validate "$dmg" >/dev/null || die "the DMG's ticket did not staple"
+# ── 4. notarize the package too, so it opens without a word ─────────────────
+say "notarizing the package"
+xcrun notarytool submit "$pkg" --keychain-profile "$profile" --wait 2>&1 | grep -E "^  status:" | tail -1 | grep -q "Accepted" || die "the package was not accepted by the notary service"
+xcrun stapler staple "$pkg" >/dev/null
+xcrun stapler validate "$pkg" >/dev/null || die "the package's ticket did not staple"
+spctl --assess --type install "$pkg" 2>/dev/null || die "Gatekeeper does not accept the stapled package"
+pkgutil --check-signature "$pkg" 2>/dev/null | grep -q "Developer ID Installer" || die "the package is not signed with the Installer identity"
 
-# ── 5. look inside the DMG, not the tree it came from ───────────────────────
-say "checking the DMG"
-mnt="$(mktemp -d)"
-hdiutil attach "$dmg" -mountpoint "$mnt" -nobrowse -quiet
-inner="$mnt/BitGraph Recorder.app"
-[ -d "$inner" ] || die "the DMG holds no app"
-built_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$inner/Contents/Info.plist")"
-[ "$built_version" = "$version" ] || die "the DMG's app says $built_version, VERSION says $version"
-spctl --assess --type execute "$inner" 2>/dev/null || die "Gatekeeper does not accept the app inside the DMG"
-xcrun stapler validate "$inner" >/dev/null || die "the app inside the DMG carries no ticket"
-hdiutil detach "$mnt" -quiet
-rmdir "$mnt"
-say "  ok   the DMG holds BitGraph Recorder $version, notarized, ticket stapled"
+# ── 5. look inside the package, not the tree it came from ───────────────────
+say "checking the package"
+x="$(mktemp -d)/x"
+pkgutil --expand "$pkg" "$x"
+# ⚠️ The plain `version=` attribute, with the space before it. The element also
+# carries format-version and generator-version, and a greedy match took the
+# generator's build number for the package's version (first run, 2026-09-10).
+inner_version="$(sed -n 's/.*<pkg-info[^>]* version="\([^"]*\)".*/\1/p' "$x/PackageInfo" | head -1)"
+[ "$inner_version" = "$version" ] || die "the package says $inner_version, VERSION says $version"
+grep -q 'install-location="/Applications"' "$x/PackageInfo" || die "the package does not install to /Applications"
+# The app inside, byte for byte. ⚠️ --expand-full, never gunzip+cpio by hand:
+# the hand unpack dropped enough that the app inside failed codesign on the
+# second run (2026-09-10), while the package itself was fine.
+p="$(mktemp -d)/full"
+pkgutil --expand-full "$pkg" "$p"
+inner="$p/Payload/BitGraph Recorder.app"
+[ -d "$inner" ] || die "the package's payload holds no app"
+app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$inner/Contents/Info.plist")"
+[ "$app_version" = "$version" ] || die "the app inside the package says $app_version"
+codesign --verify --deep --strict "$inner" 2>/dev/null || die "the app inside the package does not verify"
+xcrun stapler validate "$inner" >/dev/null || die "the app inside the package carries no ticket"
+rm -rf "$x" "$(dirname "$p")"
+say "  ok   the package installs BitGraph Recorder $version to /Applications, notarized, ticket stapled"
 
-sha="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
-printf '%s  %s\n' "$sha" "$(basename "$dmg")" | tee "$dmg.sha256"
-say "$dmg  ($(du -h "$dmg" | cut -f1))"
+sha="$(shasum -a 256 "$pkg" | cut -d' ' -f1)"
+printf '%s  %s\n' "$sha" "$(basename "$pkg")" | tee "$pkg.sha256"
+say "$pkg  ($(du -h "$pkg" | cut -f1))"
 
 # ── 6. the update feed, from the artifact just checked ──────────────────────
 # The app reads website/public/recorder/latest.json (served at
@@ -88,7 +104,7 @@ feed="$here/../../website/public/recorder/latest.json"
 cat > "$feed" <<JSON
 {
   "version": "$version",
-  "url": "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraph-Recorder.dmg",
+  "url": "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraph-Recorder.pkg",
   "notes": "https://github.com/mikeargento/bitgraph/releases/tag/recorder-v$version",
   "sha256": "$sha",
   "minimumSystemVersion": "14.0",
@@ -96,4 +112,4 @@ cat > "$feed" <<JSON
 }
 JSON
 say "  ok   wrote $feed (commit and push the site to announce $version)"
-say "next: gh release create recorder-v$version \"$dmg\" \"$dmg.sha256\" --title \"BitGraph Recorder $version\""
+say "next: cp \"$pkg\" \"$out/BitGraph-Recorder.pkg\" && gh release create recorder-v$version \"$pkg\" \"$out/BitGraph-Recorder.pkg\" \"$pkg.sha256\" --title \"BitGraph Recorder $version\""

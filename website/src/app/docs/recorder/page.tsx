@@ -16,8 +16,10 @@ export const metadata: Metadata = {
    and removed the same evening; this page is the door. */
 /* The GitHub Release's versionless asset: the URL never changes between
    versions, so this page never goes stale on a release (the lesson Folder
-   taught). Version and checksum live on the release itself. */
-const DOWNLOAD_URL: string | null = "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraph-Recorder.dmg";
+   taught). Version and checksum live on the release itself. A package, not
+   a DMG, since 2026-09-10 ("there's no installer?"): the standard Installer
+   puts the app in Applications and replaces it on update. */
+const DOWNLOAD_URL: string | null = "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraph-Recorder.pkg";
 
 export default function RecorderPage() {
   return (
@@ -73,7 +75,7 @@ BitGraph (Photos 2026, 412 files)/
       <ul>
         <li><strong>It never writes into your folders.</strong> The folder you dragged out of is left exactly as it was.</li>
         <li><strong>It never moves your files.</strong> Your file does appear inside the recording folder. On the same disk it is a hard link: the same bytes under a second name, no new disk used, so editing the original in place changes what the recording holds and a check then says so. Where a link is not possible, another drive or a filesystem without links, it copies instead, and the recording says which it did. Your original stays where it was either way.</li>
-        <li><strong>It never writes the fused bytes.</strong> They are virtual, rebuilt from the original and the proof when you export, and refused if they do not match what was committed.</li>
+        <li><strong>It never writes the fused bytes.</strong> They are virtual: the original plus the proof rebuilds them exactly, so they are only written when you export. The export checks the rebuilt bytes against the committed digest as it writes them, and if they do not match, no file is handed over. A new file that does not match its proof is worse than no new file.</li>
         <li><strong>No login, no account, no upload.</strong> Files are hashed on your Mac. Two HTTPS calls leave the machine, and neither carries your file: digests, sizes, a file&rsquo;s first bytes for the placement choice, the slot record and the placement id.</li>
       </ul>
 
