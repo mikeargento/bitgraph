@@ -40,6 +40,7 @@ struct SubjectView: View {
                     .frame(maxWidth: .infinity, maxHeight: 380)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay { if isMovie { playBadge } }
+                    .overlay(alignment: .bottomTrailing) { if hovering && !isMovie { openLabel.padding(12) } }
                     .padding(16)
                     .frame(maxWidth: .infinity)
                     .background(hovering ? G.hover : Color(white: 0.98))
@@ -48,7 +49,13 @@ struct SubjectView: View {
             }
         }
         .contentShape(Rectangle())
-        .onHover { hovering = $0 && !missing }
+        /* The hand, the tint and a label: a card that opens has to say so
+         * before the click (Mike, 2026-09-10: "not obvious enough"). The
+         * Open pill in the page bar says it without hovering at all. */
+        .onHover { inside in
+            hovering = inside && !missing
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
         .onTapGesture { open() }
         .help(missing ? "" : "Open")
         .task(id: path) { await load() }
@@ -62,6 +69,19 @@ struct SubjectView: View {
             .padding(18)
             .background(Circle().fill(Color.black.opacity(0.55)))
             .allowsHitTesting(false)
+    }
+
+    /// "Open", with the outward arrow, at the corner of a picture under the
+    /// pointer. A movie has its play badge instead.
+    private var openLabel: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "arrow.up.forward.square").font(.system(size: 12, weight: .semibold))
+            Text("Open").font(Style.small.weight(.semibold))
+        }
+        .foregroundStyle(G.blue)
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 6).fill(.white))
+        .allowsHitTesting(false)
     }
 
     /// What a file nothing can draw, or a file that has moved, gets instead.
@@ -83,6 +103,7 @@ struct SubjectView: View {
                     .foregroundStyle(Style.quiet)
             }
             Spacer()
+            if hovering { openLabel }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -97,7 +118,7 @@ struct SubjectView: View {
     /// path is the recording's own hard link.
     private func open() {
         guard !missing else { return }
-        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        AppState.openFile(path)
     }
 
     /// ⚠️ Read off the main thread and downscaled. A 60 MP raw decoded at full

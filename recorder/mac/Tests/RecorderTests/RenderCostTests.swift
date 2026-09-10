@@ -86,3 +86,51 @@ extension Position: Encodable {
     }
     private enum CodingKeys: String, CodingKey { case epochId, counter }
 }
+
+/// The Raw section on a big recording (Mike, 2026-09-10: "i clicked recording
+/// details and got beach ball. then first raw json data is blank"). A
+/// 1,130-file recording's signed proof is ~435 KB; the box must lay out in
+/// well under a second, and a folded card must not build its content.
+@MainActor
+final class RawCostTests: XCTestCase {
+
+    private func bigJSON() -> String {
+        var lines: [String] = ["{", "  \"members\": ["]
+        for i in 0..<3_000 {
+            lines.append("    {\"rel\": \"imran emails/\(i).eml\", \"digestB64\": \"AQNsYGOpMBya5pf2VyVv6wjcVOTcTapF0c_YG6Ko7zfmFWf8o4LCxvOGvgF9gUKtSQSNWUE0Tpi9hlRUVtI703QBMGXIDKxL8GdYc8\", \"bytes\": \(i * 7)},")
+        }
+        lines.append("  ]"); lines.append("}")
+        return lines.joined(separator: "\n")
+    }
+
+    private func draw<V: View>(_ view: V) throws -> TimeInterval {
+        let t = Date()
+        let hosting = NSHostingView(rootView: view.environment(\.colorScheme, .light))
+        hosting.frame = NSRect(x: 0, y: 0, width: 900, height: 600)
+        hosting.layoutSubtreeIfNeeded()
+        let rep = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+        hosting.cacheDisplay(in: hosting.bounds, to: rep)
+        return Date().timeIntervalSince(t)
+    }
+
+    func testAHalfMegabyteRawBlockDrawsFast() throws {
+        let text = bigJSON()
+        print("  raw text: \(text.utf8.count / 1024) KB, \(text.split(separator: "\n").count) lines")
+        /* For the record, measured once (2026-09-10) with the old box, a
+         * SwiftUI Text in a ScrollView: 1 MB / 6,004 lines took 62.12 s to
+         * lay out and draw; RawTextBlock took 0.61 s. Not kept in the suite
+         * because a minute per run is the bug, not a test of it. */
+        let block = RawBlock(label: "The signed proof", text: text)
+        let new = try draw(RawTextBlock(block: block))
+        print("  RawTextBlock: \(String(format: "%.2f", new))s")
+        XCTAssertLessThan(new, 1.5, "the Raw box took \(new)s to lay out and draw")
+        XCTAssertEqual(block.lines, 3_004)
+    }
+
+    func testAFoldedCardBuildsNothing() throws {
+        var built = 0
+        let card = Card(title: "Recording details") { () -> Text in built += 1; return Text("heavy") }
+        _ = try draw(card)
+        XCTAssertEqual(built, 0, "a folded card built its content")
+    }
+}

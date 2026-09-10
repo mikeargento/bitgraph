@@ -453,6 +453,13 @@ final class AppState: ObservableObject {
     }
 
     /// Show one file, selected, rather than opening the folder it is in.
+    /// The file, in the app the Mac would open it with. Callers pass the
+    /// recording's own hard link, never the origin.
+    static func openFile(_ path: String) {
+        guard !path.isEmpty else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+
     func revealFile(_ path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }

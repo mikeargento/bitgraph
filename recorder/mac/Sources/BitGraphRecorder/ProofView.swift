@@ -1,6 +1,7 @@
 // Copyright (c) Mike Argento. All rights reserved. See LICENSE.
 
 import SwiftUI
+import UniformTypeIdentifiers
 import AppKit
 
 /// A BitGraph, in full, laid out for the person who made it.
@@ -65,6 +66,10 @@ struct ProofView: View {
     }
 
     /// A recording of several files previews nothing until one is picked.
+    private var shownIsMovie: Bool {
+        UTType(filenameExtension: (shownPath as NSString).pathExtension)?.conforms(to: .movie) ?? false
+    }
+
     private var hasChosenFile: Bool {
         page.subject.chosenFile || (page.described.members?.count ?? 0) <= 1
     }
@@ -111,6 +116,14 @@ struct ProofView: View {
                 /* Tonal from the start, the colour it used to take on hover only. */
                 Pill(title: "Back", style: .tonal, icon: "arrow.left") { state.back() }
                 Spacer(minLength: 16)
+                /* The file opens from where the actions are (Mike, 2026-09-10:
+                 * a click on the card "is not obvious enough … maybe just a
+                 * button?"). Play for a movie, Open for the rest; only when
+                 * the page is about one file. */
+                if hasChosenFile {
+                    Pill(title: shownIsMovie ? "Play" : "Open", style: .outlined, icon: shownIsMovie ? "play.fill" : "arrow.up.forward.square", enabled: !shownPath.isEmpty) { AppState.openFile(shownPath) }
+                        .fixedSize()
+                }
                 Pill(title: "Show in Finder", style: .outlined, icon: "folder", enabled: !shownPath.isEmpty) { state.revealFile(revealPath) }
                     .fixedSize()
                 Pill(title: state.exporting ? "Writing…" : "Export BitGraph", style: .filled, icon: "square.and.arrow.up", enabled: !state.exporting) {
@@ -396,45 +409,9 @@ struct ProofView: View {
                     }
                 }
             }
-            /* ⚠️ EVERY BYTE THIS BITGRAPH RESTS ON. A set proof commits to a
-             * manifest or a Merkle root; the signed proof alone leaves out the
-             * artifact it hashes to and this file's own inclusion path. */
-            Section("Raw") {
-                rawBlock("The signed proof", proof?.pretty ?? "{}")
-                if let committed = committedText { rawBlock("The committed artifact, whose hash is the proof's", committed) }
-                if let raw = page.described.evidenceRaw { rawBlock("This file's own evidence", raw) }
-            }
+            /* Every byte this BitGraph rests on: see Raw.swift. */
+            RawSection(proof: proof, committedB64: page.described.committedB64, evidenceRaw: page.described.evidenceRaw)
         }
-    }
-
-    /// The text, verbatim, in a box that scrolls both ways: a proof is a few
-    /// hundred lines and a set manifest can be far more, and cutting either
-    /// off with no way down read as a broken document.
-    private func rawBlock(_ label: String, _ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(G.small).foregroundStyle(G.secondary)
-            ScrollView([.vertical, .horizontal]) {
-                Text(text)
-                    .font(G.data)
-                    .foregroundStyle(G.ink)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-            }
-            .frame(height: min(CGFloat(text.split(separator: "\n").count) * 17 + 24, 440))
-            .background(RoundedRectangle(cornerRadius: 8).fill(G.zone))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-
-    /// The manifest or root document, decoded from what the core read off disk.
-    private var committedText: String? {
-        guard let b64 = page.described.committedB64,
-              let data = Data(base64Encoded: b64),
-              let text = String(data: data, encoding: .utf8) else { return nil }
-        return text
     }
 
     // ── the window, from the anchors ────────────────────────────────────────
@@ -502,14 +479,17 @@ extension View {
 struct Card<Content: View>: View {
     let title: String
     var defaultOpen: Bool = false
-    @ViewBuilder var content: Content
+    /* ⚠️ A CLOSURE, CALLED ONLY WHEN OPEN. It used to be built in init, so a
+     * folded Recording details still pretty-printed a 435 KB proof on every
+     * pass over the page (Mike, 2026-09-10: "beach ball"). */
+    let content: () -> Content
     @State private var open: Bool
     @State private var hovering = false
 
-    init(title: String, defaultOpen: Bool = false, @ViewBuilder content: () -> Content) {
+    init(title: String, defaultOpen: Bool = false, @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.defaultOpen = defaultOpen
-        self.content = content()
+        self.content = content
         _open = State(initialValue: defaultOpen)
     }
 
@@ -535,7 +515,7 @@ struct Card<Content: View>: View {
 
             if open {
                 Rectangle().fill(G.border).frame(height: 1)
-                VStack(alignment: .leading, spacing: 0) { content }
+                VStack(alignment: .leading, spacing: 0) { content() }
             }
         }
         .cardChrome()
