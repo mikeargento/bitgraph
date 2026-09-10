@@ -44,6 +44,13 @@ export default function RecorderPage() {
         </p>
       )}
 
+      {/* The terms, in the Terms' own words (sections 6 and 8): who owns the
+          software, what is free, what is licensed. One line, so nobody
+          downloads without having been told (Mike, 2026-09-10). */}
+      <p className="text-[#4b5563]" style={{ fontSize: 14, margin: "6px 0 40px" }}>
+        BitGraph Recorder is software of Argento Computing Inc., provided under the <a href="/terms" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>Terms</a>. Ordinary individual use and verification are free. Recording inside your own product, service or internal systems is licensed by separate agreement; <a href="/contact" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>get in touch</a>.
+      </p>
+
       <h2 className="text-xl font-semibold mt-12 mb-4">What a recording is</h2>
       <div className="code-block">
         <div className="code-block-header"><span>~/BitGraph/Recordings/2026-09-09/</span></div>
