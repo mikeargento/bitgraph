@@ -906,23 +906,10 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 
-/* ── The Recorder page's download button (2026-09-09/10). The one filled
-   button on the site, on purpose: the app's filled pill in its size, weight
-   and blue (recorder/mac/Sources/BitGraphRecorder/Google.swift, Pill .filled,
-   large: 48pt, #0065A4, white 15/500; disabled = #5f6368 at 60% on #dadce0),
-   but SQUARE: it wore the app's capsule for one push and Mike squared it
-   ("the site is square after all"). Nothing else on the site may borrow it;
-   the no-buttons rule stands everywhere else. ── */
-.bg-download-pill {
-  appearance: none; display: inline-flex; align-items: center; gap: 8px;
-  height: 48px; padding: 0 24px; border-radius: 0; box-sizing: border-box;
-  font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1;
-  color: #fff; background: #0065A4; border: 1px solid transparent;
-  cursor: pointer; text-decoration: none; white-space: nowrap;
-  transition: background .15s;
-}
-.bg-download-pill:not(:disabled):hover { background: #004b7a; }
-.bg-download-pill.bg-download-pill:disabled {
-  color: rgba(95,99,104,0.6); background: #dadce0; cursor: default;
-}
-.bg-download-pill:focus-visible { outline: 2px solid #0065A4; outline-offset: 2px; }
+/* ── The Recorder page's download (2026-09-10). It is a .bg-action-link on
+   the h2 scale, no chrome: "match the other links on the website but just
+   be a bigger font" (Mike). It was the one filled button on the site for a
+   day (.bg-download-pill, the app's pill squared); that is gone, and the
+   no-buttons rule now holds everywhere. ── */
+.bg-download-link { font-size: 22px; padding: 0; }
+.bg-download-link:disabled { color: #9ca3af; }
