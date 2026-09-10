@@ -66,7 +66,10 @@ export default function OverviewPage() {
           REASON with, not copy to ship. Do not put it back. See
           reference_clock_definition for the rejected list. */}
       <h1 style={{ margin: "0 0 24px" }}>
-        A recorder that gives every AI agent action a verifiable order
+        {/* "verifiable order" is glued: a line that breaks before the last
+            word leaves "order" hanging alone (Mike, 2026-09-09: "so word
+            doesnt hang"). The word stays; the break moves. */}
+        A recorder that gives every AI agent action a verifiable&nbsp;order
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just
