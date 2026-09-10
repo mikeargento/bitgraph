@@ -127,9 +127,14 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
               <div className="bg-page-title">
                 Ethereum anchors
               </div>
-              <div style={{ fontSize: 14, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>
-                {day ? `Anchors for ${longLabel(day)} (UTC).` : "Every anchor, newest first. Each is a position whose bytes are the hash of an Ethereum block."}
-              </div>
+              {/* No line under the live title: the rows say what they are
+                  (Mike, 2026-09-09: "it doesnt need to say this"). A past day
+                  keeps its date, which is the one thing the rows cannot say. */}
+              {day && (
+                <div style={{ fontSize: 14, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>
+                  {`${longLabel(day)} (UTC)`}
+                </div>
+              )}
             </div>
           }
           // The day-flip stepper — back before forward, sitting together on

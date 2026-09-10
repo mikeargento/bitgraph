@@ -26,7 +26,6 @@ export default function Loading() {
             live-vs-day subtitle will land. */}
         <div style={{ marginBottom: 12 }}>
           <div className="bg-page-title">Ethereum anchors</div>
-          <div className="rl-skel" style={{ ...bar, width: 208, height: 14, marginTop: 6 }} />
         </div>
 
         {/* The nav line: day stepper left, Calendar right. */}
