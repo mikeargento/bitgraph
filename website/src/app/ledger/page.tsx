@@ -108,18 +108,14 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
           // Text only (calendar glyph tried and ditched); the nav line stays
           // one unwrapped stratum because day labels shorten on phones.
           aside={
-            <>
-              {/* The day's anchors as a file: position, block number, block
-                  hash, time, proof URL. Same feed, served whole. */}
-              <a href={`/api/anchors/export${day ? `?day=${day}` : ""}`} className="bg-arrow-link" style={{ fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
-                Export <span className="arrow" aria-hidden>&rarr;</span>
-              </a>
-              {/* "Calendar", the app's word for the same view (Mike, 2026-09-09:
-                  "All days → should be calendar right?"). */}
-              <a href="/ledger/archive" className="bg-arrow-link" style={{ fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
-                Calendar <span className="arrow" aria-hidden>&rarr;</span>
-              </a>
-            </>
+            /* "Calendar", the app's word for the same view (Mike, 2026-09-09:
+               "All days → should be calendar right?"). An Export link stood
+               beside it for one push (a day's anchors as JSON, /api/anchors/
+               export) and Mike cut it the same evening: an anchor's proof page
+               is the anchor as a file, and nobody is matching whole days yet. */
+            <a href="/ledger/archive" className="bg-arrow-link" style={{ fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
+              Calendar <span className="arrow" aria-hidden>&rarr;</span>
+            </a>
           }
           title={
             <div>

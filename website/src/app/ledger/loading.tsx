@@ -29,13 +29,10 @@ export default function Loading() {
           <div className="rl-skel" style={{ ...bar, width: 208, height: 14, marginTop: 6 }} />
         </div>
 
-        {/* The nav line: day stepper left, Export + Calendar right. */}
+        {/* The nav line: day stepper left, Calendar right. */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
           <div className="rl-skel" style={{ ...bar, width: 72, height: 13 }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div className="rl-skel" style={{ ...bar, width: 96, height: 13 }} />
-            <div className="rl-skel" style={{ ...bar, width: 64, height: 13 }} />
-          </div>
+          <div className="rl-skel" style={{ ...bar, width: 72, height: 13 }} />
         </div>
 
         {/* Ledger rows: same chrome as the Explorer's own skeleton (# left,
