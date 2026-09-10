@@ -391,10 +391,11 @@ export default function SubjectsPage() {
       <div style={sectionStyle}>
         <h2 style={h2Style}>Applying it</h2>
         <p style={{ ...pStyle, margin: "0 0 4px" }}>
-          Recording a file needs no integration. The home page hashes the file
-          locally and returns a portable proof without uploading the file
-          itself. Everything past that, issuing in volume or recording from
-          inside your own systems, is covered in the integration guide.
+          Recording a file needs no integration. BitGraph Recorder hashes the
+          file on your Mac and writes the recording beside it, without
+          uploading the file itself. Everything past that, issuing in volume
+          or recording from inside your own systems, is covered in the
+          integration guide.
         </p>
         {/* All three at the default size. "Record" is the primary action and is
             marked by being first, which is the rule globals.css already states
@@ -402,7 +403,10 @@ export default function SubjectsPage() {
             is marked by position, not by weight. An 18px Record was tried and
             was the only size-varied action link on the site. */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-          <Link href="/" className="bg-action-link">
+          {/* The software's page, since 2026-09-09: the home page no longer
+              records (Mike: "record a file on that screenshot should go to
+              BitGraph Recorder download page"). */}
+          <Link href="/docs/recorder" className="bg-action-link">
             Record a file <span className="arrow">&rarr;</span>
           </Link>
           <Link href="/docs/integration" className="bg-action-link">
