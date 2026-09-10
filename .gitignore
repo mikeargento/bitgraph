@@ -28,3 +28,11 @@ docs/iam/
 website/.c2pa-dev/
 # Local dev fixtures served by the dev server only.
 website/public/__dev/
+
+# BitGraph Recorder build output
+# ⚠️ These moved with the app when it was renamed from "recorder". A rename that
+# leaves its ignore rules behind sweeps 2,600 build artefacts into the next
+# commit, which is how a private dev key got staged on 2026-09-07.
+recorder/mac/.build/
+recorder/mac/build/
+recorder/mac/preview/
