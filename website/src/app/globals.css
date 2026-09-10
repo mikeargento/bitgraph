@@ -906,17 +906,16 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 
-/* ── The Recorder page's download pill (2026-09-09). The one filled, rounded
-   button on the site, on purpose: it is the app's own pill (recorder/mac/
-   Sources/BitGraphRecorder/Google.swift, Pill .filled, large: 48pt, capsule,
-   #0065A4, white 15/500; disabled = #5f6368 at 60% on #dadce0), so the thing
-   you download looks like the thing you get (Mike: "the download button
-   should be the same button shape and blue as the app"). Nothing else on
-   the site may borrow it; the square-corner and no-buttons rules stand
-   everywhere else. ── */
+/* ── The Recorder page's download button (2026-09-09/10). The one filled
+   button on the site, on purpose: the app's filled pill in its size, weight
+   and blue (recorder/mac/Sources/BitGraphRecorder/Google.swift, Pill .filled,
+   large: 48pt, #0065A4, white 15/500; disabled = #5f6368 at 60% on #dadce0),
+   but SQUARE: it wore the app's capsule for one push and Mike squared it
+   ("the site is square after all"). Nothing else on the site may borrow it;
+   the no-buttons rule stands everywhere else. ── */
 .bg-download-pill {
   appearance: none; display: inline-flex; align-items: center; gap: 8px;
-  height: 48px; padding: 0 24px; border-radius: 999px; box-sizing: border-box;
+  height: 48px; padding: 0 24px; border-radius: 0; box-sizing: border-box;
   font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1;
   color: #fff; background: #0065A4; border: 1px solid transparent;
   cursor: pointer; text-decoration: none; white-space: nowrap;
