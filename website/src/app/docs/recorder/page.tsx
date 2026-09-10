@@ -60,7 +60,7 @@ BitGraph (Photos 2026, 412 files)/
       <h2 className="text-xl font-semibold mt-12 mb-4">What it does not do</h2>
       <ul>
         <li><strong>It never writes into your folders.</strong> The folder you dragged out of is left exactly as it was.</li>
-        <li><strong>It never moves or copies your files.</strong> On the same volume a recording&rsquo;s files are hard links: one copy of the bytes, two names. Across volumes it copies, and the recording says which it did.</li>
+        <li><strong>It never moves your files.</strong> On the same volume a recording&rsquo;s files are hard links to yours: one copy of the bytes, two names, no new disk used. A link cannot cross volumes, so from another drive it copies, and the recording says which it did. Your original stays where it was either way.</li>
         <li><strong>It never writes the fused bytes.</strong> They are virtual, rebuilt from the original and the proof when you export, and refused if they do not match what was committed.</li>
         <li><strong>No login, no account, no upload.</strong> Files are hashed on your Mac. Two HTTPS calls leave the machine, and neither carries your file: digests, sizes, a file&rsquo;s first bytes for the placement choice, the slot record and the placement id.</li>
       </ul>
