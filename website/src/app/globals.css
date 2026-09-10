@@ -175,8 +175,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    (26px floor on phones, 32px cap) so mobile and desktop may differ from
    each other but never from each other's peers.
 
-   ⚠️ .prose-doc h1 is folded in here on purpose (.overview h1 was too,
-   until 2026-09-09; see its own rule below). Those
+   ⚠️ .prose-doc h1 / .overview h1 are folded in here on purpose. Those
    rules are UNLAYERED, so they beat every Tailwind utility no matter how
    specific: the `text-3xl sm:text-4xl` classes the thirteen docs pages
    carried were dead the whole time and rendered a flat 2rem — 32px on a
@@ -186,7 +185,8 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    Margins stay with each caller: the size is shared, the spacing is the
    page's own business. */
 .bg-page-title,
-.prose-doc h1 {
+.prose-doc h1,
+.overview h1 {
   font-size: clamp(26px, 6vw, 32px);
   font-weight: 600;
   letter-spacing: -0.03em;
@@ -294,17 +294,13 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   padding: 64px 24px 120px;
   color: #1f2937;
 }
-/* The overview h1 sits on the h2 scale, not the page-title scale (Mike,
-   2026-09-09): the software will stand at the top of this page, so the
-   title is a section heading under it, not the page's headline. It left
-   the shared .bg-page-title rule above for that reason. */
+/* The overview h1 is on the page-title scale like every other page. It spent
+   one evening (2026-09-09) on the h2 scale for a download that was going to
+   stand above it; the download went to /docs/recorder and Mike put the title
+   back: "should be regular h1 like other pages". */
 .overview h1 {
   margin-top: 0;
   margin-bottom: 1.25rem;
-  font-size: 1.375rem;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  color: #111827;
 }
 
 .overview h2 {
