@@ -145,6 +145,11 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
  */
 export const DOCS_TAIL: DocsSection[] = [
   { href: "/docs/faq", label: "FAQ" },
+  /* The ledger, back in the menu as what it now is: the Ethereum anchors
+     alone (Mike, 2026-09-09). It left the nav on 2026-09-08 as "Ledger", a
+     roll of recordings the bucket no longer keeps. Reference, because you
+     look an anchor up here; you do not read it through. */
+  { href: "/ledger", label: "Ethereum anchors" },
   // Contact closes the column (Mike, 2026-09-03). It was briefly a fourth nav
   // item: the bar holds the product, and a reader who has come this far through
   // the docs is the one with a question worth an answer. The page it opens

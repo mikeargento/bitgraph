@@ -62,7 +62,7 @@ const SSR_BUDGET_MS = 1200;
 async function firstPage(day: string | null): Promise<LedgerFeedBody | null> {
   try {
     const result = await Promise.race([
-      ledgerFeed({ day, filesOnly: true }),
+      ledgerFeed({ day, filesOnly: false }),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), SSR_BUDGET_MS)),
     ]);
     return result && result.status === 200 ? result.body : null;
@@ -100,6 +100,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       `}</style>
       <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
         <Explorer
+          anchorsOnly
           day={day ?? undefined}
           initial={initial}
           // The shelf: the month-grid index of every day's day, sitting with
@@ -107,18 +108,31 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
           // Text only (calendar glyph tried and ditched); the nav line stays
           // one unwrapped stratum because day labels shorten on phones.
           aside={
-            <a href="/ledger/archive" className="bg-arrow-link" style={{ fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
-              All days <span className="arrow" aria-hidden>&rarr;</span>
-            </a>
+            <>
+              {/* The day's anchors as a file: position, block number, block
+                  hash, time, proof URL. Same feed, served whole. */}
+              <a href={`/api/anchors/export${day ? `?day=${day}` : ""}`} className="bg-arrow-link" style={{ fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
+                Export <span className="arrow" aria-hidden>&rarr;</span>
+              </a>
+              {/* "Calendar", the app's word for the same view (Mike, 2026-09-09:
+                  "All days → should be calendar right?"). */}
+              <a href="/ledger/archive" className="bg-arrow-link" style={{ fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
+                Calendar <span className="arrow" aria-hidden>&rarr;</span>
+              </a>
+            </>
           }
           title={
             <div>
               {/* .bg-page-title: the one page-title size, site-wide. */}
+              {/* Ethereum anchors, and only them (Mike, 2026-09-09). The
+                  bucket keeps only anchors; this is the system's wall clock,
+                  shown so anyone can match a position's block against
+                  Etherscan and take the day's anchors away as a file. */}
               <div className="bg-page-title">
-                BitGraph Ledger
+                Ethereum anchors
               </div>
               <div style={{ fontSize: 14, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>
-                {day ? `The day for ${longLabel(day)} (UTC).` : "Every recording, newest first."}
+                {day ? `Anchors for ${longLabel(day)} (UTC).` : "Every anchor, newest first. Each is a position whose bytes are the hash of an Ethereum block."}
               </div>
             </div>
           }

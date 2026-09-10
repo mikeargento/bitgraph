@@ -82,6 +82,10 @@ type Entry = {
   hashShort: string;
   blockNumber: number | null;
   etherscanUrl: string | null;
+  // The anchored block's hash, from the signed mark. The anchors page shows it
+  // and the export carries it, so an anchor can be matched against Etherscan
+  // without opening its proof. Absent on archive rows and pre-v7 anchors.
+  blockHash?: string;
   isNew?: true;
   // Wall-clock write time (S3 LastModified, epoch ms) — the recording moment,
   // shown on each day row. The precise ETH window lives on the proof page.
@@ -118,6 +122,7 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
   const proofHash = String((p.proofHash as string) || commit.prevB64 || digestB64 || "");
   let blockNumber: number | null = null;
   let etherscanUrl: string | null = null;
+  let blockHash: string | null = null;
   if (isAnchor || isInterval) {
     const meta = ((p.metadata as Record<string, unknown>)?.interval as { originalBlockNumber?: number }) || null;
     // An authenticated anchor carries its block in the signed mark, so it does
@@ -126,6 +131,7 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
     const mark = anchorMarkOf(p);
     if (mark !== null) {
       blockNumber = mark.blockNumber;
+      blockHash = mark.blockHash;
       etherscanUrl = `https://etherscan.io/block/${mark.blockNumber}`;
     } else {
       etherscanUrl = (attribution.title as string) || null;
@@ -144,6 +150,7 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
     hashShort: toSafe(proofHash).slice(0, 10),
     blockNumber,
     etherscanUrl,
+    ...(blockHash !== null ? { blockHash } : {}),
     ...(isNew ? { isNew: true as const } : {}),
     ...(lastModifiedMs ? { at: lastModifiedMs } : {}),
     ...(epochId ? { ep: toSafe(epochId) } : {}),

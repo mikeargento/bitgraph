@@ -25,24 +25,17 @@ export default function Loading() {
         {/* Heading: the real title (it never varies), a shimmer where the
             live-vs-day subtitle will land. */}
         <div style={{ marginBottom: 12 }}>
-          <div className="bg-page-title">BitGraph Ledger</div>
+          <div className="bg-page-title">Ethereum anchors</div>
           <div className="rl-skel" style={{ ...bar, width: 208, height: 14, marginTop: 6 }} />
         </div>
 
-        {/* The nav line: day stepper left, anchors toggle + All days right. */}
+        {/* The nav line: day stepper left, Export + Calendar right. */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
           <div className="rl-skel" style={{ ...bar, width: 72, height: 13 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div className="rl-skel" style={{ ...bar, width: 96, height: 13 }} />
             <div className="rl-skel" style={{ ...bar, width: 64, height: 13 }} />
           </div>
-        </div>
-
-        {/* Search: the form's real chrome (white, hairline border, square),
-            shimmer where the placeholder and the action sit. */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, padding: "10px 14px" }}>
-          <div className="rl-skel" style={{ ...bar, width: 110, height: 14 }} />
-          <div className="rl-skel" style={{ ...bar, width: 62, height: 14 }} />
         </div>
 
         {/* Ledger rows: same chrome as the Explorer's own skeleton (# left,

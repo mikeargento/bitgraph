@@ -12,6 +12,7 @@ type Entry = {
   hashShort: string;
   blockNumber: number | null;
   etherscanUrl: string | null;
+  blockHash?: string;
   isNew?: true;
   at?: number;
   // URL-safe epochId. Day days can span epochs and counters repeat across
@@ -45,7 +46,13 @@ const fmtWhen = (ms?: number) =>
 
 const fmt = (n: number) => n.toLocaleString();
 
-export function Explorer({ title, day, aside, subnav, initial }: { title?: React.ReactNode; day?: string; aside?: React.ReactNode; subnav?: React.ReactNode; initial?: FeedResp | null }) {
+/* anchorsOnly (2026-09-09): the ledger is the Ethereum anchors and nothing
+   else. The bucket keeps only anchors now, so with anchors hidden the page
+   read "Beginning of epoch" over nothing. In this mode the toggle and the hash
+   search are gone, only anchor rows show, and each row carries its block as
+   a link to Etherscan for matching (Mike: "access to the anchors and link to
+   the eth explorer for match reference and a way to export them easily"). */
+export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = false }: { title?: React.ReactNode; day?: string; aside?: React.ReactNode; subnav?: React.ReactNode; initial?: FeedResp | null; anchorsOnly?: boolean }) {
   // Seed first paint, in order of preference:
   //
   //   initial   the first page rendered into the HTML by the server. Removes
@@ -110,7 +117,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
   // Anchors are the clock ticking, not the photos: hidden by default so the
   // the ledger reads as files. The toggle refetches; ?files=1 lets the server skip
   // anchor objects via the anchors/{epoch}/ index instead of GETting each.
-  const [showAnchors, setShowAnchors] = useState(false);
+  const [showAnchors, setShowAnchors] = useState(anchorsOnly);
   // Search: resolve a hash to a proof via /api/search, which verifies the proof
   // is retrievable before handing back a link, then navigate. Searching by
   // BitGraph number was removed; see the endpoint for why it can never work.
@@ -423,14 +430,14 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
      so. And when there is no declaration at all (the live feed, a day not yet
      archived) it claims nothing, because a client must not invent a
      declaration that was never made. */
-  const visible = showAnchors ? entries : entries.filter((e) => e.type === "proof");
+  const visible = anchorsOnly ? entries.filter((e) => e.type !== "proof") : showAnchors ? entries : entries.filter((e) => e.type === "proof");
   const shown = visible.length;
   // A day declaring zero rows is a real declaration, but the empty-state message
   // below already says so in words, so the tail treats it as nothing to report
   // rather than printing "All 0".
   const declared = total != null && total > 0 ? total : null;
   const claim = endOfDayClaim(shown, declared, hasMore);
-  const noun = showAnchors ? "entries" : "recordings";
+  const noun = anchorsOnly ? "anchors" : showAnchors ? "entries" : "recordings";
 
   return (
     <div>
@@ -469,7 +476,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>{subnav}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#4b5563", cursor: "pointer", userSelect: "none", flexShrink: 0, whiteSpace: "nowrap" }}>
+            {!anchorsOnly && <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#4b5563", cursor: "pointer", userSelect: "none", flexShrink: 0, whiteSpace: "nowrap" }}>
               <input
                 type="checkbox"
                 checked={showAnchors}
@@ -477,7 +484,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
                 style={{ accentColor: "#0065A4", width: 13, height: 13 }}
               />
               Show anchors
-            </label>
+            </label>}
             {aside}
           </div>
         </div>
@@ -497,7 +504,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
           site, retired 2026-08-06 with Mike's sign-off ("search bar full
           width though with that change inside and to the right"). The form
           owns the border; the input is borderless within it. */}
-      <form
+      {!anchorsOnly && <form
         onSubmit={runSearch}
         style={{
           display: "flex", alignItems: "center", marginBottom: searchError ? 6 : 12,
@@ -526,7 +533,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
         >
           {searching ? "Searching…" : <>Search <span className="arrow" aria-hidden>&rarr;</span></>}
         </button>
-      </form>
+      </form>}
       {searchError && (
         <div style={{ marginBottom: 12, fontSize: 13, color: "#dc2626" }}>{searchError}</div>
       )}
@@ -570,8 +577,40 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
           // ?counter=&epoch= pin the drill-in to THIS row's causal position;
           // the same bytes can occupy several (BitGraphed more than once), and
           // counters repeat across epochs.
+          const proofHref = `/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}${e.ep ? `&epoch=${encodeURIComponent(e.ep)}` : ""}`;
+          if (anchorsOnly) {
+            /* Two destinations, so the row is a div holding two links rather
+               than one link with a link inside it: the position opens its
+               proof; the block opens Etherscan, where the hash is matched. */
+            return (
+              <div key={rowId(e)} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
+                <a href={proofHref} style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono, textDecoration: "none" }}>
+                  #{fmt(e.counter)}
+                </a>
+                <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
+                  {tagLabel}
+                </span>
+                {e.etherscanUrl && (
+                  <a href={e.etherscanUrl} target="_blank" rel="noopener" style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                    {e.blockNumber != null ? `block ${fmt(e.blockNumber)}` : "block"} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
+                  </a>
+                )}
+                {e.blockHash && (
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#6b7280", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={e.blockHash}>
+                    {e.blockHash}
+                  </span>
+                )}
+                <span style={{ flex: e.blockHash ? "0 0 auto" : 1, minWidth: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                  {fmtWhen(e.at)}
+                </span>
+                <a href={proofHref} className="xp-open" aria-label="Open" style={{ display: "inline-flex", flexShrink: 0 }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
+                </a>
+              </div>
+            );
+          }
           return (
-            <a key={rowId(e)} href={`/proof/${e.digest}?counter=${encodeURIComponent(e.counter)}${e.ep ? `&epoch=${encodeURIComponent(e.ep)}` : ""}`} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
+            <a key={rowId(e)} href={proofHref} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>
                 #{fmt(e.counter)}
               </span>
@@ -597,7 +636,7 @@ export function Explorer({ title, day, aside, subnav, initial }: { title?: React
 
         {!loading && !error && day && shown === 0 && !hasMore && (
           <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
-            {showAnchors ? "No recordings on this day." : "No files recorded on this day."}
+            {anchorsOnly ? "No anchors on this day." : showAnchors ? "No recordings on this day." : "No files recorded on this day."}
           </div>
         )}
         {!loading && !error && (

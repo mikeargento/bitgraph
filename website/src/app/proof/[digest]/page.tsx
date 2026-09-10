@@ -1299,6 +1299,21 @@ export default function ProofPage() {
               proofs, titled to match. */}
           {isEth && attr?.title && (
             <>
+            {/* The way back to the list this anchor was opened from (Mike,
+                2026-09-09: "no way back from the proof page"). A past UTC day
+                links to that day's page, where this row is; today links to the
+                live list. The docs' own back-link idiom, nothing new. */}
+            {(() => {
+              const bt = anchorBlock?.blockTime;
+              const day = bt ? new Date(bt).toISOString().slice(0, 10) : null;
+              const today = new Date().toISOString().slice(0, 10);
+              const href = day && day < today ? `/ledger?day=${day}` : "/ledger";
+              return (
+                <a href={href} className="bg-action-link back" style={{ padding: "0 0 18px" }}>
+                  <span className="arrow" aria-hidden>&larr;</span> Ethereum anchors
+                </a>
+              );
+            })()}
             {/* The one title size every page header uses. */}
             <div className="bg-page-title" style={{ marginBottom: 10 }}>
               BitGraphed Ethereum Block
