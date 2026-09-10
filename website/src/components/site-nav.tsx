@@ -219,10 +219,9 @@ export function SiteNav() {
                 fontFamily: "inherit", letterSpacing: "inherit", cursor: "pointer",
               }}
             >
-              {/* "Documentation", not "Docs" (Mike, 2026-09-09: "documentation
-                  instead of docs?"): the site is a manual for software with a
-                  spec under it, and Docs is the developer's shorthand. */}
-              Documentation
+              {/* "Docs". It read "Documentation" for one push on 2026-09-09
+                  and Mike took it back the same minute ("oh but just docs"). */}
+              Docs
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                 style={{ transform: docsOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }}>
@@ -255,7 +254,7 @@ export function SiteNav() {
         <div
           ref={panelRef}
           role="menu"
-          aria-label="Documentation sections"
+          aria-label="Docs sections"
           style={{
             // A strip under the bar, the bar's own width, flush with its
             // hairline: the sections sit in the reading column inside it. The
