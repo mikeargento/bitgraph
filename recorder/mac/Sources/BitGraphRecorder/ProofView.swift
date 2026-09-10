@@ -1,7 +1,6 @@
 // Copyright (c) Mike Argento. All rights reserved. See LICENSE.
 
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 /// A BitGraph, in full, laid out for the person who made it.
@@ -66,10 +65,6 @@ struct ProofView: View {
     }
 
     /// A recording of several files previews nothing until one is picked.
-    private var shownIsMovie: Bool {
-        UTType(filenameExtension: (shownPath as NSString).pathExtension)?.conforms(to: .movie) ?? false
-    }
-
     private var hasChosenFile: Bool {
         page.subject.chosenFile || (page.described.members?.count ?? 0) <= 1
     }
@@ -116,14 +111,11 @@ struct ProofView: View {
                 /* Tonal from the start, the colour it used to take on hover only. */
                 Pill(title: "Back", style: .tonal, icon: "arrow.left") { state.back() }
                 Spacer(minLength: 16)
-                /* The file opens from where the actions are (Mike, 2026-09-10:
-                 * a click on the card "is not obvious enough … maybe just a
-                 * button?"). Play for a movie, Open for the rest; only when
-                 * the page is about one file. */
-                if hasChosenFile {
-                    Pill(title: shownIsMovie ? "Play" : "Open", style: .outlined, icon: shownIsMovie ? "play.fill" : "arrow.up.forward.square", enabled: !shownPath.isEmpty) { AppState.openFile(shownPath) }
-                        .fixedSize()
-                }
+                /* ❌ No Open pill here. One stood before Show in Finder for
+                 * 0.1.5 (2026-09-10) and Mike cut it the same hour: "only
+                 * the small hover open button is needed. remove the big
+                 * one." The card opens on click and says so under the
+                 * pointer (Subject.swift); the bar keeps to Finder + Export. */
                 Pill(title: "Show in Finder", style: .outlined, icon: "folder", enabled: !shownPath.isEmpty) { state.revealFile(revealPath) }
                     .fixedSize()
                 Pill(title: state.exporting ? "Writing…" : "Export BitGraph", style: .filled, icon: "square.and.arrow.up", enabled: !state.exporting) {
