@@ -26,7 +26,7 @@ export default function RecorderPage() {
   return (
     <article className="prose-doc">
       <h1 className="mb-6">BitGraph Recorder</h1>
-      <p className="text-[#1f2937] mb-6">
+      <p className="text-[#1f2937] mb-10">
         A macOS app. Drop files or a folder on it and each drop becomes a <strong>recording</strong>: one self-contained folder holding the files, the proof, and the Ethereum anchors. Hand somebody the folder and they have the whole BitGraph.
       </p>
 
@@ -36,7 +36,7 @@ export default function RecorderPage() {
           for a day (2026-09-09/10) and Mike asked for the site's own link:
           "match the other links on the website but just be a bigger font". */}
       {DOWNLOAD_URL !== null ? (
-        <p className="mb-10" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+        <p className="mb-10" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10 }}>
           <a className="bg-action-link bg-download-link" href={DOWNLOAD_URL}>Download for Mac <span className="arrow" aria-hidden="true">→</span></a>
           {/* The version comes from the feed the release script wrote, the
               same file the app reads, so this line and the app can never
@@ -46,7 +46,7 @@ export default function RecorderPage() {
           <span className="text-[#4b5563]" style={{ fontSize: 14 }}>Version {feed.version}. macOS 14 or later, Apple silicon. <a href="https://github.com/mikeargento/bitgraph/releases/latest" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>Release notes and checksum</a></span>
         </p>
       ) : (
-        <p className="mb-10" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+        <p className="mb-10" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10 }}>
           <button className="bg-action-link bg-download-link" type="button" disabled aria-describedby="recorder-soon">
             Download for Mac <span className="arrow" aria-hidden="true">→</span>
           </button>
