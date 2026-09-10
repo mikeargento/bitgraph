@@ -301,6 +301,11 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .overview h1 {
   margin-top: 0;
   margin-bottom: 1.25rem;
+  /* Two even lines rather than a long line stranding "a" over "verifiable
+     order" (measured at the 800px column, 2026-09-09; Mike: "is that good
+     enough?"). The nbsp in the page keeps the last two words together as
+     the belt under this. */
+  text-wrap: balance;
 }
 
 .overview h2 {
