@@ -1,6 +1,6 @@
 {
   "name": "@bitgraph/recorder-core",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "BitGraph Recorder: the Node core. Hashing, making, writing beside the file, anchors, checking.",
   "license": "SEE LICENSE IN ../../LICENSE",
