@@ -36,3 +36,4 @@ website/public/__dev/
 recorder/mac/.build/
 recorder/mac/build/
 recorder/mac/preview/
+recorder/mac/release/
