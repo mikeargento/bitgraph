@@ -11,7 +11,15 @@ import UniformTypeIdentifiers
 /// picture. The app has an advantage the browser never had, which is that the
 /// file is right there on disk and always will be.
 ///
-/// A file that is not an image says what it is instead. It never says nothing.
+/// A file that is not a picture is drawn the way Finder draws it (a movie's
+/// frame, a PDF's first page, a text file's first lines) and, when nothing
+/// can be drawn, says what it is instead. It never says nothing.
+///
+/// ⚠️ THE FILE OPENS. Mike, 2026-09-10, on a movie shown as an icon: "you
+/// should be able to 'open' and preview the actual file youre looking at".
+/// A click opens it in its own app, the hard link inside the recording, so
+/// the folder it came from is never touched. Finder's pattern: a frame to
+/// look at, a click to play.
 struct SubjectView: View {
     let path: String
     let name: String
@@ -19,6 +27,7 @@ struct SubjectView: View {
 
     @State private var image: NSImage?
     @State private var missing = false
+    @State private var hovering = false
 
     var body: some View {
         Group {
@@ -30,17 +39,32 @@ struct SubjectView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: .infinity, maxHeight: 380)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay { if isMovie { playBadge } }
                     .padding(16)
                     .frame(maxWidth: .infinity)
-                    .background(Color(white: 0.98))
+                    .background(hovering ? G.hover : Color(white: 0.98))
             } else {
                 fileCard
             }
         }
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 && !missing }
+        .onTapGesture { open() }
+        .help(missing ? "" : "Open")
         .task(id: path) { await load() }
     }
 
-    /// What a non-image, or a file that has moved, gets instead.
+    /// A movie's frame is a picture until something says it plays.
+    private var playBadge: some View {
+        Image(systemName: "play.fill")
+            .font(.system(size: 22, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(18)
+            .background(Circle().fill(Color.black.opacity(0.55)))
+            .allowsHitTesting(false)
+    }
+
+    /// What a file nothing can draw, or a file that has moved, gets instead.
     private var fileCard: some View {
         HStack(spacing: 12) {
             Image(nsImage: NSWorkspace.shared.icon(forFile: path))
@@ -62,14 +86,24 @@ struct SubjectView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
+        .background(hovering ? G.hover : Color.clear)
     }
 
-    private var kind: String? {
-        UTType(filenameExtension: (name as NSString).pathExtension)?.localizedDescription
+    private var type: UTType? { UTType(filenameExtension: (name as NSString).pathExtension) }
+    private var kind: String? { type?.localizedDescription }
+    private var isMovie: Bool { type?.conforms(to: .movie) ?? false }
+
+    /// The file, in the app the Mac would open it with. Never the origin: the
+    /// path is the recording's own hard link.
+    private func open() {
+        guard !missing else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
 
     /// ⚠️ Read off the main thread and downscaled. A 60 MP raw decoded at full
     /// size on the main thread stalls the window for as long as it takes.
+    /// A picture is read by ImageIO; anything else goes to Quick Look, the same
+    /// path the tiles take, at the card's size.
     private func load() async {
         image = nil
         missing = !FileManager.default.fileExists(atPath: path)
@@ -86,6 +120,7 @@ struct SubjectView: View {
             guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
             return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
         }.value
-        image = loaded
+        if let loaded { image = loaded; return }
+        image = await Thumbnails.quickLook(path: path, side: 700)
     }
 }
