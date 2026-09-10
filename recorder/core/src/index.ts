@@ -46,6 +46,7 @@ export type { Settings, WatchedFolder } from "./settings.js";
 
 export { supportDir, settingsPath, rescueDir, logPath, APP_NAME } from "./app-paths.js";
 export { BLOCKED_PREFIX, BLOCKED_HOW, isBlocked, blockedMessage, explain } from "./blocked.js";
+export { DEFAULT_UPDATE_FEED, compareVersions, parseFeed, checkForUpdate, type UpdateCheck, type UpdateFeed } from "./update.js";
 export { rescue, RESCUE_VERSION } from "./rescue.js";
 export type { RescueFile } from "./rescue.js";
 

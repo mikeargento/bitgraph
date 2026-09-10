@@ -73,5 +73,27 @@ hdiutil detach "$mnt" -quiet
 rmdir "$mnt"
 say "  ok   the DMG holds BitGraph Recorder $version, notarized, ticket stapled"
 
-shasum -a 256 "$dmg" | tee "$dmg.sha256"
+sha="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+printf '%s  %s\n' "$sha" "$(basename "$dmg")" | tee "$dmg.sha256"
 say "$dmg  ($(du -h "$dmg" | cut -f1))"
+
+# ── 6. the update feed, from the artifact just checked ──────────────────────
+# The app reads website/public/recorder/latest.json (served at
+# bitgraph.ing/recorder/latest.json) and is TOLD a newer version exists; it
+# never installs one. Version, URL and checksum come from THIS run, so the feed
+# cannot name a build that was not checked. ⚠️ The site commits and pushes it;
+# the release is not announced until that push. And the GitHub Release must
+# exist first, since the URL below is its permanent latest-asset address.
+feed="$here/../../website/public/recorder/latest.json"
+cat > "$feed" <<JSON
+{
+  "version": "$version",
+  "url": "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraph-Recorder.dmg",
+  "notes": "https://github.com/mikeargento/bitgraph/releases/tag/recorder-v$version",
+  "sha256": "$sha",
+  "minimumSystemVersion": "14.0",
+  "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+JSON
+say "  ok   wrote $feed (commit and push the site to announce $version)"
+say "next: gh release create recorder-v$version \"$dmg\" \"$dmg.sha256\" --title \"BitGraph Recorder $version\""

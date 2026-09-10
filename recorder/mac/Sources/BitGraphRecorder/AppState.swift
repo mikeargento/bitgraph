@@ -61,7 +61,14 @@ final class AppState: ObservableObject {
     var proofReload: Task<Void, Never>?
     /// What the snackbar says, when it says anything.
     @Published var toast: String?
+    /// A label and an act beside the snackbar's OK, when one applies.
+    @Published var toastAction: (String, () -> Void)?
     var toastTask: Task<Void, Never>?
+    /// The newest check of the update feed, once the core has answered.
+    @Published var update: UpdateCheck?
+
+    /// The app's own version, from the bundle build.sh stamped.
+    static let version: String = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.0.0"
     @Published var dropping: Bool = false {
         didSet { dropStarted = dropping ? Date() : nil }
     }
@@ -455,7 +462,10 @@ final class AppState: ObservableObject {
     private func handle(_ event: DaemonEvent) {
         switch event {
         case .ready:
-            Task { await refresh() }
+            Task { await refresh(); await checkForUpdate() }
+        case .update(let check):
+            /* The core's daily check found something newer. */
+            offer(check)
         case .settling(let root, let files):
             activity = "\(name(root)): looking at \(files) file\(files == 1 ? "" : "s")…"
         case .making(let root, let files, let progress):
@@ -511,8 +521,35 @@ final class AppState: ObservableObject {
     /// ten-file drop's commit threw, the dialog closed, and "it didnt do a
     /// thing": the reason had gone to the menu bar popover alone. Calendar's
     /// snackbar, at the bottom of the window, for ten seconds or a click.
-    func say(_ text: String) {
+    /// Ask the core once, on launch, with the app's own version. A feed that
+    /// cannot be reached is not news: the daily check will say.
+    func checkForUpdate() async {
+        do {
+            let check = try await client.send("update", ["current": AppState.version], as: UpdateCheck.self)
+            offer(check)
+        } catch {
+            /* Quiet. Nothing on screen depends on this answer. */
+        }
+    }
+
+    /// Show what the check found. Only a NEWER version is said out loud, and
+    /// only once per version, so the same news does not land every day.
+    private func offer(_ check: UpdateCheck) {
+        update = check
+        guard check.available, check.latest != offeredVersion else { return }
+        offeredVersion = check.latest
+        say("BitGraph Recorder \(check.latest) is available.", action: ("Download", { AppState.open(check.url) }))
+    }
+    private var offeredVersion = ""
+
+    static func open(_ url: String) {
+        guard let u = URL(string: url), u.scheme == "https" else { return }
+        NSWorkspace.shared.open(u)
+    }
+
+    func say(_ text: String, action: (String, () -> Void)? = nil) {
         toast = text
+        toastAction = action
         toastTask?.cancel()
         toastTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(10))
@@ -536,6 +573,7 @@ final class AppState: ObservableObject {
     func dismissToast() {
         toastTask?.cancel()
         toast = nil
+        toastAction = nil
     }
 
     static func today() -> String {

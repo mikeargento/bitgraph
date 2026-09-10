@@ -111,6 +111,25 @@ struct MenuView: View {
             /* ⚠️ ONE WAY IN. "this is crowded and perhaps too much going on"
              * (Mike, 2026-09-09): the window has the actions. */
             Pill(title: "Open BitGraph Recorder", style: .filled, icon: "macwindow") { state.openBox() }
+            /* The version, always; and the newer one, when the feed has one,
+             * with the one act that belongs to it. The app is told, it does
+             * not install: the link is the notarized DMG, checked by
+             * Gatekeeper like any download. */
+            HStack(spacing: 8) {
+                Text("Version \(AppState.version)")
+                    .font(Style.small)
+                    .foregroundStyle(Style.quiet)
+                if let u = state.update, u.available {
+                    Text("· \(u.latest) is available")
+                        .font(Style.small)
+                        .foregroundStyle(Style.ink)
+                    Spacer()
+                    Pill(title: "Download", style: .text) { AppState.open(u.url) }
+                } else {
+                    Spacer()
+                }
+            }
+            .padding(.top, 8)
             HStack {
                 Toggle(isOn: Binding(get: { state.openAtLogin }, set: { state.setOpenAtLogin($0) })) {
                     Text("Open at login").font(Style.small).foregroundStyle(Style.quiet)

@@ -52,7 +52,7 @@ struct MainWindow: View {
             }
 
             if let toast = state.toast {
-                Snackbar(text: toast, action: Blocked.isBlock(toast) ? ("Open Settings", { AppState.openPrivacySettings() }) : nil) { state.dismissToast() }
+                Snackbar(text: toast, action: state.toastAction ?? (Blocked.isBlock(toast) ? ("Open Settings", { AppState.openPrivacySettings() }) : nil)) { state.dismissToast() }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .padding(24)
                     .transition(.move(edge: .bottom).combined(with: .opacity))

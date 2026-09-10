@@ -14,6 +14,7 @@ import { dirname, join } from "node:path";
 import { writeJsonAtomic } from "./evidence.js";
 import { settingsPath, formerSettingsPath } from "./app-paths.js";
 import { defaultHome, recordingsIn, FOLDER_NAME } from "./bundle.js";
+import { DEFAULT_UPDATE_FEED } from "./update.js";
 
 export const SETTINGS_VERSION = "bitgraph-folder-settings/1";
 
@@ -87,6 +88,8 @@ export interface Settings {
    * and never as verified.
    */
   alsoKnownEnclaves: Array<{ pcr0: string; label: string }>;
+  /** Where the app asks whether a newer version exists. Empty turns the check off. */
+  updateFeed: string;
 }
 
 export function defaultSettings(): Settings {
@@ -105,6 +108,7 @@ export function defaultSettings(): Settings {
      * The pass backs off on its own when everything is settled. */
     anchorIntervalSeconds: 60,
     alsoKnownEnclaves: [],
+    updateFeed: DEFAULT_UPDATE_FEED,
   };
 }
 
@@ -185,6 +189,9 @@ export async function loadSettings(path = settingsPath()): Promise<Settings> {
     alsoKnownEnclaves: Array.isArray(s.alsoKnownEnclaves)
       ? s.alsoKnownEnclaves.filter((m) => typeof m?.pcr0 === "string" && typeof m?.label === "string")
       : d.alsoKnownEnclaves,
+    /* A string, even empty: empty is how the check is turned off. Absent
+     * (a settings file from before the channel) means the default feed. */
+    updateFeed: typeof s.updateFeed === "string" ? s.updateFeed : d.updateFeed,
   };
 }
 

@@ -26,6 +26,7 @@
 import { createInterface } from "node:readline";
 import { mkdir, readdir, stat } from "node:fs/promises";
 import { explain, isBlocked } from "./blocked.js";
+import { checkForUpdate, type UpdateCheck } from "./update.js";
 import { completeLibrary, type AnchorPass } from "./anchors.js";
 import { checkFolder, type FolderReport } from "./check.js";
 import { makeFiles, makeScanned, type MakeResult, type SkippedFile, type MakeProgress } from "./make.js";
@@ -43,7 +44,8 @@ import { ledger, listDay, type DayCount, type Recording } from "./library.js";
 
 export interface DaemonEvent {
   event: WatchEvent | { kind: "anchors"; root: string; pass: AnchorPass } | { kind: "settings"; settings: Settings } | { kind: "ready"; supportDir: string }
-    | { kind: "checking"; root: string; progress: { done: number; total: number } };
+    | { kind: "checking"; root: string; progress: { done: number; total: number } }
+    | { kind: "update"; update: UpdateCheck };
 }
 
 interface Request {
@@ -65,6 +67,8 @@ interface Request {
   paused?: boolean;
   /** `recordings`: the day to drill out, `2026-09-09`. */
   day?: string;
+  /** `update`: the app's own version, `0.1.0`. */
+  current?: string;
 }
 
 /**
@@ -186,6 +190,8 @@ export class Daemon {
     switch (req.op) {
       case "status":
         return this.status();
+      case "update":
+        return this.update(typeof req.current === "string" ? req.current : "");
       case "settings":
         return this.settings;
       case "ledger":
@@ -511,6 +517,42 @@ export class Daemon {
     return pass;
   }
 
+  // ── the update channel ──────────────────────────────────────────────────
+
+  /** The app's version, once it has said. Nothing is checked before it does. */
+  private appVersion = "";
+  private updateTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * Whether a newer app exists. Asked by the app on launch with its own
+   * version; after that, once a day, and the answer goes out as an event.
+   * A feed that cannot be reached or read is a thrown gap, never "current".
+   */
+  private async update(current: string): Promise<UpdateCheck> {
+    if (current === "") throw new Error("update needs the app's version, 0.1.0");
+    const feedUrl = this.settings.updateFeed ?? "";
+    if (feedUrl === "") throw new Error("the update check is turned off in settings.");
+    const first = this.appVersion === "";
+    this.appVersion = current;
+    if (first) this.scheduleUpdateCheck();
+    return checkForUpdate({ current, feedUrl });
+  }
+
+  private scheduleUpdateCheck(): void {
+    if (this.stopped) return;
+    this.updateTimer = setTimeout(() => {
+      void (async () => {
+        try {
+          const check = await this.update(this.appVersion);
+          if (check.available) this.emit({ kind: "update", update: check });
+        } catch {
+          /* A daily check that fails is not news. The next one will say. */
+        }
+      })().finally(() => this.scheduleUpdateCheck());
+    }, 24 * 60 * 60 * 1000);
+    this.updateTimer.unref?.();
+  }
+
   // ── the anchor loop ─────────────────────────────────────────────────────
 
   private scheduleAnchors(): void {
@@ -659,6 +701,7 @@ export class Daemon {
     if (this.stopped) return;
     this.stopped = true;
     if (this.anchorTimer !== null) clearTimeout(this.anchorTimer);
+    if (this.updateTimer !== null) clearTimeout(this.updateTimer);
     for (const w of this.watchers.values()) w.close();
     this.watchers.clear();
   }

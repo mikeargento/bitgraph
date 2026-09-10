@@ -305,8 +305,23 @@ enum TroubleSeverity: String, Decodable {
 }
 
 /// One line the core sent that was not an answer to anything.
+/// What the update feed said, checked by the core. The app is TOLD; it never
+/// installs. `url` is the notarized DMG, opened in the browser on the person's
+/// click, where Gatekeeper checks it like any download.
+struct UpdateCheck: Decodable, Equatable {
+    var current: String
+    var latest: String
+    var available: Bool
+    var url: String
+    var notes: String
+    var sha256: String
+    var checkedAt: String
+}
+
 enum DaemonEvent: Equatable {
     case ready(supportDir: String)
+    /// The daily check found something newer.
+    case update(UpdateCheck)
     case watching(root: String)
     case settling(root: String, files: Int)
     case making(root: String, files: Int, progress: MakeProgress?)
@@ -324,7 +339,7 @@ enum DaemonEvent: Equatable {
         case .watching(let r), .settling(let r, _), .making(let r, _, _), .checking(let r, _, _), .made(let r, _),
              .skipped(let r, _), .anchors(let r, _), .idle(let r), .trouble(let r, _, _, _):
             return r
-        case .ready, .settingsChanged, .unknown:
+        case .ready, .update, .settingsChanged, .unknown:
             return nil
         }
     }
@@ -332,7 +347,7 @@ enum DaemonEvent: Equatable {
 
 extension DaemonEvent: Decodable {
     private enum Keys: String, CodingKey {
-        case kind, root, files, progress, result, pass, reason, recoverable, supportDir, severity
+        case kind, root, files, progress, result, pass, reason, recoverable, supportDir, severity, update
     }
 
     init(from decoder: Decoder) throws {
@@ -373,6 +388,8 @@ extension DaemonEvent: Decodable {
                  * real problem gets shown in grey. */
                 severity: (try? c.decodeIfPresent(TroubleSeverity.self, forKey: .severity)) as? TroubleSeverity ?? .fault
             )
+        case "update":
+            self = .update(try c.decode(UpdateCheck.self, forKey: .update))
         case "settings":
             self = .settingsChanged
         default:
