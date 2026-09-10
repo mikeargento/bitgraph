@@ -66,7 +66,7 @@ export default function OverviewPage() {
           REASON with, not copy to ship. Do not put it back. See
           reference_clock_definition for the rejected list. */}
       <h1 style={{ margin: "0 0 24px" }}>
-        A recorder that gives every AI agent action (any bits) a verifiable order
+        A recorder that gives every AI agent action a verifiable order
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just
