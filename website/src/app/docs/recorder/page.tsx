@@ -35,7 +35,7 @@ export default function RecorderPage() {
           <button className="bg-action-link" type="button" disabled aria-describedby="recorder-soon">
             Download for Mac <span className="arrow" aria-hidden="true">&rarr;</span>
           </button>
-          <span id="recorder-soon" className="text-[#4b5563]" style={{ fontSize: 14 }}>Coming soon. macOS 14 or later.</span>
+          <span id="recorder-soon" className="text-[#4b5563]" style={{ fontSize: 14 }}>Coming soon. macOS 14 or later, Apple silicon.</span>
         </p>
       )}
 
@@ -50,7 +50,7 @@ export default function RecorderPage() {
 BitGraph (Photos 2026, 412 files)/
   ...the tree, mirrored...
   proof.json
-  manifest.json           the committed artifact
+  manifest.json           the set's manifest
   members.jsonl           every member's row and inclusion path`}</pre>
       </div>
       <p className="text-[#1f2937] mb-8">
@@ -62,8 +62,16 @@ BitGraph (Photos 2026, 412 files)/
         <li><strong>It never writes into your folders.</strong> The folder you dragged out of is left exactly as it was.</li>
         <li><strong>It never moves or copies your files.</strong> On the same volume a recording&rsquo;s files are hard links: one copy of the bytes, two names. Across volumes it copies, and the recording says which it did.</li>
         <li><strong>It never writes the fused bytes.</strong> They are virtual, rebuilt from the original and the proof when you export, and refused if they do not match what was committed.</li>
-        <li><strong>No login, no account, no upload.</strong> Files are hashed on your Mac. Two HTTPS calls leave the machine and neither carries file content.</li>
+        <li><strong>No login, no account, no upload.</strong> Files are hashed on your Mac. Two HTTPS calls leave the machine, and neither carries your file: digests, sizes, a file&rsquo;s first bytes for the placement choice, the slot record and the placement id.</li>
       </ul>
+
+      <h2 className="text-xl font-semibold mt-12 mb-4">Setting up</h2>
+      <p className="text-[#1f2937] mb-4">
+        The first run asks one thing: what to call your BitGraph folder and where it lives. <code>~/BitGraph</code> is offered. Put it on the Desktop or in Documents and macOS asks once whether the app may use that folder; the app cannot record until it is allowed. An existing folder is continued, never replaced.
+      </p>
+      <p className="text-[#1f2937] mb-8">
+        The app lives in the menu bar and opens one window. Move or rename the folder later and the app says so and asks where it went; <strong>Change folder&hellip;</strong> does the same on purpose. Pointing at a folder that already has recordings in it carries on with everything in it.
+      </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">The gesture</h2>
       <ul>
@@ -71,8 +79,16 @@ BitGraph (Photos 2026, 412 files)/
         <li><strong>One file already on record</strong> opens its BitGraph instead.</li>
         <li><strong>Two or more</strong> are listed first, then made as one BitGraph at one position, each file a member. Only a batch gets asked.</li>
       </ul>
+      <p className="text-[#1f2937] mb-4">
+        Two files with the same bytes in one drop are one member: the record is by content, and the second name is covered by the first. Your BitGraph folder itself can never be dropped, and a drop of the folder above it walks around it.
+      </p>
       <p className="text-[#1f2937] mb-8">
-        The window has two sections. <strong>Record</strong> is where things are recorded and checked. <strong>Calendar</strong> is the library: the month&rsquo;s days, each a row saying how many recordings it holds, and a day opens to its recordings.
+        The window has two sections. <strong>Record</strong> is where things are recorded and checked; <strong>New</strong> holds the two ways in that are not a drag, <strong>Record a BitGraph&hellip;</strong> and <strong>Check a folder&hellip;</strong>. <strong>Calendar</strong> is the library: the month&rsquo;s days, each a row saying how many recordings it holds, and a day opens to its recordings. A recording opens to its proof, read off the disk.
+      </p>
+
+      <h2 className="text-xl font-semibold mt-12 mb-4">Export</h2>
+      <p className="text-[#1f2937] mb-8">
+        <strong>Export BitGraph</strong> on a recording&rsquo;s page writes a folder to hand to somebody: the original exactly as it is, <code>proof.json</code>, the new fused file rebuilt from the two and checked against the committed digest on the way out, and the Ethereum anchors that have landed. It carries everything a check needs.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">The reader</h2>
