@@ -30,21 +30,25 @@ export default function RecorderPage() {
         A macOS app. Drop files or a folder on it and each drop becomes a <strong>recording</strong>: one self-contained folder holding the files, the proof, and the Ethereum anchors. Hand somebody the folder and they have the whole BitGraph.
       </p>
 
-      {/* The app's own pill (.bg-download-pill in globals.css), the one
-          rounded filled button on the site: the download looks like the
-          app it delivers. */}
+      {/* The site's action link (.bg-action-link) on the h2 scale
+          (.bg-download-link in globals.css): the download reads like every
+          other link on the site, only bigger. It was the app's filled pill
+          for a day (2026-09-09/10) and Mike asked for the site's own link:
+          "match the other links on the website but just be a bigger font". */}
       {DOWNLOAD_URL !== null ? (
-        <p className="mb-10" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          <a className="bg-download-pill" href={DOWNLOAD_URL}>Download for Mac</a>
+        <p className="mb-10" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+          <a className="bg-action-link bg-download-link" href={DOWNLOAD_URL}>Download for Mac <span className="arrow" aria-hidden="true">→</span></a>
           {/* The version comes from the feed the release script wrote, the
               same file the app reads, so this line and the app can never
-              disagree. The button's label never changes. */}
+              disagree. The link's label never changes. Its own line at every
+              width (Mike, 2026-09-10: "this should be next line under even
+              on desktop"). */}
           <span className="text-[#4b5563]" style={{ fontSize: 14 }}>Version {feed.version}. macOS 14 or later, Apple silicon. <a href="https://github.com/mikeargento/bitgraph/releases/latest" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>Release notes and checksum</a></span>
         </p>
       ) : (
-        <p className="mb-10" style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          <button className="bg-download-pill" type="button" disabled aria-describedby="recorder-soon">
-            Download for Mac
+        <p className="mb-10" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+          <button className="bg-action-link bg-download-link" type="button" disabled aria-describedby="recorder-soon">
+            Download for Mac <span className="arrow" aria-hidden="true">→</span>
           </button>
           <span id="recorder-soon" className="text-[#4b5563]" style={{ fontSize: 14 }}>Coming soon. macOS 14 or later, Apple silicon.</span>
         </p>
@@ -93,7 +97,7 @@ BitGraph (Photos 2026, 412 files)/
 
       <h2 className="text-xl font-semibold mt-12 mb-4">The gesture</h2>
       <ul>
-        <li><strong>One new file</strong> is recorded on landing. The drop is the shutter.</li>
+        <li><strong>One new file</strong> is recorded on landing.</li>
         <li><strong>One file already on record</strong> opens its BitGraph instead.</li>
         <li><strong>Two or more</strong> are listed first, then made as one BitGraph at one position, each file a member. Only a batch gets asked.</li>
       </ul>

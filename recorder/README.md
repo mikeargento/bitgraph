@@ -53,7 +53,7 @@ carries on with everything in it.
 
 ## The gesture
 
-- **One new file**: recorded on landing. The drop is the shutter.
+- **One new file**: recorded on landing.
 - **One file already on record**: opens its BitGraph instead.
 - **Two or more**: listed first, then made as ONE BitGraph at ONE position,
   each file a member. Only a batch gets asked.
