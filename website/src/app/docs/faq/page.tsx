@@ -9,27 +9,27 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "Does BitGraph upload my file?",
-    a: "No. Your file is hashed in your browser or application, and when the site builds a fused artifact from it, that happens in the browser too. Only SHA-256 digests (32 bytes each) reach the enclave. The file bytes never leave your machine, and the original is never modified.",
+    a: "No. Your file is hashed on your own machine, by BitGraph Recorder, the MCP server or your own code, and the fused artifact is built there too. Only SHA-256 digests (32 bytes each) reach the enclave. The file bytes never leave your machine, and the original is never modified.",
   },
   {
-    q: "What happens when I drop a file?",
-    a: "The dropped file is the origin. In your browser: the origin is hashed; the enclave allocates an unused slot before any artifact exists; a commitment to the signed slot record is derived; a new fused artifact is built from the origin under a registered placement; the fused artifact is hashed and its digest is committed into the same slot. The result is an ordinary `bitgraph/1` proof whose signed attribution names the placement and the origin digest under the profile identifier `bitgraph-fuse/1`. The origin is never modified and nothing is uploaded. The fused copy is offered as a download, but you only need to keep the origin: the origin plus the proof rebuilds the fused bytes byte for byte, and checking that reconstruction against the signed artifact digest is the evidence. The site's export holds the original, `proof.json`, the new file and the Ethereum anchors. Recording existing bytes as they are remains available through `POST /api/commit` and the site's hosted MCP endpoint, which only ever receives digests. The npm MCP server makes BitGraphs the default way.",
+    q: "What happens when I record a file?",
+    a: "The file is the origin. On your machine: the origin is hashed; the enclave allocates an unused slot before any artifact exists; a commitment to the signed slot record is derived; a new fused artifact is built from the origin under a registered placement; the fused artifact is hashed and its digest is committed into the same slot. The result is an ordinary `bitgraph/1` proof whose signed attribution names the placement and the origin digest under the profile identifier `bitgraph-fuse/1`. The origin is never modified and nothing is uploaded. The fused bytes are virtual: you only need to keep the origin, because the origin plus the proof rebuilds them byte for byte, and checking that reconstruction against the signed artifact digest is the evidence. In BitGraph Recorder a drop becomes a recording, one folder holding the file, `proof.json` and the Ethereum anchors as they land; its export writes the rebuilt file beside them. The MCP server and the two-call API do the same for your own tools, and only ever send digests.",
   },
   {
     q: "What does a fused artifact establish?",
-    a: "Two bounds on its bytes. They could not have been finalized before their slot was allocated, a lower bound tied to the anchored block before the slot, and they were committed no later than the commit position, an upper bound. By reconstruction, the original existed no later than the commit. None of this says when the content was created, whether it is authentic, or whether what it describes happened. A recording of existing bytes establishes only that those exact bytes existed no later than the commit. Existing proofs and older drops are not reinterpreted.",
+    a: "Two bounds on its bytes. They could not have been finalized before their slot was allocated, a lower bound tied to the anchored block before the slot, and they were committed no later than the commit position, an upper bound. By reconstruction, the original existed no later than the commit. None of this says when the content was created, whether it is authentic, or whether what it describes happened. A recording of existing bytes establishes only that those exact bytes existed no later than the commit. Existing proofs and older recordings are not reinterpreted.",
   },
   {
     q: "Where does the slot commitment go?",
     a: "A registered placement says where. For formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, and RIFF formats such as WebP) it is a 48-byte trailer (`trailer/1`). For everything else (PDF, ZIP-based documents, video, HEIC, text) it is a small tar container holding the unchanged file, original first (`container/2`; artifacts made under the older `container/1`, manifest first, stay readable). The proof names the placement. The Frame file `<name>.bitgraph-fuse.json` carries the placement, the origin digest, the artifact digest and the nested proof.",
   },
   {
-    q: "What do I find when I drop the original later?",
-    a: "Recordings of those exact bytes, and every fused artifact that names them as origin, listed by position and placement. They are never ranked or read as versions. Dropping a fused artifact finds its own proof; its page names the origin and accepts the original by reconstruction.",
+    q: "What happens when I drop the original again later?",
+    a: "In BitGraph Recorder a file already on record opens its recording instead of making a second one, and a folder somebody sends you checks on its own: verified, failed, could not be checked, or not recorded, per file. A fused artifact carries its own commitment, so it is checked directly; its proof names the origin and accepts the original by reconstruction. Recordings are never ranked or read as versions.",
   },
   {
-    q: "Can I make or check a fused artifact outside the browser?",
-    a: "Yes. `@mikeargento/bitgraph` 1.2.0 exposes `fuse()` and the `bitgraph-fuse` command (`fuse <file> --placement trailer/1|container/1|container/2`, `produce`, `check`). `@mikeargento/bitgraph-verify` 1.4.0 adds `verifyFuse`, which reports FUSED_DIRECT, FUSED_FROM_ORIGIN, RECORDED, INVALID_SLOT_COMMITMENT, RECONSTRUCTION_MISMATCH or NO_MATCH. `bitgraph-play check` in `@mikeargento/bitgraph-player` 0.8.1 prints a fused line with the floor and span; `bitgraph_check` in `@mikeargento/bitgraph-mcp` 0.1.2 reports `fused_descendants`; `@mikeargento/bitgraph-audit` 0.4.1 is the matching audit release.",
+    q: "Can I make or check a BitGraph without the app?",
+    a: "Yes. `@mikeargento/bitgraph` exposes `fuse()` and the `bitgraph-fuse` command (`fuse <file> --placement trailer/1|container/2`, `produce`, `check`). `@mikeargento/bitgraph-verify` exposes `verifyFuse`, which reports FUSED_DIRECT, FUSED_FROM_ORIGIN, RECORDED, INVALID_SLOT_COMMITMENT, RECONSTRUCTION_MISMATCH or NO_MATCH. `npx @mikeargento/bitgraph-audit` checks a whole bundle, anchors and attestation included, from a terminal. `@mikeargento/bitgraph-mcp` gives any MCP client the same making and checking.",
   },
   {
     q: "Can I verify a proof without an internet connection?",
@@ -65,7 +65,7 @@ const faqs = [
   },
   {
     q: "Can the same file produce different proofs?",
-    a: "Yes. Each commit generates a fresh nonce, increments the counter, and produces a new signature. The artifact digest will be the same (same file = same SHA-256), but the commit context differs. This is correct behavior. Each is a distinct commit event. Dropping the same original again makes a new fused artifact with a new slot commitment, so its bytes and digest differ from the first; both name the same origin, and the origin's page lists them by position without ranking.",
+    a: "Yes. Each commit generates a fresh nonce, increments the counter, and produces a new signature. The artifact digest will be the same (same file = same SHA-256), but the commit context differs. This is correct behavior. Each is a distinct commit event. Recording the same original again through the API or the MCP server makes a new fused artifact with a new slot commitment, so its bytes and digest differ from the first; both name the same origin, and neither outranks the other. BitGraph Recorder opens the existing recording for a file already on record rather than making a second one.",
   },
   {
     q: "What is `prevB64`?",
