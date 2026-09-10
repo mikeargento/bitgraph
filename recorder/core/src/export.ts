@@ -23,7 +23,7 @@
 import { createReadStream } from "node:fs";
 import { copyFile, mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fusedNamesFor } from "@mikeargento/bitgraph";
 import { bytesToBase64, computeSlotCommitment, getPlacement, type BitGraphProof } from "@mikeargento/bitgraph-verify";
 import { describe, type DescribeTarget } from "./inspect.js";
@@ -87,21 +87,34 @@ export async function exportBitGraph(root: string, target: DescribeTarget, fileP
       await record("manifest.json");
     }
 
-    // Whatever anchors the folder holds for this position, and the honesty
-    // file when a side is missing.
+    // Whatever anchors are held for this position, and the honesty file when
+    // a side is missing.
+    //
+    // ⚠️ A RECORDING KEEPS ITS ANCHORS IN ITS OWN FOLDER, beside proof.json.
+    // This read the old beside-the-file place only, so an export of a
+    // recording shipped without its anchors (Mike, 2026-09-10: "when i export
+    // proof it does not include eth anchors in package"), the same family as
+    // the check that said "anchors on the way" over anchors sitting right
+    // there. The recording's folder is asked first; the old place second.
     const positionDir = pathsFor(root).position(evidence.position.epochId, evidence.position.counter);
-    const anchors = await readdir(join(positionDir, ANCHOR_DIR)).catch(() => [] as string[]);
-    if (anchors.length > 0) {
+    const bundleDir = await recordingDirFor(target, described.filePath);
+    const anchorHomes = [...(bundleDir !== null ? [bundleDir] : []), positionDir];
+    for (const home of anchorHomes) {
+      const anchors = await readdir(join(home, ANCHOR_DIR)).catch(() => [] as string[]);
+      if (anchors.length === 0) continue;
       await mkdir(join(dir, ANCHOR_DIR), { recursive: true });
       for (const file of anchors) {
-        await copyFile(join(positionDir, ANCHOR_DIR, file), join(dir, ANCHOR_DIR, file));
+        await copyFile(join(home, ANCHOR_DIR, file), join(dir, ANCHOR_DIR, file));
         await record(`${ANCHOR_DIR}/${file}`);
       }
+      break;
     }
-    const status = await readFile(join(positionDir, "anchors-status.json")).catch(() => null);
-    if (status !== null) {
+    for (const home of anchorHomes) {
+      const status = await readFile(join(home, "anchors-status.json")).catch(() => null);
+      if (status === null) continue;
       await writeFile(join(dir, "anchors-status.json"), status);
       await record("anchors-status.json");
+      break;
     }
 
     // The new file, rebuilt now.
@@ -175,4 +188,23 @@ async function digestOf(path: string): Promise<Buffer> {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(path, { highWaterMark: 1 << 20 })) hash.update(chunk as Buffer);
   return hash.digest();
+}
+
+/**
+ * The recording folder this export is about, or null when the BitGraph is
+ * not a recording. A recording is named by its `proof.json`; a member of a
+ * big set is named by a digest and a position, and then the file's own path
+ * inside the recording leads up to the folder holding `proof.json`.
+ */
+async function recordingDirFor(target: DescribeTarget, filePath: string | null): Promise<string | null> {
+  if ("evidencePath" in target && target.evidencePath.endsWith("/proof.json")) return dirname(target.evidencePath);
+  if (filePath === null) return null;
+  let dir = dirname(filePath);
+  for (let up = 0; up < 8; up++) {
+    if (await stat(join(dir, "proof.json")).then((s) => s.isFile()).catch(() => false)) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
 }

@@ -90,6 +90,20 @@ try {
   ok("and a recording's own files are never counted as unrecorded",
     checkedRecording.counts.verified === 6 && checkedRecording.counts.unrecorded === 0, JSON.stringify(checkedRecording.counts));
 
+  // ── an export carries the recording's anchors ───────────────────────────
+  /* ⚠️ THE EXPORT READ THE OLD PLACE TOO: a recording's package shipped with
+   * no ethereum-anchors/ although the folder held them (Mike, 2026-09-10).
+   * Same fixtures, dropped into the lone recording, then exported. */
+  mkdirSync(join(dir, "ethereum-anchors"), { recursive: true });
+  copyFileSync(join(fixtures, "anchor.json"), join(dir, "ethereum-anchors", "anchor-before.json"));
+  copyFileSync(join(fixtures, "witness.json"), join(dir, "ethereum-anchors", "anchor-before-witness.json"));
+  const into = mkdtempSync(join(tmpdir(), "bg-export-"));
+  const exported = await daemon.handle({ id: 5, op: "export", root: library, evidence: join(dir, "proof.json"), file: one, into }) as any;
+  const shipped: string[] = exported.files ?? [];
+  ok("an export of a recording carries the recording's anchors",
+    shipped.includes("ethereum-anchors/anchor-before.json") && shipped.includes("ethereum-anchors/anchor-before-witness.json"), JSON.stringify(shipped));
+  ok("and the package on disk holds them", existsSync(join(exported.path, "ethereum-anchors", "anchor-before.json")), exported.path);
+
   // ── dedup is library-wide ───────────────────────────────────────────────
   const again = await daemon.handle({ id: 4, op: "drop", paths: [one] }) as any;
   ok("dropping it again opens the recording it already has", again.action === "open", again.action);
