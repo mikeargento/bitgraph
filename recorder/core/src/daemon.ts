@@ -34,7 +34,7 @@ import { scanDrop, lookAt, describe, type LookResult, type Described, isWithin }
 import { exportBitGraph, type ExportResult } from "./export.js";
 import type { ScannedFile } from "./hash.js";
 import { FolderIndex } from "./index-store.js";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { INDEX_FILE } from "./paths.js";
 import { loadSettings, saveSettings, suggestedFolder, MAX_RECORDED, type Settings, type WatchedFolder } from "./settings.js";
 import { FOLDER_NAME, recordingsIn } from "./bundle.js";
@@ -254,7 +254,15 @@ export class Daemon {
     if (chosen === "" || chosen === "." || chosen === ".." || /[\/\\:\x00-\x1f]/.test(chosen)) {
       throw new Error(`"${name}" is not a folder name. Use a plain name, with no slashes.`);
     }
-    const folder = join(at, chosen);
+    /* ⚠️ A PLACE THAT ALREADY IS A BITGRAPH FOLDER IS THE FOLDER. Setup asks
+     * for a place and a name; pick your existing BitGraph folder as the
+     * place and the name would have nested a new one inside it
+     * (Desktop/BitGraph/BitGraph; Mike, 2026-09-10: "when i picked new
+     * folder i picked already existing bitgraph folder"). If the place holds
+     * Recordings, or is itself named what the name says, it is adopted. */
+    const placeIsFolder = basename(at) === chosen
+      || await stat(recordingsIn(at)).then((s) => s.isDirectory()).catch(() => false);
+    const folder = placeIsFolder ? at : join(at, chosen);
     const library = recordingsIn(folder);
     const adopted = await stat(library).then((s) => s.isDirectory()).catch(() => false);
     await mkdir(library, { recursive: true });

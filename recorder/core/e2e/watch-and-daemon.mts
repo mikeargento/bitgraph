@@ -252,6 +252,12 @@ await daemon.handle({ op: "setup", at: library, name: "BitGraph" });
     ok("daemon: a moved BitGraph folder is reported missing, and pointing at it again adopts it whole",
       !before.folderMissing && gone.folderMissing && again.adopted && !found.folderMissing && found.folder === movedTo && found.recordings === before.recordings && before.recordings >= 1,
       JSON.stringify({ before, gone, again, found }));
+    /* Setup handed the BitGraph folder ITSELF as the place adopts it, never nests a new one inside it (Mike, 2026-09-10). */
+    const nested = (await daemon.handle({ id: 44, op: "setup", at: movedTo, name: "BitGraph" })) as { adopted: boolean; folder: string };
+    const still = (await daemon.handle({ id: 45, op: "status" })) as { folder: string; recordings: number };
+    ok("daemon: choosing an existing BitGraph folder as the place adopts it rather than nesting",
+      nested.adopted && nested.folder === movedTo && still.folder === movedTo && still.recordings === before.recordings && !existsSync(join(movedTo, "BitGraph")),
+      JSON.stringify({ nested, still }));
 
     await daemon.handle({ id: 4, op: "unwatch", root });
     const after = (await daemon.handle({ id: 5, op: "status" })) as { folders: unknown[] };

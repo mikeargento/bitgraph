@@ -71,10 +71,21 @@ pkgbuild --analyze --root "$staging/root" "$staging/component.plist" >/dev/null
 /usr/libexec/PlistBuddy -c 'Set :0:BundleIsRelocatable false' "$staging/component.plist"
 # After installing, open the app for the person who ran the Installer, so the
 # welcome screen is the next thing they see rather than a search for the app.
+# ⚠️ QUIT THE RUNNING COPY FIRST. `open -a` on an app that is already running
+# only brings the OLD process forward: the files were replaced under it and
+# the person keeps using last version's code (Mike, 2026-09-10: an export on
+# "0.1.2" ran 0.1.1's core, because 0.1.1 was still the process). The
+# installed copy is asked to quit, given a moment, then the new one opens.
 cat > "$staging/scripts/postinstall" <<'SH'
 #!/bin/bash
 who="$(stat -f %Su /dev/console 2>/dev/null || echo "$USER")"
-[ -n "$who" ] && [ "$who" != "root" ] && sudo -u "$who" open -a "/Applications/BitGraph Recorder.app" >/dev/null 2>&1
+if [ -n "$who" ] && [ "$who" != "root" ]; then
+  sudo -u "$who" osascript -e 'tell application id "ing.bitgraph.recorder" to quit' >/dev/null 2>&1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -u "$who" -f "BitGraph Recorder.app/Contents/MacOS" >/dev/null || break; sleep 1; done
+  pkill -u "$who" -f "BitGraph Recorder.app/Contents" >/dev/null 2>&1
+  sleep 1
+  sudo -u "$who" open -a "/Applications/BitGraph Recorder.app" >/dev/null 2>&1
+fi
 exit 0
 SH
 chmod +x "$staging/scripts/postinstall"
