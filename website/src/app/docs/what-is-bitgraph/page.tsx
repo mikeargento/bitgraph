@@ -51,38 +51,28 @@ export default function WhatIsBitGraphPage() {
       </div>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">How it works</h2>
+      {/* The four actions the home figure draws, in the order they happen,
+          from your device (2026-09-11). Replaced the enclave-only telling
+          (Allocate, Bind, Commit) with the fused path as a footnote. */}
       <p className="text-[#1f2937] leading-relaxed mb-4">
-        Authorization, cryptographic binding, and commit happen as one
-        indivisible operation:
+        Four actions, alternating between your device and the enclave. Your file is the input and the proof is the output; neither is a step.
       </p>
       <ol className="space-y-3 mb-6">
         <li className="text-[#1f2937] leading-relaxed">
-          <strong className="text-text">1. Allocate</strong> - The enclave pre-allocates a
-          causal slot (nonce + counter) before the artifact hash reaches it. The place exists
-          before the enclave has seen the digest that will occupy it.
+          <strong className="text-text">1. Ask for a position.</strong> Your device sends an empty request to the enclave: a chain name and nothing else. Nothing of the file is in it.
         </li>
         <li className="text-[#1f2937] leading-relaxed">
-          <strong className="text-text">2. Bind</strong> - The artifact&apos;s SHA-256 digest is
-          bound to the pre-allocated slot, combined with the monotonic counter,
-          and signed with Ed25519 inside the TEE.
+          <strong className="text-text">2. Open a position.</strong> The enclave advances its counter, draws a 32-byte nonce from hardware entropy, and signs a slot record with its Ed25519 key: the nonce, the counter, the epoch, the enclave&apos;s public key, the chain. The record holds no artifact hash and no clock. The enclave files the slot as single-use, expiring unused after 120 seconds, and returns the whole signed record, nonce included, to your device.
         </li>
         <li className="text-[#1f2937] leading-relaxed">
-          <strong className="text-text">3. Commit</strong> - The slot is consumed and the
-          proof is produced. Fail-closed: if any step fails, no proof exists.
-          The proof includes the signed slot record as causal evidence. The
-          slot record names the Ethereum anchor the enclave had already
-          authenticated, so the proof carries its own floor.
+          <strong className="text-text">3. New bytes.</strong> On your device, a 32-byte commitment is derived from the slot record: SHA-256 over the profile label, a zero byte, the hash of the record&apos;s canonical body, and the raw nonce. The new bytes are the original file plus that commitment, under a registered placement. The raw nonce never enters the bytes; only the commitment does. The original is never uploaded.
+        </li>
+        <li className="text-[#1f2937] leading-relaxed">
+          <strong className="text-text">4. Commit under the position.</strong> Your device hashes the new bytes and sends the digest with the slot record. In one indivisible operation the enclave checks the slot exists and has not expired, binds the digest under it, records the slot counter and the commit counter and the hash of the slot record in the signed body, signs the body, obtains a Nitro attestation whose user data is the hash of that body, and removes the slot. A position is spent once. Fail-closed: if any part fails, no proof exists. The slot record names the Ethereum anchor the enclave had already authenticated when the position was opened, so the proof carries its own floor.
         </li>
       </ol>
       <p className="text-[#1f2937] leading-relaxed mb-4">
-        When a BitGraph is made, by the Recorder, the MCP
-        servers or the two-call API, the artifact is built between steps 1
-        and 2. A commitment to the signed slot record is placed into a
-        new fused artifact made from the file, the origin, under a
-        registered placement, and it is that artifact&apos;s digest that is
-        bound in step 2. The fused bytes could not have been finalized before
-        the slot existed. Recording existing bytes as
-        they are is the HTTP API&apos;s compatibility path.
+        Between steps 2 and 4 the position is held, open and unspent. That gap is where the file is finished, and it is why the new bytes could not have been finalized before the position existed. Recording existing bytes as they are, with no new bytes, is the HTTP API&apos;s compatibility path.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">What you get</h2>
