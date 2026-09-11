@@ -31,7 +31,7 @@ export const metadata: Metadata = {
    One declaration per text role, so the page carries a single body signature
    and the ladder stays visible in one place: h2 22, h3 18, body 16
    (project type ladder). Margins are per-use. */
-const pStyle: CSSProperties = { fontSize: 16, lineHeight: 1.75, color: "#1f2937" };
+const pStyle: CSSProperties = { fontSize: 16, lineHeight: 1.75, color: "#1f2937", maxWidth: "var(--measure)" };
 const h2Style: CSSProperties = {
   fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: "0 0 12px",
 };
@@ -43,8 +43,7 @@ const h3Style: CSSProperties = {
    to distinguish"). It read as a tracked uppercase kicker for one evening. */
 const kickerStyle: CSSProperties = {
   fontSize: 15, fontStyle: "italic", lineHeight: 1.6,
-  color: "#4b5563", margin: "6px 0 12px",
-};
+  color: "#4b5563", margin: "6px 0 12px", maxWidth: "var(--measure)" };
 const strongStyle: CSSProperties = { color: "#111827", fontWeight: 700 };
 /* The seam: the same 1px #e5e7eb hairline .bg-page-nav draws above the trail,
    at the top of each section. 44 above the line, 36 below it. */
@@ -53,7 +52,7 @@ const sectionStyle: CSSProperties = { borderTop: "1px solid #e5e7eb", marginTop:
    prose, and a figure is data. */
 const figureStyle: CSSProperties = {
   fontFamily: "var(--font-mono)", fontSize: 13, lineHeight: 1.7, color: "#1f2937",
-  background: "#ffffff", border: "1px solid #d0d5dd", borderRadius: 0,
+  background: "#ffffff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)",
   padding: "14px 18px", margin: "18px 0 22px", overflowX: "auto",
 };
 const muted: CSSProperties = { color: "#4b5563" };
@@ -176,7 +175,7 @@ const limits = [
 
 export default function SubjectsPage() {
   return (
-    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
+    <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px" }}>
       {/* The docs h1 treatment as rendered (2rem/600), inline, matching the
           other docs titles (Mike, 2026-08-05: "should match boldness of other
           docs titles", "needs to match text size"). The route stays /subjects:
@@ -258,7 +257,7 @@ export default function SubjectsPage() {
         <p style={{ ...pStyle, margin: "0 0 14px" }}>
           A high-assurance system already answers most of the questions an auditor&nbsp;asks.
         </p>
-        <ul style={{ margin: "0 0 14px", padding: 0, listStyle: "none" }}>
+        <ul style={{ margin: "0 0 14px", padding: 0, listStyle: "none", maxWidth: "var(--measure)" }}>
           {layers.map((l) => (
             <li key={l.name} style={{ ...pStyle, margin: "0 0 4px" }}>
               <strong style={strongStyle}>{l.name}:</strong> {tight(l.asks)}
@@ -298,7 +297,7 @@ export default function SubjectsPage() {
           authority. A proof leaves with the evidence it is about, and a
           verifier checks it from the copy in&nbsp;hand:
         </p>
-        <ul style={{ margin: "0 0 14px", paddingLeft: 22 }}>
+        <ul style={{ margin: "0 0 14px", paddingLeft: 22, maxWidth: "var(--measure)" }}>
           {checks.map((c) => (
             <li key={c} style={{ ...pStyle, margin: "0 0 4px" }}>{tight(c)}</li>
           ))}
@@ -374,7 +373,7 @@ export default function SubjectsPage() {
           The property is the same wherever exact bytes have to be defended
           later by whoever holds&nbsp;them:
         </p>
-        <ul style={{ margin: 0, paddingLeft: 22 }}>
+        <ul style={{ margin: 0, paddingLeft: 22, maxWidth: "var(--measure)" }}>
           {others.map((o) => (
             <li key={o.title} style={{ ...pStyle, margin: "0 0 6px" }}>
               <strong style={strongStyle}>{o.title}:</strong> {tight(o.line)}
@@ -396,7 +395,9 @@ export default function SubjectsPage() {
             first, which is the rule globals.css already states for
             .bg-action-link: every action is the same size, the primary one is
             marked by position, not by weight. */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+        {/* One row of pills, wrapping on a phone; a column of four was "a bit
+            much" (Mike, 2026-09-11). */}
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 12px", marginTop: 12 }}>
           <Link href="/docs/recorder" className="bg-action-link">
             Record a file <span className="arrow">&rarr;</span>
           </Link>

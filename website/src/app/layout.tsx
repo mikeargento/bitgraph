@@ -78,7 +78,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           slack, so on a page shorter than the glass the footer bar sits flush
           at the bottom instead of floating over background. Long pages are
           unaffected: main is already taller than the slack. */}
-      <body style={{ fontFamily: "acumin-pro, -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif", margin: 0, minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
+      <body style={{ fontFamily: "var(--font-sans)", margin: 0, minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
         <ScrollToTop />
         <SiteNav />
         {/* Main owns the page grey (2026-08-27); body and both bars are

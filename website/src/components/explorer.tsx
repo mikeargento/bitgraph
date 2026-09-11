@@ -43,6 +43,10 @@ const rowId = (e: Entry) => `${e.ep ?? ""}:${e.counter}`;
 // than the truncated hash it replaces (nobody reads a proof by 10 hash chars).
 const fmtWhen = (ms?: number) =>
   ms ? new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+// The phone form: the time alone. The page names the day, so on a narrow
+// screen the date was only the part that got chopped (Mike, 2026-09-11).
+const fmtWhenShort = (ms?: number) =>
+  ms ? new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
 
 const fmt = (n: number) => n.toLocaleString();
 
@@ -445,13 +449,18 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
         @keyframes xpBlink { 0%,100%{opacity:1} 50%{opacity:.25} }
         @keyframes xpIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
         @keyframes xpArrive { 0%{opacity:0;transform:translateY(-8px);background:#f0f6ff} 50%{opacity:1;transform:none;background:#f0f6ff} 100%{opacity:1;transform:none;background:transparent} }
-        .xp-row { display:flex; align-items:center; gap:12px; padding:14px 16px; background:#fff; border:1px solid #d0d5dd; text-decoration:none; animation:xpIn .25s ease-out; transition:background .12s; }
+        .xp-row { display:flex; align-items:center; gap:12px; padding:14px 16px; background:#fff; border:1px solid var(--hair); border-radius:var(--radius-row); text-decoration:none; animation:xpIn .25s ease-out; transition:background .12s; }
         /* Live arrivals only: a stronger slide plus a brief brand-blue flash
            that ends fully transparent, so nothing tinted is left behind. */
         .xp-row-fresh { animation: xpArrive 1.4s ease-out; }
         /* Interval rows: a violet wash plus a violet left rail so they read as
            a distinct kind of row at a glance, not just a colored label. */
         .xp-row-interval { background:#f4f1fe; box-shadow: inset 3px 0 0 0 #7c3aed; }
+        /* The counter column: wide enough on desktop that a five-digit counter
+           gets the same air before "block" as a one-digit one; on a phone every
+           pixel is needed, so it sizes to its label. */
+        .xp-counter { min-width: 88px; }
+        @media (max-width: 640px) { .xp-counter { min-width: 0; } }
         .xp-open { color:#0065A4; transition: color .15s; }
         @media (hover:hover){
           .xp-row:hover { background:#f3f5f7; }
@@ -473,8 +482,8 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
           glyph on phones. Anchors hidden by default: the day shows the
           photos, not the clock. */}
       {(subnav != null || aside != null) && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>{subnav}</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "22px 0 26px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>{subnav}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
             {!anchorsOnly && <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#4b5563", cursor: "pointer", userSelect: "none", flexShrink: 0, whiteSpace: "nowrap" }}>
               <input
@@ -555,7 +564,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                 <span style={{ flex: 1 }} />
                 <span className="xp-skel" style={{ width: 84, height: 12, flexShrink: 0 }} />
                 <span aria-hidden style={{ display: "inline-flex", flexShrink: 0, color: "#c7ccd1" }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
                 </span>
               </div>
             ))}
@@ -583,35 +592,52 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                than one link with a link inside it: the position opens its
                proof; the block opens Etherscan, where the hash is matched. */
             return (
-              <div key={rowId(e)} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
-                <a href={proofHref} style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono, textDecoration: "none" }}>
+              <div key={rowId(e)} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`} style={{ overflow: "hidden" }}>
+                {/* A fixed-width counter, so "block …" starts on the same x in
+                    every row and the blocks read as a column (Mike,
+                    2026-09-11: "should block number be left aligned like
+                    that?"). Wide enough for a five-digit counter with its
+                    separator. */}
+                <a href={proofHref} className="xp-counter" style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", fontFamily: mono, textDecoration: "none" }}>
                   #{fmt(e.counter)}
                 </a>
-                <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
-                  {tagLabel}
-                </span>
+                {/* No "anchor" tag on a page of nothing but anchors: the word
+                    was the width that pushed a phone into sideways scroll
+                    (Mike, 2026-09-11: "mobile is jacked on eth anchor page").
+                    An interval row still says what it is. */}
+                {isInterval && (
+                  <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
+                    {tagLabel}
+                  </span>
+                )}
                 {e.etherscanUrl && (
                   <a href={e.etherscanUrl} target="_blank" rel="noopener" style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                     {e.blockNumber != null ? `block ${fmt(e.blockNumber)}` : "block"} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
                   </a>
                 )}
+                {/* The hash and the time open the proof too (Mike, 2026-09-11:
+                    "date should be active to open link to proof page right?"):
+                    everything in the row but the block, which goes to
+                    Etherscan, is the proof. Links, not a row-wide onClick, so
+                    nothing nests inside the block's own anchor. */}
                 {e.blockHash && (
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#6b7280", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={e.blockHash}>
+                  <a href={proofHref} style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#6b7280", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }} title={e.blockHash}>
                     {e.blockHash}
-                  </span>
+                  </a>
                 )}
-                <span style={{ flex: e.blockHash ? "0 0 auto" : 1, minWidth: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                  {fmtWhen(e.at)}
-                </span>
+                <a href={proofHref} style={{ flex: e.blockHash ? "0 0 auto" : 1, minWidth: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums", textDecoration: "none" }}>
+                  <span className="bg-day-long">{fmtWhen(e.at)}</span>
+                  <span className="bg-day-short">{fmtWhenShort(e.at)}</span>
+                </a>
                 <a href={proofHref} className="xp-open" aria-label="Open" style={{ display: "inline-flex", flexShrink: 0 }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
                 </a>
               </div>
             );
           }
           return (
             <a key={rowId(e)} href={proofHref} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
-              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#0065A4", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>
+              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>
                 #{fmt(e.counter)}
               </span>
               <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
@@ -628,7 +654,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                 {fmtWhen(e.at)}
               </span>
               <span className="xp-open" aria-label="Open" style={{ display: "inline-flex", flexShrink: 0 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
               </span>
             </a>
           );

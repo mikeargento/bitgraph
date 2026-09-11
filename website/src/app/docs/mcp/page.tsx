@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { CopyUrl } from "./copy-url";
 import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
@@ -43,7 +42,7 @@ export default function McpPage() {
       <div className="code-block">
         <div className="code-block-header">
           <span>MCP endpoint</span>
-          <CopyUrl text={MCP_URL} />
+          <CopyCode />
         </div>
         <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{MCP_URL}</pre>
       </div>

@@ -109,27 +109,29 @@ export function SiteNav() {
       // canvas above the page origin is painted white too (html background in
       // globals.css) so a rubber-band scroll shows the bar's colour, not the
       // page's; see the note that follows.
-      borderBottom: "1px solid #e5e7eb",
-      background: "#ffffff",
+      background: "var(--bar)",
       position: "sticky", top: 0, zIndex: 50,
       // One 56px row, wordmark and links centred in it. The 14px top padding
       // that used to seat the wordmark lower belonged to an invisible bar; on
       // a white surface it read as the row sitting low. (Mike, 2026-08-16.)
     }}>
       <div style={{
-        // The bar spans the window: wordmark hard left, links hard right, the
-        // way Gmail's bar spans its pane. Site-wide since 2026-08-16 (Mike),
-        // so the chrome is one thing on every page: the reading pages keep
-        // their 800px column under it, the cassette pane fills the window,
-        // and the wordmark never jumps between the two. The 20px edge is the
-        // pane's rail edge, so the wordmark and the rail share a left line.
-        // Before this the bar sat over the 800px column (width 90%, max 800,
-        // centred); that is the one-line revert if it ever reads wrong.
-        width: "100%", maxWidth: "none", margin: 0, padding: "0 20px", boxSizing: "border-box" as const,
+        // The bar sits over the reading column: width 90%, max 800, centred,
+        // the measure every page uses (Mike, 2026-09-11). It spanned the
+        // window from 2026-08-16 so the wordmark would not jump between the
+        // reading pages and the camera pane that filled the window; the
+        // camera pane is gone, home is the overview, every page is the
+        // column, and on a wide monitor the full-bleed bar put the wordmark
+        // 600px from the words it belongs to. The 08-16 form is the one-line
+        // revert: width 100%, maxWidth none, padding 0 20px.
+        width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: 0, boxSizing: "border-box" as const, position: "relative",
         // 56px: apple.com's 44 was the floor for the touch target; a surface
         // bar wants a little more air around a 24px wordmark. Everything in
         // the row is centred on its middle.
-        height: 56, display: "flex", alignItems: "center", justifyContent: "space-between",
+        // 76px: the pill is 40px tall, and the app's own title bar breathes
+        // around its controls (Mike, 2026-09-11: "give header and footer
+        // proper space now that style changed").
+        height: 76, display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <Link
           href="/"
@@ -142,9 +144,9 @@ export function SiteNav() {
             }
           }}
           style={{
-            fontSize: 24, fontWeight: 900, color: "#111827",
+            // RESTYLE 2026-09-11: the app's title, "BitGraph" at 26px bold.
+            fontSize: 26, fontWeight: 700, color: "#111827",
             textDecoration: "none", letterSpacing: "-0.02em",
-            WebkitTextStroke: "0.4px #111827",
           }}
         >
           BitGraph
@@ -212,10 +214,19 @@ export function SiteNav() {
               // Current for any docs route, including one not in the list, and
               // while the menu is open: an open menu is a place you are too.
               aria-current={(pathname?.startsWith("/docs") || docsOpen) ? "page" : undefined}
+              // RESTYLE 2026-09-11: the app's pill. Outlined at rest, the
+              // light blue fill while the menu is open (the Recorder's
+              // "Calendar" state).
+              // RESTYLE 2026-09-11: the app's pill. Outlined at rest, the
+              // light blue fill while the menu is open (the Recorder's
+              // "Calendar" state). A plain blue link with an underline stood
+              // here for a minute; Mike: "go back i like yours better".
               style={{
-                display: "flex", alignItems: "center", gap: 4,
-                padding: 0, margin: 0, border: "none", background: "none",
-                fontSize: 14, fontWeight: 700,
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 16px", margin: 0,
+                border: `1px solid ${docsOpen ? "#e8f1f8" : "#d0d5dd"}`,
+                background: docsOpen ? "var(--tint)" : "#fff", borderRadius: "var(--radius-pill)",
+                fontSize: 15, fontWeight: 500,
                 fontFamily: "inherit", letterSpacing: "inherit", cursor: "pointer",
               }}
             >
@@ -256,22 +267,22 @@ export function SiteNav() {
           role="menu"
           aria-label="Docs sections"
           style={{
-            // A strip under the bar, the bar's own width, flush with its
-            // hairline: the sections sit in the reading column inside it. The
-            // bar spans the window, so a floating box hung from Docs related
-            // to nothing; the strip belongs to the bar (Mike, 2026-08-16).
-            position: "absolute", top: "100%", left: 0, right: 0,
-            background: "#fff", borderBottom: "1px solid #d0d5dd", borderRadius: 0,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-            // A backstop, not the layout: the columns fit a phone in portrait
-            // with room to spare. It is landscape, where the viewport is 375
-            // tall, that would otherwise clip.
-            maxHeight: "calc(100dvh - 74px)", overflowY: "auto",
+            // RESTYLE 2026-09-11: the app's menu, a rounded card with a
+            // shadow, the column's width, hung under the bar (the Recorder's
+            // "+ New" menu). It was a window-wide strip under the bar from
+            // 2026-08-16; the sections keep their four columns inside.
+            // The column's width, centred on the bar (Mike: "menu should drop
+            // down within the content width"). The panel is a sibling of the
+            // column div, so it centres itself on the same measure.
+            position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", width: "90%", maxWidth: "var(--frame)",
+            background: "#fff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)",
+            boxShadow: "var(--shadow-menu)",
+            maxHeight: "calc(100dvh - 90px)", overflowY: "auto",
             overscrollBehavior: "contain",
-            padding: "22px 0 20px",
+            padding: "22px 24px 20px", boxSizing: "border-box",
           }}
         >
-          <div style={{ width: "90%", maxWidth: 800, margin: "0 auto" }}>
+          <div>
             {/* Four cells. At >=880px the pairs dissolve (display: contents)
                 and the grid lays four flat columns, tops aligned, ordered by
                 each group's `order`. Below 880 each pair is its own stack, so

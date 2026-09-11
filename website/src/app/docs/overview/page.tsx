@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { HowFigure } from "./how-figure";
 
 export const metadata: Metadata = {
   title: "Overview",
@@ -136,6 +137,10 @@ export default function OverviewPage() {
       <p>
         BitGraph does not say what the agent did, or whether the record is true. It says the record was placed no earlier than its floor, and where it sits among every other record placed on the same ledger.
       </p>
+      {/* The figure closes the opener's beat: under the paragraph that says
+          what BitGraph does not claim, not between it and the HOW paragraph
+          (Mike, 2026-09-11). See how-figure.tsx. */}
+      <HowFigure />
 
       <p>
         BitGraphs are not labels or metadata added after the fact. They are new computations created when your file&rsquo;s hash <em>fills</em> a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state. Your file never leaves your device to get one.
@@ -409,8 +414,11 @@ export default function OverviewPage() {
           in the opener: weight 600 at the heading colour, NOT a new size. The
           setup above it is tightened to 0.75rem so the pair reads as one beat
           rather than two paragraphs that happen to be adjacent. */}
+      {/* On a phone the line breaks after the colon (.bg-phone-break, globals),
+          two clean lines, instead of stranding "position." on its own (Mike,
+          2026-09-11). Desktop is one line and the break is inert there. */}
       <p style={{ fontWeight: 600, color: "#111827" }}>
-        It proves: these exact bits occupy this position.
+        It proves:<br className="bg-phone-break" /> these exact bits occupy this&nbsp;position.
       </p>
     </article>
   );

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 40px" }}>
+    <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "40px 0 40px" }}>
       <article className="prose-doc">
         <h1>Terms of Service</h1>
         <p style={{ color: "#4b5563" }}>Effective date: August 27, 2026</p>

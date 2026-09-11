@@ -34,7 +34,7 @@ export function ProofSkeleton() {
         .bg-skel { background: linear-gradient(90deg, #edeff1 25%, #e0e3e7 37%, #edeff1 63%); background-size: 400% 100%; animation: bgSkel 1.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) { .bg-skel { animation: none; } }
       `}</style>
-      <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
+      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px" }}>
         {/* "BitGraph Record" now sits ABOVE the card as a page heading, so the
             skeleton leads with it rather than with a header band. */}
         <div className="bg-skel" style={{ ...bar, width: 196, height: 21, marginBottom: 10 }} aria-hidden />

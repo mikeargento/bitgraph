@@ -1131,7 +1131,7 @@ export default function ProofPage() {
         </>
       )}
 
-      <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
+      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
 
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
 
@@ -1156,7 +1156,7 @@ export default function ProofPage() {
               anchor that still needs a standalone when-card is the rare Ethereum
               anchor with no etherscan title (no block card to hold it). */}
           {(isInterval || (isEth && !attr?.title)) && whenRow && (
-            <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
+            <div style={{ background: "#fff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)" }}>
               {whenRow}
             </div>
           )}
@@ -1307,15 +1307,18 @@ export default function ProofPage() {
               const today = new Date().toISOString().slice(0, 10);
               const href = day && day < today ? `/ledger?day=${day}` : "/ledger";
               return (
-                <a href={href} className="bg-action-link back" style={{ padding: "0 0 18px" }}>
-                  <span className="arrow" aria-hidden>&larr;</span> Ethereum anchors
-                </a>
+                // Title on the left, the pill to all anchors on the right, one
+                // row (Mike, 2026-09-11: "on same line … to the right and say
+                // all ethereum anchors"). Wraps under the title on a phone.
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px 16px", marginBottom: 10 }}>
+                  {/* The one title size every page header uses. */}
+                  <div className="bg-page-title" style={{ marginBottom: 0 }}>
+                    BitGraphed Ethereum Block
+                  </div>
+                  <a href={href} className="bg-action-link" style={{ margin: 0 }}>All Ethereum anchors</a>
+                </div>
               );
             })()}
-            {/* The one title size every page header uses. */}
-            <div className="bg-page-title" style={{ marginBottom: 10 }}>
-              BitGraphed Ethereum Block
-            </div>
             <CollapsibleCard title="BitGraphed Ethereum Block" plain>
               {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
               <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
@@ -1680,7 +1683,7 @@ function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React
     textAlign: "left", fontFamily: "inherit",
   };
   return (
-    <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0, overflow: "hidden" }}>
+    <div style={{ background: "#fff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
       {plain ? null : (
         /* The header is a full-row toggle with the same hover + outlined-button
            affordance as the explorer rows: the row tints on hover and the
@@ -1694,7 +1697,7 @@ function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React
         >
           <span>{title}</span>
           <span className="bg-collapse-chev" aria-hidden style={{ display: "inline-flex", flexShrink: 0, transform: open ? "rotate(90deg)" : "none", transition: "transform .18s" }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
           </span>
         </button>
       )}
@@ -2811,13 +2814,14 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
       onClick={() => setOpen(false)}
     >
       <div
-        style={{ width: "100%", maxWidth: 720, maxHeight: "85vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: 0, border: "1px solid #d0d5dd", overflow: "hidden" }}
+        style={{ width: "100%", maxWidth: 920, maxHeight: "85vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "var(--radius-card)", border: "1px solid var(--hair)", boxShadow: "var(--shadow-menu)", overflow: "hidden" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #e5e7eb" }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--c-accent)" }}>AWS Nitro Attestation Verification</span>
-          <button onClick={() => setOpen(false)} style={{ padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "#fff", background: "var(--c-accent)", border: "none", borderRadius: 0, cursor: "pointer" }}>Close</button>
+          <span style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>AWS Nitro attestation</span>
+          {/* RESTYLE 2026-09-11: the app's pill, like every action. */}
+          <button type="button" onClick={() => setOpen(false)} className="bg-action-link" style={{ margin: 0, padding: "7px 16px", fontSize: 14 }}>Close</button>
         </div>
 
         {/* Body */}
@@ -2832,7 +2836,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
             <>
               {/* Overall status */}
               <div style={{
-                padding: "14px 18px", marginBottom: 16, borderRadius: 0,
+                padding: "14px 18px", marginBottom: 16, borderRadius: "var(--radius-row)",
                 background: result.valid ? "#f0f6ff" : "#fef2f2",
                 border: `1px solid ${result.valid ? "#bfdbfe" : "#fecaca"}`,
               }}>
@@ -2861,7 +2865,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
 
               {/* Decoded fields */}
               {(result.moduleId || result.timestamp || result.certChainLength) && (
-                <div style={{ marginBottom: 18, padding: "14px 18px", background: "#f9fafb", borderRadius: 0, border: "1px solid #e5e7eb" }}>
+                <div style={{ marginBottom: 18, padding: "14px 18px", background: "#f9fafb", borderRadius: "var(--radius-row)", border: "1px solid #e5e7eb" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Decoded from Attestation Document</div>
                   {result.moduleId && (
                     <div style={{ fontSize: 12, color: "#374151", marginBottom: 4, wordBreak: "break-all" }}>
@@ -2896,7 +2900,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               )}
 
               {/* Reproducible build */}
-              <div style={{ padding: "14px 18px", background: "rgba(0,101,164,0.07)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: 0, marginBottom: 12 }}>
+              <div style={{ padding: "14px 18px", background: "rgba(0,101,164,0.07)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: "var(--radius-row)", marginBottom: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-accent)", marginBottom: 6 }}>What PCR0 proves</div>
                 <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5, marginBottom: 8 }}>
                   PCR0 is the SHA-384 hash of the exact enclave image that signed this BitGraph, shown above. The enclave source is published and the measurement is reproducible: you can rebuild it on any linux/amd64 host and re-derive this exact PCR0 yourself. You do not have to take BitGraph at its word for what runs inside the boundary.
@@ -2907,7 +2911,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               </div>
 
               {/* Raw report */}
-              <div style={{ padding: "12px 16px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 0 }}>
+              <div style={{ padding: "12px 16px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "var(--radius-row)" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.06em" }}>Raw Attestation Report</div>
                   <button

@@ -98,7 +98,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
           .bg-day-short { display: inline; }
         }
       `}</style>
-      <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px", animation: "fadeIn .3s ease-out" }}>
+      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
         <Explorer
           anchorsOnly
           day={day ?? undefined}
@@ -113,7 +113,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
                beside it for one push (a day's anchors as JSON, /api/anchors/
                export) and Mike cut it the same evening: an anchor's proof page
                is the anchor as a file, and nobody is matching whole days yet. */
-            <a href="/ledger/archive" className="bg-arrow-link" style={{ fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap" }}>
+            <a href="/ledger/archive" className="bg-action-link" style={{ margin: 0 }}>
               Calendar <span className="arrow" aria-hidden>&rarr;</span>
             </a>
           }
@@ -145,20 +145,20 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
             day ? (
               <>
                 {prev >= EARLIEST_DAY && (
-                  <a href={`/ledger?day=${prev}`} style={linkStyle}>
-                    <span aria-hidden>&larr;</span>{" "}
+                  <a href={`/ledger?day=${prev}`} className="bg-action-link" style={{ margin: 0 }}>
+                    <span className="arrow" aria-hidden>&larr;</span>{" "}
                     <span className="bg-day-long">{shortLabel(prev)}</span>
                     <span className="bg-day-short">{tinyLabel(prev)}</span>
                   </a>
                 )}
                 {next && (next >= todayUTC ? (
-                  <a href="/ledger" className="bg-arrow-link" style={linkStyle}>
+                  <a href="/ledger" className="bg-action-link" style={{ margin: 0 }}>
                     <span className="bg-day-long">Today</span>
                     <span className="bg-day-short">Today</span>
                     {" "}<span className="arrow" aria-hidden>&rarr;</span>
                   </a>
                 ) : (
-                  <a href={`/ledger?day=${next}`} className="bg-arrow-link" style={linkStyle}>
+                  <a href={`/ledger?day=${next}`} className="bg-action-link" style={{ margin: 0 }}>
                     <span className="bg-day-long">{shortLabel(next)}</span>
                     <span className="bg-day-short">{tinyLabel(next)}</span>
                     {" "}<span className="arrow" aria-hidden>&rarr;</span>
@@ -167,8 +167,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
               </>
             ) : (
               prev >= EARLIEST_DAY && (
-                <a href={`/ledger?day=${prev}`} style={linkStyle}>
-                  <span aria-hidden>&larr;</span>{" "}
+                <a href={`/ledger?day=${prev}`} className="bg-action-link" style={{ margin: 0 }}>
+                  <span className="arrow" aria-hidden>&larr;</span>{" "}
                   <span className="bg-day-long">{shortLabel(prev)}</span>
                   <span className="bg-day-short">{tinyLabel(prev)}</span>
                 </a>

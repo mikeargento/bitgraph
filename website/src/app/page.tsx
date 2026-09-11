@@ -45,7 +45,7 @@ export default function HomePage() {
    * 80 below, matching /subjects and every docs route. If the docs column ever
    * changes, this changes with it. */
   return (
-    <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
+    <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px" }}>
       <Overview />
       {/* The overview's own previous/next pair, which the docs layout gives it
           at /docs/overview and this wrapper has to give it here. */}

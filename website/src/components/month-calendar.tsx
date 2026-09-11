@@ -75,7 +75,7 @@ export function MonthCalendar({ title, total, leading, days }: {
   // is the most any month needs (31 days after a Saturday 1st is 37 cells).
   const trailing = 6 * 7 - leading - days.length;
   return (
-    <section style={{ background: "#fff", border: "1px solid #d0d5dd", padding: "14px 16px 6px" }}>
+    <section style={{ background: "#fff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", padding: "14px 16px 6px" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
         <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827" }}>{title}</div>
         {total && (
@@ -89,7 +89,8 @@ export function MonthCalendar({ title, total, leading, days }: {
         {Array.from({ length: leading }, (_, i) => <div key={`b${i}`} style={cell} />)}
         {days.map((d) => {
           if (d.kind === "recorded" || d.kind === "today") {
-            const style = d.kind === "today" ? { ...openable, boxShadow: "inset 0 0 0 1.5px #0065A4" } : openable;
+            // RESTYLE 2026-09-11: today is the app's filled blue rounded square.
+            const style = d.kind === "today" ? { ...openable, background: "#0065A4", color: "#fff", borderRadius: 8 } : openable;
             const inner = (
               <>
                 {d.n}

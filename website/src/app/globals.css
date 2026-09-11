@@ -21,13 +21,42 @@
   --color-warning: #eab308;
   --color-error: #ef4444;
   --color-info: #3b82f6;
-  --font-sans: "acumin-pro", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  /* RESTYLE 2026-09-11 (Mike: "lets restyle it to look like the app"): the
+     system face the Recorder wears, first. Acumin (Typekit) still loads and
+     is unused; the 08-16 stack is the one-line revert. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), "SF Mono", SFMono-Regular, monospace;
 }
 
 /* ── Design Tokens ── */
 :root {
-  --bg: #f5f5f5;
+  /* PROPOSAL 2026-09-11 (Mike: "actually all white"): one white ground for
+     the page and both bars; the hairlines under the nav and above the footer
+     are what separate them. The page grey (#f5f5f5, since April) is gone,
+     so every surface that was white-on-grey (proof cards, ledger rows, the
+     figures on /subjects, the dashed frame) now stands on its border alone. */
+  --bg: #ffffff;
+  /* The bars carry a faint grey instead of a hairline (Mike, 2026-09-11:
+     "instead of strokes for header and footer, what about a slight shade").
+     Also the canvas above and below the page, so a rubber band shows it. */
+  --bar: #f5f6f8;
+  /* The app's surface vocabulary: pills, 14px cards with a faint shadow,
+     10px rows, a light blue fill for the active thing. */
+  /* RE-SPACE 2026-09-11 (Mike: "re-space the site at 1040"): one frame for
+     everything, chrome, cards, figures, code, tables and the prose alike.
+     A 760px measure for the prose inside the frame lasted ten minutes
+     (Mike: "why is prose left aligned like that? shouldnt you just take
+     advantage of width?"), so the measure equals the frame; the token
+     stays so a narrower measure is one line if it is ever wanted. */
+  --frame: 1040px;
+  --measure: var(--frame);
+  --radius-pill: 999px;
+  --radius-card: 14px;
+  --radius-row: 10px;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05), 0 2px 10px rgba(16, 24, 40, 0.06);
+  --shadow-menu: 0 12px 32px rgba(16, 24, 40, 0.14), 0 1px 3px rgba(16, 24, 40, 0.08);
+  --tint: #e8f1f8;
+  --hair: #e5e7eb;
   --bg-elevated: #f9fafb;
   --bg-subtle: #f3f4f6;
   --c-border: #e5e7eb;
@@ -52,7 +81,7 @@ html {
      (2026-08-16) a grey canvas would flash between the bar and the top edge.
      The trade is a white sliver on an over-scroll past the bottom of a
      #f5f5f5 page, which is rarer and reads as nothing. */
-  background: #ffffff;
+  background: var(--bar);
 }
 
 /* No overscroll block here. One existed while the nav was white, painting a
@@ -69,7 +98,7 @@ body {
      (Mike's screenshot, home). With the grey scoped to main, every edge of
      the page is white: the canvas above the origin (html), the nav, the
      footer bar, and whatever the browser paints beyond them. */
-  background: #ffffff;
+  background: var(--bar);
   /* The body must still always reach the bottom of the window (flex column,
      min-height 100dvh in the layout), or a short page ends above the fold
      (seen 2026-08-16 on the home and the cassette load screen). */
@@ -263,7 +292,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   background: #dbeafe;
   color: #0065A4;
   padding: 0.125rem 0.375rem;
-  border-radius: 3px;
+  border-radius: 6px;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
@@ -394,7 +423,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   overflow: hidden;
   margin-bottom: 1.5rem;
   transform: translateZ(0);
-  border-radius: 0;
+  border-radius: var(--radius-card); overflow: hidden;
 }
 .code-block-header {
   display: flex;
@@ -513,7 +542,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 /* ── Nav link hover ── */
-.nav-link:hover { background: var(--bg-elevated) !important; color: var(--c-text) !important; border-radius: 0; }
+.nav-link:hover { background: var(--bg-elevated) !important; color: var(--c-text) !important; border-radius: 8px; }
 
 /* ── Outline button + file row hover — gated to (hover: hover) so touch
    devices don't stick in the hover state after a tap. Desktop still
@@ -662,19 +691,27 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    The vertical padding is a deliberate ~44px tap target on touch; it is
    invisible because the link has no background. Every action is the same
    size — the primary one is marked by position, not by weight. ── */
+/* RESTYLE 2026-09-11: the app's pill. Outlined, full radius, blue label,
+   the same clothes as the Recorder's "Today", "Show in Finder" and "Change
+   folder…". The chrome-free form above it is the one-block revert. */
 .bg-action-link {
-  appearance: none; border: none; background: none; cursor: pointer;
-  font-family: inherit; font-size: 14px; font-weight: 600;
+  appearance: none; cursor: pointer;
+  border: 1px solid #d0d5dd; background: #fff; border-radius: var(--radius-pill);
+  font-family: inherit; font-size: 15px; font-weight: 500;
   letter-spacing: -0.01em; color: #0065A4; text-decoration: none;
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 14px 0; text-align: left;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 18px; margin: 6px 0 10px; text-align: left; line-height: 1.3;
+  transition: background .12s, border-color .12s;
 }
-.bg-action-link .arrow { display: inline-block; transition: transform .18s ease; }
-@media (hover: hover) { .bg-action-link:hover .arrow { transform: translateX(3px); } }
-/* Backwards links (the previous-section half of .bg-page-nav) travel the way
-   they point. */
-@media (hover: hover) { .bg-action-link.back:hover .arrow { transform: translateX(-3px); } }
-.bg-action-link:disabled { color: #9ca3af; cursor: default; }
+@media (hover: hover) { .bg-action-link:hover { background: #f3f7fa; border-color: #b9c2cf; } }
+/* Every action, the page-to-page trail included, wears the outlined pill;
+   only the Recorder download is filled (Mike, 2026-09-11: "revert all links
+   the way you had them… pill style to your choice"). */
+/* No arrow inside a pill (Mike, 2026-09-11: "do we keep arrows in these
+   pills?"): the pill already says it acts, and the app's pills carry none.
+   The markup keeps its arrows so a plain-link revert is one line here. */
+.bg-action-link .arrow { display: none; }
+.bg-action-link:disabled { color: #9ca3af; cursor: default; background: #fff; border-color: #e5e7eb; }
 .bg-action-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
 
 /* ── Page-to-page nav, at the foot of every docs page. Two .bg-action-links
@@ -692,8 +729,11 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    thing. ── */
 .bg-page-nav {
   display: flex; justify-content: space-between; align-items: flex-start;
-  gap: 24px; margin-top: 56px; padding-top: 4px;
-  border-top: 1px solid #e5e7eb;
+  gap: 24px; margin-top: 48px; padding-top: 0;
+  /* No rule above the pair any more: the pills delimit themselves, and the
+     hairline sat 4px over them (Mike, 2026-09-11: "either drop that stroke
+     or space properly"). */
+  border-top: none;
 }
 /* Baseline, not centre: when a title wraps to two lines the arrow would
    otherwise float at the middle of the block, beside neither line. */
@@ -793,8 +833,9 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    Direct children only. The docs menu hangs inside .bg-nav-links and colours
    its own rows below; without the > the menu would inherit the bar's rule and
    all fifteen rows would go flat. ── */
+/* RESTYLE 2026-09-11: the bar's controls are the app's pills, so blue. */
 .bg-nav-links > a,
-.bg-nav-links > div > button { color: #111827; }
+.bg-nav-links > div > button { color: #0065A4; }
 
 /* ── The docs panel's columns: a fixed grid of four, one cell per group, tops
    aligned and bottoms ragged. Understand is 6 rows, Use is 3, so Use simply
@@ -840,13 +881,20 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 @media (min-width: 880px) {
   .docs-panel-cols { grid-template-columns: repeat(4, 1fr); column-gap: 20px; }
 }
+/* On a phone, one list (Mike, 2026-09-11: "on mobile this should be just one
+   row/list"): the pairs dissolve here too, so `order` puts the four groups in
+   Understand, Tools, Build, Reference sequence down the single column. */
+@media (max-width: 479px) {
+  .docs-panel-cols { grid-template-columns: 1fr; row-gap: 22px; }
+  .docs-panel-pair { display: contents; }
+}
 
 /* The menu's own rows, where hover DOES go blue. Fifteen of them, so the row
    under the cursor has to be findable, and inside an open menu every row is
    something you are about to click: blue reads as live there rather than as
    "you are here". The page you are on is marked by weight and a fill instead,
    so the two never say the same thing in the same way. */
-.docs-menu-item { color: #4b5563; background: transparent; transition: color .15s; }
+.docs-menu-item { color: #4b5563; background: transparent; transition: color .15s, background .15s; border-radius: 8px; }
 .docs-menu-item[aria-current="page"] { color: #111827; background: #f3f4f6; }
 /* The bar's own links (Ledger, Folder) mark the page they are on in the brand
    blue: colour in text, never a background (2026-08-16). Docs is a menu, not
@@ -876,34 +924,12 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .bg-case { margin-bottom: 38px; }
 @media (max-width: 640px) { .bg-case { margin-bottom: 56px; } }
 
-/* The footer bar mirrors the nav bar exactly (white surface, #e5e7eb
-   hairline, one 56px row, 20px rail edges), closing the page the way the nav
-   opens it. Entity left, trademark centre, legal links right, spanning the
-   window like the nav does. Stacks below 820, where one row cannot hold the
-   three chunks. */
-/* 1fr auto 1fr, not space-between: the side chunks differ in width, so only
-   equal flanking tracks put the middle text on the bar's true centre line. */
-.bg-footer-inner { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; padding: 0 20px; min-height: 56px; box-sizing: border-box; }
-.bg-footer-inner > :nth-child(1) { justify-self: start; }
-.bg-footer-inner > :nth-child(2) { justify-self: center; }
-.bg-footer-inner > :nth-child(3) { justify-self: end; }
-@media (max-width: 819px) {
-  .bg-footer-inner { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px 20px; }
-}
-
-/* The camera pages' footer, responsive (2026-08-27): phones get the slim
-   one-line bar (fixed 40px, subtracted as a constant by use-camera-fit);
-   from 820 up they get the same full bar as every reading page. 820 because
-   the full bar is one 57px row only above its own stacking breakpoint, and
-   57px is exactly the band the desktop top*2 centring already reserves at
-   the bottom, so the full bar fits without touching the fit math. Between
-   768 and 819 the slim bar rides in that band untouched. */
-.bg-footer-camera-slim { display: flex; align-items: center; justify-content: center; gap: 6px; height: 40px; box-sizing: border-box; background: #ffffff; border-top: 1px solid #e5e7eb; font-size: 12.5px; color: #4b5563; white-space: nowrap; }
-.bg-footer-camera-full { display: none; }
-@media (min-width: 820px) {
-  .bg-footer-camera-slim { display: none; }
-  .bg-footer-camera-full { display: block; }
-}
+/* The footer bar mirrors the nav bar (white surface, #e5e7eb hairline, one
+   56px row) on the same measure: the 90%/800px reading column (2026-09-11).
+   Entity at the column's left edge, legal links at its right. Two chunks
+   only, so no centring track; on a phone too narrow for both, the row wraps
+   and the links drop under the entity, both at the left edge. */
+.bg-footer-inner { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; column-gap: 24px; row-gap: 2px; width: 90%; max-width: var(--frame); margin: 0 auto; padding: 22px 0; min-height: 76px; box-sizing: border-box; }
 
 
 /* ── The Recorder page's download (2026-09-10). It is a .bg-action-link on
@@ -911,6 +937,30 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    be a bigger font" (Mike). It was the one filled button on the site for a
    day (.bg-download-pill, the app's pill squared); that is gone, and the
    no-buttons rule now holds everywhere. ── */
-.bg-download-link { font-size: 22px; padding: 0; }
-.bg-download-link:disabled { color: #9ca3af; }
+/* RESTYLE 2026-09-11: the one filled pill, like the app's "+ New". */
+.bg-download-link { font-size: 17px; font-weight: 600; padding: 14px 30px; margin: 0; background: #0065A4; border-color: #0065A4; color: #fff; }
+@media (hover: hover) { .bg-download-link:hover { background: #00568c; border-color: #00568c; } }
+.bg-download-link:disabled { color: #fff; background: #c5ccd6; border-color: #c5ccd6; }
 
+
+/* ── RESTYLE 2026-09-11: rounding on the bordered boxes in the docs (the
+   figures on /subjects, the property cards on the protocol page, the note
+   boxes). Utilities from Tailwind are layered, so these win. ── */
+.prose-doc [class~="border"], .prose-doc [class*="border-["] { border-radius: var(--radius-card); }
+.prose-doc [class*="border-l-2"] { border-radius: 0; }
+.prose-doc [class*="border-b"], .prose-doc [class*="border-t"] { border-radius: 0; }
+.prose-doc pre, .prose-doc table { border-radius: var(--radius-card); }
+
+/* A line break that exists only on a phone: a two-part line that sets in one
+   line on desktop and, below 480px, breaks at its natural seam instead of at
+   its last word. */
+.bg-phone-break { display: none; }
+@media (max-width: 479px) { .bg-phone-break { display: inline; } }
+
+/* ── RE-SPACE 2026-09-11: prose runs to the measure, everything else to the
+   frame. Text blocks anywhere in a docs page are capped, except inside the
+   things that span the frame (tables, figures, code, cards, grids), whose
+   own text follows their width. ── */
+.prose-doc :is(p, ul, ol, h1, h2, h3, h4, blockquote):not(:is(table, figure, pre, .code-block, .bg-case, .bg-c2pa-grid, [class*="border"], [class*="grid"]) *),
+.overview :is(p, ul, ol, h1, h2, blockquote):not(:is(table, figure, pre, .code-block) *),
+.bg-measure { max-width: var(--measure); }
