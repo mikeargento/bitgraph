@@ -19,7 +19,7 @@ export default function IntegrationPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Making a BitGraph</h2>
       <p className="text-[#1f2937] mb-4">
-        The default operation. Your file is the origin and is never modified. In order: allocate an unused slot (the slot exists before any hash reaches the enclave), build a fused artifact that carries a commitment to that slot, hash the fused artifact, and commit that digest into the same slot. The proof bounds the fused bytes from below (the slot) and from above (the commit). The fused bytes are transient: the original plus the proof rebuilds them.
+        The default operation. Your file is the origin and is never modified. In order: allocate an unused slot (the slot exists before any hash reaches the enclave), build a fused artifact that carries a commitment to that slot, hash the fused artifact, and commit that digest into the same slot. The fused bytes cannot predate the slot, and the commit is the position they hold in the sequence. The fused bytes are transient: the original plus the proof rebuilds them.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
@@ -63,8 +63,7 @@ result.verification;   // verifyFuse over the fused bytes, run locally: FUSED_DI
       <h2 className="text-xl font-semibold mt-12 mb-4">Compatibility: bytes that already exist</h2>
       <p className="text-[#1f2937] mb-4">
         Use this only when the bytes are already final and cannot be rebuilt around a position: an
-        archive, a signed document, something a third party handed you. It selects them and gives
-        them a position, which establishes that those exact bytes existed no later than it selects them and gives them a position, which establishes that those exact bytes existed no later than the commit. Hash your artifact locally, then send only the digest to the BitGraph endpoint:
+        archive, a signed document, something a third party handed you. It gives those bytes a position, which establishes that the exact bytes existed no later than that position in the sequence. The floor bounds the placement, not the bytes. Hash your artifact locally, then send only the digest to the BitGraph endpoint:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
@@ -142,14 +141,14 @@ const proofs = await resp.json();
       <h2 className="text-xl font-semibold mt-12 mb-4">Verify a proof</h2>
       <div className="code-block">
         <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>
-        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`import { verify } from "@mikeargento/bitgraph";
+        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">{`import { verify } from "@mikeargento/bitgraph-verify";`}{`
 
 const result = await verify({
   proof: myProof,
   bytes: artifactBytes,
   trustAnchors: {
     requireEnforcement: "measured-tee",
-    allowedMeasurements: ["ac813febd1ac4261..."],
+    `}{`allowedMeasurements: ["eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b"], // enclave-v8, see PINS.md`}{`
     requireAttestation: true,
     requireAttestationFormat: ["aws-nitro"],
   },
@@ -178,7 +177,7 @@ result.statements;    // the bounded statements, verbatim`}</pre>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Verify over HTTP</h2>
       <p className="text-[#1f2937] mb-4">
-        For callers that cannot run a verifier: no-code automation platforms, shell scripts,
+        For callers that cannot run a verifier: shell scripts,
         anything without a JavaScript runtime. It delegates to the same package, so this
         endpoint and the offline verifier cannot disagree.
       </p>
@@ -188,25 +187,21 @@ result.statements;    // the bounded statements, verbatim`}</pre>
 
 curl -X POST https://bitgraph.ing/api/verify \\
   -H "Content-Type: application/json" \\
-  -d '{"digest": "'$DIGEST'"}'
+  `}{`-d '{"proof": '"$(cat proof.json)"', "digest": "'$DIGEST'"}'`}{`
 
 # {
 #   "verified": true,
 #   "status": "valid",
 #   "artifactBinding": "checked",
-#   "onRecord": true,
-#   "counter": "7910",
+`}{`#   "counter": "7910",
 #   "epochId": "...",
 #   "proof": { ... }
 # }`}</pre>
       </div>
       <p className="text-[#1f2937] mb-4">
-        Send <code>proof</code> to check a proof you are carrying rather than whatever the
-        ledger currently holds, and both together to check that the proof describes that exact
+        Send <code>proof</code> and <code>digest</code> together to check that the proof describes that exact
         file. Add <code>allowedMeasurements</code> to reject anything not signed by a specific
-        enclave build. The digest may be hex or base64, either form. A digest that has only been
-        named as the origin of fused artifacts, never recorded itself, comes back as not on record
-        with <code>fusedDescendants</code> counting them; those bound the bytes from above only.
+        enclave build. The digest may be hex or base64, either form. A digest alone is looked up in the index, which holds only recordings made before 8 September 2026; for anything newer, send the proof.
       </p>
       <p className="text-base text-[#4b5563] mb-8">
         <strong className="text-text">Read <code>artifactBinding</code>, not just <code>verified</code>.</strong>{" "}
@@ -233,7 +228,7 @@ curl -X POST https://bitgraph.ing/api/verify \\
         A position is held for 120 seconds. Up to 1,000 can be open at once across the whole
         enclave. Allocating one advances the counter immediately, so a position that is never
         committed leaves a permanent gap in the sequence. Nothing is written when a position is
-        allocated, so an abandoned position never reaches the ledger and appears only as that gap.
+        allocated, so an abandoned position is simply a gap in the sequence.
         An enclave restart begins a new epoch and voids every position still open.
       </p>
       <p className="text-[#1f2937] mb-4">
@@ -254,7 +249,8 @@ curl https://nitro.occproof.com/key
 # Response:
 # {
 #   "publicKeyB64": "...",
-#   "measurement": "ac813febd1ac4261...",
+#   `}{`"measurement": "eccfc1c78006f4b7...05c72b",
+#   "epochId": "...",`}{`
 #   "enforcement": "measured-tee"
 # }`}</pre>
       </div>
@@ -262,14 +258,14 @@ curl https://nitro.occproof.com/key
       <h2 className="text-xl font-semibold mt-12 mb-4">Important notes</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
         <li>• <strong className="text-text">Files are never uploaded.</strong> Only SHA-256 digests and slot records cross the network, plus byte sizes, a file&apos;s first bytes and recipe bytes on the hosted MCP endpoint, where the caller builds the new file itself.</li>
-        <li>• <strong className="text-text">Commit via bitgraph.ing.</strong> The site endpoint records every causal position of a file for later lookup. A lookup by a file&apos;s digest lists its recordings and every fused artifact naming it as origin, by position, never ranked. Committing to the enclave host directly skips that index, and your recordings will not be discoverable by digest.</li>
+        <li>• <strong className="text-text">Commit via bitgraph.ing.</strong> The site endpoint sits behind the anchor-first gate, so every position it issues carries a floor. BitGraph keeps no index of proofs by digest; the proof you receive is the record, so store it with the file.</li>
         <li>• <strong className="text-text">The proof is portable.</strong> Store it alongside the artifact or in a separate system.</li>
         <li>• <strong className="text-text">Verification is offline.</strong> No API calls needed to verify. Just the public key and the bytes: the artifact, or the origin of a fused artifact.</li>
         <li>• <strong className="text-text">Pin measurements.</strong> For production, always pin allowedMeasurements and require attestation.</li>
         <li>• <strong className="text-text">Track counters.</strong> Store the last accepted counter value to prevent replay.</li>
         <li>• <strong className="text-text">Causal slots.</strong> Every proof includes a pre-allocated slot that proves the enclave committed to a counter position before seeing the artifact hash.</li>
-        <li>• <strong className="text-text">Fused artifacts.</strong> The commitment inside a fused artifact names a slot that existed before the artifact was finished, so the slot is a lower bound and the commit an upper bound on those exact bytes. The fused bytes are transient; the original plus the proof rebuilds them.</li>
-        <li>• <strong className="text-text">Attribution is signed.</strong> Name, title, and message in the attribution field are covered by the Ed25519 signature; the proof is detectably invalid if they are altered. On a fused proof the attribution is the marker: name <code>bitgraph-fuse/1</code>, title the placement, message the origin digest.</li>
+        <li>• <strong className="text-text">Fused artifacts.</strong> The commitment inside a fused artifact names a slot that existed before the artifact was finished, so those exact bytes cannot predate the slot, and the commit is the position they hold in the sequence. The fused bytes are transient; the original plus the proof rebuilds them.</li>
+        <li>• <strong className="text-text">Attribution is signed.</strong> Name, title, and message in the attribution field are covered by the Ed25519 signature; the proof is detectably invalid if they are altered. On a fused proof the attribution is the marker: name <code>bitgraph-fuse/1</code>, title the placement id, or the encoding id base64url, message the origin digest.</li>
       </ul>
     </article>
   );

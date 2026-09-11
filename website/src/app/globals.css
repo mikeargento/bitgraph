@@ -913,3 +913,4 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    no-buttons rule now holds everywhere. ── */
 .bg-download-link { font-size: 22px; padding: 0; }
 .bg-download-link:disabled { color: #9ca3af; }
+

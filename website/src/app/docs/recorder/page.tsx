@@ -84,7 +84,7 @@ BitGraph (Photos 2026, 412 files)/
         <li><strong>It never writes into your folders.</strong> The folder you dragged out of is left exactly as it was.</li>
         <li><strong>It never moves your files.</strong> Your file does appear inside the recording folder. On the same disk it is a hard link: the same bytes under a second name, no new disk used, so editing the original in place changes what the recording holds and a check then says so. Where a link is not possible, another drive or a filesystem without links, it copies instead, and the recording says which it did. Your original stays where it was either way.</li>
         <li><strong>It never writes the fused bytes.</strong> They are virtual: the original plus the proof rebuilds them exactly, so they are only written when you export. The export checks the rebuilt bytes against the committed digest as it writes them, and if they do not match, no file is handed over. A new file that does not match its proof is worse than no new file.</li>
-        <li><strong>No login, no account, no upload.</strong> Files are hashed on your Mac. Two HTTPS calls leave the machine, and neither carries your file: digests, sizes, a file&rsquo;s first bytes for the placement choice, the slot record and the placement id.</li>
+        <li><strong>No login, no account, no upload.</strong> Files are hashed on your Mac. Making a BitGraph is two HTTPS calls, and neither carries your file: digests, sizes, a file&rsquo;s first bytes for the placement choice, the slot record and the placement id. Afterwards the app fetches the Ethereum anchors for the position and checks the update feed; nothing about your files travels.</li>
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Setting up</h2>
@@ -122,7 +122,7 @@ BitGraph (Photos 2026, 412 files)/
           <tr><td><strong>verified</strong></td><td>the bytes rebuild the artifact this position committed</td></tr>
           <tr><td><strong>failed</strong></td><td>something contradicted; it names which side</td></tr>
           <tr><td><strong>could not be checked</strong></td><td>a gap on this side, never counted as a failure</td></tr>
-          <tr><td><strong>not recorded</strong></td><td>these bytes have no BitGraph, which is not a fault</td></tr>
+          <tr><td><strong>not recorded</strong></td><td>no proof in this folder covers these bytes, which is not a fault</td></tr>
         </tbody>
       </table>
       <p className="text-[#1f2937] mt-4">

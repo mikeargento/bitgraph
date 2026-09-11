@@ -58,8 +58,8 @@ export default function WhatIsBitGraphPage() {
       <ol className="space-y-3 mb-6">
         <li className="text-[#1f2937] leading-relaxed">
           <strong className="text-text">1. Allocate</strong> - The enclave pre-allocates a
-          causal slot (nonce + counter) before the artifact hash reaches it. The
-          place exists before the file that will occupy it.
+          causal slot (nonce + counter) before the artifact hash reaches it. The place exists
+          before the enclave has seen the digest that will occupy it.
         </li>
         <li className="text-[#1f2937] leading-relaxed">
           <strong className="text-text">2. Bind</strong> - The artifact&apos;s SHA-256 digest is
@@ -69,17 +69,20 @@ export default function WhatIsBitGraphPage() {
         <li className="text-[#1f2937] leading-relaxed">
           <strong className="text-text">3. Commit</strong> - The slot is consumed and the
           proof is produced. Fail-closed: if any step fails, no proof exists.
-          The proof includes the signed slot record as causal evidence.
+          The proof includes the signed slot record as causal evidence. The
+          slot record names the Ethereum anchor the enclave had already
+          authenticated, so the proof carries its own floor.
         </li>
       </ol>
       <p className="text-[#1f2937] leading-relaxed mb-4">
-        In the site&apos;s default operation the artifact is built between
-        steps 1 and 2. A commitment to the signed slot record is placed into a
-        new fused artifact made from the dropped file, the origin, under a
+        When a BitGraph is made, by the Recorder, the MCP
+        servers or the two-call API, the artifact is built between steps 1
+        and 2. A commitment to the signed slot record is placed into a
+        new fused artifact made from the file, the origin, under a
         registered placement, and it is that artifact&apos;s digest that is
         bound in step 2. The fused bytes could not have been finalized before
-        the slot existed. Recording existing bytes as they are skips the
-        building step and remains available.
+        the slot existed. Recording existing bytes as
+        they are is the HTTP API&apos;s compatibility path.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">What you get</h2>
@@ -88,18 +91,18 @@ export default function WhatIsBitGraphPage() {
       </p>
       <ul className="space-y-2 mb-6">
         <li className="text-[#1f2937]"><strong className="text-text">artifact</strong> - SHA-256 digest of the committed bytes</li>
-        <li className="text-[#1f2937]"><strong className="text-text">commit</strong> - fresh nonce, monotonic counter, slot binding (slotCounter, slotHashB64), epoch identity, optional chain link</li>
+        <li className="text-[#1f2937]"><strong className="text-text">commit</strong> - fresh nonce, monotonic counter, slot binding (slotCounter, slotHashB64), the latest Ethereum anchor at allocation (slotAnchor, the proof&apos;s floor), epoch identity, optional chain link</li>
         <li className="text-[#1f2937]"><strong className="text-text">signer</strong> - Ed25519 public key and signature over the canonical signed body</li>
         <li className="text-[#1f2937]"><strong className="text-text">environment</strong> - enforcement tier, platform measurement (PCR0), hardware attestation</li>
         <li className="text-[#1f2937]"><strong className="text-text">slotAllocation</strong> - the pre-allocated causal slot record, independently signed by the enclave</li>
         <li className="text-[#1f2937]"><strong className="text-text">agency</strong> - optional, legacy</li>
         <li className="text-[#1f2937]"><strong className="text-text">attribution</strong> - optional signed metadata (name, title, message); for a fused artifact it carries the profile identifier <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">bitgraph-fuse/1</code>, the placement, and the origin digest</li>
-        <li className="text-[#1f2937]"><strong className="text-text">timestamps</strong> - optional and advisory only. A proof&apos;s place comes from its slot and counter. External time bounds come from periodic Ethereum anchors of the counter chain, never from this field.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">timestamps</strong> - optional and advisory only. A proof&apos;s place comes from its slot and counter. A time bound comes from Ethereum anchors, never from this field: an anchor is a proof whose artifact is a recent block hash, so every position after it was placed no earlier than that block.</li>
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Key properties</h2>
       <ul className="space-y-2 mb-6">
-        <li className="text-[#1f2937]"><strong className="text-text">Portable</strong> - a self-contained JSON object. Any verifier can check it offline with only the public key and the artifact bytes; a fused artifact is rebuilt from its origin and the proof.</li>
+        <li className="text-[#1f2937]"><strong className="text-text">Portable</strong> - a self-contained JSON object. A verifier checks it without contacting anyone: the signature against the key the proof carries, the attestation against the AWS Nitro root, the slot binding, and the floor; a fused artifact is rebuilt from its origin and the proof.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Atomic</strong> - fail-closed. Either a complete, valid proof is produced, or nothing is.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Causal</strong> - every proof is bound to a pre-allocated slot created before the artifact hash reached the enclave.</li>
         <li className="text-[#1f2937]"><strong className="text-text">Ordered</strong> - one place in a sequence, fixed by a monotonic counter within its epoch. Counter, epoch, and chain link establish sequencing.</li>

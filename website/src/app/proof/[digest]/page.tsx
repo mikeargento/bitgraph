@@ -56,12 +56,14 @@ const asRecord = (p: BitGraphProof) => p as unknown as Record<string, unknown>;
 function formatWindow(lower: string | null, upper: string | null): string | null {
   if (lower && upper) {
     const t1 = new Date(lower), t2 = new Date(upper);
+    // 2026-09-10: the floor is the only bound the proof carries; a following
+    // anchor is named but never as a ceiling.
     return t1.toDateString() === t2.toDateString()
-      ? `between ${timeTz(t1)} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`
-      : `between ${stampTz(t1)} and ${stampTz(t2)}`;
+      ? `after ${timeTz(t1)} on ${t1.toLocaleDateString()}, then an anchor at ${timeTz(t2)} (not an upper bound)`
+      : `after ${stampTz(t1)}, then an anchor at ${stampTz(t2)} (not an upper bound)`;
   }
   if (lower) { const t = new Date(lower); return `after ${timeTz(t)} on ${t.toLocaleDateString()}`; }
-  if (upper) { const t = new Date(upper); return `before ${timeTz(t)} on ${t.toLocaleDateString()}`; }
+  if (upper) { const t = new Date(upper); return `an anchor followed at ${timeTz(t)} on ${t.toLocaleDateString()} (not an upper bound)`; }
   return null;
 }
 
@@ -643,7 +645,7 @@ export default function ProofPage() {
           </>
         ) : (
           <>
-            <div style={{ fontSize: 16, color: "#f87171", marginBottom: 12 }}>{error || "BitGraph not found"}</div>
+            <div style={{ fontSize: 16, color: "#f87171", marginBottom: 12 }}>{error || <>Could not read the ledger</>}</div>
             <a href="/" style={{ fontSize: 14, color: "var(--c-accent)" }}>BitGraph</a>
           </>
         )}
@@ -770,13 +772,13 @@ export default function ProofPage() {
       // Each time-with-zone is an unbreakable unit, so on narrow screens the
       // phrase wraps at the connector words instead of splitting "PM" from
       // "EDT" mid-time.
-      recordedLine = `between ${timeTz(t1)} and ${timeTz(t2)} on ${t2.toLocaleDateString()}`;
-      recordedNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t2.toLocaleDateString()}</span></Em></>;
-      recordedDate = longDate(t2);
-      leadNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em></>;
+      recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}, then an anchor at ${timeTz(t2)} (not an upper bound)`;
+      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t1.toLocaleDateString()}</span></Em>, then an anchor at <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em> (not an upper bound)</>;
+      recordedDate = longDate(t1);
+      leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
     } else {
-      recordedLine = `between ${stampTz(t1)} and ${stampTz(t2)}`;
-      recordedNode = <>between <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t1)}</span></Em> and <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t2)}</span></Em></>;
+      recordedLine = `after ${stampTz(t1)}, then an anchor at ${stampTz(t2)} (not an upper bound)`;
+      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t1)}</span></Em>, then an anchor at <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t2)}</span></Em> (not an upper bound)</>;
     }
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
@@ -788,10 +790,7 @@ export default function ProofPage() {
       // refresh. No seconds count: the next anchor has no client-known ETA.
       recordedNode = (
         <>
-          between <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> and{" "}
-          <span style={{ color: "#4b5563", whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
-            waiting for the next block…
-          </span>
+          after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em>
         </>
       );
       leadNode = recordedNode;
@@ -827,7 +826,7 @@ export default function ProofPage() {
       // the closing time carries it.
       const fmtOpen = sameDay ? timeNoTz : stampNoTz;
       const fmtClose = sameDay ? timeTz : stampTz;
-      leadStack = winLine(<>{conn("between ")}{val(fmtOpen(s1))}{conn(" and ")}{val(fmtClose(s2))}</>);
+      leadStack = winLine(<>{conn("after ")}{val(fmtClose(s1))}{conn(", then an anchor at ")}{val(fmtClose(s2))}{conn(" (not an upper bound)")}</>);
     } else if (ethWait) {
       const s1 = new Date(lowerTime);
       // Not sealed yet: the close time is unknown. Show the open time and a
@@ -837,10 +836,7 @@ export default function ProofPage() {
       // the close fills in; on mobile it then drops to its own line at seal.
       leadStack = winLine(
         <>
-          {conn("between ")}{val(timeTz(s1))}{conn(" and ")}
-          <span style={{ color: "#9ca3af", fontWeight: 400, whiteSpace: "nowrap", animation: "ethWaitPulse 1.6s ease-in-out infinite" }}>
-            …
-          </span>
+          {conn("after ")}{val(timeTz(s1))}
         </>
       );
     } else {
@@ -1019,7 +1015,9 @@ export default function ProofPage() {
         if (Array.isArray(data.anchors) && data.anchors.length > 0) {
           files[name] = strToU8(JSON.stringify(data.anchors[0], null, 2));
           await addWitness(witnessName, data.anchors[0]);
-          return { state: "anchored", note: "An Ethereum anchor bounds this position on this side." };
+          // 2026-09-10: the anchor before is the floor; an anchor after is a
+          // later position in the order, never an upper bound.
+          return { state: "anchored", note: name.includes("before") ? "An Ethereum anchor is the floor of this position." : "An Ethereum anchor followed this position (not an upper bound)." };
         }
         const b = data.bound as { state?: string; note?: string } | undefined;
         if (!b?.state) {
@@ -1354,8 +1352,8 @@ export default function ProofPage() {
                   // made from it find the same proof, so nothing here says which
                   // hash the visitor arrived by (Mike, 2026-09-03).
                   return positions.length === 1
-                    ? "One position, with its own verifiable time window."
-                    : `${positions.length} positions. Each sits at its own place in the sequence, with its own verifiable time window.`;
+                    ? <>One position, with its own floor.</>
+                    : <>{`${positions.length} positions. Each sits at its own place in the sequence, with its own floor.`}</>;
                 })()}
               </div>
               {[...positions].reverse().map((pos) => {
@@ -1398,13 +1396,13 @@ export default function ProofPage() {
                   ? isEarliestFused
                     ? "Earliest new file made from the original"
                     : "New file made from the original"
-                  : recordedPositions.length === 1 ? "Recorded position" : isEarliest ? "Earliest recorded position" : "Recorded again";
+                  : recordedPositions.length === 1 ? "Placed" : isEarliest ? "Earliest placement" : "Placed again";
                 const rowDigest = isFusedRow && pos.artifactDigest ? pos.artifactDigest : digestParam;
                 const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
                 const timesNode = t1 && t2
                   ? (sameDay
-                      ? <>{conn("between ")}{val(timeNoTz(t1))}{conn(" and ")}{val(timeTz(t2))}</>
-                      : <>{conn("between ")}{val(stampTz(t1))}{conn(" and ")}{val(stampTz(t2))}</>)
+                      ? <>{conn("after ")}{val(timeTz(t1))}{conn(", then an anchor at ")}{val(timeTz(t2))}{conn(" (not an upper bound)")}</>
+                      : <>{conn("after ")}{val(stampTz(t1))}{conn(", then an anchor at ")}{val(stampTz(t2))}{conn(" (not an upper bound)")}</>)
                   : (t1 ? <>{conn("after ")}{val(timeTz(t1))}</> : null);
                 return (
                   <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid #e2e5e9" }}>
@@ -1538,7 +1536,7 @@ export default function ProofPage() {
               block" so the pair reads as a bracket: after this block, before
               that one. */}
           {!isEth && causalWindow?.anchorBefore && (
-            <CollapsibleCard title="Recorded after this block">
+            <CollapsibleCard title="Placed after this block">
               {causalWindow.anchorBefore.blockNumber !== null && (
                 <Field label="Block" value={`#${causalWindow.anchorBefore.blockNumber.toLocaleString()}`} highlight />
               )}
@@ -1566,7 +1564,7 @@ export default function ProofPage() {
               only the file proof's sealing "Before" anchor renders — an anchor
               is the bracket, so it has no before/after window of its own. */}
           {!isEth && causalWindow?.anchorAfter ? (
-            <CollapsibleCard title="Recorded before this block">
+            <CollapsibleCard title="An anchor followed this position (not an upper bound)">
               {causalWindow.anchorAfter.blockNumber !== null && (
                 <Field label="Block" value={`#${causalWindow.anchorAfter.blockNumber.toLocaleString()}`} highlight />
               )}
@@ -1587,12 +1585,6 @@ export default function ProofPage() {
                   </a>
                 </div>
               )}
-            </CollapsibleCard>
-          ) : !isEth && !isInterval ? (
-            <CollapsibleCard title="Recorded before the next block">
-              <div style={{ padding: "14px 16px", fontSize: 14, color: "#4b5563" }}>
-                Waiting for the next Ethereum block…
-              </div>
             </CollapsibleCard>
           ) : null}
 
@@ -2122,8 +2114,8 @@ function BringYourFile({
            like a hung one. */
         <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
           {progress.total > 1
-            ? `Checking the ledger… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`
-            : "Checking the ledger…"}
+            ? <>{`Matching members… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`}</>
+            : <>Matching members…</>}
         </div>
       ) : mismatch ? (
         <>
@@ -2907,7 +2899,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               <div style={{ padding: "14px 18px", background: "rgba(0,101,164,0.07)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: 0, marginBottom: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-accent)", marginBottom: 6 }}>What PCR0 proves</div>
                 <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5, marginBottom: 8 }}>
-                  PCR0 is the SHA-384 hash of the exact enclave image that signed this BitGraph, shown above. The enclave source is open and the measurement is reproducible: you can rebuild it on any linux/amd64 host and re-derive this exact PCR0 yourself, trusting no one. You do not have to take BitGraph at its word for what runs inside the boundary.
+                  PCR0 is the SHA-384 hash of the exact enclave image that signed this BitGraph, shown above. The enclave source is published and the measurement is reproducible: you can rebuild it on any linux/amd64 host and re-derive this exact PCR0 yourself. You do not have to take BitGraph at its word for what runs inside the boundary.
                 </div>
                 <a href="/docs/self-host-tee" target="_blank" rel="noopener" style={{ fontSize: 12, fontWeight: 600, color: "var(--c-accent)", textDecoration: "none" }}>
                   Rebuild and verify this PCR0 &rarr;

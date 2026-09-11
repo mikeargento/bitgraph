@@ -59,7 +59,7 @@ export default function FolderRetiredPage() {
 
       <h2>Your recordings are unaffected</h2>
       <p>
-        Nothing about retiring the tool touches what it recorded. Positions on the ledger are permanent and public, and each export is self-contained: <code>proof.json</code>, the file itself, and the Ethereum anchors that bracket its position. They verify with no network, no account, and no BitGraph software running anywhere.
+        Nothing about retiring the tool touches what it recorded. Positions on the ledger are permanent and public, and each export is self-contained: <code>proof.json</code>, the file itself, and the Ethereum anchor that gives its position a floor. They verify with no network, no account, and no BitGraph software running anywhere.
       </p>
       {/* ⚠️ THIS LIST LOST TWO OF ITS THREE ENTRIES ON 2026-09-08 and both
           losses point the same way (Mike: "no verifying or making will happen
@@ -75,7 +75,7 @@ export default function FolderRetiredPage() {
         </li>
       </ul>
       <p>
-        A <code>verify.html</code> you already have still works, and always will. It carries its own copy of the code and makes no network request of any kind — which is exactly why we stopped serving fresh ones: a copy you hold is a copy nobody can change under you.
+        A <code>verify.html</code> you already have still works, and always will. It carries its own copy of the code and makes no network request of any kind. As of 8 September 2026 bitgraph.ing no longer serves one: loading a checker from us means trusting us, and we are the party being checked.
       </p>
 
       <h2>Why the installers were withdrawn</h2>

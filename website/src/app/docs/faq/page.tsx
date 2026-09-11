@@ -33,7 +33,7 @@ const faqs = [
   },
   {
     q: "Why is the position allocated before the hash arrives?",
-    a: "Because that is what makes it evidence rather than a claim. If the position were assigned when the hash arrived, whoever ran the service could choose it. Instead the enclave hands out a slot from hardware entropy, signs it, and only then receives a hash to bind into it. The claim is precisely the enclave's own view: it had not received the hash when it signed the slot. It says nothing about what anyone else knew. Two consequences follow. An attempt consumes a position whether or not anyone likes the result, so a run cannot quietly discard nine tries and present the tenth as the only one. And a slot lives for at most two minutes before it expires, a limit set in the attested code, so the most a holder can do is delay by that much, and the verifier can see the slot counter and the commit counter side by side.",
+    a: "Because that is what makes it evidence rather than a claim. If the position were assigned when the hash arrived, whoever ran the service could choose it. Instead the enclave hands out a slot from hardware entropy, signs it, and only then receives a hash to bind into it. The claim is precisely the enclave's own view: it had not received the hash when it signed the slot. It says nothing about what anyone else knew. Two consequences follow. An attempt consumes a position whether or not anyone likes the result, so a run cannot quietly discard nine tries and present the tenth as the only one. And a slot lives for at most two minutes before it expires, a limit set in the attested code, so a holder can delay a commit by at most that much, or choose among the slots it holds open, and the verifier can see the slot counter and the commit counter side by side.",
   },
   {
     q: "Why not just trust a timestamp?",
@@ -41,7 +41,7 @@ const faqs = [
   },
   {
     q: "How does this relate to execution attestation records for AI agents?",
-    a: "They are complementary, and they answer different questions. An attestation record proves what happened inside its own boundary: which model ran, under which policy, on which measured hardware. What it structurally cannot give is order across parties, a position that predates its own artifact, or a check that needs neither the issuer nor the log operator present. BitGraph is a separate trust domain such a record can reference. The producer takes a slot before the run finishes, carries the slot commitment inside the signed record, and commits the record's digest into that slot. Any verifier who chooses to resolve the reference gets the record's position and its floor; a verifier who does not is unaffected. The record binds the slot, and the slot binds the record, so pasting one record's commitment into another fails: the slot was consumed by a different digest.",
+    a: "They are complementary, and they answer different questions. An attestation record proves what happened inside its own boundary: which model ran, under which policy, on which measured hardware. What it structurally cannot give is order across parties, a position that predates its own artifact, or a check that needs neither the issuer nor the log operator present. BitGraph is a separate trust domain such a record can reference. The producer takes a slot before the run finishes, carries the slot commitment inside the signed record, and commits the record's digest into that slot. Any verifier who chooses to read the proof carried with the record gets the record's position and its floor; a verifier who does not is unaffected. The record binds the slot, and the slot binds the record, so pasting one record's commitment into another fails: the slot was consumed by a different digest.",
   },
   {
     q: "Can an agent's run be recorded as a whole?",
@@ -53,11 +53,11 @@ const faqs = [
   },
   {
     q: "Can I make or check a BitGraph without the app?",
-    a: "Yes. `@mikeargento/bitgraph` exposes `fuse()` and the `bitgraph-fuse` command (`fuse <file> --placement trailer/1|container/2`, `produce`, `check`). `@mikeargento/bitgraph-verify` exposes `verifyFuse`, which reports, among others, FUSED_DIRECT, FUSED_FROM_ORIGIN, RECORDED, INVALID_SLOT_COMMITMENT, RECONSTRUCTION_MISMATCH or NO_MATCH. `npx @mikeargento/bitgraph-audit` checks a whole bundle, anchors and attestation included, from a terminal. `@mikeargento/bitgraph-mcp` gives any MCP client the same making and checking.",
+    a: "Yes. `@mikeargento/bitgraph` exposes `fuse()` and the `bitgraph-fuse` command (`fuse <file> --placement trailer/1|container/2`, `produce`, `check`). `@mikeargento/bitgraph-verify` exposes `verifyFuse`, which reports, among others, FUSED_DIRECT, FUSED_FROM_ORIGIN, RECORDED, INVALID_SLOT_COMMITMENT, RECONSTRUCTION_MISMATCH or NO_MATCH. `npx @mikeargento/bitgraph-audit` checks a whole bundle, anchors and attestation included, from a terminal. `@mikeargento/bitgraph-mcp` gives any MCP client the same making.",
   },
   {
     q: "Can I verify a proof without an internet connection?",
-    a: "Yes. Core verification (digest match + Ed25519 signature) is fully offline. You need the artifact bytes, the proof JSON, and a verifier implementation. For a fused artifact either copy will do: the origin plus the proof rebuilds the fused bytes, and the rebuilt bytes are checked against the signed digest. The floor can be checked offline too when the anchor travels with the proof, which a recording's folder and an export both provide. Confirming the anchored block against Ethereum itself is the one step that needs the outside world, and it needs nothing from this service.",
+    a: "Yes. Verification is offline: the digest, the Ed25519 signature, the attestation chain to the AWS Nitro root, the slot binding and the floor in the signed body. You need the artifact bytes, the proof JSON, and a verifier implementation. For a fused artifact either copy will do: the origin plus the proof rebuilds the fused bytes, and the rebuilt bytes are checked against the signed digest. The floor can be checked offline too when the anchor travels with the proof, which a recording's folder and an export both provide. The export ships the block header, so the floor checks offline as well; confirming the same block on a public explorer is optional corroboration and needs nothing from this service.",
   },
   {
     q: "What happens if the enclave restarts?",
@@ -65,7 +65,7 @@ const faqs = [
   },
   {
     q: "If the TEE were compromised, would all my old proofs be invalid?",
-    a: "No. Each epoch is a closed compartment with its own keypair. A compromise of the live epoch can only sign proofs under the live epoch's public key. It cannot retroactively forge proofs under any prior epoch's key, because that key was destroyed when its enclave terminated. Ethereum anchors bound it further: every proof committed before an anchor is fixed behind that anchor's hash links. A breach is bounded on one side by the epoch boundary and on the other by the most recent anchor that preceded it.",
+    a: "No. Each epoch is a closed compartment with its own keypair. A compromise of the live epoch can only sign proofs under the live epoch's public key. It cannot retroactively forge proofs under any prior epoch's key, because that key was destroyed when its enclave terminated. Ethereum anchors bound it further: every slot allocated after an anchor carries that anchor as its floor, so a breach cannot place a proof before a block that had not yet been produced. A breach is bounded on one side by the epoch boundary and on the other by the most recent anchor that preceded it.",
   },
   {
     q: "Is this a blockchain?",
@@ -89,7 +89,7 @@ const faqs = [
   },
   {
     q: "Can the same file produce different proofs?",
-    a: "Yes. Each recording takes a fresh slot, whose nonce came from hardware entropy at allocation, advances the counter, and produces a new signature. The artifact digest will be the same (same file = same SHA-256), but the commit context differs. This is correct behavior. Each is a distinct commit event. Recording the same original again through the two-call API, or through an MCP server with `again=true`, makes a new fused artifact with a new slot commitment, so its bytes and digest differ from the first; both name the same origin, and neither outranks the other. By default both MCP servers leave a file already on record alone and return its position, and BitGraph Recorder opens the existing recording rather than making a second one.",
+    a: "Yes. Each recording takes a fresh slot, whose nonce came from hardware entropy at allocation, advances the counter, and produces a new signature. The artifact digest will be the same (same file = same SHA-256), but the commit context differs. This is correct behavior. Each is a distinct commit event. Recording the same original again through the two-call API, or through an MCP server with `again=true`, makes a new fused artifact with a new slot commitment, so its bytes and digest differ from the first; both name the same origin, and neither outranks the other. BitGraph Recorder opens an existing recording rather than making a second one. The MCP servers make a new BitGraph when asked: BitGraph no longer indexes proofs, so whether a file already has one is known only to whoever holds its proof.",
   },
   {
     q: "What is `prevB64`?",

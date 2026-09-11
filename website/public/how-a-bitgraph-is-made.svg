@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 248" width="600" height="248" role="img" aria-labelledby="t d">
   <title id="t">A position is opened before the file, and filled after it</title>
-  <desc id="d">One horizontal sequence. Positions run left to right as small marks. At position N an empty dashed square is opened while no file exists. The file is then built above it, drawn as an outline that carries the commitment down to that square. At the next position the square is solid: the finished bytes have been committed. Two Ethereum anchors, one before and one after, bracket the pair.</desc>
+  <desc id="d">One horizontal sequence. Positions run left to right as small marks. At position N an empty dashed square is opened while no file exists. The file is then built above it, drawn as an outline that carries the commitment down to that square. At the next position the square is solid: the finished bytes have been committed. One Ethereum anchor, before the position, gives it a floor: the bytes were placed no earlier than that block.</desc>
 
   <style><![CDATA[
     /* The line is the sequence and the geometry is the argument: the empty
@@ -38,7 +38,7 @@
   <text class="anch" x="46" y="176" text-anchor="middle">anchor</text>
   <text class="anch" x="530" y="176" text-anchor="middle">anchor</text>
   <line class="span" x1="46" y1="216" x2="530" y2="216" />
-  <text class="anch" x="288" y="234" text-anchor="middle">two Ethereum block hashes nobody could predict</text>
+  <text class="anch" x="288" y="234" text-anchor="middle" fill="#c00000">an Ethereum block hash nobody could predict: the floor</text>
 
   <!-- The file, built above the sequence, after the position below it exists.
        Its folded corner is part of the same outline. -->

@@ -154,7 +154,7 @@ export default function OverviewPage() {
       </blockquote>
 
       <p>
-        The recorder is the product. This page describes the protocol it writes.
+        <a href="/docs/recorder">BitGraph Recorder</a> is the product. This page describes the protocol it writes.
       </p>
 
       <h2>The primitive</h2>
@@ -174,7 +174,7 @@ export default function OverviewPage() {
       </blockquote>
 
       <p>
-        The atomicity is the whole guarantee, and it constrains the record rather than the artifact. The artifact itself can be produced anywhere, by any process, using any tools. What matters is that when the hash arrives, the slot is already there waiting.
+        The atomicity is the whole guarantee, and it constrains the placement rather than the artifact. The artifact itself can be produced anywhere, by any process, using any tools. What matters is that when the hash arrives, the slot is already there waiting.
       </p>
 
       <p>
@@ -196,7 +196,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        The site&rsquo;s default operation adds a bound from below. The dropped file is the origin. Before any artifact exists, the browser asks the enclave for an unused slot and derives a commitment to the signed slot record. It builds a new fused artifact from the origin by placing that commitment under a registered placement: a 48-byte trailer where the format ignores trailing bytes, a small tar container otherwise. The fused artifact is hashed and committed into the same slot. Those bytes could not have been finalized before the slot was allocated, and they were committed no later than the commit position. The origin gets the upper bound only: rebuilding the fused artifact from the origin and the proof shows the origin existed no later than the commit. Neither bound says when the content was created or whether it is authentic. Recording existing bytes as they are remains available and gives the upper bound alone.
+        Making a BitGraph adds a bound from below. The file is the origin. Before any artifact exists, the Recorder, or your own code, asks the enclave for an unused slot and derives a commitment to the signed slot record. It builds a new fused artifact from the origin by placing that commitment under a registered placement: a 48-byte trailer where the format ignores trailing bytes, a small tar container otherwise. The fused artifact is hashed and committed into the same slot. Those bytes could not have been finalized before the slot was allocated, and they were committed no later than the commit position. The origin gets the upper bound only: rebuilding the fused artifact from the origin and the proof shows the origin existed no later than the commit. Neither bound says when the content was created or whether it is authentic. Recording existing bytes as they are remains available on the HTTP API and gives the upper bound alone.
       </p>
 
       <h2>What a BitGraph proof contains</h2>
@@ -247,7 +247,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor, and every proof chained after it, came after that block and its public date. Anchors recur throughout every epoch. This is the wall-clock statement every proof page shows, and it runs in one direction: provably no earlier than. The other side of the window narrows through the chain&rsquo;s cadence, measured enclave behavior rather than public data, which is why it is narrowed, not closed.
+        Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor, and every proof chained after it, came after that block and its public date. Anchors recur throughout every epoch. This is the wall-clock statement every proof carries, and it runs in one direction: no earlier than. Nothing in the proof bounds the other side.
       </p>
 
       <p>
@@ -312,7 +312,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        BitGraph does not restore originality. It makes it unnecessary. The artifact&rsquo;s hash is the proof&rsquo;s anchor, so any exact copy of the bytes carries the same position, and no copy has to be the special one. The proof object itself can travel with the file, stay on the server that issued it, or be stored anywhere, and each of those can have copies too. Verification does not depend on where anything lives. What used to need a unique object now needs only the exact bytes. A fused artifact need not even be kept: the origin plus the proof rebuilds it byte for byte, and checking that reconstruction against the signed artifact digest is the evidence.
+        BitGraph does not restore originality. It makes it unnecessary. The artifact&rsquo;s hash is the proof&rsquo;s anchor, so any exact copy of the bytes carries the same position, and no copy has to be the special one. The proof object itself travels with the file or is stored wherever its holder keeps it, and each of those can have copies too. Verification does not depend on where anything lives. What used to need a unique object now needs only the exact bytes. A fused artifact need not even be kept: the origin plus the proof rebuilds it byte for byte, and checking that reconstruction against the signed artifact digest is the evidence.
       </p>
 
       <h2>What BitGraph applies to</h2>
@@ -322,7 +322,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        <strong>AI agent actions.</strong> Each action an agent takes, and what it produced, bound to a causal position, without the agent running inside an enclave. A separate trust domain that other attestation standards can reference.
+        <strong>AI agent records.</strong> What an agent writes about its actions and their outputs, each placed at a position it did not choose, without the agent running inside an enclave. A separate trust domain that other attestation standards can reference.
       </p>
 
       <p>
@@ -338,7 +338,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        <strong>Research and IP.</strong> Datasets, experimental outputs, and possession proofs that commit to a hash without requiring the file to leave the user&rsquo;s device.
+        <strong>Research and IP.</strong> Datasets, experimental outputs, and results committed by hash without requiring the file to leave the user&rsquo;s device.
       </p>
 
       <h2>How BitGraph differs from existing approaches</h2>

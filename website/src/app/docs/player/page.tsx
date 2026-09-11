@@ -98,7 +98,7 @@ export default function PlayerPage() {
         <code>world: &quot;closed&quot;</code> scopes negative claims to the artifacts declared in the rule. For example, this rule does <strong>not</strong> claim that no cancellation exists anywhere. It claims only that no cancellation represented by the declared <code>cancellation</code> role was established before the approval. Negative claims never extend beyond the evidence the rule declares.
       </p>
       <p>
-        <code>requires.ordering</code> is the rule&apos;s security floor. It specifies what kind of ordering evidence the author is willing to accept. <code>hash-linked</code> accepts conclusions supported by hash-linked ordering evidence alone. <code>assumption-dependent</code> also permits ordering conclusions that rely on accepted BitGraph assumptions, including counter order and Ethereum anchor bounds.
+        <code>requires.ordering</code> is the rule&apos;s security floor. It specifies what kind of ordering evidence the author is willing to accept. <code>hash-linked</code> accepts conclusions supported by hash-linked ordering evidence alone. <code>assumption-dependent</code> also permits ordering conclusions that rely on accepted BitGraph assumptions, including counter order and Ethereum anchor floors.
       </p>
       <p>
         There is no default. A rule that does not declare its ordering floor does not parse, because that floor is part of the rule&apos;s own security policy. The tool must not choose it for the author.
@@ -150,7 +150,7 @@ export default function PlayerPage() {
         It deliberately leaves <code>requires.ordering</code> unset. The security floor belongs to the rule author. Player will not choose it.
       </p>
       <p>
-        To read an export without a rule, <code>check</code> prints a <code>bitgraph-check/1</code> report: a three-valued line per check for each recording, with its anchor bounds. A recording marked fused adds a <code>fused</code> line (the commitment check, over the fused bytes or the original), a fused floor (the last anchored block before its slot) and a fused span (slot position to commit position).
+        To read an export without a rule, <code>check</code> prints a <code>bitgraph-check/1</code> report: a three-valued line per check for each recording, with its anchor floor. A recording marked fused adds a <code>fused</code> line (the commitment check, over the fused bytes or the original), a fused floor (the last anchored block before its slot) and a fused span (slot position to commit position).
       </p>
       <div className="code-block">
         <div className="code-block-header">Shell<CopyCode /></div>
@@ -177,10 +177,10 @@ export default function PlayerPage() {
           not host it. Do not restore the link. */}
       <h2>Offline, on a machine that never heard of us</h2>
       <p>
-        Nothing in a check reaches the network. The bundle carries the proof, the file and the Ethereum anchors that bracket its position; the verifier carries its own copy of the code and the enclave measurement it will accept. Pull the cable and the verdict is the same, which is the whole design: a recording has to stay checkable years from now, by someone who should not have to trust a server to tell them what their own bytes say.
+        Nothing in a check reaches the network. The bundle carries the proof, the file and the Ethereum anchor that gives its position a floor; the verifier carries its own copy of the code and the enclave measurement it will accept. Pull the cable and the verdict is the same, which is the whole design: a recording has to stay checkable years from now, by someone who should not have to trust a server to tell them what their own bytes say.
       </p>
       <p>
-        That is also why the check does not live on this site. A page loaded from <code>bitgraph.ing</code> is trusted exactly as far as <code>bitgraph.ing</code> is, and we are the party being checked. A signed package you install once, pinned to a version, is a smaller thing to trust — and the PCR0 it enforces is reproducible from published inputs, so you can confirm it names the enclave we say it does.
+        That is also why the check does not live on this site. A page loaded from <code>bitgraph.ing</code> is trusted exactly as far as <code>bitgraph.ing</code> is, and we are the party being checked. A signed package you install once, pinned to a version, is a smaller thing to trust. The PCR0 it enforces is reproducible from published inputs, so you can confirm it names the enclave we say it does.
       </p>
 
       <h2>Same evidence. Same verdict.</h2>

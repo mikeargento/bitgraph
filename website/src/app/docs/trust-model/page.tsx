@@ -61,8 +61,8 @@ export default function TrustModelPage() {
               <td className="py-2">Delegated to TEE vendor</td>
             </tr>
             <tr className="border-b border-[#e5e7eb]">
-              <td className="py-2 pr-4">Monotonic counter durability - survives restarts</td>
-              <td className="py-2">Anti-rollback degrades to single session</td>
+              <td className="py-2 pr-4">Monotonic counter within an epoch - never repeats or moves backward while the enclave runs</td>
+              <td className="py-2">Positions inside one epoch become ambiguous</td>
             </tr>
             <tr className="border-b border-[#e5e7eb]">
               <td className="py-2 pr-4">Causal slot integrity - slot allocated before the artifact hash reached the enclave</td>
@@ -92,9 +92,9 @@ export default function TrustModelPage() {
           { threat: "Downgrade attack", mitigation: "Enforcement tier is signed; `requireEnforcement` rejects weaker tiers" },
           { threat: "Chain gap insertion", mitigation: "`prevB64` chaining: any removed link breaks hash continuity" },
           { threat: "Counter position forgery", mitigation: "Causal slot pre-allocation: `slotHashB64` binding + `slotCounter` < counter ordering proves pre-allocation" },
-          { threat: "Slot commitment mismatch", mitigation: "A fused artifact carries a commitment derived from the signed slot record; the verifier recomputes it from the proof's own slot and rejects a mismatch (`INVALID_SLOT_COMMITMENT`). A claimed origin must rebuild the artifact byte for byte (`RECONSTRUCTION_MISMATCH` otherwise)" },
+          { threat: "Slot commitment mismatch", mitigation: "A fused artifact carries a commitment derived from the signed slot record; the verifier recomputes it from the proof's own slot and rejects a mismatch (`INVALID_SLOT_COMMITMENT`). The holder must rebuild the artifact byte for byte from the original file and the proof (`RECONSTRUCTION_MISMATCH` otherwise)" },
           { threat: "Retroactive forgery after compromise", mitigation: "Per-epoch keypair destroyed on restart + anchors hash-link prior history, fixing pre-anchor proofs against rewrite" },
-          { threat: "Cross-epoch identity confusion", mitigation: "`epochId` binds every proof to a specific compartment; verifiers pin allowed epochs" },
+          { threat: "Cross-epoch identity confusion", mitigation: "`epochId` binds every proof to a specific compartment; verifiers pin the epoch's public key" },
         ].map((t) => (
           <div key={t.threat} className="flex gap-4 border-l-2 border-l-[#d0d5dd] pl-4 py-1">
             <div className="text-sm font-medium text-[#111827] shrink-0 w-44">{t.threat}</div>
@@ -113,8 +113,11 @@ export default function TrustModelPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Ethereum anchors</h2>
       <p className="text-[#1f2937] leading-relaxed mb-4">
-        BitGraph does not require a blockchain to operate, but it uses Ethereum
-        as an external public timeline. The same TEE that signs user proofs
+        BitGraph writes nothing to a
+        blockchain, but it uses Ethereum as an external public timeline: since
+        enclave v8 every slot on the anchored chain carries the latest Ethereum
+        anchor as its floor, and the enclave refuses to issue a proof without
+        one. The same TEE that signs user proofs
         periodically commits the hash of a recent Ethereum block into its own
         counter chain as an ordinary anchor proof. The anchor carries the
         enclave&apos;s public key, the epoch identifier, the current counter, and
@@ -131,7 +134,9 @@ export default function TrustModelPage() {
         retroactive rewrite: the anchor is hash-linked to the entire chain
         behind it, so any alternative earlier history breaks the chain that
         reaches an anchor already stored and observed, and once the epoch&apos;s
-        key is destroyed no alternative can ever be signed.
+        key is destroyed no alternative can ever be signed. The ledger keeps
+        the anchors and holders keep their proofs, so it is a reader holding
+        the proofs between two anchors who checks that the chain is unbroken.
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-4">
         This is the mechanism behind the phrase &quot;everything before me already
@@ -149,9 +154,11 @@ export default function TrustModelPage() {
       </p>
       <p className="text-[#1f2937] leading-relaxed mb-8">
         Anchors are public, but they reveal no user-identifying information.
-        A verifier can confirm the block an anchor names on Ethereum and use
-        its date to bound when everything chained after that anchor must have
-        come into existence, without ever contacting BitGraph.
+        A verifier
+        can confirm the block an anchor names on Ethereum and use its date as a
+        floor: every proof chained after that anchor was placed no earlier than
+        that block. The export ships the block header, so the check contacts
+        no one.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Epoch isolation: blast-radius containment</h2>
@@ -186,7 +193,7 @@ export default function TrustModelPage() {
         containment action. Each restart closes one compartment and opens a
         fresh one, so any undetected compromise is quarantined to the bounded
         window of a single epoch. Verifiers can refuse to accept proofs from
-        any epoch they have not pinned, narrowing trust to known-good
+        any key they have not pinned, narrowing trust to known-good
         compartments only.
       </p>
 
@@ -221,7 +228,7 @@ export default function TrustModelPage() {
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Non-goals</h2>
       <ul className="space-y-2 mb-8 text-sm text-[#1f2937]">
-        <li>• <strong className="text-text">Global ordering from the counter alone</strong> - every TEE instance and every new epoch resets the counter to 1, so the counter by itself only orders proofs within a single epoch. Ordering relative to the outside world is established by Ethereum anchors: each anchor records the hash of a recent finalized block, so everything chained after it provably follows that block&apos;s public date: across epochs, across TEE instances, and against any other event that can be placed on the same public timeline.</li>
+        <li>• <strong className="text-text">Global ordering from the counter alone</strong> - every TEE instance and every new epoch resets the counter to 1, so the counter by itself only orders proofs within a single epoch. Ordering relative to the outside world is established by Ethereum anchors: each anchor records the hash of a recent block, so everything chained after it provably follows that block&apos;s public date: across epochs, across TEE instances, and against any other event that can be placed on the same public timeline.</li>
         <li>• <strong className="text-text">Cross-boundary double-spend</strong> - same artifact can be submitted to separate boundaries</li>
         <li>• <strong className="text-text">Copy prevention</strong> - BitGraph does not prevent raw byte copying</li>
         <li>• <strong className="text-text">Consensus replacement</strong> - BitGraph constrains a single boundary, not distributed parties</li>

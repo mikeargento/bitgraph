@@ -1,9 +1,10 @@
 "use client";
 
+
 const properties = [
   {
-    label: "Origin",
-    note: "Every authenticated artifact corresponds to exactly one authorized commit. State that did not traverse the commit path cannot acquire a valid proof, regardless of how it was constructed elsewhere.",
+    label: "One route",
+    note: "Every authenticated artifact corresponds to exactly one authorized commit. State that did not traverse the commit path cannot acquire a valid proof, however the bytes were made.",
   },
   {
     label: "Closure",

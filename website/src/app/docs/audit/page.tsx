@@ -22,20 +22,20 @@ export default function AuditPage() {
       </p>
       <ul>
         <li>
-          <a href={`${GITHUB}/blob/main/docs/BUNDLE-FORMAT.md`} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">Bundle Format specification</a>: the wire format, precise enough to reimplement either role from the document alone.
+          <a href={`${GITHUB}/blob/main/docs/BUNDLE-FORMAT.md`} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">Bundle Format specification</a>: the wire format, precise enough to reimplement either role from the document alone (the Frame carrier is not yet in the document; the audit source shows how it is unwrapped).
         </li>
       </ul>
 
       <h2>1. Get the bundle</h2>
       <p>
-        A bundle can come from anyone who collected BitGraph proofs: an export from a proof page (for a fused recording: the original, <code>proof.json</code>, the Frame, the new file in a <code>fused</code> folder, and the Ethereum anchors), an operator who assembled a set of proofs, or a colleague who handed you an archive. How you received it does not matter; the contents carry their own evidence.
+        A bundle can come from anyone who collected BitGraph proofs: an export from BitGraph Recorder or the proof viewer (the original, <code>proof.json</code>, the new file under <code>new-file/</code>, and the Ethereum anchors with their witnesses), an operator who assembled a set of proofs, or a colleague who handed you an archive. How you received it does not matter; the contents carry their own evidence.
       </p>
 
       <h2>2. Optionally check the archive hash</h2>
       <p>Two different hashes exist, and they pin different things:</p>
       <ul>
         <li>
-          <strong>The archive file&apos;s SHA-256</strong> (<code>shasum -a 256 bundle.tar.gz</code>) identifies the exact archive you received. If the producer notarized the archive by committing its SHA-256 through a bitgrapher as its own proof, compare your computed hash against that notarization commit. This step is optional and only meaningful when such a commit exists.
+          <strong>The archive file&apos;s SHA-256</strong> (<code>shasum -a 256 bundle.tar.gz</code>) identifies the exact archive you received. If the producer made a BitGraph of the archive itself, compare your computed hash against the digest that proof names. This step is optional and only meaningful when such a proof exists.
         </li>
         <li>
           <strong>The manifest&apos;s <code>contentsHashB64</code></strong> is a deterministic hash over the bundle&apos;s entries, defined in the Bundle Format specification. You do not check this by hand: the audit tool recomputes it and reports <code>manifest-contents-hash-mismatch</code> if the declared value does not match.
@@ -84,7 +84,7 @@ node packages/audit/dist/cli.js /path/to/bundle.tar.gz --out ./audit`}</pre>
 
       <h2>6. If you do not trust this tool</h2>
       <p>
-        You do not have to. The audit package and the verifier it delegates to (<code>@mikeargento/bitgraph-verify</code>) are MIT-licensed source you can read: <code>packages/audit/</code> and <code>packages/verify/</code> in the <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">repository</a>. The <a href={`${GITHUB}/blob/main/docs/BUNDLE-FORMAT.md`} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">bundle format</a> is specified precisely so a stranger can reimplement both the producer and the consumer from the document alone and check the same evidence independently.
+        You do not have to. The audit package and the verifier it delegates to (<code>@mikeargento/bitgraph-verify</code>) are MIT-licensed source you can read: <code>packages/audit/</code> and <code>packages/verify/</code> in the <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">repository</a>. The <a href={`${GITHUB}/blob/main/docs/BUNDLE-FORMAT.md`} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">bundle format</a> is specified precisely so a stranger can reimplement both the producer and the consumer from the document and check the same evidence independently.
       </p>
     </div>
   );

@@ -107,13 +107,13 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
   } else {
     parts.push(`${fmt(fused.length)} fused`);
   }
-  parts.push(`${fmt(onRecord.length)} already on record`);
+  parts.push(`${fmt(onRecord.length)} already on record (indexed before 2026-09-08)`);
   if (notFused.length > 0) parts.push(`${fmt(notFused.length)} NOT fused`);
   lines.push(`${parts.join(", ")}.`);
   if (set !== null && fused.length > 0) {
     lines.push(`- #${set.counter ?? "?"} · set of ${fmt(set.count)} · ${set.proof_url}`);
     if (set.index !== null && set.index.pending > 0) {
-      lines.push(`  The set is on the ledger, but the evidence for ${fmt(set.index.pending)} of its ${fmt(set.count)} members is not indexed yet, so those files are not findable by hash until it is. It is sent again at the start of the next bitgraph_record call.`);
+      lines.push(`  The set is made. The evidence for ${fmt(set.index.pending)} of its ${fmt(set.count)} members has not reached BitGraph yet and is sent again at the start of the next bitgraph_record call. BitGraph does not index new proofs by hash; the set proof beside the originals is the record.`);
     }
     if (!set.manifest_echoed) {
       lines.push(`  The boundary did not echo the committed artifact; the ledger's copy of this proof carries no member list. Keep the set's proof page.`);
@@ -147,7 +147,7 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
   );
   if (set !== null && fused.length > 0) {
     lines.push(
-      "\nOne BitGraph holds every file made here: one slot, one position, and the committed artifact lists each file's new fused bytes by digest. Those bytes were hashed on this machine and never written or uploaded; the file itself is unchanged, and the original plus the set proof rebuilds them. A lookup by any file's own digest finds the set."
+      "\nOne BitGraph holds every file made here: one slot, one position, and the committed artifact lists each file's new fused bytes by digest. Those bytes were hashed on this machine and never written or uploaded; the file itself is unchanged, and the original plus the set proof rebuilds them. Keep the set proof beside the originals; BitGraph does not index it."
     );
   } else if (fused.length > 0) {
     lines.push(
@@ -156,7 +156,7 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
   }
   if (onRecord.length > 0) {
     lines.push(
-      "\nFiles already on record were left alone. To make a new BitGraph of them deliberately, call bitgraph_record with again=true."
+      "\nFiles BitGraph still indexes (recorded before 2026-09-08) were left alone. BitGraph does not index new proofs, so a file may already have a BitGraph in its holder's folder. To make a new one regardless, call bitgraph_record with again=true."
     );
   }
   if (omitted > 0) {

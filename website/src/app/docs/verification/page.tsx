@@ -4,7 +4,7 @@ import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
   title: "Verification",
-  description: "BitGraph six-step verification algorithm: structural validation, digest check, signature verification, Nitro attestation binding, policy enforcement, and the placement check for fused artifacts.",
+  description: "BitGraph seven-step verification algorithm: structural validation, digest check, signed body, signature verification, slot binding and floor, Nitro attestation binding, policy enforcement, and the placement check for fused artifacts.",
 };
 
 export default function VerificationPage() {
@@ -15,7 +15,7 @@ export default function VerificationPage() {
         BitGraph verification is deterministic and runs offline. No network calls, no API keys, no accounts.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Six-step algorithm</h2>
+      <h2 className="text-xl font-semibold mt-12 mb-4">Seven-step algorithm</h2>
       <p className="text-[#1f2937] mb-6">
         Input: a proof (<code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">BitGraphProof</code>), the artifact bytes (<code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">Uint8Array</code>), and an optional verification policy.
       </p>
@@ -44,11 +44,16 @@ export default function VerificationPage() {
           },
           {
             step: "5",
-            title: "Attestation binding (measured-tee)",
-            desc: "For `measured-tee` proofs, verify the AWS Nitro attestation in `environment.attestation`. Parse the COSE_Sign1 document (ES384) and validate the embedded certificate chain from the enclave leaf to the pinned AWS Nitro Enclaves root, verifying each certificate is signed by its parent. Confirm `PCR0` equals `environment.measurement`. Then confirm the binding to this exact proof: the attestation's `user_data` must equal `proofHash`. The `public_key` field is intentionally null, the binding runs through `user_data`, not `public_key`. Because `proofHash` is the SHA-256 of the canonical SignedBody, which commits to `signer.publicKeyB64`, this ties the genuine enclave to this proof and to the exact key that signed it. The chain is bundled in the proof and validates offline; only certificate revocation (CRL) status requires network and is outside this algorithm.",
+            title: "Slot binding and floor",
+            desc: "When `slotAllocation` is present, verify the slot record's own Ed25519 signature over its canonical body, confirm `commit.slotHashB64` equals the SHA-256 of that body and `commit.nonceB64` equals the slot's nonce, and check `slotCounter` < `counter` under the same key and epoch. Since enclave v8 the slot record also names the Ethereum anchor the enclave had authenticated at allocation (`commit.slotAnchor`): the proof's floor.",
           },
           {
             step: "6",
+            title: "Attestation binding (measured-tee)",
+            desc: "For `measured-tee` proofs, verify the AWS Nitro attestation in `environment.attestation`. Parse the COSE_Sign1 document (ES384) and validate the embedded certificate chain from the enclave leaf to the pinned AWS Nitro Enclaves root, verifying each certificate is signed by its parent. Confirm `PCR0` equals `environment.measurement`. Then confirm the binding to this exact proof: the attestation's `user_data` must equal the SHA-256 of the canonical SignedBody (which equals `proofHash` on ordinary proofs; on actor or policy proofs the two diverge). The `public_key` field is intentionally null, the binding runs through `user_data`, not `public_key`. Because that body commits to `signer.publicKeyB64`, this ties the genuine enclave to this proof and to the exact key that signed it. The chain is bundled in the proof and validates offline; only certificate revocation (CRL) status requires network and is outside this algorithm.",
+          },
+          {
+            step: "7",
             title: "Policy checks",
             desc: "If a `VerificationPolicy` is provided, enforce its constraints: enforcement tier, allowed measurements, allowed public keys, attestation requirements, counter range, time range, epoch requirements.",
           },
@@ -64,12 +69,12 @@ export default function VerificationPage() {
       </div>
 
       <p className="text-base text-[#1f2937] leading-relaxed mt-6">
-        Step 5 confirms PCR0 matches the measurement the proof claims, and the certificate chain proves that measurement came from genuine Nitro hardware. To confirm the measurement itself corresponds to the open enclave source, the build is bit-for-bit reproducible: rebuild it and re-derive the exact PCR0 yourself, trusting no one. See <a href="/docs/self-host-tee" className="text-[#0065A4] font-medium no-underline">reproducible builds</a>.
+        Step 6 confirms PCR0 matches the measurement the proof claims, and the certificate chain proves that measurement came from genuine Nitro hardware. To confirm the measurement itself corresponds to the published enclave source, the build is bit-for-bit reproducible: rebuild it and re-derive the exact PCR0 yourself. See <a href="/docs/self-host-tee" className="text-[#0065A4] font-medium no-underline">reproducible builds</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Fused artifacts</h2>
       <p className="text-[#1f2937] mb-4">
-        A fused artifact carries a commitment to its own slot record inside its bytes, written before the artifact was finished. Its proof is an ordinary <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">bitgraph/1</code> proof whose signed <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">attribution</code> names the placement and the origin, so the six steps above run unchanged. <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">verifyFuse({"{ proof, bytes, frame? }"})</code> in <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">@mikeargento/bitgraph-verify</code> then adds one comparison, chosen by what the bytes hash to. The commitment and the registered placements are defined in <a href="/docs/proof-format" className="text-[#0065A4] font-medium no-underline">Proof Format</a>.
+        A fused artifact carries a commitment to its own slot record inside its bytes, written before the artifact was finished. Its proof is an ordinary <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">bitgraph/1</code> proof whose signed <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">attribution</code> names the placement and the origin, so the seven steps above run unchanged. <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">verifyFuse({"{ proof, bytes, frame? }"})</code> in <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">@mikeargento/bitgraph-verify</code> then adds one comparison, chosen by what the bytes hash to. The commitment and the registered placements are defined in <a href="/docs/proof-format" className="text-[#0065A4] font-medium no-underline">Proof Format</a>.
       </p>
       <div className="overflow-x-auto mb-6">
         <table className="w-full text-sm">
@@ -119,7 +124,9 @@ export default function VerificationPage() {
         <div className="code-block-header"><span>VerificationPolicy</span><CopyCode /></div>
         <pre className="text-[#1f2937]">{`interface VerificationPolicy {
   requireEnforcement?: "stub" | "hw-key" | "measured-tee";
-  allowedMeasurements?: string[];     // exact match
+`}{`  requireSlot?: boolean;              // the proof must carry a slotAllocation
+  allowedActorKeyIds?: string[];      // legacy
+`}{`  allowedMeasurements?: string[];     // exact match
   allowedPublicKeys?: string[];       // exact match
   requireAttestation?: boolean;
   requireAttestationFormat?: string[];
@@ -171,12 +178,8 @@ export default function VerificationPage() {
               <td className="py-2">Gap detection is application-layer logic</td>
             </tr>
             <tr className="border-b border-[#e5e7eb]">
-              <td className="py-2 pr-4">Slot allocation validity</td>
-              <td className="py-2">Slot signature and hash binding are structural checks; application can verify slotHashB64 matches canonicalized slot body</td>
-            </tr>
-            <tr className="border-b border-[#e5e7eb]">
-              <td className="py-2 pr-4">Key provenance</td>
-              <td className="py-2">Requires attestation verification</td>
+              <td className="py-2 pr-4">Key provenance for non-attested tiers</td>
+              <td className="py-2">Only a measured-tee proof with a verified attestation ties the signing key to a measured enclave; for stub and hw-key proofs the key&apos;s origin is not established</td>
             </tr>
             <tr className="border-b border-[#e5e7eb]">
               <td className="py-2 pr-4">Batch context completeness</td>
@@ -184,7 +187,7 @@ export default function VerificationPage() {
             </tr>
             <tr className="border-b border-[#e5e7eb]">
               <td className="py-2 pr-4">Wall-clock floor of a fused artifact</td>
-              <td className="py-2">The last anchored block before the slot needs Ethereum anchor evidence the proof does not carry; the Player computes it from a bundle</td>
+              <td className="py-2">The proof names its floor in the signed slot record (commit.slotAnchor). Turning that into a clock time needs the Ethereum block header, which the export package ships as a witness; the verifier does not fetch it</td>
             </tr>
           </tbody>
         </table>

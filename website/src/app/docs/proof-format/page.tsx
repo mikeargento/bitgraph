@@ -34,12 +34,12 @@ export default function ProofFormatPage() {
     "time":     1700000000000,       // OPTIONAL - Unix ms
     "prevB64":  "<base64>",          // OPTIONAL - chain link, 32 bytes
     "epochId":  "<hex>",             // OPTIONAL - SHA-256 hex
-    "slotAnchor": {                  // OPTIONAL - the chain's latest Ethereum anchor when the slot was allocated (enclave v7)
+    "slotAnchor": {                  // OPTIONAL - the chain's latest Ethereum anchor when the slot was allocated `}{`(since enclave v7; v8 is current)`}{`
       "counter":     "17",           //   counter of that anchor proof on this chain
       "blockNumber": 25921179,
       "blockHash":   "0x<hex>"       //   32 bytes, lowercase
     },
-    "anchor": {                      // OPTIONAL - on Ethereum anchor proofs only: the block this proof anchors (enclave v7)
+    "anchor": {                      // OPTIONAL - on Ethereum anchor proofs only: the block this proof anchors `}{`(since enclave v7; v8 is current)`}{`
       "blockNumber": 25921180,
       "blockHash":   "0x<hex>"
     }
@@ -168,10 +168,10 @@ export default function ProofFormatPage() {
 
       <h3 className="text-lg font-semibold mt-8 mb-3">Anchor floor</h3>
       <p className="text-[#1f2937] mb-4">
-        Since enclave v7 (2026-09-06) the enclave writes the chain&apos;s latest Ethereum anchor into every slot it allocates, and signs it into the proof as <code className="text-xs font-mono">commit.slotAnchor</code>. The floor a proof stands on is chosen by the enclave at allocation, not by whoever presents the proof. A reader checks it offline from the Ethereum block header: the header&apos;s keccak must equal <code className="text-xs font-mono">slotAnchor.blockHash</code>, and the block&apos;s timestamp is then a lower bound on the proof. The field is absent when no anchor had landed on the chain yet in that epoch, and on proofs from older enclaves.
+        Since enclave v7 (2026-09-06) the enclave writes the chain&apos;s latest Ethereum anchor into every slot it allocates, and signs it into the proof as <code className="text-xs font-mono">commit.slotAnchor</code>. The floor is signed into the slot record at allocation; whoever presents the proof cannot move it. A reader checks it offline from the Ethereum block header: the header&apos;s keccak must equal <code className="text-xs font-mono">slotAnchor.blockHash</code>, and the block&apos;s timestamp is then a lower bound on the proof. Since enclave v8 (2026-09-07) the enclave refuses to sign a proof whose slot carries no anchor, so the field is absent only on proofs from older enclaves.
       </p>
       <p className="text-base text-[#4b5563] mb-8">
-        Anchor proofs themselves carry <code className="text-xs font-mono">commit.anchor</code>, holding the block number and hash the enclave signed. The enclave writes it only after verifying the anchor service&apos;s Ed25519 signature over the claim against a public key baked into the enclave image, and refuses the attribution name <code className="text-xs font-mono">Ethereum Anchor</code> without it. So a v7 proof whose attribution says anchor but lacks <code className="text-xs font-mono">commit.anchor</code> is not an anchor.
+        Anchor proofs themselves carry <code className="text-xs font-mono">commit.anchor</code>, holding the block number and hash the enclave signed. The enclave writes it only after verifying the anchor service&apos;s Ed25519 signature over the claim against a public key baked into the enclave image, and refuses the attribution name <code className="text-xs font-mono">Ethereum Anchor</code> without it. So a v7 or v8 proof whose attribution says anchor but lacks <code className="text-xs font-mono">commit.anchor</code> is not an anchor.
       </p>
       <p className="text-base text-[#4b5563] mb-8">
         <code className="text-xs font-mono">commit.anchor</code> is what identifies an anchor, and where its block should be read from. The attribution name is the older test and remains valid for proofs written before v7, which carry nothing else; it is not a requirement, and an anchor is free to spend its signed attribution on something else, such as the fuse marker below.
@@ -185,7 +185,7 @@ export default function ProofFormatPage() {
         <div className="code-block-header"><span>attribution (fused)</span><CopyCode /></div>
         <pre className="text-[#1f2937]">{`{
   "name":    "bitgraph-fuse/1",      // fixed value; marks a fused proof
-  "title":   "trailer/1",            // placement id
+  "title":   "trailer/1",            // `}{`placement id, or the encoding id base64url`}{`
   "message": "<base64>"              // origin digest, SHA-256, standard base64
 }`}</pre>
       </div>
@@ -196,7 +196,7 @@ export default function ProofFormatPage() {
         <pre className="text-[#1f2937]">{`slotRecordHash = SHA-256(canonicalize(slotBody))                            // = commit.slotHashB64
 commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  // nonce: 32 raw bytes`}</pre>
       </div>
-      <p className="text-[#1f2937] mb-4">Registered placements say, byte for byte, where the commitment sits:</p>
+      <p className="text-[#1f2937] mb-4">Two or more files made together are one set under one slot: the committed artifact is the set root, and each file is a member with its own row. Registered placements say, byte for byte, where the commitment sits:</p>
       <div className="overflow-x-auto mb-4">
         <table className="w-full text-sm">
           <thead>
@@ -227,6 +227,16 @@ commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  
               <td className="py-2 pr-4">a canonical JSON payload naming the commitment and an optional origin digest</td>
               <td className="py-2">artifacts produced without a source file; SDK and CLI only</td>
             </tr>
+            <tr className="border-t border-[#e5e7eb]">
+              <td className="py-2 pr-4"><code className="text-xs font-mono">set/1</code></td>
+              <td className="py-2 pr-4">a canonical JSON manifest listing every member&apos;s fused digest, origin digest and placement; the manifest is the committed artifact</td>
+              <td className="py-2">older sets; readable, no longer made</td>
+            </tr>
+            <tr className="border-t border-[#e5e7eb]">
+              <td className="py-2 pr-4"><code className="text-xs font-mono">set/2</code></td>
+              <td className="py-2 pr-4">a Merkle root document over the member rows; each member keeps its row, leaf index and inclusion path</td>
+              <td className="py-2">two or more files made together: one slot, one position, each file a member</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -240,7 +250,7 @@ commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  
       </p>
       <ol className="space-y-2 mb-6 text-sm text-[#1f2937]">
         <li>1. Recursively sort all object keys in Unicode code-point order</li>
-        <li>2. Serialize with <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">JSON.stringify()</code> -- no whitespace</li>
+        <li>2. Serialize with <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">JSON.stringify()</code>, no whitespace</li>
         <li>3. Encode the resulting string as UTF-8 (no BOM)</li>
       </ol>
       <p className="text-[#1f2937] mb-4">Top-level key order after sort:</p>

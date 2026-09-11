@@ -152,7 +152,7 @@ const handler = createMcpHandler(
           "The boundary allocates an unused slot before any new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/2, a tar that carries the original untouched and first, for everything else). " +
           `Then build each new file exactly as its recipe says, SHA-256 it, and call bitgraph_commit ONCE with every fuse_token and digest, within ${SLOT_TTL_SECONDS} seconds of opening. ` +
           "File contents never travel: only digests, sizes, the first bytes and the recipe. Never alter the original. Only make BitGraphs of files the user asked for, and never generate content just to record it: recordings are permanent. " +
-          "Files already on record (recorded, the origin of a fused file, or a member of a set) are not opened unless again=true; they come back as 'on record' with their proof URL. " +
+          "Files BitGraph still indexes (recorded before 2026-09-08) are not opened unless again=true; they come back as 'on record'. BitGraph no longer indexes new proofs, so a file may already have a BitGraph its holder keeps; ask before making another. " +
           `Up to ${MAX_OPEN_FILES} files per call; folders of any size are the stdio package's job (npx @mikeargento/bitgraph-mcp), on the machine that holds them.`,
         inputSchema: z.object({
           files: z
@@ -173,7 +173,7 @@ const handler = createMcpHandler(
           again: z
             .boolean()
             .default(false)
-            .describe("false (default): files already on record are not opened. true: open a slot even for a file that is on record."),
+            .describe("false (default): files BitGraph still indexes (recorded before 2026-09-08) are not opened. true: open a slot regardless. BitGraph does not index new proofs; the holder's own BitGraphs are the record."),
           response_format: responseFormatSchema,
         }),
         annotations: {
@@ -292,8 +292,8 @@ const handler = createMcpHandler(
           "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. Send every file opened together in ONE call: they share a slot and become one set, one position for all of them, and the set is whatever this call carries. " +
           "For a set, the canonical manifest of the members' digests is built here and committed under the shared slot with the set marker (profile bitgraph-fuse/1, placement set/1); the returned proof is verified against it before any file is called fused, and comes back once as sets[].proof with every member's row. Save it beside the originals. " +
           "For a single file, the digest is committed under its own slot with the signed marker (placement, origin digest) and this returns the proof and the Frame; save the Frame next to the original as frame_name. " +
-          "New files are virtual: keep the originals unchanged and the proof, and any reader can rebuild a new file and check it; a lookup by an original's digest finds its set. " +
-          "Returns, per file, the position just made AND every position those bytes occupy: a file may be BitGraphed any number of times, so report the whole list, not only the newest. " +
+          "New files are virtual: keep the originals unchanged and the proof, and any reader can rebuild a new file and check it. Keep the set proof beside the originals; BitGraph does not index it. " +
+          "Returns, per file, the position just made, plus any earlier position BitGraph still indexes (recorded before 2026-09-08). Positions held elsewhere are in their holder's proofs. " +
           "A 'not fused' outcome says why and what to do (usually: commit again in a few seconds, or open again). Nothing is labelled fused unless the proof came back under the named slot and verified.",
         inputSchema: z.object({
           entries: z
@@ -481,10 +481,10 @@ const handler = createMcpHandler(
       {
         title: "Check for BitGraphs",
         description:
-          "Check whether SHA-256 digests are on record in the BitGraph ledger, without recording anything. " +
+          "Check whether BitGraph still indexes a proof for these SHA-256 digests (recordings made before 2026-09-08, and anchors), without recording anything. A miss is not a finding: BitGraph no longer indexes new proofs, which live with whoever holds them. " +
           DIGEST_HINT + ". " +
-          "Returns, per digest: on_record (the bytes are on record, as an exact recording, as the original a new file was made from, or as a member of a set), every position by counter with a set member's row, and the proof page URL. " +
-          "Read-only. Use bitgraph_open then bitgraph_commit to make a BitGraph of files that turn out not to be on record.",
+          "Returns, per digest: on_record (the bytes are on record, as an exact recording, as the original a new file was made from, or as a member of a set), every indexed position by counter with a set member's row. " +
+          "Read-only. A miss does not mean the file has no BitGraph: ask whoever holds the file for its proof before making a new one with bitgraph_open then bitgraph_commit.",
         inputSchema: z.object({
           digests: z
             .array(z.string().min(1).max(100))
@@ -544,10 +544,10 @@ const handler = createMcpHandler(
       {
         title: "Get a BitGraph proof",
         description:
-          "Fetch a BitGraph proof and its context: causal position, every position the same bytes occupy, and the two-sided Ethereum anchor window " +
-          "('BitGraphed between X and Y'). Look up by digest (base64, either form) or by BitGraph number (e.g. '4523' or '#4,523', current epoch). " +
+          "Fetch an indexed BitGraph proof (recorded before 2026-09-08, or an anchor) and its context: its position, every indexed position the same bytes occupy, and its floor " +
+          "('placed no earlier than block X'). Look up by digest (base64, either form) or by BitGraph number (e.g. '4523' or '#4,523', current epoch). " +
           "Exactly one of digest or number is required. Read-only. " +
-          "markdown returns a summary; json returns the full proof object with positions and anchor window.",
+          "markdown returns a summary; json returns the full proof object with positions and its floor.",
         inputSchema: z.object({
           digest: z
             .string()
@@ -609,7 +609,7 @@ const handler = createMcpHandler(
           const detail = await getProofDetail(urlSafeDigest, selCounter, selEpoch);
           if (detail.proofs.length === 0) {
             return fail(
-              `Not on record: no proof exists for digest ${urlSafeDigest}. Use bitgraph_open then bitgraph_commit to make a BitGraph of the file.`
+              `Not indexed: BitGraph holds no proof for digest ${urlSafeDigest}. That is not a finding: BitGraph no longer indexes new proofs. Ask whoever holds the file for its BitGraph before making one with bitgraph_open then bitgraph_commit.`
             );
           }
 
@@ -626,10 +626,10 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "bitgraph", version: SERVER_VERSION },
     instructions:
-      "BitGraph gives a file's bytes a causal position in a public ledger bracketed by Ethereum anchors. Making a BitGraph is two steps: bitgraph_open (a slot at the boundary, and a recipe per file for its new fused file) then bitgraph_commit (the digest of each new file you built). " +
+      "BitGraph gives a file's bytes a position in an ordered sequence, with a floor from Ethereum anchors: the bytes were placed no earlier than their floor. Making a BitGraph is two steps: bitgraph_open (a slot at the boundary, and a recipe per file for its new fused file) then bitgraph_commit (the digest of each new file you built). " +
       "Open every file of a batch in ONE call and commit them in ONE call: they share the slot and become one BitGraph, a set with one position, each file a member with its row. A single file is fused on its own. " +
       "File contents never travel: only digests, sizes, a file's first bytes, slot records and recipe bytes. New files are virtual; the originals stay unchanged and the proof rebuilds them. " +
-      "Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
+      "Positions are permanent, and the proof comes back to you to keep: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
       "There is no digest-only recording here: a BitGraph is made with bitgraph_open then bitgraph_commit. bitgraph_check and bitgraph_get_proof are read-only.",
   }
 );

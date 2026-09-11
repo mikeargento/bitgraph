@@ -345,9 +345,9 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused slot is allocated before any new file exists; every file's new fused bytes (the original plus a registered placement carrying the slot's commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; and for a set the canonical list of those digests (above 2,000 files, a Merkle root over it) is committed under the same slot. " +
         "Files are never modified and never uploaded: only digests, the committed artifact and slot records leave the machine. " +
         "Give file paths, directory paths, or both (absolute paths preferred): a directory is every regular file under it, recursively, with hidden entries and symbolic links left out. " +
-        "Files already on record (recorded, or the origin of a fused file) are NOT made again by default; they come back as 'on record' with their earliest position. Pass again=true to make a new BitGraph of them deliberately. " +
-        "BitGraphs are permanent: the ledger has 10-year retention and no deletes, so only BitGraph files the user asked to, and never generate content just to record it. " +
-        "Returns one outcome per file: 'fused' (for a set, its row, one of N, and the set's position and proof page; for a single file, its own position and Frame), 'on record', or 'not fused' (with the reason). A lookup by any file's own digest finds its BitGraph. " +
+        "Files BitGraph still indexes (recorded before 2026-09-08) are NOT made again by default; they come back as 'on record' with their earliest position. BitGraph does not index new proofs, so a file may already have a BitGraph its holder keeps. Pass again=true to make a new BitGraph regardless. " +
+        "Positions are permanent and the proof comes back to you to keep, so only BitGraph files the user asked to, and never generate content just to record it. " +
+        "Returns one outcome per file: 'fused' (for a set, its row, one of N, and the set's position and proof page; for a single file, its own position and Frame), 'on record', or 'not fused' (with the reason). Keep the proof beside the files; BitGraph does not index it. " +
         "Use bitgraph_check instead when the user only wants to know whether files are on record.",
       inputSchema: {
         paths: z
@@ -359,7 +359,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           .boolean()
           .default(false)
           .describe(
-            "false (default): files already on record are returned as-is, nothing made. true: put every file in the set even if its bytes are already on record. Outcomes are per unique file content: two paths with identical bytes are one member."
+            "false (default): files BitGraph still indexes are returned as-is, nothing made. true: put every file in the set regardless. Outcomes are per unique file content: two paths with identical bytes are one member."
           ),
         response_format: responseFormatSchema,
       },

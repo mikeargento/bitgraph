@@ -25,8 +25,10 @@ import { DocsPageNav } from "@/components/docs-page-nav";
  */
 export const metadata: Metadata = {
   title: "BitGraph",
+  // 2026-09-10: the same sentence as the site-wide description in layout.tsx,
+  // from the overview opener this page renders.
   description:
-    "How a BitGraph is made: the position is reserved before your file's fingerprint arrives, and consumed once. Why that is different from signing something afterward.",
+    "BitGraph gives AI agent records a verifiable order. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
 };
 
 export default function HomePage() {

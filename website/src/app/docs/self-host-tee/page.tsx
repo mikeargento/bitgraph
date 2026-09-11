@@ -11,7 +11,7 @@ export default function SelfHostTEEPage() {
     <div className="prose-doc">
       <h1 className="mb-6">Self-Host TEE</h1>
       <p style={{ color: "#4b5563", marginBottom: 32 }}>
-        Deploy your own BitGraph Trusted Execution Environment using AWS Nitro Enclaves. This guide assumes no prior TEE experience.
+        Deploy your own BitGraph Trusted Execution Environment using AWS Nitro Enclaves. This guide assumes no prior TEE experience. A self-hosted enclave is a separate ledger: its proofs are signed and attested, but they carry no Ethereum floor unless you run an anchor service of your own on a chain of your own. The bitgraph:main chain and its anchors belong to bitgraph.ing.
       </p>
 
       <h2>Architecture</h2>
@@ -68,6 +68,7 @@ aws ec2 run-instances \\
         <pre>{`# Install Nitro CLI
 sudo amazon-linux-extras install aws-nitro-enclaves-cli -y
 sudo yum install aws-nitro-enclaves-cli-devel -y
+`}{`# (Amazon Linux 2023 has no amazon-linux-extras: sudo dnf install aws-nitro-enclaves-cli aws-nitro-enclaves-cli-devel -y)`}{`
 
 # Install Docker
 sudo yum install docker -y
@@ -228,7 +229,7 @@ curl -X POST http://localhost:8080/commit \\
   -d "{
     \\"digests\\": [{\\"digestB64\\": \\"$DIGEST\\", \\"hashAlg\\": \\"sha256\\"}]
   }"
-# Returns: signed BitGraph proof with TEE attestation
+# Returns: signed BitGraph proof with TEE attestation`}{` (no floor: without an anchor service on this chain, commit.slotAnchor is absent)`}{`
 
 # Two-phase form, used by producers that build a fused artifact: allocate a
 # slot first, then commit into that exact slot. Needs FUSE_ENABLED=true in
@@ -236,7 +237,10 @@ curl -X POST http://localhost:8080/commit \\
 # /commit and is metered in slots; a held slot commits exactly one digest
 # per request. The slotId is the slot's nonce: do not disclose it before
 # the commit. A slot that is never consumed expires after 120 seconds.
-curl -X POST http://localhost:8080/allocate-slot \\
+`}{`# On enclave v8 the chain bitgraph:main refuses to commit until an authenticated
+# anchor has landed, and only bitgraph.ing's anchor service can produce one, so
+# pass a chain of your own: -d '{"chainId":"your-chain"}'.
+`}{`curl -X POST http://localhost:8080/allocate-slot \\
   -H "Authorization: Bearer your-secret-api-key-here"
 # { "slotId": "...", "slot": { ... }, "chainId": "bitgraph:main" }
 
@@ -250,16 +254,8 @@ curl -X POST http://localhost:8080/commit \\
 # Returns: the proof, committed under the slot you allocated`}</pre>
       </div>
 
-      <h2>Step 10: Point BitGraph Dashboard at Your TEE</h2>
-      <p>By default, the hosted dashboard at occ.bitgraph.ing points to <code>nitro.occproof.com</code>. To use your own TEE, set the <code>TEE_URL</code> environment variable on your hosted server:</p>
-      <div className="code-block">
-        <pre>{`# In your hosted server environment (Railway, etc.)
-TEE_URL=https://your-tee-domain.com`}</pre>
-      </div>
-      <p>The hosted server at <code>packages/hosted/src/authorization.ts</code> reads this variable:</p>
-      <div className="code-block">
-        <pre>{`const TEE_URL = process.env.TEE_URL || "https://nitro.occproof.com";`}</pre>
-      </div>
+      <h2>Step 10: Where a self-hosted enclave stands</h2>
+      <p>The BitGraph anchor service and the site are fixed to <code>nitro.occproof.com</code>. A self-hosted enclave is a separate chain with its own key and measurement; nothing on bitgraph.ing points at it, and its positions carry no floor until you run an anchor service of your own.</p>
 
       <h2>Production Checklist</h2>
       <ul>
@@ -314,7 +310,7 @@ TEE_URL=https://your-tee-domain.com`}</pre>
 
       <p>For each proof request:</p>
       <ol>
-        <li>Validates the slot exists (BitGraph causal gate: no slot, no proof)</li>
+        <li>Validates the slot exists (BitGraph causal gate: no slot, no proof). On the anchored chain it also requires the slot to carry a floor: the latest authenticated anchor, fixed at allocation</li>
         <li>Increments the chain counter</li>
         <li>Builds the signed body: artifact, commit, measurement, and any attribution or policy</li>
         <li>Signs with Ed25519</li>

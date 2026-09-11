@@ -27,7 +27,7 @@ export default function WhatBitGraphIsNotPage() {
           },
           {
             title: "BitGraph is not DRM",
-            body: "BitGraph does not prevent copying, sharing, or redistribution of artifact bytes. It prevents the authoritative proof lineage from being duplicated within a policy domain. The artifact itself is freely copyable, but only the original proof will verify against it.",
+            body: "BitGraph does not prevent copying, sharing, or redistribution of artifact bytes. It prevents the authoritative proof lineage from being duplicated within a policy domain. The artifact itself is freely copyable. A proof verifies only against the exact bytes it was made of; altered bytes are detectably invalid.",
           },
           {
             title: "BitGraph is not proof of truth",
@@ -39,7 +39,7 @@ export default function WhatBitGraphIsNotPage() {
           },
           {
             title: "BitGraph is not proof of first creation",
-            body: "A recording does not prove that these bytes never existed before this commit. The same content could have been created elsewhere earlier. A fused artifact carries a commitment to a slot that existed first, so its bytes could not have been finalized before that slot was allocated; the bound is on the fused bytes, not on the content, and the origin it was built from can be any age. BitGraph proves where bytes sit in a boundary's counter sequence, and for fused bytes that they came after their slot. Nothing more.",
+            body: "A recording does not prove that these bytes never existed before this commit. The same content could have been created elsewhere earlier. A fused artifact carries a commitment to a slot that existed first, so its bytes could not have been finalized before that slot was allocated; the bound is on the fused bytes, not on the content, and the origin it was built from can be any age. BitGraph proves where bytes sit in an enclave's counter sequence, that the position was placed no earlier than its floor, and for fused bytes that they came after their slot. Nothing more.",
           },
           {
             title: "BitGraph is not attestation",
@@ -47,7 +47,7 @@ export default function WhatBitGraphIsNotPage() {
           },
           {
             title: "BitGraph is not notarization",
-            body: "Traditional notarization involves a trusted third party witnessing a signing event. BitGraph is a self-contained proof system. The proof is verifiable offline using only the public key and the original bytes. No trusted third party is required for core verification.",
+            body: "Traditional notarization involves a trusted third party witnessing a signing event. BitGraph is a self-contained proof system. The proof verifies without contacting anyone: the signature, the attestation chain to the AWS Nitro root, the slot binding and the floor carried in the signed body. No trusted third party is required.",
           },
         ].map((item) => (
           <div key={item.title} className="border-l-2 border-l-[#d0d5dd] pl-6">

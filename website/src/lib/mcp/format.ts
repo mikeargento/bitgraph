@@ -99,14 +99,14 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[]): string
 
 export function renderCheckMarkdown(outcomes: readonly CheckOutcome[]): string {
   const found = outcomes.filter((o) => o.on_record).length;
-  const lines: string[] = [`${found} of ${outcomes.length} on record.`];
+  const lines: string[] = [`${found} of ${outcomes.length} indexed by BitGraph. A miss is not a finding: BitGraph no longer indexes new proofs.`];
   for (const o of outcomes) {
     if (o.on_record) {
       const first = o.positions[0];
       const extra = o.positions.length > 1 ? ` and ${o.positions.length - 1} more position(s)` : "";
       lines.push(`- on record · #${first?.counter ?? "?"}${memberNote(first?.member)}${extra} · ${o.input}\n  ${o.proof_url}`);
     } else {
-      lines.push(`- not on record · ${o.input}`);
+      lines.push(`- not indexed (not a finding) · ${o.input}`);
     }
   }
   return lines.join("\n");
@@ -120,10 +120,10 @@ function renderWindow(detail: ProofDetailResponse): string | null {
   const lowerBlock = w.anchorBefore?.blockNumber ?? null;
   const upperBlock = w.anchorAfter?.blockNumber ?? null;
   if (lower && upper) {
-    return `BitGraphed between ${lower} (Ethereum block ${lowerBlock ?? "?"}) and ${upper} (block ${upperBlock ?? "?"}).`;
+    return `Placed no earlier than ${lower} (Ethereum block ${lowerBlock ?? "?"}); an anchor followed at ${upper} (block ${upperBlock ?? "?"}), which is not an upper bound.`;
   }
-  if (upper) return `BitGraphed before ${upper} (Ethereum block ${upperBlock ?? "?"}).`;
-  if (lower) return `BitGraphed after ${lower} (Ethereum block ${lowerBlock ?? "?"}).`;
+  if (upper) return `An anchor followed at ${upper} (Ethereum block ${upperBlock ?? "?"}); no floor is known here, and a following anchor is not an upper bound.`;
+  if (lower) return `Placed no earlier than ${lower} (Ethereum block ${lowerBlock ?? "?"}).`;
   return null;
 }
 
@@ -167,12 +167,12 @@ export function renderProofMarkdown(
     positions.forEach((p, i) => {
       const label = i === 0 ? " · original" : "";
       const bracket =
-        p.lowerTime && p.upperTime ? ` · between ${p.lowerTime} and ${p.upperTime}` : "";
+        p.lowerTime ? ` · no earlier than ${p.lowerTime}` : "";
       lines.push(`- #${p.counter ?? "?"}${label}${p.member ? ` · set of ${p.member.count}` : ""}${bracket}`);
     });
   }
   lines.push("");
-  lines.push(`Proof page: ${proofUrl(baseUrl, digest, counter ?? undefined, proof.commit?.epochId)}`);
+  lines.push(`Proof page (indexed proofs only; a proof made since 2026-09-08 is returned in json and kept by its holder): ${proofUrl(baseUrl, digest, counter ?? undefined, proof.commit?.epochId)}`);
   return lines.join("\n");
 }
 
@@ -202,7 +202,7 @@ function elideReports(value: unknown): void {
     const obj = value as Record<string, unknown>;
     for (const [key, v] of Object.entries(obj)) {
       if (key === "reportB64" && typeof v === "string" && v.length > 256) {
-        obj[key] = `<elided ${v.length} base64 chars; fetch the proof page for the full attestation>`;
+        obj[key] = `<elided ${v.length} base64 chars>`;
       } else {
         elideReports(v);
       }

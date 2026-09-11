@@ -66,7 +66,7 @@ BitGraph proves causal order. It does not assert a clock time.
 
 BitGraph's internal ordering does not require Ethereum. The chain creates internal order through slot allocation, consumption, counters, signatures, and chained proof history. What that order lacks, on its own, is a clock. The enclave keeps no trusted one; any clock reading inside a proof is advisory.
 
-Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor, and every proof chained after it, came after that block and its public date. Anchors recur throughout every epoch. This is the wall-clock statement every proof page shows, and it runs in one direction: provably no earlier than. The other side of the window narrows through the chain's cadence, measured enclave behavior rather than public data, which is why it is narrowed, not closed.
+Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor, and every proof chained after it, came after that block and its public date. Anchors recur throughout every epoch. This is the wall-clock statement every proof carries, and it runs in one direction: no earlier than. Nothing in the proof bounds the other side.
 
 The anchors also fix history backward, through content. Each anchor is hash-linked to everything before it, so once an anchor exists, the history behind it is fixed: alter any earlier proof and the chain no longer reaches the anchor. When the epoch ends, its signing key is destroyed, and the set closes.
 
@@ -130,7 +130,7 @@ Signatures, timestamps, content credentials, and blockchains all answer "who cla
 
 Physical originality depended on singularity. There was one canvas, one negative, one signed paper, and the object's uniqueness was how you knew it came from the author's hand. Digital files broke that. Perfect copies are indistinguishable from the source, so the physical anchor for originality stopped working.
 
-BitGraph does not restore originality. It makes it unnecessary. The artifact's hash is the proof's anchor, so any exact copy of the bytes carries the same position, and no copy has to be the special one. The proof object itself can travel with the file, stay on the server that issued it, or be stored anywhere, and each of those can have copies too. Verification does not depend on where anything lives. What used to need a unique object now needs only the exact bytes.
+BitGraph does not restore originality. It makes it unnecessary. The artifact's hash is the proof's anchor, so any exact copy of the bytes carries the same position, and no copy has to be the special one. The proof object itself travels with the file or is stored wherever its holder keeps it, and each of those can have copies too. Verification does not depend on where anything lives. What used to need a unique object now needs only the exact bytes.
 
 ## The simplest version
 
@@ -144,20 +144,22 @@ The result is a protocol that does not say "someone signed this."
 
 ## Quickstart
 
-Try it live: drop a file at [bitgraph.ing](https://bitgraph.ing). The file never leaves your device; only its SHA-256 hash is sent to the enclave.
+Make one with [BitGraph Recorder for Mac](https://bitgraph.ing/docs/recorder). Files are read on your machine and never uploaded.
 
-Verify a proof in code:
+Verify a proof in code, with the MIT verifier:
 
 ```bash
-npm install @mikeargento/bitgraph
+npm install @mikeargento/bitgraph-verify
 ```
 
 ```ts
-import { verify } from "@mikeargento/bitgraph";
+import { verify } from "@mikeargento/bitgraph-verify";
 
 const result = await verify({ proof, bytes });
-if (result.ok) {
-  // signature, slot binding, attestation, and chain link all checked
+if (result.valid) {
+  // structure, Ed25519 signature, slot binding and the digest match all checked
+} else {
+  console.error(result.reason);
 }
 ```
 

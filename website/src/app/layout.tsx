@@ -22,22 +22,26 @@ export const metadata: Metadata = {
   // too"): the line under the title in a link preview, and what a search
   // result shows. It was "Live cryptographic proof chain. Create, verify, and
   // explore BitGraph proofs." from July, which is the old vocabulary.
+  // 2026-09-10: one sentence on every surface, from the overview opener. The
+  // previous line ("BitGraph gives your file a position in a public sequence.
+  // Nothing else can hold that position, and it cannot be moved later.")
+  // predated the opener and local-first.
   description:
-    "BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later.",
+    "BitGraph gives AI agent records a verifiable order. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
   keywords: [
-    "BitGraph", "content provenance", "causal order", "proof of integrity",
-    "cryptographic provenance", "tamper-evident", "C2PA", "proof explorer",
+    "BitGraph", "causal order", "verifiable order", "proof of integrity",
+    "tamper-evident", "AI agent records", "Ethereum anchors",
   ],
   openGraph: {
     title: "BitGraph",
-    description: "BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later.",
+    description: "BitGraph gives AI agent records a verifiable order. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary_large_image",
     title: "BitGraph",
-    description: "BitGraph gives your file a position in a public sequence. Nothing else can hold that position, and it cannot be moved later.",
+    description: "BitGraph gives AI agent records a verifiable order. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
   },
   robots: { index: true, follow: true },
 };

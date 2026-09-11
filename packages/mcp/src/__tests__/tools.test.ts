@@ -297,7 +297,7 @@ test("a single file is fused on its own, with its Frame; again=true fuses an on-
   assert.ok(row?.artifact_digest && structured.frames[row.artifact_digest], "the Frame rides in the structured result under the fused digest");
   assert.ok(row?.proof_url?.includes(encodeURIComponent(row.artifact_digest ?? "")), "a single file's proof page is its own");
   const text = textOf(result);
-  assert.ok(text.startsWith("1 fused, 0 already on record."), text);
+  assert.ok(text.startsWith("1 fused, 0 already on record (indexed before 2026-09-08)."), text);
   assert.ok(text.includes("its Frame is in the structured result"), text);
 });
 
@@ -374,7 +374,7 @@ test("evidence the site cannot index waits, blocks a new set, and is sent first 
   const s1 = first.structuredContent as RecordStructured;
   assert.deepEqual(s1.set?.index, { written: 0, pending: BIG });
   assert.equal(pendingIndexCount(), BIG);
-  assert.ok(textOf(first).includes("not findable by hash"), textOf(first).slice(0, 400));
+  assert.ok(textOf(first).includes("does not index new proofs by hash"), textOf(first).slice(0, 400));
 
   // Still down: nothing new is made, so the members cannot be made again by mistake.
   requests.length = 0;

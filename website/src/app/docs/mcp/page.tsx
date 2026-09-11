@@ -4,7 +4,7 @@ import { CopyCode } from "@/components/copy-code";
 
 export const metadata: Metadata = {
   title: "MCP",
-  description: "Connect an AI agent to BitGraph with one URL. Make BitGraphs of files, check bytes, and fetch proofs over the Model Context Protocol.",
+  description: "Connect an AI agent to BitGraph with one URL. Make BitGraphs of files over the Model Context Protocol.",
 };
 
 const MCP_URL = "https://bitgraph.ing/mcp";
@@ -35,7 +35,7 @@ export default function McpPage() {
       <h1 className="mb-6">MCP</h1>
       <p className="text-[#1f2937] mb-10">
         BitGraph is an MCP server. Any AI agent that speaks the Model Context Protocol can
-        make BitGraphs of files, check whether bytes are on record, and fetch proofs with one
+        make BitGraphs of files with one
         URL. It needs nothing more than the ability to hash a file: the file itself never
         leaves the agent.
       </p>
@@ -105,8 +105,7 @@ export default function McpPage() {
       />
       <p className="text-base text-[#4b5563] mb-8">
         ChatGPT treats opening and committing as write actions and asks you to confirm
-        each one, showing what it is about to send. Checking and fetching proofs are
-        read-only. Every new conversation starts from the same cautious default.
+        each one, showing what it is about to send.  Every new conversation starts from the same cautious default.
       </p>
 
       <h3 className="text-base font-semibold mt-8 mb-3">Cursor, VS Code, and everything else</h3>
@@ -127,22 +126,22 @@ export default function McpPage() {
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Ask your agent</span><CopyCode /></div>
-        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">Is this file on record with BitGraph?</pre>
+        <pre className="text-xs font-mono leading-relaxed text-[#1f2937] overflow-x-auto">Which tools does BitGraph offer?</pre>
       </div>
       <p className="text-[#1f2937] mb-10">
-        A file that has never been recorded comes back as not on record. One that has comes
-        back with its causal position and a link to its proof page. A file that was dropped on
-        the site comes back with the fused artifact built from it, listed as a fused descendant
-        with its position and placement. Any of these answers means the connection is live.
-        Asking is read-only and writes nothing to the ledger, so it is a safe first move.
+        A
+        connected client lists the four tools below; that answer means the connection is live.
+        Asking costs nothing and writes nothing. Making a BitGraph is a deliberate second step,
+        and the proof it returns is the record: BitGraph does not keep a copy, so the agent
+        should save it next to the file.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Four tools</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
         <li>• <strong className="text-text">bitgraph_open</strong> · Make a BitGraph, step one. The agent sends each file&apos;s name, size, SHA-256 digest and first 16 bytes. An unused slot is allocated at the boundary before any new file exists, and the agent gets back, per file, a token and a recipe: the exact bytes the new file adds after the original (<span className="font-mono text-xs">trailer/1</span>, for formats that ignore trailing data) or around it (<span className="font-mono text-xs">container/2</span>, a tar that carries the original untouched and first). Files opened together share the one slot: they are one BitGraph, a set.</li>
-        <li>• <strong className="text-text">bitgraph_commit</strong> · Step two. The agent builds each new file from its recipe, hashes it, and sends every token and digest in one call. For a set the manifest of those digests is committed under the shared slot with the signed marker, and the agent gets back one proof for the whole batch with each file&apos;s row; a single file gets its own proof and Frame. New files are virtual: an original plus the proof rebuilds its new file, and a lookup by the original&apos;s digest finds the set.</li>
-        <li>• <strong className="text-text">bitgraph_check</strong> · Is this file on record? Read-only. It reports <span className="font-mono text-xs">on_record</span>, every recording of the exact bytes, and <span className="font-mono text-xs">fused_descendants</span>, every fused artifact that names the bytes as its origin, each listed by position with its proof page URL.</li>
-        <li>• <strong className="text-text">bitgraph_get_proof</strong> · Fetch a proof and its Ethereum anchor window: BitGraphed between block X and block Y.</li>
+        <li>• <strong className="text-text">bitgraph_commit</strong> · Step two. The agent builds each new file from its recipe, hashes it, and sends every token and digest in one call. For a set the manifest of those digests is committed under the shared slot with the signed marker, and the agent gets back one proof for the whole batch with each file&apos;s row; a single file gets its own proof and Frame. New files are virtual: an original plus the proof rebuilds its new file. That proof is the record: BitGraph does not keep a copy, so save it next to the originals.</li>
+        <li>• <strong className="text-text">bitgraph_check</strong> · Read-only. Reports whether BitGraph still indexes a proof for the bytes, which is true only of recordings made before 8 September 2026. A miss is not a finding: BitGraph no longer indexes new proofs, which live with whoever holds them.</li>
+        <li>• <strong className="text-text">bitgraph_get_proof</strong> · Fetch an indexed proof (made before 8 September 2026) and its floor: placed no earlier than Ethereum block X.</li>
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">How the hosted endpoint makes a BitGraph</h2>
@@ -150,15 +149,14 @@ export default function McpPage() {
         The endpoint never receives a file. If an agent can hash a file it can build the
         virtual new file and hash that, so the two steps above are all it takes: hash the
         originals, open a slot, build each new file exactly as its recipe says, hash it, commit
-        them together. A batch is one position however many files it holds, the same as a drop
-        on the site. Only digests, byte sizes, a file&apos;s first bytes, the signed slot record
+        them together. A batch is one position however many files it holds, the same as the Recorder. Only digests, byte sizes, a file&apos;s first bytes, the signed slot record
         and the recipes cross the network. Agents with code execution, ChatGPT and Claude among
         them, do this on any files you give them.
       </p>
       <p className="text-[#1f2937] mb-4">
         For clients that run on your machine, the stdio package does the same in one call from
         plain file paths, and makes one BitGraph of everything in the call: a folder of any size
-        becomes one set under one slot, the way a drop on the site does. Each file is read once
+        becomes one set under one slot, the way the Recorder does. Each file is read once
         for its digest; the new files are never written.
       </p>
       <div className="code-block">
@@ -169,9 +167,9 @@ export default function McpPage() {
       <h2 className="text-xl font-semibold mt-12 mb-4">Notes</h2>
       <ul className="space-y-2 text-sm text-[#1f2937]">
         <li>• <strong className="text-text">Files are never uploaded.</strong> Only SHA-256 digests, byte sizes, a file&apos;s first bytes, signed slot records and recipe bytes cross the network, to either endpoint.</li>
-        <li>• <strong className="text-text">Recordings are permanent.</strong> The ledger has 10-year retention and no deletes. Agents are instructed to record only files you asked to record.</li>
-        <li>• <strong className="text-text">One way.</strong> A BitGraph is new bytes built from the original under a slot that existed first, so those bytes could not have been finalized before the slot: that is what open and commit make, one file on its own or a batch as one set. The endpoint offers no digest-only recording; that compatibility path lives on the HTTP API for clients that hold no bytes.</li>
-        <li>• <strong className="text-text">One ledger.</strong> Whatever MCP makes lands on the same ledger as everything else, and a lookup by the original&apos;s digest finds its fused artifacts by position and placement, never ranked.</li>
+        <li>• <strong className="text-text">Positions are permanent.</strong> A consumed slot is never reused, and the anchors that floor it stay published for ten years. The proof itself comes back to the agent, which keeps it. Agents are instructed to make BitGraphs only of files you asked for.</li>
+        <li>• <strong className="text-text">One way.</strong> A BitGraph is new bytes built from the original under a slot that existed first, so those bytes could not have been finalized before the slot: that is what open and commit make, one file on its own or a batch as one set. The endpoint offers no digest-only recording.</li>
+        <li>• <strong className="text-text">One sequence.</strong> Whatever MCP makes takes its position in the same sequence as everything else, floored by the same anchors. The proof is returned to the agent, not kept by BitGraph.</li>
       </ul>
     </article>
   );

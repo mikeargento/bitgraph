@@ -757,7 +757,7 @@ function boundsPhrase(
     case "lower-bounded":
       return `after Ethereum block ${blockRef(notBefore as CheckBound)} (header verified in this bundle); no verified upper bound here` + weakerSuffix((notBefore as CheckBound).weaker);
     case "upper-bounded":
-      return `before Ethereum block ${blockRef(notAfter as CheckBound)} (header verified in this bundle); no verified lower bound here` + weakerSuffix((notAfter as CheckBound).weaker);
+      return `with no verified lower bound in this bundle; an anchor that consumed block ${blockRef(notAfter as CheckBound)} followed (header verified), which is not an upper bound` + weakerSuffix((notAfter as CheckBound).weaker);
     default:
       return "with no verified Ethereum bound in this bundle";
   }
@@ -800,7 +800,7 @@ function shortBoundsPhrase(b: CheckBounds): string {
     case "lower-bounded":
       return `after Ethereum block ${blockRef(b.notBefore as CheckBound)}`;
     case "upper-bounded":
-      return `before Ethereum block ${blockRef(b.notAfter as CheckBound)}`;
+      return `with no lower bound in this bundle, then an anchor at block ${blockRef(b.notAfter as CheckBound)} (not an upper bound)`;
     default:
       return "with no Ethereum bound in this bundle";
   }
@@ -937,7 +937,7 @@ function collectNotes(audit: AuditResult, recordings: CheckRecording[], anchors:
   }
   if (missingPositions > 0n) {
     notes.push(
-      `${missingPositions} causal position${missingPositions === 1n ? "" : "s"} between the earliest and latest recording here ${missingPositions === 1n ? "is" : "are"} not in this bundle: normal for an export, which is an excerpt of the chain; a full-epoch audit checks them`
+      `${missingPositions} causal position${missingPositions === 1n ? "" : "s"} between the earliest and latest recording here ${missingPositions === 1n ? "is" : "are"} not in this bundle: normal for an export, which is an excerpt of the chain; the positions between belong to whoever holds those recordings`
     );
   }
   if (predecessorsAbsent > 0) {
@@ -951,7 +951,7 @@ function collectNotes(audit: AuditResult, recordings: CheckRecording[], anchors:
   const originals = audit.ingest.artifacts.filter((a) => a.matchedProofHashes.length === 0 && fuseOriginHexes?.has(a.sha256Hex) === true);
   if (originals.length > 0) {
     notes.push(
-      `${originals.length} file${originals.length === 1 ? "" : "s"} in this bundle ${originals.length === 1 ? "is" : "are"} the original of a fused recording: ${originals.slice(0, 5).map((a) => a.paths[0] ?? "(unnamed)").join(", ")}${originals.length > 5 ? ", …" : ""}. The original itself receives only the ceiling (it existed no later than the commit); the fused bytes receive the interval`
+      `${originals.length} file${originals.length === 1 ? "" : "s"} in this bundle ${originals.length === 1 ? "is" : "are"} the original of a fused recording: ${originals.slice(0, 5).map((a) => a.paths[0] ?? "(unnamed)").join(", ")}${originals.length > 5 ? ", …" : ""}. The original carries no floor of its own: the commit that consumed its digest shows it existed by that position, an order, not a time ceiling. The fused bytes carry the floor`
     );
   }
   const unmatched = audit.ingest.artifacts.filter((a) => a.matchedProofHashes.length === 0 && fuseOriginHexes?.has(a.sha256Hex) !== true);
@@ -1003,7 +1003,7 @@ function collectNotChecked(hasAnchors: boolean): string[] {
     );
   }
   out.push(
-    "whether the public ledger holds these exact recordings at these positions: this is an offline check; drop the file on bitgraph.ing to compare against the ledger"
+    "whether the anchors in this bundle are the ones BitGraph published: this is an offline check; the published anchors are listed at bitgraph.ing/ledger"
   );
   out.push("whether an epoch key was later quarantined: that is published outside any bundle");
   return out;

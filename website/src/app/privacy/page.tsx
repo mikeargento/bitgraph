@@ -16,26 +16,29 @@ export default function PrivacyPage() {
 
         <h2>1. What we collect</h2>
         <ul>
-          <li>Your email address and what you send us, when you contact us, hold an account, or have a commercial agreement with us.</li>
+          <li>Your email address and what you send us, when you contact us or have a commercial agreement with us.</li>
           <li>Billing details, when a paid agreement exists, handled by our payment processor. We do not store card numbers.</li>
           <li>Service logs: timestamps, request data, and IP addresses, used for security, rate limiting, abuse prevention, and diagnosing failures.</li>
-          <li>Protocol records: file fingerprints (SHA-256 digests), positions, signatures, anchors, and related proof metadata.</li>
+          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the slot and proof metadata the recording environment needs to sign a proof. These come back to you in the proof. BitGraph keeps the Ethereum anchors; proofs made since 8 September 2026 are not stored or indexed by us.</li>
         </ul>
 
         <h2>2. What we do not collect</h2>
         <p>
           File contents are not part of recording. Files are fingerprinted on
-          your machine, and recording sends only the fingerprint and the
-          protocol metadata a proof needs. A SHA-256 fingerprint does not
+          your machine, and what travels is the fingerprint,
+          the file&apos;s size, the slot record and the recipe bytes a proof
+          needs. Software that builds the new file for you, such as the MCP
+          server, also sends the file&apos;s first bytes, to choose a placement,
+          and its name, to name the new file; neither is written into a
+          proof. A SHA-256 fingerprint does not
           contain the file and cannot by itself be used to reconstruct
-          arbitrary file contents. We do not collect file names unless you
-          supply one yourself.
+          arbitrary file contents. 
         </p>
 
         <h2>3. How we use it</h2>
         <p>
           To operate, secure, and maintain the service, to diagnose failures,
-          to administer accounts and billing, to prevent fraud and abuse, to
+          to administer billing, to prevent fraud and abuse, to
           enforce our terms, to respond when you contact us, and to comply
           with applicable law. We do not sell personal data, and we do not
           use service data for advertising.
@@ -60,10 +63,11 @@ export default function PrivacyPage() {
         <h2>5. Retention</h2>
         <p>
           Ordinary service data (email, billing, support messages, and logs)
-          is kept only as long as the purposes above need it. Protocol
-          records may be retained indefinitely: they form part of
-          BitGraph&apos;s append-only verification history, and later records
-          are computed over the history that includes them.
+          is kept only as long as the purposes above need it. Ethereum
+          anchors are retained indefinitely: they are the public floor every
+          later position is measured against. A proof made since 8 September
+          2026 is held by you, not by us. Fingerprints written to the ledger
+          before that date are under a ten-year retention lock.
         </p>
 
         <h2>6. Your rights</h2>
@@ -73,10 +77,10 @@ export default function PrivacyPage() {
           Send requests to{" "}
           <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a> and we will
           handle them as applicable law requires. These requests can reach
-          ordinary service data. Protocol records are append-only, so a
-          fingerprint already committed to the chain may not be technically
-          removable without altering the history that later records are
-          computed over.
+          ordinary service data. A proof made since 8 September 2026 is held by
+          you, not by us, so there is nothing of it here to delete. A
+          fingerprint written to the ledger before that date is under a
+          ten-year retention lock and cannot be removed.
         </p>
 
         <h2>7. Children</h2>

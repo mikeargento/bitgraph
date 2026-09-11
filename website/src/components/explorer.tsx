@@ -144,7 +144,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
         // recording was gone when the truth is the number never named it.
         setSearchError(data.reason === "number"
           ? "A number is a position within one day, and every day restarts it. Search by hash."
-          : "No BitGraph found for that hash.");
+          : "No indexed BitGraph for that hash. BitGraph no longer indexes new proofs; the holder's copy is the record.");
         setSearching(false);
       }
     } catch {

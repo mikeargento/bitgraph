@@ -38,8 +38,7 @@ export default function TermsPage() {
         <p>
           Only fingerprints are recorded. Files are fingerprinted on your
           machine, and file contents are never transmitted to BitGraph, so
-          BitGraph cannot see, store, or reconstruct them. Your browser or
-          local tooling can assemble a portable verification bundle (your
+          BitGraph cannot see, store, or reconstruct them. BitGraph Recorder or your own tooling can assemble a portable verification bundle (your
           local copy of the file, its proof, and the anchors) that anyone
           can verify offline with open-source tooling, with no account and
           nothing to look up.
@@ -84,7 +83,7 @@ export default function TermsPage() {
 
         <h2>6. Fees</h2>
         <p>
-          Recording through this site, evaluation, ordinary individual use,
+          Recording with BitGraph Recorder, evaluation, ordinary individual use,
           and verification of proofs are free. Recording inside your own
           product, service, or internal systems is licensed by separate
           agreement. That includes production API use, bulk or systematic
@@ -98,11 +97,15 @@ export default function TermsPage() {
 
         <h2>7. Your data</h2>
         <p>
-          We store fingerprints, positions, anchors, and proofs. We never
-          receive file contents, so we cannot store them. Proof and chain
-          records may be retained indefinitely: they form an append-only
-          history, and later records, including other people&apos;s, can
-          depend on the history behind them.
+          We store
+          anchors and the positions they cover. A proof is returned to you and
+          is yours to keep; BitGraph does not keep an index of proofs by
+          fingerprint. We never
+          receive file contents, so we cannot store them. Anchors are retained
+          indefinitely: they form an append-only history that later positions,
+          including other people&apos;s, depend on. Fingerprints written to the
+          ledger before 8 September 2026 remain under a ten-year retention
+          lock and cannot be removed.
         </p>
 
         <h2>8. Intellectual property</h2>
