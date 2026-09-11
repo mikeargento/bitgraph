@@ -4,17 +4,31 @@ import Link from "next/link";
 import { DocsPageNav } from "@/components/docs-page-nav";
 
 export const metadata: Metadata = {
-  title: "Subjects",
+  title: "Use cases",
   description:
-    "Where causal ordering carries weight: photography, periodic reporting, clinical records, evidence and custody, issued documents, instrument data, and drafts.",
+    "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, and clinical AI. Your system proves what happened. BitGraph proves where that proof stood.",
   openGraph: {
-    title: "BitGraph: Subjects",
+    title: "BitGraph: Use cases",
     description:
-      "Where causal ordering carries weight: photography, periodic reporting, clinical records, evidence and custody, issued documents, instrument data, and drafts.",
+      "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, and clinical AI.",
   },
 };
 
-/* One declaration per text role, so the page carries a single body signature
+/* 2026-09-10: the page was rewritten around the environments where
+   independently verifiable, hardware-backed evidence is worth the most
+   (Mike's brief, with a conference slide's four categories as the prompt:
+   regulated finance, government and sovereign AI, multi-party agents,
+   clinical AI). It replaces the nine "subjects" (photography first) as the
+   primary content; those survive as one-liners at the foot. The freeze of
+   2026-08-28 is lifted by this rewrite.
+
+   Cut with the rewrite, recoverable from git: the h1 "Trust is expensive.
+   Proof isn't." (a sales line; this page now speaks to technical reviewers,
+   security architects and regulators), the "Two conditions" selection test
+   (superseded by the four environments), and "Proof that appreciates with
+   time" (the option framing, investor register).
+
+   One declaration per text role, so the page carries a single body signature
    and the ladder stays visible in one place: h2 22, h3 18, body 16
    (project type ladder). Margins are per-use. */
 const pStyle: CSSProperties = { fontSize: 16, lineHeight: 1.75, color: "#1f2937" };
@@ -24,132 +38,125 @@ const h2Style: CSSProperties = {
 const h3Style: CSSProperties = {
   fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: 0,
 };
+/* The examples line under each environment: italic, sentence case, a step
+   under body (Mike, 2026-09-10: "these type headings should be italic text
+   to distinguish"). It read as a tracked uppercase kicker for one evening. */
 const kickerStyle: CSSProperties = {
-  fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase",
+  fontSize: 15, fontStyle: "italic", lineHeight: 1.6,
   color: "#4b5563", margin: "6px 0 12px",
 };
 const strongStyle: CSSProperties = { color: "#111827", fontWeight: 700 };
 /* The seam: the same 1px #e5e7eb hairline .bg-page-nav draws above the trail,
    at the top of each section. 44 above the line, 36 below it. */
 const sectionStyle: CSSProperties = { borderTop: "1px solid #e5e7eb", marginTop: 44, paddingTop: 36 };
+/* Figures: white, hairline, square, mono. Cards on this site hold data, not
+   prose, and a figure is data. */
+const figureStyle: CSSProperties = {
+  fontFamily: "var(--font-mono)", fontSize: 13, lineHeight: 1.7, color: "#1f2937",
+  background: "#ffffff", border: "1px solid #d0d5dd", borderRadius: 0,
+  padding: "14px 18px", margin: "18px 0 22px", overflowX: "auto",
+};
+const muted: CSSProperties = { color: "#4b5563" };
+const faint: CSSProperties = { color: "#9ca3af" };
 
-/* Each entry answers three questions in the order a buyer actually asks them:
-   who is protecting something, what specifically fails today, and what a
-   BitGraph changes about it. Since 2026-08-26 that anatomy is also stated
-   on the page, in the line under "The subjects", so the repeated bold label
-   reads as the shape it is. The `changes` line is deliberately narrow. It
-   states the new capability and stops, so no entry drifts into claiming truth,
-   authorship or first creation, which the closing section then rules out
-   explicitly. Photography leads (moved from last, 2026-07-29): it is the case
-   the reader can picture without being told, and the live product is a camera,
-   so the page opens on the thing the site already is. The institutional
-   entries follow, in buyer order, because that is where the budget is.
+/* Widow control. The last two words of every paragraph are joined with a
+   no-break space so no line can be a single word (Mike, 2026-09-10: "i see a
+   bunch of one word orphans"). text-wrap: pretty is deliberately not used on
+   long prose (project_type_scale: Safari under-fills early lines); a
+   non-breaking space is deterministic in every browser. Inline JSX paragraphs
+   carry the same join as &nbsp;. */
+const tight = (s: string): string => {
+  const i = s.lastIndexOf(" ");
+  return i < 0 ? s : s.slice(0, i) + "\u00A0" + s.slice(i + 1);
+};
 
-   Anchoring is stated once, in the intro. Naming it inside three separate
-   case bodies made it read as a dependency of each one.
+/* Each environment answers the same questions in the same order: where the
+   pressure to retain evidence comes from, what fails today, and what a
+   BitGraph changes. The `fit` line is deliberately narrow. It says what the
+   position adds and stops; "The edge of the claim" below rules out truth,
+   identity and correctness for every entry at once. Regulatory regimes are
+   named as the source of the pressure, never as something BitGraph satisfies. */
+const environments = [
+  {
+    id: "regulated-finance",
+    title: "Regulated finance",
+    examples: "AI-assisted trading · loan approval · fraud detection · compliance decisions · cross-bank reconciliation · automated financial workflows",
+    pressure:
+      "Record-keeping regimes such as MiFID II and SEC Rule 17a-4 treat automated decisions and communications as records that must be retained and produced, and DORA and SR 11-7 ask the same of the systems and models behind them.",
+    problem:
+      "A signed log or an agent receipt shows what decision was made. The auditor or counterparty who relies on it still has to trust the institution's own infrastructure for the ordering and the history, and that is the party whose conduct is in question.",
+    fit:
+      "Financial systems already generate receipts, logs, signatures and audit records. BitGraph gives those records a position that cannot be selected after the fact. A completed decision record, receipt, model output, authorization or compliance artifact is hashed and given a position; an auditor or counterparty can then verify that this exact evidence occupied that position and was not inserted later into a more convenient place in the sequence, without relying on the institution that produced it.",
+    callout: null as string | null,
+  },
+  {
+    id: "government",
+    title: "Government and sovereign AI",
+    examples: "policy analysis · benefit determination · security review · administrative decisions · sovereign AI programmes · offline and jurisdiction-restricted environments",
+    pressure:
+      "Sovereign AI programmes and data-residency rules keep records inside a jurisdiction, and an administrative decision can be challenged long after the vendor contract behind it has ended.",
+    problem:
+      "Government evidence may need to be inspected years later by an auditor who does not trust, or cannot reach, the vendor or cloud service that produced it. It may also have to stay usable offline.",
+    fit:
+      "Government evidence may need to outlive the system that produced it. The system keeps its normal signed evidence and adds a BitGraph proof; the artifact never leaves the secure environment, only its digest is recorded. Later, an auditor verifies the artifact and its position independently, without asking BitGraph to validate anything and without the original application vendor. The record stays private or inside its jurisdiction while its proof remains verifiable offline.",
+    callout: null as string | null,
+  },
+  {
+    id: "multi-party-agents",
+    title: "Multi-party agent workflows",
+    examples: "one company's agent acting on another's delegation · agent-to-agent workflows · supply-chain automation · insurers and reinsurers · banks exchanging machine-made decisions",
+    pressure:
+      "Standard commercial reality: neither party trusts the other's logs, and a dispute is settled by whichever evidence both sides can check.",
+    problem:
+      "Company A signs a delegation. Company B signs an execution receipt. Both may attest the hardware that ran their agents. What neither record can show is where the two stood relative to each other, and the ordering evidence lives inside one company's infrastructure, which is exactly what the other company does not want to trust.",
+    fit:
+      "Each delegation, receipt, action manifest or agent trace is BitGraphed on its own, and related artifacts can be made into one BitGraph as a set while each keeps its own identifier. The receipts gain a shared causal coordinate system: either party, or a third-party auditor, can verify the other's evidence and its order without trusting the other's database, and the proof travels with the record. BitGraph verifies the artifact and its position. Whether the delegation was proper or the action correct stays with the systems that signed them.",
+    callout: "DELEGATION → POSITION → ACTION → POSITION → RESULT" as string | null,
+  },
+  {
+    id: "clinical-ai",
+    title: "Healthcare and clinical AI",
+    examples: "clinical decision support · radiology triage · prior authorization · algorithm-assisted review · model governance and change control",
+    pressure:
+      "Obligations on high-risk AI, HIPAA's audit-control requirement for systems holding patient data, and change-control expectations for AI-enabled medical software all expect a decision to be reconstructable: which model version, policy, authorization and input manifest were in force, and in what order.",
+    problem:
+      "Clinical AI decisions may have to be reconstructed long after the event. Ordinary logging can be strong, yet it stays under the control of the organization whose history is being audited.",
+    fit:
+      "Clinical systems keep their signed decision records and add BitGraph positions, which gives later reviewers independent evidence of the order between exact digital states. A decision record, model manifest, authorization or audit artifact gets a portable causal position. The medical data is never published or sent to BitGraph; the proof binds to the digest.",
+    callout: null as string | null,
+  },
+];
 
-   Substitution and backdating are detectable from the sequence alone.
-   OMISSION IS NOT: a monotonic counter shared with other traffic says nothing
-   about an entry that was never made. Wherever a case claims a missing item
-   becomes visible, the claim is conditional on an external expectation of what
-   the sequence should contain (a per-period filing rule, an instrument counter,
-   a batch manifest). Do not restore the unconditional phrasing. */
-const cases = [
-  {
-    title: "Photography and photojournalism",
-    who: "Photographers, picture desks, wire agencies",
-    body:
-      "Nothing in a photograph's file says which version is the one the photographer delivered. Metadata is editable, and a crop or a re-encode produces different bytes, so anything bound to an earlier version stops matching the file in hand.",
-    changes:
-      "A BitGraph stays external to the image: the exact bytes of the delivered version are fixed at a position, so a photographer can show that this version, exactly as delivered, held it. It sits alongside Content Credentials rather than replacing them: the manifest describes the image's path, the BitGraph records the position this exact version took.",
-  },
-  {
-    /* Body reshaped 2026-08-26: this was the one entry that opened on what
-       BitGraph cannot do instead of on what fails today, which broke the
-       who/fails/changes anatomy the other six follow. The truth carve-out it
-       carried is not lost: the second condition states it, and "The edge of
-       the claim" rules it out for every entry at once. The kicker joins the
-       other six in naming people rather than documents; the document names
-       moved into the body's first sentence. */
-    title: "Periodic reporting and attestations",
-    who: "Issuers, auditors, compliance teams",
-    body:
-      "A reserve report or a compliance statement is issued, then measured against events that come after it. When the two disagree, the question becomes whether the copy produced today is what was actually filed, and the only archive belongs to the party being questioned.",
-    /* Omission phrasing hardened 2026-08-28: the sequence alone cannot show
-       a report was never made; only an external expectation can, and the
-       sentence now opens on that dependency instead of tucking it into a
-       "where" clause. Same rule applied at the instrument entry. */
-    changes:
-      "Each report takes the next position as it is recorded, outside the issuer's control, and a rewritten report no longer matches the position the original occupied. The sequence alone cannot show that a report was never made; where the workflow fixes one entry per period, a silent period becomes a visible gap.",
-  },
-  {
-    title: "Clinical records and chart entries",
-    who: "Hospitals, practices, medical-legal teams",
-    body:
-      "Malpractice and consent disputes often turn on when a note entered the chart rather than on what it says. Record systems do keep audit trails, but they are maintained by the same organization whose care is in question, which is the position a provider is least able to argue from.",
-    changes:
-      "A note takes its position when it is recorded, outside the provider's control. A later addition or revision cannot be backfilled into an earlier position. Only the hash is committed, so nothing in the chart is disclosed in order to record it.",
-  },
-  {
-    title: "Evidence and chain of custody",
-    who: "Investigators, legal teams, internal audit",
-    body:
-      "Custody disputes are usually about order rather than content: which file existed before which, and whether an item entered the record before or after a claim was made. A file's own timestamp is asserted by whoever holds the file, and system clocks are adjustable.",
-    /* Closer replaced 2026-08-28. "Time is subjective. The order is not."
-       claimed more philosophy than the evidence needs; the new pair says
-       exactly what a hostile reader can verify: a clock is an assertion, an
-       anchored order is not revisable. */
-    changes:
-      "Ordering does not depend on any clock. A position exists before the file that occupies it, so a later file cannot be inserted at an earlier point, and each anchor fixes the order of everything committed before it. A clock can be disputed. An anchored order cannot.",
-  },
-  {
-    title: "Issued documents and credentials",
-    who: "Registrars, universities, licensing boards, certifying labs",
-    body:
-      "What an authority issues is valuable only while it can be told apart from what merely looks like it. Today that distinction usually depends on calling the issuer back, which does not scale, or on visual security features, which are designed to frustrate reproduction rather than to be checked cryptographically.",
-    changes:
-      "Every issued document takes a position in the authority's own sequence at the moment it is issued. A holder presents the document with its proof, and the position can be checked without a fresh lookup against the issuer's records. The organization paying to record the document is the same one whose credibility the record protects.",
-  },
-  {
-    title: "Instrument and field data",
-    who: "Laboratories, sensor networks, survey and inspection work",
-    body:
-      "Readings are trusted because of the process that produced them, and that trust does not travel outside the organization that ran the process. Once data leaves the instrument, a downstream reader cannot tell whether readings were added later, removed, or reordered.",
-    changes:
-      "Each reading, batch, or acquisition session takes its position as it is captured, giving the record an order that someone who was not present can check. Omissions are a separate matter: only an outside expectation, an instrument counter, a schedule, a batch manifest, defines what should be present, and against it the sequence can expose a missing expected recording.",
-  },
-  {
-    /* Added 2026-08-28, from the standalone-value session: the ordinary-
-       course record that predates the dispute, in this page's anatomy
-       rather than as a story (stories stay in conversations). */
-    title: "Construction work and site records",
-    who: "Contractors, owners, engineers, adjusters",
-    body:
-      "Construction disputes surface years after the work is covered up, and the photographs and daily reports that decide them are the contesting party's own files. A timestamp in a photo is editable, and a record produced after a claim can always be alleged to have been made for it.",
-    changes:
-      "A site photo or daily report recorded on the day it is made holds a position from that day, before any dispute exists. Whatever a claim later alleges, the record demonstrably predates it, and either side can check that from the file and its proof, without trusting the other's archive.",
-  },
-  {
-    title: "Drafts, designs and prior art",
-    who: "Inventors, studios, research teams",
-    body:
-      "Showing that you had something in a particular form at a particular stage normally means producing your own files and asking to be believed, which is precisely the evidence an opponent will dispute.",
-    changes:
-      "Recording a draft as it is made gives those exact bytes a position that cannot be created later. Revisions take later positions, so the development history itself becomes the evidence.",
-  },
-  {
-    /* Added 2026-09-03 (Mike: "should AI be a subject?"). The one entry written
-       for the fused operation: the artifact is built around a place that
-       existed first, so the claim reaches the bytes from below as well as
-       from above. Same anatomy as the others; the claim stays narrow, and
-       "The edge of the claim" rules out the rest for this entry too. */
-    title: "AI outputs and agent runs",
-    who: "Teams running models and agents, their auditors, the people relying on the output",
-    body:
-      "An output from a model or an agent can be regenerated, edited and re-dated at will, and the log that says which run produced it is kept by the party that ran it. When an output is questioned, the transcript shows what a run contained, but nothing outside that party's own systems shows that the output in hand is the one that existed.",
-    changes:
-      "Taken as a fused artifact, an output is built around a place that existed before it was finished: it could not have been finalized before that place was allocated, and it was committed no later than the position that follows. A regeneration takes a later place, and anyone holding the file and its proof can tell the two apart. What the output says, and whether the model should have said it, stays outside the claim.",
-  },
+/* What a high-assurance system already answers, and the one question it
+   cannot answer about itself. */
+const layers = [
+  { name: "Identity", asks: "who signed or authorized this." },
+  { name: "Policy", asks: "what rules governed the action." },
+  { name: "Attestation", asks: "what hardware and software environment ran it." },
+  { name: "Receipt", asks: "what action or decision occurred." },
+  { name: "Transparency and audit", asks: "whether the record was retained or included." },
+];
+
+/* What a verifier checks from the copy in hand. Nothing here is fetched. */
+const checks = [
+  "the artifact digest against the bytes, or against the new file rebuilt from the original and the proof",
+  "the signed slot record, and the commitment to it inside the proof",
+  "the sequence relationship: the slot was issued before the commit that consumed it",
+  "the enclave attestation, chained to the AWS Nitro root, bound to this exact proof",
+  "the anchor relationship, where applicable: the Ethereum block the position was placed no earlier than",
+];
+
+/* The subjects the page used to lead with, kept as one line each. The
+   property is the same wherever exact bytes have to be defended later. */
+const others = [
+  { title: "Photography and photojournalism", line: "which version the photographer delivered, fixed at a position beside Content Credentials rather than in place of them." },
+  { title: "Periodic reporting and attestations", line: "each report takes the next position as it is issued, outside the issuer's control, and a rewritten report no longer matches the position the original held." },
+  { title: "Clinical records and chart entries", line: "when a note entered the chart, fixed outside the provider's control; nothing in the chart is disclosed to record it." },
+  { title: "Evidence and chain of custody", line: "which file existed before which, with no clock to dispute: a position exists before the file that occupies it." },
+  { title: "Issued documents and credentials", line: "a holder presents the document with its proof, and the position is checked without a call back to the issuer." },
+  { title: "Instrument and field data", line: "an order that someone who was not present can check; against an outside expectation of what should be there, a gap becomes visible." },
+  { title: "Construction and site records", line: "a photo or daily report made on the day holds a position from that day, before any dispute exists." },
+  { title: "Drafts, designs and prior art", line: "revisions take later positions, so the development history itself becomes the evidence." },
 ];
 
 const limits = [
@@ -170,202 +177,173 @@ const limits = [
 export default function SubjectsPage() {
   return (
     <div style={{ width: "90%", maxWidth: 800, margin: "0 auto", padding: "40px 0 80px" }}>
-      {/* The one commercial line in the product, and this is the page it
-          belongs to: /subjects is the buyer's room, so the heading speaks in the
-          buyer's register (Mike's line, 2026-07-31). It was proposed for the
-          home page and deliberately kept off it, and re-proposed and refused
-          again on 2026-08-02: the home page describes, this page sells, and
-          "A camera for bits." is also a door that morphs into /camera's
-          headline, which a demotion to subtitle would break.
-          The nav label and route were "Uses" until 2026-08-02; once this
-          heading became the page's opener, the label promised a list of
-          applications while the page delivered an argument. No subtitle: the
-          first paragraph scopes the page.
-          Deliberately NOT the home hero's up-to-54px: that scale belongs to
-          "A camera for bits." and is locked to the /camera morph; matching it
-          would set the two pages shouting.
-          The docs h1 treatment AS RENDERED, not as declared (Mike, twice on
-          2026-08-05: "should match boldness of other docs titles", then
-          "needs to match text size"). Docs h1s carry text-3xl sm:text-4xl
-          but the UNLAYERED .prose-doc h1 rule beats those utilities (the
-          08-03 unlayering), so what a docs page actually renders is a fixed
-          2rem/600/-0.03em at every width - measured, 32px against the 36px
-          the classes suggest. Matching the truth, inline, with prose-doc
-          h1's own line-height and margin. Supersedes the earlier never-wrap
-          clamp; on phones the line breaks at the period, which stacks the
-          reversal rather than reducing it to a subtitle. */}
+      {/* The docs h1 treatment as rendered (2rem/600), inline, matching the
+          other docs titles (Mike, 2026-08-05: "should match boldness of other
+          docs titles", "needs to match text size"). The route stays /subjects:
+          /uses and /applications are burned as permanently cached redirects. */}
       <h1 className="bg-page-title" style={{ marginBottom: "1.25rem" }}>
-        Trust is expensive. Proof isn&rsquo;t.
+        Where BitGraph fits
       </h1>
 
       <p style={{ ...pStyle, marginBottom: 14 }}>
-        {/* No comma before "but". With one, "but" attaches to "BitGraph is
-            useful" and reads as though the problem undercuts BitGraph. Without
-            it, "wherever" scopes both conditions and the contrast lands where
-            it belongs: order matters, and yet the evidence of it sits with the
-            interested party. No bold either: the sentence's own contrast is the
-            emphasis.
-            Sentence order (2026-08-26): thesis, then the file's missing place,
-            then the hash's limit, so the paragraph hands off cleanly to "gives
-            a file a position". The hash sentences used to sit second and split
-            the thesis from its elaboration. The hash's limit is stated as
-            "order", not as "which existed first": first existence is exactly
-            what the closing section says does not follow. */}
-        BitGraph is useful wherever order matters but the only evidence of that
-        order belongs to whoever holds the files. A digital file has no inherent
-        place in a sequence: its metadata is editable, its timestamp is asserted,
-        and a copy is indistinguishable from the original. A hash can show that
-        two files are identical. On its own it says nothing about order.
+        High-consequence systems already know how to produce evidence. They
+        sign receipts, attest the hardware that ran a model, record the policy
+        an action fell under, identify the model version, keep delegation
+        chains, and build audit trails. Those records can show what happened,
+        who authorized it, and what ran&nbsp;it.
       </p>
       <p style={{ ...pStyle, marginBottom: 14 }}>
-        {/* "outside the recorder's control", not "nobody involved controls"
-            (2026-08-28): the claim is independence from the party making the
-            record, which is what the reader needs and all the mechanism
-            supports; the older phrasing reached for an absolute no page
-            needs to defend. The same principle is applied per-entry below
-            ("the issuer does not control", "the provider does not
-            control"), which already said it correctly. */}
-        A BitGraph gives a file a position. The slot is reserved from hardware
-        entropy before the file&apos;s hash arrives, the hash is bound to that slot
-        inside a measured boundary, and the sequence is anchored to a public
-        timeline outside the recorder&apos;s control.
+        What none of them can supply about themselves is where they stood. A
+        record&apos;s own timestamp is asserted by whoever wrote it, and its
+        place in a log is kept by the party whose history is later in question.
+        BitGraph adds that one property: a position issued before the enclave
+        had seen the record&apos;s digest, consumed once, and placed no earlier
+        than a public Ethereum block. The position cannot be chosen after the&nbsp;fact.
       </p>
-      {/* Placed after the mechanism, not before it. As a consequence of what
-          was just described it needs no setup; ahead of it, it was a property
-          of a mechanism the reader had not met yet. */}
+      <p style={{ ...pStyle, marginBottom: 14 }}>
+        <strong style={strongStyle}>Your system proves what happened. BitGraph proves where that proof&nbsp;stood.</strong>
+      </p>
       <p style={{ ...pStyle, marginBottom: 0 }}>
-        {/* Says what the public record reveals, not that recording is private.
-            "BitGraphing is completely private" was considered and is false: the
-            The ledger publishes every digest, position and time, permanently on
-            the public ledger, and anyone holding the file can hash it and find the
-            record. Content is private, the record is public by design, and that
-            is what makes it checkable by a third party. Getting this wrong would
-            mislead exactly the regulated reader this page is written for. */}
-        Only the hash of a file is committed. The file itself is never handed to
-        the protocol, so material that cannot be disclosed can still be recorded.
-        The record shows that some exact bits took a position, not what they were.
+        BitGraph does not replace the receipt, the audit log, the signature or
+        the transparency log. It sits beneath them as a portable proof layer,
+        and it records only a digest: the record itself never leaves the system that made&nbsp;it.
       </p>
 
-      {/* ❄️ NOTHING GOES HERE. A diagram sat at this spot, then a link, then an
-          inline expander, then a pointer to the /docs/three-images worked
-          example, and all four came out. The pattern is real: this page answers
-          whether BitGraph applies to you, and how it WORKS, or what proves it,
-          is another page's question.
-
-          Section seams carry a hairline rule (2026-08-26): the 1px #e5e7eb
-          line .bg-page-nav already draws above the trail at the page's foot,
-          so the trail's rule reads as the last of five rather than a one-off.
-          White cells were built first and reverted the same day, Mike
-          deferring the pick: the seven-case section made a card taller than
-          five viewports, which stops reading as a card, and cells elsewhere
-          mark discrete exhibits (proof cards, figures), not prose runs.
-          Rhythm at every seam: 44 above the rule, 36 below it, uniform for
-          all four sections. */}
-
-      {/* The two conditions are the page's spine. The first is a selection
-          test, and it is deliberately written to disqualify: a page that says
-          everything qualifies is not saying anything. The second is what makes
-          the seven entries instances of one thing rather than a list. Both stop
-          short of the truth claim on purpose: the authority's ability to go on
-          asserting is preserved, the truth of what it asserts is not.
-          Headed since 2026-08-26: the front half of the page ran headingless
-          into the cases while the back half had h2s, and the old one-sentence
-          lead ("Two conditions usually hold where recording a BitGraph makes
-          sense.") was a heading wearing a paragraph's clothes. The h2 carries
-          the count, the line under it carries the scope. */}
+      {/* The four environments. Single column, one anatomy, no grid: a
+          left-ruled entry each, the idiom this page has used since 08-26. */}
       <div style={sectionStyle}>
-        <h2 style={h2Style}>Two conditions</h2>
-        <p style={{ ...pStyle, margin: "0 0 14px" }}>
-          Recording a BitGraph makes sense where both hold.
-        </p>
-        <p style={{ ...pStyle, margin: "0 0 14px" }}>
-          <strong style={strongStyle}>The trust gap is frequent and expensive.</strong>{" "}
-          Someone pays repeatedly, in staff time or in liability, to re-establish
-          something that was settled once already. A problem that comes up once a
-          year and is closed by one email does not need a protocol.
-        </p>
-        <p style={{ ...pStyle, margin: 0 }}>
-          {/* Reworded 2026-08-28 for first-read clarity: the old version made
-              the reader assemble the condition from two "where" clauses. Same
-              single condition, now named as the one act both cases share. */}
-          <strong style={strongStyle}>Someone stands behind the artifact.</strong>{" "}
-          Either an authority issues the file and needs what it issued to stay
-          distinguishable from what merely resembles it, or someone holds the
-          file and may later need to defend exactly what they held. Both are
-          one act: standing behind exact bytes. Neither protects the truth of
-          what was recorded, only the ability to keep standing behind it.
-        </p>
-      </div>
-
-      {/* Added 2026-08-28, the timing principle from the standalone-value
-          session: the shield (a record made before a dispute predates the
-          motive to fabricate) and the option economics. "A BitGraph is an
-          option" is Mike-approved outward on this page; the appreciation
-          line's "more history it demonstrably predates" is the precise form
-          (the proof itself does not strengthen with age; the predated
-          corpus grows). Headline is Mike's ("Proof that appreciates with time", answering the h1). This page is FROZEN (Mike): further
-          sentence-polish removes character, not adds clarity. */}
-      <div style={sectionStyle}>
-        <h2 style={h2Style}>Proof that appreciates with time</h2>
-        <p style={{ ...pStyle, margin: "0 0 14px" }}>
-          <strong style={strongStyle}>A record cannot be made after the fact.</strong>{" "}
-          Nothing recorded today can claim yesterday. So a record made in the
-          ordinary course of work, before any dispute exists, predates not
-          only the dispute but the reason to fabricate: evidence you could
-          not have known you would need.
-        </p>
-        <p style={{ ...pStyle, margin: "0 0 14px" }}>
-          <strong style={strongStyle}>A BitGraph is an option.</strong>{" "}
-          Recording takes seconds; that is the whole premium, and it is paid
-          once. Most options are never exercised, and what they buy in the
-          meantime is quiet: the argument that never starts. The one that is
-          exercised settles a question nothing made afterward can settle,
-          and there is no way to know in advance which file it will be. At a
-          premium of seconds, record everything you finish.
-        </p>
-        <p style={{ ...pStyle, margin: 0 }}>
-          Some records pay on a single day, the day someone doubts. Others
-          appreciate: the older an anchored record, the more history it
-          demonstrably predates, and age is the one property that cannot be
-          added later.
-        </p>
-      </div>
-
-      {/* "The subjects" is the camera's word for what it points at and the
-          page's own name (route and title); the nav's "Use cases" is a menu
-          label, not this page's vocabulary. Case titles are h3 as of
-          2026-08-26: they rendered 18px while being h2 elements, which put two
-          h2 sizes on one page; on the ladder 18 is h3, and the section heading
-          above them is the real h2. */}
-      <div style={sectionStyle}>
-        <h2 style={h2Style}>The subjects</h2>
+        <h2 style={h2Style}>Not every record needs a position. These four do.</h2>
         <p style={{ ...pStyle, margin: "0 0 28px" }}>
-          Every entry has the same shape: who is protecting something, what
-          fails today, and what a BitGraph changes.
+          Four environments where independently verifiable, hardware-attested
+          evidence carries the most weight. Each entry has the same shape:
+          where the pressure comes from, what fails today, and what a BitGraph&nbsp;changes.
         </p>
 
-        {cases.map((c, i) => (
+        {environments.map((c, i) => (
           <div
-            key={c.title}
+            key={c.id}
+            id={c.id}
             className="bg-case"
             style={{
               borderLeft: "2px solid #d0d5dd",
               paddingLeft: 22,
-              /* The last case gives up its 38px run-out so the rule above
-                 "The edge of the claim" sits 44 over content like every
-                 other seam. */
-              ...(i === cases.length - 1 ? { marginBottom: 0 } : {}),
+              scrollMarginTop: 72,
+              ...(i === environments.length - 1 ? { marginBottom: 0 } : {}),
             }}
           >
             <h3 style={h3Style}>{c.title}</h3>
-            <div style={kickerStyle}>{c.who}</div>
-            <p style={{ ...pStyle, margin: "0 0 12px" }}>{c.body}</p>
-            <p style={{ ...pStyle, margin: 0 }}>
-              <strong style={strongStyle}>What a BitGraph changes.</strong>{" "}
-              {c.changes}
+            <div style={kickerStyle}>{tight(c.examples)}</div>
+            <p style={{ ...pStyle, margin: "0 0 12px" }}>
+              <strong style={strongStyle}>The pressure.</strong> {tight(c.pressure)}
             </p>
+            <p style={{ ...pStyle, margin: "0 0 12px" }}>
+              <strong style={strongStyle}>What fails today.</strong> {tight(c.problem)}
+            </p>
+            <p style={{ ...pStyle, margin: 0 }}>
+              <strong style={strongStyle}>What a BitGraph changes.</strong> {tight(c.fit)}
+            </p>
+            {c.callout && (
+              <div style={{ ...figureStyle, margin: "16px 0 0", textAlign: "center", letterSpacing: "0.04em" }}>
+                {c.callout}
+              </div>
+            )}
           </div>
         ))}
+      </div>
+
+      {/* Where BitGraph sits in the stack. The list is what the reader's own
+          system already answers; the figure is the one line BitGraph adds. */}
+      <div style={sectionStyle}>
+        <h2 style={h2Style}>BitGraph does not replace your evidence system</h2>
+        <p style={{ ...pStyle, margin: "0 0 14px" }}>
+          A high-assurance system already answers most of the questions an auditor&nbsp;asks.
+        </p>
+        <ul style={{ margin: "0 0 14px", padding: 0, listStyle: "none" }}>
+          {layers.map((l) => (
+            <li key={l.name} style={{ ...pStyle, margin: "0 0 4px" }}>
+              <strong style={strongStyle}>{l.name}:</strong> {tight(l.asks)}
+            </li>
+          ))}
+        </ul>
+        <p style={{ ...pStyle, margin: "0 0 4px" }}>BitGraph adds one:</p>
+        <p style={{ ...pStyle, margin: 0 }}>
+          <strong style={strongStyle}>Position:</strong> where this exact artifact stood relative to the&nbsp;others.
+        </p>
+
+        <div style={figureStyle}>
+          <div style={{ fontWeight: 700 }}>YOUR SYSTEM</div>
+          <div style={muted}>identity · policy · model · hardware · action · receipt</div>
+          <div style={faint}>↓</div>
+          <div>exact artifact <span style={muted}>(a SHA-256 digest; the record itself stays home)</span></div>
+          <div style={faint}>↓</div>
+          <div><span style={{ fontWeight: 700, color: "#0065A4" }}>BITGRAPH</span> <span style={muted}>causal position: slot issued first, digest bound into it, floored by a public block</span></div>
+          <div style={faint}>↓</div>
+          <div>portable proof <span style={muted}>(travels with the artifact)</span></div>
+          <div style={faint}>↓</div>
+          <div>independent verifier <span style={muted}>(checks it offline, contacts no one)</span></div>
+        </div>
+
+        <p style={{ ...pStyle, margin: 0 }}>
+          BitGraph is deliberately narrow. It does not decide whether an action
+          was correct. It does not identify the actor. It does not interpret the
+          record. It proves that this exact digital state occupied this cryptographically constrained&nbsp;position.
+        </p>
+      </div>
+
+      {/* Portability. This is the property the four environments rest on. */}
+      <div style={sectionStyle}>
+        <h2 style={h2Style}>The proof travels with the artifact</h2>
+        <p style={{ ...pStyle, margin: "0 0 14px" }}>
+          Verification must not require trusting BitGraph as an online
+          authority. A proof leaves with the evidence it is about, and a
+          verifier checks it from the copy in&nbsp;hand:
+        </p>
+        <ul style={{ margin: "0 0 14px", paddingLeft: 22 }}>
+          {checks.map((c) => (
+            <li key={c} style={{ ...pStyle, margin: "0 0 4px" }}>{tight(c)}</li>
+          ))}
+        </ul>
+        <p style={{ ...pStyle, margin: 0 }}>
+          Nothing is submitted to BitGraph and nothing is fetched from it. The
+          same check runs in <Link href="/docs/recorder">BitGraph Recorder</Link>,
+          in <code>npx @mikeargento/bitgraph-audit</code>, and in any verifier
+          built from the <Link href="/docs/proof-format">proof&nbsp;format</Link>.
+        </p>
+      </div>
+
+      {/* Privacy. */}
+      <div style={sectionStyle}>
+        <h2 style={h2Style}>Only the digest leaves</h2>
+        <p style={{ ...pStyle, margin: 0 }}>
+          BitGraph never receives the document, the medical record, the
+          financial record, the agent transcript or the confidential evidence.
+          It binds a SHA-256 digest. A system whose artifacts cannot leave
+          their environment can still give them a position, and a verifier who
+          is handed the artifact and its proof needs nothing&nbsp;else.
+        </p>
+      </div>
+
+      {/* Batching, and the two ways a position reaches bytes. */}
+      <div style={sectionStyle}>
+        <h2 style={h2Style}>Many artifacts, one position</h2>
+        <p style={{ ...pStyle, margin: "0 0 14px" }}>
+          High-volume systems can make one BitGraph of many artifacts in a
+          single operation. Thousands of agent receipts, model execution
+          manifests, transaction records, clinical decisions or archival
+          objects become one set at one position, and every member keeps its
+          own identifier and its own row in the committed manifest, so any one of them can be checked on its&nbsp;own.
+        </p>
+        <p style={{ ...pStyle, margin: 0 }}>
+          <strong style={strongStyle}>Two ways a position reaches bytes.</strong>{" "}
+          Recording existing bytes gives them a position: the record existed,
+          then it was placed. Making a new artifact around a fresh slot, the
+          fused form the <Link href="/docs/what-is-bitgraph">protocol page</Link> describes,
+          writes a commitment to that slot into the bytes before they are
+          finished, so the final bytes carry a floor of their own. That form
+          suits records generated on the spot: agent reports, machine-made
+          audit receipts, model outputs, new manifests. The environments above
+          need neither distinction; a recorded artifact and a fused one verify the same&nbsp;way.
+        </p>
       </div>
 
       {/* Stating the neighboring claims and ruling them out is the point of
@@ -373,14 +351,14 @@ export default function SubjectsPage() {
       <div style={sectionStyle}>
         <h2 style={h2Style}>The edge of the claim</h2>
         <p style={{ ...pStyle, margin: "0 0 16px" }}>
-          Every case above rests on one narrow claim: these exact bytes occupied
-          this position in this sequence, and the position was fixed before the
-          anchor that follows it. A reader tends to assume three neighboring
-          claims. None of them follow.
+          Every environment above rests on one narrow claim: these exact bytes
+          occupied this position in this sequence, and the position was placed
+          no earlier than its floor, the Ethereum block named by the anchor
+          before it. A reader tends to assume three neighboring claims. None of them&nbsp;follow.
         </p>
         {limits.map((l) => (
           <p key={l.label} style={{ ...pStyle, margin: "0 0 10px" }}>
-            <strong style={strongStyle}>{l.label}.</strong> {l.text}
+            <strong style={strongStyle}>{l.label}.</strong> {tight(l.text)}
           </p>
         ))}
         <Link href="/docs/what-bitgraph-is-not" className="bg-action-link">
@@ -388,29 +366,45 @@ export default function SubjectsPage() {
         </Link>
       </div>
 
+      {/* The subjects this page used to lead with, one line each. BitGraph is
+          for any bits; the four environments above are where the buyer is. */}
+      <div style={sectionStyle}>
+        <h2 style={h2Style}>Other subjects</h2>
+        <p style={{ ...pStyle, margin: "0 0 14px" }}>
+          The property is the same wherever exact bytes have to be defended
+          later by whoever holds&nbsp;them:
+        </p>
+        <ul style={{ margin: 0, paddingLeft: 22 }}>
+          {others.map((o) => (
+            <li key={o.title} style={{ ...pStyle, margin: "0 0 6px" }}>
+              <strong style={strongStyle}>{o.title}:</strong> {tight(o.line)}
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <div style={sectionStyle}>
         <h2 style={h2Style}>Applying it</h2>
         <p style={{ ...pStyle, margin: "0 0 4px" }}>
           Recording a file needs no integration. BitGraph Recorder hashes the
           file on your Mac and writes the recording beside it, without
-          uploading the file itself. Everything past that, issuing in volume
-          or recording from inside your own systems, is covered in the
-          integration guide.
+          uploading the file itself. Issuing in volume, or recording from
+          inside your own systems, is covered in the integration guide; an AI
+          agent connects over MCP with one&nbsp;URL.
         </p>
-        {/* All three at the default size. "Record" is the primary action and is
-            marked by being first, which is the rule globals.css already states
-            for .bg-action-link: every action is the same size, the primary one
-            is marked by position, not by weight. An 18px Record was tried and
-            was the only size-varied action link on the site. */}
+        {/* All at the default size. The primary action is marked by being
+            first, which is the rule globals.css already states for
+            .bg-action-link: every action is the same size, the primary one is
+            marked by position, not by weight. */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-          {/* The software's page, since 2026-09-09: the home page no longer
-              records (Mike: "record a file on that screenshot should go to
-              BitGraph Recorder download page"). */}
           <Link href="/docs/recorder" className="bg-action-link">
             Record a file <span className="arrow">&rarr;</span>
           </Link>
           <Link href="/docs/integration" className="bg-action-link">
             Integration guide <span className="arrow">&rarr;</span>
+          </Link>
+          <Link href="/docs/mcp" className="bg-action-link">
+            Connect an agent <span className="arrow">&rarr;</span>
           </Link>
           <Link href="/docs/trust-model" className="bg-action-link">
             Trust model <span className="arrow">&rarr;</span>

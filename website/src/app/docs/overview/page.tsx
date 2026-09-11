@@ -315,30 +315,43 @@ export default function OverviewPage() {
         BitGraph does not restore originality. It makes it unnecessary. The artifact&rsquo;s hash is the proof&rsquo;s anchor, so any exact copy of the bytes carries the same position, and no copy has to be the special one. The proof object itself travels with the file or is stored wherever its holder keeps it, and each of those can have copies too. Verification does not depend on where anything lives. What used to need a unique object now needs only the exact bytes. A fused artifact need not even be kept: the origin plus the proof rebuilds it byte for byte, and checking that reconstruction against the signed artifact digest is the evidence.
       </p>
 
-      <h2>What BitGraph applies to</h2>
+      {/* 2026-09-10: "What BitGraph applies to" (media, supply chain, legal,
+          research: the generic provenance list) became "Where BitGraph fits":
+          the four environments where hardware-attested evidence carries the
+          most weight, each one line here and in full on /subjects. Any-bits
+          survives as the first sentence; the buyer is in the four. */}
+      <h2>Where BitGraph fits</h2>
 
       <p>
-        BitGraph works on any digital state that can be hashed. The same primitive applies whether the artifact is a photograph, a contract, a model output, a dataset, or a software release.
+        BitGraph works on any digital state that can be hashed. Where it earns its place is in systems that already produce strong evidence. They sign receipts. Attest hardware. Record policy. Identify models. Build audit trails. What those records cannot supply about themselves is where they stood, and BitGraph adds that one property: a position issued before the enclave had seen the record&rsquo;s digest, consumed once, and floored by a public block, so it cannot be chosen after the&nbsp;fact.
       </p>
 
       <p>
-        <strong>AI agent records.</strong> What an agent writes about its actions and their outputs, each placed at a position it did not choose, without the agent running inside an enclave. A separate trust domain that other attestation standards can reference.
+        <strong>Your system proves what happened. BitGraph proves where that proof&nbsp;stood.</strong>
       </p>
 
       <p>
-        <strong>Media.</strong> Photos, videos, audio, edited files, generative outputs. The question shifts from &ldquo;is this real?&rdquo; to &ldquo;what position does this exact digital state occupy?&rdquo;
+        <strong><a href="/subjects#regulated-finance">Regulated finance.</a></strong> A trading decision, loan approval, compliance result or agent receipt carries portable evidence of where it stood in the sequence, checkable outside the institution that produced&nbsp;it.
       </p>
 
       <p>
-        <strong>Software supply chain.</strong> Build artifacts, releases, model weights, and deployment packages bound to a position in a measured sequence.
+        <strong><a href="/subjects#government">Government and sovereign AI.</a></strong> An audit record becomes portable evidence with a fixed position, verifiable offline years later without the vendor or the cloud that produced it. The record itself stays inside its&nbsp;jurisdiction.
       </p>
 
       <p>
-        <strong>Legal and clinical records.</strong> Contracts, filings, telehealth session manifests, lab results, and consent forms with independently verifiable causal ordering.
+        <strong><a href="/subjects#multi-party-agents">Multi-party agent workflows.</a></strong> When one company&rsquo;s agent acts on another&rsquo;s delegation, each signed receipt takes a position in one shared sequence, so either side, or an auditor, can check the other&rsquo;s evidence without trusting the other&rsquo;s&nbsp;logs.
       </p>
 
       <p>
-        <strong>Research and IP.</strong> Datasets, experimental outputs, and results committed by hash without requiring the file to leave the user&rsquo;s device.
+        <strong><a href="/subjects#clinical-ai">Healthcare and clinical AI.</a></strong> A decision record, model manifest or authorization takes a position that later reviewers can check independently. The medical data is never&nbsp;sent.
+      </p>
+
+      <p>
+        When evidence has to cross organizations, jurisdictions, vendors, or years, the proof should be able to travel with it. BitGraph does not replace the receipt, the audit log or the signature; it sits beneath&nbsp;them.
+      </p>
+
+      <p>
+        <a href="/subjects">Where BitGraph fits, in&nbsp;detail</a>
       </p>
 
       <h2>How BitGraph differs from existing approaches</h2>
