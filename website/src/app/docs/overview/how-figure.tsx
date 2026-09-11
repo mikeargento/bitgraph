@@ -7,6 +7,13 @@
  * one from the whitepaper", after the slot-strip figure of the same morning
  * ("your picture sucked").
  *
+ * ⚠️ THE SIGNED SLOT RECORD, NONCE INCLUDED, GOES TO THE DEVICE. An outside
+ * sketch (2026-09-11) had the nonce staying inside the enclave and only a
+ * derived commitment crossing; the code says otherwise (allocate returns the
+ * record, the core pipeline derives the commitment on the device, and the
+ * offline verifier recomputes it from the record inside the proof). Only
+ * the raw nonce never enters the file's bytes. Do not redraw it that way.
+ *
  * Two lanes, device over enclave (Mike, 2026-09-11: "should YOUR DEVICE be
  * on top?" Yes: the story starts with your file, top left, and the enclave
  * sits beneath, where the site says BitGraph sits), so the order reads left to right across
@@ -36,14 +43,13 @@ const C = {
 };
 const MONO = "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace";
 
-/* The two named values, wherever they appear in the drawing: N (the position)
-   in blue mono, H (the digest) in ink mono, matching the caption. Everything
-   else in the label stays in the text face. */
+/* Label text with its step number, if any, set bold. (This once coloured N
+   and H as symbols; the symbols are gone, the words stayed.) */
 function rich(text: string, size: number): React.ReactNode[] {
-  return text.split(/(\bN\b|\bH\b)/).filter(Boolean).map((part, i) =>
-    part === "N" ? <tspan key={i} fontFamily={MONO} fontWeight={600} fill={C.brand} fontSize={size * 0.95}>N</tspan>
-    : part === "H" ? <tspan key={i} fontFamily={MONO} fontWeight={600} fill={C.ink} fontSize={size * 0.95}>H</tspan>
-    : <tspan key={i}>{part}</tspan>);
+  /* A leading step number ("1. ") is set bold, as it is in the box titles,
+     so a number on a pill weighs the same as a number on a box. */
+  return text.split(/(^\d+\.\s)/).filter(Boolean).map((part, i) =>
+    /^\d+\.\s$/.test(part) ? <tspan key={i} fontWeight={700} fontSize={size + 1}>{part}</tspan> : <tspan key={i}>{part}</tspan>);
 }
 
 function Box({ x, y, w, h, title, sub, stroke = C.line, sw = 1, titleFill = C.body, fill = C.white }: {
@@ -118,23 +124,29 @@ export function HowFigure() {
             <text x={44} y={270} fontSize={9} fontWeight={700} letterSpacing="0.09em" fill={C.brand}>ENCLAVE / TEE</text>
 
             {/* enclave lane: 1 opens N, 3 commits under it; between them N is held */}
-            <Box x={115} y={306} w={270} h={64} title="1. Open a position" sub={["a signed slot record: nonce, counter, epoch", "no digest exists yet"]} stroke={C.brand} />
-            <path d="M 385 338 L 615 338" fill="none" stroke={C.brand} strokeWidth={1} strokeDasharray="3 4" />
+            <Box x={115} y={306} w={285} h={64} title="2. Open a position" sub={["from an empty request: nothing of the file", "a signed slot record: nonce, counter, epoch"]} stroke={C.brand} />
+            <path d="M 400 338 L 600 338" fill="none" stroke={C.brand} strokeWidth={1} strokeDasharray="3 4" />
             <Tag x={500} y={338} text="position held, unspent" brand />
-            <Box x={615} y={306} w={270} h={64} title="3. Commit under the position" sub={["the digest, signed and attested", "the position is consumed, once"]} stroke={C.brand} />
+            <Box x={600} y={306} w={285} h={64} title="4. Commit under the position" sub={["the digest, signed and attested", "the position is consumed, once"]} stroke={C.brand} />
 
             {/* device lane: the file becomes new bytes that carry N */}
             <Box x={115} y={86} w={120} h={64} title="Your file" sub={["any bytes"]} />
-            <Arrow id={id} d="M 235 118 L 259 118" />
-            <Box x={263} y={86} w={270} h={64} title="2. New bytes" sub={["the file + a commitment to the position", "built here, never uploaded"]} />
+            <Arrow id={id} d="M 235 118 L 296 118" />
+            <Box x={300} y={86} w={270} h={64} title="3. New bytes" sub={["the file + a commitment to the position", "built here, never uploaded"]} />
 
             {/* first: the slot record goes down into the bytes */}
-            <Arrow id={id} d="M 320 306 L 320 154" brand />
-            <Tag x={320} y={218} text="first: the signed slot record, into the bytes" brand />
+            {/* the empty request, a pill on its wire like the other two (Mike,
+                2026-09-11). The wire runs the full height like the others, so
+                the pill sits mid-wire rather than on a stub; the pill's own
+                words say the request carries nothing. */}
+            <Arrow id={id} d="M 175 150 L 175 302" />
+            <Tag x={175} y={218} text="1. ask for a position" />
+            <Arrow id={id} d="M 360 306 L 360 154" brand />
+            <Tag x={360} y={218} text="signed slot record" brand />
 
             {/* then: the digest of the new bytes goes back up, under N */}
-            <Arrow id={id} d="M 533 118 L 680 118 L 680 302" />
-            <Tag x={680} y={218} text="then: the digest of the new bytes" />
+            <Arrow id={id} d="M 570 118 L 640 118 L 640 302" />
+            <Tag x={640} y={218} text="digest of the new bytes" />
 
             {/* the proof comes back down and leaves with the file */}
             <Arrow id={id} d="M 825 306 L 825 154" brand />
@@ -146,7 +158,7 @@ export function HowFigure() {
           {/* Plain words, no symbol: N lasted an afternoon and needed
               defining twice (Mike, 2026-09-11: "should N just be replaced by
               position?"). */}
-          The bytes name the position, and the position names the bytes. The position was open before the bytes were final, so they could not have been finished before it. The commit spends the position on exactly those bytes in one indivisible step, so it can never name any&nbsp;others.
+          The bytes name the position, and the position names the bytes. The position was open before the new bytes were final, so they could not have been finished before it. The commit spends the position on exactly those bytes in one indivisible step, so it can never name any&nbsp;others.
         </p>
       </div>
     </figure>
