@@ -84,8 +84,11 @@ function Arrow({ d, id, brand, label, lx, ly }: { d: string; id: string; brand?:
 /* A label as its own small pill, centred on the line it belongs to, over the
    line (Mike, 2026-09-11: "should these have their own little connecting
    pills?"). Width from the text length at 9.5px with letter-spacing. */
-function Tag({ x, y, text, brand }: { x: number; y: number; text: string; brand?: boolean }) {
-  const w = Math.round(text.length * 5.9 + 22);
+function Tag({ x, y, text, brand, w: given }: { x: number; y: number; text: string; brand?: boolean; w?: number }) {
+  // Measured text width plus 20px each side where the caller has measured it
+  // (2026-09-11 pass: the estimate gave one pill 19px of padding and another
+  // 30); the estimate stays as the fallback.
+  const w = given ?? Math.round(text.length * 5.9 + 22);
   const h = 22;
   return (
     <g>
@@ -126,13 +129,13 @@ export function HowFigure() {
             {/* enclave lane: 1 opens N, 3 commits under it; between them N is held */}
             <Box x={115} y={306} w={285} h={64} title="2. Open a position" sub={["from an empty request: nothing of the file", "a signed slot record: nonce, counter, epoch"]} stroke={C.brand} />
             <path d="M 400 338 L 600 338" fill="none" stroke={C.brand} strokeWidth={1} strokeDasharray="3 4" />
-            <Tag x={500} y={338} text="position held, unspent" brand />
-            <Box x={600} y={306} w={285} h={64} title="4. Commit under the position" sub={["the digest, signed and attested", "the position is consumed, once"]} stroke={C.brand} />
+            <Tag x={500} y={338} text="position held, unspent" brand w={151} />
+            <Box x={600} y={306} w={285} h={64} title="4. Commit under the position" sub={["the digest bound, signed and attested", "the position consumed, once, in one step"]} stroke={C.brand} />
 
             {/* device lane: the file becomes new bytes that carry N */}
             <Box x={115} y={86} w={120} h={64} title="Your file" sub={["any bytes"]} />
-            <Arrow id={id} d="M 235 118 L 296 118" />
-            <Box x={300} y={86} w={270} h={64} title="3. New bytes" sub={["the file + a commitment to the position", "built here, never uploaded"]} />
+            <Arrow id={id} d="M 235 118 L 316 118" />
+            <Box x={320} y={86} w={360} h={64} title="3. New bytes" sub={["the file + a commitment derived here from the slot record", "built on your device, never uploaded"]} />
 
             {/* first: the slot record goes down into the bytes */}
             {/* the empty request, a pill on its wire like the other two (Mike,
@@ -140,13 +143,13 @@ export function HowFigure() {
                 the pill sits mid-wire rather than on a stub; the pill's own
                 words say the request carries nothing. */}
             <Arrow id={id} d="M 175 150 L 175 302" />
-            <Tag x={175} y={218} text="1. ask for a position" />
-            <Arrow id={id} d="M 360 306 L 360 154" brand />
-            <Tag x={360} y={218} text="signed slot record" brand />
+            <Tag x={175} y={218} text="1. ask for a position" w={139} />
+            <Arrow id={id} d="M 355 306 L 355 154" brand />
+            <Tag x={355} y={218} text="signed slot record" brand w={130} />
 
             {/* then: the digest of the new bytes goes back up, under N */}
-            <Arrow id={id} d="M 570 118 L 640 118 L 640 302" />
-            <Tag x={640} y={218} text="digest of the new bytes" />
+            <Arrow id={id} d="M 645 150 L 645 302" />
+            <Tag x={645} y={218} text="digest of the new bytes + the slot record" w={243} />
 
             {/* the proof comes back down and leaves with the file */}
             <Arrow id={id} d="M 825 306 L 825 154" brand />
