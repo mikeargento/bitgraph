@@ -386,6 +386,7 @@ final class AppState: ObservableObject {
         if toast != nil { dismissToast(); return true }
         if searching { clearSearch(); return true }
         if case .proof = surface { back(); return true }
+        if case .new = surface { showCalendar(); return true }
         return false
     }
 

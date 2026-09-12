@@ -40,7 +40,8 @@ folder and they have the whole BitGraph.
 One surface, and the whole of it takes a drop. Drag files or a folder anywhere
 onto the window, at any time: the moment a drag crosses in, the window goes
 blue under a dashed frame and says the one word. **+ New** is the same thing
-for people who would rather pick than drag. Under the header, the library is
+for people who would rather pick than drag: it opens a page that is one dashed
+frame, the site's home, with the browse link in it. Under the header, the library is
 one list, newest first, every month's days under its name: each day a row
 saying how many recordings it holds, and a day opens to its recordings. A
 recording opens to its proof, read off the disk. **Calendar** drops a little

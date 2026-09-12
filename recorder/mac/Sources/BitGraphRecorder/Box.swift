@@ -14,6 +14,11 @@ import AppKit
 /// is no box (Mike, 2026-09-11: "kill the box").
 enum Surface: Equatable {
     case calendar
+    /// The page "+ New" opens: the frame, the site's home, with the browse
+    /// link in it. A drop lands anywhere, this page included; the page is
+    /// for the person who came in by the pill (Mike, 2026-09-11: "+new sits
+    /// next to bitgraph and always opens the dropbox page").
+    case new
     case results(LookResult)
     case proof(ProofSubject)
 }
@@ -247,6 +252,15 @@ extension AppState {
             guard !Task.isCancelled else { return }
             await self?.reloadProofPage()
         }
+    }
+
+    /// The New page: the frame.
+    func showNew() {
+        surface = .new
+        calendarOpen = false
+        proofReload?.cancel()
+        proofReload = nil
+        proofPage = nil
     }
 
     /// The calendar, with every page and pending thing put away.

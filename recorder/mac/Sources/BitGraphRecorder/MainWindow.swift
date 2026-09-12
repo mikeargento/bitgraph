@@ -49,7 +49,7 @@ struct MainWindow: View {
                 Color.clear.contentShape(Rectangle()).onTapGesture { state.calendarOpen = false }
                 calendarCard
                     .padding(.top, 64 + 1 + 6)
-                    .padding(.trailing, 20 + Self.newPillWidth + 12)
+                    .padding(.trailing, 20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             }
 
@@ -109,6 +109,11 @@ struct MainWindow: View {
             Text("BitGraph").fontWeight(.bold)
                 .font(Font.system(size: 22))
                 .foregroundStyle(G.ink)
+            /* Beside the name, where Google keeps Create, and it opens the
+             * frame every time rather than a picker (Mike, 2026-09-11: "+new
+             * sits next to bitgraph and always opens the dropbox page"). */
+            CreatePill(title: "New", height: 44, width: Self.newPillWidth) { state.showNew() }
+                .padding(.leading, 12)
             Spacer()
             /* What is being worked on, when something is; then the ways to
              * a proof that are not a drop: search by name, the little month
@@ -123,7 +128,6 @@ struct MainWindow: View {
             SearchField(placeholder: "Search recordings", text: $state.query, focus: $state.focusSearch)
                 .frame(width: 240)
             Pill(title: "Calendar", style: state.calendarOpen ? .tonal : .outlined, icon: "calendar") { state.calendarOpen.toggle() }
-            CreatePill(title: "New", height: 44, width: Self.newPillWidth) { state.chooseFilesToMake() }
         }
         .padding(.horizontal, 20)
         .frame(height: 64)
@@ -161,6 +165,8 @@ struct MainWindow: View {
         switch state.surface {
         case .calendar, .results:
             Dashboard(state: state)
+        case .new:
+            NewPage(state: state)
         case .proof:
             if let page = state.proofPage {
                 ProofView(state: state, page: page)
@@ -243,5 +249,37 @@ struct DropReveal: View {
         }
         .allowsHitTesting(false)
         .transition(.opacity)
+    }
+}
+
+/// The page "+ New" opens: one dashed frame the size of the page, the way
+/// the site's home is one frame and nothing else, with the one line in it
+/// for people who would rather pick than drag. A drop lands on it like
+/// anywhere else; the frame is where you go when you came in by the pill.
+struct NewPage: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: G.zoneRadius).fill(G.zone)
+            RoundedRectangle(cornerRadius: G.zoneRadius)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+                .foregroundStyle(G.dash)
+            /* ⚠️ A FILE, NOT A PHOTOGRAPH. BitGraph is for any bits, and the
+             * icon says so. */
+            HStack(spacing: 14) {
+                Image(systemName: "doc.on.doc").font(.system(size: 32, weight: .light)).foregroundStyle(G.blue)
+                HStack(spacing: 0) {
+                    Text("Drag files or a folder here, or ").font(G.body).foregroundStyle(G.ink)
+                    Button { state.chooseFilesToMake() } label: {
+                        Text("browse files").font(G.body).foregroundStyle(G.blue).underline()
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(G.ground)
     }
 }

@@ -28,7 +28,7 @@ extension AppState {
 
         switch (event.keyCode, key) {
         case (_, "n") where cmd && !shift:
-            chooseFilesToMake()
+            showNew()
         case (_, "f") where cmd:
             focusSearch = true
         case (_, "t") where cmd || (plain && !typing):
@@ -50,7 +50,7 @@ extension AppState {
 
     /// The keys, for the README and the popover.
     static let shortcuts: [(keys: String, does: String)] = [
-        ("⌘N", "Record a BitGraph…"),
+        ("⌘N", "New"),
         ("← → or ⌘← ⌘→", "The month before / after"),
         ("T or ⌘T", "Today"),
         ("⌘F", "Search recordings"),

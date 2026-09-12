@@ -82,6 +82,15 @@ final class KeysTests: XCTestCase {
         XCTAssertEqual(state.surface, .calendar, "a day picked in the little month leaves the page")
     }
 
+    /// "+ New" opens the frame every time; Escape or Back is the calendar.
+    func testNewOpensTheFrameAndEscapeLeavesIt() {
+        let state = AppState(preview: status())
+        state.showNew()
+        XCTAssertEqual(state.surface, .new)
+        XCTAssertTrue(state.escape())
+        XCTAssertEqual(state.surface, .calendar)
+    }
+
     // ── the list, by month ──────────────────────────────────────────────────
 
     /// The spine grouped under month names, newest first, and ← → jumping
