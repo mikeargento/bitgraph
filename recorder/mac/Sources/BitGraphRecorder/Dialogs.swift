@@ -299,9 +299,10 @@ struct BlockedFolderDialog: View {
     }
 }
 
-/// What a one-off check said, over the dashboard. Mike, 2026-09-09: "what
-/// does 'check a folder' do?" — it did its work and said so only in the menu
-/// bar. Now the answer lands where the question was asked.
+/// What a check said, over the calendar: a folder of BitGraphs was dropped
+/// on the window. Mike, 2026-09-09: "what does 'check a folder' do?" — it did
+/// its work and said so only in the menu bar. Now the answer lands where the
+/// drop was made.
 ///
 /// ⚠️ ONLY WHAT HAS SOMETHING TO SAY IS LISTED. Verified files are a number;
 /// a failed, unrecorded or undetermined one is a row, with its reason.

@@ -15,10 +15,10 @@ final class KeysTests: XCTestCase {
 
     func testEscapePutsAwayTheTopmostThingAndOnlyThat() {
         let state = AppState(preview: status())
-        state.createMenu = true
+        state.say("something to say")
         state.query = "img"
         XCTAssertTrue(state.escape())
-        XCTAssertFalse(state.createMenu, "the menu goes first")
+        XCTAssertNil(state.toast, "the snackbar goes first")
         XCTAssertEqual(state.query, "img", "the search stays until the next Escape")
         XCTAssertTrue(state.escape())
         XCTAssertEqual(state.query, "")
@@ -52,6 +52,18 @@ final class KeysTests: XCTestCase {
         XCTAssertFalse(state.dialogUp)
         state.pendingBatch = LookResult(root: "/x", files: [], total: 0, recorded: 0, truncated: false)
         XCTAssertTrue(state.dialogUp)
+    }
+
+    /// A folder of BitGraphs dropped on the window comes back "checked", and
+    /// the report goes over the calendar, never a menu.
+    func testACheckedDropShowsItsReport() {
+        let state = AppState(preview: status())
+        let report = FolderReport(root: "/sent/Export", counts: CheckCounts(verified: 3, failed: 0, undetermined: 0, unrecorded: 0), speaking: [], positions: 1, partial: false)
+        state.showCheck(path: "/sent/Export", report: report)
+        XCTAssertEqual(state.oneOff?.path, "/sent/Export")
+        XCTAssertTrue(state.dialogUp)
+        XCTAssertTrue(state.escape())
+        XCTAssertNil(state.oneOff)
     }
 
     // ── the header's column ─────────────────────────────────────────────────

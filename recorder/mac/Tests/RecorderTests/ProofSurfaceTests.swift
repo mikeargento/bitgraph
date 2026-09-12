@@ -84,7 +84,7 @@ final class ProofSurfaceTests: XCTestCase {
         let out = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("preview")
         try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 
-        /* The dashboard: sidebar, the box, the ledger. */
+        /* The window: sidebar, the month's days. */
         let dash = AppState(preview: Status(
             baseUrl: "https://bitgraph.ing", supportDir: "", folder: "/Users/mike/BitGraph", suggested: "/Users/mike/BitGraph",
             library: "/Users/mike/BitGraph/Recordings", recordings: 37, recorded: 4_930,
@@ -108,8 +108,14 @@ final class ProofSurfaceTests: XCTestCase {
         )
         dash.month = try XCTUnwrap(AppState.date(of: "2026-09-15"))
         try shoot(MainWindow(state: dash), name: "window", size: CGSize(width: 1180, height: 780), into: out)
-        dash.section = .calendar
-        try shoot(MainWindow(state: dash), name: "window-calendar", size: CGSize(width: 1180, height: 780), into: out)
+        /* A drag over the window: the whole of it becomes the frame. */
+        dash.dragOver = true
+        try shoot(MainWindow(state: dash), name: "window-drag", size: CGSize(width: 1180, height: 780), into: out)
+        dash.dragOver = false
+        /* Work in hand: the band under the header, the numbers at its right. */
+        dash.setDroppingForTesting(true, progress: MakeProgress(phase: "fuse", done: 212, total: 400))
+        try shoot(MainWindow(state: dash), name: "window-working", size: CGSize(width: 1180, height: 780), into: out)
+        dash.setDroppingForTesting(false, progress: nil)
         /* A search, answered: the month's days make way for what was found. */
         dash.setSearchForTesting(query: "photos", found: SearchResult(query: "photos", recordings: [
             Recording(path: "/l/2026-09-09/BitGraph (Photos 2026, 412 files)", name: "BitGraph (Photos 2026, 412 files)", day: "2026-09-09", files: 412, writtenAt: "2026-09-09T15:48:02.000Z", waitingOnAnchors: true, from: photos),
@@ -118,10 +124,10 @@ final class ProofSurfaceTests: XCTestCase {
         ], truncated: false))
         try shoot(MainWindow(state: dash), name: "window-search", size: CGSize(width: 1180, height: 780), into: out)
         dash.setSearchForTesting(query: "", found: nil)
-        dash.createMenu = true
-        try shoot(MainWindow(state: dash), name: "window-menu", size: CGSize(width: 1180, height: 780), into: out)
-        dash.createMenu = false
-        dash.section = .box
+        /* A library with nothing in it yet: the one written hint. */
+        let empty = AppState(preview: dash.status)
+        empty.setLedgerForTesting(spine: LedgerSpine(days: [], total: 0), days: [:], expanded: [])
+        try shoot(MainWindow(state: empty), name: "window-empty", size: CGSize(width: 1180, height: 780), into: out)
 
         let batched = AppState(preview: dash.status)
         batched.pendingBatch = LookResult(root: "/Users/mike/Pictures/Export 2026-09-09", files: [
@@ -129,10 +135,6 @@ final class ProofSurfaceTests: XCTestCase {
             Looked(path: "/a/IMG_4022.CR3", name: "IMG_4022.CR3", rel: "IMG_4022.CR3", bytes: 27_900_000, originDigestB64: "BB", placement: "trailer/1", position: nil, evidencePath: nil),
         ], total: 2, recorded: 0, truncated: false)
         try shoot(MainWindow(state: batched), name: "window-batch", size: CGSize(width: 1180, height: 780), into: out)
-
-        let busy = AppState(preview: nil)
-        busy.setDroppingForTesting(true, progress: MakeProgress(phase: "fuse", done: 212, total: 400))
-        try shoot(DropCard(state: busy).padding(30), name: "box-making", size: CGSize(width: 780, height: 460), into: out)
 
         let look = LookResult(root: "/Users/mike/Pictures/Export 2026-09-09", files: [
             Looked(path: "/a/IMG_4021.CR3", name: "IMG_4021.CR3", rel: "IMG_4021.CR3", bytes: 28_400_000, originDigestB64: "AA", placement: "trailer/1", position: nil, evidencePath: nil),

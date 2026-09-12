@@ -37,8 +37,10 @@ folder and they have the whole BitGraph.
 
 ## The window
 
-Two sections, laid out like a calendar app. **Record** is where things are
-recorded and checked: drag files or a folder onto it, or choose them. **Calendar** is
+One surface, laid out like a calendar app, and the whole of it takes a drop.
+Drag files or a folder anywhere onto the window, at any time: the moment a
+drag crosses in, a dashed frame draws around everything and says so. **+ New**
+is the same thing for people who would rather pick than drag. The calendar is
 the library: the month's days, each a row saying how many recordings it holds,
 and a day opens to its recordings. The little month on the left has a dot on
 every day that holds something; click one and the list goes there. A recording
@@ -51,10 +53,9 @@ says so, and that is the only thing the app ever announces on its own. The
 menu bar item is the same thing in short: what the library holds, what needs
 saying, and the way into the window.
 
-The keys: **⌘N** record, **⇧⌘K** check a folder, **⌘1** / **⌘2** the two
-sections, **←** **→** (or ⌘←, ⌘→) the month before or after, **T** (or ⌘T)
-today, **⌘F** search, **Esc** puts away whatever is up. The plain keys are
-Calendar's own and only work while nothing is being typed.
+The keys: **⌘N** record, **←** **→** (or ⌘←, ⌘→) the month before or after,
+**T** (or ⌘T) today, **⌘F** search, **Esc** puts away whatever is up. The
+plain keys are Calendar's own and only work while nothing is being typed.
 
 An update is offered when the feed at `bitgraph.ing/recorder/latest.json`
 names a newer version. **Install** downloads the package, checks it against
@@ -75,6 +76,9 @@ carries on with everything in it.
 - **One file already on record**: opens its BitGraph instead.
 - **Two or more**: listed first, then made as ONE BitGraph at ONE position,
   each file a member. Only a batch gets asked.
+- **A folder of BitGraphs**: checked, and the report shown. Nothing is
+  recorded, nothing is changed, nothing leaves the machine. It is how a folder
+  somebody sent you gets read, and how a recording of your own is re-checked.
 
 Two files with the same bytes in one drop are one member: the record is by
 content, so the second name is covered by the first and said so. Your BitGraph
@@ -88,9 +92,9 @@ That is a decision for a narrower form of it, not a default.
 
 ## The reader
 
-`Check a folder` reads and records nothing. A folder somebody sends you checks
-**on its own** — no library, no index, no settings, no network — because a
-recording carries everything a check asks for.
+A dropped folder of BitGraphs is read and nothing is recorded. A folder
+somebody sends you checks **on its own** — no library, no index, no settings,
+no network — because a recording carries everything a check asks for.
 
 Four outcomes, and the differences between them are the point:
 

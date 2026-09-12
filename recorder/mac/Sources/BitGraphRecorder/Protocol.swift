@@ -206,6 +206,8 @@ struct DropAnswer: Decodable, Equatable {
     var made: MakeResult?
     var skipped: [SkippedFile]?
     var opened: Looked?
+    /// "checked" only: what the check of a dropped folder of BitGraphs said.
+    var report: FolderReport?
 }
 
 /// One recording in the library, as a day lists it.

@@ -64,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         await MainActor.run {
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first(where: { $0.styleMask.contains(.titled) })?.makeKeyAndOrderFront(nil)
-            state.showSection(.calendar)
+            state.showCalendar()
             state.goToday()
         }
     }

@@ -152,18 +152,20 @@ private struct IconButtonStyle: ButtonStyle {
 /// ⚠️ NOTHING HERE IS APPKIT'S. A SwiftUI `Menu` draws its label in the
 /// system appearance, and an `NSMenu` popped under it drew its items the same
 /// way: on a Mac in dark mode both came out white on white. The pill is a
-/// button, and the menu is `CreateMenu`, a card the window draws under it.
+/// plain button. It used to open a menu of two; the drop decides now, so it
+/// does the one thing.
 struct CreatePill: View {
     let title: String
-    @Binding var isOpen: Bool
+    let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        Button { isOpen.toggle() } label: {
+        /* No caret: it opened a menu of two, and the drop now decides what
+         * the second one asked. The pill does the one thing. */
+        Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: "plus").font(.system(size: 18, weight: .medium))
                 Text(title).font(Font.system(size: 15, weight: .medium))
-                Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).padding(.top, 1)
             }
             .foregroundStyle(.white)
             .padding(.leading, 18)
@@ -174,88 +176,10 @@ struct CreatePill: View {
              * shadowing is doing something funny on the text", Mike,
              * 2026-09-09). */
             .background(
-                Capsule().fill(hovering || isOpen ? G.blueDeep : G.blue)
+                Capsule().fill(hovering ? G.blueDeep : G.blue)
                     .shadow(color: .black.opacity(0.28), radius: 1.5, y: 1)
                     .shadow(color: .black.opacity(0.14), radius: 6, y: 4)
             )
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-    }
-}
-
-/// Calendar's create menu: a white card with a soft shadow and rows with an
-/// icon each.
-struct CreateMenu: View {
-    struct Entry: Identifiable {
-        let icon: String
-        let title: String
-        let action: () -> Void
-        var id: String { title }
-    }
-
-    let entries: [Entry]
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(entries) { entry in
-                MenuRow(entry: entry)
-            }
-        }
-        .padding(.vertical, 8)
-        .frame(width: 236)
-        .background(
-            RoundedRectangle(cornerRadius: 8).fill(Color.white)
-                .shadow(color: .black.opacity(0.30), radius: 1.5, y: 1)
-                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
-        )
-    }
-
-    private struct MenuRow: View {
-        let entry: Entry
-        @State private var hovering = false
-
-        var body: some View {
-            Button(action: entry.action) {
-                HStack(spacing: 16) {
-                    Image(systemName: entry.icon).font(.system(size: 16, weight: .regular)).foregroundStyle(G.secondary).frame(width: 22)
-                    Text(entry.title).font(G.body).foregroundStyle(G.ink)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .frame(height: 44)
-                .background(hovering ? G.hover : Color.clear)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .onHover { hovering = $0 }
-        }
-    }
-}
-
-/// A section switch, shaped like Google's segmented buttons: every segment
-/// is outlined so it reads as a button, and the one selected is tonal with a
-/// check. Mike, 2026-09-09: "create and calendar should at least be outlined
-/// as buttons because its hard to tell they are buttons".
-struct Chip: View {
-    let title: String
-    var selected: Bool
-    let action: () -> Void
-
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            /* Two plain buttons, no check: the one you are on is tonal, the
-             * other outlined ("just remove the check and make them buttons"
-             * — Mike, 2026-09-09). Same width either way. */
-            Text(title).font(G.label)
-            .foregroundStyle(selected ? G.blueDeep : G.blue)
-            .padding(.horizontal, 20)
-            .frame(height: 40)
-            .background(Capsule().fill(selected ? G.blueTonal : (hovering ? G.hover : .clear)))
-            .overlay(Capsule().strokeBorder(selected ? Color.clear : G.border, lineWidth: 1))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

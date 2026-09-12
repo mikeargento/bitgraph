@@ -5,7 +5,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 /// The main surface, laid out like Google Calendar: a sidebar with the create
-/// pill and the mini month, and beside it the section on show.
+/// pill, the mini month and the search, and beside it the month's days.
 ///
 /// ⚠️ NO SYNCED FOLDERS. Mike, 2026-09-09: "i dont think 'syncing folders' is
 /// a good idea. it could get MESSY fast." Pointed at a folder holding a whole
@@ -15,35 +15,25 @@ import UniformTypeIdentifiers
 /// offer it.
 ///
 /// ⚠️ THE CONTROLS ARE ON THE SURFACE. Nothing is hidden in a menu bar
-/// popover: the ways in, the calendar, the folders and the recordings are all
-/// in the window, which is what a dashboard is.
+/// popover: the way in, the calendar and the recordings are all in the
+/// window, which is what a dashboard is.
 ///
-/// ⚠️ TWO SECTIONS. Mike, 2026-09-09: "calendar should be a separate section"
-/// and "lists of days should be expandable ... like drill out from day". The
-/// BOX is where things are made and checked. The CALENDAR is the library: the
-/// days of a month, each a row that opens to what it holds.
+/// ⚠️ ONE SECTION. The calendar is the app: the days of a month, each a row
+/// that opens to what it holds (Mike, 2026-09-09: "lists of days should be
+/// expandable ... like drill out from day"). There was a second section, the
+/// box, a permanent dropbox; the window itself takes a drop anywhere, so the
+/// box went (Mike, 2026-09-11: "kill the box").
 struct Dashboard: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        /* ⚠️ CREATE HAS NO SIDEBAR. Mike, 2026-09-09: "is this sidebar needed
-         * anymore?" With syncing gone it held a Make pill that duplicated the
-         * box and a summary line. The box stands alone, the summary under it.
-         * Calendar keeps its sidebar: the mini month earns it. */
-        Group {
-            switch state.section {
-            case .box:
-                BoxPane(state: state)
-            case .calendar:
-                /* No divider the height of the window: the little month
-                 * carries a short line at its right instead (Mike, 2026-09-09:
-                 * "instead of a sidebar line the calendar just has a right line"). */
-                HStack(spacing: 0) {
-                    Sidebar(state: state)
-                        .frame(width: 256)
-                    CalendarPane(state: state)
-                }
-            }
+        /* No divider the height of the window: the little month carries a
+         * short line at its right instead (Mike, 2026-09-09: "instead of a
+         * sidebar line the calendar just has a right line"). */
+        HStack(spacing: 0) {
+            Sidebar(state: state)
+                .frame(width: 256)
+            CalendarPane(state: state)
         }
         .background(G.ground)
     }
@@ -56,12 +46,15 @@ struct Sidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CreatePill(title: "New", isOpen: $state.createMenu)
+            /* One way in that is not a drag: the picker. It was a menu of two
+             * ("Record a BitGraph…", "Check a folder…") until the drop learned
+             * to tell a folder of BitGraphs from a folder of files. */
+            CreatePill(title: "New") { state.chooseFilesToMake() }
             .padding(.leading, 12)
             .padding(.top, 16)
             .padding(.bottom, 22)
 
-            if state.section == .calendar {
+            do {
                 MiniMonth(
                     month: $state.month,
                     selected: Binding(get: { state.selectedDay }, set: { state.selectDay($0) }),
@@ -82,11 +75,9 @@ struct Sidebar: View {
 
             Spacer()
 
-            if state.section == .calendar {
-                AnchorLegend()
-                    .padding(.leading, 16)
-                    .padding(.bottom, 18)
-            }
+            AnchorLegend()
+                .padding(.leading, 16)
+                .padding(.bottom, 18)
         }
         .padding(.horizontal, 8)
         .background(G.ground)
@@ -131,34 +122,6 @@ enum FileDrop {
         group.notify(queue: .main) {
             guard !urls.isEmpty else { return }
             done(urls)
-        }
-    }
-}
-
-// ── the box section ────────────────────────────────────────────────────────
-
-/// The box, in the middle of its pane, and the library in a line under it.
-/// Mike, 2026-09-09: "dropbox could be centered".
-private struct BoxPane: View {
-    @ObservedObject var state: AppState
-
-    var body: some View {
-        VStack {
-            Spacer(minLength: 24)
-            DropCard(state: state)
-                .frame(maxWidth: 720)
-                .padding(.horizontal, 32)
-            Spacer(minLength: 24)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(G.ground)
-        /* The Make pill where Calendar has it ("it should be on first page
-         * also"); the library in the bottom-left corner; the company centred
-         * at the bottom ("all centered is terrible" — only the company is). */
-        .overlay(alignment: .topLeading) {
-            CreatePill(title: "New", isOpen: $state.createMenu)
-                .padding(.leading, 20)
-                .padding(.top, 16)
         }
     }
 }
@@ -215,110 +178,6 @@ struct FooterBar: View {
     }
 }
 
-/// A card with a dashed zone in it, an OR rule, and a row of pills: the
-/// Google Images dropper.
-struct DropCard: View {
-    @ObservedObject var state: AppState
-    @State private var over = false
-
-    var body: some View {
-        /* ⚠️ THE BOX IS THE TARGET; THE + NEW PILL IS THE MENU. The card used
-         * to carry an OR rule and two pills that were versions of the drop
-         * ("so the 2 buttons are basically versions of what the dropbox
-         * does" — Mike, 2026-09-09). Now it is the zone, and the ways in that
-         * are not a drag live under + New. */
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Record a BitGraph")
-                .font(G.cardTitle)
-                .foregroundStyle(G.ink)
-                .frame(maxWidth: .infinity)
-
-            zone
-        }
-        .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: G.cardRadius).fill(Color.white)
-                .shadow(color: .black.opacity(0.10), radius: 12, y: 4)
-        )
-        .overlay(RoundedRectangle(cornerRadius: G.cardRadius).strokeBorder(G.border, lineWidth: 1))
-        .onDrop(of: [.fileURL], isTargeted: $over) { providers in
-            FileDrop.urls(providers) { state.drop($0) }
-            return true
-        }
-    }
-
-    /// Taller now that the pills are gone. It lights under a drag only: lit
-    /// under the pointer too, it looked clickable ("the hover activate is
-    /// confusing remove it" — Mike, 2026-09-09).
-    private var zone: some View {
-        let lit = over
-        return ZStack {
-            RoundedRectangle(cornerRadius: G.zoneRadius).fill(lit ? G.blueTonal : G.zone)
-            RoundedRectangle(cornerRadius: G.zoneRadius)
-                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
-                .foregroundStyle(lit ? G.blue : G.dash)
-
-            if state.dropping || !state.checking.isEmpty {
-                /* The box is for the numbers ("the dropbox can remain reserved
-                 * for stats"); the header's band is the movement. */
-                VStack(spacing: 10) {
-                    Text(phaseLine).font(G.cardTitle).foregroundStyle(G.ink)
-                    /* The count when there is one, and the seconds always:
-                     * a slot being filled counts nothing, and still takes time. */
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        HStack(spacing: 10) {
-                            if let p = state.dropProgress, p.total > 1 {
-                                Text("\(G.count(p.done)) of \(G.count(p.total))").font(G.data).foregroundStyle(G.secondary)
-                                Text("·").font(G.data).foregroundStyle(G.secondary)
-                            }
-                            Text(elapsed(at: context.date)).font(G.data).foregroundStyle(G.secondary)
-                        }
-                    }
-                }
-            } else {
-                /* ⚠️ A FILE, NOT A PHOTOGRAPH. BitGraph is for any bits, and the
-                 * icon says so. No line about uploads: "since this is software
-                 * we dont need this message" (Mike, 2026-09-09); the README says it. */
-                HStack(spacing: 14) {
-                    Image(systemName: "doc.on.doc").font(.system(size: 32, weight: .light)).foregroundStyle(G.blue)
-                    HStack(spacing: 0) {
-                        Text("Drag files or a folder here, or ").font(G.body).foregroundStyle(G.ink)
-                        Button { state.chooseFilesToMake() } label: {
-                            /* One word for the picker, which takes files and
-                             * folders alike: "…or choose a folder" said folder
-                             * twice (Mike, 2026-09-09). */
-                            Text("browse files").font(G.body).foregroundStyle(G.blue).underline()
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-        .frame(height: 280)
-        .contentShape(Rectangle())
-        .animation(.easeOut(duration: 0.15), value: lit)
-    }
-
-    private func elapsed(at now: Date) -> String {
-        guard let started = state.dropStarted else { return "" }
-        let s = Int(now.timeIntervalSince(started))
-        return s < 60 ? "\(s) s" : "\(s / 60) min \(s % 60) s"
-    }
-
-    private var phaseLine: String {
-        switch state.dropProgress?.phase {
-        case "hash": return "Reading"
-        case "fuse": return "Recording"
-        case "tree": return "Building the set"
-        case "commit": return "Filling the slot"
-        case "write": return "Writing the recording"
-        case "check": return "Checking"
-        case nil: return state.checking.isEmpty ? "Looking" : "Checking"
-        default: return "Working"
-        }
-    }
-}
-
 // ── the calendar section ───────────────────────────────────────────────────
 
 /// The month on show as a list of its days, newest first. A day is a row
@@ -341,6 +200,11 @@ struct CalendarPane: View {
                         SearchResults(state: state)
                     } else if state.spine == nil {
                         Text("Reading the library…").font(G.body).foregroundStyle(G.secondary)
+                    } else if state.spine?.total == 0 {
+                        /* The one written hint, for a library with nothing in
+                         * it yet. Once anything is recorded it goes, and the
+                         * frame that draws under a drag does the teaching. */
+                        Text("Drop files anywhere in this window to record them.").font(G.body).foregroundStyle(G.secondary)
                     } else if days.isEmpty {
                         Text("Nothing recorded in \(monthTitle).").font(G.body).foregroundStyle(G.secondary)
                     } else {

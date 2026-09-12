@@ -6,12 +6,14 @@ import AppKit
 
 /// The one window: what it is showing.
 ///
-/// ⚠️ ONE GESTURE, TWO OUTCOMES. Dropping is the shutter. A lone file with no
-/// BitGraph gets one; a lone file that has one opens it; a batch is listed and
-/// waits, because two or more files becoming one permanent position deserves a
-/// second of somebody's attention.
+/// ⚠️ ONE GESTURE, THE RESULTS SAY THE OUTCOME. Dropping is the shutter. A lone
+/// file with no BitGraph gets one; a lone file that has one opens it; a batch
+/// is listed and waits, because two or more files becoming one permanent
+/// position deserves a second of somebody's attention; a folder of BitGraphs
+/// is checked and nothing is recorded. The window itself is the target: there
+/// is no box (Mike, 2026-09-11: "kill the box").
 enum Surface: Equatable {
-    case box
+    case calendar
     case results(LookResult)
     case proof(ProofSubject)
 }
@@ -65,6 +67,10 @@ extension AppState {
                 guard let opened = answer.opened else { return }
                 await openProof(root: answer.root, evidencePath: opened.evidencePath ?? "", filePath: opened.path,
                                 name: opened.name, origin: opened.originDigestB64, position: opened.position, justMade: false)
+            case "checked":
+                /* A folder of BitGraphs: the report, over the calendar, where
+                 * the drop was made. */
+                if let report = answer.report { showCheck(path: answer.root, report: report) }
             case "made":
                 if let made = answer.made, let first = made.files.first {
                     await openProof(root: answer.root, evidencePath: first.evidencePath, filePath: first.path, name: first.name,
@@ -79,7 +85,7 @@ extension AppState {
                  * Save with everything else still visible behind it. */
                 pendingToken = answer.token
                 pendingBatch = answer.look
-                surface = .box
+                surface = .calendar
             }
             await refresh()
         } catch {
@@ -140,7 +146,7 @@ extension AppState {
                 proofPage = ProofPage(subject: named, described: described, checked: report?.speaking.first)
             } catch {
                 note(root: recording.path, reason: "that recording could not be read: \(error.localizedDescription)", severity: .gap)
-                surface = .box
+                surface = .calendar
             }
         }
     }
@@ -177,13 +183,13 @@ extension AppState {
             proofPage = ProofPage(subject: subject, described: described, checked: report?.speaking.first)
         } catch {
             note(root: root, reason: "that BitGraph could not be read: \(error.localizedDescription)", severity: .gap)
-            surface = .box
+            surface = .calendar
         }
     }
 
-    /// Bring the window forward on the box, from the menu bar.
-    func openBox() {
-        showBox()
+    /// Bring the window forward on the calendar, from the menu bar.
+    func openWindow() {
+        showCalendar()
         NSApp.activate(ignoringOtherApps: true)
         NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
     }
@@ -243,8 +249,9 @@ extension AppState {
         }
     }
 
-    func showBox() {
-        surface = .box
+    /// The calendar, with every page and pending thing put away.
+    func showCalendar() {
+        surface = .calendar
         proofReload?.cancel()
         proofReload = nil
         proofPage = nil
@@ -257,7 +264,7 @@ extension AppState {
             surface = .results(lastResults!)
             proofPage = nil
         } else {
-            showBox()
+            showCalendar()
         }
     }
 

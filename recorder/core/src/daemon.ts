@@ -40,7 +40,7 @@ import { loadSettings, saveSettings, suggestedFolder, MAX_RECORDED, type Setting
 import { FOLDER_NAME, recordingsIn } from "./bundle.js";
 import { watchFolder, type FolderWatcher, type WatchEvent } from "./watch.js";
 import { supportDir } from "./app-paths.js";
-import { ledger, listDay, search, type DayCount, type Recording } from "./library.js";
+import { ledger, listDay, search, holdsRecordings, type DayCount, type Recording } from "./library.js";
 
 export interface DaemonEvent {
   event: WatchEvent | { kind: "anchors"; root: string; pass: AnchorPass } | { kind: "settings"; settings: Settings } | { kind: "ready"; supportDir: string }
@@ -80,8 +80,10 @@ interface Request {
  *   made   one new file, and the drop IS the shutter: it was recorded.
  *   ready  two or more files. What is there is listed and nothing has been
  *          made; only a batch gets asked.
+ *   checked  one folder that holds BitGraphs. It was checked, and nothing was
+ *          recorded, changed or sent.
  */
-export type DropAction = "open" | "made" | "ready";
+export type DropAction = "open" | "made" | "ready" | "checked";
 
 export interface DropAnswer {
   action: DropAction;
@@ -93,6 +95,8 @@ export interface DropAnswer {
   skipped?: SkippedFile[];
   /** "open" only: the file whose BitGraph to show. */
   opened?: LookResult["files"][number];
+  /** "checked" only: what the check said. */
+  report?: FolderReport;
 }
 
 export interface DaemonOptions {
@@ -422,6 +426,14 @@ export class Daemon {
     if (paths.length === 0) throw new Error("nothing was dropped.");
     this.requireSetUp();
     this.pending = null;
+    /* One folder of BitGraphs: checked, not recorded. Somebody sent it, or
+     * it is a recording of your own; either way nothing in it is new. */
+    const only = paths.length === 1 ? paths[0]! : "";
+    if (only !== "" && only !== this.settings.folder && (await stat(only).then((s) => s.isDirectory()).catch(() => false)) && (await holdsRecordings(only))) {
+      const root = only;
+      const report = await this.check(root);
+      return { action: "checked", root, look: { root, files: [], total: 0, recorded: 0, truncated: false, duplicates: 0 }, report };
+    }
     let where = "";
     const say = throttled((done, total) =>
       this.emit({ kind: "making", root: where, files: total, progress: { phase: "hash", done, total } }));

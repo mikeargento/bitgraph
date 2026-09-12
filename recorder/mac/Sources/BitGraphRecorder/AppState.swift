@@ -28,10 +28,6 @@ final class AppState: ObservableObject {
     @Published var openAtLogin: Bool = false
 
     // ── the calendar ────────────────────────────────────────────────────────
-    /// The two sections of the window. Mike, 2026-09-09: "calendar should be
-    /// a separate section".
-    enum Section { case box, calendar }
-    @Published var section: Section = .box
     /// Every day with recordings and how many: the spine of the ledger.
     @Published private(set) var spine: LedgerSpine?
     /// The days that have been drilled out, and what they hold.
@@ -44,8 +40,9 @@ final class AppState: ObservableObject {
     @Published var month: Date = Date()
     /// A day the list should bring into view, cleared once it has.
     @Published var scrollTarget: String?
-    /// The Make pill's menu, open or not.
-    @Published var createMenu = false
+    /// A drag is over the window. The whole window is the target, and this
+    /// is what draws the frame that says so (Mike, 2026-09-11: "kill the box").
+    @Published var dragOver = false
     /// Setting up again, over a folder that is already set: from the moved-
     /// folder dialog's "Start a new one", or the sidebar's "Change folder…".
     @Published var settingUpAgain = false
@@ -69,7 +66,7 @@ final class AppState: ObservableObject {
     @Published var installing = false
 
     // ── the window ──────────────────────────────────────────────────────────
-    @Published var surface: Surface = .box
+    @Published var surface: Surface = .calendar
     @Published var proofPage: ProofPage? {
         didSet { armProofReload() }
     }
@@ -204,7 +201,7 @@ final class AppState: ObservableObject {
         _ = try await client.send("setup", ["at": at, "name": name], as: SetupResult.self)
         settingUpAgain = false
         await refresh()
-        showBox()
+        showCalendar()
     }
 
     /// The folder is not where it was: pick it where it is now. A folder
@@ -308,7 +305,7 @@ final class AppState: ObservableObject {
     /// in its month, the way the mini month would.
     func leaveSearch(for day: String) {
         query = ""
-        section = .calendar
+        if surface != .calendar { showCalendar() }
         selectDay(day)
         expand(day)
     }
@@ -322,7 +319,6 @@ final class AppState: ObservableObject {
     /// goes, and nothing else moves. True when something went.
     @discardableResult
     func escape() -> Bool {
-        if createMenu { createMenu = false; return true }
         if pendingBatch != nil {
             /* A batch being made is not cancelled by a key; the dialog's own
              * Cancel is disabled for the same reason. */
@@ -339,13 +335,6 @@ final class AppState: ObservableObject {
 
     func stepMonth(_ n: Int) {
         month = Calendar.current.date(byAdding: .month, value: n, to: month) ?? month
-    }
-
-    /// The header's chips. Leaving a proof page for a section closes the page.
-    func showSection(_ section: Section) {
-        self.section = section
-        createMenu = false
-        if surface != .box { showBox() }
     }
 
     /// Every day that holds anything, for the mini month's dots.
@@ -483,32 +472,11 @@ final class AppState: ObservableObject {
         troubles.removeAll()
     }
 
-    /// ⚠️ Checking is not watching. This runs one check over a folder and
-    /// forgets it: nothing is added to the list, nothing is written into the
-    /// folder, and no BitGraph is made. It is how a folder somebody SENT you
-    /// gets read.
-    func checkOneOff() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Check"
-        panel.message = "Check the BitGraphs in this folder. Nothing is recorded, nothing is changed, and nothing leaves this machine."
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        Task {
-            checking.insert(url.path)
-            dropStarted = Date()
-            defer {
-                checking.remove(url.path)
-                if !dropping { dropProgress = nil; dropStarted = nil }
-            }
-            do {
-                oneOff = (url.path, try await client.send("check", ["root": url.path], as: FolderReport.self))
-            } catch {
-                note(root: "", reason: "that folder could not be checked: \(error.localizedDescription)", severity: .gap)
-            }
-        }
+    /// A dropped folder of BitGraphs was checked: its report, over the
+    /// calendar. ⚠️ Checking is not recording. Nothing was added, written or
+    /// sent; it is how a folder somebody SENT you gets read.
+    func showCheck(path: String, report: FolderReport) {
+        oneOff = (path, report)
     }
 
     func dismissOneOff() {
@@ -570,7 +538,7 @@ final class AppState: ObservableObject {
         case .checking(let root, let done, let total):
             /* A check fills the same bar a make does. */
             activity = "\(name(root)): checking \(Style.count(done))/\(Style.count(total))"
-            if !checking.isEmpty {
+            if dropping || !checking.isEmpty {
                 dropProgress = MakeProgress(phase: "check", done: done, total: total)
                 if dropStarted == nil { dropStarted = Date() }
             }

@@ -116,6 +116,34 @@ async function describe(library: string, day: string, name: string, sources?: Ma
   return { path, name, day, files, writtenAt: when, waitingOnAnchors: waiting, ...(from !== undefined ? { from } : {}) };
 }
 
+/**
+ * True when a folder holds BitGraphs rather than files to record: a recording
+ * (proof.json at its top), a day or a library of them (proof.json two levels
+ * down), or a folder with `.bitgraph` evidence beside its files. Two levels
+ * and the first hit is enough; nothing inside is read.
+ *
+ * ⚠️ THE DROP DECIDES, NOT A MENU. Mike, 2026-09-11: "it should just look up
+ * already bitgraphed files on a drop." A folder of BitGraphs dropped on the
+ * window is checked; the "Check a folder…" item that used to ask went with it.
+ */
+export async function holdsRecordings(dir: string, depth = 0): Promise<boolean> {
+  let entries;
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  for (const e of entries) {
+    if (e.isFile() && (e.name === "proof.json" || e.name.endsWith(".bitgraph") || e.name.endsWith(".position.json"))) return true;
+    if (e.isDirectory() && e.name === "BitGraphs") return true;
+  }
+  if (depth >= 2) return false;
+  for (const e of entries) {
+    if (e.isDirectory() && (await holdsRecordings(join(dir, e.name), depth + 1))) return true;
+  }
+  return false;
+}
+
 /** The most a search answers with. Past it, the answer says it stopped. */
 export const SEARCH_LIMIT = 200;
 

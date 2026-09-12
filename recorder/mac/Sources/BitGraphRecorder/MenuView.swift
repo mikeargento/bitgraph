@@ -112,7 +112,7 @@ struct MenuView: View {
         VStack(alignment: .leading, spacing: 0) {
             /* ⚠️ ONE WAY IN. "this is crowded and perhaps too much going on"
              * (Mike, 2026-09-09): the window has the actions. */
-            Pill(title: "Open BitGraph", style: .filled, icon: "macwindow") { state.openBox() }
+            Pill(title: "Open BitGraph", style: .filled, icon: "macwindow") { state.openWindow() }
             /* The version, always; and the newer one, when the feed has one,
              * with the one act that belongs to it: the package is fetched,
              * checked against the feed's checksum and handed to macOS

@@ -5,7 +5,7 @@ import * as assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ledger, listDay, search } from "../library.js";
+import { ledger, listDay, search, holdsRecordings } from "../library.js";
 
 /** A library of three days, written by hand: the directory names ARE the listing. */
 function library(): string {
@@ -72,5 +72,31 @@ describe("a search finds recordings by name", () => {
     const found = await search(library(), "bitgraph", undefined, 2);
     assert.equal(found.recordings.length, 2);
     assert.equal(found.truncated, true);
+  });
+});
+
+describe("a folder of BitGraphs is told from a folder of files", () => {
+  test("a recording, a day, a library: yes. A folder of plain files: no", async () => {
+    const lib = library();
+    assert.equal(await holdsRecordings(join(lib, "2026-09-09", "BitGraph (IMG_4021.png)")), true, "a recording");
+    assert.equal(await holdsRecordings(join(lib, "2026-09-09")), true, "a day");
+    assert.equal(await holdsRecordings(lib), true, "the library");
+    const plain = mkdtempSync(join(tmpdir(), "bg-plain-"));
+    mkdirSync(join(plain, "sub"));
+    writeFileSync(join(plain, "a.jpg"), "x");
+    writeFileSync(join(plain, "sub", "b.jpg"), "x");
+    assert.equal(await holdsRecordings(plain), false);
+    assert.equal(await holdsRecordings("/nowhere/at/all"), false);
+  });
+
+  test("evidence beside files counts too, and the look stops two levels down", async () => {
+    const side = mkdtempSync(join(tmpdir(), "bg-side-"));
+    writeFileSync(join(side, "a.jpg"), "x");
+    writeFileSync(join(side, "a.jpg.bitgraph"), "{}");
+    assert.equal(await holdsRecordings(side), true);
+    const deep = mkdtempSync(join(tmpdir(), "bg-deep-"));
+    mkdirSync(join(deep, "a", "b", "c"), { recursive: true });
+    writeFileSync(join(deep, "a", "b", "c", "proof.json"), "{}");
+    assert.equal(await holdsRecordings(deep), false, "three levels down is a folder of folders, not a folder of BitGraphs");
   });
 });

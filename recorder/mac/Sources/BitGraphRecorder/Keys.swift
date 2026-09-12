@@ -28,20 +28,12 @@ extension AppState {
 
         switch (event.keyCode, key) {
         case (_, "n") where cmd && !shift:
-            createMenu = false
             chooseFilesToMake()
-        case (_, "k") where cmd && shift:
-            createMenu = false
-            checkOneOff()
-        case (_, "1") where cmd:
-            showSection(.box)
-        case (_, "2") where cmd:
-            showSection(.calendar)
         case (_, "f") where cmd:
-            showSection(.calendar)
+            if !onCalendar { showCalendar() }
             focusSearch = true
         case (_, "t") where cmd || (plain && !typing):
-            showSection(.calendar)
+            if !onCalendar { showCalendar() }
             goToday()
         case (123, _) where cmd || (plain && !typing && onCalendar):
             stepMonth(-1)
@@ -53,16 +45,14 @@ extension AppState {
         return true
     }
 
-    /// The month list is what is showing: not a proof page, not the box.
+    /// The month list is what is showing: not a proof page, not a listing.
     private var onCalendar: Bool {
-        section == .calendar && surface == .box
+        surface == .calendar
     }
 
     /// The keys, for the README and the popover.
     static let shortcuts: [(keys: String, does: String)] = [
         ("⌘N", "Record a BitGraph…"),
-        ("⇧⌘K", "Check a folder…"),
-        ("⌘1 / ⌘2", "Record / Calendar"),
         ("← → or ⌘← ⌘→", "The month before / after"),
         ("T or ⌘T", "Today"),
         ("⌘F", "Search recordings"),
