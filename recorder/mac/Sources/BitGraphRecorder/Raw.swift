@@ -24,6 +24,9 @@ import AppKit
 /// NSTextView draws it: TextKit lays out only what is on screen.
 struct RawSection: View {
     let proof: JSONValue?
+    /// The file's own bytes, when the core had them: shown verbatim, its own
+    /// key order, "version" first (Mike, 2026-09-12: "shouldnt it be this?").
+    let raw: String?
     @State private var block: RawBlock? = nil
 
     var body: some View {
@@ -37,8 +40,8 @@ struct RawSection: View {
             }
         }
         .task {
-            let proof = proof
-            block = await Task.detached(priority: .userInitiated) { RawBlock.make(proof: proof) }.value
+            let proof = proof, raw = raw
+            block = await Task.detached(priority: .userInitiated) { RawBlock.make(proof: proof, raw: raw) }.value
         }
     }
 }
@@ -57,8 +60,8 @@ struct RawBlock: Identifiable {
         lines = text.utf8.reduce(0) { $0 + ($1 == 10 ? 1 : 0) } + 1
     }
 
-    static func make(proof: JSONValue?) -> RawBlock {
-        RawBlock(label: "The signed proof", text: proof?.pretty ?? "{}")
+    static func make(proof: JSONValue?, raw: String?) -> RawBlock {
+        RawBlock(label: "The signed proof", text: raw?.trimmingCharacters(in: .newlines) ?? proof?.pretty ?? "{}")
     }
 }
 

@@ -421,7 +421,7 @@ struct ProofView: View {
                 }
             }
             /* Every byte this BitGraph rests on: see Raw.swift. */
-            RawSection(proof: proof)
+            RawSection(proof: proof, raw: page.described.proofRaw)
         }
     }
 

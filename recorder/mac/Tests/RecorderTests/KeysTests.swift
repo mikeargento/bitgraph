@@ -91,12 +91,15 @@ final class KeysTests: XCTestCase {
         XCTAssertEqual(state.surface, .calendar)
     }
 
-    /// Raw is the signed proof and nothing else.
-    func testTheRawSectionIsTheProof() {
-        let proof = try? JSONDecoder().decode(JSONValue.self, from: Data("{\"a\":1}".utf8))
-        let block = RawBlock.make(proof: proof)
-        XCTAssertEqual(block.label, "The signed proof")
-        XCTAssertEqual(block.text, proof?.pretty)
+    /// Raw is the signed proof and nothing else: the file's own bytes when
+    /// the core had them, the parsed proof laid out when it did not.
+    func testTheRawSectionIsTheProofAsWritten() {
+        let proof = try? JSONDecoder().decode(JSONValue.self, from: Data("{\"version\":\"bitgraph/1\",\"a\":1}".utf8))
+        let verbatim = RawBlock.make(proof: proof, raw: "{\n  \"version\": \"bitgraph/1\",\n  \"a\": 1\n}\n")
+        XCTAssertEqual(verbatim.label, "The signed proof")
+        XCTAssertTrue(verbatim.text.hasPrefix("{\n  \"version\""), "the file's own order, version first")
+        let laidOut = RawBlock.make(proof: proof, raw: nil)
+        XCTAssertEqual(laidOut.text, proof?.pretty)
     }
 
     /// The Raw card's JSON reads like the files beside a recording: two

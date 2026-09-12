@@ -260,6 +260,8 @@ struct Described: Decodable, Equatable {
     /// here is the only thing putting this file in that set.
     var evidenceRaw: String?
     var proof: JSONValue?
+    /// The proof as written on disk, verbatim: what Raw shows.
+    var proofRaw: String? = nil
     var committedB64: String?
     var positions: [Position]
     /// A recording's files, the first 500. The page lists them and opens any of them.

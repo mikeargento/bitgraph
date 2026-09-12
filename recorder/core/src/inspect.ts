@@ -244,6 +244,13 @@ export interface Described {
    */
   evidenceRaw: string | null;
   proof: BitGraphProof | null;
+  /**
+   * The proof exactly as it is on disk, its own key order and spacing: what
+   * the Raw section shows. A proof re-serialised from the parsed object
+   * came out with its keys sorted and "version" at the bottom (Mike,
+   * 2026-09-12, holding the exported proof.json: "shouldnt it be this?").
+   */
+  proofRaw?: string | null;
   /** The committed artifact beside a set's proof, base64: the manifest or the root document. */
   committedB64: string | null;
   /** Every position this folder holds for these bytes, oldest first. */
@@ -293,22 +300,25 @@ export async function describe(root: string, target: DescribeTarget | string): P
 
   const paths = pathsFor(root);
   if (evidence.proof.kind === "inline") {
-    return { filePath: null, evidence, evidenceRaw, proof: evidence.proof.proof, committedB64: null, positions: [evidence.position] };
+    return { filePath: null, evidence, evidenceRaw, proof: evidence.proof.proof, proofRaw: JSON.stringify(evidence.proof.proof, null, 2), committedB64: null, positions: [evidence.position] };
   }
   const dir = paths.position(evidence.position.epochId, evidence.position.counter);
   let proof: BitGraphProof | null = null;
+  let proofRaw: string | null = null;
   let committedB64: string | null = null;
   try {
-    proof = JSON.parse(await readFile(join(dir, "proof.json"), "utf8")) as BitGraphProof;
+    proofRaw = await readFile(join(dir, "proof.json"), "utf8");
+    proof = JSON.parse(proofRaw) as BitGraphProof;
   } catch {
     proof = null;
+    proofRaw = null;
   }
   try {
     committedB64 = Buffer.from(await readFile(join(dir, "manifest.json"))).toString("base64");
   } catch {
     committedB64 = null;
   }
-  return { filePath: null, evidence, evidenceRaw, proof, committedB64, positions: [evidence.position] };
+  return { filePath: null, evidence, evidenceRaw, proof, proofRaw, committedB64, positions: [evidence.position] };
 }
 
 /**
@@ -321,8 +331,10 @@ export async function describe(root: string, target: DescribeTarget | string): P
 async function describeBundle(dir: string, originDigestB64?: string): Promise<Described> {
   const { readFile } = await import("node:fs/promises");
   let proof: BitGraphProof | null = null;
+  let proofRaw: string;
   try {
-    proof = JSON.parse(await readFile(join(dir, "proof.json"), "utf8")) as BitGraphProof;
+    proofRaw = await readFile(join(dir, "proof.json"), "utf8");
+    proof = JSON.parse(proofRaw) as BitGraphProof;
   } catch {
     return { filePath: null, evidence: null, evidenceRaw: null, proof: null, committedB64: null, positions: [] };
   }
@@ -390,6 +402,7 @@ async function describeBundle(dir: string, originDigestB64?: string): Promise<De
     evidence,
     evidenceRaw: evidence === null ? null : JSON.stringify(evidence, null, 2),
     proof,
+    proofRaw,
     committedB64,
     positions: [position],
     members,
