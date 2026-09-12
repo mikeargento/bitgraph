@@ -246,12 +246,14 @@ struct ProofView: View {
                  * sits last on the page. The row says how many. */
                 Button { withAnimation(.easeOut(duration: 0.18)) { filesOpen.toggle() } } label: {
                     HStack(spacing: 12) {
+                        /* The action blue, like the two detail rows (Mike,
+                         * 2026-09-12: "shouldnt this match the other labels"). */
                         Text("Files in this recording (\(G.count(page.described.memberCount ?? members.count)))")
-                            .font(G.label).foregroundStyle(G.ink)
+                            .font(G.label).foregroundStyle(G.blue)
                         Spacer(minLength: 12)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(G.secondary)
+                            .foregroundStyle(G.blue)
                             .rotationEffect(.degrees(filesOpen ? 90 : 0))
                     }
                     .padding(.horizontal, 16)
