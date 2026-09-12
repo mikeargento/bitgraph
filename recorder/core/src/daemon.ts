@@ -30,7 +30,7 @@ import { checkForUpdate, type UpdateCheck } from "./update.js";
 import { completeLibrary, type AnchorPass } from "./anchors.js";
 import { checkFolder, type FolderReport } from "./check.js";
 import { makeFiles, makeScanned, type MakeResult, type SkippedFile, type MakeProgress } from "./make.js";
-import { scanDrop, lookAt, describe, type LookResult, type Described, isWithin } from "./inspect.js";
+import { scanDrop, lookAt, describe, type LookResult, type Described, isWithin, ROWS_SHOWN } from "./inspect.js";
 import { exportBitGraph, type ExportResult } from "./export.js";
 import type { ScannedFile } from "./hash.js";
 import { FolderIndex } from "./index-store.js";
@@ -408,9 +408,9 @@ export class Daemon {
     if (files.length === 0) throw new Error("no files were named.");
     this.requireSetUp();
     const r = await makeFiles(root, files, { transport: this.transport, again });
-    if (r.made !== null) { this.emit({ kind: "made", root, result: r.made }); await this.remember(root); }
-    if (r.skipped.length > 0) this.emit({ kind: "skipped", root, files: r.skipped });
-    return r;
+    if (r.made !== null) { this.emit({ kind: "made", root, result: slimMade(r.made) }); await this.remember(root); }
+    if (r.skipped.length > 0) this.emit({ kind: "skipped", root, ...slimSkipped(r.skipped) });
+    return { made: r.made === null ? null : slimMade(r.made), skipped: slimSkipped(r.skipped).files };
   }
 
   /**
@@ -451,8 +451,8 @@ export class Daemon {
         bundle: { library: this.settings.library, source: sourceName(root, scanned) },
         onProgress: throttledPhase((p) => this.emit({ kind: "making", root, files: 1, progress: p })),
       });
-      if (made !== null) { this.emit({ kind: "made", root, result: made }); await this.remember(root); }
-      return { action: "made", root, look, made, skipped };
+      if (made !== null) { this.emit({ kind: "made", root, result: slimMade(made) }); await this.remember(root); }
+      return { action: "made", root, look, made: made === null ? null : slimMade(made), skipped: slimSkipped(skipped).files };
     }
 
     const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -482,9 +482,9 @@ export class Daemon {
       bundle: { library: this.settings.library, source: name !== "" ? name : sourceName(pending.root, pending.scanned) },
       onProgress: throttledPhase((p) => this.emit({ kind: "making", root: pending.root, files: pending.scanned.length, progress: p })),
     });
-    if (r.made !== null) { this.emit({ kind: "made", root: pending.root, result: r.made }); await this.remember(pending.root); }
-    if (r.skipped.length > 0) this.emit({ kind: "skipped", root: pending.root, files: r.skipped });
-    return r;
+    if (r.made !== null) { this.emit({ kind: "made", root: pending.root, result: slimMade(r.made) }); await this.remember(pending.root); }
+    if (r.skipped.length > 0) this.emit({ kind: "skipped", root: pending.root, ...slimSkipped(r.skipped) });
+    return { made: r.made === null ? null : slimMade(r.made), skipped: slimSkipped(r.skipped).files };
   }
 
   /**
@@ -752,6 +752,25 @@ export class Daemon {
  * counter instead of showing the work. The final call always gets through, so
  * the number somebody is left looking at is the true one.
  */
+/**
+ * ⚠️ THE WIRE CARRIES A SAMPLE, NEVER THE LOT. A make of 100,000 files
+ * answered with every file on one JSON line, about 40 MB, twice (the event
+ * and the reply), and the app froze reading it with the recording already
+ * complete (2026-09-12). The window shows the first few hundred and the
+ * counts; the recording folder holds the rest.
+ */
+export function slimMade(made: MakeResult): MakeResult & { total: number } {
+  return { ...made, files: made.files.slice(0, ROWS_SHOWN), total: made.files.length };
+}
+
+export function slimSkipped(skipped: SkippedFile[]): { files: SkippedFile[]; total: number; same: number } {
+  return {
+    files: skipped.slice(0, ROWS_SHOWN),
+    total: skipped.length,
+    same: skipped.reduce((n, s) => n + (s.reason === "same-bytes" ? 1 : 0), 0),
+  };
+}
+
 function throttled(fn: (done: number, total: number) => void, everyMs = 80): (done: number, total: number) => void {
   let last = 0;
   return (done, total) => {

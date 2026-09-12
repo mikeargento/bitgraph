@@ -66,8 +66,10 @@ export function recordingsIn(folder: string): string {
 export interface BundleInput {
   /** Where the recording folder goes. */
   library: string;
-  /** The files, and where each sits relative to the drop. */
-  files: ReadonlyArray<{ path: string; rel: string }>;
+  /** The files, and where each sits relative to the drop; the size when the scan already knows it. */
+  files: ReadonlyArray<{ path: string; rel: string; bytes?: number }>;
+  /** Called as files land in the folder, so a long write can say how far it is. */
+  onFile?: (done: number, total: number) => void;
   proof: BitGraphProof;
   /** The committed artifact, for a set. */
   manifestBytes?: Uint8Array | null;
@@ -110,9 +112,20 @@ export async function writeBundle(input: BundleInput): Promise<BundleResult> {
 
   let how: "linked" | "copied" = "linked";
   let bytes = 0;
+  /* ⚠️ ONE SYSCALL PER FILE, NOT THREE. A hundred thousand links took eighty
+   * seconds with a recursive mkdir and a stat for every one of them (Mike's
+   * 100k drop, 2026-09-12). A folder is made once; a size the scan already
+   * measured is not measured again. And the count moves as it goes: the
+   * dialog sat at "0 of 100,000" for the whole minute. */
+  const made = new Set<string>();
+  let done = 0;
   for (const f of input.files) {
     const target = join(dir, ...f.rel.split("/"));
-    await mkdir(dirname(target), { recursive: true });
+    const parent = dirname(target);
+    if (!made.has(parent)) {
+      await mkdir(parent, { recursive: true });
+      made.add(parent);
+    }
     try {
       await link(f.path, target);
     } catch {
@@ -120,7 +133,9 @@ export async function writeBundle(input: BundleInput): Promise<BundleResult> {
       await copyFile(f.path, target);
       how = "copied";
     }
-    bytes += (await stat(target)).size;
+    bytes += f.bytes ?? (await stat(target)).size;
+    done++;
+    input.onFile?.(done, input.files.length);
   }
 
   await writeJsonAtomic(join(dir, "proof.json"), input.proof);

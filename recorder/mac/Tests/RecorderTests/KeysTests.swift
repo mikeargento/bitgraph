@@ -120,6 +120,25 @@ final class KeysTests: XCTestCase {
         """)
     }
 
+    /// A 40 MB line, fed in 64 KB chunks, costs its length once: the reader
+    /// scans only what is new. Quadratic, this took minutes.
+    func testTheLineReaderIsLinearOnOneHugeLine() {
+        var got: [Int] = []
+        let reader = LineReader { got.append($0.count) }
+        let big = Data(repeating: 0x61, count: 40 * 1024 * 1024) + Data([0x0A]) + Data("tail\n".utf8)
+        let started = Date()
+        var i = 0
+        while i < big.count {
+            let end = min(i + 65_536, big.count)
+            reader.feed(big[i..<end])
+            i = end
+        }
+        XCTAssertEqual(got, [40 * 1024 * 1024, 4])
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3, "linear, not quadratic")
+        reader.feed(Data("a\nb".utf8)); reader.feed(Data("c\n".utf8))
+        XCTAssertEqual(got.suffix(2), [1, 2], "lines split across chunks still come out whole")
+    }
+
     // ── the list, by month ──────────────────────────────────────────────────
 
     /// The spine grouped under month names, newest first, and ← → jumping

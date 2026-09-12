@@ -346,7 +346,8 @@ async function makeBundle(root: string, index: FolderIndex, files: readonly Scan
   options.onProgress?.({ phase: "write", done: 0, total: files.length });
   const bundle = await writeBundle({
     library,
-    files: files.map((f) => ({ path: f.path, rel: f.rel })),
+    files: files.map((f) => ({ path: f.path, rel: f.rel, bytes: f.bytes })),
+    onFile: (done, total) => options.onProgress?.({ phase: "write", done, total }),
     proof,
     manifestBytes,
     memberRows,

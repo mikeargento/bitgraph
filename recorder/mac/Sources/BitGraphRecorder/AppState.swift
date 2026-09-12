@@ -590,13 +590,12 @@ final class AppState: ObservableObject {
                 if dropStarted == nil { dropStarted = Date() }
             }
         case .made(let root, let result):
-            activity = "\(name(root)): recorded \(result.files.count) file\(result.files.count == 1 ? "" : "s") at position \(result.position.counter)."
+            activity = "\(name(root)): recorded \(G.count(result.count)) file\(result.count == 1 ? "" : "s") at position \(result.position.counter)."
             /* A new recording lands on today, so the calendar opens there. */
             selectDay(Self.today())
             Task { await refresh() }
-        case .skipped(let root, let files):
-            let same = files.filter { $0.reason == "same-bytes" }.count
-            let already = files.count - same
+        case .skipped(let root, _, let total, let same):
+            let already = total - same
             var parts: [String] = []
             if already > 0 { parts.append("\(already) already recorded") }
             if same > 0 { parts.append("\(same) the same bytes as another, recorded once") }

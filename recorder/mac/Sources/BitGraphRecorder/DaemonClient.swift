@@ -216,8 +216,20 @@ enum DaemonError: LocalizedError {
 
 /// Splits a byte stream into lines. The core writes one JSON object per line
 /// and a read can land anywhere, including mid-character.
-private final class LineReader: @unchecked Sendable {
+/// Lines out of a byte stream.
+///
+/// ⚠️ SCAN ONLY WHAT IS NEW. This used to look for the newline from the
+/// start of the buffer on every chunk, one byte at a time through the
+/// Collection protocol. A reply that is one 40 MB line, the core's answer to
+/// a 100,000-file drop, arrives in hundreds of chunks, so that was hundreds
+/// of passes over tens of megabytes: the app sat at 100% for minutes with
+/// the recording already complete on disk (Mike, 2026-09-12: "so its frozen
+/// in app"). Now the search starts where the last one stopped and uses
+/// memchr, so a line costs its length once.
+final class LineReader: @unchecked Sendable {
     private var buffer = Data()
+    /// Bytes before this offset hold no newline: they have been scanned.
+    private var scanned = 0
     private let onLine: (String) -> Void
     private let lock = NSLock()
 
@@ -229,11 +241,18 @@ private final class LineReader: @unchecked Sendable {
         lock.lock()
         buffer.append(data)
         var out: [String] = []
-        while let index = buffer.firstIndex(of: 0x0A) {
-            let lineData = buffer[buffer.startIndex..<index]
-            buffer = buffer[buffer.index(after: index)...]
+        var start = 0
+        while let hit = buffer.range(of: Data([0x0A]), in: (buffer.startIndex + scanned)..<buffer.endIndex) {
+            let lineData = buffer[(buffer.startIndex + start)..<hit.lowerBound]
             if let line = String(data: lineData, encoding: .utf8), !line.isEmpty { out.append(line) }
+            start = hit.upperBound - buffer.startIndex
+            scanned = start
         }
+        if start > 0 {
+            buffer = Data(buffer[(buffer.startIndex + start)...])
+            scanned = 0
+        }
+        scanned = buffer.count
         lock.unlock()
         for line in out { onLine(line) }
     }

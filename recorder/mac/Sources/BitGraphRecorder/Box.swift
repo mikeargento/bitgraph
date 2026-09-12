@@ -112,7 +112,7 @@ extension AppState {
                 if let made = result.made, let first = made.files.first {
                     /* A batch just made opens as the recording, previewing
                      * nothing until a file is picked; a lone file is the file. */
-                    let several = made.files.count > 1
+                    let several = made.count > 1
                     await openProof(root: batch.root, evidencePath: first.evidencePath, filePath: first.path,
                                     name: several ? ((first.evidencePath as NSString).deletingLastPathComponent as NSString).lastPathComponent : first.name,
                                     origin: first.originDigestB64, position: made.position, justMade: true, chosenFile: !several)

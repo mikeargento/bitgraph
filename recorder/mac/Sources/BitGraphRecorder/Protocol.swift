@@ -68,8 +68,11 @@ struct MadeFile: Decodable, Equatable {
 
 struct MakeResult: Decodable, Equatable {
     var kind: String
+    /// The first few hundred; `total` says how many there are.
     var files: [MadeFile]
+    var total: Int?
     var position: Position
+    var count: Int { total ?? files.count }
 }
 
 struct SkippedFile: Decodable, Equatable {
@@ -339,7 +342,8 @@ enum DaemonEvent: Equatable {
     case making(root: String, files: Int, progress: MakeProgress?)
     case checking(root: String, done: Int, total: Int)
     case made(root: String, result: MakeResult)
-    case skipped(root: String, files: [SkippedFile])
+    /// `files` is the first few hundred; `total` and `same` are the counts.
+    case skipped(root: String, files: [SkippedFile], total: Int, same: Int)
     case anchors(root: String, pass: AnchorPass)
     case idle(root: String)
     case trouble(root: String, reason: String, recoverable: Bool, severity: TroubleSeverity)
@@ -349,7 +353,7 @@ enum DaemonEvent: Equatable {
     var root: String? {
         switch self {
         case .watching(let r), .settling(let r, _), .making(let r, _, _), .checking(let r, _, _), .made(let r, _),
-             .skipped(let r, _), .anchors(let r, _), .idle(let r), .trouble(let r, _, _, _):
+             .skipped(let r, _, _, _), .anchors(let r, _), .idle(let r), .trouble(let r, _, _, _):
             return r
         case .ready, .update, .settingsChanged, .unknown:
             return nil
@@ -359,7 +363,7 @@ enum DaemonEvent: Equatable {
 
 extension DaemonEvent: Decodable {
     private enum Keys: String, CodingKey {
-        case kind, root, files, progress, result, pass, reason, recoverable, supportDir, severity, update
+        case kind, root, files, progress, result, pass, reason, recoverable, supportDir, severity, update, total, same
     }
 
     init(from decoder: Decoder) throws {
@@ -385,7 +389,13 @@ extension DaemonEvent: Decodable {
         case "made":
             self = .made(root: root, result: try c.decode(MakeResult.self, forKey: .result))
         case "skipped":
-            self = .skipped(root: root, files: try c.decodeIfPresent([SkippedFile].self, forKey: .files) ?? [])
+            let files = try c.decodeIfPresent([SkippedFile].self, forKey: .files) ?? []
+            self = .skipped(
+                root: root,
+                files: files,
+                total: try c.decodeIfPresent(Int.self, forKey: .total) ?? files.count,
+                same: try c.decodeIfPresent(Int.self, forKey: .same) ?? files.filter { $0.reason == "same-bytes" }.count
+            )
         case "anchors":
             self = .anchors(root: root, pass: try c.decode(AnchorPass.self, forKey: .pass))
         case "idle":
