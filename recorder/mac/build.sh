@@ -33,6 +33,9 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$here/.build/$arch-apple-macosx/release/BitGraphRecorder" "$app/Contents/MacOS/BitGraphRecorder"
 sed "s/__VERSION__/$version/g" "$here/Resources/Info.plist" > "$app/Contents/Info.plist"
 cp "$here/Resources/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
+# The name Finder and the Dock show (see Info.plist): read only from here.
+mkdir -p "$app/Contents/Resources/en.lproj"
+cp "$here/Resources/en.lproj/InfoPlist.strings" "$app/Contents/Resources/en.lproj/InfoPlist.strings"
 
 # The core, with only what it needs at runtime: no TypeScript, no test runner.
 say "installing the core's runtime dependencies"

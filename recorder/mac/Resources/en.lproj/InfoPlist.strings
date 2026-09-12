@@ -1,0 +1,2 @@
+/* The one name on screen: Finder, the Dock, Launchpad, Spotlight. See Info.plist. */
+CFBundleDisplayName = "BitGraph";

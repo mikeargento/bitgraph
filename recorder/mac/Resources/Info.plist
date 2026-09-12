@@ -2,10 +2,26 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <!--
+    ⚠️ THE NAME ON SCREEN IS "BitGraph" (Mike, 2026-09-11: "app icon wraps
+    that so we can just call it BitGraph"; then "still has recorder in name"
+    under a Dock tile). Finder and the Dock show the CFBundleDisplayName from
+    en.lproj/InfoPlist.strings, and ONLY when the CFBundleDisplayName HERE
+    equals the bundle's name on disk: a mismatch reads as "the person renamed
+    it" and the disk name wins (Apple, "Display Names"; proven 2026-09-11 on
+    a Foo.app: plist "Bar" showed "Foo", plist "Foo" showed the localized
+    "Bar"). So this one says the disk name, the strings file says the name.
+    The bundle stays "BitGraph Recorder.app" so an update installs over the
+    copy already in /Applications.
+  -->
   <key>CFBundleName</key>
   <string>BitGraph Recorder</string>
   <key>CFBundleDisplayName</key>
-  <string>BitGraph</string>
+  <string>BitGraph Recorder</string>
+  <key>LSHasLocalizedDisplayName</key>
+  <true/>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
   <key>CFBundleIdentifier</key>
   <string>ing.bitgraph.recorder</string>
   <key>CFBundleExecutable</key>
