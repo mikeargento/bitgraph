@@ -62,6 +62,9 @@ struct Pill: View {
     var icon: String? = nil
     var enabled: Bool = true
     var large: Bool = false
+    /// A fixed width, for pills that stand side by side and should match
+    /// ("it should be same width", Mike, 2026-09-11). nil is the word's own.
+    var width: CGFloat? = nil
     let action: () -> Void
 
     @State private var hovering = false
@@ -75,7 +78,7 @@ struct Pill: View {
             .font(large ? Font.system(size: 15, weight: .medium) : G.label)
             .foregroundStyle(foreground)
             .padding(.horizontal, style == .text ? 12 : (large ? 24 : 20))
-            .frame(height: large ? 48 : 40)
+            .frame(width: width, height: large ? 48 : 40)
             .background(Capsule().fill(fill))
             .overlay(Capsule().strokeBorder(style == .outlined ? G.border : .clear, lineWidth: 1))
             .contentShape(Capsule())

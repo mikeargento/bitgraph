@@ -79,7 +79,10 @@ struct ProofView: View {
                     record
                     details
                 }
-                .frame(maxWidth: 800, alignment: .leading)
+                /* 880, not the list's 800: room for the verdict's date line
+                 * beside two acts of one width ("if you need to bump entire
+                 * content width to do so go ahead", Mike, 2026-09-11). */
+                .frame(maxWidth: 880, alignment: .leading)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 24)
                 .padding(.top, 20)
@@ -136,12 +139,12 @@ struct ProofView: View {
                  * file, or write the package. ❌ No Open pill: "only the
                  * small hover open button is needed" (Mike, 2026-09-10); the
                  * card opens on click and says so under the pointer. */
-                Pill(title: "Show in Finder", style: .outlined, icon: "folder", enabled: !shownPath.isEmpty) { state.revealFile(revealPath) }
-                    .fixedSize()
-                Pill(title: state.exporting ? "Writing…" : "Export", style: .filled, icon: "square.and.arrow.up", enabled: !state.exporting) {
+                /* Two of a size: a filled pill narrower than the outlined one
+                 * beside it read as the lesser act. */
+                Pill(title: "Show in Finder", style: .outlined, icon: "folder", enabled: !shownPath.isEmpty, width: Self.actWidth) { state.revealFile(revealPath) }
+                Pill(title: state.exporting ? "Writing…" : "Export", style: .filled, icon: "square.and.arrow.up", enabled: !state.exporting, width: Self.actWidth) {
                     state.exportBitGraph(page.subject)
                 }
-                .fixedSize()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
@@ -155,6 +158,9 @@ struct ProofView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardChrome()
     }
+
+    /// The width of each act on the verdict card.
+    static let actWidth: CGFloat = 168
 
     private struct Verdict {
         let icon: String

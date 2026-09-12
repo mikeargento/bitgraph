@@ -162,7 +162,7 @@ final class ProofSurfaceTests: XCTestCase {
             CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 25_735_831, blockTime: "2026-09-08T14:00:00Z", contradiction: nil),
             CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25_735_833, blockTime: "2026-09-08T14:00:24Z", contradiction: nil),
         ], status: "verified")
-        try shoot(ProofView(state: AppState(preview: nil), page: page), name: "proof", size: CGSize(width: 760, height: 700), into: out)
+        try shoot(ProofView(state: AppState(preview: nil), page: page), name: "proof", size: CGSize(width: 928, height: 700), into: out)
     }
 
     // ── fixtures ────────────────────────────────────────────────────────────
