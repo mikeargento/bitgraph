@@ -96,7 +96,11 @@ struct MainWindow: View {
              * the app's failure colour and blue its action colour, so a coloured
              * word up here would read as a state or a button (Mike, 2026-09-09:
              * "recorder written in a less bold font? and red? or blue?"). */
-            (Text("BitGraph").fontWeight(.bold) + Text(" Recorder").fontWeight(.regular))
+            /* "BitGraph" alone (Mike, 2026-09-11: "app icon wraps that so we
+             * can just call it BitGraph"): the Dock label, the window title
+             * and this wordmark all say the one name now; Recorder stays the
+             * product's name on the site and in the installer. */
+            Text("BitGraph").fontWeight(.bold)
                 .font(Font.system(size: 22))
                 .foregroundStyle(G.ink)
             if !isPage && state.section == .calendar {

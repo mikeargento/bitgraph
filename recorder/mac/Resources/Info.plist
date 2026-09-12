@@ -5,7 +5,7 @@
   <key>CFBundleName</key>
   <string>BitGraph Recorder</string>
   <key>CFBundleDisplayName</key>
-  <string>BitGraph Recorder</string>
+  <string>BitGraph</string>
   <key>CFBundleIdentifier</key>
   <string>ing.bitgraph.recorder</string>
   <key>CFBundleExecutable</key>

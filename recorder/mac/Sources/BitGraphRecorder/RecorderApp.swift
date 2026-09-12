@@ -10,7 +10,7 @@ struct RecorderApp: App {
     var body: some Scene {
         /* The one window: the box, a batch, or a BitGraph. It is the product's
          * surface; the menu bar is the service behind it. */
-        Window("BitGraph Recorder", id: "box") {
+        Window("BitGraph", id: "box") {
             MainWindow(state: delegate.state)
         }
         .defaultSize(width: 1180, height: 780)
@@ -19,10 +19,12 @@ struct RecorderApp: App {
         MenuBarExtra {
             MenuView(state: delegate.state)
         } label: {
-            /* The dashed frame the product is drawn as everywhere else. The
-             * icon changes only when something has something to say: a menu
-             * bar that is loud all the time is a menu bar nobody looks at. */
-            Image(systemName: delegate.state.everythingIsFine ? "square.dashed" : "exclamationmark.square.dashed")
+            /* The record dot, the same mark as the app icon (Mike, 2026-09-11:
+             * "icon doesnt match the top bar icon"; it was the site's dashed
+             * frame). The icon changes only when something has something to
+             * say: a menu bar that is loud all the time is a menu bar nobody
+             * looks at. */
+            Image(systemName: delegate.state.everythingIsFine ? "circle.fill" : "exclamationmark.circle.fill")
         }
         .menuBarExtraStyle(.window)
     }

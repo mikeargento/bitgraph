@@ -161,7 +161,7 @@ struct SetupDialog: View {
 
     var body: some View {
         DialogCard {
-            Text("Set up BitGraph Recorder").font(G.display).foregroundStyle(G.ink).padding(.bottom, 6)
+            Text("Set up BitGraph").font(G.display).foregroundStyle(G.ink).padding(.bottom, 6)
             /* Not a commitment: Change folder… and the moved-folder flow both
              * exist, and a first screen that sounds final makes people
              * hesitate (Mike, 2026-09-10: "should it say that? or confirm?"). */

@@ -101,7 +101,7 @@ struct MenuView: View {
     }
 
     private var header: some View {
-        (Text("BitGraph").fontWeight(.bold) + Text(" Recorder").fontWeight(.regular))
+        Text("BitGraph").fontWeight(.bold)
             .font(Style.title)
             .foregroundStyle(Style.ink)
             .padding(.horizontal, 14)
@@ -112,7 +112,7 @@ struct MenuView: View {
         VStack(alignment: .leading, spacing: 0) {
             /* ⚠️ ONE WAY IN. "this is crowded and perhaps too much going on"
              * (Mike, 2026-09-09): the window has the actions. */
-            Pill(title: "Open BitGraph Recorder", style: .filled, icon: "macwindow") { state.openBox() }
+            Pill(title: "Open BitGraph", style: .filled, icon: "macwindow") { state.openBox() }
             /* The version, always; and the newer one, when the feed has one,
              * with the one act that belongs to it. The app is told, it does
              * not install: the link is the notarized DMG, checked by
