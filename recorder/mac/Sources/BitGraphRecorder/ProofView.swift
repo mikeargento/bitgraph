@@ -23,7 +23,11 @@ struct ProofView: View {
     private var proof: JSONValue? { page.described.proof }
     private var evidence: Evidence? { page.described.evidence }
 
-    @State private var filesOpen = false
+    /// Open from the start (Mike, 2026-09-11: "files in this recording can
+    /// now default to open agree?"): the tiles are lazy and the grid is
+    /// capped, so a thousand-file recording costs no more open than folded.
+    /// Picking a file still folds it, and the row reopens it.
+    @State private var filesOpen = true
     @State private var filesHover = false
 
     /// ⚠️ THE FILE INSIDE THE RECORDING, never the one it was dropped from.
@@ -228,8 +232,9 @@ struct ProofView: View {
 
             if let members = page.described.members, members.count > 1 {
                 if hasChosenFile { Rectangle().fill(G.border).frame(height: 1) }
-                /* Folded, on Mike's word (2026-09-09): "sometimes theres a lot
-                 * of files". The row says how many; opening it lists them. */
+                /* Was folded on Mike's word (2026-09-09: "sometimes theres a
+                 * lot of files"); open from 2026-09-11, now that the preview
+                 * sits last on the page. The row says how many. */
                 Button { withAnimation(.easeOut(duration: 0.18)) { filesOpen.toggle() } } label: {
                     HStack(spacing: 12) {
                         Text("Files in this recording (\(G.count(page.described.memberCount ?? members.count)))")
