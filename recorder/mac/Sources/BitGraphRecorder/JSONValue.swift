@@ -55,24 +55,61 @@ indirect enum JSONValue: Decodable, Equatable {
         return true
     }
 
-    /// Pretty-printed, keys sorted, for the Raw card.
+    /// Pretty-printed, keys sorted, for the Raw card: two-space indent and
+    /// `"key": value`, the way the core writes every file beside a recording,
+    /// so the blocks on one page read alike. Foundation's printer put a
+    /// space before the colon and the two styles sat one above the other
+    /// (2026-09-12). "/" is never escaped: a proof full of base64 read as
+    /// broken when it was (Mike, 2026-09-09: "shouldnt it be raw json?").
     var pretty: String {
-        /* ⚠️ `.withoutEscapingSlashes`: Foundation writes "/" as "\/" unless
-         * told not to, and a proof full of base64 read as if it were broken
-         * (Mike, 2026-09-09: "shouldnt it be raw json?"). */
-        guard let data = try? JSONSerialization.data(withJSONObject: foundation, options: [.prettyPrinted, .sortedKeys, .fragmentsAllowed, .withoutEscapingSlashes]),
-              let text = String(data: data, encoding: .utf8) else { return "" }
-        return text
+        var out = ""
+        write(into: &out, indent: 0)
+        return out
     }
 
-    private var foundation: Any {
+    private func write(into out: inout String, indent: Int) {
+        let pad = String(repeating: "  ", count: indent)
+        let inner = String(repeating: "  ", count: indent + 1)
         switch self {
-        case .string(let s): return s
-        case .number(let n): return n == n.rounded() && abs(n) < 9_007_199_254_740_992 ? Int(n) : n
-        case .bool(let b): return b
-        case .null: return NSNull()
-        case .array(let a): return a.map(\.foundation)
-        case .object(let o): return o.mapValues(\.foundation)
+        case .string(let s): out += JSONValue.quoted(s)
+        case .number(let n): out += n == n.rounded() && abs(n) < 9_007_199_254_740_992 ? String(Int(n)) : String(n)
+        case .bool(let b): out += b ? "true" : "false"
+        case .null: out += "null"
+        case .array(let a):
+            if a.isEmpty { out += "[]"; return }
+            out += "[\n"
+            for (i, v) in a.enumerated() {
+                out += inner
+                v.write(into: &out, indent: indent + 1)
+                out += i + 1 < a.count ? ",\n" : "\n"
+            }
+            out += pad + "]"
+        case .object(let o):
+            if o.isEmpty { out += "{}"; return }
+            out += "{\n"
+            let keys = o.keys.sorted()
+            for (i, k) in keys.enumerated() {
+                out += inner + JSONValue.quoted(k) + ": "
+                o[k]!.write(into: &out, indent: indent + 1)
+                out += i + 1 < keys.count ? ",\n" : "\n"
+            }
+            out += pad + "}"
         }
+    }
+
+    private static func quoted(_ s: String) -> String {
+        var q = "\""
+        for u in s.unicodeScalars {
+            switch u {
+            case "\"": q += "\\\""
+            case "\\": q += "\\\\"
+            case "\n": q += "\\n"
+            case "\r": q += "\\r"
+            case "\t": q += "\\t"
+            default:
+                if u.value < 0x20 { q += String(format: "\\u%04x", u.value) } else { q.unicodeScalars.append(u) }
+            }
+        }
+        return q + "\""
     }
 }

@@ -136,10 +136,23 @@ struct RawTextView: NSViewRepresentable {
         scroll.autohidesScrollers = true
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
+        Self.rewind(scroll)
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
-        if let view = scroll.documentView as? NSTextView, view.string != text { view.string = text }
+        if let view = scroll.documentView as? NSTextView, view.string != text {
+            view.string = text
+            Self.rewind(scroll)
+        }
+    }
+
+    /// The top, once the text has laid out. A box left where the layout put
+    /// it opened part-way down a proof (Mike's screenshot, 2026-09-12).
+    private static func rewind(_ scroll: NSScrollView) {
+        DispatchQueue.main.async {
+            scroll.contentView.scroll(to: .zero)
+            scroll.reflectScrolledClipView(scroll.contentView)
+        }
     }
 }

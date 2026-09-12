@@ -110,6 +110,24 @@ final class KeysTests: XCTestCase {
         XCTAssertTrue(set[1].text.contains("\n"), "the manifest is laid out, not one line")
     }
 
+    /// The Raw card's JSON reads like the files beside a recording: two
+    /// spaces, `"key": value`, keys sorted, slashes bare.
+    func testPrettyJSONMatchesTheCoreStyle() throws {
+        let v = try JSONDecoder().decode(JSONValue.self, from: Data("{\"b\":[1,2.5,{}],\"a\":\"x/y\\\"z\",\"c\":null,\"d\":true}".utf8))
+        XCTAssertEqual(v.pretty, """
+        {
+          "a": "x/y\\"z",
+          "b": [
+            1,
+            2.5,
+            {}
+          ],
+          "c": null,
+          "d": true
+        }
+        """)
+    }
+
     // ── the list, by month ──────────────────────────────────────────────────
 
     /// The spine grouped under month names, newest first, and ← → jumping
