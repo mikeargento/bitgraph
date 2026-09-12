@@ -66,6 +66,22 @@ final class KeysTests: XCTestCase {
         XCTAssertNil(state.oneOff)
     }
 
+    /// The header's ways to a proof are on a proof page too, and using one
+    /// brings the list back to hold the answer.
+    func testSearchingOrJumpingFromAProofPageBringsTheListBack() {
+        let state = AppState(preview: status())
+        let subject = ProofSubject(root: "/x", evidencePath: "/x/proof.json", filePath: "/x/a.jpg", name: "a.jpg", originDigestB64: nil, position: nil, justMade: false)
+        state.surface = .proof(subject)
+        state.query = "img"
+        XCTAssertEqual(state.surface, .calendar, "typing a search leaves the page")
+        state.surface = .proof(subject)
+        state.goToday()
+        XCTAssertEqual(state.surface, .calendar, "Today leaves the page")
+        state.surface = .proof(subject)
+        state.selectDay("2026-09-09")
+        XCTAssertEqual(state.surface, .calendar, "a day picked in the little month leaves the page")
+    }
+
     // ── the list, by month ──────────────────────────────────────────────────
 
     /// The spine grouped under month names, newest first, and ← → jumping

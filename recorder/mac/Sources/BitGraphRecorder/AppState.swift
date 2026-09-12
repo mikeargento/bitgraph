@@ -271,6 +271,7 @@ final class AppState: ObservableObject {
         selectedDay = day
         calendarOpen = false
         guard let day else { return }
+        if surface != .calendar { showCalendar() }
         if let date = Self.date(of: day) { month = date }
         scrollTarget = day
     }
@@ -281,6 +282,7 @@ final class AppState: ObservableObject {
         selectedDay = Self.today()
         month = Date()
         calendarOpen = false
+        if surface != .calendar { showCalendar() }
         scrollTarget = spine?.days.first?.day
     }
 
@@ -333,6 +335,8 @@ final class AppState: ObservableObject {
         searchTask?.cancel()
         let q = trimmedQuery
         guard !q.isEmpty else { found = nil; return }
+        /* Typed on a proof page: the list comes back to hold the answer. */
+        if surface != .calendar { showCalendar() }
         searchTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(120))
             guard !Task.isCancelled else { return }
@@ -357,7 +361,6 @@ final class AppState: ObservableObject {
     /// in its month, the way the mini month would.
     func leaveSearch(for day: String) {
         query = ""
-        if surface != .calendar { showCalendar() }
         selectDay(day)
         expand(day)
     }

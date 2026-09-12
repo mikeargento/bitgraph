@@ -45,7 +45,7 @@ struct MainWindow: View {
 
             /* The little month, under its button; a click anywhere else
              * puts it away. */
-            if state.calendarOpen, !isPage {
+            if state.calendarOpen {
                 Color.clear.contentShape(Rectangle()).onTapGesture { state.calendarOpen = false }
                 calendarCard
                     .padding(.top, 64 + 1 + 6)
@@ -110,20 +110,20 @@ struct MainWindow: View {
                 .font(Font.system(size: 22))
                 .foregroundStyle(G.ink)
             Spacer()
-            if !isPage {
-                /* What is being worked on, when something is; then the ways
-                 * to a proof that are not a drop: search by name, the little
-                 * month to jump by day, and the picker. ⚠️ ONE VERB, and in
-                 * the app it is RECORD (Mike, 2026-09-09; the site keeps
-                 * make). The pill that starts something is "+ New". */
-                if state.dropping || !state.checking.isEmpty {
-                    WorkLine(state: state)
-                }
-                SearchField(placeholder: "Search recordings", text: $state.query, focus: $state.focusSearch)
-                    .frame(width: 240)
-                Pill(title: "Calendar", style: state.calendarOpen ? .tonal : .outlined, icon: "calendar") { state.calendarOpen.toggle() }
-                CreatePill(title: "New", height: 44, width: Self.newPillWidth) { state.chooseFilesToMake() }
+            /* What is being worked on, when something is; then the ways to
+             * a proof that are not a drop: search by name, the little month
+             * to jump by day, and the picker. On every page, a proof's too
+             * (Mike, 2026-09-11: "that menu should be on proof pages too");
+             * using one from a page brings the list back. ⚠️ ONE VERB, and
+             * in the app it is RECORD (Mike, 2026-09-09; the site keeps
+             * make). The pill that starts something is "+ New". */
+            if state.dropping || !state.checking.isEmpty {
+                WorkLine(state: state)
             }
+            SearchField(placeholder: "Search recordings", text: $state.query, focus: $state.focusSearch)
+                .frame(width: 240)
+            Pill(title: "Calendar", style: state.calendarOpen ? .tonal : .outlined, icon: "calendar") { state.calendarOpen.toggle() }
+            CreatePill(title: "New", height: 44, width: Self.newPillWidth) { state.chooseFilesToMake() }
         }
         .padding(.horizontal, 20)
         .frame(height: 64)

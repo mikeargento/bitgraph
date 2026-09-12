@@ -30,10 +30,8 @@ extension AppState {
         case (_, "n") where cmd && !shift:
             chooseFilesToMake()
         case (_, "f") where cmd:
-            if !onCalendar { showCalendar() }
             focusSearch = true
         case (_, "t") where cmd || (plain && !typing):
-            if !onCalendar { showCalendar() }
             goToday()
         case (123, _) where cmd || (plain && !typing && onCalendar):
             jumpMonth(-1)
