@@ -37,21 +37,20 @@ folder and they have the whole BitGraph.
 
 ## The window
 
-One surface, laid out like a calendar app, and the whole of it takes a drop.
-Drag files or a folder anywhere onto the window, at any time: the moment a
-drag crosses in, a dashed frame draws around everything and says so. **+ New**
-is the same thing for people who would rather pick than drag. The calendar is
-the library: the month's days, each a row saying how many recordings it holds,
-and a day opens to its recordings. The little month on the left has a dot on
-every day that holds something; click one and the list goes there. A recording
-opens to its proof, read off the disk. Under the little month, **search**
-finds recordings by name across every day; a day's name in the results is the
-way back to it in the month. A filled dot on a recording means its Ethereum
-anchors are in; a ring means they are still on the way, and they arrive by
-themselves. When they do while the window is not in front, a notification
-says so, and that is the only thing the app ever announces on its own. The
-menu bar item is the same thing in short: what the library holds, what needs
-saying, and the way into the window.
+One surface, and the whole of it takes a drop. Drag files or a folder anywhere
+onto the window, at any time: the moment a drag crosses in, the window goes
+blue under a dashed frame and says the one word. **+ New** is the same thing
+for people who would rather pick than drag. Under the header, the library is
+one list, newest first, every month's days under its name: each day a row
+saying how many recordings it holds, and a day opens to its recordings. A
+recording opens to its proof, read off the disk. **Calendar** drops a little
+month to jump by day; **search** finds recordings by name across every day,
+and a day's name in the results is the way back to it in the list. A filled
+dot on a recording means its Ethereum anchors are in; a ring means they are
+still on the way, and they arrive by themselves. When they do while the
+window is not in front, a notification says so, and that is the only thing
+the app ever announces on its own. The menu bar item is the same thing in
+short: what the library holds, what needs saying, and the way into the window.
 
 The keys: **⌘N** record, **←** **→** (or ⌘←, ⌘→) the month before or after,
 **T** (or ⌘T) today, **⌘F** search, **Esc** puts away whatever is up. The

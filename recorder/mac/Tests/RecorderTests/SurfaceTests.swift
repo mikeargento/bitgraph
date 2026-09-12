@@ -80,10 +80,10 @@ final class SurfaceTests: XCTestCase {
         var blocked = status([])
         blocked.recordings = 0
         blocked.folderBlocked = true
-        XCTAssertEqual(Sidebar.summary(blocked), "macOS is blocking access to your BitGraph folder")
+        XCTAssertEqual(FooterBar.summary(blocked), "macOS is blocking access to your BitGraph folder")
         var empty = status([])
         empty.recordings = 0
-        XCTAssertEqual(Sidebar.summary(empty), "Nothing recorded yet")
+        XCTAssertEqual(FooterBar.summary(empty), "Nothing recorded yet")
         XCTAssertTrue(Blocked.isBlock("macOS is blocking BitGraph Recorder from /x. Allow it."))
         XCTAssertFalse(Blocked.isBlock("anchors could not be fetched: EPERM"))
     }

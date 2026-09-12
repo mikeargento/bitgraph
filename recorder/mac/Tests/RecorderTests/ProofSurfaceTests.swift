@@ -108,6 +108,10 @@ final class ProofSurfaceTests: XCTestCase {
         )
         dash.month = try XCTUnwrap(AppState.date(of: "2026-09-15"))
         try shoot(MainWindow(state: dash), name: "window", size: CGSize(width: 1180, height: 780), into: out)
+        /* The little month, open under its button. */
+        dash.calendarOpen = true
+        try shoot(MainWindow(state: dash), name: "window-calendar", size: CGSize(width: 1180, height: 780), into: out)
+        dash.calendarOpen = false
         /* A drag over the window: the whole of it becomes the frame. */
         dash.dragOver = true
         try shoot(MainWindow(state: dash), name: "window-drag", size: CGSize(width: 1180, height: 780), into: out)

@@ -36,9 +36,9 @@ extension AppState {
             if !onCalendar { showCalendar() }
             goToday()
         case (123, _) where cmd || (plain && !typing && onCalendar):
-            stepMonth(-1)
+            jumpMonth(-1)
         case (124, _) where cmd || (plain && !typing && onCalendar):
-            stepMonth(1)
+            jumpMonth(1)
         default:
             return false
         }

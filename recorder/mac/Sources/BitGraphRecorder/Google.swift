@@ -156,6 +156,11 @@ private struct IconButtonStyle: ButtonStyle {
 /// does the one thing.
 struct CreatePill: View {
     let title: String
+    /// Google's is 56 tall and as wide as its word. In the header it is 44,
+    /// and wider than its word so it reads as a place ("new button needs to
+    /// be wider", Mike, 2026-09-11).
+    var height: CGFloat = 56
+    var width: CGFloat? = nil
     let action: () -> Void
     @State private var hovering = false
 
@@ -170,7 +175,7 @@ struct CreatePill: View {
             .foregroundStyle(.white)
             .padding(.leading, 18)
             .padding(.trailing, 20)
-            .frame(height: 56)
+            .frame(width: width, height: height)
             /* ⚠️ THE SHADOW IS THE CAPSULE'S, NOT THE LABEL'S. A shadow after
              * the background falls on the text too and blurs it ("your
              * shadowing is doing something funny on the text", Mike,
@@ -336,23 +341,6 @@ struct SearchField: View {
         .onHover { hovering = $0 }
         .onChange(of: focus) { _, wanted in
             if wanted { focused = true; focus = false }
-        }
-    }
-}
-
-/// What the two marks on a recording's row mean. Two lines, at the foot of
-/// the sidebar, so the ring is not a mystery on its first appearance.
-struct AnchorLegend: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 10) {
-                Circle().fill(G.blue).frame(width: 9, height: 9)
-                Text("Anchored").font(G.small).foregroundStyle(G.secondary)
-            }
-            HStack(spacing: 10) {
-                Circle().strokeBorder(G.blue, lineWidth: 1.5).frame(width: 9, height: 9)
-                Text("Waiting on anchors").font(G.small).foregroundStyle(G.secondary)
-            }
         }
     }
 }

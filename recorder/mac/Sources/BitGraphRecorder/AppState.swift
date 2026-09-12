@@ -36,8 +36,11 @@ final class AppState: ObservableObject {
     @Published private(set) var expanded: Set<String> = []
     /// `yyyy-MM-dd`, the day the mini month picked.
     @Published private(set) var selectedDay: String?
-    /// The month on show.
+    /// The month the little month shows. The list itself is every month.
     @Published var month: Date = Date()
+    /// The little month, open under the header's Calendar button. It is a
+    /// jump, not a second navigator: pick a day and the list goes there.
+    @Published var calendarOpen = false
     /// A day the list should bring into view, cleared once it has.
     @Published var scrollTarget: String?
     /// A drag is over the window. The whole window is the target, and this
@@ -266,13 +269,62 @@ final class AppState: ObservableObject {
     /// should be retracted unless user clicks".
     func selectDay(_ day: String?) {
         selectedDay = day
+        calendarOpen = false
         guard let day else { return }
         if let date = Self.date(of: day) { month = date }
         scrollTarget = day
     }
 
+    /// The top of the list: newest first, so today's recordings, or the
+    /// newest day there is when today has none yet.
     func goToday() {
-        selectDay(Self.today())
+        selectedDay = Self.today()
+        month = Date()
+        calendarOpen = false
+        scrollTarget = spine?.days.first?.day
+    }
+
+    /// The list, a month at a time: ← → jump to the month before or after
+    /// the one the little month shows, among the months that hold anything.
+    func jumpMonth(_ n: Int) {
+        let groups = months
+        guard !groups.isEmpty else { return }
+        let current = Self.monthKey(month)
+        /* Newest first: the month on show, or the nearest older one. */
+        let i = groups.firstIndex(where: { $0.key <= current }) ?? groups.count - 1
+        let j = min(max(i - n, 0), groups.count - 1)
+        let first = groups[j].days[0].day
+        if let d = Self.date(of: first) { month = d }
+        scrollTarget = first
+    }
+
+    /// A month of the list: its days, newest first, under its name.
+    struct MonthGroup: Identifiable, Equatable {
+        let key: String
+        let title: String
+        var days: [DayCount]
+        var id: String { key }
+    }
+
+    /// Every month that holds anything, newest first: the spine, grouped.
+    var months: [MonthGroup] {
+        var out: [MonthGroup] = []
+        for day in spine?.days ?? [] {
+            let key = String(day.day.prefix(7))
+            if out.last?.key == key {
+                out[out.count - 1].days.append(day)
+            } else {
+                out.append(MonthGroup(key: key, title: Self.monthTitle(key), days: [day]))
+            }
+        }
+        return out
+    }
+
+    /// `2026-09` → `September 2026`.
+    static func monthTitle(_ key: String) -> String {
+        let parts = key.split(separator: "-")
+        guard parts.count == 2, let y = Int(parts[0]), let m = Int(parts[1]), (1...12).contains(m) else { return key }
+        return "\(DateFormatter().monthSymbols[m - 1]) \(y)"
     }
 
     /// The field's text changed: ask the core, after a moment's pause so a
@@ -319,6 +371,7 @@ final class AppState: ObservableObject {
     /// goes, and nothing else moves. True when something went.
     @discardableResult
     func escape() -> Bool {
+        if calendarOpen { calendarOpen = false; return true }
         if pendingBatch != nil {
             /* A batch being made is not cancelled by a key; the dialog's own
              * Cancel is disabled for the same reason. */
@@ -333,19 +386,9 @@ final class AppState: ObservableObject {
         return false
     }
 
-    func stepMonth(_ n: Int) {
-        month = Calendar.current.date(byAdding: .month, value: n, to: month) ?? month
-    }
-
     /// Every day that holds anything, for the mini month's dots.
     var markedDays: Set<String> {
         Set(spine?.days.map(\.day) ?? [])
-    }
-
-    /// The days of one month, newest first.
-    func days(in month: Date) -> [DayCount] {
-        let key = Self.monthKey(month)
-        return spine?.days.filter { $0.day.hasPrefix(key) } ?? []
     }
 
     static func monthKey(_ date: Date) -> String {

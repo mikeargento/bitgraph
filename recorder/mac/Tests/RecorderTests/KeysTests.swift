@@ -66,14 +66,28 @@ final class KeysTests: XCTestCase {
         XCTAssertNil(state.oneOff)
     }
 
-    // ── the header's column ─────────────────────────────────────────────────
+    // ── the list, by month ──────────────────────────────────────────────────
 
-    /// ⚠️ The month cluster stands over the day list. The list is 256 of
-    /// sidebar, 32 of inset, then a 760 column centred in what is left, and
-    /// the header must land on the same edge at every width.
-    func testTheMonthClusterStandsOverTheDayList() {
-        XCTAssertEqual(MainWindow.listColumnLeading(in: 1040), 288, "at the minimum width the column is flush with the inset")
-        XCTAssertEqual(MainWindow.listColumnLeading(in: 1180), 338, "at the default width it is centred: 256 + 32 + (924 - 64 - 760) / 2")
-        XCTAssertEqual(MainWindow.listColumnLeading(in: 2000), 748)
+    /// The spine grouped under month names, newest first, and ← → jumping
+    /// between the months that hold anything.
+    func testTheListIsEveryMonthNewestFirstAndArrowsJumpBetweenThem() throws {
+        let state = AppState(preview: status())
+        state.setLedgerForTesting(spine: LedgerSpine(days: [
+            DayCount(day: "2026-09-09", count: 3), DayCount(day: "2026-09-01", count: 1),
+            DayCount(day: "2026-07-20", count: 2),
+        ], total: 6), days: [:], expanded: [])
+        XCTAssertEqual(state.months.map(\.title), ["September 2026", "July 2026"])
+        XCTAssertEqual(state.months.map { $0.days.count }, [2, 1])
+
+        state.month = try XCTUnwrap(AppState.date(of: "2026-09-15"))
+        state.jumpMonth(-1)
+        XCTAssertEqual(state.scrollTarget, "2026-07-20", "back a month lands on the newest day of the month before that holds anything")
+        state.jumpMonth(-1)
+        XCTAssertEqual(state.scrollTarget, "2026-07-20", "and stops at the oldest")
+        state.jumpMonth(1)
+        XCTAssertEqual(state.scrollTarget, "2026-09-09")
+        state.goToday()
+        XCTAssertEqual(state.scrollTarget, "2026-09-09", "today is the top of the list")
+        XCTAssertFalse(state.calendarOpen)
     }
 }

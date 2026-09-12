@@ -43,6 +43,16 @@ struct MainWindow: View {
                 return true
             }
 
+            /* The little month, under its button; a click anywhere else
+             * puts it away. */
+            if state.calendarOpen, !isPage {
+                Color.clear.contentShape(Rectangle()).onTapGesture { state.calendarOpen = false }
+                calendarCard
+                    .padding(.top, 64 + 1 + 6)
+                    .padding(.trailing, 20 + Self.newPillWidth + 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            }
+
             if let toast = state.toast {
                 Snackbar(text: toast, action: state.toastAction ?? (Blocked.isBlock(toast) ? ("Open Settings", { AppState.openPrivacySettings() }) : nil)) { state.dismissToast() }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -80,8 +90,8 @@ struct MainWindow: View {
         Color.black.opacity(0.25).ignoresSafeArea()
     }
 
-    /// The header: the name at the left, the month cluster over the day
-    /// list, and at the right what is being worked on, when something is.
+    /// The header: the name at the left; at the right the work in hand when
+    /// there is any, then search, the Calendar button and the New pill.
     private var header: some View {
         /* ⚠️ THE WORDMARK NEVER MOVES. Mike, 2026-09-09: "'BitGraph Recorder'
          * logo is in weird spot". Back lives on the page, not up here. */
@@ -100,58 +110,50 @@ struct MainWindow: View {
                 .font(Font.system(size: 22))
                 .foregroundStyle(G.ink)
             Spacer()
-            /* ⚠️ ONE VERB, and in the app it is RECORD: the things it makes
-             * are recordings, and Mike ruled "make should be replaced by
-             * record" (2026-09-09, for the app; the site keeps make). The
-             * pill that starts something is "+ New", Drive's word. */
-            if state.dropping || !state.checking.isEmpty {
-                WorkLine(state: state)
+            if !isPage {
+                /* What is being worked on, when something is; then the ways
+                 * to a proof that are not a drop: search by name, the little
+                 * month to jump by day, and the picker. ⚠️ ONE VERB, and in
+                 * the app it is RECORD (Mike, 2026-09-09; the site keeps
+                 * make). The pill that starts something is "+ New". */
+                if state.dropping || !state.checking.isEmpty {
+                    WorkLine(state: state)
+                }
+                SearchField(placeholder: "Search recordings", text: $state.query, focus: $state.focusSearch)
+                    .frame(width: 240)
+                Pill(title: "Calendar", style: state.calendarOpen ? .tonal : .outlined, icon: "calendar") { state.calendarOpen.toggle() }
+                CreatePill(title: "New", height: 44, width: Self.newPillWidth) { state.chooseFilesToMake() }
             }
         }
         .padding(.horizontal, 20)
         .frame(height: 64)
-        /* The month cluster stands over the day list it drives, not beside
-         * the wordmark (Mike, 2026-09-11: "should this move over?"). Its left
-         * edge is the list column's, computed the way CalendarPane lays the
-         * column out: sidebar, the pane's inset, then the centred 760. */
-        .overlay(alignment: .leading) {
-            if !isPage {
-                GeometryReader { geo in
-                    monthCluster
-                        .padding(.leading, Self.listColumnLeading(in: geo.size.width))
-                        .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
-                }
+    }
+
+    static let newPillWidth: CGFloat = 180
+
+    /// The little month, dropped under the header's Calendar button: a jump.
+    /// Pick a day and the list goes there; Today is the top of it.
+    private var calendarCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            MiniMonth(
+                month: $state.month,
+                selected: Binding(get: { state.selectedDay }, set: { state.selectDay($0) }),
+                marked: state.markedDays
+            )
+            HStack {
+                Spacer()
+                Pill(title: "Today", style: .outlined) { state.goToday() }
             }
         }
-    }
-
-    /// The arrows, the month, then Today: the month leads and Today is the
-    /// action after it ("the today button should be to the right of that
-    /// stuff" — Mike, 2026-09-09).
-    private var monthCluster: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 0) {
-                IconButton("chevron.left") { state.stepMonth(-1) }
-                IconButton("chevron.right") { state.stepMonth(1) }
-            }
-            Text(monthTitle)
-                .font(Font.system(size: 22, weight: .regular))
-                .foregroundStyle(G.ink)
-            Pill(title: "Today", style: .outlined) { state.goToday() }
-                .padding(.leading, 8)
-        }
-    }
-
-    /// Where the day list's column begins, for a window this wide. ⚠️ Mirrors
-    /// CalendarPane: 256 sidebar, 32 inset, a 760 column centred in the rest.
-    static func listColumnLeading(in width: CGFloat) -> CGFloat {
-        let sidebar: CGFloat = 256, inset: CGFloat = 32, column: CGFloat = 760
-        let room = width - sidebar - inset * 2
-        return sidebar + inset + max(0, (room - column) / 2)
-    }
-
-    private var monthTitle: String {
-        let f = DateFormatter(); f.dateFormat = "MMMM yyyy"; return f.string(from: state.month)
+        .padding(14)
+        /* As wide as the month and no wider: its header's spacer would
+         * otherwise take the whole window. */
+        .fixedSize()
+        .background(
+            RoundedRectangle(cornerRadius: 8).fill(Color.white)
+                .shadow(color: .black.opacity(0.30), radius: 1.5, y: 1)
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+        )
     }
 
     @ViewBuilder
@@ -224,14 +226,20 @@ struct WorkLine: View {
 struct DropReveal: View {
     var body: some View {
         ZStack {
-            Color.white.opacity(0.84)
+            /* Deep blue, most of the way to opaque: the window goes dark and
+             * blue under a drag (Mike, 2026-09-11: "maybe the whole screen
+             * turns blueish? like darker?"), and what is behind it stays
+             * faintly there so it reads as the same window. */
+            G.blueDeep.opacity(0.86)
             RoundedRectangle(cornerRadius: G.zoneRadius)
                 .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
-                .foregroundStyle(G.blue)
+                .foregroundStyle(Color.white.opacity(0.9))
                 .padding(16)
-            Text("Drop it.")
-                .font(G.display)
-                .foregroundStyle(G.ink)
+            /* The one word, the verb (Mike, 2026-09-11: "on hover it just
+             * says BitGraph in the middle"). The results say the outcome. */
+            Text("BitGraph")
+                .font(Font.system(size: 44, weight: .bold))
+                .foregroundStyle(.white)
         }
         .allowsHitTesting(false)
         .transition(.opacity)

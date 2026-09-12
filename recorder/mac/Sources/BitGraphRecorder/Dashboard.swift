@@ -4,95 +4,27 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-/// The main surface, laid out like Google Calendar: a sidebar with the create
-/// pill, the mini month and the search, and beside it the month's days.
+/// The main surface: the library as one list, newest first, every month's
+/// days under its name. A day is a row that opens to what it holds (Mike,
+/// 2026-09-09: "lists of days should be expandable ... like drill out from
+/// day"), and a recording opens to its proof.
 ///
-/// ⚠️ NO SYNCED FOLDERS. Mike, 2026-09-09: "i dont think 'syncing folders' is
-/// a good idea. it could get MESSY fast." Pointed at a folder holding a whole
-/// software package it would have recorded thousands of files as one set, and
-/// every mistake consumes a real position. The box is deliberate. The core
-/// still knows how to watch a folder (the CLI's `watch`); the app does not
-/// offer it.
+/// ⚠️ TIME IS THE AXIS, NOT THE FURNITURE. The Google Calendar screengrab
+/// was for its clothes, and the app took its structure too: a sidebar, a
+/// mini month as a second navigator, a month at a time, section chips, a
+/// box (Mike, 2026-09-11: "i originally screengrabbed the google calendar
+/// page to show 'styles' and you took it literally. but that being said, by
+/// time / calendar is a great organizational system"). What stays is the
+/// axis and the clothes. The little month is a jump under a header button.
 ///
 /// ⚠️ THE CONTROLS ARE ON THE SURFACE. Nothing is hidden in a menu bar
-/// popover: the way in, the calendar and the recordings are all in the
-/// window, which is what a dashboard is.
-///
-/// ⚠️ ONE SECTION. The calendar is the app: the days of a month, each a row
-/// that opens to what it holds (Mike, 2026-09-09: "lists of days should be
-/// expandable ... like drill out from day"). There was a second section, the
-/// box, a permanent dropbox; the window itself takes a drop anywhere, so the
-/// box went (Mike, 2026-09-11: "kill the box").
+/// popover: the ways in and the recordings are all in the window.
 struct Dashboard: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        /* No divider the height of the window: the little month carries a
-         * short line at its right instead (Mike, 2026-09-09: "instead of a
-         * sidebar line the calendar just has a right line"). */
-        HStack(spacing: 0) {
-            Sidebar(state: state)
-                .frame(width: 256)
-            CalendarPane(state: state)
-        }
-        .background(G.ground)
-    }
-}
-
-// ── the sidebar ────────────────────────────────────────────────────────────
-
-struct Sidebar: View {
-    @ObservedObject var state: AppState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            /* One way in that is not a drag: the picker. It was a menu of two
-             * ("Record a BitGraph…", "Check a folder…") until the drop learned
-             * to tell a folder of BitGraphs from a folder of files. */
-            CreatePill(title: "New") { state.chooseFilesToMake() }
-            .padding(.leading, 12)
-            .padding(.top, 16)
-            .padding(.bottom, 22)
-
-            do {
-                MiniMonth(
-                    month: $state.month,
-                    selected: Binding(get: { state.selectedDay }, set: { state.selectDay($0) }),
-                    marked: state.markedDays
-                )
-                .padding(.leading, 8)
-                .padding(.trailing, 16)
-                .overlay(alignment: .trailing) { Rectangle().fill(G.border).frame(width: 1) }
-                Spacer().frame(height: 26)
-
-                /* Under the month, where the sidebar was empty: the search,
-                 * and at the foot what the two marks mean (Mike, 2026-09-11:
-                 * "do them all"). */
-                SearchField(placeholder: "Search recordings", text: $state.query, focus: $state.focusSearch)
-                    .padding(.leading, 16)
-                    .padding(.trailing, 16)
-            }
-
-            Spacer()
-
-            AnchorLegend()
-                .padding(.leading, 16)
-                .padding(.bottom, 18)
-        }
-        .padding(.horizontal, 8)
-        .background(G.ground)
-    }
-
-    /// Recordings are counted where they are. Files are the index's number,
-    /// so they are only said when it has one.
-    static func summary(_ status: Status) -> String {
-        /* ⚠️ A blocked folder is never "Nothing recorded yet": the count is 0
-         * because macOS would not let the core look. */
-        if status.folderBlocked == true { return "macOS is blocking access to your BitGraph folder" }
-        if status.recordings == 0 { return "Nothing recorded yet" }
-        var line = "\(G.count(status.recordings)) recording\(status.recordings == 1 ? "" : "s")"
-        if status.recorded > 0 { line += " · \(G.count(status.recorded)) file\(status.recorded == 1 ? "" : "s")" }
-        return line
+        CalendarPane(state: state)
+            .background(G.ground)
     }
 }
 
@@ -146,7 +78,7 @@ struct FooterBar: View {
                     if let status = state.status, !status.folder.isEmpty {
                         HStack(spacing: 6) {
                             Text(FileManager.default.displayName(atPath: status.folder)).font(G.label).foregroundStyle(G.ink)
-                            Text("· \(Sidebar.summary(status))").font(G.small).foregroundStyle(G.secondary)
+                            Text("· \(FooterBar.summary(status))").font(G.small).foregroundStyle(G.secondary)
                         }
                         .lineLimit(1)
                     }
@@ -176,6 +108,18 @@ struct FooterBar: View {
         }
         .background(G.ground)
     }
+
+    /// Recordings are counted where they are. Files are the index's number,
+    /// so they are only said when it has one.
+    static func summary(_ status: Status) -> String {
+        /* ⚠️ A blocked folder is never "Nothing recorded yet": the count is 0
+         * because macOS would not let the core look. */
+        if status.folderBlocked == true { return "macOS is blocking access to your BitGraph folder" }
+        if status.recordings == 0 { return "Nothing recorded yet" }
+        var line = "\(G.count(status.recordings)) recording\(status.recordings == 1 ? "" : "s")"
+        if status.recorded > 0 { line += " · \(G.count(status.recorded)) file\(status.recorded == 1 ? "" : "s")" }
+        return line
+    }
 }
 
 // ── the calendar section ───────────────────────────────────────────────────
@@ -192,31 +136,37 @@ struct CalendarPane: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    let days = state.days(in: state.month)
+                /* Lazy, because the list is every day there is; the month
+                 * names pin at the top as their days scroll under them. */
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     if state.searching {
-                        /* The field has something in it: the month's days
-                         * make way for what was found, until it is cleared. */
+                        /* The field has something in it: the days make way
+                         * for what was found, until it is cleared. */
                         SearchResults(state: state)
                     } else if state.spine == nil {
-                        Text("Reading the library…").font(G.body).foregroundStyle(G.secondary)
+                        Text("Reading the library…").font(G.body).foregroundStyle(G.secondary).padding(.horizontal, 10).padding(.top, 22)
                     } else if state.spine?.total == 0 {
                         /* The one written hint, for a library with nothing in
                          * it yet. Once anything is recorded it goes, and the
                          * frame that draws under a drag does the teaching. */
-                        Text("Drop files anywhere in this window to record them.").font(G.body).foregroundStyle(G.secondary)
-                    } else if days.isEmpty {
-                        Text("Nothing recorded in \(monthTitle).").font(G.body).foregroundStyle(G.secondary)
+                        Text("Drop files anywhere in this window to record them.").font(G.body).foregroundStyle(G.secondary).padding(.horizontal, 10).padding(.top, 22)
                     } else {
-                        ForEach(days) { day in
-                            DayRow(day: day, state: state).id(day.day)
+                        ForEach(state.months) { group in
+                            /* SwiftUI's, spelled out: the proof page has a Section of its own. */
+                            SwiftUI.Section {
+                                ForEach(group.days) { day in
+                                    DayRow(day: day, state: state).id(day.day)
+                                }
+                            } header: {
+                                MonthHeader(title: group.title)
+                            }
                         }
                     }
                 }
-                .frame(maxWidth: 760)
+                .frame(maxWidth: 800)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 32)
-                .padding(.vertical, 20)
+                .padding(.bottom, 20)
             }
             .background(G.ground)
             .onChange(of: state.scrollTarget) { _, target in bring(target, proxy) }
@@ -230,8 +180,22 @@ struct CalendarPane: View {
         state.scrollTarget = nil
     }
 
-    private var monthTitle: String {
-        let f = DateFormatter(); f.dateFormat = "MMMM yyyy"; return f.string(from: state.month)
+}
+
+/// A month's name over its days, pinned while they scroll: the same size as
+/// the page titles, plain weight, on the ground so rows pass under it.
+private struct MonthHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(Font.system(size: 22, weight: .regular))
+            .foregroundStyle(G.ink)
+            .padding(.horizontal, 10)
+            .padding(.top, 22)
+            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(G.ground)
     }
 }
 
@@ -246,6 +210,7 @@ private struct SearchResults: View {
             Text(headline(found))
                 .font(G.small).foregroundStyle(G.secondary)
                 .padding(.horizontal, 10)
+                .padding(.top, 22)
                 .padding(.bottom, 6)
             ForEach(groups(found.recordings), id: \.day) { group in
                 VStack(alignment: .leading, spacing: 2) {
