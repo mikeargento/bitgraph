@@ -142,7 +142,7 @@ export function HowFigure() {
                 2026-09-11). The wire runs the full height like the others, so
                 the pill sits mid-wire rather than on a stub; the pill's own
                 words say the request carries nothing. */}
-            <Arrow id={id} d="M 175 150 L 175 302" />
+            <Arrow id={id} d="M 175 229 L 175 302" />
             <Tag x={175} y={218} text="1. ask for a position" w={139} />
             <Arrow id={id} d="M 355 306 L 355 154" brand />
             <Tag x={355} y={218} text="signed slot record" brand w={130} />
