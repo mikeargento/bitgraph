@@ -508,11 +508,14 @@ struct Card<Content: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { withAnimation(.easeOut(duration: 0.18)) { open.toggle() } } label: {
                 HStack(spacing: 12) {
-                    Text(title).font(G.label).foregroundStyle(G.ink)
+                    /* Blue, the app's colour for a thing you can act on: as
+                     * ink the row read as a label on a box (Mike, 2026-09-12:
+                     * "should these be easier to see?"). */
+                    Text(title).font(G.label).foregroundStyle(G.blue)
                     Spacer(minLength: 12)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(G.secondary)
+                        .foregroundStyle(G.blue)
                         .rotationEffect(.degrees(open ? 90 : 0))
                 }
                 .padding(.horizontal, 16)
