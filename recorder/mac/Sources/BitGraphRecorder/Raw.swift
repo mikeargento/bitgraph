@@ -3,42 +3,42 @@
 import SwiftUI
 import AppKit
 
-/// The Raw section of Recording details: every byte this BitGraph rests on.
+/// The Raw section of Recording details: the signed proof, the thing that
+/// travels, and nothing else.
+///
+/// ⚠️ JUST THE PROOF. It showed three things for a while on 2026-09-11: the
+/// note the app writes beside a file (its filing card: name, digests,
+/// position, a pointer to the proof) and the set's manifest, on top of the
+/// proof. Mike: "explain to me what value there is in having this info. it
+/// isnt a part of the portable proof" — and there was none for a reader. A
+/// check runs from the proof, the manifest and the bytes and never reads the
+/// note; the manifest is a file in the recording. Raw is the proof, as the
+/// site's page is.
 ///
 /// ⚠️ NOT A SWIFTUI TEXT, AND NOT ON THE MAIN THREAD. Mike, 2026-09-10, on a
 /// 1,130-file recording: "i clicked recording details and got beach ball.
-/// then first raw json data is blank". The signed proof was 435 KB and the
-/// committed manifest 278 KB. Pretty-printing both ran on the main thread on
-/// every pass over the page (the Card built its content eagerly, even
-/// folded), and on opening, SwiftUI's Text laid out seven hundred kilobytes
-/// of monospace in one go. The blank box was that layout, still running.
-///
-/// Now the strings are made once, off the main thread, when the section
-/// first appears, and NSTextView draws them: TextKit lays out only what is
-/// on screen, however long the document. Full disclosure stays: nothing is
-/// cut, folded or summarised.
+/// then first raw json data is blank". Pretty-printing ran on the main
+/// thread on every pass over the page, and on opening, SwiftUI's Text laid
+/// out hundreds of kilobytes of monospace in one go. Now the string is made
+/// once, off the main thread, when the section first appears, and
+/// NSTextView draws it: TextKit lays out only what is on screen.
 struct RawSection: View {
     let proof: JSONValue?
-    let committedB64: String?
-    let evidenceRaw: String?
-
-    @State private var blocks: [RawBlock]? = nil
+    @State private var block: RawBlock? = nil
 
     var body: some View {
         Section("Raw") {
-            if let blocks {
-                ForEach(blocks) { RawTextBlock(block: $0) }
+            if let block {
+                RawTextBlock(block: block)
             } else {
                 Text("Reading…")
                     .font(G.small).foregroundStyle(G.secondary)
                     .padding(.horizontal, 16).padding(.vertical, 12)
             }
         }
-        .task(id: committedB64?.count ?? 0) {
-            let proof = proof, committedB64 = committedB64, evidenceRaw = evidenceRaw
-            blocks = await Task.detached(priority: .userInitiated) {
-                RawBlock.make(proof: proof, committedB64: committedB64, evidenceRaw: evidenceRaw)
-            }.value
+        .task {
+            let proof = proof
+            block = await Task.detached(priority: .userInitiated) { RawBlock.make(proof: proof) }.value
         }
     }
 }
@@ -57,36 +57,8 @@ struct RawBlock: Identifiable {
         lines = text.utf8.reduce(0) { $0 + ($1 == 10 ? 1 : 0) } + 1
     }
 
-    static func make(proof: JSONValue?, committedB64: String?, evidenceRaw: String?) -> [RawBlock] {
-        /* ⚠️ ONE COPY OF THE PROOF, AND NEVER NONE. Evidence written beside a
-         * file comes in two kinds. INLINE carries the signed proof inside it,
-         * so that one block is the proof too. BESIDE points at the recording's
-         * proof.json instead ("proof": "./proof.json"), which is how every
-         * member of a set shares one proof; then the proof has to be its own
-         * block or the page shows no proof at all (Mike, 2026-09-11: "i
-         * honestly dont understand this", under an evidence block that only
-         * pointed at it). Nothing is cut. */
-        var out: [RawBlock] = []
-        let evidence = evidenceRaw.flatMap { try? JSONDecoder().decode(JSONValue.self, from: Data($0.utf8)) }
-        let kind = evidence?["proof"]?["kind"]?.string
-        if let raw = evidenceRaw, kind == "inline" {
-            out.append(RawBlock(label: "Written beside this file: its digests, its position, and the signed proof", text: raw))
-        } else {
-            if let raw = evidenceRaw {
-                out.append(RawBlock(label: "Written beside this file: its digests, its position, and where its proof is", text: raw))
-            }
-            let shared = evidence?["member"] != nil && evidence?["member"]?.isPresent == true
-            out.append(RawBlock(label: shared ? "The signed proof, one for every file in this set" : "The signed proof", text: proof?.pretty ?? "{}"))
-        }
-        /* A set proof commits to a manifest or a Merkle root; the signed proof
-         * alone leaves out the artifact it hashes to and this file's own
-         * inclusion path. Pretty-printed for reading: the bytes the hash
-         * covers are manifest.json in the recording, exactly as written. */
-        if let b64 = committedB64, let data = Data(base64Encoded: b64), let text = String(data: data, encoding: .utf8) {
-            let shown = (try? JSONDecoder().decode(JSONValue.self, from: data))?.pretty ?? text
-            out.append(RawBlock(label: "The set's manifest, whose hash is the proof's. Laid out for reading; the hashed bytes are manifest.json in the recording", text: shown))
-        }
-        return out
+    static func make(proof: JSONValue?) -> RawBlock {
+        RawBlock(label: "The signed proof", text: proof?.pretty ?? "{}")
     }
 }
 

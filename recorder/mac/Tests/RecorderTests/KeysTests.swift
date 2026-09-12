@@ -91,23 +91,12 @@ final class KeysTests: XCTestCase {
         XCTAssertEqual(state.surface, .calendar)
     }
 
-    /// The Raw section shows the proof once and never none: inside inline
-    /// evidence, beside evidence that only points at it, bare with no
-    /// evidence; a set adds its manifest, laid out for reading.
-    func testTheRawSectionShowsTheProofOnceAndNeverNone() {
+    /// Raw is the signed proof and nothing else.
+    func testTheRawSectionIsTheProof() {
         let proof = try? JSONDecoder().decode(JSONValue.self, from: Data("{\"a\":1}".utf8))
-        let inline = RawBlock.make(proof: proof, committedB64: nil, evidenceRaw: "{\"file\":{},\"proof\":{\"kind\":\"inline\",\"proof\":{\"a\":1}}}")
-        XCTAssertEqual(inline.count, 1)
-        XCTAssertTrue(inline[0].label.hasSuffix("the signed proof"))
-        let beside = RawBlock.make(proof: proof, committedB64: nil, evidenceRaw: "{\"member\":{\"index\":676,\"count\":1130},\"proof\":{\"kind\":\"beside\",\"proof\":\"./proof.json\"}}")
-        XCTAssertEqual(beside.count, 2, "evidence that points at the proof is followed by the proof")
-        XCTAssertEqual(beside[1].label, "The signed proof, one for every file in this set")
-        XCTAssertEqual(beside[1].text, proof?.pretty)
-        let bare = RawBlock.make(proof: proof, committedB64: nil, evidenceRaw: nil)
-        XCTAssertEqual(bare.map(\.label), ["The signed proof"])
-        let set = RawBlock.make(proof: proof, committedB64: Data("{\"members\":[1,2]}".utf8).base64EncodedString(), evidenceRaw: nil)
-        XCTAssertEqual(set.count, 2)
-        XCTAssertTrue(set[1].text.contains("\n"), "the manifest is laid out, not one line")
+        let block = RawBlock.make(proof: proof)
+        XCTAssertEqual(block.label, "The signed proof")
+        XCTAssertEqual(block.text, proof?.pretty)
     }
 
     /// The Raw card's JSON reads like the files beside a recording: two
