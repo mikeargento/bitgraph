@@ -29,7 +29,9 @@
  * correct: the bytes changed, and a recording is of bytes.
  */
 
-import { copyFile, link, mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { copyFile, link, mkdir, readdir, stat } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { once } from "node:events";
 import { dirname, join } from "node:path";
 import type { BitGraphProof } from "@mikeargento/bitgraph-verify";
 import { writeBytesAtomic, writeJsonAtomic } from "./evidence.js";
@@ -69,8 +71,13 @@ export interface BundleInput {
   proof: BitGraphProof;
   /** The committed artifact, for a set. */
   manifestBytes?: Uint8Array | null;
-  /** Every member's row and inclusion path, for a set. */
-  membersJsonl?: string | null;
+  /**
+   * Every member's row and inclusion path, for a set: one JSON object per
+   * line of members.jsonl, written as they come. ⚠️ Rows, never one string:
+   * a hundred thousand rows with their paths joined into a single string
+   * was a hundred megabytes held at the same moment as everything else,
+   * and the core ran out of heap on exactly that drop (2026-09-12). */
+  memberRows?: Iterable<unknown> | null;
   /** What the drop was called: a file's name, or the folder it came from. */
   source: string;
   position: { epochId: string; counter: string };
@@ -118,9 +125,19 @@ export async function writeBundle(input: BundleInput): Promise<BundleResult> {
 
   await writeJsonAtomic(join(dir, "proof.json"), input.proof);
   if (input.manifestBytes != null) await writeBytesAtomic(join(dir, "manifest.json"), input.manifestBytes);
-  if (input.membersJsonl != null) await writeFile(join(dir, "members.jsonl"), input.membersJsonl);
+  if (input.memberRows != null) await writeLines(join(dir, "members.jsonl"), input.memberRows);
 
   return { path: dir, how, files: input.files.length, bytes };
+}
+
+/** One JSON object per line, streamed, with back-pressure honoured. */
+async function writeLines(path: string, rows: Iterable<unknown>): Promise<void> {
+  const out = createWriteStream(path, { encoding: "utf8" });
+  for (const row of rows) {
+    if (!out.write(JSON.stringify(row) + "\n")) await once(out, "drain");
+  }
+  out.end();
+  await once(out, "finish");
 }
 
 /** The day the ENCLAVE put it in, not this machine's idea of today. */

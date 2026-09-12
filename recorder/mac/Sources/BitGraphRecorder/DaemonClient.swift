@@ -45,7 +45,13 @@ final class DaemonClient: ObservableObject {
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: nodePath)
-        proc.arguments = [corePath, "daemon"]
+        /* ⚠️ A HEAP SIZED TO THE MACHINE. Node's default old-space limit is
+         * about 2 GB whatever the Mac has, and a 100,000-file set holds a
+         * row, a digest pair and an inclusion path per member on the way to
+         * one proof: the core died of it (V8 out of memory, 2026-09-12,
+         * Mike's 100k test drop). Half the machine's memory, never under 2
+         * GB nor over 8. */
+        proc.arguments = ["--max-old-space-size=\(Self.heapMB)", corePath, "daemon"]
 
         let inPipe = Pipe()
         let outPipe = Pipe()
@@ -87,6 +93,12 @@ final class DaemonClient: ObservableObject {
         process = proc
         stdinPipe = inPipe
         state = .running
+    }
+
+    /// Half of physical memory in MB, clamped to 2,048…8,192.
+    static var heapMB: Int {
+        let half = Int(ProcessInfo.processInfo.physicalMemory / (2 * 1_048_576))
+        return min(max(half, 2_048), 8_192)
     }
 
     func stop() {

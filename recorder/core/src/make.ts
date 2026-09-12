@@ -267,7 +267,7 @@ async function makeBundle(root: string, index: FolderIndex, files: readonly Scan
 
   let proof: BitGraphProof;
   let manifestBytes: Uint8Array | null = null;
-  let membersJsonl: string | null = null;
+  let memberRows: Iterable<unknown> | null = null;
   let recovered = false;
   let kind: "solo" | "set";
   let setKind: "set/1" | "set/2" | null = null;
@@ -315,12 +315,20 @@ async function makeBundle(root: string, index: FolderIndex, files: readonly Scan
     );
     proof = r.proof;
     manifestBytes = r.manifestBytes;
-    membersJsonl = r.members.map((m) => JSON.stringify({
-      name: files[m.index]!.name, rel: files[m.index]!.rel, bytes: files[m.index]!.bytes,
-      placement: m.placement, originDigestB64: m.originDigestB64, artifactDigestB64: m.artifactDigestB64,
-      manifestIndex: m.manifestIndex,
-      ...(m.memberProof !== undefined ? { memberProof: m.memberProof } : {}),
-    })).join("\n") + "\n";
+    /* Lazily, one row at a time as the bundle writes them (bundle.ts). */
+    const rows = r.members;
+    memberRows = {
+      *[Symbol.iterator]() {
+        for (const m of rows) {
+          yield {
+            name: files[m.index]!.name, rel: files[m.index]!.rel, bytes: files[m.index]!.bytes,
+            placement: m.placement, originDigestB64: m.originDigestB64, artifactDigestB64: m.artifactDigestB64,
+            manifestIndex: m.manifestIndex,
+            ...(m.memberProof !== undefined ? { memberProof: m.memberProof } : {}),
+          };
+        }
+      },
+    };
     recovered = r.recovered;
     kind = "set";
     setKind = r.set;
@@ -341,7 +349,7 @@ async function makeBundle(root: string, index: FolderIndex, files: readonly Scan
     files: files.map((f) => ({ path: f.path, rel: f.rel })),
     proof,
     manifestBytes,
-    membersJsonl,
+    memberRows,
     source,
     position,
   });
