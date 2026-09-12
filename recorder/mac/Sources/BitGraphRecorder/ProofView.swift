@@ -223,15 +223,24 @@ struct ProofView: View {
 
     // ── 2. what it is ───────────────────────────────────────────────────────
 
+    /// The grid is on show: a recording of several files with its row open.
+    /// The big preview and the grid take turns (Mike, 2026-09-11:
+    /// "reclicking files in this recording should fold back in big thumb"):
+    /// picking a file folds the grid and shows the file; reopening the row
+    /// folds the file and shows the grid.
+    private var gridShowing: Bool {
+        filesOpen && (page.described.members?.count ?? 0) > 1
+    }
+
     /// The file itself, then the rest of the recording it belongs to.
     private var subject: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if hasChosenFile {
+            if hasChosenFile && !gridShowing {
                 SubjectView(path: shownPath, name: evidence?.file.name ?? page.subject.name, bytes: evidence?.file.bytes ?? 0)
             }
 
             if let members = page.described.members, members.count > 1 {
-                if hasChosenFile { Rectangle().fill(G.border).frame(height: 1) }
+                if hasChosenFile && !gridShowing { Rectangle().fill(G.border).frame(height: 1) }
                 /* Was folded on Mike's word (2026-09-09: "sometimes theres a
                  * lot of files"); open from 2026-09-11, now that the preview
                  * sits last on the page. The row says how many. */
