@@ -114,6 +114,12 @@ struct MainWindow: View {
              * sits next to bitgraph and always opens the dropbox page"). */
             CreatePill(title: "New", height: 44, width: Self.newPillWidth) { state.showNew() }
                 .padding(.leading, 12)
+            /* Back, beside New, on any page that is not the list (Mike,
+             * 2026-09-11: "back can go up next to +new"). Tonal from the
+             * start, the colour it used to take on hover only. */
+            if state.surface != .calendar {
+                Pill(title: "Back", style: .tonal, icon: "arrow.left") { state.back() }
+            }
             Spacer()
             /* What is being worked on, when something is; then the ways to
              * a proof that are not a drop: search by name, the little month

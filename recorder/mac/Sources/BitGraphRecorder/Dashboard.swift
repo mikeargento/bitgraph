@@ -66,47 +66,59 @@ struct FooterBar: View {
     @ObservedObject var state: AppState
 
     var body: some View {
-        VStack(spacing: 0) {
-            /* No hairline: with everything on one baseline the bar holds by
-             * itself ("footer stroke can go now" — Mike, 2026-09-09). */
-            /* Three places on one line: the library at the left, the company
-             * at the right, and the two buttons dead centre whatever the
-             * other two measure ("now if these are in middle it might be
-             * fixed" — Mike, 2026-09-09). */
-            ZStack {
-                HStack(spacing: 16) {
-                    if let status = state.status, !status.folder.isEmpty {
-                        HStack(spacing: 6) {
-                            Text(FileManager.default.displayName(atPath: status.folder)).font(G.label).foregroundStyle(G.ink)
-                            Text("· \(FooterBar.summary(status))").font(G.small).foregroundStyle(G.secondary)
-                        }
-                        .lineLimit(1)
+        /* No hairline: with everything on one baseline the bar holds by
+         * itself ("footer stroke can go now" — Mike, 2026-09-09). */
+        /* Two places on one line: the library at the left, the company at
+         * the right. The two pills that sat between them went (Mike,
+         * 2026-09-11: "show in finder twice"): the library's name IS the way
+         * to the folder, and the rare act beside it is a plain link. The
+         * page's own Show in Finder reveals the recording, a different thing. */
+        HStack(spacing: 16) {
+            if let status = state.status, !status.folder.isEmpty {
+                HStack(spacing: 10) {
+                    LibraryLink(state: state, status: status)
+                    Button { state.findFolder() } label: {
+                        Text("Change…").font(G.small).foregroundStyle(G.blue)
                     }
-                    Spacer(minLength: 16)
-                    /* String(year): an interpolated Int is formatted with a thousands
-                     * separator, and "© 2,026" is not a year. */
-                    Text("© \(String(Calendar.current.component(.year, from: Date()))) Argento Computing Inc.")
-                        .font(G.small)
-                        .foregroundStyle(G.secondary)
-                        .lineLimit(1)
-                        .fixedSize()
+                    .buttonStyle(.plain)
+                    .help("Choose a different BitGraph folder")
                 }
-                if let status = state.status, !status.folder.isEmpty {
-                    /* ⚠️ Pinned to their natural size: squeezed, "Show in Finder"
-                     * broke onto two lines, which was "the buttons are off". */
-                    HStack(spacing: 8) {
-                        /* The BitGraph folder itself, not Recordings inside it ("shouldnt show in finder point to the bitgraph" — Mike, 2026-09-09). */
-                    Pill(title: "Show in Finder", style: .outlined, icon: "folder") { state.reveal(status.folder) }
-                            .fixedSize()
-                        Pill(title: "Change folder…", style: .outlined) { state.findFolder() }
-                            .fixedSize()
-                    }
-                }
+                .lineLimit(1)
             }
-            .padding(.horizontal, 20)
-            .frame(height: 60)
+            Spacer(minLength: 16)
+            /* String(year): an interpolated Int is formatted with a thousands
+             * separator, and "© 2,026" is not a year. */
+            Text("© \(String(Calendar.current.component(.year, from: Date()))) Argento Computing Inc.")
+                .font(G.small)
+                .foregroundStyle(G.secondary)
+                .lineLimit(1)
+                .fixedSize()
         }
+        .padding(.horizontal, 20)
+        .frame(height: 60)
         .background(G.ground)
+    }
+
+    /// The library's name and what it holds; a click reveals the BitGraph
+    /// folder itself, not Recordings inside it ("shouldnt show in finder
+    /// point to the bitgraph" — Mike, 2026-09-09).
+    private struct LibraryLink: View {
+        @ObservedObject var state: AppState
+        let status: Status
+        @State private var hovering = false
+
+        var body: some View {
+            Button { state.reveal(status.folder) } label: {
+                HStack(spacing: 6) {
+                    Text(FileManager.default.displayName(atPath: status.folder)).font(G.label).foregroundStyle(hovering ? G.blue : G.ink)
+                    Text("· \(FooterBar.summary(status))").font(G.small).foregroundStyle(G.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            .help("Show the BitGraph folder in Finder")
+        }
     }
 
     /// Recordings are counted where they are. Files are the index's number,

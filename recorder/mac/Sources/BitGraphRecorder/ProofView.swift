@@ -98,43 +98,23 @@ struct ProofView: View {
 
     // ── the page bar ────────────────────────────────────────────────────────
 
-    /// Back and the two things to do with it on one line; the name on its
-    /// own line beneath, with the whole width, the way Calendar's event view
-    /// puts its actions above its title. Mike, 2026-09-09: "find a better
-    /// placing" — a name beside two pills was squeezed and cut in the middle.
-    /* Air, the way Calendar's event view has it: 20 between the actions and
-     * the name, and the name stands clear of the first card ("isnt it
-     * crammed?????" — Mike, 2026-09-09, at 8 and 6). */
+    /// The name, on its own line with the whole width. The bar that stood
+    /// above it went (Mike, 2026-09-11: "export bitgraph can go in this
+    /// pill. back can go up next to +new"): Back is in the header beside
+    /// New, and the two acts sit in the verdict card.
     private var pageBar: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 12) {
-                /* Tonal from the start, the colour it used to take on hover only. */
-                Pill(title: "Back", style: .tonal, icon: "arrow.left") { state.back() }
-                Spacer(minLength: 16)
-                /* ❌ No Open pill here. One stood before Show in Finder for
-                 * 0.1.5 (2026-09-10) and Mike cut it the same hour: "only
-                 * the small hover open button is needed. remove the big
-                 * one." The card opens on click and says so under the
-                 * pointer (Subject.swift); the bar keeps to Finder + Export. */
-                Pill(title: "Show in Finder", style: .outlined, icon: "folder", enabled: !shownPath.isEmpty) { state.revealFile(revealPath) }
-                    .fixedSize()
-                Pill(title: state.exporting ? "Writing…" : "Export BitGraph", style: .filled, icon: "square.and.arrow.up", enabled: !state.exporting) {
-                    state.exportBitGraph(page.subject)
-                }
-                .fixedSize()
-            }
-            /* The card-title size, not the page-title size: a file name is a
-             * label, and at 22pt it out-shouted the record it names (Mike,
-             * 2026-09-09: "i think the file name should be smaller"). Smaller
-             * also shows more of a long name before the cut. */
-            Text(pageTitle)
-                .font(G.cardTitle)
-                .foregroundStyle(G.ink)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .padding(.leading, 4)
-        }
-        .padding(.bottom, 12)
+        /* The card-title size, not the page-title size: a file name is a
+         * label, and at 22pt it out-shouted the record it names (Mike,
+         * 2026-09-09: "i think the file name should be smaller"). Smaller
+         * also shows more of a long name before the cut. */
+        Text(pageTitle)
+            .font(G.cardTitle)
+            .foregroundStyle(G.ink)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .padding(.leading, 4)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
     }
 
     // ── 1. is it good, and when ─────────────────────────────────────────────
@@ -145,10 +125,23 @@ struct ProofView: View {
          * that other stuff is found in the details section so it can just be
          * date and time and lose the little icon" (Mike, 2026-09-09). */
         return VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(s.headline).font(G.cardTitle).foregroundStyle(s.color)
-                Text(s.line).font(G.body).foregroundStyle(G.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(s.headline).font(G.cardTitle).foregroundStyle(s.color)
+                    Text(s.line).font(G.body).foregroundStyle(G.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 16)
+                /* The two things to do with it, on the verdict: reveal the
+                 * file, or write the package. ❌ No Open pill: "only the
+                 * small hover open button is needed" (Mike, 2026-09-10); the
+                 * card opens on click and says so under the pointer. */
+                Pill(title: "Show in Finder", style: .outlined, icon: "folder", enabled: !shownPath.isEmpty) { state.revealFile(revealPath) }
+                    .fixedSize()
+                Pill(title: state.exporting ? "Writing…" : "Export", style: .filled, icon: "square.and.arrow.up", enabled: !state.exporting) {
+                    state.exportBitGraph(page.subject)
+                }
+                .fixedSize()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)

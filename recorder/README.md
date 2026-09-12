@@ -66,8 +66,9 @@ checksum installs nothing.
 
 First run asks one thing: what to call your BitGraph folder, and where it
 lives. An existing folder is continued, never replaced. Move or rename it
-later and the app says so and asks where it went; **Change…** under the folder
-name does the same on purpose. Pointing at a folder that has Recordings in it
+later and the app says so and asks where it went; **Change…** beside the folder
+name at the foot of the window does the same on purpose, and the name itself
+reveals the folder. Pointing at a folder that has Recordings in it
 carries on with everything in it.
 
 ## The gesture
