@@ -75,9 +75,15 @@ struct ProofView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     pageBar
                     status
-                    subject
+                    /* The two detail rows ahead of the preview: what opens
+                     * from them opens down, between the verdict and the
+                     * image, not under a picture that has to be scrolled
+                     * past (Mike, 2026-09-11: "what if these buttons were
+                     * more intuitively on TOP of the content that loads,
+                     * and it expands down from top"). */
                     record
                     details
+                    subject
                 }
                 /* 880, not the list's 800: room for the verdict's date line
                  * beside two acts of one width ("if you need to bump entire

@@ -58,14 +58,25 @@ struct RawBlock: Identifiable {
     }
 
     static func make(proof: JSONValue?, committedB64: String?, evidenceRaw: String?) -> [RawBlock] {
-        var out = [RawBlock(label: "The signed proof", text: proof?.pretty ?? "{}")]
+        /* ⚠️ ONE COPY OF THE PROOF. The evidence written beside a file carries
+         * the signed proof inside it, verbatim, so showing the proof and then
+         * the evidence showed the proof twice (Mike, 2026-09-11: "on the
+         * website, this raw data was just the json proof, why is it different
+         * here?"). When there is an evidence file it is the one block, and
+         * its label says the proof is in it; a recording opened from its own
+         * proof.json has no wrapper and shows the proof bare. Nothing is cut. */
+        var out: [RawBlock]
+        if let raw = evidenceRaw {
+            out = [RawBlock(label: "This file's evidence, with the signed proof inside it", text: raw)]
+        } else {
+            out = [RawBlock(label: "The signed proof", text: proof?.pretty ?? "{}")]
+        }
         /* A set proof commits to a manifest or a Merkle root; the signed proof
          * alone leaves out the artifact it hashes to and this file's own
          * inclusion path. */
         if let b64 = committedB64, let data = Data(base64Encoded: b64), let text = String(data: data, encoding: .utf8) {
             out.append(RawBlock(label: "The committed artifact, whose hash is the proof's", text: text))
         }
-        if let raw = evidenceRaw { out.append(RawBlock(label: "This file's own evidence", text: raw)) }
         return out
     }
 }

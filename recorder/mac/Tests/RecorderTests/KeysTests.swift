@@ -91,6 +91,18 @@ final class KeysTests: XCTestCase {
         XCTAssertEqual(state.surface, .calendar)
     }
 
+    /// The Raw section shows the proof once: inside the evidence file when
+    /// there is one, bare when there is not; a set adds its manifest.
+    func testTheRawSectionShowsTheProofOnce() {
+        let proof = try? JSONDecoder().decode(JSONValue.self, from: Data("{\"a\":1}".utf8))
+        let withEvidence = RawBlock.make(proof: proof, committedB64: nil, evidenceRaw: "{\"file\":{},\"proof\":{\"a\":1}}")
+        XCTAssertEqual(withEvidence.map(\.label), ["This file's evidence, with the signed proof inside it"])
+        let bare = RawBlock.make(proof: proof, committedB64: nil, evidenceRaw: nil)
+        XCTAssertEqual(bare.map(\.label), ["The signed proof"])
+        let set = RawBlock.make(proof: proof, committedB64: Data("{}".utf8).base64EncodedString(), evidenceRaw: nil)
+        XCTAssertEqual(set.count, 2)
+    }
+
     // ── the list, by month ──────────────────────────────────────────────────
 
     /// The spine grouped under month names, newest first, and ← → jumping
