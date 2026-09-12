@@ -52,6 +52,22 @@ final class AppState: ObservableObject {
     /// A batch that is listed and waiting to be named and made.
     @Published var pendingBatch: LookResult?
 
+    // ── search ──────────────────────────────────────────────────────────────
+    /// What the sidebar's field says. Empty is no search: the month's days.
+    @Published var query: String = "" {
+        didSet { if query != oldValue { scheduleSearch() } }
+    }
+    /// What the query found, once the core has answered. nil until it has.
+    @Published private(set) var found: SearchResult?
+    /// Set to put the caret in the search field (⌘F); the field clears it.
+    @Published var focusSearch = false
+    private var searchTask: Task<Void, Never>?
+    /// True while there is a query to answer.
+    var searching: Bool { !trimmedQuery.isEmpty }
+    var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+    /// True while an update is being fetched and checked.
+    @Published var installing = false
+
     // ── the window ──────────────────────────────────────────────────────────
     @Published var surface: Surface = .box
     @Published var proofPage: ProofPage? {
@@ -104,7 +120,7 @@ final class AppState: ObservableObject {
 
     var client: DaemonClient!
     private var statusTimer: Timer?
-    private let live: Bool
+    let live: Bool
 
     init() {
         live = true
@@ -262,6 +278,65 @@ final class AppState: ObservableObject {
         selectDay(Self.today())
     }
 
+    /// The field's text changed: ask the core, after a moment's pause so a
+    /// word typed at speed is one question, not six.
+    private func scheduleSearch() {
+        searchTask?.cancel()
+        let q = trimmedQuery
+        guard !q.isEmpty else { found = nil; return }
+        searchTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            await self?.runSearch(q)
+        }
+    }
+
+    /// One question to the core. An answer to a question no longer asked is
+    /// dropped: the field has moved on.
+    func runSearch(_ q: String) async {
+        guard live, case .running = coreState else { return }
+        if let result = try? await client.send("search", ["query": q], as: SearchResult.self), result.query == trimmedQuery {
+            found = result
+        }
+    }
+
+    func clearSearch() {
+        query = ""
+    }
+
+    /// A day out of a search: the search is put away and the day is opened
+    /// in its month, the way the mini month would.
+    func leaveSearch(for day: String) {
+        query = ""
+        section = .calendar
+        selectDay(day)
+        expand(day)
+    }
+
+    /// A dialog is up: the keys that move the calendar are not taken.
+    var dialogUp: Bool {
+        !isSetUp || settingUpAgain || status?.folderMissing == true || status?.folderBlocked == true || pendingBatch != nil || oneOff != nil
+    }
+
+    /// Escape, wherever it lands: the topmost thing that can be put away
+    /// goes, and nothing else moves. True when something went.
+    @discardableResult
+    func escape() -> Bool {
+        if createMenu { createMenu = false; return true }
+        if pendingBatch != nil {
+            /* A batch being made is not cancelled by a key; the dialog's own
+             * Cancel is disabled for the same reason. */
+            if !dropping { cancelPendingDrop() }
+            return true
+        }
+        if oneOff != nil { dismissOneOff(); return true }
+        if settingUpAgain { settingUpAgain = false; return true }
+        if toast != nil { dismissToast(); return true }
+        if searching { clearSearch(); return true }
+        if case .proof = surface { back(); return true }
+        return false
+    }
+
     func stepMonth(_ n: Int) {
         month = Calendar.current.date(byAdding: .month, value: n, to: month) ?? month
     }
@@ -295,6 +370,9 @@ final class AppState: ObservableObject {
     func refresh() async {
         guard case .running = coreState else { return }
         await loadLedger()
+        /* A search stays true to the library: a recording that just landed
+         * and matches shows up without the field being touched. */
+        if searching { await runSearch(trimmedQuery) }
         do {
             status = try await client.send("status", as: Status.self)
         } catch {
@@ -380,6 +458,13 @@ final class AppState: ObservableObject {
     func setDroppingForTesting(_ on: Bool, progress: MakeProgress?) {
         dropping = on
         dropProgress = progress
+    }
+
+    /// A search and its answer, placed by hand: the preview harness has no
+    /// core to ask.
+    func setSearchForTesting(query: String, found: SearchResult?) {
+        self.query = query
+        self.found = found
     }
 
     /// What this folder has to say. A trouble belongs to a folder or to
@@ -511,6 +596,10 @@ final class AppState: ObservableObject {
              * (Mike, 2026-09-10: "a bit crowded yes?"). */
             let place = (root == status?.library || root == status?.folder) ? "" : "\(name(root)): "
             activity = "\(place)\(pass.landed) anchor\(pass.landed == 1 ? "" : "s") arrived."
+            /* The one moment the app has news nobody asked for: said with a
+             * notification when the window is not the thing being looked at.
+             * Not while the app is active, where the snackbar already says it. */
+            notifyAnchors(pass)
             /* The calendar's dots and an open page both show what just landed. */
             Task { await refresh(); await reloadProofPage() }
         case .anchors:
@@ -549,7 +638,7 @@ final class AppState: ObservableObject {
         update = check
         guard check.available, check.latest != offeredVersion else { return }
         offeredVersion = check.latest
-        say("BitGraph Recorder \(check.latest) is available.", action: ("Download", { AppState.open(check.url) }))
+        say("BitGraph Recorder \(check.latest) is available.", action: ("Install", { [weak self] in self?.install(check) }))
     }
     private var offeredVersion = ""
 

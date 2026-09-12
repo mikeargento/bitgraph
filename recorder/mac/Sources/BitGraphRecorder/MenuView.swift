@@ -114,9 +114,9 @@ struct MenuView: View {
              * (Mike, 2026-09-09): the window has the actions. */
             Pill(title: "Open BitGraph", style: .filled, icon: "macwindow") { state.openBox() }
             /* The version, always; and the newer one, when the feed has one,
-             * with the one act that belongs to it. The app is told, it does
-             * not install: the link is the notarized DMG, checked by
-             * Gatekeeper like any download. */
+             * with the one act that belongs to it: the package is fetched,
+             * checked against the feed's checksum and handed to macOS
+             * Installer, which is what runs it (Install.swift). */
             HStack(spacing: 8) {
                 Text("Version \(AppState.version)")
                     .font(Style.small)
@@ -126,7 +126,7 @@ struct MenuView: View {
                         .font(Style.small)
                         .foregroundStyle(Style.ink)
                     Spacer()
-                    Pill(title: "Download", style: .text) { AppState.open(u.url) }
+                    Pill(title: state.installing ? "Checking…" : "Install", style: .text, enabled: !state.installing) { state.install(u) }
                 } else {
                     Spacer()
                 }

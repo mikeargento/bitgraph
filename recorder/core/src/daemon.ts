@@ -40,7 +40,7 @@ import { loadSettings, saveSettings, suggestedFolder, MAX_RECORDED, type Setting
 import { FOLDER_NAME, recordingsIn } from "./bundle.js";
 import { watchFolder, type FolderWatcher, type WatchEvent } from "./watch.js";
 import { supportDir } from "./app-paths.js";
-import { ledger, listDay, type DayCount, type Recording } from "./library.js";
+import { ledger, listDay, search, type DayCount, type Recording } from "./library.js";
 
 export interface DaemonEvent {
   event: WatchEvent | { kind: "anchors"; root: string; pass: AnchorPass } | { kind: "settings"; settings: Settings } | { kind: "ready"; supportDir: string }
@@ -67,6 +67,8 @@ interface Request {
   paused?: boolean;
   /** `recordings`: the day to drill out, `2026-09-09`. */
   day?: string;
+  /** `search`: what a recording's name should contain. */
+  query?: string;
   /** `update`: the app's own version, `0.1.0`. */
   current?: string;
 }
@@ -198,6 +200,8 @@ export class Daemon {
         return this.ledger();
       case "recordings":
         return this.recordings(typeof req.day === "string" ? req.day : "");
+      case "search":
+        return this.search(typeof req.query === "string" ? req.query : "");
       case "setup":
         return this.setup(typeof req.at === "string" ? req.at : "", typeof req.name === "string" ? req.name : "");
       case "watch":
@@ -295,14 +299,26 @@ export class Daemon {
   private async recordings(day: string): Promise<{ day: string; recordings: Recording[] }> {
     if (day === "") throw new Error("recordings needs a day, 2026-09-09");
     if (this.settings.library === "") return { day, recordings: [] };
-    /* Only the index remembers which folder a recording came from, and it is
-     * a convenience: a recording with no row is listed, from nowhere. */
+    return { day, recordings: await listDay(this.settings.library, day, await this.sources()) };
+  }
+
+  /** Recordings found by name, across every day. */
+  private async search(query: string): Promise<{ query: string; recordings: Recording[]; truncated: boolean }> {
+    if (this.settings.library === "") return { query, recordings: [], truncated: false };
+    return search(this.settings.library, query, await this.sources());
+  }
+
+  /**
+   * Which folder each recording came from. Only the index remembers, and it
+   * is a convenience: a recording with no row is listed, from nowhere.
+   */
+  private async sources(): Promise<Map<string, string>> {
     const sources = new Map<string, string>();
     const index = await FolderIndex.open(join(this.settings.library, INDEX_FILE)).catch(() => null);
     for (const row of index?.rows ?? []) {
       if (row.bundle !== undefined && row.from !== undefined && !sources.has(row.bundle)) sources.set(row.bundle, row.from);
     }
-    return { day, recordings: await listDay(this.settings.library, day, sources) };
+    return sources;
   }
 
   // ── folders ─────────────────────────────────────────────────────────────

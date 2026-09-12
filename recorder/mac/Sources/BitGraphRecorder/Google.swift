@@ -372,6 +372,67 @@ struct DialogRow<Content: View>: View {
     }
 }
 
+// ── search ────────────────────────────────────────────────────────────────
+
+/// Calendar's search: a rounded field with a glass in it, on the sidebar
+/// under the mini month, where the space was empty. Typing into it turns the
+/// month's days into what was found; clearing it turns them back.
+struct SearchField: View {
+    let placeholder: String
+    @Binding var text: String
+    /// Set by ⌘F to take the caret; cleared once it has.
+    @Binding var focus: Bool
+    @FocusState private var focused: Bool
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(G.secondary)
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .font(G.body)
+                .foregroundStyle(G.ink)
+                .focused($focused)
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(G.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Clear")
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 36)
+        .background(RoundedRectangle(cornerRadius: G.fieldRadius).fill(focused || hovering ? Color.white : G.zone))
+        .overlay(RoundedRectangle(cornerRadius: G.fieldRadius).strokeBorder(focused ? G.blue : G.border, lineWidth: 1))
+        .onHover { hovering = $0 }
+        .onChange(of: focus) { _, wanted in
+            if wanted { focused = true; focus = false }
+        }
+    }
+}
+
+/// What the two marks on a recording's row mean. Two lines, at the foot of
+/// the sidebar, so the ring is not a mystery on its first appearance.
+struct AnchorLegend: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 10) {
+                Circle().fill(G.blue).frame(width: 9, height: 9)
+                Text("Anchored").font(G.small).foregroundStyle(G.secondary)
+            }
+            HStack(spacing: 10) {
+                Circle().strokeBorder(G.blue, lineWidth: 1.5).frame(width: 9, height: 9)
+                Text("Waiting on anchors").font(G.small).foregroundStyle(G.secondary)
+            }
+        }
+    }
+}
+
 // ── the mini month ─────────────────────────────────────────────────────────
 
 /// Google Calendar's little month: the name and two chevrons, S M T W T F S,

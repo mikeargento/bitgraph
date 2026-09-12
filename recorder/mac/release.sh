@@ -135,8 +135,9 @@ say "$pkg  ($(du -h "$pkg" | cut -f1))"
 
 # ── 6. the update feed, from the artifact just checked ──────────────────────
 # The app reads website/public/recorder/latest.json (served at
-# bitgraph.ing/recorder/latest.json) and is TOLD a newer version exists; it
-# never installs one. Version, URL and checksum come from THIS run, so the feed
+# bitgraph.ing/recorder/latest.json), is TOLD a newer version exists, and on
+# Install fetches the package, matches it to the sha256 here, and opens it in
+# macOS Installer. Version, URL and checksum come from THIS run, so the feed
 # cannot name a build that was not checked. ⚠️ The site commits and pushes it;
 # the release is not announced until that push. And the GitHub Release must
 # exist first, since the URL below is its permanent latest-asset address.

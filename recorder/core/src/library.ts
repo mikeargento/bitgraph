@@ -98,19 +98,81 @@ export async function listDay(library: string, day: string, sources?: Map<string
     return [];
   }
   const recordings: Recording[] = [];
-  for (const name of names) {
-    const path = join(library, day, name);
-    const [files, when, waiting] = await Promise.all([
-      countFiles(path),
-      stat(join(path, "proof.json")).catch(() => stat(path)).then((s) => s.mtime.toISOString()).catch(() => ""),
-      stat(join(path, "anchors-status.json")).then(() => true).catch(() => false),
-    ]);
-    const from = sources?.get(`${day}/${name}`);
-    recordings.push({ path, name, day, files, writtenAt: when, waitingOnAnchors: waiting, ...(from !== undefined ? { from } : {}) });
-  }
+  for (const name of names) recordings.push(await describe(library, day, name, sources));
   /* In the order they were made, the way a day reads. */
   recordings.sort((a, b) => a.writtenAt.localeCompare(b.writtenAt) || a.name.localeCompare(b.name));
   return recordings;
+}
+
+/** One recording folder, read: its files counted, its proof's time, its anchors' state. */
+async function describe(library: string, day: string, name: string, sources?: Map<string, string>): Promise<Recording> {
+  const path = join(library, day, name);
+  const [files, when, waiting] = await Promise.all([
+    countFiles(path),
+    stat(join(path, "proof.json")).catch(() => stat(path)).then((s) => s.mtime.toISOString()).catch(() => ""),
+    stat(join(path, "anchors-status.json")).then(() => true).catch(() => false),
+  ]);
+  const from = sources?.get(`${day}/${name}`);
+  return { path, name, day, files, writtenAt: when, waitingOnAnchors: waiting, ...(from !== undefined ? { from } : {}) };
+}
+
+/** The most a search answers with. Past it, the answer says it stopped. */
+export const SEARCH_LIMIT = 200;
+
+/**
+ * Every recording whose name, or whose day, contains `query`, newest day
+ * first. The same directory walk as the spine, with names compared as they
+ * are read; only the matches are opened, so a library of thousands answers a
+ * search in one pass of readdirs.
+ *
+ * ⚠️ NAMES, NOT CONTENTS. A recording is found by what it is called, which
+ * is the file's name or the name the person gave the batch. Nothing inside a
+ * recording is read to match it.
+ */
+export async function search(
+  library: string,
+  query: string,
+  sources?: Map<string, string>,
+  limit = SEARCH_LIMIT,
+): Promise<{ query: string; recordings: Recording[]; truncated: boolean }> {
+  const q = query.trim().toLocaleLowerCase();
+  if (q === "") return { query, recordings: [], truncated: false };
+  let dayNames: string[];
+  try {
+    dayNames = (await readdir(library, { withFileTypes: true }))
+      .filter((e) => e.isDirectory() && DAY.test(e.name))
+      .map((e) => e.name)
+      .sort()
+      .reverse();
+  } catch {
+    return { query, recordings: [], truncated: false };
+  }
+  const recordings: Recording[] = [];
+  let truncated = false;
+  for (const day of dayNames) {
+    let names: string[];
+    try {
+      names = (await readdir(join(library, day), { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name);
+    } catch {
+      continue;
+    }
+    const dayMatches = day.includes(q);
+    const hits = names.filter((name) => dayMatches || name.toLocaleLowerCase().includes(q)).sort();
+    const found: Recording[] = [];
+    for (const name of hits) {
+      if (recordings.length + found.length >= limit) {
+        truncated = true;
+        break;
+      }
+      found.push(await describe(library, day, name, sources));
+    }
+    /* Within a day, newest first: the opposite of a day drilled out, because
+     * a search is read from the top and the top should be the latest. */
+    found.sort((a, b) => b.writtenAt.localeCompare(a.writtenAt) || a.name.localeCompare(b.name));
+    recordings.push(...found);
+    if (truncated) break;
+  }
+  return { query, recordings, truncated };
 }
 
 /** The person's own files inside a recording, at any depth. */

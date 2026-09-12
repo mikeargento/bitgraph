@@ -84,8 +84,8 @@ struct MainWindow: View {
         Color.black.opacity(0.25).ignoresSafeArea()
     }
 
-    /// Calendar's header: the name, then Today, the two chevrons and the
-    /// month. The two chips are the sections.
+    /// Calendar's header: the name at the left, the month cluster over the
+    /// day list, the two section chips at the right.
     private var header: some View {
         /* ⚠️ THE WORDMARK NEVER MOVES. Mike, 2026-09-09: "'BitGraph Recorder'
          * logo is in weird spot". Back lives on the page, not up here. */
@@ -103,21 +103,6 @@ struct MainWindow: View {
             Text("BitGraph").fontWeight(.bold)
                 .font(Font.system(size: 22))
                 .foregroundStyle(G.ink)
-            if !isPage && state.section == .calendar {
-                /* The arrows, the month, then Today: the month leads and
-                 * Today is the action after it ("the today button should be
-                 * to the right of that stuff" — Mike, 2026-09-09). */
-                HStack(spacing: 0) {
-                    IconButton("chevron.left") { state.stepMonth(-1) }
-                    IconButton("chevron.right") { state.stepMonth(1) }
-                }
-                .padding(.leading, 12)
-                Text(monthTitle)
-                    .font(Font.system(size: 22, weight: .regular))
-                    .foregroundStyle(G.ink)
-                Pill(title: "Today", style: .outlined) { state.goToday() }
-                    .padding(.leading, 8)
-            }
             Spacer()
             /* The section switch sits at the right, where Calendar keeps its
              * view switch: "it feels like these should be upper right" (Mike,
@@ -133,6 +118,44 @@ struct MainWindow: View {
         }
         .padding(.horizontal, 20)
         .frame(height: 64)
+        /* The month cluster stands over the day list it drives, not beside
+         * the wordmark (Mike, 2026-09-11: "should this move over?"). Its left
+         * edge is the list column's, computed the way CalendarPane lays the
+         * column out: sidebar, the pane's inset, then the centred 760. */
+        .overlay(alignment: .leading) {
+            if !isPage && state.section == .calendar {
+                GeometryReader { geo in
+                    monthCluster
+                        .padding(.leading, Self.listColumnLeading(in: geo.size.width))
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    /// The arrows, the month, then Today: the month leads and Today is the
+    /// action after it ("the today button should be to the right of that
+    /// stuff" — Mike, 2026-09-09).
+    private var monthCluster: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 0) {
+                IconButton("chevron.left") { state.stepMonth(-1) }
+                IconButton("chevron.right") { state.stepMonth(1) }
+            }
+            Text(monthTitle)
+                .font(Font.system(size: 22, weight: .regular))
+                .foregroundStyle(G.ink)
+            Pill(title: "Today", style: .outlined) { state.goToday() }
+                .padding(.leading, 8)
+        }
+    }
+
+    /// Where the day list's column begins, for a window this wide. ⚠️ Mirrors
+    /// CalendarPane: 256 sidebar, 32 inset, a 760 column centred in the rest.
+    static func listColumnLeading(in width: CGFloat) -> CGFloat {
+        let sidebar: CGFloat = 256, inset: CGFloat = 32, column: CGFloat = 760
+        let room = width - sidebar - inset * 2
+        return sidebar + inset + max(0, (room - column) / 2)
     }
 
     private var monthTitle: String {

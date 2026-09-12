@@ -42,8 +42,26 @@ recorded and checked: drag files or a folder onto it, or choose them. **Calendar
 the library: the month's days, each a row saying how many recordings it holds,
 and a day opens to its recordings. The little month on the left has a dot on
 every day that holds something; click one and the list goes there. A recording
-opens to its proof, read off the disk. The menu bar item is the same thing in
-short: what the library holds, what needs saying, and the way into the window.
+opens to its proof, read off the disk. Under the little month, **search**
+finds recordings by name across every day; a day's name in the results is the
+way back to it in the month. A filled dot on a recording means its Ethereum
+anchors are in; a ring means they are still on the way, and they arrive by
+themselves. When they do while the window is not in front, a notification
+says so, and that is the only thing the app ever announces on its own. The
+menu bar item is the same thing in short: what the library holds, what needs
+saying, and the way into the window.
+
+The keys: **⌘N** record, **⇧⌘K** check a folder, **⌘1** / **⌘2** the two
+sections, **←** **→** (or ⌘←, ⌘→) the month before or after, **T** (or ⌘T)
+today, **⌘F** search, **Esc** puts away whatever is up. The plain keys are
+Calendar's own and only work while nothing is being typed.
+
+An update is offered when the feed at `bitgraph.ing/recorder/latest.json`
+names a newer version. **Install** downloads the package, checks it against
+the checksum the feed carries, and opens it in macOS Installer, which is the
+thing that runs it, behind Gatekeeper's check of the signature and
+notarization. A download that does not match is thrown away; a feed with no
+checksum installs nothing.
 
 First run asks one thing: what to call your BitGraph folder, and where it
 lives. An existing folder is continued, never replaced. Move or rename it
@@ -133,6 +151,8 @@ Only the window is Mac-only.
 
 It parses no untrusted input, renders no HTML, executes nothing it downloads
 and loads no plugins. It reads bytes to hash them and speaks HTTPS to one host.
+The one thing it downloads is its own update, which it hashes, matches to the
+feed, and hands to macOS Installer rather than running.
 
 The pipeline is not reimplemented here: `fuse()`, `fuseSet()`, the placements,
 the canonical set manifest and the verifier are `@mikeargento/bitgraph` and

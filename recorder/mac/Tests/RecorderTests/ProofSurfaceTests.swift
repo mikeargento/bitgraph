@@ -110,6 +110,14 @@ final class ProofSurfaceTests: XCTestCase {
         try shoot(MainWindow(state: dash), name: "window", size: CGSize(width: 1180, height: 780), into: out)
         dash.section = .calendar
         try shoot(MainWindow(state: dash), name: "window-calendar", size: CGSize(width: 1180, height: 780), into: out)
+        /* A search, answered: the month's days make way for what was found. */
+        dash.setSearchForTesting(query: "photos", found: SearchResult(query: "photos", recordings: [
+            Recording(path: "/l/2026-09-09/BitGraph (Photos 2026, 412 files)", name: "BitGraph (Photos 2026, 412 files)", day: "2026-09-09", files: 412, writtenAt: "2026-09-09T15:48:02.000Z", waitingOnAnchors: true, from: photos),
+            Recording(path: "/l/2026-09-03/BitGraph (Photos, Preston wedding)", name: "BitGraph (Photos, Preston wedding)", day: "2026-09-03", files: 1_206, writtenAt: "2026-09-03T22:10:40.000Z", waitingOnAnchors: false, from: photos),
+            Recording(path: "/l/2026-08-28/BitGraph (photos-proofs.pdf)", name: "BitGraph (photos-proofs.pdf)", day: "2026-08-28", files: 1, writtenAt: "2026-08-28T09:02:00.000Z", waitingOnAnchors: false, from: nil),
+        ], truncated: false))
+        try shoot(MainWindow(state: dash), name: "window-search", size: CGSize(width: 1180, height: 780), into: out)
+        dash.setSearchForTesting(query: "", found: nil)
         dash.createMenu = true
         try shoot(MainWindow(state: dash), name: "window-menu", size: CGSize(width: 1180, height: 780), into: out)
         dash.createMenu = false

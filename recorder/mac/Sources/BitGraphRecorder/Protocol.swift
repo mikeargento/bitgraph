@@ -236,6 +236,14 @@ struct LedgerSpine: Decodable, Equatable {
 }
 
 /// One day drilled out.
+/// What a search found: the query it answers, the recordings whose names
+/// hold it, newest first, and whether the core stopped at its limit.
+struct SearchResult: Decodable, Equatable {
+    var query: String
+    var recordings: [Recording]
+    var truncated: Bool
+}
+
 struct DayRecordings: Decodable, Equatable {
     var day: String
     var recordings: [Recording]

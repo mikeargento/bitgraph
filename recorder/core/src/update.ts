@@ -1,15 +1,17 @@
 // Copyright (c) Mike Argento. All rights reserved. See LICENSE.
 
 /**
- * The update channel: the app is TOLD, it does not install.
+ * The update channel: the app is TOLD, and it runs nothing itself.
  *
  * ⚠️ THE RECORDER EXECUTES NOTHING IT DOWNLOADS (README, "What this is not"),
  * and a self-replacing updater is exactly a thing that downloads and runs. So
- * this reads one small JSON feed on the same host it already speaks to, says
- * whether a newer version exists, and hands over the URL of the notarized DMG.
- * Opening that URL is the person's act, and Gatekeeper checks the download the
- * way it checks any other. The feed is written by mac/release.sh from the
- * release it just checked, so version, URL and checksum come from one place.
+ * this reads one small JSON feed on the same host it already speaks to and
+ * says whether a newer version exists, with the URL and checksum of the
+ * notarized package. The app (mac/Install.swift) fetches the package, throws
+ * it away unless its SHA-256 is the feed's, and opens the one that matches in
+ * macOS Installer: Installer runs it, behind Gatekeeper's own check. The feed
+ * is written by mac/release.sh from the release it just checked, so version,
+ * URL and checksum come from one place.
  */
 
 export const DEFAULT_UPDATE_FEED = "https://bitgraph.ing/recorder/latest.json";

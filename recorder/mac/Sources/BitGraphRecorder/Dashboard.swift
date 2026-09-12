@@ -71,10 +71,22 @@ struct Sidebar: View {
                 .padding(.trailing, 16)
                 .overlay(alignment: .trailing) { Rectangle().fill(G.border).frame(width: 1) }
                 Spacer().frame(height: 26)
+
+                /* Under the month, where the sidebar was empty: the search,
+                 * and at the foot what the two marks mean (Mike, 2026-09-11:
+                 * "do them all"). */
+                SearchField(placeholder: "Search recordings", text: $state.query, focus: $state.focusSearch)
+                    .padding(.leading, 16)
+                    .padding(.trailing, 16)
             }
 
             Spacer()
 
+            if state.section == .calendar {
+                AnchorLegend()
+                    .padding(.leading, 16)
+                    .padding(.bottom, 18)
+            }
         }
         .padding(.horizontal, 8)
         .background(G.ground)
@@ -323,7 +335,11 @@ struct CalendarPane: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     let days = state.days(in: state.month)
-                    if state.spine == nil {
+                    if state.searching {
+                        /* The field has something in it: the month's days
+                         * make way for what was found, until it is cleared. */
+                        SearchResults(state: state)
+                    } else if state.spine == nil {
                         Text("Reading the library…").font(G.body).foregroundStyle(G.secondary)
                     } else if days.isEmpty {
                         Text("Nothing recorded in \(monthTitle).").font(G.body).foregroundStyle(G.secondary)
@@ -352,6 +368,88 @@ struct CalendarPane: View {
 
     private var monthTitle: String {
         let f = DateFormatter(); f.dateFormat = "MMMM yyyy"; return f.string(from: state.month)
+    }
+}
+
+/// What a search found, newest first, under the day each was made: a day's
+/// name is a way back to it in the month.
+private struct SearchResults: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        let q = state.trimmedQuery
+        if let found = state.found, found.query == q {
+            Text(headline(found))
+                .font(G.small).foregroundStyle(G.secondary)
+                .padding(.horizontal, 10)
+                .padding(.bottom, 6)
+            ForEach(groups(found.recordings), id: \.day) { group in
+                VStack(alignment: .leading, spacing: 2) {
+                    DayLink(day: group.day, state: state)
+                    ForEach(group.recordings) { r in
+                        RecordingRow(recording: r, state: state)
+                    }
+                }
+                .padding(.bottom, 10)
+                .overlay(alignment: .bottom) { Rectangle().fill(G.border).frame(height: 1) }
+            }
+        } else {
+            Text("Searching…").font(G.small).foregroundStyle(G.secondary).padding(.horizontal, 10)
+        }
+    }
+
+    private func headline(_ found: SearchResult) -> String {
+        let n = found.recordings.count
+        if n == 0 { return "Nothing named “\(found.query)”." }
+        var line = n == 1 ? "1 recording named “\(found.query)”" : "\(G.count(n)) recordings named “\(found.query)”"
+        if found.truncated { line += ", the newest \(G.count(n)) of more" }
+        return line
+    }
+
+    private struct Group {
+        let day: String
+        var recordings: [Recording]
+    }
+
+    /// In the order the core answered, which is newest day first.
+    private func groups(_ rows: [Recording]) -> [Group] {
+        var out: [Group] = []
+        for r in rows {
+            if out.last?.day == r.day { out[out.count - 1].recordings.append(r) } else { out.append(Group(day: r.day, recordings: [r])) }
+        }
+        return out
+    }
+}
+
+/// A day's name over its found recordings. Clicking it leaves the search for
+/// that day in the month, open.
+private struct DayLink: View {
+    let day: String
+    @ObservedObject var state: AppState
+    @State private var hovering = false
+
+    var body: some View {
+        Button { state.leaveSearch(for: day) } label: {
+            HStack(spacing: 8) {
+                Text(title).font(G.label).foregroundStyle(hovering ? G.blue : G.ink)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(G.blue)
+                    .opacity(hovering ? 1 : 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Open this day in the month")
+    }
+
+    private var title: String {
+        guard let d = AppState.date(of: day) else { return day }
+        let f = DateFormatter(); f.dateFormat = "EEEE, MMMM d, yyyy"; return f.string(from: d)
     }
 }
 
@@ -454,6 +552,7 @@ private struct RecordingRow: View {
                 Circle().fill(recording.waitingOnAnchors ? .clear : color)
                     .overlay(Circle().strokeBorder(color, lineWidth: 1.5))
                     .frame(width: 9, height: 9)
+                    .help(recording.waitingOnAnchors ? "Waiting on its Ethereum anchors. They arrive by themselves." : "Anchored to Ethereum.")
                 /* When it was written, this machine's clock. Mike, 2026-09-09:
                  * "these should have times on them". */
                 Text(Self.time(recording.writtenAt))
