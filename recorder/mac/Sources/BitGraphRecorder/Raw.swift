@@ -58,24 +58,33 @@ struct RawBlock: Identifiable {
     }
 
     static func make(proof: JSONValue?, committedB64: String?, evidenceRaw: String?) -> [RawBlock] {
-        /* ⚠️ ONE COPY OF THE PROOF. The evidence written beside a file carries
-         * the signed proof inside it, verbatim, so showing the proof and then
-         * the evidence showed the proof twice (Mike, 2026-09-11: "on the
-         * website, this raw data was just the json proof, why is it different
-         * here?"). When there is an evidence file it is the one block, and
-         * its label says the proof is in it; a recording opened from its own
-         * proof.json has no wrapper and shows the proof bare. Nothing is cut. */
-        var out: [RawBlock]
-        if let raw = evidenceRaw {
-            out = [RawBlock(label: "This file's evidence, with the signed proof inside it", text: raw)]
+        /* ⚠️ ONE COPY OF THE PROOF, AND NEVER NONE. Evidence written beside a
+         * file comes in two kinds. INLINE carries the signed proof inside it,
+         * so that one block is the proof too. BESIDE points at the recording's
+         * proof.json instead ("proof": "./proof.json"), which is how every
+         * member of a set shares one proof; then the proof has to be its own
+         * block or the page shows no proof at all (Mike, 2026-09-11: "i
+         * honestly dont understand this", under an evidence block that only
+         * pointed at it). Nothing is cut. */
+        var out: [RawBlock] = []
+        let evidence = evidenceRaw.flatMap { try? JSONDecoder().decode(JSONValue.self, from: Data($0.utf8)) }
+        let kind = evidence?["proof"]?["kind"]?.string
+        if let raw = evidenceRaw, kind == "inline" {
+            out.append(RawBlock(label: "Written beside this file: its digests, its position, and the signed proof", text: raw))
         } else {
-            out = [RawBlock(label: "The signed proof", text: proof?.pretty ?? "{}")]
+            if let raw = evidenceRaw {
+                out.append(RawBlock(label: "Written beside this file: its digests, its position, and where its proof is", text: raw))
+            }
+            let shared = evidence?["member"] != nil && evidence?["member"]?.isPresent == true
+            out.append(RawBlock(label: shared ? "The signed proof, one for every file in this set" : "The signed proof", text: proof?.pretty ?? "{}"))
         }
         /* A set proof commits to a manifest or a Merkle root; the signed proof
          * alone leaves out the artifact it hashes to and this file's own
-         * inclusion path. */
+         * inclusion path. Pretty-printed for reading: the bytes the hash
+         * covers are manifest.json in the recording, exactly as written. */
         if let b64 = committedB64, let data = Data(base64Encoded: b64), let text = String(data: data, encoding: .utf8) {
-            out.append(RawBlock(label: "The committed artifact, whose hash is the proof's", text: text))
+            let shown = (try? JSONDecoder().decode(JSONValue.self, from: data))?.pretty ?? text
+            out.append(RawBlock(label: "The set's manifest, whose hash is the proof's. Laid out for reading; the hashed bytes are manifest.json in the recording", text: shown))
         }
         return out
     }
