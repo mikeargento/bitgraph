@@ -91,6 +91,24 @@
         <string>ing.bitgraph.evidence</string>
       </array>
     </dict>
+    <!--
+      Any file or folder dropped on the app's icon is a drop, the same as on
+      the window. Rank None: the app takes what is dropped on it and is never
+      offered under Open With for every file on the Mac.
+    -->
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Files to record or check</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>None</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.item</string>
+        <string>public.folder</string>
+      </array>
+    </dict>
   </array>
 
   <!--

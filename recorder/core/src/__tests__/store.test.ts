@@ -154,6 +154,12 @@ describe("the index is parsed once while the file stands still", () => {
     assert.equal(fresh.rowsFor("DDDD").length, 1);
     assert.equal(fresh.rowsFor("CCCC").length, 1);
 
+    /* Two opens at once, before either finishes: one parse, one instance. */
+    appendFileSync(path, JSON.stringify(row({ originDigestB64: "EEEE", counter: "4" })) + "\n");
+    const [a, b] = await Promise.all([FolderIndex.open(path), FolderIndex.open(path)]);
+    assert.equal(a, b, "concurrent opens share the parse in flight");
+    assert.equal(a.rowsFor("EEEE").length, 1);
+
     /* Missing file: never cached as something. */
     const none = await FolderIndex.open(join(d, "nowhere", ".index.jsonl"));
     assert.equal(none.rowsFor("AAAA").length, 0);

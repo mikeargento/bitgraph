@@ -58,7 +58,19 @@ extension AppState {
     func drop(_ urls: [URL]) {
         let paths = urls.map(\.path)
         guard !paths.isEmpty else { return }
+        /* ⚠️ THE DROP BRINGS THE APP FORWARD. macOS activates nothing on a
+         * drop, so a folder dragged from Finder onto a window sitting behind
+         * it landed, and the list opened behind Finder (Mike, 2026-09-13:
+         * "brings the app to the front"). The answer is where the drop was. */
+        comeForward()
         Task { await performDrop(paths) }
+    }
+
+    /// The app active and the window in front, without moving off whatever
+    /// surface is showing. What a drop and a Dock drop do first.
+    func comeForward() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
     }
 
     private func performDrop(_ paths: [String]) async {

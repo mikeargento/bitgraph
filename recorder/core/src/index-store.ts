@@ -94,9 +94,24 @@ export class FolderIndex {
     const seen = await stat(path).catch(() => null);
     const kept = cache.get(path);
     if (kept !== undefined && seen !== null && kept.size === seen.size && kept.mtimeMs === seen.mtimeMs) return kept.index;
-    const index = await FolderIndex.parse(path);
-    await index.rekey();
-    return index;
+    /* ⚠️ ONE PARSE IN FLIGHT PER PATH. At launch the window's first status and
+     * the first anchor pass both asked before either parse had finished, and
+     * the 174 MB file was parsed twice at once: a 1.75 GB peak for a 400 MB
+     * steady state (0.1.15, measured). The second asker waits for the first. */
+    let parsing = inFlight.get(path);
+    if (parsing === undefined) {
+      parsing = (async () => {
+        try {
+          const index = await FolderIndex.parse(path);
+          await index.rekey();
+          return index;
+        } finally {
+          inFlight.delete(path);
+        }
+      })();
+      inFlight.set(path, parsing);
+    }
+    return parsing;
   }
 
   /** Remember this instance as the parse of the file as it is on disk now. */
@@ -234,6 +249,8 @@ export class FolderIndex {
 
 /** The parsed index per path, keyed by the file's size and mtime at parse time. */
 const cache = new Map<string, { size: number; mtimeMs: number; index: FolderIndex }>();
+/** Parses under way, so concurrent opens of one path share one read. */
+const inFlight = new Map<string, Promise<FolderIndex>>();
 
 function parseRow(line: string): IndexRow | null {
   let v: unknown;

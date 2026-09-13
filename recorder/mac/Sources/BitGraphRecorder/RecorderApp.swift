@@ -88,9 +88,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     /// Double-clicking a BitGraph opens it, which is the whole reason the app
-    /// claims the file type.
+    /// claims the file type. Anything else handed to the app, files or folders
+    /// dropped on its icon in the Dock or in Finder, is a drop: the same
+    /// gesture as the window, and the window comes forward to answer it.
     func application(_ application: NSApplication, open urls: [URL]) {
-        guard let url = urls.first(where: { $0.pathExtension == "bitgraph" }) else { return }
-        state.openBitGraphFile(url)
+        if let url = urls.first(where: { $0.pathExtension == "bitgraph" }) {
+            state.comeForward()
+            state.openBitGraphFile(url)
+            return
+        }
+        state.drop(urls)
     }
 }
