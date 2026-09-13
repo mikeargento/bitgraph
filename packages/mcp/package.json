@@ -40,7 +40,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.25.0",
     "@mikeargento/bitgraph": "^1.8.0",
-    "@mikeargento/bitgraph-verify": "^1.7.0"
+    "@mikeargento/bitgraph-verify": "^1.11.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
