@@ -227,11 +227,11 @@ interface RecordStructured {
 }
 const textOf = (result: unknown): string => (((result as { content?: unknown }).content ?? []) as Array<{ text: string }>)[0]?.text ?? "";
 
-test("lists the three tools", async () => {
+test("lists the five tools", async () => {
   const client = await connectedClient();
   const tools = await client.listTools();
   const names = tools.tools.map((t) => t.name).sort();
-  assert.deepEqual(names, ["bitgraph_check", "bitgraph_get_proof", "bitgraph_record"]);
+  assert.deepEqual(names, ["bitgraph_check", "bitgraph_commit", "bitgraph_get_proof", "bitgraph_open", "bitgraph_record"]);
 });
 
 test("record makes ONE set of the fresh files and leaves on-record ones alone", async () => {

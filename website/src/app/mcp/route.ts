@@ -42,6 +42,10 @@ import {
   type CheckOutcome,
 } from "@/lib/mcp/format";
 import {
+  beginHosted,
+  commitHostedTask,
+  decodeTaskToken,
+  TASK_INSTRUCTIONS,
   ASSEMBLY_INSTRUCTIONS,
   HEAD_MAX_BYTES,
   HostedFuseError,
@@ -168,8 +172,9 @@ const handler = createMcpHandler(
                   .describe("The file's first 16 bytes (up to 64), base64; the whole file when it is shorter than 16 bytes. Omit to place any file in a container."),
               })
             )
-            .min(1)
-            .max(MAX_OPEN_FILES),
+            .max(MAX_OPEN_FILES)
+            .optional()
+            .describe("The files to open, with their digests. OMIT this (or send an empty list) to open a position BEFORE the work exists: you get the slot's commitment to put into the task, and seal the task under it with bitgraph_commit."),
           again: z
             .boolean()
             .default(false)
@@ -183,8 +188,37 @@ const handler = createMcpHandler(
           openWorldHint: true,
         },
       },
-      async ({ files, again, response_format }) => {
+      async ({ files: filesIn, again, response_format }) => {
         try {
+          // No files: the task form. A held position and its commitment, before any work exists.
+          if (filesIn === undefined || filesIn.length === 0) {
+            let begun;
+            try {
+              begun = await beginHosted();
+            } catch (err) {
+              return fail(`Error: ${hostedErrorText(err)}`);
+            }
+            const floorLine = begun.floor === null ? "the sealed proof will carry the signed floor" : `not before block ${begun.floor.block}${begun.floor.headerTime !== null ? ` (header time ${new Date(begun.floor.headerTime * 1000).toISOString().replace(".000Z", "Z")})` : ""}`;
+            const structured = {
+              outcome: "opened",
+              task: true,
+              slot_counter: begun.slotCounter,
+              epoch: begun.epochB64,
+              commitment: begun.commitment,
+              commitment_base64: begun.commitmentB64,
+              floor: begun.floor === null ? null : { block: begun.floor.block, header_time: begun.floor.headerTime },
+              fuse_token: begun.token,
+              expires_in_seconds: SLOT_TTL_SECONDS,
+              instructions: TASK_INSTRUCTIONS,
+            };
+            if (response_format === "json") return ok(capJson(structured).text);
+            return ok(
+              `Opened position ${begun.slotCounter} before any work exists. Floor: ${floorLine}.\n\n` +
+                `Commitment (put this string into the task): ${begun.commitment}\n\n${TASK_INSTRUCTIONS}\n\n` +
+                "```json\n" + capJson({ fuse_token: begun.token, commitment: begun.commitment, slot_counter: begun.slotCounter, epoch: begun.epochB64, floor: structured.floor }).text + "\n```"
+            );
+          }
+          const files = filesIn;
           const normalized = normalizeDigests(files.map((f) => f.digest));
           if ("error" in normalized) return fail(normalized.error);
           const standard = normalized.standard;
@@ -300,7 +334,8 @@ const handler = createMcpHandler(
             .array(
               z.object({
                 fuse_token: z.string().min(1).max(8000).describe("The fuse_token bitgraph_open returned for this file."),
-                artifact_digest: z.string().min(1).max(100).describe("SHA-256 of the new file you built from the recipe, base64 (either form)."),
+                artifact_digest: z.string().min(1).max(100).describe("SHA-256 of the new file you built from the recipe, base64 (either form). For a task token: SHA-256 of the task bytes that carry the commitment string."),
+                carry: z.enum(["base64url"]).optional().describe("Task tokens only: how the task bytes carry the commitment. base64url means the commitment's unpadded base64url string appears verbatim inside the bytes."),
               })
             )
             .min(1)
@@ -321,8 +356,19 @@ const handler = createMcpHandler(
           const frames: Array<{ name: string; frame: unknown }> = [];
           const sets: Array<SetOutcome & { proof: unknown }> = [];
           const decoded: Array<{ position: number; state: OpenState; artifactDigestB64: string }> = [];
+          const tasks: Array<{ position: number; state: import("@/lib/mcp/fuse-hosted").TaskState; artifactDigestB64: string }> = [];
           for (let position = 0; position < entries.length; position++) {
             const e = entries[position] as (typeof entries)[number];
+            const taskState = decodeTaskToken(e.fuse_token);
+            if (taskState !== null) {
+              const trimmedT = e.artifact_digest.trim();
+              if (!looksLikeDigest(trimmedT)) {
+                outcomes[position] = { name: "(task)", origin_digest: "", artifact_digest: e.artifact_digest, outcome: "not fused", placement: "base64url", slot_counter: taskState.slot.counter, counter: null, epoch: null, fused_name: "", frame_name: "", proof_url: null, positions: [], recovered: false, error: `"${e.artifact_digest}" is not a base64 SHA-256 digest. ${DIGEST_HINT}` };
+                continue;
+              }
+              tasks.push({ position, state: taskState, artifactDigestB64: fromUrlSafeB64(trimmedT) });
+              continue;
+            }
             const state = decodeToken(e.fuse_token);
             const trimmed = e.artifact_digest.trim();
             const digestOk = looksLikeDigest(trimmed);
@@ -367,6 +413,18 @@ const handler = createMcpHandler(
             recovered: false,
             error,
           });
+          // Tasks: the task bytes' digest under the held slot, with the inline marker.
+          for (const t of tasks) {
+            const base = { name: "(task)", origin_digest: "", artifact_digest: toUrlSafeB64(t.artifactDigestB64), placement: "base64url" as const, slot_counter: t.state.slot.counter, fused_name: "", frame_name: "" };
+            try {
+              const c = await commitHostedTask(t.state, t.artifactDigestB64);
+              const { counter, epoch } = positionOf(c.proof);
+              outcomes[t.position] = { ...base, outcome: "fused", counter, epoch, proof_url: proofUrl(baseUrl, t.artifactDigestB64, counter ?? undefined, c.proof.commit?.epochId), positions: [{ counter, epoch }], recovered: c.recovered, error: null };
+              frames.push({ name: "task.proof.json", frame: c.proof });
+            } catch (err) {
+              outcomes[t.position] = { ...base, outcome: "not fused", counter: null, epoch: null, proof_url: null, positions: [], recovered: false, error: hostedErrorText(err) };
+            }
+          }
           const groups = groupCommitEntries(decoded);
           // Single files: each under its own slot, as before.
           for (const s of groups.solos) {
@@ -435,7 +493,7 @@ const handler = createMcpHandler(
              after the proof and can lag a commit by a moment; and a read that
              fails leaves each outcome with just its own position, which is what
              the caller had before this existed. */
-          const fusedOutcomes = outcomes.filter((o) => o.outcome === "fused");
+          const fusedOutcomes = outcomes.filter((o) => o.outcome === "fused" && o.placement !== "base64url");
           if (fusedOutcomes.length > 0) {
             const origins = [...new Set(fusedOutcomes.map((o) => o.origin_digest))];
             try {
@@ -459,7 +517,7 @@ const handler = createMcpHandler(
             sets,
             frames,
             summary: {
-              fused: fusedOutcomes.length,
+              fused: outcomes.filter((o) => o.outcome === "fused").length,
               not_fused: outcomes.filter((o) => o.outcome === "not fused").length,
               sets: sets.length,
             },
@@ -630,7 +688,8 @@ const handler = createMcpHandler(
       "Open every file of a batch in ONE call and commit them in ONE call: they share the slot and become one BitGraph, a set with one position, each file a member with its row. A single file is fused on its own. " +
       "File contents never travel: only digests, sizes, a file's first bytes, slot records and recipe bytes. New files are virtual; the originals stay unchanged and the proof rebuilds them. " +
       "Positions are permanent, and the proof comes back to you to keep: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
-      "There is no digest-only recording here: a BitGraph is made with bitgraph_open then bitgraph_commit. bitgraph_check and bitgraph_get_proof are read-only.",
+      "There is no digest-only recording here: a BitGraph is made with bitgraph_open then bitgraph_commit. bitgraph_check and bitgraph_get_proof are read-only. " +
+      "To do work INSIDE a BitGraph, call bitgraph_open with no files BEFORE starting: it returns a position and its commitment; put the commitment into the task, seal the task with bitgraph_commit (carry base64url) within 120 seconds, then record the outputs afterwards. The task then could not have existed before the position's floor block, and the outputs sit after it.",
   }
 );
 

@@ -50,6 +50,8 @@ import { getPlacement,
   bytesToBase64,
   computeSlotCommitment,
   fuseAttribution,
+  inlineAttribution,
+  ENCODING_BASE64URL,
   parseSetManifest,
   readSetMetadata,
   verifyFuse,
@@ -63,6 +65,7 @@ import { fusedNamesFor, placementForBytes } from "@mikeargento/bitgraph";
 import { FUSE_CHAIN, isSlotRecord } from "../fuse-core.ts";
 import { apiBaseUrl } from "./api.ts";
 import { toUrlSafeB64 } from "./encoding.ts";
+import { blockTimeFromHeader } from "../export-pages.ts";
 import type { BitGraphProof } from "./types.ts";
 
 export type HostedPlacement = "trailer/1" | "container/1" | "container/2";
@@ -658,6 +661,130 @@ export function groupCommitEntries(entries: readonly Array<SetEntry & { position
 }
 
 // ---------------------------------------------------------------------------
+// A position BEFORE the work: the task form.
+//
+// bitgraph_open with no files hands the caller a held slot and its commitment
+// and nothing else. The caller puts the commitment into the task it is about
+// to run (the prompt, the request, the seed, a line in the document), so the
+// task could not have existed before the slot's floor block, and then
+// commits the digest of that task under the slot with the inline marker
+// (bitgraph-fuse/1, title base64url): the verifier recomputes the commitment
+// from the slot record and finds its base64url text inside the bytes.
+// Outputs are recorded afterwards the ordinary way and sit at later
+// positions. That is the whole of "reality for AI": a before the caller
+// could not have known, an after it cannot move.
+// ---------------------------------------------------------------------------
+
+export interface TaskState {
+  v: 1;
+  task: true;
+  slot: SlotAllocation;
+}
+
+export function encodeTaskToken(state: TaskState): string {
+  return Buffer.from(JSON.stringify(state), "utf8").toString("base64url");
+}
+
+export function decodeTaskToken(token: string): TaskState | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(token, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const s = parsed as Record<string, unknown>;
+  if (s.v !== 1 || s.task !== true || !isSlotRecord(s.slot)) return null;
+  return { v: 1, task: true, slot: s.slot as unknown as SlotAllocation };
+}
+
+export interface Begun {
+  token: string;
+  state: TaskState;
+  /** The commitment as unpadded base64url: the string to put into the task. */
+  commitment: string;
+  commitmentB64: string;
+  slotCounter: string;
+  epochB64: string;
+  /** The last anchor before the slot, from the ledger, when it can be read now; the sealed proof carries the signed floor regardless. */
+  floor: { block: number; headerTime: number | null } | null;
+}
+
+/** The floor a held slot stands on, read from the ledger for the caller's benefit; best-effort, never a verdict. */
+async function floorForSlot(slot: SlotAllocation): Promise<Begun["floor"]> {
+  try {
+    const q = `counter=${encodeURIComponent(slot.counter)}&epoch=${encodeURIComponent(slot.epochId)}&before=1`;
+    const res = await fetch(`${apiBaseUrl()}/api/proofs/anchors?${q}`, { headers: { accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    if (res.status !== 200) return null;
+    const data = (await res.json()) as { anchors?: Array<{ commit?: { anchor?: { blockNumber?: number; blockHash?: string } } }> } | null;
+    const a = data?.anchors?.[0]?.commit?.anchor;
+    if (!a || typeof a.blockNumber !== "number" || typeof a.blockHash !== "string") return null;
+    let headerTime: number | null = null;
+    try {
+      const w = await fetch(`${apiBaseUrl()}/api/proofs/witness?block=${a.blockNumber}&hash=${encodeURIComponent(a.blockHash)}`, { headers: { accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
+      if (w.status === 200) {
+        const j = (await w.json()) as { headerRlpHex?: unknown } | null;
+        if (typeof j?.headerRlpHex === "string") headerTime = blockTimeFromHeader(j.headerRlpHex) || null;
+      }
+    } catch { headerTime = null; }
+    return { block: a.blockNumber, headerTime };
+  } catch {
+    return null;
+  }
+}
+
+export const toBase64Url = (b64: string): string => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+/** Step one of the task form: a held slot and its commitment, before any work exists. */
+export async function beginHosted(): Promise<Begun> {
+  const slot = await allocateHosted();
+  const commitmentB64 = bytesToBase64(computeSlotCommitment(slot));
+  const state: TaskState = { v: 1, task: true, slot };
+  return {
+    token: encodeTaskToken(state),
+    state,
+    commitment: toBase64Url(commitmentB64),
+    commitmentB64,
+    slotCounter: slot.counter,
+    epochB64: toUrlSafeB64(slot.epochId),
+    floor: await floorForSlot(slot),
+  };
+}
+
+export interface CommittedTask {
+  proof: BitGraphProof;
+  recovered: boolean;
+}
+
+/**
+ * Step two of the task form: the digest of the task bytes that carry the
+ * commitment, committed under the held slot with the inline marker. The
+ * bytes are not here, so the integrity half runs; the byte half (is the
+ * base64url commitment inside them) is every verifier's, with the file.
+ */
+export async function commitHostedTask(state: TaskState, artifactDigestB64: string): Promise<CommittedTask> {
+  const artifact = base64ToBytes(artifactDigestB64);
+  if (artifact === null || artifact.length !== 32) throw new HostedFuseError("bad-input", "artifact digest must be a base64 SHA-256");
+  const { slot } = state;
+  const { proof, recovered } = await commitUnderSlot(slot, artifactDigestB64, {
+    digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
+    slotId: slot.nonceB64,
+    slot,
+    chainId: FUSE_CHAIN,
+    attribution: inlineAttribution(),
+  });
+  const integrity = await verifyProofIntegrity({ proof: proof as unknown as VerifyProof });
+  if (!integrity.valid) throw new HostedFuseError("verification-failed", `the returned proof does not verify: ${integrity.reason ?? "unknown reason"}`);
+  return { proof, recovered };
+}
+
+export const TASK_INSTRUCTIONS =
+  "You hold a position and its commitment, and no work exists yet. Put the commitment string into the task before you run it: in the prompt or request you are about to send, as a seed, as a line in the document, as text that must appear in the output. " +
+  `Then SHA-256 the bytes of that task (the exact request or document that contains the string), base64 it, and call bitgraph_commit with this fuse_token, that digest, and carry "${ENCODING_BASE64URL}", within ${SLOT_TTL_SECONDS} seconds of opening: that seals the task under the position before its output exists. ` +
+  "Keep those exact bytes: a verifier recomputes the commitment from the proof and looks for the string inside them. " +
+  "When the output exists, record it the ordinary way (bitgraph_open with the file, then bitgraph_commit); it will sit at a later position. What a stranger can then check: the task could not have existed before the position's floor block, and the output was recorded after it.";
+
+// ---------------------------------------------------------------------------
 // Outcomes, in the product's vocabulary, and their rendering.
 // ---------------------------------------------------------------------------
 
@@ -687,7 +814,7 @@ export interface CommitOutcome {
   origin_digest: string; // URL-safe
   artifact_digest: string; // URL-safe
   outcome: "fused" | "not fused";
-  placement: HostedPlacement;
+  placement: HostedPlacement | "base64url";
   slot_counter: string | null;
   counter: string | null;
   epoch: string | null;
@@ -788,6 +915,9 @@ export function renderCommitMarkdown(outcomes: readonly CommitOutcome[], sets: r
         const all = o.positions.map((p) => `#${p.counter ?? "?"}`).join(" · ");
         lines.push(`  ${o.positions.length} positions for these bytes: ${all}`);
       }
+    } else if (o.outcome === "fused" && o.placement === "base64url") {
+      const rec = o.recovered ? " (recovered from the ledger)" : "";
+      lines.push(`- sealed · slot #${o.slot_counter ?? "?"} → #${o.counter ?? "?"} · the task (commitment carried inline)${rec}\n  ${o.proof_url}`);
     } else if (o.outcome === "fused") {
       const rec = o.recovered ? " (recovered from the ledger)" : "";
       lines.push(`- fused · slot #${o.slot_counter ?? "?"} → #${o.counter ?? "?"} · ${o.name} → ${o.fused_name}${rec}\n  ${o.proof_url}`);
