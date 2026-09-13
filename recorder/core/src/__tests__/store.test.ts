@@ -131,3 +131,31 @@ describe("where things go", () => {
     assert.notEqual(p.position("epoch-one", "1546"), p.position("epoch-two", "1546"));
   });
 });
+
+describe("the index is parsed once while the file stands still", () => {
+  test("an unchanged file hands back the same instance; an append keeps it current; another writer forces a fresh parse", async () => {
+    const d = dir();
+    const path = join(d, ".index.jsonl");
+    writeFileSync(path, JSON.stringify(row()) + "\n");
+    const first = await FolderIndex.open(path);
+    const again = await FolderIndex.open(path);
+    assert.equal(again, first, "same size and mtime: the same parse");
+
+    await first.append([row({ originDigestB64: "CCCC", counter: "2" })]);
+    const afterAppend = await FolderIndex.open(path);
+    assert.equal(afterAppend, first, "an append through the instance re-keys it");
+    assert.equal(afterAppend.rowsFor("CCCC").length, 1, "and the appended row is there");
+
+    /* Somebody else writes the file: the size moves, so the next open parses. */
+    await new Promise((r) => setTimeout(r, 5));
+    appendFileSync(path, JSON.stringify(row({ originDigestB64: "DDDD", counter: "3" })) + "\n");
+    const fresh = await FolderIndex.open(path);
+    assert.notEqual(fresh, first, "a change on disk is a new parse");
+    assert.equal(fresh.rowsFor("DDDD").length, 1);
+    assert.equal(fresh.rowsFor("CCCC").length, 1);
+
+    /* Missing file: never cached as something. */
+    const none = await FolderIndex.open(join(d, "nowhere", ".index.jsonl"));
+    assert.equal(none.rowsFor("AAAA").length, 0);
+  });
+});

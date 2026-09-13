@@ -78,7 +78,35 @@ export class FolderIndex {
     for (const r of rows) this.remember(r);
   }
 
+  /**
+   * Open the index, parsing the file once for as long as it does not change.
+   *
+   * ⚠️ PARSED ONCE, NOT ONCE A MINUTE. Every status the window asks for and
+   * every anchor pass opened the library's index, and with 322,901 rows that
+   * was a 174 MB parse and a gigabyte of objects every sixty seconds, twice.
+   * The core sat at 1.3 GB, peaked at 2.6 GB, and an 8 GB Mac swapped (Mike,
+   * 2026-09-13, Activity Monitor). The parsed index is kept by path and handed
+   * back while the file's size and mtime are what they were; an append through
+   * this instance keeps it current and re-keys it, and any other write to the
+   * file is a change of size or mtime and costs one fresh parse.
+   */
   static async open(path: string): Promise<FolderIndex> {
+    const seen = await stat(path).catch(() => null);
+    const kept = cache.get(path);
+    if (kept !== undefined && seen !== null && kept.size === seen.size && kept.mtimeMs === seen.mtimeMs) return kept.index;
+    const index = await FolderIndex.parse(path);
+    await index.rekey();
+    return index;
+  }
+
+  /** Remember this instance as the parse of the file as it is on disk now. */
+  private async rekey(): Promise<void> {
+    const s = await stat(this.path).catch(() => null);
+    if (s === null) cache.delete(this.path);
+    else cache.set(this.path, { size: s.size, mtimeMs: s.mtimeMs, index: this });
+  }
+
+  private static async parse(path: string): Promise<FolderIndex> {
     let text = "";
     try {
       text = await readFile(path, "utf8");
@@ -199,8 +227,13 @@ export class FolderIndex {
       await fh.close();
     }
     for (const r of rows) this.remember(r);
+    /* This instance IS the file now; the next open must not parse it again. */
+    await this.rekey();
   }
 }
+
+/** The parsed index per path, keyed by the file's size and mtime at parse time. */
+const cache = new Map<string, { size: number; mtimeMs: number; index: FolderIndex }>();
 
 function parseRow(line: string): IndexRow | null {
   let v: unknown;
