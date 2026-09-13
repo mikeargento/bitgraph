@@ -72,10 +72,6 @@ extension AppState {
                 guard let opened = answer.opened else { return }
                 await openProof(root: answer.root, evidencePath: opened.evidencePath ?? "", filePath: opened.path,
                                 name: opened.name, origin: opened.originDigestB64, position: opened.position, justMade: false)
-            case "checked":
-                /* A folder of BitGraphs: the report, over the calendar, where
-                 * the drop was made. */
-                if let report = answer.report { showCheck(path: answer.root, report: report) }
             case "made":
                 if let made = answer.made, let first = made.files.first {
                     await openProof(root: answer.root, evidencePath: first.evidencePath, filePath: first.path, name: first.name,

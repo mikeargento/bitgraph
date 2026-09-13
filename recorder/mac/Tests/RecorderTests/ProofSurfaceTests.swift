@@ -152,6 +152,22 @@ final class ProofSurfaceTests: XCTestCase {
         ], total: 4, recorded: 1, truncated: false)
         try shoot(BatchDialog(state: AppState(preview: nil), look: look).padding(40).background(G.ground), name: "batch", size: CGSize(width: 660, height: 720), into: out)
 
+        /* A folder holding a recording beside new files: the same dialog,
+         * every row saying what it is. */
+        let mixed = LookResult(root: "/Users/mike/Desktop/CLEAN/reality-circles", files: [
+            Looked(path: "/a/circles-drop/circles.svg", name: "circles.svg", rel: "circles-drop/circles.svg", bytes: 1_714, originDigestB64: "AA", placement: "container/2", position: Position(epochId: "e", counter: "2406"), evidencePath: "/a/circles-drop/proof.json", check: LookCheck(status: "verified", category: "CARRIED_INLINE")),
+            Looked(path: "/a/circles.svg", name: "circles.svg", rel: "circles.svg", bytes: 1_714, originDigestB64: "AA", placement: "container/2", position: Position(epochId: "e", counter: "2406"), evidencePath: "/a/circles-drop/proof.json", check: LookCheck(status: "verified", category: "CARRIED_INLINE")),
+            Looked(path: "/a/circles.png", name: "circles.png", rel: "circles.png", bytes: 41_200, originDigestB64: "BB", placement: "trailer/1", position: nil, evidencePath: nil),
+            Looked(path: "/a/circles.proof.json", name: "circles.proof.json", rel: "circles.proof.json", bytes: 7_675, originDigestB64: "CC", placement: "container/2", position: nil, evidencePath: nil),
+        ], total: 4, recorded: 0, truncated: false, duplicates: 0, recordings: 1, verified: 2, failed: 0, undetermined: 0, fresh: 2)
+        try shoot(BatchDialog(state: AppState(preview: nil), look: mixed).padding(40).background(G.ground), name: "batch-mixed", size: CGSize(width: 660, height: 720), into: out)
+
+        /* A recording alone, changed underneath: a check, with Done. */
+        let checkedOnly = LookResult(root: "/Users/mike/Desktop/sent/lighthouse-drop", files: [
+            Looked(path: "/a/lighthouse.svg", name: "lighthouse.svg", rel: "lighthouse.svg", bytes: 4_012, originDigestB64: "DD", placement: "container/2", position: nil, evidencePath: nil, check: LookCheck(status: "unrecorded", reason: "no BitGraph for these bytes. The BitGraph in this folder is about different bytes.")),
+        ], total: 1, recorded: 0, truncated: false, duplicates: 0, recordings: 1, verified: 0, failed: 0, undetermined: 0, fresh: 1)
+        try shoot(BatchDialog(state: AppState(preview: nil), look: checkedOnly).padding(40).background(G.ground), name: "batch-changed", size: CGSize(width: 660, height: 720), into: out)
+
         try shoot(SetupDialog(state: AppState(preview: nil)).padding(40).background(G.ground), name: "setup", size: CGSize(width: 660, height: 620), into: out)
 
         let moved = AppState(preview: Status(baseUrl: "https://bitgraph.ing", supportDir: "", folder: "/Users/mike/BitGraph", suggested: "/Users/mike/BitGraph",

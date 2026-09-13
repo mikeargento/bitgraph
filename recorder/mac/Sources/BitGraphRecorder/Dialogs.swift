@@ -3,13 +3,19 @@
 import SwiftUI
 import AppKit
 
-/// A batch drop, the way Calendar creates an event: a dialog over the
+/// A drop that waits, the way Calendar creates an event: a dialog over the
 /// surface with a big title field, a few icon-led rows, and Save.
 ///
 /// ⚠️ NAME IT. The title field is the recording's name; it is filled in with
 /// where the files came from and you can type over it. Only a batch gets
 /// asked, because two or more files becoming one permanent position is worth
 /// a second of somebody's attention.
+///
+/// ⚠️ ONE LIST FOR EVERY DROP. A folder holding a BitGraph used to come back
+/// as a report of its own, with no way to record what in it was new (Mike,
+/// 2026-09-13). It lands here now: the recording's answer on the rows it
+/// covers, "new" on the rest, and Record for the new ones alone. Nothing to
+/// record makes it a check, titled by what was checked, with Done.
 struct BatchDialog: View {
     @ObservedObject var state: AppState
     let look: LookResult
@@ -25,6 +31,20 @@ struct BatchDialog: View {
     }
 
     private var duplicates: Int { look.duplicates ?? 0 }
+    /// How many recording folders the drop held, and what they said about
+    /// the files they cover. Zero and zeros for a plain drop of files.
+    private var recordings: Int { look.recordings ?? 0 }
+    private var verified: Int { look.verified ?? 0 }
+    private var failed: Int { look.failed ?? 0 }
+    private var undetermined: Int { look.undetermined ?? 0 }
+    private var answered: Int { verified + failed + undetermined }
+    /// What Record would record. A core that does not say is worked out the old way.
+    private var newCount: Int { look.fresh ?? (look.total - look.recorded - duplicates) }
+    /// More than one kind of row, or a recording in the drop, so every row
+    /// says which it is. A plain drop of new files says nothing on its rows:
+    /// the list IS the answer there.
+    private var mixed: Bool { answered > 0 || look.recorded > 0 || recordings > 0 }
+    private var folderName: String { FileManager.default.displayName(atPath: look.root) }
 
     /// "From Desktop", "From Desktop and Downloads", "From 4 folders under Pictures".
     private var fromLine: String {
@@ -47,7 +67,6 @@ struct BatchDialog: View {
         default: return "From \(name(seen[0])), \(name(seen[1])) and \(name(seen[2]))"
         }
     }
-    private var newCount: Int { look.total - look.recorded - duplicates }
 
     /// "Recording · 12,204 of 26,202 · 45 s": the phase, the count when the
     /// phase has one, and the seconds always.
@@ -55,6 +74,7 @@ struct BatchDialog: View {
         var parts: [String] = []
         switch state.dropProgress?.phase {
         case "hash": parts.append("Reading")
+        case "check": parts.append("Checking")
         case "fuse": parts.append("Recording")
         case "tree": parts.append("Building the set")
         case "commit": parts.append("Filling the slot")
@@ -69,17 +89,57 @@ struct BatchDialog: View {
         return parts.joined(separator: " · ")
     }
 
-    /// One sentence for what the drop is: how many are new, how many are
-    /// on record already, how many are the same bytes as another and count once.
+    /// One sentence for what the drop is: what its recordings said, how many
+    /// are on record already, how many are the same bytes as another and
+    /// count once, and how many are new.
+    ///
+    /// ⚠️ A DROP THAT HOLDS A BITGRAPH IS A CHECK AS WELL AS A LOOK. What the
+    /// recording said is said here, on the rows, and nothing in it was
+    /// recorded on landing: a stray new file beside somebody's BitGraph waits
+    /// like a batch does.
     private var summary: String {
-        if newCount == 0 && duplicates == 0 { return "All of them already have a BitGraph. Nothing to record." }
         var parts: [String] = []
-        parts.append(look.recorded == 0 && duplicates == 0
-                     ? "They become one BitGraph at one position, each file a member of it."
-                     : "\(G.count(newCount)) become one BitGraph at one position.")
+        if recordings > 0 {
+            parts.append(recordings == 1 ? "This folder holds a BitGraph." : "This folder holds \(G.count(recordings)) BitGraphs.")
+            if verified > 0 { parts.append("\(G.count(verified)) verified against \(recordings == 1 ? "it" : "them").") }
+            if failed > 0 { parts.append("\(G.count(failed)) failed the check.") }
+            if undetermined > 0 { parts.append("\(G.count(undetermined)) could not be checked.") }
+        }
         if look.recorded > 0 { parts.append("\(G.count(look.recorded)) already have one and are left alone.") }
         if duplicates > 0 { parts.append(duplicates == 1 ? "1 is the same bytes as another and counts once." : "\(G.count(duplicates)) are the same bytes as another and count once.") }
+        if newCount == 0 {
+            parts.append(parts.isEmpty ? "All of them already have a BitGraph. Nothing to record." : "Nothing new to record.")
+        } else if !mixed && duplicates == 0 {
+            parts.append("They become one BitGraph at one position, each file a member of it.")
+        } else if newCount == 1 {
+            parts.append("1 is new and becomes a BitGraph at its own position.")
+        } else {
+            parts.append("\(G.count(newCount)) are new and become one BitGraph at one position.")
+        }
         return parts.joined(separator: " ")
+    }
+
+    /// What a row says beside its name, when it has something to say. A
+    /// verified file says so with its position; a failure says why, in red;
+    /// a file the library holds is on record; and in a mixed list a new file
+    /// says it is new, with what its recording is about when it sits in one.
+    private func note(for file: Looked) -> (text: String, color: Color)? {
+        if let check = file.check {
+            switch check.status {
+            case "verified":
+                return ("verified · #\(file.position?.counter ?? "?")", G.secondary)
+            case "failed":
+                return (check.reason ?? "failed the check", G.red)
+            case "unrecorded":
+                let about = (check.reason ?? "").contains("different bytes") ? " · its BitGraph is about different bytes" : ""
+                return ("new\(about)", G.secondary)
+            default:
+                return (check.reason ?? "could not be checked", G.secondary)
+            }
+        }
+        if file.isRecorded { return ("on record", G.secondary) }
+        if file.duplicateOf != nil { return nil }
+        return mixed ? ("new", G.secondary) : nil
     }
 
     var body: some View {
@@ -90,15 +150,30 @@ struct BatchDialog: View {
             }
             .padding(.bottom, 18)
 
-            TitleField(placeholder: "Name this recording", text: $name)
-                .padding(.trailing, 40)
-                .padding(.bottom, 22)
+            /* Something to record is named. Nothing to record is a check, and
+             * a check is titled by what was checked. */
+            if newCount > 0 {
+                TitleField(placeholder: "Name this recording", text: $name)
+                    .padding(.trailing, 40)
+                    .padding(.bottom, 22)
+            } else {
+                Text("Checked \(folderName)")
+                    .font(G.display).foregroundStyle(G.ink)
+                    .lineLimit(1).truncationMode(.middle)
+                    .padding(.trailing, 40)
+                    .padding(.bottom, 22)
+            }
 
-            DialogRow(icon: "doc.on.doc") {
-                Text("\(G.count(look.total)) file\(look.total == 1 ? "" : "s")").font(G.body).foregroundStyle(G.ink)
+            DialogRow(icon: failed > 0 ? "exclamationmark.triangle" : "doc.on.doc") {
+                Text("\(G.count(look.total)) file\(look.total == 1 ? "" : "s")").font(G.body).foregroundStyle(failed > 0 ? G.red : G.ink)
                 Text(summary)
                     .font(G.small).foregroundStyle(G.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if recordings > 0 {
+                    Text("Checking is not recording: nothing was changed, and nothing left this machine.")
+                        .font(G.small).foregroundStyle(G.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             /* Where the files came from, in words. The common root of a drop
@@ -107,18 +182,24 @@ struct BatchDialog: View {
              * multi-drop"). */
             DialogRow(icon: "folder") {
                 Text(fromLine).font(G.body).foregroundStyle(G.ink).lineLimit(2).truncationMode(.middle)
-                Text("Your files stay where they are. The recording is its own folder in BitGraph, and the files go in as hard links.")
-                    .font(G.small).foregroundStyle(G.secondary).fixedSize(horizontal: false, vertical: true)
+                if newCount > 0 {
+                    Text("Your files stay where they are. The recording is its own folder in BitGraph, and the files go in as hard links.")
+                        .font(G.small).foregroundStyle(G.secondary).fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             DialogRow(icon: "list.bullet") {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
                         ForEach(look.files) { file in
-                            HStack {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Text(file.rel).font(G.small).foregroundStyle(G.ink).lineLimit(1).truncationMode(.middle)
                                 Spacer()
-                                if file.isRecorded { Text("on record").font(G.small).foregroundStyle(G.secondary) }
+                                if let note = note(for: file) {
+                                    Text(note.text).font(G.small).foregroundStyle(note.color)
+                                        .lineLimit(1).truncationMode(.tail)
+                                        .frame(maxWidth: 300, alignment: .trailing)
+                                }
                             }
                         }
                         if look.truncated {
@@ -140,9 +221,13 @@ struct BatchDialog: View {
                     }
                 }
                 Spacer()
-                Pill(title: "Cancel", style: .text, enabled: !state.dropping) { state.cancelPendingDrop() }
-                Pill(title: state.dropping ? "Recording…" : "Record BitGraph", style: .filled, enabled: newCount > 0 && !state.dropping) {
-                    state.commitPendingDrop(name: name.trimmingCharacters(in: .whitespaces))
+                if newCount > 0 {
+                    Pill(title: "Cancel", style: .text, enabled: !state.dropping) { state.cancelPendingDrop() }
+                    Pill(title: state.dropping ? "Recording…" : (mixed ? "Record \(G.count(newCount)) new" : "Record BitGraph"), style: .filled, enabled: !state.dropping) {
+                        state.commitPendingDrop(name: name.trimmingCharacters(in: .whitespaces))
+                    }
+                } else {
+                    Pill(title: "Done", style: .filled) { state.cancelPendingDrop() }
                 }
             }
             .padding(.top, 14)
@@ -150,6 +235,7 @@ struct BatchDialog: View {
         .frame(width: 560)
     }
 }
+
 
 /// First run, once: name the folder, say where it goes.
 struct SetupDialog: View {
@@ -296,89 +382,5 @@ struct BlockedFolderDialog: View {
             }
         }
         .frame(width: 560)
-    }
-}
-
-/// What a check said, over the calendar: a folder of BitGraphs was dropped
-/// on the window. Mike, 2026-09-09: "what does 'check a folder' do?" — it did
-/// its work and said so only in the menu bar. Now the answer lands where the
-/// drop was made.
-///
-/// ⚠️ ONLY WHAT HAS SOMETHING TO SAY IS LISTED. Verified files are a number;
-/// a failed, unrecorded or undetermined one is a row, with its reason.
-struct CheckDialog: View {
-    @ObservedObject var state: AppState
-    let path: String
-    let report: FolderReport
-
-    var body: some View {
-        DialogCard(close: { state.dismissOneOff() }) {
-            Text("Checked \(FileManager.default.displayName(atPath: path))")
-                .font(G.display).foregroundStyle(G.ink)
-                .lineLimit(1).truncationMode(.middle)
-                .padding(.trailing, 40)
-                .padding(.bottom, 4)
-            Text((path as NSString).abbreviatingWithTildeInPath)
-                .font(G.small).foregroundStyle(G.secondary)
-                .lineLimit(1).truncationMode(.head)
-                .padding(.bottom, 22)
-
-            DialogRow(icon: report.counts.failed > 0 ? "exclamationmark.triangle" : "checkmark.circle") {
-                Text(countsLine).font(G.body).foregroundStyle(report.counts.failed > 0 ? G.red : G.ink)
-                if report.partial {
-                    Text("This check stopped early, so these are numbers of what it reached, not of the folder.")
-                        .font(G.small).foregroundStyle(G.red).fixedSize(horizontal: false, vertical: true)
-                }
-                Text("Nothing was recorded or changed, and nothing left this machine.")
-                    .font(G.small).foregroundStyle(G.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-
-            if !report.speaking.isEmpty {
-                DialogRow(icon: "list.bullet") {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 6) {
-                            ForEach(report.speaking) { file in
-                                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                    Text(file.rel).font(G.small).foregroundStyle(G.ink).lineLimit(1).truncationMode(.middle)
-                                    Spacer()
-                                    Text(file.reason ?? word(file.status))
-                                        .font(G.small)
-                                        .foregroundStyle(file.status == "failed" ? G.red : G.secondary)
-                                        .lineLimit(2).multilineTextAlignment(.trailing)
-                                        .frame(maxWidth: 300, alignment: .trailing)
-                                }
-                            }
-                        }
-                    }
-                    .frame(maxHeight: 260)
-                }
-            }
-
-            HStack {
-                Spacer()
-                Pill(title: "Show in Finder", style: .text, icon: "folder") { state.reveal(path) }
-                Pill(title: "Done", style: .filled) { state.dismissOneOff() }
-            }
-            .padding(.top, 16)
-        }
-        .frame(width: 620)
-    }
-
-    private var countsLine: String {
-        let c = report.counts
-        var parts = ["\(G.count(c.verified)) verified"]
-        if c.failed > 0 { parts.append("\(G.count(c.failed)) failed") }
-        if c.undetermined > 0 { parts.append("\(G.count(c.undetermined)) could not be checked") }
-        if c.unrecorded > 0 { parts.append("\(G.count(c.unrecorded)) not recorded") }
-        return parts.joined(separator: " · ")
-    }
-
-    private func word(_ status: String) -> String {
-        switch status {
-        case "failed": return "failed"
-        case "unrecorded": return "not recorded"
-        case "verified": return "verified"
-        default: return "could not be checked"
-        }
     }
 }

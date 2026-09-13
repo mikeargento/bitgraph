@@ -20,7 +20,7 @@ import { FolderIndex } from "./index-store.js";
 import { pathsFor, BITGRAPHS_DIR, INDEX_FILE } from "./paths.js";
 import { readEvidence, type Evidence } from "./evidence.js";
 import { readMembers, evidenceFromMember, type MemberRow } from "./members.js";
-import { walk } from "./check.js";
+import { walk, type CheckedFile, type CheckStatus } from "./check.js";
 
 export interface Looked {
   path: string;
@@ -35,6 +35,21 @@ export interface Looked {
   evidencePath: string | null;
   /** The earlier file in this drop holding the same bytes, when there is one: this one counts once with it. */
   duplicateOf?: string;
+  /**
+   * What a recording IN THE DROP said about these bytes, when one covers them.
+   * A file with a check is not new, whatever the check said; only a file with
+   * neither a check nor a position is offered for recording.
+   */
+  check?: LookCheck;
+}
+
+/** A check's answer, as a row carries it: the status, and the reason when there is one. */
+export interface LookCheck {
+  status: CheckStatus;
+  reason?: string;
+  failedOn?: "bytes" | "membership" | "proof";
+  category?: string;
+  limit?: string;
 }
 
 /**
@@ -60,6 +75,14 @@ export interface LookResult {
   truncated: boolean;
   /** How many of the total are the same bytes as an earlier file in the drop. */
   duplicates: number;
+  /** How many recording folders the drop holds. Zero for a plain drop of files. */
+  recordings: number;
+  /** Of the total, how many a recording in the drop answered for, by what it said. */
+  verified: number;
+  failed: number;
+  undetermined: number;
+  /** How many are new: no position in the library, no recording in the drop, not the same bytes as an earlier one. What Record would record. */
+  fresh: number;
 }
 
 /**
@@ -86,8 +109,15 @@ export async function scanDrop(
   return { root, scanned };
 }
 
-/** What the folder already knows about files that have just been read. */
-export async function lookAt(indexIn: string, scanned: readonly ScannedFile[], reportRoot?: string): Promise<LookResult> {
+/**
+ * What the folder already knows about files that have just been read.
+ *
+ * `checked` is what the drop's own recordings said, by origin digest: a file
+ * with an answer there is covered and is never offered for recording, and its
+ * row carries the answer. `recordings` is how many recording folders the drop
+ * held, so the surface can say it was a check as well as a look.
+ */
+export async function lookAt(indexIn: string, scanned: readonly ScannedFile[], reportRoot?: string, checked?: ReadonlyMap<string, CheckedFile>, recordings = 0): Promise<LookResult> {
   const root = reportRoot ?? indexIn;
   /* ⚠️ Asked of the LIBRARY, because that is where recordings are remembered:
    * dropping the same photo out of a different folder must still find it. */
@@ -95,15 +125,24 @@ export async function lookAt(indexIn: string, scanned: readonly ScannedFile[], r
   const out: Looked[] = [];
   let recorded = 0;
   let duplicates = 0;
+  const counts = { verified: 0, failed: 0, undetermined: 0 };
   const seen = new Map<string, string>();
   for (const s of scanned) {
     const originDigestB64 = bytesToBase64(s.originDigest);
-    const row = index.rowsFor(originDigestB64)[0];
-    if (row !== undefined) recorded++;
+    /* A recording in the drop answers before the library does: it is a check
+     * of the bytes, where the library is a memory of them. */
+    const answer = checked?.get(originDigestB64);
+    /* An unrecorded answer is information for the row (the recording it sits
+     * in is about different bytes), not cover: the file is still new. */
+    const check = answer === undefined || answer.status === "unrecorded" ? undefined : answer;
+    const row = check === undefined ? index.rowsFor(originDigestB64)[0] : undefined;
+    if (check !== undefined && check.status !== "unrecorded") counts[check.status]++;
+    else if (row !== undefined) recorded++;
+    const covered = check !== undefined || row !== undefined;
     /* The same bytes under an earlier name in this drop: counted once. */
-    const earlier = row === undefined ? seen.get(originDigestB64) : undefined;
+    const earlier = covered ? undefined : seen.get(originDigestB64);
     if (earlier !== undefined) duplicates++;
-    else if (row === undefined) seen.set(originDigestB64, s.rel);
+    else if (!covered) seen.set(originDigestB64, s.rel);
     if (out.length >= ROWS_SHOWN) continue;
     out.push({
       ...(earlier !== undefined ? { duplicateOf: earlier } : {}),
@@ -113,19 +152,43 @@ export async function lookAt(indexIn: string, scanned: readonly ScannedFile[], r
       bytes: s.bytes,
       originDigestB64,
       placement: s.placement,
-      position: row === undefined ? null : { epochId: row.epochId, counter: row.counter },
+      position: check !== undefined ? check.position : row === undefined ? null : { epochId: row.epochId, counter: row.counter },
       /* Null when the set was too big to fan out: there is no file beside
        * this one, and the digest plus the position is the handle instead. */
       /* A recording's proof is in its bundle; a synced folder's is beside the
        * file. Either way, this is where to look. */
-      evidencePath: row === undefined
-        ? null
-        : row.bundle !== undefined && row.bundle !== ""
-          ? join(indexIn, ...row.bundle.split("/"), "proof.json")
-          : row.evidence === "" ? null : join(pathsFor(root).bitgraphs, ...row.evidence.split("/")),
+      evidencePath: check !== undefined
+        ? check.evidencePath ?? null
+        : row === undefined
+          ? null
+          : row.bundle !== undefined && row.bundle !== ""
+            ? join(indexIn, ...row.bundle.split("/"), "proof.json")
+            : row.evidence === "" ? null : join(pathsFor(root).bitgraphs, ...row.evidence.split("/")),
+      ...(answer !== undefined ? { check: rowCheck(answer) } : {}),
     });
   }
-  return { root, files: out, total: scanned.length, recorded, truncated: scanned.length > out.length, duplicates };
+  const checkedCount = counts.verified + counts.failed + counts.undetermined;
+  return {
+    root,
+    files: out,
+    total: scanned.length,
+    recorded,
+    truncated: scanned.length > out.length,
+    duplicates,
+    recordings,
+    ...counts,
+    fresh: scanned.length - recorded - checkedCount - duplicates,
+  };
+}
+
+function rowCheck(c: CheckedFile): LookCheck {
+  return {
+    status: c.status,
+    ...(c.reason !== undefined ? { reason: c.reason } : {}),
+    ...(c.failedOn !== undefined ? { failedOn: c.failedOn } : {}),
+    ...(c.category !== undefined ? { category: c.category } : {}),
+    ...(c.limit !== undefined ? { limit: c.limit } : {}),
+  };
 }
 
 /**

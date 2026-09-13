@@ -51,25 +51,6 @@ struct MenuView: View {
                 Rule()
             }
 
-            if let oneOff = state.oneOff {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text((oneOff.path as NSString).lastPathComponent)
-                            .font(Style.panel.weight(.semibold))
-                            .foregroundStyle(Style.ink)
-                        Spacer()
-                        Pill(title: "Close", style: .text) { state.dismissOneOff() }
-                    }
-                    Text("checked once, not watched")
-                        .font(Style.small)
-                        .foregroundStyle(Style.quiet)
-                    CheckSummary(report: oneOff.report)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
-                Rule()
-            }
-
             /* Anything the core said: it could not start, it stopped, the
              * ledger could not be reached, a drop could not be made. */
             if !state.loose.isEmpty {

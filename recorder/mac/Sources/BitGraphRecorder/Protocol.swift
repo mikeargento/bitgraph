@@ -109,6 +109,8 @@ struct CheckedFile: Decodable, Equatable, Identifiable {
     var reason: String?
     var failedOn: String?
     var category: String?
+    /// What a pass does NOT establish, in the verifier's words.
+    var limit: String?
     var enclave: String?
     var method: String?
     var position: Position?
@@ -177,9 +179,26 @@ struct Looked: Decodable, Equatable, Identifiable {
     var evidencePath: String?
     /// The earlier file in this drop holding the same bytes, when there is one.
     var duplicateOf: String?
+    /// What a recording IN THE DROP said about these bytes, when one covers
+    /// them or the file sits inside one. A file with an answer other than
+    /// "unrecorded" is not new, whatever the answer was.
+    var check: LookCheck?
 
     var id: String { path }
     var isRecorded: Bool { position != nil }
+    /// Answered by a recording in the drop: verified, failed or undetermined.
+    var isAnswered: Bool { check != nil && check?.status != "unrecorded" }
+}
+
+/// A check's answer as a row carries it.
+struct LookCheck: Decodable, Equatable {
+    var status: String
+    var reason: String?
+    var failedOn: String?
+    var category: String?
+    /// What a pass does NOT establish, in the verifier's words. Carried when
+    /// the commitment sits inside the file's own bytes.
+    var limit: String?
 }
 
 struct LookResult: Decodable, Equatable {
@@ -194,13 +213,24 @@ struct LookResult: Decodable, Equatable {
     var truncated: Bool
     /// How many of the total are the same bytes as an earlier file in the drop.
     var duplicates: Int?
+    /// How many recording folders the drop held. Zero for a plain drop of files.
+    var recordings: Int?
+    /// Of the total, how many a recording in the drop answered for, by what it said.
+    var verified: Int?
+    var failed: Int?
+    var undetermined: Int?
+    /// How many are new: what Record would record. Older cores do not send it.
+    var fresh: Int?
 }
 
 /// What a drop turned out to be.
 ///
-///   open   these bytes already have a BitGraph here.
+///   open   these bytes already have a BitGraph here, or in the drop.
 ///   made   one new file, and the drop was the shutter.
-///   ready  two or more files, listed and waiting. Only a batch gets asked.
+///   ready  listed and waiting: two or more files, or anything dropped
+///          alongside a recording. A drop that holds a BitGraph is never
+///          recorded without being asked. The token is absent when nothing
+///          in it is new.
 struct DropAnswer: Decodable, Equatable {
     var action: String
     var root: String
@@ -209,8 +239,6 @@ struct DropAnswer: Decodable, Equatable {
     var made: MakeResult?
     var skipped: [SkippedFile]?
     var opened: Looked?
-    /// "checked" only: what the check of a dropped folder of BitGraphs said.
-    var report: FolderReport?
 }
 
 /// One recording in the library, as a day lists it.

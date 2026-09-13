@@ -28,7 +28,7 @@ import { mkdir, readdir, stat } from "node:fs/promises";
 import { explain, isBlocked } from "./blocked.js";
 import { checkForUpdate, type UpdateCheck } from "./update.js";
 import { completeLibrary, type AnchorPass } from "./anchors.js";
-import { checkFolder, type FolderReport } from "./check.js";
+import { checkFolder, Checker, type FolderReport, type CheckedFile } from "./check.js";
 import { makeFiles, makeScanned, type MakeResult, type SkippedFile, type MakeProgress } from "./make.js";
 import { scanDrop, lookAt, describe, type LookResult, type Described, isWithin, ROWS_SHOWN } from "./inspect.js";
 import { exportBitGraph, type ExportResult } from "./export.js";
@@ -40,7 +40,8 @@ import { loadSettings, saveSettings, suggestedFolder, MAX_RECORDED, type Setting
 import { FOLDER_NAME, recordingsIn } from "./bundle.js";
 import { watchFolder, type FolderWatcher, type WatchEvent } from "./watch.js";
 import { supportDir } from "./app-paths.js";
-import { ledger, listDay, search, holdsRecordings, type DayCount, type Recording } from "./library.js";
+import { ledger, listDay, search, type DayCount, type Recording } from "./library.js";
+import { bytesToBase64 } from "@mikeargento/bitgraph-verify";
 
 export interface DaemonEvent {
   event: WatchEvent | { kind: "anchors"; root: string; pass: AnchorPass } | { kind: "settings"; settings: Settings } | { kind: "ready"; supportDir: string }
@@ -76,27 +77,30 @@ interface Request {
 /**
  * What a drop is, in one word.
  *
- *   open   these bytes already have a BitGraph here. Open it.
+ *   open   these bytes already have a BitGraph here, or in the drop. Open it.
  *   made   one new file, and the drop IS the shutter: it was recorded.
- *   ready  two or more files. What is there is listed and nothing has been
- *          made; only a batch gets asked.
- *   checked  one folder that holds BitGraphs. It was checked, and nothing was
- *          recorded, changed or sent.
+ *   ready  what is there is listed and nothing has been made. Two or more
+ *          files, or anything dropped alongside a recording: only a batch
+ *          gets asked, and a drop that holds a BitGraph is never recorded
+ *          without being asked.
+ *
+ * A folder holding BitGraphs used to come back "checked", a report and no
+ * list, with no way to record what in it was new. Now it is the same list as
+ * any other drop: each file a row, a recording's answer on the rows it
+ * covers, and Record for the rest.
  */
-export type DropAction = "open" | "made" | "ready" | "checked";
+export type DropAction = "open" | "made" | "ready";
 
 export interface DropAnswer {
   action: DropAction;
   root: string;
   look: LookResult;
-  /** "ready" only: hand this back to commitDrop and the files are not read again. */
+  /** "ready" with something new: hand this back to commitDrop and the files are not read again. Absent when nothing is new. */
   token?: string;
   made?: MakeResult | null;
   skipped?: SkippedFile[];
   /** "open" only: the file whose BitGraph to show. */
   opened?: LookResult["files"][number];
-  /** "checked" only: what the check said. */
-  report?: FolderReport;
 }
 
 export interface DaemonOptions {
@@ -421,42 +425,83 @@ export class Daemon {
    * shutter. A lone file that already has a BitGraph opens it instead, and a
    * batch is listed and waits, because two or more files becoming one
    * permanent position is worth a second of somebody's attention.
+   *
+   * ⚠️ A DROP THAT HOLDS A RECORDING NEVER RECORDS ON ITS OWN. A folder
+   * somebody sent you is read, and every file in it that a recording covers is
+   * checked and comes back with its answer. Whatever is left is new, and it is
+   * listed and waits, even when it is one file: the shutter is for a file
+   * dropped on its own, not a stray beside somebody's BitGraph. Mike,
+   * 2026-09-13: a picture, a copy and its recording in one folder came back
+   * "checked", every file unrecorded, and no way to record the new ones.
    */
   private async drop(paths: string[], again: boolean): Promise<DropAnswer> {
     if (paths.length === 0) throw new Error("nothing was dropped.");
     this.requireSetUp();
     this.pending = null;
-    /* One folder of BitGraphs: checked, not recorded. Somebody sent it, or
-     * it is a recording of your own; either way nothing in it is new. */
-    const only = paths.length === 1 ? paths[0]! : "";
-    if (only !== "" && only !== this.settings.folder && (await stat(only).then((s) => s.isDirectory()).catch(() => false)) && (await holdsRecordings(only))) {
-      const root = only;
-      const report = await this.check(root);
-      return { action: "checked", root, look: { root, files: [], total: 0, recorded: 0, truncated: false, duplicates: 0 }, report };
-    }
     let where = "";
     const say = throttled((done, total) =>
       this.emit({ kind: "making", root: where, files: total, progress: { phase: "hash", done, total } }));
-    const { root, scanned } = await scanDrop(paths, say, (found) => { where = found; }, [this.settings.folder]);
-    const look = await lookAt(this.settings.library, scanned, root);
+    const { root, scanned: all } = await scanDrop(paths, say, (found) => { where = found; }, [this.settings.folder]);
 
-    if (look.files.length === 1) {
-      const only = look.files[0]!;
-      if (only.position !== null && !again) {
-        return { action: "open", root, look, opened: only };
+    /* The recordings the drop holds, wherever they sit, and what they say. */
+    const checker = await Checker.open(root, { library: this.settings.library, alsoKnownEnclaves: this.settings.alsoKnownEnclaves });
+    checker.noteBundles(all.map((s) => s.path));
+    /* ⚠️ A recording's own files are not files somebody dropped to record. */
+    const scanned: ScannedFile[] = [];
+    for (const s of all) if (!(await checker.isRecordingOwn(s.path))) scanned.push(s);
+    if (scanned.length === 0) throw new Error("what was dropped holds a recording's own files and nothing else. Open a recording from the Calendar.");
+
+    const checked = new Map<string, CheckedFile>();
+    if (checker.recordings > 0) {
+      /* Checked: every file a recording in the drop covers, and every file
+       * sitting inside a recording folder, so a file that is not what its
+       * recording is about says so on its row instead of reading as new. */
+      const covered: Array<{ file: ScannedFile; digest: string }> = [];
+      for (const file of scanned) {
+        const digest = bytesToBase64(file.originDigest);
+        if (checked.has(digest)) continue;
+        if ((await checker.covered(file.path, digest)) || (await checker.bundleFor(file.path)) !== null) {
+          checked.set(digest, null as unknown as CheckedFile);
+          covered.push({ file, digest });
+        }
       }
-      const { made, skipped } = await makeScanned(root, scanned, {
-        transport: this.transport,
-        again,
-        bundle: { library: this.settings.library, source: sourceName(root, scanned) },
-        onProgress: throttledPhase((p) => this.emit({ kind: "making", root, files: 1, progress: p })),
-      });
-      if (made !== null) { this.emit({ kind: "made", root, result: slimMade(made) }); await this.remember(root); }
-      return { action: "made", root, look, made: made === null ? null : slimMade(made), skipped: slimSkipped(skipped).files };
+      const tell = throttled((done, total) => this.emit({ kind: "checking", root, progress: { done, total } }));
+      let done = 0;
+      for (const { file, digest } of covered) {
+        checked.set(digest, await checker.checkScanned(file));
+        tell(++done, covered.length);
+      }
+    }
+    const look = await lookAt(this.settings.library, scanned, root, checked, checker.recordings);
+
+    if (scanned.length === 1) {
+      const only = look.files[0]!;
+      if (only.check !== undefined && only.check.status !== "unrecorded") {
+        /* One file, and a recording in the drop answered for it: a pass opens
+         * its BitGraph; anything else is shown, in the list, with its reason. */
+        if (only.check.status === "verified" && !again) return { action: "open", root, look, opened: only };
+      } else if (checker.recordings === 0) {
+        if (only.position !== null && !again) {
+          return { action: "open", root, look, opened: only };
+        }
+        const { made, skipped } = await makeScanned(root, scanned, {
+          transport: this.transport,
+          again,
+          bundle: { library: this.settings.library, source: sourceName(root, scanned) },
+          onProgress: throttledPhase((p) => this.emit({ kind: "making", root, files: 1, progress: p })),
+        });
+        if (made !== null) { this.emit({ kind: "made", root, result: slimMade(made) }); await this.remember(root); }
+        return { action: "made", root, look, made: made === null ? null : slimMade(made), skipped: slimSkipped(skipped).files };
+      }
     }
 
+    /* What Record would record: everything no recording in the drop covers.
+     * A file the library already holds is left in and skipped at make time,
+     * as it always was, so a re-drop stays a read. */
+    if (look.fresh <= 0) return { action: "ready", root, look };
+    const fresh = scanned.filter((s) => (checked.get(bytesToBase64(s.originDigest))?.status ?? "unrecorded") === "unrecorded");
     const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    this.pending = { token, root, scanned };
+    this.pending = { token, root, scanned: fresh };
     return { action: "ready", root, look, token };
   }
 

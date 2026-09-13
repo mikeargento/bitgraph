@@ -44,13 +44,14 @@
  */
 
 import { readFile, readdir, stat } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import {
   verifyFuse,
   parseSetManifest,
   parseSetRoot,
   parseSetMemberProof,
   setRootFromMember,
+  isCarryEncoding,
   base64ToBytes,
   bytesToBase64,
   bytesEqual,
@@ -58,7 +59,7 @@ import {
 } from "@mikeargento/bitgraph-verify";
 import { KNOWN_ENCLAVE_MEASUREMENTS } from "@mikeargento/bitgraph-player";
 import { validateNitroAttestationDocument } from "@mikeargento/bitgraph-audit";
-import { scanFile } from "./hash.js";
+import { scanFile, type ScannedFile } from "./hash.js";
 import { readdir as readdirNames } from "node:fs/promises";
 import { pathsFor, BITGRAPHS_DIR, ANCHOR_DIR, POSITIONS_DIR, INDEX_FILE, type FolderPaths } from "./paths.js";
 import { describe } from "./inspect.js";
@@ -113,6 +114,15 @@ export interface CheckedFile {
   reason?: string;
   /** The verifier's own category, when it ran. */
   category?: string;
+  /**
+   * What a pass does NOT establish, in the verifier's words. Carried when the
+   * commitment sits inside the file's own bytes (the MCP task shape): the bytes
+   * were assembled after the slot existed, and what the commitment was to the
+   * work is the producer's claim, not this check's.
+   */
+  limit?: string;
+  /** The proof that answered for this file, when it came out of a recording folder: that folder's proof.json. */
+  evidencePath?: string;
   /** The enclave that signed it, when it is one we know. */
   enclave?: string;
   /** What the hardware itself said, checked offline against the AWS root. */
@@ -197,24 +207,14 @@ export interface CheckOptions {
 
 /** Check every file in a folder against the evidence beside it. */
 export async function checkFolder(root: string, options: CheckOptions = {}): Promise<FolderReport> {
-  const paths = pathsFor(root);
-  const index = await FolderIndex.open(paths.index);
-  const positions = new PositionCache(paths);
-  const members = new MemberCache();
-  const libraryPath = options.library ?? "";
-  const library = libraryPath === "" ? null : await FolderIndex.open(join(libraryPath, INDEX_FILE));
-  /* ⚠️ A RECORDING FOLDER CHECKS ITSELF. Whoever you hand one to has no
-   * library, no index and no settings: they have a folder. If the thing being
-   * checked holds a proof.json, that proof answers for everything in it and
-   * nothing else is consulted. */
-  const here = await readBundleHere(root);
-
-  const known = knownEnclaves(options.alsoKnownEnclaves);
+  const checker = await Checker.open(root, options);
+  const walked = options.only !== undefined ? [...options.only] : await walk(root);
+  checker.noteBundles(walked);
   /* ⚠️ A RECORDING'S OWN FILES ARE NOT FILES SOMEBODY RECORDED. Checking a
    * recording folder used to count proof.json and the anchors as "5 not
    * recorded", which is noise about the wrong thing. */
-  const walked = options.only !== undefined ? [...options.only] : await walk(root);
-  const files = here === null ? walked : walked.filter((p) => !isRecordingOwn(root, p));
+  const files: string[] = [];
+  for (const p of walked) if (!(await checker.isRecordingOwn(p))) files.push(p);
   const counts = { verified: 0, failed: 0, undetermined: 0, unrecorded: 0 };
   const speaking: CheckedFile[] = [];
   let done = 0;
@@ -225,23 +225,20 @@ export async function checkFolder(root: string, options: CheckOptions = {}): Pro
       partial = true;
       break;
     }
-    const checked = await checkOne(paths, index, positions, root, path, known, members, library, libraryPath, here);
+    const checked = await checker.check(path);
     counts[checked.status]++;
     if (options.everyRow === true || checked.status !== "verified") speaking.push(checked);
     done++;
     options.onFile?.(checked, done, files.length);
   }
 
-  return { root, counts, speaking, positions: positions.size, partial };
+  return { root, counts, speaking, positions: checker.positionsBound, partial };
 }
 
 /** Check one file. Exported so the app can check a single dropped file. */
 export async function checkFile(root: string, path: string, options: CheckOptions = {}): Promise<CheckedFile> {
-  const paths = pathsFor(root);
-  const index = await FolderIndex.open(paths.index);
-  const libraryPath = options.library ?? "";
-  const library = libraryPath === "" ? null : await FolderIndex.open(join(libraryPath, INDEX_FILE));
-  return checkOne(paths, index, new PositionCache(paths), root, path, knownEnclaves(options.alsoKnownEnclaves), new MemberCache(), library, libraryPath, await readBundleHere(root));
+  const checker = await Checker.open(root, options);
+  return checker.check(path);
 }
 
 type KnownEnclaves = ReadonlyArray<{ pcr0: string; label: string }>;
@@ -252,92 +249,300 @@ function knownEnclaves(extra: ReadonlyArray<{ pcr0: string; label: string }> = [
 
 // ---------------------------------------------------------------------------
 
-async function checkOne(paths: FolderPaths, index: FolderIndex, positions: PositionCache, root: string, path: string, known: KnownEnclaves, members: MemberCache, library: FolderIndex | null, libraryPath: string, here: BundleHere | null): Promise<CheckedFile> {
-  const rel = relative(root, path).split(sep).join("/");
-  let scanned;
-  try {
-    scanned = await scanFile(path, rel);
-  } catch (err) {
-    return {
-      path,
-      rel,
-      name: rel.split("/").pop() ?? rel,
-      bytes: 0,
-      status: "undetermined",
-      position: null,
-      method: null,
-      reason: `the file could not be read: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-  const base = { path, rel, name: scanned.name, bytes: scanned.bytes };
-  const originB64 = bytesToBase64(scanned.originDigest);
+/**
+ * A folder, open for checking file after file. Everything read once is kept:
+ * positions, member lists, the recording folders and what they cover.
+ *
+ * ⚠️ RECORDINGS ARE READ WHEREVER THEY SIT. A dropped folder was searched two
+ * levels down for a proof.json to decide it held BitGraphs, and then read at
+ * its root alone, so a recording one level in answered for nothing and every
+ * file in the folder came back unrecorded (Mike, 2026-09-13, a folder holding
+ * a picture and the recording of it side by side). Every folder under the
+ * root that holds a proof.json is a recording here. A file is answered first
+ * by the recording it sits in, then by any recording in the folder that
+ * covers its bytes, then by the mirror, the index and the library as before.
+ *
+ * ⚠️ A RECORDING FOLDER CHECKS ITSELF. Whoever you hand one to has no library,
+ * no index and no settings: they have a folder, and nothing else is needed.
+ */
+export class Checker {
+  private readonly positions: PositionCache;
+  private readonly members = new MemberCache();
+  /** Every folder known to hold a proof.json, whether or not it has been read yet. */
+  private readonly bundleDirs = new Set<string>();
+  /** Folders read: a recording, or null for a folder with no proof.json. */
+  private readonly bundles = new Map<string, Promise<BundleHere | null>>();
+  /** Every origin digest any noted recording covers, to the recording. Built once, on first need. */
+  private contents: Promise<Map<string, BundleHere>> | null = null;
 
-  const found = await findEvidence(paths, index, rel, originB64, members, library, libraryPath, here);
-  if (found.evidence === null) {
-    /* ⚠️ NOT A FAULT, AND NEVER "not on the ledger". These bytes have no
-     * evidence in this folder. That is all this says, and it is all that can
-     * honestly be said: bytes alone cannot tell a file that was altered from
-     * a file that was never recorded, and only one of those accuses anybody.
-     *
-     * What CAN be said is that a BitGraph in this folder is about a file of
-     * this name and different bytes, which is the fact a person needs. It is
-     * reported as part of the reason and is still not a failure. */
-    return {
+  private constructor(
+    readonly root: string,
+    private readonly paths: FolderPaths,
+    private readonly index: FolderIndex,
+    private readonly library: FolderIndex | null,
+    private readonly libraryPath: string,
+    private readonly known: KnownEnclaves,
+  ) {
+    this.positions = new PositionCache(paths);
+  }
+
+  static async open(root: string, options: CheckOptions = {}): Promise<Checker> {
+    const paths = pathsFor(root);
+    const index = await FolderIndex.open(paths.index);
+    const libraryPath = options.library ?? "";
+    const library = libraryPath === "" ? null : await FolderIndex.open(join(libraryPath, INDEX_FILE));
+    return new Checker(resolve(root), paths, index, library, libraryPath, knownEnclaves(options.alsoKnownEnclaves));
+  }
+
+  /** How many distinct positions have been bound so far. */
+  get positionsBound(): number {
+    return this.positions.size;
+  }
+
+  /** How many recording folders have been noted under the root. */
+  get recordings(): number {
+    return this.bundleDirs.size;
+  }
+
+  /**
+   * Tell the checker where the folder's recordings are: every proof.json in a
+   * walk of it. Read lazily, on first need, and once.
+   */
+  noteBundles(files: readonly string[]): void {
+    for (const p of files) if (basename(p) === "proof.json") this.bundleDirs.add(dirname(resolve(p)));
+  }
+
+  /** The recording folder this file sits in: the nearest proof.json at or above its folder, within the root. */
+  async bundleFor(path: string): Promise<BundleHere | null> {
+    let dir = dirname(resolve(path));
+    for (;;) {
+      const found = await this.bundleAt(dir);
+      if (found !== null) return found;
+      if (dir === this.root || !within(dir, this.root)) return null;
+      dir = dirname(dir);
+    }
+  }
+
+  /** A recording folder anywhere under the root whose proof covers these bytes. */
+  async bundleCovering(originDigestB64: string): Promise<BundleHere | null> {
+    if (this.bundleDirs.size === 0) return null;
+    this.contents ??= (async () => {
+      const out = new Map<string, BundleHere>();
+      for (const dir of this.bundleDirs) {
+        const bundle = await this.bundleAt(dir);
+        if (bundle === null) continue;
+        for (const digest of bundle.origins) if (!out.has(digest)) out.set(digest, bundle);
+      }
+      return out;
+    })();
+    return (await this.contents).get(originDigestB64) ?? null;
+  }
+
+  /** True when these bytes are covered by a recording in the folder: the file it sits in, or any other. */
+  async covered(path: string, originDigestB64: string): Promise<boolean> {
+    const own = await this.bundleFor(path);
+    if (own !== null && own.evidenceFor(originDigestB64) !== null) return true;
+    return (await this.bundleCovering(originDigestB64)) !== null;
+  }
+
+  /** A file that is a recording's own (its proof, manifest, member list, anchors), not a file somebody recorded. */
+  async isRecordingOwn(path: string): Promise<boolean> {
+    const bundle = await this.bundleFor(path);
+    return bundle !== null && isRecordingOwn(bundle.dir, path);
+  }
+
+  private bundleAt(dir: string): Promise<BundleHere | null> {
+    let read = this.bundles.get(dir);
+    if (read === undefined) {
+      read = readBundleHere(dir).then((b) => {
+        if (b !== null) this.bundleDirs.add(dir);
+        return b;
+      });
+      this.bundles.set(dir, read);
+    }
+    return read;
+  }
+
+  /** Read the file, then check it. */
+  async check(path: string): Promise<CheckedFile> {
+    const rel = relative(this.root, path).split(sep).join("/");
+    let scanned: ScannedFile;
+    try {
+      scanned = await scanFile(path, rel);
+    } catch (err) {
+      return {
+        path,
+        rel,
+        name: rel.split("/").pop() ?? rel,
+        bytes: 0,
+        status: "undetermined",
+        position: null,
+        method: null,
+        reason: `the file could not be read: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    return this.checkScanned(scanned);
+  }
+
+  /** Check a file already read once. A drop hashes on the way in and never opens a file twice. */
+  async checkScanned(scanned: ScannedFile): Promise<CheckedFile> {
+    const { path } = scanned;
+    const rel = relative(this.root, path).split(sep).join("/");
+    const base = { path, rel, name: scanned.name, bytes: scanned.bytes };
+    const originB64 = bytesToBase64(scanned.originDigest);
+
+    const found = await this.findEvidence(path, rel, originB64);
+    if (found.evidence === null) {
+      /* ⚠️ NOT A FAULT, AND NEVER "not on the ledger". These bytes have no
+       * evidence in this folder. That is all this says, and it is all that can
+       * honestly be said: bytes alone cannot tell a file that was altered from
+       * a file that was never recorded, and only one of those accuses anybody.
+       *
+       * What CAN be said is that a BitGraph in this folder is about a file of
+       * this name and different bytes, which is the fact a person needs. It is
+       * reported as part of the reason and is still not a failure. */
+      return {
+        ...base,
+        status: "unrecorded",
+        position: null,
+        method: null,
+        reason: found.nameTaken
+          ? "no BitGraph for these bytes. A BitGraph in this folder is about a file of this name and different bytes."
+          : found.recordingTaken
+            ? "no BitGraph for these bytes. The BitGraph in this folder is about different bytes."
+            : "no BitGraph for these bytes in this folder.",
+      };
+    }
+    const evidence: Evidence = found.evidence;
+    const where = found.bundleDir !== undefined ? { evidencePath: join(found.bundleDir, "proof.json") } : {};
+
+    const bound = await this.positions.bind(evidence, this.known, found.bundleDir);
+    if (bound.problem !== null) {
+      return { ...base, ...where, status: bound.contradicted ? "failed" : "undetermined", position: bound.position, method: null, ...(bound.contradicted ? { failedOn: "proof" as const } : {}), reason: bound.problem, ...(bound.enclave !== null ? { enclave: bound.enclave } : {}) };
+    }
+
+    const bytesResult = evidence.member === undefined
+      ? await bindSolo(bound, scanned, evidence)
+      : bindMember(bound, scanned, evidence, originB64);
+
+    const bounds = await this.positions.bounds(evidence.position, found.bundleDir);
+    const common = {
       ...base,
-      status: "unrecorded",
-      position: null,
-      method: null,
-      reason: found.nameTaken
-        ? "no BitGraph for these bytes. A BitGraph in this folder is about a file of this name and different bytes."
-        : "no BitGraph for these bytes in this folder.",
+      ...where,
+      position: bound.position,
+      method: bytesResult.method,
+      ...(bound.enclave !== null ? { enclave: bound.enclave } : {}),
+      ...(bound.attestation !== null ? { attestation: bound.attestation } : {}),
+      bounds,
+    };
+
+    if (bytesResult.kind === "failed") {
+      return { ...common, status: "failed", failedOn: bytesResult.side, reason: bytesResult.reason, ...(bytesResult.category !== undefined ? { category: bytesResult.category } : {}) };
+    }
+    if (bytesResult.kind === "undetermined") {
+      return { ...common, status: "undetermined", reason: bytesResult.reason };
+    }
+    if (!bound.proofValid) {
+      return { ...common, status: "failed", failedOn: "proof", reason: bound.proofReason ?? "the proof did not verify." };
+    }
+    /* ⚠️ A proof that claims one enclave and attests to another is a
+     * contradiction, and the only thing on this page that is. A document that
+     * would not open at all is a gap, and is treated as one below. */
+    if (bound.attestation !== null && bound.attestation.valid && !bound.attestation.matchesDeclared) {
+      return { ...common, status: "failed", failedOn: "proof", reason: `this proof declares enclave measurement ${bound.measurement ?? "none"}, and its own hardware attestation says ${bound.attestation.pcr0 ?? "something else"}.` };
+    }
+    if (bound.enclave === null) {
+      /* An enclave nobody here has heard of. Not a forgery and not a pass:
+       * UNDETERMINED, exactly as the player treats an unknown PCR0. */
+      return { ...common, status: "undetermined", reason: `this proof was signed by an enclave measurement this build does not know (${bound.measurement ?? "none declared"}). It is not invalid; it cannot be placed.` };
+    }
+    return {
+      ...common,
+      status: "verified",
+      ...(bytesResult.category !== undefined ? { category: bytesResult.category } : {}),
+      ...(bytesResult.limit !== undefined ? { limit: bytesResult.limit } : {}),
     };
   }
-  const evidence: Evidence = found.evidence;
 
-  const bound = await positions.bind(evidence, known, found.bundleDir);
-  if (bound.problem !== null) {
-    return { ...base, status: bound.contradicted ? "failed" : "undetermined", position: bound.position, method: null, ...(bound.contradicted ? { failedOn: "proof" as const } : {}), reason: bound.problem, ...(bound.enclave !== null ? { enclave: bound.enclave } : {}) };
-  }
+  private async findEvidence(path: string, rel: string, originB64: string): Promise<FoundEvidence> {
+    /* The recording this file sits in, before anything else is consulted. */
+    const own = await this.bundleFor(path);
+    let recordingTaken = false;
+    if (own !== null) {
+      const built = own.evidenceFor(originB64);
+      if (built !== null) return { evidence: built, nameTaken: false, bundleDir: own.dir };
+      /* Not what the recording is about. Whether it names a file of this name
+       * (a set lists its members by path; a lone recording has one file) is
+       * the fact a person needs, and it is still not a failure. */
+      const inside = relative(own.dir, resolve(path)).split(sep).join("/");
+      if (own.names(inside)) return { evidence: null, nameTaken: true };
+      recordingTaken = own.lone;
+    }
+    /* Then any recording in the folder, by content: a copy of a recorded file
+     * kept beside its recording is the recorded bytes. */
+    const covering = await this.bundleCovering(originB64);
+    if (covering !== null) {
+      const built = covering.evidenceFor(originB64);
+      if (built !== null) return { evidence: built, nameTaken: false, bundleDir: covering.dir };
+    }
+    if (recordingTaken) return { evidence: null, nameTaken: false, recordingTaken: true };
+    const { paths, index, members, library, libraryPath } = this;
+    /* The mirror next: it is right almost always and costs two opens.
+     *
+     * ⚠️ BOTH NAMES, ALWAYS. A file's evidence is `.bitgraph` when it carries a
+     * whole proof and `.position.json` when it names a shared one, and a folder
+     * recorded before that split is full of `.bitgraph` pointers. Looking for
+     * one name would call every one of those files unrecorded, which is the
+     * worst thing this check can say about something that is fine. */
+    let direct: Evidence | null = null;
+    for (const carries of ["inline", "beside"] as const) {
+      const found = await readEvidence(paths.evidence(rel, carries));
+      if (found === null) continue;
+      if (found.originDigestB64 === originB64) return { evidence: found, nameTaken: false };
+      direct ??= found;
+    }
 
-  const bytesResult = evidence.member === undefined
-    ? await bindSolo(bound, scanned, evidence)
-    : bindMember(bound, scanned, evidence, originB64);
+    /* Then by CONTENT. A renamed or moved file keeps its BitGraph; the name was
+     * never the binding. */
+    for (const row of index.rowsFor(originB64)) {
+      if (row.evidence !== "") {
+        const e = await readEvidence(join(paths.bitgraphs, ...row.evidence.split("/")));
+        if (e !== null && e.originDigestB64 === originB64) return { evidence: e, nameTaken: false };
+      }
+      /* ⚠️ A big set writes nothing beside its members, so this is the ordinary
+       * path there. members.jsonl under the position has the row. */
+      const built = await members.evidenceFor(paths, { epochId: row.epochId, counter: row.counter }, originB64);
+      if (built !== null) return { evidence: built, nameTaken: false };
+    }
 
-  const bounds = await positions.bounds(evidence.position, found.bundleDir);
-  const common = {
-    ...base,
-    position: bound.position,
-    method: bytesResult.method,
-    ...(bound.enclave !== null ? { enclave: bound.enclave } : {}),
-    ...(bound.attestation !== null ? { attestation: bound.attestation } : {}),
-    bounds,
-  };
+    /* ⚠️ NO INDEX, NO PROBLEM. Deleting it must cost a rescan and nothing else,
+     * so with no row to point the way every position the folder holds is asked. */
+    for (const position of await members.positions(paths)) {
+      const built = await members.evidenceFor(paths, position, originB64);
+      if (built !== null) return { evidence: built, nameTaken: false };
+    }
 
-  if (bytesResult.kind === "failed") {
-    return { ...common, status: "failed", failedOn: bytesResult.side, reason: bytesResult.reason, ...(bytesResult.category !== undefined ? { category: bytesResult.category } : {}) };
+    /* Then the library: the recordings this app has made, wherever they were
+     * dropped from. */
+    if (library !== null) {
+      const row = library.rowsFor(originB64)[0];
+      if (row !== undefined && row.bundle !== undefined && row.bundle !== "") {
+        const dir = join(libraryPath, ...row.bundle.split("/"));
+        const described = await describe(libraryPath, { evidencePath: join(dir, "proof.json"), originDigestB64: originB64 });
+        if (described.evidence !== null) return { evidence: described.evidence, nameTaken: false, bundleDir: dir };
+      }
+    }
+    return { evidence: null, nameTaken: direct !== null };
   }
-  if (bytesResult.kind === "undetermined") {
-    return { ...common, status: "undetermined", reason: bytesResult.reason };
-  }
-  if (!bound.proofValid) {
-    return { ...common, status: "failed", failedOn: "proof", reason: bound.proofReason ?? "the proof did not verify." };
-  }
-  /* ⚠️ A proof that claims one enclave and attests to another is a
-   * contradiction, and the only thing on this page that is. A document that
-   * would not open at all is a gap, and is treated as one below. */
-  if (bound.attestation !== null && bound.attestation.valid && !bound.attestation.matchesDeclared) {
-    return { ...common, status: "failed", failedOn: "proof", reason: `this proof declares enclave measurement ${bound.measurement ?? "none"}, and its own hardware attestation says ${bound.attestation.pcr0 ?? "something else"}.` };
-  }
-  if (bound.enclave === null) {
-    /* An enclave nobody here has heard of. Not a forgery and not a pass:
-     * UNDETERMINED, exactly as the player treats an unknown PCR0. */
-    return { ...common, status: "undetermined", reason: `this proof was signed by an enclave measurement this build does not know (${bound.measurement ?? "none declared"}). It is not invalid; it cannot be placed.` };
-  }
-  return { ...common, status: "verified", ...(bytesResult.category !== undefined ? { category: bytesResult.category } : {}) };
+}
+
+/** True when `path` is `folder` or sits anywhere inside it. Both already resolved. */
+function within(path: string, folder: string): boolean {
+  return path === folder || path.startsWith(folder.endsWith(sep) ? folder : folder + sep);
 }
 
 type BytesResult =
-  | { kind: "ok"; method: "verifier" | "streamed"; category?: string }
+  | { kind: "ok"; method: "verifier" | "streamed"; category?: string; limit?: string }
   | { kind: "failed"; method: "verifier" | "streamed" | null; side: "bytes" | "membership"; reason: string; category?: string }
   | { kind: "undetermined"; method: null; reason: string };
 
@@ -351,7 +556,18 @@ async function bindSolo(bound: BoundPosition, scanned: Awaited<ReturnType<typeof
      * the committed artifact. FUSED_DIRECT would mean the file IS the fused
      * artifact, which is also a pass and happens if someone kept them. */
     if (r.category === "FUSED_FROM_ORIGIN" || r.category === "FUSED_DIRECT") return { kind: "ok", method: "verifier", category: r.category };
+    /* CARRIED_INLINE: the commitment sits inside the file's own bytes and there
+     * is no original (the MCP task shape: the slot was opened, then the work
+     * was done with the commitment in it). A pass, with the verifier's own
+     * limit carried along: the bytes were assembled after the slot existed,
+     * and what the commitment was to the work is the producer's claim. */
+    if (r.category === "CARRIED_INLINE") return { kind: "ok", method: "verifier", category: r.category, limit: r.limits.join(" ") };
     return { kind: "failed", method: "verifier", side: "bytes", reason: r.reason ?? `the verifier answered ${r.category}.`, category: r.category };
+  }
+  if (isCarryEncoding(evidence.placement)) {
+    /* Past the verifier's size the commitment would have to be searched for
+     * across the whole file, which this check does not do. Said as a gap. */
+    return { kind: "undetermined", method: null, reason: "this file carries its commitment inside its own bytes and is too large for the verifier to search here." };
   }
   if (bound.commitment === null) return { kind: "undetermined", method: null, reason: "the proof carries no slot record, so the fused digest cannot be rebuilt." };
   const recomputed = bytesToBase64(scanned.fusedDigest(bound.commitment));
@@ -622,62 +838,10 @@ interface FoundEvidence {
   evidence: Evidence | null;
   /** True when evidence sits at this file's name but is about different bytes. */
   nameTaken: boolean;
+  /** True when the file sits in a recording of one file, and the recording is about different bytes. */
+  recordingTaken?: boolean;
   /** The recording folder it came out of, when it came out of one. */
   bundleDir?: string;
-}
-
-async function findEvidence(paths: FolderPaths, index: FolderIndex, rel: string, originB64: string, members: MemberCache, library: FolderIndex | null, libraryPath: string, here: BundleHere | null): Promise<FoundEvidence> {
-  /* The recording this folder IS, before anything else is consulted. */
-  if (here !== null) {
-    const built = here.evidenceFor(originB64);
-    if (built !== null) return { evidence: built, nameTaken: false, bundleDir: here.dir };
-  }
-  /* The mirror first: it is right almost always and costs two opens.
-   *
-   * ⚠️ BOTH NAMES, ALWAYS. A file's evidence is `.bitgraph` when it carries a
-   * whole proof and `.position.json` when it names a shared one, and a folder
-   * recorded before that split is full of `.bitgraph` pointers. Looking for
-   * one name would call every one of those files unrecorded, which is the
-   * worst thing this check can say about something that is fine. */
-  let direct: Evidence | null = null;
-  for (const carries of ["inline", "beside"] as const) {
-    const found = await readEvidence(paths.evidence(rel, carries));
-    if (found === null) continue;
-    if (found.originDigestB64 === originB64) return { evidence: found, nameTaken: false };
-    direct ??= found;
-  }
-
-  /* Then by CONTENT. A renamed or moved file keeps its BitGraph; the name was
-   * never the binding. */
-  for (const row of index.rowsFor(originB64)) {
-    if (row.evidence !== "") {
-      const e = await readEvidence(join(paths.bitgraphs, ...row.evidence.split("/")));
-      if (e !== null && e.originDigestB64 === originB64) return { evidence: e, nameTaken: false };
-    }
-    /* ⚠️ A big set writes nothing beside its members, so this is the ordinary
-     * path there. members.jsonl under the position has the row. */
-    const built = await members.evidenceFor(paths, { epochId: row.epochId, counter: row.counter }, originB64);
-    if (built !== null) return { evidence: built, nameTaken: false };
-  }
-
-  /* ⚠️ NO INDEX, NO PROBLEM. Deleting it must cost a rescan and nothing else,
-   * so with no row to point the way every position the folder holds is asked. */
-  for (const position of await members.positions(paths)) {
-    const built = await members.evidenceFor(paths, position, originB64);
-    if (built !== null) return { evidence: built, nameTaken: false };
-  }
-
-  /* Then the library: the recordings this app has made, wherever they were
-   * dropped from. */
-  if (library !== null) {
-    const row = library.rowsFor(originB64)[0];
-    if (row !== undefined && row.bundle !== undefined && row.bundle !== "") {
-      const dir = join(libraryPath, ...row.bundle.split("/"));
-      const described = await describe(libraryPath, { evidencePath: join(dir, "proof.json"), originDigestB64: originB64 });
-      if (described.evidence !== null) return { evidence: described.evidence, nameTaken: false, bundleDir: dir };
-    }
-  }
-  return { evidence: null, nameTaken: direct !== null };
 }
 
 /**
@@ -688,8 +852,14 @@ async function findEvidence(paths: FolderPaths, index: FolderIndex, rel: string,
  * library, no settings, no network. Every question the check asks is answered
  * from the bytes in that folder.
  */
-interface BundleHere {
+export interface BundleHere {
   dir: string;
+  /** Every origin digest this recording covers. For a file made with the commitment inside it, the artifact digest: the file is the artifact. */
+  origins: readonly string[];
+  /** A recording of one file, with no member list. */
+  lone: boolean;
+  /** True when the member list has a row at this path inside the recording, whatever its bytes. */
+  names(relInRecording: string): boolean;
   evidenceFor(originDigestB64: string): Evidence | null;
 }
 
@@ -720,10 +890,28 @@ async function readBundleHere(dir: string): Promise<BundleHere | null> {
     }
   }
   const attribution = (proof as { attribution?: { message?: unknown; title?: unknown } }).attribution;
-  const soloOrigin = typeof attribution?.message === "string" ? attribution.message : null;
+  const title = typeof attribution?.title === "string" ? attribution.title : null;
+  const artifactDigestB64 = (proof as { artifact?: { digestB64?: unknown } }).artifact?.digestB64;
+  const artifact = typeof artifactDigestB64 === "string" ? artifactDigestB64 : "";
+  /* A recording of one file names its original in the attribution. A file
+   * made with the commitment INSIDE it (the MCP task shape) names no original,
+   * because there is none: the attribution's title is an encoding, and the
+   * file on disk is the committed artifact itself. It is covered by the
+   * artifact digest. */
+  const soloOrigin = typeof attribution?.message === "string"
+    ? attribution.message
+    : rows.size === 0 && isCarryEncoding(title) && artifact !== "" ? artifact : null;
 
+  let paths: Set<string> | null = null;
   return {
     dir,
+    origins: rows.size > 0 ? [...rows.keys()] : soloOrigin === null ? [] : [soloOrigin],
+    lone: rows.size === 0 && soloOrigin !== null,
+    names(relInRecording) {
+      if (rows.size === 0) return false;
+      paths ??= new Set([...rows.values()].map((r) => r.rel));
+      return paths.has(relInRecording);
+    },
     evidenceFor(originDigestB64) {
       const row = rows.get(originDigestB64);
       if (row !== undefined) {
@@ -735,9 +923,9 @@ async function readBundleHere(dir: string): Promise<BundleHere | null> {
         return {
           version: "bitgraph-evidence/1",
           file: { name: "", bytes: 0 },
-          placement: (typeof attribution?.title === "string" ? attribution.title : "trailer/1") as Evidence["placement"],
+          placement: (title ?? "trailer/1") as Evidence["placement"],
           originDigestB64,
-          artifactDigestB64: (proof as { artifact?: { digestB64?: string } }).artifact?.digestB64 ?? "",
+          artifactDigestB64: artifact,
           position,
           proof: { kind: "inline", proof },
           writtenAt: new Date().toISOString(),
@@ -849,8 +1037,8 @@ export async function walk(root: string, options: { excluding?: readonly string[
   return out;
 }
 
-/** Files a recording folder holds that are the app's, not the person's. */
-const RECORDING_OWN = new Set(["proof.json", "manifest.json", "members.jsonl", "anchors-status.json"]);
+/** Files a recording folder holds that are the app's, not the person's. `position.json` is an export's evidence file. */
+const RECORDING_OWN = new Set(["proof.json", "manifest.json", "members.jsonl", "anchors-status.json", "position.json"]);
 
 function isRecordingOwn(root: string, path: string): boolean {
   const rel = relative(root, path).split(sep).join("/");

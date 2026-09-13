@@ -100,6 +100,7 @@ BitGraph (Photos 2026, 412 files)/
         <li><strong>One new file</strong> is recorded on landing.</li>
         <li><strong>One file already on record</strong> opens its BitGraph instead.</li>
         <li><strong>Two or more</strong> are listed first, then made as one BitGraph at one position, each file a member. Only a batch gets asked.</li>
+        <li><strong>A folder holding a BitGraph</strong> is the same list: each file a recording covers carries what the check said, the rest are new, and Record records the new ones alone. Nothing records on landing when a recording is in the drop.</li>
       </ul>
       <p className="text-[#1f2937] mb-4">
         Two files with the same bytes in one drop are one member: the record is by content, and the second name is covered by the first. Your BitGraph folder itself can never be dropped, and a drop of the folder above it walks around it.
@@ -115,7 +116,7 @@ BitGraph (Photos 2026, 412 files)/
 
       <h2 className="text-xl font-semibold mt-12 mb-4">The reader</h2>
       <p className="text-[#1f2937] mb-4">
-        <strong>Check a folder</strong> reads and records nothing. A folder somebody sends you checks on its own, because a recording carries everything a check asks for. Four outcomes, and the differences between them are the point.
+        Dropping a folder that holds BitGraphs reads them, wherever in it they sit, and records nothing until Record is pressed for what is new. A folder somebody sends you checks on its own, because a recording carries everything a check asks for. Four outcomes, and the differences between them are the point.
       </p>
       <table>
         <tbody>

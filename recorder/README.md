@@ -77,9 +77,12 @@ carries on with everything in it.
 - **One file already on record**: opens its BitGraph instead.
 - **Two or more**: listed first, then made as ONE BitGraph at ONE position,
   each file a member. Only a batch gets asked.
-- **A folder of BitGraphs**: checked, and the report shown. Nothing is
-  recorded, nothing is changed, nothing leaves the machine. It is how a folder
-  somebody sent you gets read, and how a recording of your own is re-checked.
+- **A folder holding a BitGraph**: the same list. Every file a recording in
+  the folder covers is checked and its row says what the check said; whatever
+  is left is new, and Record records the new ones alone. Nothing records on
+  landing when a recording is in the drop, not even one stray file. It is how
+  a folder somebody sent you gets read, and how a recording of your own is
+  re-checked, without losing the way to record what is new beside it.
 
 Two files with the same bytes in one drop are one member: the record is by
 content, so the second name is covered by the first and said so. Your BitGraph
@@ -93,9 +96,14 @@ That is a decision for a narrower form of it, not a default.
 
 ## The reader
 
-A dropped folder of BitGraphs is read and nothing is recorded. A folder
+A dropped folder holding BitGraphs is read, wherever in it the recordings
+sit, and nothing is recorded until Record is pressed for what is new. A folder
 somebody sends you checks **on its own** — no library, no index, no settings,
-no network — because a recording carries everything a check asks for.
+no network — because a recording carries everything a check asks for. A file
+made with the slot commitment inside its own bytes (the MCP task shape) is
+checked the same way: it is the committed artifact itself, and its pass
+carries the verifier's limit, that containing the commitment does not show
+what the commitment was to the work.
 
 Four outcomes, and the differences between them are the point:
 

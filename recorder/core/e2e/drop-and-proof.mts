@@ -209,6 +209,63 @@ try {
     ok("big set: it exports, new file and all", pkg.files.includes("position.json") && typeof pkg.fusedName === "string", JSON.stringify(pkg.files));
   }
 
+  // ── a drop that holds a recording: one list, its answers beside the new ──
+  //
+  // ⚠️ A folder holding BitGraphs used to come back "checked": a report, no
+  // list, and no way to record what in it was new (Mike, 2026-09-13). Now it
+  // is the same list as any drop. A recording's own files are not listed, the
+  // files it covers carry its answer, and Record records the rest.
+  {
+    const { cpSync, copyFileSync } = await import("node:fs");
+    const recordingDir = first.made.bundlePath as string;
+    ok("the lone recording has a folder in the library", typeof recordingDir === "string" && existsSync(join(recordingDir, "proof.json")), recordingDir);
+
+    const sent = mkdtempSync(join(tmpdir(), "bg-sent-"));
+    cpSync(recordingDir, join(sent, "ONE BitGraph"), { recursive: true });
+    copyFileSync(solo, join(sent, "ONE copy.JPG"));
+    writeFileSync(join(sent, "NEW.JPG"), jpeg(1300, 300));
+    writeFileSync(join(sent, "NOTES.txt"), new TextEncoder().encode("new\n"));
+
+    const mixed = await daemon.handle({ id: 50, op: "drop", paths: [sent] }) as any;
+    const rows = new Map<string, any>((mixed.look?.files ?? []).map((f: any) => [f.rel, f]));
+    ok("a folder holding a recording is listed, not reported", mixed.action === "ready", mixed.action);
+    ok("it says it held one recording", mixed.look.recordings === 1, JSON.stringify(mixed.look));
+    ok("the recording's own files are not rows", ![...rows.keys()].some((r) => r.endsWith("proof.json") || r.includes("ethereum-anchors")) && mixed.look.total === 4, JSON.stringify([...rows.keys()]));
+    ok("the recorded file verified against the recording it sits in", rows.get("ONE BitGraph/ONE.JPG")?.check?.status === "verified", JSON.stringify(rows.get("ONE BitGraph/ONE.JPG")));
+    ok("and carries its position", rows.get("ONE BitGraph/ONE.JPG")?.position?.counter === first.made.position.counter);
+    ok("a copy of the recorded bytes beside the recording verified by content", rows.get("ONE copy.JPG")?.check?.status === "verified", JSON.stringify(rows.get("ONE copy.JPG")));
+    ok("the new files are new", rows.get("NEW.JPG")?.check === undefined && rows.get("NOTES.txt")?.check === undefined);
+    ok("the counts say so: 2 verified, 2 new", mixed.look.verified === 2 && mixed.look.fresh === 2, JSON.stringify(mixed.look));
+    ok("and a token waits for Record", typeof mixed.token === "string");
+
+    const recordedNew = await daemon.handle({ id: 51, op: "commitDrop", token: mixed.token }) as any;
+    ok("Record records ONLY the new files", recordedNew.made?.files?.length === 2 && recordedNew.made.files.every((f: any) => ["NEW.JPG", "NOTES.txt"].includes(f.name)), JSON.stringify(recordedNew.made?.files?.map((f: any) => f.name)));
+    ok("and nothing was skipped, because the verified files were never offered", (recordedNew.skipped ?? []).length === 0, JSON.stringify(recordedNew.skipped));
+
+    // ── a lone new file beside a recording waits ──────────────────────────
+    const stray = mkdtempSync(join(tmpdir(), "bg-stray-"));
+    cpSync(recordingDir, join(stray, "R"), { recursive: true });
+    writeFileSync(join(stray, "STRAY.JPG"), jpeg(1100, 301));
+    const strayDrop = await daemon.handle({ id: 52, op: "drop", paths: [stray] }) as any;
+    ok("⚠️ a lone new file beside a recording is NOT recorded on landing", strayDrop.action === "ready" && strayDrop.look.fresh === 1 && typeof strayDrop.token === "string", JSON.stringify({ a: strayDrop.action, l: strayDrop.look }));
+
+    // ── the recording alone opens ─────────────────────────────────────────
+    const alone = mkdtempSync(join(tmpdir(), "bg-alone-"));
+    cpSync(recordingDir, join(alone, "R"), { recursive: true });
+    const aloneDrop = await daemon.handle({ id: 53, op: "drop", paths: [join(alone, "R")] }) as any;
+    ok("a recording dropped on its own opens its BitGraph", aloneDrop.action === "open" && aloneDrop.opened?.check?.status === "verified", JSON.stringify({ a: aloneDrop.action, o: aloneDrop.opened }));
+    ok("from the recording's own proof", typeof aloneDrop.opened?.evidencePath === "string" && aloneDrop.opened.evidencePath === join(alone, "R", "proof.json"), aloneDrop.opened?.evidencePath);
+
+    // ── a changed file in a recording says what the recording is about ────
+    const bytes = readFileSync(join(alone, "R", "ONE.JPG"));
+    bytes[bytes.length - 1] ^= 0xff;
+    writeFileSync(join(alone, "R", "ONE.JPG"), bytes);
+    const changed = await daemon.handle({ id: 54, op: "drop", paths: [join(alone, "R")] }) as any;
+    const changedRow = changed.look?.files?.[0];
+    ok("a changed file is listed, with the reason on its row", changed.action === "ready" && changedRow?.check?.status === "unrecorded" && /different bytes/.test(changedRow?.check?.reason ?? ""), JSON.stringify({ a: changed.action, r: changedRow }));
+    ok("it is new, so Record is offered and nothing recorded on its own", changed.look.fresh === 1 && typeof changed.token === "string");
+  }
+
 } finally {
   await daemon.stop();
   stack.stop();

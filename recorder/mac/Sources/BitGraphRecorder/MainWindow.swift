@@ -74,9 +74,6 @@ struct MainWindow: View {
             } else if let batch = state.pendingBatch {
                 scrim.onTapGesture { state.cancelPendingDrop() }
                 BatchDialog(state: state, look: batch)
-            } else if let checked = state.oneOff {
-                scrim.onTapGesture { state.dismissOneOff() }
-                CheckDialog(state: state, path: checked.path, report: checked.report)
             }
 
             if state.dragOver {

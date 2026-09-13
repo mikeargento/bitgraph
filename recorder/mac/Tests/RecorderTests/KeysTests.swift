@@ -54,16 +54,34 @@ final class KeysTests: XCTestCase {
         XCTAssertTrue(state.dialogUp)
     }
 
-    /// A folder of BitGraphs dropped on the window comes back "checked", and
-    /// the report goes over the calendar, never a menu.
-    func testACheckedDropShowsItsReport() {
+    /// A folder holding a BitGraph comes back as the same list as any drop,
+    /// with the recording's answers on the rows it covers, and it is the one
+    /// dialog over the calendar: never a report of its own.
+    func testADropHoldingARecordingIsTheOneList() throws {
+        let json = """
+        {"action":"ready","root":"/sent/Export","look":{"root":"/sent/Export","total":3,"recorded":0,"truncated":false,"duplicates":0,
+          "recordings":1,"verified":1,"failed":0,"undetermined":0,"fresh":2,"files":[
+          {"path":"/sent/Export/R/ONE.JPG","name":"ONE.JPG","rel":"R/ONE.JPG","bytes":10,"originDigestB64":"AA","placement":"trailer/1",
+           "position":{"epochId":"e","counter":"2406"},"evidencePath":"/sent/Export/R/proof.json","check":{"status":"verified","category":"CARRIED_INLINE","limit":"the producer's claim"}},
+          {"path":"/sent/Export/NEW.JPG","name":"NEW.JPG","rel":"NEW.JPG","bytes":10,"originDigestB64":"BB","placement":"trailer/1","position":null,"evidencePath":null},
+          {"path":"/sent/Export/R/TWO.JPG","name":"TWO.JPG","rel":"R/TWO.JPG","bytes":10,"originDigestB64":"CC","placement":"trailer/1","position":null,"evidencePath":null,
+           "check":{"status":"unrecorded","reason":"no BitGraph for these bytes. The BitGraph in this folder is about different bytes."}}
+        ]},"token":"t"}
+        """
+        let answer = try JSONDecoder().decode(DropAnswer.self, from: Data(json.utf8))
+        XCTAssertEqual(answer.look.recordings, 1)
+        XCTAssertEqual(answer.look.fresh, 2)
+        let rows = answer.look.files
+        XCTAssertTrue(rows[0].isAnswered, "a verified row is answered")
+        XCTAssertEqual(rows[0].check?.limit, "the producer's claim")
+        XCTAssertFalse(rows[1].isAnswered, "a new file has no answer")
+        XCTAssertFalse(rows[2].isAnswered, "an unrecorded answer is information, not cover: the file is still new")
+
         let state = AppState(preview: status())
-        let report = FolderReport(root: "/sent/Export", counts: CheckCounts(verified: 3, failed: 0, undetermined: 0, unrecorded: 0), speaking: [], positions: 1, partial: false)
-        state.showCheck(path: "/sent/Export", report: report)
-        XCTAssertEqual(state.oneOff?.path, "/sent/Export")
+        state.pendingBatch = answer.look
         XCTAssertTrue(state.dialogUp)
         XCTAssertTrue(state.escape())
-        XCTAssertNil(state.oneOff)
+        XCTAssertNil(state.pendingBatch)
     }
 
     /// The header's ways to a proof are on a proof page too, and using one

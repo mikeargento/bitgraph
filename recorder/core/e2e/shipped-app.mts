@@ -27,7 +27,8 @@ function jpeg(bytes: number, seed: number): Uint8Array {
   return b;
 }
 
-const app = fileURLToPath(new URL("../../mac/build/BitGraph Recorder.app", import.meta.url));
+/* The app build.sh assembled: mac/build by default, or wherever OUT put it. */
+const app = process.env.BITGRAPH_RECORDER_APP ?? fileURLToPath(new URL("../../mac/build/BitGraph Recorder.app", import.meta.url));
 const binary = join(app, "Contents", "MacOS", "BitGraphRecorder");
 if (!existsSync(binary)) {
   console.error(`no built app at ${app}. Run folder/mac/build.sh first.`);

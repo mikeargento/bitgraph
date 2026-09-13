@@ -22,9 +22,6 @@ final class AppState: ObservableObject {
     @Published private(set) var troubles: [Trouble] = []
     @Published private(set) var coreState: DaemonClient.State = .starting
     @Published var checking: Set<String> = []
-    /// A folder somebody checked once without watching it: the path somebody
-    /// takes when a BitGraphed folder arrives from someone else.
-    @Published private(set) var oneOff: (path: String, report: FolderReport)?
     @Published var openAtLogin: Bool = false
 
     // ── the calendar ────────────────────────────────────────────────────────
@@ -367,7 +364,7 @@ final class AppState: ObservableObject {
 
     /// A dialog is up: the keys that move the calendar are not taken.
     var dialogUp: Bool {
-        !isSetUp || settingUpAgain || status?.folderMissing == true || status?.folderBlocked == true || pendingBatch != nil || oneOff != nil
+        !isSetUp || settingUpAgain || status?.folderMissing == true || status?.folderBlocked == true || pendingBatch != nil
     }
 
     /// Escape, wherever it lands: the topmost thing that can be put away
@@ -381,7 +378,6 @@ final class AppState: ObservableObject {
             if !dropping { cancelPendingDrop() }
             return true
         }
-        if oneOff != nil { dismissOneOff(); return true }
         if settingUpAgain { settingUpAgain = false; return true }
         if toast != nil { dismissToast(); return true }
         if searching { clearSearch(); return true }
@@ -517,17 +513,6 @@ final class AppState: ObservableObject {
 
     func clearTroubles() {
         troubles.removeAll()
-    }
-
-    /// A dropped folder of BitGraphs was checked: its report, over the
-    /// calendar. ⚠️ Checking is not recording. Nothing was added, written or
-    /// sent; it is how a folder somebody SENT you gets read.
-    func showCheck(path: String, report: FolderReport) {
-        oneOff = (path, report)
-    }
-
-    func dismissOneOff() {
-        oneOff = nil
     }
 
     /// ⚠️ A watcher that only runs while somebody remembers to start it is not
