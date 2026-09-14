@@ -135,9 +135,12 @@ export default function ExamPage() {
           The filled pill is also larger (17px/600 against 15px/500), so the
           pair still reads as one action and its alternative.
 
-          ⚠️ This does NOT quiet the second action: both stay at their own
-          class's weight, and the feedback that forbids lightening a
-          secondary action is about exactly that. */}
+          The download is a PLAIN LINK, not the outlined pill. It names the
+          file — a stranger should know what lands in their Downloads folder
+          before they click — and a 38-character filename inside a pill wraps
+          to two lines in a box stretched the full width of a phone column,
+          which looks like a mistake. As type it just reads as a filename.
+          (Mike, 2026-09-14: "remove the pill".) */}
       <p className="mb-6" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, marginTop: 28 }}>
         <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
           {REPO_URL !== null ? (
@@ -153,13 +156,13 @@ export default function ExamPage() {
             <button className="bg-action-link bg-download-link" type="button" disabled>Read the source on GitHub</button>
           )}
           {ZIP_URL !== null ? (
-            <a className="bg-action-link" href={ZIP_URL}>Download the package</a>
+            <a href={ZIP_URL} style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600, fontSize: 15, letterSpacing: "-0.01em" }}>Download BitGraph-Sealed-Exam-Demo.zip</a>
           ) : (
-            <button className="bg-action-link" type="button" disabled>Download the package</button>
+            <span style={{ color: "#9ca3af", fontWeight: 600, fontSize: 15 }}>Download BitGraph-Sealed-Exam-Demo.zip</span>
           )}
         </span>
         <span className="text-[#4b5563]" style={{ fontSize: 13.5 }}>
-          Node 20 or later &middot; a clone installs once, the {ZIP_SIZE} zip installs nothing and never touches the network
+          Node 20 or later &middot; a clone installs once, the {ZIP_SIZE} download installs nothing and never touches the network
         </span>
       </p>
 
