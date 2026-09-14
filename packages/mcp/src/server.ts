@@ -664,7 +664,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             proofNote = `The proof could not be written beside the file (${errorText(err)}); save the JSON below whole and unedited, every field. `;
           }
         } else {
-          proofNote = "Save the JSON below as a file beside the task bytes, whole and unedited, every field: a proof missing slotAllocation or environment cannot be verified. ";
+          proofNote = "Save the JSON below as a file beside the task bytes, whole and unedited, every field, including environment.attestation.reportB64, the long base64 string, copied exactly: a proof missing slotAllocation, environment, or the attestation cannot be verified. ";
         }
         const structured = { outcome: "sealed", slot_counter: state.slot.counter, counter, epoch: epoch ? toUrlSafeB64(epoch) : null, floor_block: floor, artifact_digest: toUrlSafeB64(sealed.artifactDigestB64), commitment_offsets: sealed.offsets, proof_path: proofPath, instructions: proofNote.trim(), proof: sealed.proof };
         if (response_format === "json") return ok(JSON.stringify(structured, null, 2), structured);

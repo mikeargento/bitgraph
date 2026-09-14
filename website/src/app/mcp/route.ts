@@ -47,7 +47,7 @@ import {
  * dropped slotAllocation and environment, and the signature no longer had a
  * body to be checked against (Grok, 2026-09-13).
  */
-const PROOF_KEEPING = "Save each proof whole and unedited, every field, beside the bytes it is about: a proof missing slotAllocation or environment cannot be verified.";
+const PROOF_KEEPING = "Save each proof whole and unedited, every field, beside the bytes it is about, including environment.attestation.reportB64, the long base64 string, copied exactly: a proof missing slotAllocation, environment, or the attestation cannot be verified.";
 import {
   beginHosted,
   commitHostedTask,

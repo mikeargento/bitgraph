@@ -161,7 +161,7 @@ export const TASK_INSTRUCTIONS =
   `When the output exists, call bitgraph_commit with this fuse_token and the output file's path, within ${SLOT_TTL_SECONDS} seconds of opening: the output itself is sealed under the position, and the proof is written beside it. ` +
   "If the output cannot hold text (a PNG, audio, video) or will take longer than that to make, put the commitment into a task file instead (the exact prompt or request you send), seal that file the same way, and when the output exists record it with bitgraph_record: the task is sealed before the output existed, and the output is recorded after. " +
   "Keep the exact bytes that were sealed unchanged: a verifier recomputes the commitment from the proof and looks for the string inside them. " +
-  "Leave the proof file as written, whole, every field: a proof missing slotAllocation or environment cannot be verified.";
+  "Leave the proof file as written, whole, every field, environment.attestation.reportB64 included: a proof missing slotAllocation, environment, or the attestation cannot be verified.";
 
 /**
  * Write a sealed task's proof beside the file it is about, whole, and say

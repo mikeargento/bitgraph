@@ -783,7 +783,7 @@ export const TASK_INSTRUCTIONS =
   `When the output exists, SHA-256 its bytes, base64 them, and call bitgraph_commit with this fuse_token, that digest and carry "${ENCODING_BASE64URL}", within ${SLOT_TTL_SECONDS} seconds of opening: the output itself is sealed under the position. ` +
   "If the output cannot hold text (a PNG, audio, video) or will take longer than that to make, put the commitment into the task instead (the exact prompt or request you send), seal those task bytes the same way, and when the output exists open a second position for it (bitgraph_open with the file) and commit it: the task is sealed before the output existed, and the output is recorded after. " +
   "Keep the exact bytes you hashed unchanged: a verifier recomputes the commitment from the proof and looks for the string inside them. " +
-  "Save the proof bitgraph_commit returns beside those bytes as a file, whole and unedited, every field: a proof missing slotAllocation or environment cannot be verified.";
+  "Save the proof bitgraph_commit returns beside those bytes as a file, whole and unedited, every field, including environment.attestation.reportB64, the long base64 string, copied exactly: a proof missing slotAllocation, environment, or the attestation cannot be verified.";
 
 // ---------------------------------------------------------------------------
 // Outcomes, in the product's vocabulary, and their rendering.
