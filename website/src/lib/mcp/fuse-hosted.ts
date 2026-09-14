@@ -779,10 +779,11 @@ export async function commitHostedTask(state: TaskState, artifactDigestB64: stri
 }
 
 export const TASK_INSTRUCTIONS =
-  "You hold a position and its commitment, and no work exists yet. Put the commitment string into the task before you run it: in the prompt or request you are about to send, as a seed, as a line in the document, as text that must appear in the output. " +
-  `Then SHA-256 the bytes of that task (the exact request or document that contains the string), base64 it, and call bitgraph_commit with this fuse_token, that digest, and carry "${ENCODING_BASE64URL}", within ${SLOT_TTL_SECONDS} seconds of opening: that seals the task under the position before its output exists. ` +
-  "Keep those exact bytes: a verifier recomputes the commitment from the proof and looks for the string inside them. " +
-  "When the output exists, record it the ordinary way (bitgraph_open with the file, then bitgraph_commit); it will sit at a later position. What a stranger can then check: the task could not have existed before the position's floor block, and the output was recorded after it.";
+  "You hold a position and its commitment, and no work exists yet. Put the commitment string INSIDE THE OUTPUT you are about to make whenever its format can hold text (SVG, HTML, code, JSON, Markdown, CSV, a document): as a comment, a field, a line that stays in the file. " +
+  `When the output exists, SHA-256 its bytes, base64 them, and call bitgraph_commit with this fuse_token, that digest and carry "${ENCODING_BASE64URL}", within ${SLOT_TTL_SECONDS} seconds of opening: the output itself is sealed under the position. ` +
+  "If the output cannot hold text (a PNG, audio, video) or will take longer than that to make, put the commitment into the task instead (the exact prompt or request you send), seal those task bytes the same way, and when the output exists open a second position for it (bitgraph_open with the file) and commit it: the task is sealed before the output existed, and the output is recorded after. " +
+  "Keep the exact bytes you hashed unchanged: a verifier recomputes the commitment from the proof and looks for the string inside them. " +
+  "Save the proof bitgraph_commit returns beside those bytes as a file, whole and unedited, every field: a proof missing slotAllocation or environment cannot be verified.";
 
 // ---------------------------------------------------------------------------
 // Outcomes, in the product's vocabulary, and their rendering.

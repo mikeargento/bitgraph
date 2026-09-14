@@ -49,10 +49,10 @@ import {
   type SetOutcome,
 } from "./format.js";
 import { expandPaths, fusedDigestFor, scanFile, type ScannedFile } from "./scan.js";
-import { SLOT_TTL_SECONDS, TASK_INSTRUCTIONS, beginTask, decodeTaskToken, sealTask } from "./task.js";
+import { SLOT_TTL_SECONDS, TASK_INSTRUCTIONS, beginTask, decodeTaskToken, sealTask, writeProofBeside } from "./task.js";
 import type { BitGraphProof } from "./types.js";
 
-export const SERVER_VERSION = "0.5.0";
+export const SERVER_VERSION = "0.5.1";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */
@@ -651,12 +651,29 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const counter = sealed.proof.commit?.counter ?? null;
         const epoch = sealed.proof.commit?.epochId ?? null;
         const floor = sealed.proof.commit?.slotAnchor?.blockNumber ?? null;
-        const structured = { outcome: "sealed", slot_counter: state.slot.counter, counter, epoch: epoch ? toUrlSafeB64(epoch) : null, floor_block: floor, artifact_digest: toUrlSafeB64(sealed.artifactDigestB64), commitment_offsets: sealed.offsets, proof: sealed.proof };
+        /* The proof goes beside the sealed file, written here, whole. Given
+         * only a digest there is no file to put it beside, so it is handed
+         * back with the one instruction that matters. */
+        let proofPath: string | null = null;
+        let proofNote = "";
+        if (path !== undefined) {
+          try {
+            proofPath = await writeProofBeside(path, sealed.proof);
+            proofNote = `The proof is written at ${proofPath}, whole; leave it as written. `;
+          } catch (err) {
+            proofNote = `The proof could not be written beside the file (${errorText(err)}); save the JSON below whole and unedited, every field. `;
+          }
+        } else {
+          proofNote = "Save the JSON below as a file beside the task bytes, whole and unedited, every field: a proof missing slotAllocation or environment cannot be verified. ";
+        }
+        const structured = { outcome: "sealed", slot_counter: state.slot.counter, counter, epoch: epoch ? toUrlSafeB64(epoch) : null, floor_block: floor, artifact_digest: toUrlSafeB64(sealed.artifactDigestB64), commitment_offsets: sealed.offsets, proof_path: proofPath, instructions: proofNote.trim(), proof: sealed.proof };
         if (response_format === "json") return ok(JSON.stringify(structured, null, 2), structured);
         return ok(
           `Sealed the task at position ${counter ?? "?"} (slot ${state.slot.counter}).${floor !== null ? ` Not before block ${floor}.` : ""} ` +
-            (sealed.offsets !== null ? `The commitment string was found in the task bytes at offset ${sealed.offsets[0]}. ` : "The task bytes were not read here; a verifier looks for the commitment string in them. ") +
-            "Keep the proof beside the task bytes, and record the outputs with bitgraph_record when they exist.\n\n```json\n" + JSON.stringify(sealed.proof, null, 2) + "\n```",
+            (sealed.offsets !== null ? `The commitment string was found in the sealed bytes at offset ${sealed.offsets[0]}. ` : "The bytes were not read here; a verifier looks for the commitment string in them. ") +
+            proofNote +
+            "Record the outputs with bitgraph_record when they exist." +
+            (proofPath === null ? "\n\n```json\n" + JSON.stringify(sealed.proof, null, 2) + "\n```" : ""),
           structured
         );
       } catch (err) {

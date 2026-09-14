@@ -157,7 +157,31 @@ async function recover(config: ApiConfig, artifactDigestB64: string, slot: SlotA
 }
 
 export const TASK_INSTRUCTIONS =
-  "You hold a position and its commitment, and no work exists yet. Put the commitment string into the task before you run it: in the prompt or request you are about to send, as a seed, as a line in the document, as text that must appear in the output. " +
-  `Then call bitgraph_commit with this fuse_token and the path of the task file (or the SHA-256 of its bytes), within ${SLOT_TTL_SECONDS} seconds of opening: that seals the task under the position before its output exists. ` +
-  "Keep those exact bytes: a verifier recomputes the commitment from the proof and looks for the string inside them. " +
-  "When the output exists, record it with bitgraph_record; it will sit at a later position. What a stranger can then check: the task could not have existed before the position's floor block, and the output was recorded after it.";
+  "You hold a position and its commitment, and no work exists yet. Put the commitment string INSIDE THE OUTPUT you are about to make whenever its format can hold text (SVG, HTML, code, JSON, Markdown, CSV, a document): as a comment, a field, a line that stays in the file. " +
+  `When the output exists, call bitgraph_commit with this fuse_token and the output file's path, within ${SLOT_TTL_SECONDS} seconds of opening: the output itself is sealed under the position, and the proof is written beside it. ` +
+  "If the output cannot hold text (a PNG, audio, video) or will take longer than that to make, put the commitment into a task file instead (the exact prompt or request you send), seal that file the same way, and when the output exists record it with bitgraph_record: the task is sealed before the output existed, and the output is recorded after. " +
+  "Keep the exact bytes that were sealed unchanged: a verifier recomputes the commitment from the proof and looks for the string inside them. " +
+  "Leave the proof file as written, whole, every field: a proof missing slotAllocation or environment cannot be verified.";
+
+/**
+ * Write a sealed task's proof beside the file it is about, whole, and say
+ * where. `make_task.txt` gets `make_task.proof.json`; a name already taken
+ * gets the position's counter in it rather than being overwritten.
+ *
+ * ⚠️ THE SERVER WRITES IT, NOT THE AGENT. Handed the JSON to save, an agent
+ * tidied it and dropped slotAllocation and environment, and the signature
+ * had no body left to be checked against (Grok, 2026-09-13). A file this
+ * process writes is the proof exactly as the boundary returned it.
+ */
+export async function writeProofBeside(sealedPath: string, proof: BitGraphProof): Promise<string> {
+  const { writeFile, access } = await import("node:fs/promises");
+  const { basename, dirname, extname, join } = await import("node:path");
+  const dir = dirname(sealedPath);
+  const base = basename(sealedPath);
+  const stem = extname(base) === "" ? base : base.slice(0, -extname(base).length);
+  const counter = proof.commit?.counter ?? "0";
+  let target = join(dir, `${stem}.proof.json`);
+  if (await access(target).then(() => true).catch(() => false)) target = join(dir, `${stem}.proof.${counter}.json`);
+  await writeFile(target, JSON.stringify(proof, null, 2) + "\n", { flag: "wx" });
+  return target;
+}

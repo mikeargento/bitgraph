@@ -41,6 +41,13 @@ import {
   renderProofMarkdown,
   type CheckOutcome,
 } from "@/lib/mcp/format";
+
+/**
+ * Said with every proof handed back. An agent that "tidied" a task proof
+ * dropped slotAllocation and environment, and the signature no longer had a
+ * body to be checked against (Grok, 2026-09-13).
+ */
+const PROOF_KEEPING = "Save each proof whole and unedited, every field, beside the bytes it is about: a proof missing slotAllocation or environment cannot be verified.";
 import {
   beginHosted,
   commitHostedTask,
@@ -516,6 +523,7 @@ const handler = createMcpHandler(
             results: outcomes,
             sets,
             frames,
+            instructions: PROOF_KEEPING,
             summary: {
               fused: outcomes.filter((o) => o.outcome === "fused").length,
               not_fused: outcomes.filter((o) => o.outcome === "not fused").length,
@@ -526,7 +534,7 @@ const handler = createMcpHandler(
           const setSummaries: SetOutcome[] = sets.map((s) => ({ slot_counter: s.slot_counter, counter: s.counter, epoch: s.epoch, count: s.count, artifact_digest: s.artifact_digest, proof_url: s.proof_url, manifest_echoed: s.manifest_echoed, recovered: s.recovered }));
           let md = renderCommitMarkdown(outcomes, setSummaries);
           if (sets.length > 0) md += "\n\nSet proofs, one per set (save each beside its originals):\n```json\n" + capJson(sets).text + "\n```";
-          if (frames.length > 0) md += "\n\nFrames, one per single fused file (save each as its frame_name):\n```json\n" + capJson(frames).text + "\n```";
+          if (frames.length > 0) md += "\n\nProofs, one per single fused file or task (save each as its name). " + PROOF_KEEPING + "\n```json\n" + capJson(frames).text + "\n```";
           return ok(md);
         } catch (err) {
           return fail(errorText(err));
