@@ -6,11 +6,11 @@ import { DocsPageNav } from "@/components/docs-page-nav";
 export const metadata: Metadata = {
   title: "Use cases",
   description:
-    "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, clinical AI, and model evaluation. Your system proves what happened. BitGraph proves where that proof stood.",
+    "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, clinical AI, and AI model evaluation. Your system proves what happened. BitGraph proves where that proof stood.",
   openGraph: {
     title: "BitGraph: Use cases",
     description:
-      "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, clinical AI, and model evaluation.",
+      "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, clinical AI, and AI model evaluation.",
   },
 };
 
@@ -132,7 +132,7 @@ const environments = [
        small budgets. The buyer here is whoever has to choose between models
        and defend the choice. */
     id: "model-evaluation",
-    title: "Model evaluation and procurement",
+    title: "AI model evaluation and procurement",
     examples: "vendor bake-offs \u00b7 model selection \u00b7 held-out test sets \u00b7 third-party evaluation \u00b7 regulator-facing testing evidence \u00b7 internal acceptance testing",
     pressure:
       "Buyers and regulators increasingly ask how a model was evaluated, not only what it scored. Technical documentation of testing is expected of high-risk systems under the EU AI Act, and measurement is one of the four functions of the NIST AI Risk Management Framework. A score carries weight only if the model had not already seen the test.",
