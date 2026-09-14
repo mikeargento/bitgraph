@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   // 2026-09-10: the same sentence as the site-wide description in layout.tsx,
   // from the overview opener this page renders.
   description:
-    "BitGraph gives AI agent records a verifiable order. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
+    "BitGraph gives a record a position it did not choose and a floor it cannot move. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
 };
 
 export default function HomePage() {

@@ -73,10 +73,17 @@ export default function OverviewPage() {
           the scope paragraph says what BitGraph does not claim, which is the
           sentence the reviewers this page is for read first. */}
       <h1 style={{ margin: "0 0 24px" }}>
-        {/* "verifiable order" is glued: a line that breaks before the last
-            word leaves "order" hanging alone (Mike, 2026-09-09: "so word
-            doesnt hang"). The word stays; the break moves. */}
-        BitGraph gives AI agent records a verifiable&nbsp;order
+        {/* 2026-09-13: the identity line, not a function line. "Of record" is
+            a frozen idiom (attorney of record, paper of record) and borrows
+            its authority whole, which is why nothing may be wedged inside it.
+            It was written on 09-03 and parked then for one reason only: a
+            category noun sitting over a DROP BOX promised infrastructure and
+            handed the visitor a file picker. The drop box left on 09-08 and
+            home is this page now, so the objection went with it.
+            ⚠️ The word AI left the h1 deliberately: it picks a first vertical
+            while the Recorder's is open, which is the reason "The proof layer
+            for AI" was rejected on 09-03. Four short words, no wrap to guard. */}
+        The order of record
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just
@@ -126,13 +133,13 @@ export default function OverviewPage() {
           opener above it, a page-width "Overview" title directly under the h1
           was furniture. ── */}
       <p>
-        An agent writes its own records, and it can rewrite them. Whatever a record says about itself, its time, its order, what came before it, is the agent&rsquo;s claim. Anything that later relies on that record, an audit, a dispute, a revocation, is relying on the agent&rsquo;s word about itself.
+        An agent writes its own records, and it can rewrite them. Whatever a record says about itself, its time, its order, what came before it, is the agent&rsquo;s claim. An audit, a dispute or a revocation that relies on that record is relying on the agent&rsquo;s word about itself.
       </p>
       <p>
         BitGraph adds the one thing the agent cannot write: a position it did not choose, with a floor it cannot move.
       </p>
       <p>
-        A record is bytes. BitGraph gives those bytes a position. An enclave allocates the position before it has seen the record&rsquo;s digest, then commits the digest under it, and the proof carries the Ethereum block the enclave had already authenticated when it did. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.
+        A record is bytes. BitGraph gives those bytes a position. An enclave allocates the position before it has seen the record&rsquo;s digest, then commits the digest under it, and the proof carries the Ethereum block the enclave had already authenticated when it allocated the position. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.
       </p>
       <p>
         BitGraph does not say what the agent did, or whether the record is true. It says the record was placed no earlier than its floor, and where it sits among every other record placed on the same ledger.

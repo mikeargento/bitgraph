@@ -27,21 +27,21 @@ export const metadata: Metadata = {
   // Nothing else can hold that position, and it cannot be moved later.")
   // predated the opener and local-first.
   description:
-    "BitGraph gives AI agent records a verifiable order. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
+    "BitGraph gives a record a position it did not choose and a floor it cannot move. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
   keywords: [
     "BitGraph", "causal order", "verifiable order", "proof of integrity",
     "tamper-evident", "AI agent records", "Ethereum anchors",
   ],
   openGraph: {
     title: "BitGraph",
-    description: "BitGraph gives AI agent records a verifiable order. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
+    description: "BitGraph gives a record a position it did not choose and a floor it cannot move. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
     card: "summary_large_image",
     title: "BitGraph",
-    description: "BitGraph gives AI agent records a verifiable order. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
+    description: "BitGraph gives a record a position it did not choose and a floor it cannot move. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
   },
   robots: { index: true, follow: true },
 };
