@@ -42,13 +42,13 @@ import type { Metadata } from "next";
    (Mike, 2026-09-14: "I only send drive file to one company"). Everyone
    after gets this page and the repository. */
 const REPO_URL: string | null = "https://github.com/mikeargento/sealed-exam";
-const ZIP_URL: string | null = "https://github.com/mikeargento/sealed-exam/releases/latest/download/BitGraph-Sealed-Exam-Demo.zip";
+const ZIP_URL: string | null = "https://github.com/mikeargento/sealed-exam/releases/latest/download/BitGraph-Sealed-Exam.zip";
 
 /* The published bytes. Recomputed from the zip that
    packages/exam-cli/outreach/build.sh wrote on 2026-09-14; rebuild the
    package and this line moves with it, or the page is lying about a file it
    did not check. */
-const ZIP_SHA256 = "cb46dbb7810f9b6f2fb8d69f6b9bd4260d210b0126e7a474d659a8fe6c51336c";
+const ZIP_SHA256 = "8452ef97d6fa59be88a4bdbc371813788d185432a248637691366358dbabf901";
 const ZIP_SIZE = "4.1 MB";
 
 /* ⚠️ THE DESCRIPTION IS PART OF THE COLD OPEN. It is the line under the
@@ -135,12 +135,15 @@ export default function ExamPage() {
           The filled pill is also larger (17px/600 against 15px/500), so the
           pair still reads as one action and its alternative.
 
-          The download is a PLAIN LINK, not the outlined pill. It names the
-          file — a stranger should know what lands in their Downloads folder
-          before they click — and a 38-character filename inside a pill wraps
-          to two lines in a box stretched the full width of a phone column,
-          which looks like a mistake. As type it just reads as a filename.
-          (Mike, 2026-09-14: "remove the pill".) */}
+          The download names its file, because a stranger should know what
+          lands in their Downloads folder before they click. It is the
+          outlined pill and it fits: 293px inside the 338px column a 375px
+          phone gives. The name it had first, BitGraph-Sealed-Exam-Demo.zip,
+          missed that by TWO PIXELS and wrapped to two lines inside a
+          full-width box — which is why the word Demo went. It was also the
+          last place anything called this a demo, and a filename is the part
+          that travels: into a Downloads folder, a terminal, a forwarded
+          thread. MEASURE A LABEL BEFORE PUTTING IT IN A PILL. */}
       <p className="mb-6" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, marginTop: 28 }}>
         <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
           {REPO_URL !== null ? (
@@ -156,9 +159,9 @@ export default function ExamPage() {
             <button className="bg-action-link bg-download-link" type="button" disabled>Read the source on GitHub</button>
           )}
           {ZIP_URL !== null ? (
-            <a href={ZIP_URL} style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600, fontSize: 15, letterSpacing: "-0.01em" }}>Download BitGraph-Sealed-Exam-Demo.zip</a>
+            <a className="bg-action-link" href={ZIP_URL}>Download BitGraph-Sealed-Exam.zip</a>
           ) : (
-            <span style={{ color: "#9ca3af", fontWeight: 600, fontSize: 15 }}>Download BitGraph-Sealed-Exam-Demo.zip</span>
+            <button className="bg-action-link" type="button" disabled>Download BitGraph-Sealed-Exam.zip</button>
           )}
         </span>
         <span className="text-[#4b5563]" style={{ fontSize: 13.5 }}>
@@ -171,8 +174,8 @@ export default function ExamPage() {
           one thing the repository cannot do for itself: a hash published
           somewhere other than the host that served the file. */}
       <div className="code-block">
-        <div className="code-block-header"><span>BitGraph-Sealed-Exam-Demo.zip &middot; SHA-256</span></div>
-        <pre>{`shasum -a 256 BitGraph-Sealed-Exam-Demo.zip
+        <div className="code-block-header"><span>BitGraph-Sealed-Exam.zip &middot; SHA-256</span></div>
+        <pre>{`shasum -a 256 BitGraph-Sealed-Exam.zip
 
 ${ZIP_SHA256}`}</pre>
       </div>
@@ -199,7 +202,7 @@ npm run build`}</pre>
         From the zip, nothing: the five packages and their dependencies are vendored under <code>verifier/node_modules/</code>. Then the same three commands either way.
       </p>
       <div className="code-block">
-        <div className="code-block-header"><span>sealed-exam/ &nbsp;or&nbsp; BitGraph-Sealed-Exam-Demo/</span></div>
+        <div className="code-block-header"><span>sealed-exam/ &nbsp;or&nbsp; BitGraph-Sealed-Exam/</span></div>
         <pre>{`node verifier/demo.mjs                                   # the table, every value recomputed
 node verifier/exam.mjs verify demo/claude-sonnet-5.exam  # one folder, every check listed
 node verifier/exam.mjs selftest                          # DRBG vectors, determinism, checkers, fences: 11 self-tests`}</pre>
