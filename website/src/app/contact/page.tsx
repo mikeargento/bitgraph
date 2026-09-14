@@ -43,12 +43,20 @@ export default function ContactPage() {
     }
   }
 
+  /* RESTYLE 2026-09-14. Square corners were the site's rule until the
+     2026-09-11 pass made every interactive surface rounded — the pills in
+     the nav, the action links, the menu card. A form left at borderRadius 0
+     is the last square thing a visitor touches. 10px, not the card's 14:
+     these sit at 46px tall and the card radius reads as a lozenge at that
+     height. The border stays #d0d5dd, which is .bg-action-link's border, so
+     the fields and the button they sit above are the same weight of line;
+     --hair (#e5e7eb) is for dividers, not for things you click. */
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "12px 14px",
     background: "#ffffff",
     border: "1px solid #d0d5dd",
-    borderRadius: 0,
+    borderRadius: 10,
     fontSize: 15,
     color: "#111827",
     fontFamily: "inherit",
@@ -65,39 +73,41 @@ export default function ContactPage() {
   };
 
   return (
-    <div
-      style={{
-        maxWidth: 640,
-        margin: "0 auto",
-        padding: "64px 24px 96px",
-      }}
-    >
-      <h1
-        style={{
-          fontSize: 32,
-          fontWeight: 600,
-          letterSpacing: "-0.03em",
-          marginBottom: 12,
-          color: "#111827",
-        }}
-      >
-        Contact
-      </h1>
+    /* The site's column, so the h1 lines up with the wordmark above it.
+       This page centred a 640px block of its own, which left "Contact"
+       starting a couple of hundred pixels right of "BitGraph" on any wide
+       monitor — the one page on the site whose content did not sit on the
+       measure. The FORM keeps a 640px cap inside the column, left aligned:
+       a text field the full 1040 is a worse field, but that is a line-length
+       decision and not a reason to move the page off its axis. */
+    <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px" }}>
+    <div style={{ maxWidth: 640 }}>
+      {/* .bg-page-title is the site's one h1 rule, clamp(26px, 6vw, 32px).
+          The hardcoded 32 here never shrank, so this title sat 6px larger
+          than every other page's on a phone. */}
+      <h1 className="bg-page-title" style={{ margin: "0 0 12px" }}>Contact</h1>
       {/* The page says what it is for before asking for anything
           (2026-08-27). Facts and one instruction, no pitch. */}
-      {/* Mike's wording verbatim (2026-08-27); the what-you-record second
-          sentence was cut the same day. */}
+      {/* Mike's wording, cut to the bone (2026-09-14). One instruction and
+          two ways to follow it, and nothing else.
+
+          What went is the tail: "to ask for a live demo, enterprise
+          consultation, or licensing conversation", which had stood since
+          2026-08-27. It was the only pitch on a page whose own rule two
+          lines up is "facts and one instruction, no pitch", and it named
+          three reasons to write, which quietly tells anyone with a fourth
+          that they are in the wrong place. The h1 says Contact; the page
+          does not need to list what contact is for. */}
       <p style={{ fontSize: 16, lineHeight: 1.6, color: "#1f2937", margin: "0 0 8px" }}>
-        Ask for a live demo, enterprise consultation, or licensing
-        conversation.
+        Fill out and submit the form below, or email <a href="mailto:mike@bitgraph.ing" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>mike@bitgraph.ing</a>.
       </p>
       <div style={{ height: 20 }} />
       {status === "sent" ? (
         <div
           style={{
             background: "#ffffff",
-            border: "1px solid #d0d5dd",
-            borderRadius: 0,
+            border: "1px solid var(--hair)",
+            borderRadius: "var(--radius-card)",
             padding: "32px 28px",
             textAlign: "center",
           }}
@@ -237,7 +247,7 @@ export default function ContactPage() {
                 style={{
                   background: "#fef2f2",
                   border: "1px solid #fecaca",
-                  borderRadius: 0,
+                  borderRadius: 10,
                   padding: "10px 14px",
                   fontSize: 13,
                   color: "#991b1b",
@@ -251,7 +261,11 @@ export default function ContactPage() {
                 slab this form shipped with in June: blue label + arrow, no
                 chrome, centred. .bg-action-link carries the tap target,
                 hover nudge, and disabled grey. */}
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 8 }}>
+            {/* Left, with the fields, not centred. It was centred under a
+                centred 640px block; in the column the form is left aligned
+                and a centred button floats away from the thing it submits.
+                The site's actions all start at the measure's left edge. */}
+            <div style={{ display: "flex", justifyContent: "flex-start", marginTop: 8 }}>
               <button type="submit" disabled={status === "sending"} className="bg-action-link">
                 {status === "sending" ? "Sending…" : "Send message"}{" "}
                 <span className="arrow" aria-hidden="true">&rarr;</span>
@@ -260,6 +274,7 @@ export default function ContactPage() {
           </div>
         </form>
       )}
+    </div>
     </div>
   );
 }

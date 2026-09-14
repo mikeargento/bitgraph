@@ -117,18 +117,33 @@ export default function ExamPage() {
         That paragraph is the whole claim, and this package asks you to attack it. Everything else is running code and real evidence: six models from three vendors sat the same kind of paper on 12 and 13 September 2026, each paper derived from a value that came into existence at a signed position on a public chain, and each sitting is a folder you verify with nothing but Node, offline, in three commands.
       </p>
 
-      {/* TWO ACTIONS, ONE WEIGHT. Both are the site's outlined pill and the
-          primary one is marked by POSITION, not by treatment — the rule is
-          written on .bg-action-link in globals.css, and the filled variant
-          stays the Recorder download's alone. Reading comes first because
-          reading is what this package is asking for: a stranger's 4 MB zip
-          is a thing you delete, and a repository is a thing you skim. */}
+      {/* TWO ACTIONS. The first is FILLED (.bg-download-link), the second
+          the outlined pill.
+
+          The rule written on .bg-action-link — every action the same size,
+          the primary marked by position — is the rule for a page where the
+          actions are secondary to the reading. /docs/recorder already breaks
+          it, and on purpose: a page whose JOB is to hand you software gets
+          one filled button. /exam is that same page. A reader arrives here
+          from a cold email with one question, and two outlined pills the
+          same weight as the nav's "Docs" answer it too quietly.
+
+          Filling ONE, not both: two primaries is no primary. It is the
+          GitHub link rather than the download because reading is the low
+          commitment, high trust thing to do first, and because a stranger's
+          4 MB zip is what you delete when you have not yet seen the code.
+          The filled pill is also larger (17px/600 against 15px/500), so the
+          pair still reads as one action and its alternative.
+
+          ⚠️ This does NOT quiet the second action: both stay at their own
+          class's weight, and the feedback that forbids lightening a
+          secondary action is about exactly that. */}
       <p className="mb-6" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, marginTop: 28 }}>
-        <span style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
           {REPO_URL !== null ? (
-            <a className="bg-action-link" href={REPO_URL} target="_blank" rel="noopener">Read the source on GitHub</a>
+            <a className="bg-action-link bg-download-link" href={REPO_URL} target="_blank" rel="noopener">Read the source on GitHub</a>
           ) : (
-            <button className="bg-action-link" type="button" disabled>Read the source on GitHub</button>
+            <button className="bg-action-link bg-download-link" type="button" disabled>Read the source on GitHub</button>
           )}
           {ZIP_URL !== null ? (
             <a className="bg-action-link" href={ZIP_URL}>Download the package</a>
