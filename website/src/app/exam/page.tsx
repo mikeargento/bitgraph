@@ -48,7 +48,7 @@ const ZIP_URL: string | null = "https://github.com/mikeargento/sealed-exam/relea
    packages/exam-cli/outreach/build.sh wrote on 2026-09-14; rebuild the
    package and this line moves with it, or the page is lying about a file it
    did not check. */
-const ZIP_SHA256 = "e9a859d90be975f4446d2ad4ed8a3a46595b497e3cbd840559909444524e3b51";
+const ZIP_SHA256 = "cb46dbb7810f9b6f2fb8d69f6b9bd4260d210b0126e7a474d659a8fe6c51336c";
 const ZIP_SIZE = "4.1 MB";
 
 /* ⚠️ THE DESCRIPTION IS PART OF THE COLD OPEN. It is the line under the
