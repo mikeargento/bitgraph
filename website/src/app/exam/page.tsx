@@ -8,10 +8,13 @@ import type { Metadata } from "next";
    claims, what it does NOT claim, what is in it and what it costs to run, is
    the thing that gets opened. This page is that link.
 
-   UNLISTED AND NOINDEXED, like /deck: not in SiteNav, not in sitemap.ts
-   (which enumerates staticRoutes + DOCS_SECTIONS, and this is in neither),
-   noindex below. Reachable by URL for the people it is sent to. Delete the
-   robots line and add the route to sitemap.ts to make it public.
+   LINKED AND INDEXED since 2026-09-14, from the model-evaluation entry on
+   /subjects — the vertical it is the working proof of. It was unlisted and
+   noindexed while nothing was public; that stopped being true the moment
+   the repository went public, five packages went to npm and a release was
+   tagged, and an unlisted page guarding public work is only inconsistency.
+   NOT in the Docs nav: that menu is sections of the specification, and a
+   case study is not a section.
 
    UNLIKE /deck it keeps the site's chrome. /deck is a door with nothing on
    it because its reader already knows who sent it. This reader does not: the
@@ -67,7 +70,6 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "BitGraph",
   },
-  robots: { index: false, follow: false },
 };
 
 export default function ExamPage() {

@@ -259,6 +259,20 @@ export default function SubjectsPage() {
             <p style={{ ...pStyle, margin: 0 }}>
               <strong style={strongStyle}>What a BitGraph changes.</strong> {tight(c.fit)}
             </p>
+            {/* The one entry whose demonstration already exists as evidence
+                rather than as a description, so it is the one entry that
+                links out. A fourth labelled line, in the same rhythm as the
+                three above it, rather than a card or a button: this page has
+                been left-ruled prose since 08-26 and a call to action would
+                be the first thing on it that is not. */}
+            {c.id === "model-evaluation" && (
+              <p style={{ ...pStyle, margin: "12px 0 0" }}>
+                <strong style={strongStyle}>What this looks like in practice.</strong>{" "}
+                Six models from three vendors sat a paper made this way on 12 and 13 September 2026.
+                Every sitting is a folder that verifies offline, and the packages that made them are
+                public: <a href="/exam" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>the sealed exam</a>.
+              </p>
+            )}
             {c.callout && (
               <div style={{ ...figureStyle, margin: "16px 0 0", textAlign: "center", letterSpacing: "0.04em" }}>
                 {c.callout}
