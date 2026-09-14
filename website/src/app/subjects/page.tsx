@@ -6,11 +6,11 @@ import { DocsPageNav } from "@/components/docs-page-nav";
 export const metadata: Metadata = {
   title: "Use cases",
   description:
-    "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, and clinical AI. Your system proves what happened. BitGraph proves where that proof stood.",
+    "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, clinical AI, and model evaluation. Your system proves what happened. BitGraph proves where that proof stood.",
   openGraph: {
     title: "BitGraph: Use cases",
     description:
-      "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, and clinical AI.",
+      "Where independently verifiable, hardware-attested evidence carries the most weight: regulated finance, government and sovereign AI, multi-party agent workflows, clinical AI, and model evaluation.",
   },
 };
 
@@ -124,6 +124,24 @@ const environments = [
       "Clinical systems keep their signed decision records and add BitGraph positions, which gives later reviewers independent evidence of the order between exact digital states. A decision record, model manifest, authorization or audit artifact gets a portable causal position. The medical data is never published or sent to BitGraph; the proof binds to the digest.",
     callout: null as string | null,
   },
+  {
+    /* 2026-09-13: added after the sealed-exam runs. This is the one
+       environment where the demonstration already exists as evidence rather
+       than as a description: six sittings, three vendors, every folder
+       verifiable offline. ⚠️ It is NOT "benchmarking", which is a niche with
+       small budgets. The buyer here is whoever has to choose between models
+       and defend the choice. */
+    id: "model-evaluation",
+    title: "Model evaluation and procurement",
+    examples: "vendor bake-offs \u00b7 model selection \u00b7 held-out test sets \u00b7 third-party evaluation \u00b7 regulator-facing testing evidence \u00b7 internal acceptance testing",
+    pressure:
+      "Buyers and regulators increasingly ask how a model was evaluated, not only what it scored. Technical documentation of testing is expected of high-risk systems under the EU AI Act, and measurement is one of the four functions of the NIST AI Risk Management Framework. A score carries weight only if the model had not already seen the test.",
+    problem:
+      "Every evaluation rests on one assertion nobody can check: that the questions were not in the training data. Today that is a promise about a process. The set was kept private, or written after a cutoff, or held out by the party running the test. A vendor scoring itself is offering its word; an independent evaluator is offering theirs; and a buyer comparing the two can only settle it by being handed the test set, which destroys it for everyone afterward.",
+    fit:
+      "The evaluation takes a position before the questions exist, and the questions are derived from that position. A paper made this way could not have existed before the public Ethereum block the position names, so no training corpus frozen earlier can contain it, and the set stays usable because nothing has to be revealed to prove it. The answers are recorded at a later position on the same ledger. The vendor, the evaluator and the buyer each verify both from the folder alone, offline. BitGraph places the paper and the answers. Whether the model worked unaided, and whether the test was difficult, stay with the evaluation that ran it.",
+    callout: null as string | null,
+  },
 ];
 
 /* What a high-assurance system already answers, and the one question it
@@ -208,12 +226,12 @@ export default function SubjectsPage() {
         and it records only a digest: the record itself never leaves the system that made&nbsp;it.
       </p>
 
-      {/* The four environments. Single column, one anatomy, no grid: a
+      {/* The five environments. Single column, one anatomy, no grid: a
           left-ruled entry each, the idiom this page has used since 08-26. */}
       <div style={sectionStyle}>
-        <h2 style={h2Style}>Not every record needs a position. These four do.</h2>
+        <h2 style={h2Style}>Not every record needs a position. These five do.</h2>
         <p style={{ ...pStyle, margin: "0 0 28px" }}>
-          Four environments where independently verifiable, hardware-attested
+          Five environments where independently verifiable, hardware-attested
           evidence carries the most weight. Each entry has the same shape:
           where the pressure comes from, what fails today, and what a BitGraph&nbsp;changes.
         </p>
@@ -289,7 +307,7 @@ export default function SubjectsPage() {
         </p>
       </div>
 
-      {/* Portability. This is the property the four environments rest on. */}
+      {/* Portability. This is the property the five environments rest on. */}
       <div style={sectionStyle}>
         <h2 style={h2Style}>The proof travels with the artifact</h2>
         <p style={{ ...pStyle, margin: "0 0 14px" }}>
@@ -366,7 +384,7 @@ export default function SubjectsPage() {
       </div>
 
       {/* The subjects this page used to lead with, one line each. BitGraph is
-          for any bits; the four environments above are where the buyer is. */}
+          for any bits; the five environments above are where the buyer is. */}
       <div style={sectionStyle}>
         <h2 style={h2Style}>Other subjects</h2>
         <p style={{ ...pStyle, margin: "0 0 14px" }}>
