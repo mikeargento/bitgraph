@@ -34,9 +34,15 @@ export default function RecorderPage() {
           one filled button on the site, with the version line tucked under
           it as its caption. No arrow: an arrow points somewhere, a download
           does not. (It was the site's plain link on the h2 scale from
-          2026-09-10 to 09-11.) */}
+          2026-09-10 to 09-11.)
+          ⚠️ COLUMN, NOT A WRAPPING ROW. The restyle left this a flex row
+          that wraps, so on a desktop the caption had room and sat BESIDE the
+          pill instead of under it, against the instruction quoted below and
+          against this comment's own word "tucked". A column keeps the
+          caption under the button at every width, which is what a caption
+          is (2026-09-14). */}
       {DOWNLOAD_URL !== null ? (
-        <p className="mb-10 bg-download-row" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 18px", marginTop: 28 }}>
+        <p className="mb-10 bg-download-row" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, marginTop: 28 }}>
           <a className="bg-action-link bg-download-link" href={DOWNLOAD_URL}>Download for Mac</a>
           {/* The version comes from the feed the release script wrote, the
               same file the app reads, so this line and the app can never
@@ -46,7 +52,7 @@ export default function RecorderPage() {
           <span className="text-[#4b5563]" style={{ fontSize: 13.5 }}>Version {feed.version} · macOS 14 or later, Apple silicon · <a href="https://github.com/mikeargento/bitgraph/releases/latest" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 500 }}>Release notes and checksum</a></span>
         </p>
       ) : (
-        <p className="mb-10 bg-download-row" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 18px", marginTop: 28 }}>
+        <p className="mb-10 bg-download-row" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, marginTop: 28 }}>
           <button className="bg-action-link bg-download-link" type="button" disabled aria-describedby="recorder-soon">
             Download for Mac
           </button>
