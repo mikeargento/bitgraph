@@ -48,8 +48,8 @@ const ZIP_URL: string | null = "https://github.com/mikeargento/sealed-exam/relea
    packages/exam-cli/outreach/build.sh wrote on 2026-09-14; rebuild the
    package and this line moves with it, or the page is lying about a file it
    did not check. */
-const ZIP_SHA256 = "80004c8b2599b87e768fe276981a923e6405a61d90c21c5239fe02b10e2b9558";
-const ZIP_SIZE = "4.2 MB";
+const ZIP_SHA256 = "f5c8ba540b5cc8601184aaccbdb0a3ecc2d15007adb560727199e7ab57f348b5";
+const ZIP_SIZE = "4.1 MB";
 
 /* ⚠️ THE DESCRIPTION IS PART OF THE COLD OPEN. It is the line under the
    title in a Slack or mail unfurl, so it follows the same rule as the h1:
@@ -141,7 +141,14 @@ export default function ExamPage() {
       <p className="mb-6" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, marginTop: 28 }}>
         <span style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
           {REPO_URL !== null ? (
-            <a className="bg-action-link bg-download-link" href={REPO_URL} target="_blank" rel="noopener">Read the source on GitHub</a>
+            <a className="bg-action-link bg-download-link" href={REPO_URL} target="_blank" rel="noopener">
+              Read the source on GitHub
+              {/* The one action here that leaves the site. No visible ↗ in
+                  the pill — arrows were taken out of pills on 2026-09-11 and
+                  this is still a pill — but a screen reader is told, the way
+                  the GitHub row in the docs menu tells it. */}
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
           ) : (
             <button className="bg-action-link bg-download-link" type="button" disabled>Read the source on GitHub</button>
           )}
