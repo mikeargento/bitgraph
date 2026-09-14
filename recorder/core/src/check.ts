@@ -270,8 +270,17 @@ export class Checker {
   private readonly members = new MemberCache();
   /** Every folder known to hold a proof.json, whether or not it has been read yet. */
   private readonly bundleDirs = new Set<string>();
-  /** Folders read: a recording, or null for a folder with no proof.json. */
+  /**
+   * Every `<name>.proof.json` seen: a proof kept beside the file it is about,
+   * the shape the MCP servers write (`saturn.svg` + `saturn.proof.json`).
+   * Mike's drop held `circles.proof.json` beside `circles.svg` and both read
+   * as new (2026-09-13).
+   */
+  private readonly besideProofs = new Set<string>();
+  /** Proof files read, by path: a recording, or null where there was none. */
   private readonly bundles = new Map<string, Promise<BundleHere | null>>();
+  /** Directory listings, for finding the file a beside proof is about. */
+  private readonly listings = new Map<string, Promise<string[]>>();
   /** Every origin digest any noted recording covers, to the recording. Built once, on first need. */
   private contents: Promise<Map<string, BundleHere>> | null = null;
 
@@ -309,7 +318,24 @@ export class Checker {
    * walk of it. Read lazily, on first need, and once.
    */
   noteBundles(files: readonly string[]): void {
-    for (const p of files) if (basename(p) === "proof.json") this.bundleDirs.add(dirname(resolve(p)));
+    for (const p of files) {
+      const name = basename(p);
+      if (name === "proof.json") this.bundleDirs.add(dirname(resolve(p)));
+      else if (isBesideProofName(name)) this.besideProofs.add(resolve(p));
+    }
+  }
+
+  /** The proof kept beside this file, `<stem>.proof.json` or `<name>.proof.json`, when there is one. */
+  async besideFor(path: string): Promise<BundleHere | null> {
+    const full = resolve(path);
+    const name = basename(full);
+    if (isBesideProofName(name)) return null;
+    const dir = dirname(full);
+    for (const candidate of besideProofNamesFor(name)) {
+      const found = await this.proofAt(join(dir, candidate), dir);
+      if (found !== null) return found;
+    }
+    return null;
   }
 
   /** The recording folder this file sits in: the nearest proof.json at or above its folder, within the root. */
@@ -325,11 +351,13 @@ export class Checker {
 
   /** A recording folder anywhere under the root whose proof covers these bytes. */
   async bundleCovering(originDigestB64: string): Promise<BundleHere | null> {
-    if (this.bundleDirs.size === 0) return null;
+    if (this.bundleDirs.size === 0 && this.besideProofs.size === 0) return null;
     this.contents ??= (async () => {
       const out = new Map<string, BundleHere>();
-      for (const dir of this.bundleDirs) {
-        const bundle = await this.bundleAt(dir);
+      const reads: Array<Promise<BundleHere | null>> = [];
+      for (const dir of this.bundleDirs) reads.push(this.bundleAt(dir));
+      for (const file of this.besideProofs) reads.push(this.proofAt(file, dirname(file)));
+      for (const bundle of await Promise.all(reads)) {
         if (bundle === null) continue;
         for (const digest of bundle.origins) if (!out.has(digest)) out.set(digest, bundle);
       }
@@ -340,6 +368,8 @@ export class Checker {
 
   /** True when these bytes are covered by a recording in the folder: the file it sits in, or any other. */
   async covered(path: string, originDigestB64: string): Promise<boolean> {
+    const beside = await this.besideFor(path);
+    if (beside !== null && beside.evidenceFor(originDigestB64) !== null) return true;
     const own = await this.bundleFor(path);
     if (own !== null && own.evidenceFor(originDigestB64) !== null) return true;
     return (await this.bundleCovering(originDigestB64)) !== null;
@@ -347,18 +377,40 @@ export class Checker {
 
   /** A file that is a recording's own (its proof, manifest, member list, anchors), not a file somebody recorded. */
   async isRecordingOwn(path: string): Promise<boolean> {
+    const full = resolve(path);
+    const name = basename(full);
+    /* `<name>.proof.json` is a file's proof, not a file, when the file it is
+     * about sits beside it; on its own it is just a file somebody dropped. */
+    if (isBesideProofName(name)) {
+      const about = name.slice(0, -".proof.json".length);
+      const siblings = await this.listing(dirname(full));
+      return siblings.some((n) => n !== name && (n === about || stemOf(n) === about));
+    }
     const bundle = await this.bundleFor(path);
     return bundle !== null && isRecordingOwn(bundle.dir, path);
   }
 
   private bundleAt(dir: string): Promise<BundleHere | null> {
-    let read = this.bundles.get(dir);
+    return this.proofAt(join(dir, "proof.json"), dir).then((b) => {
+      if (b !== null) this.bundleDirs.add(dir);
+      return b;
+    });
+  }
+
+  private proofAt(file: string, dir: string): Promise<BundleHere | null> {
+    let read = this.bundles.get(file);
     if (read === undefined) {
-      read = readBundleHere(dir).then((b) => {
-        if (b !== null) this.bundleDirs.add(dir);
-        return b;
-      });
-      this.bundles.set(dir, read);
+      read = readProofFile(file, dir);
+      this.bundles.set(file, read);
+    }
+    return read;
+  }
+
+  private listing(dir: string): Promise<string[]> {
+    let read = this.listings.get(dir);
+    if (read === undefined) {
+      read = readdir(dir).catch(() => [] as string[]);
+      this.listings.set(dir, read);
     }
     return read;
   }
@@ -414,7 +466,9 @@ export class Checker {
       };
     }
     const evidence: Evidence = found.evidence;
-    const where = found.bundleDir !== undefined ? { evidencePath: join(found.bundleDir, "proof.json") } : {};
+    const where = found.evidencePath !== undefined
+      ? { evidencePath: found.evidencePath }
+      : found.bundleDir !== undefined ? { evidencePath: join(found.bundleDir, "proof.json") } : {};
 
     const bound = await this.positions.bind(evidence, this.known, found.bundleDir);
     if (bound.problem !== null) {
@@ -465,6 +519,14 @@ export class Checker {
   }
 
   private async findEvidence(path: string, rel: string, originB64: string): Promise<FoundEvidence> {
+    /* The proof kept beside the file, first: it is about this file by name. */
+    const beside = await this.besideFor(path);
+    if (beside !== null) {
+      const built = beside.evidenceFor(originB64);
+      if (built !== null) return { evidence: built, nameTaken: false, evidencePath: beside.proofPath };
+      /* Beside it, and about different bytes: the fact a person needs. */
+      return { evidence: null, nameTaken: true };
+    }
     /* The recording this file sits in, before anything else is consulted. */
     const own = await this.bundleFor(path);
     let recordingTaken = false;
@@ -483,7 +545,9 @@ export class Checker {
     const covering = await this.bundleCovering(originB64);
     if (covering !== null) {
       const built = covering.evidenceFor(originB64);
-      if (built !== null) return { evidence: built, nameTaken: false, bundleDir: covering.dir };
+      if (built !== null) return covering.proofPath === join(covering.dir, "proof.json")
+        ? { evidence: built, nameTaken: false, bundleDir: covering.dir }
+        : { evidence: built, nameTaken: false, evidencePath: covering.proofPath };
     }
     if (recordingTaken) return { evidence: null, nameTaken: false, recordingTaken: true };
     const { paths, index, members, library, libraryPath } = this;
@@ -840,8 +904,26 @@ interface FoundEvidence {
   nameTaken: boolean;
   /** True when the file sits in a recording of one file, and the recording is about different bytes. */
   recordingTaken?: boolean;
-  /** The recording folder it came out of, when it came out of one. */
+  /** The recording folder it came out of, when it came out of one. Its anchors live there. */
   bundleDir?: string;
+  /** The proof file that answered, when it is not a recording folder's proof.json. */
+  evidencePath?: string;
+}
+
+/** `<name>.proof.json`, and not a recording folder's bare `proof.json`. */
+function isBesideProofName(name: string): boolean {
+  return name.endsWith(".proof.json") && name !== "proof.json";
+}
+
+function stemOf(name: string): string {
+  const dot = name.lastIndexOf(".");
+  return dot <= 0 ? name : name.slice(0, dot);
+}
+
+/** The names a proof beside `name` may have: by stem (`saturn.svg` → `saturn.proof.json`) or by the whole name. */
+function besideProofNamesFor(name: string): string[] {
+  const stem = stemOf(name);
+  return stem === name ? [`${name}.proof.json`] : [`${stem}.proof.json`, `${name}.proof.json`];
 }
 
 /**
@@ -854,6 +936,8 @@ interface FoundEvidence {
  */
 export interface BundleHere {
   dir: string;
+  /** The proof file itself: `<dir>/proof.json` for a recording folder, `<name>.proof.json` for a proof kept beside its file. */
+  proofPath: string;
   /** Every origin digest this recording covers. For a file made with the commitment inside it, the artifact digest: the file is the artifact. */
   origins: readonly string[];
   /** A recording of one file, with no member list. */
@@ -863,13 +947,18 @@ export interface BundleHere {
   evidenceFor(originDigestB64: string): Evidence | null;
 }
 
-async function readBundleHere(dir: string): Promise<BundleHere | null> {
+/**
+ * A proof file read once: a recording folder's `proof.json` with the members
+ * it names, or a `<name>.proof.json` kept beside its file, which names none.
+ */
+async function readProofFile(file: string, dir: string): Promise<BundleHere | null> {
   let proof: BitGraphProof;
   try {
-    proof = JSON.parse(await readFile(join(dir, "proof.json"), "utf8")) as BitGraphProof;
+    proof = JSON.parse(await readFile(file, "utf8")) as BitGraphProof;
   } catch {
     return null;
   }
+  const isRecording = basename(file) === "proof.json";
   const commit = (proof as { commit?: { epochId?: unknown; counter?: unknown } }).commit;
   const position = {
     epochId: typeof commit?.epochId === "string" ? commit.epochId : "",
@@ -877,7 +966,7 @@ async function readBundleHere(dir: string): Promise<BundleHere | null> {
   };
 
   const rows = new Map<string, MemberRow>();
-  const text = await readFile(join(dir, "members.jsonl"), "utf8").catch(() => null);
+  const text = isRecording ? await readFile(join(dir, "members.jsonl"), "utf8").catch(() => null) : null;
   if (text !== null) {
     for (const line of text.split("\n")) {
       if (line.trim() === "") continue;
@@ -905,6 +994,7 @@ async function readBundleHere(dir: string): Promise<BundleHere | null> {
   let paths: Set<string> | null = null;
   return {
     dir,
+    proofPath: file,
     origins: rows.size > 0 ? [...rows.keys()] : soloOrigin === null ? [] : [soloOrigin],
     lone: rows.size === 0 && soloOrigin !== null,
     names(relInRecording) {

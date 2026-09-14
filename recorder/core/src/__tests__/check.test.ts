@@ -98,3 +98,48 @@ suite("recordings are read wherever they sit", () => {
     assert.equal(await checker.covered(note.path, Buffer.from(note.originDigest).toString("base64")), false);
   });
 });
+
+suite("a proof kept beside its file", () => {
+  /* The shape both MCP servers write and Grok produced: `saturn.svg` next to
+   * `saturn.proof.json`, no folder, no members. Mike's drop held
+   * `circles.proof.json` beside `circles.svg` and both read as new (09-13). */
+  let flat: string;
+  before(() => {
+    flat = mkdtempSync(join(tmpdir(), "bg-beside-"));
+    copyFileSync(join(FIX, "circles.svg"), join(flat, "circles.svg"));
+    copyFileSync(join(FIX, "proof.json"), join(flat, "circles.proof.json"));
+    mkdirSync(join(flat, "elsewhere"));
+    copyFileSync(join(FIX, "circles.svg"), join(flat, "elsewhere", "copy of circles.svg"));
+    writeFileSync(join(flat, "orphan.proof.json"), "{}");
+  });
+
+  test("the file verifies against the proof named after it, and the proof is the recording's own, not a file", async () => {
+    const report = await checkFolder(flat, { everyRow: true });
+    const by = new Map(report.speaking.map((r) => [r.rel, r]));
+    assert.equal(by.get("circles.svg")?.status, "verified", JSON.stringify(by.get("circles.svg")));
+    assert.equal(by.get("circles.svg")?.evidencePath, join(flat, "circles.proof.json"));
+    assert.equal(by.get("circles.svg")?.category, "CARRIED_INLINE");
+    assert.equal(by.get("elsewhere/copy of circles.svg")?.status, "verified", "a copy anywhere in the folder, by content");
+    assert.equal(by.has("circles.proof.json"), false, "the proof beside its file is not a file somebody dropped");
+    assert.equal(by.get("orphan.proof.json")?.status, "unrecorded", "a proof with nothing beside it is just a file");
+    assert.deepEqual(report.counts, { verified: 2, failed: 0, undetermined: 0, unrecorded: 1 }, JSON.stringify([...by.keys()]));
+  });
+
+  test("a changed file beside its proof says the proof is about different bytes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "bg-beside-changed-"));
+    const svg = readFileSync(join(FIX, "circles.svg"), "utf8");
+    writeFileSync(join(dir, "circles.svg"), svg.replace("<circle", "<circle data-x=\"1\""));
+    copyFileSync(join(FIX, "proof.json"), join(dir, "circles.proof.json"));
+    const report = await checkFolder(dir, { everyRow: true });
+    assert.equal(report.counts.unrecorded, 1);
+    assert.match(report.speaking[0]!.reason ?? "", /different bytes/);
+  });
+
+  test("the page for such a file is built from the proof beside it", async () => {
+    const { describe } = await import("../inspect.js");
+    const d = await describe(flat, { evidencePath: join(flat, "circles.proof.json") });
+    assert.equal(d.filePath, join(flat, "circles.svg"));
+    assert.equal((d.proof as { commit?: { counter?: string } } | null)?.commit?.counter, "2406");
+    assert.equal(d.evidence?.placement, "base64url");
+  });
+});

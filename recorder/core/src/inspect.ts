@@ -344,6 +344,9 @@ export async function describe(root: string, target: DescribeTarget | string): P
      * proof, which is the whole point of the shape, so a path ending there
      * means "read this bundle" rather than "read this evidence". */
     if (t.evidencePath.endsWith("/proof.json")) return describeBundle(dirname(t.evidencePath), t.originDigestB64);
+    /* `<name>.proof.json` beside its file: the MCP servers' shape. The proof
+     * IS the evidence, and the file it is about is found by name. */
+    if (t.evidencePath.endsWith(".proof.json")) return describeBundle(dirname(t.evidencePath), t.originDigestB64, t.evidencePath);
     evidence = await readEvidence(t.evidencePath);
     evidenceRaw = evidence === null ? null : await readFile(t.evidencePath, "utf8").catch(() => null);
   } else {
@@ -391,12 +394,13 @@ export async function describe(root: string, target: DescribeTarget | string): P
  * what it committed, `members.jsonl` says which file is which member. Nothing
  * points anywhere else, which is why the shape was worth going back to.
  */
-async function describeBundle(dir: string, originDigestB64?: string): Promise<Described> {
+async function describeBundle(dir: string, originDigestB64?: string, proofFile: string = join(dir, "proof.json")): Promise<Described> {
   const { readFile } = await import("node:fs/promises");
+  const beside = proofFile !== join(dir, "proof.json");
   let proof: BitGraphProof | null = null;
   let proofRaw: string;
   try {
-    proofRaw = await readFile(join(dir, "proof.json"), "utf8");
+    proofRaw = await readFile(proofFile, "utf8");
     proof = JSON.parse(proofRaw) as BitGraphProof;
   } catch {
     return { filePath: null, evidence: null, evidenceRaw: null, proof: null, committedB64: null, positions: [] };
@@ -412,7 +416,7 @@ async function describeBundle(dir: string, originDigestB64?: string): Promise<De
 
   /* A set says which member this file is; a lone recording is its own. */
   const rows: MemberRow[] = [];
-  const text = await readFile(join(dir, "members.jsonl"), "utf8").catch(() => null);
+  const text = beside ? null : await readFile(join(dir, "members.jsonl"), "utf8").catch(() => null);
   if (text !== null) {
     for (const line of text.split("\n")) {
       if (line.trim() === "") continue;
@@ -432,7 +436,12 @@ async function describeBundle(dir: string, originDigestB64?: string): Promise<De
   const memberCount = rows.length;
 
   let filePath: string | null = row !== undefined ? join(dir, ...row.rel.split("/")) : null;
-  if (filePath === null && rows.length === 0) {
+  if (filePath === null && beside) {
+    /* The file the proof is named after: `saturn.proof.json` is about `saturn.<anything>` or `saturn`. */
+    const about = proofFile.split("/").pop()!.slice(0, -".proof.json".length);
+    const names = (await readdir(dir).catch(() => [] as string[])).filter((n) => !n.endsWith(".proof.json") && (n === about || n.slice(0, Math.max(0, n.lastIndexOf("."))) === about));
+    if (names.length >= 1) filePath = join(dir, names[0]!);
+  } else if (filePath === null && rows.length === 0) {
     /* A lone recording: the one file in the folder that is not ours. */
     const own = new Set(["proof.json", "manifest.json", "members.jsonl", "anchors-status.json", "ethereum-anchors"]);
     const names = (await readdir(dir).catch(() => [] as string[])).filter((n) => !own.has(n) && !n.startsWith("."));
