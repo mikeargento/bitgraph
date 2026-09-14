@@ -73,17 +73,30 @@ export default function OverviewPage() {
           the scope paragraph says what BitGraph does not claim, which is the
           sentence the reviewers this page is for read first. */}
       <h1 style={{ margin: "0 0 24px" }}>
-        {/* 2026-09-13: the identity line, not a function line. "Of record" is
-            a frozen idiom (attorney of record, paper of record) and borrows
-            its authority whole, which is why nothing may be wedged inside it.
-            It was written on 09-03 and parked then for one reason only: a
-            category noun sitting over a DROP BOX promised infrastructure and
-            handed the visitor a file picker. The drop box left on 09-08 and
-            home is this page now, so the objection went with it.
-            ⚠️ The word AI left the h1 deliberately: it picks a first vertical
-            while the Recorder's is open, which is the reason "The proof layer
-            for AI" was rejected on 09-03. Four short words, no wrap to guard. */}
-        The order of record
+        {/* 2026-09-14, Mike's own line after a long night of candidates.
+            A coordinate is meaningless alone and meaningful only against other
+            coordinates, which is the property being sold: two parties who do
+            not trust each other compare positions in one frame. The page's own
+            use-cases entry for multi-party agents already says "a shared causal
+            coordinate system", so the word was in the vocabulary before it was
+            in the h1.
+            ⚠️ "for" IS LOAD-BEARING. Computing is the beneficiary, not the
+            object, the way "coordinates for shipping" positions containers
+            rather than shipping. Every earlier candidate put an abstraction in
+            the OBJECT slot ("gives computing a verifiable order") and claimed
+            to order a process, which is the one thing BitGraph cannot see: the
+            outputs take positions, the computation does not.
+            ⚠️ Computing, never computation: computing is a nominalized domain
+            (cloud, edge, confidential computing) and a domain can be served;
+            computation is an act. It also sits beside confidential computing,
+            which is what the enclave actually is, for the security architects
+            this page is written for.
+            ⚠️ The word AI stays out of the h1: it picks a first vertical while
+            the Recorder's is open ("The proof layer for AI", rejected 09-03,
+            back in via the 09-10 opener, out again 09-13). Verticals live on
+            /subjects, which is what that page is for.
+            Rejected on the way, in project_home_headline_2026_09_03. */}
+        Coordinates for computing
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just
