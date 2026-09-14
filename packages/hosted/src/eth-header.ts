@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Mike Argento.
+// Copyright (c) 2024-2026 Argento Computing Inc.
 
 /**
  * The Ethereum block header, RLP-encoded, so an anchor carries its own evidence.

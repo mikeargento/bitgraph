@@ -2,7 +2,7 @@
   "name": "@bitgraph/commit-service",
   "version": "1.0.0",
   "description": "BitGraph commit service — Nitro Enclave + parent HTTP server",
-  "author": "Mike Argento",
+  "author": "Argento Computing Inc. (https://bitgraph.ing)",
   "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "type": "module",

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+# Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 #
 # Clean-room determinism check: build the enclave EIF TWICE from the same source
 # and assert both produce the identical PCR0. This is the proof that the build is

@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Mike Argento. Licensed under the MIT License. See LICENSE.
+// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
  * A position BEFORE the work: the task form of the stdio server.

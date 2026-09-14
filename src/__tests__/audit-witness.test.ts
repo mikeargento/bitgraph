@@ -1,4 +1,4 @@
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
  * Anchor witness verification tests (bundle spec section 10.3).

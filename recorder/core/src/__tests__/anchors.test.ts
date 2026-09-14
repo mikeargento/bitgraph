@@ -1,4 +1,4 @@
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
  * The anchor pass, and the one thing it exists to get right: an absence has to

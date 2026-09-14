@@ -1,4 +1,4 @@
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
  * fuse(builder, options): the producer interface of the bitgraph-fuse/1

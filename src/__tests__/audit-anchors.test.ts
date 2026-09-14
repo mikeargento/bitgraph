@@ -1,4 +1,4 @@
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
  * Anchor identification tests (G5): the SIGNED attribution.name is the

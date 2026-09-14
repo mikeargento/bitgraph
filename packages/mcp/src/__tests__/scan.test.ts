@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Mike Argento. Licensed under the MIT License. See LICENSE.
+// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
  * The scan's two promises: the digest is the file's own, and a state

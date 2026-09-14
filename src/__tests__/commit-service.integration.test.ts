@@ -1,4 +1,4 @@
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
  * Integration test: HTTP commit service (mock server)

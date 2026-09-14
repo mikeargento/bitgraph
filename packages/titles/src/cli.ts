@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copyright (c) 2024-2026 Mike Argento. Licensed under the MIT License. See LICENSE.
+// Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
  * bitgraph-title — author, convey, and check possession messages.

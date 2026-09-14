@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Mike Argento. All rights reserved.
+// Copyright (c) 2024-2026 Argento Computing Inc. All rights reserved.
 
 /**
  * Byte-parity pin: the browser version minter against the shipped

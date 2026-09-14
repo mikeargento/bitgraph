@@ -175,7 +175,7 @@ Two MIT-licensed packages in this repository make BitGraph evidence checkable wi
 
 ## License
 
-Copyright 2024-2026 Mike Argento. All rights reserved. Patent Pending.
+Copyright 2024-2026 Argento Computing Inc. All rights reserved. Patent Pending.
 
 This repository is source-available, not open-source. The code is published so anyone can read, audit, and reproduce the enclave build, but it is proprietary: copying, modification, distribution, and commercial use require a separate written agreement with the copyright owner. See [LICENSE](LICENSE).
 

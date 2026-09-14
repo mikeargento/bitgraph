@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Mike Argento.
+// Copyright (c) 2024-2026 Argento Computing Inc.
 
 /**
  * What counts as an anchor, and where its block is read from.

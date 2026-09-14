@@ -2,7 +2,7 @@
   "name": "@bitgraph/adapter-nitro",
   "version": "1.0.0",
   "description": "AWS Nitro Enclaves adapter for BitGraph",
-  "author": "Mike Argento",
+  "author": "Argento Computing Inc. (https://bitgraph.ing)",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "main": "./dist/index.js",

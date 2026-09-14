@@ -1,4 +1,4 @@
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 import { createVerify, createHash, randomBytes } from "node:crypto";
 import { sha256 } from "@noble/hashes/sha256";

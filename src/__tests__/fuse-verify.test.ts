@@ -1,4 +1,4 @@
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
  * BitGraph Fuse: verifier paths (spec 15.4, 15.5, 15.8) on real fixture

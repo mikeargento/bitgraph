@@ -1,4 +1,4 @@
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 // End-to-end test for the BitGraph policy enforcement pipeline.
 
 import { test, describe } from "node:test";

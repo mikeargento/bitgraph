@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+# Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 #
 # Reproducible BitGraph enclave EIF build.
 #

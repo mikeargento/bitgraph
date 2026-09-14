@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Mike Argento.
+// Copyright (c) 2024-2026 Argento Computing Inc.
 
 /**
  * The anchor's block header, and the one property that makes it safe.

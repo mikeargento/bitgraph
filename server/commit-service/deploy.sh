@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+# Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 # Deploy BitGraph enclave to a Nitro-enabled EC2 instance.
 #
 # Run this ON the EC2 parent instance after pulling the latest code.

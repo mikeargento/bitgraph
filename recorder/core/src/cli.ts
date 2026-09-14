@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
  * BitGraph Recorder from a shell.

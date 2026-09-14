@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
  * bitgraph-fuse: the internal harness (spec 9.2), as a command rather than a

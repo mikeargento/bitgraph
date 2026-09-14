@@ -1,4 +1,4 @@
-// Copyright (c) Mike Argento. All rights reserved. See LICENSE.
+// Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 import { connect, type Socket } from "node:net";
 import type { AgencyEnvelope, BitGraphProof, PolicyBinding } from "bitgraph";

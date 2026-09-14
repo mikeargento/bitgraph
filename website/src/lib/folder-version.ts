@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Mike Argento. All rights reserved.
+// Copyright (c) 2024-2026 Argento Computing Inc. All rights reserved.
 
 /**
  * The retirement notice for BitGraph Folder, served as a response header on

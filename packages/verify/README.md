@@ -23,4 +23,4 @@ The BitGraph construction side (proof creation) is separate and proprietary: [`@
 
 ## License
 
-MIT. Copyright 2024-2026 Mike Argento. The BitGraph protocol is patent pending; this package's MIT grant covers this verification code.
+MIT. Copyright 2024-2026 Argento Computing Inc. The BitGraph protocol is patent pending; this package's MIT grant covers this verification code.

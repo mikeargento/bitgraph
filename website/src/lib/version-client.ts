@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Mike Argento. All rights reserved.
+// Copyright (c) 2024-2026 Argento Computing Inc. All rights reserved.
 
 /**
  * Browser-side version minting (bitgraph-versions/1).

@@ -24,4 +24,4 @@ BitGraph itself lives at [bitgraph.ing](https://bitgraph.ing). The protocol, thi
 
 ## License
 
-MIT. Copyright (c) 2024-2026 Mike Argento. The BitGraph protocol is patent pending; this client is licensed for use, the protocol implementation it talks to is not.
+MIT. Copyright (c) 2024-2026 Argento Computing Inc. The BitGraph protocol is patent pending; this client is licensed for use, the protocol implementation it talks to is not.

@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2026 Mike Argento. All rights reserved.
+// Copyright (c) 2024-2026 Argento Computing Inc. All rights reserved.
 
 /**
  * The ledger archive's algebra. Pure: no S3, no fetch, no clock.
