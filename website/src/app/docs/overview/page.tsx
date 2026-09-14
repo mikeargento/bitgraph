@@ -368,7 +368,14 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        <a href="/subjects">Where BitGraph fits, in&nbsp;detail</a>
+        {/* A sentence, not a bare noun phrase. It read as a heading that had
+            lost its section, which is what a link alone in a paragraph does.
+            ❄️ NOT A PILL (Mike asked 2026-09-14, and the answer is the 09-10
+            one): the home page is type and prose with no chrome in it, and
+            this route already ends with the docs previous/next pair, which
+            IS a pair of pills — a second pill-shaped "go somewhere" four
+            paragraphs above them would compete with it. */}
+        <a href="/subjects">See where BitGraph fits, in&nbsp;detail</a>.
       </p>
 
       <h2>How BitGraph differs from existing approaches</h2>
