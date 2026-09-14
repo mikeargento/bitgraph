@@ -73,30 +73,22 @@ export default function OverviewPage() {
           the scope paragraph says what BitGraph does not claim, which is the
           sentence the reviewers this page is for read first. */}
       <h1 style={{ margin: "0 0 24px" }}>
-        {/* 2026-09-14, Mike's own line after a long night of candidates.
-            A coordinate is meaningless alone and meaningful only against other
-            coordinates, which is the property being sold: two parties who do
-            not trust each other compare positions in one frame. The page's own
-            use-cases entry for multi-party agents already says "a shared causal
-            coordinate system", so the word was in the vocabulary before it was
-            in the h1.
-            ⚠️ "for" IS LOAD-BEARING. Computing is the beneficiary, not the
-            object, the way "coordinates for shipping" positions containers
-            rather than shipping. Every earlier candidate put an abstraction in
-            the OBJECT slot ("gives computing a verifiable order") and claimed
-            to order a process, which is the one thing BitGraph cannot see: the
-            outputs take positions, the computation does not.
-            ⚠️ Computing, never computation: computing is a nominalized domain
-            (cloud, edge, confidential computing) and a domain can be served;
-            computation is an act. It also sits beside confidential computing,
-            which is what the enclave actually is, for the security architects
-            this page is written for.
-            ⚠️ The word AI stays out of the h1: it picks a first vertical while
-            the Recorder's is open ("The proof layer for AI", rejected 09-03,
-            back in via the 09-10 opener, out again 09-13). Verticals live on
-            /subjects, which is what that page is for.
-            Rejected on the way, in project_home_headline_2026_09_03. */}
-        Coordinates for computing
+        {/* 2026-09-14, Mike's call. The line is from the /subjects h1 that the
+            09-10 rewrite cut, and it is a VALUE claim rather than an identity
+            line: the two before it, "The order of record" and "Coordinates for
+            computing", both named what the thing is. This one says what it is
+            worth.
+            ⚠️ READ IT AS A COMPARISON, which is how it is meant: not that proof
+            is free, but that it is cheaper than trust. Trust costs audits,
+            reconciliation between parties who each keep their own ledger,
+            indemnities, discovery, vendor due diligence. That is the economic
+            layer of the three (protocol / economic / authority).
+            ⚠️ It sits against the money line, "Recording is licensed,
+            verification is free", if anyone reads "isn't" as zero. Making a
+            proof costs; checking one does not. The page under it says so.
+            Rejected candidates and the reasoning are in
+            project_home_headline_2026_09_03. */}
+        Trust is expensive. Proof&nbsp;isn&rsquo;t.
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just
