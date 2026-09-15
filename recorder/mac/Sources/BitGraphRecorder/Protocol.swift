@@ -115,6 +115,8 @@ struct CheckedFile: Decodable, Equatable, Identifiable {
     var method: String?
     var position: Position?
     var bounds: [CheckedBound]?
+    /// Every position around this recording the folder can name, in order.
+    var neighbourhood: [NeighbourRow]?
     var attestation: AttestationReport?
     var id: String { rel }
 }
@@ -155,7 +157,32 @@ struct CheckedBound: Decodable, Equatable, Identifiable {
     var blockNumber: Int?
     var blockTime: String?
     var contradiction: String?
+    /// The position this anchor's commit took, and the one its slot took.
+    var counter: String?
+    var slotCounter: String?
+    /// This anchor's own BitGraph, derived from the block hash it signed.
+    var proofUrl: String?
     var id: String { side }
+}
+
+/// One position around a recording, in counter order.
+///
+/// ⚠️ `timeNote` IS WHY THERE IS NO TIME, AND IT IS NOT DECORATION. A block
+/// number with a blank beside it reads as "this block has no time". Whenever
+/// `blockTime` is nil on an anchor, this says which kind of absence it is.
+struct NeighbourRow: Decodable, Equatable, Identifiable {
+    var counter: String
+    /// anchor · anchor-slot · mine-slot · mine-commit · unidentified
+    var kind: String
+    var blockNumber: Int?
+    var blockTime: String?
+    var timeNote: String?
+    var etherscanUrl: String?
+    var proofUrl: String?
+    var floor: Bool?
+    var id: String { counter }
+
+    var isMine: Bool { kind == "mine-slot" || kind == "mine-commit" }
 }
 
 struct FolderReport: Decodable, Equatable {

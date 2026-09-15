@@ -68,6 +68,8 @@ import { readEvidence, type Evidence } from "./evidence.js";
 import { FolderIndex } from "./index-store.js";
 import { verifyWitness } from "./eth-anchor.js";
 import type { BoundState } from "./anchors.js";
+import { createHash } from "node:crypto";
+import { DEFAULT_BASE_URL } from "./settings.js";
 
 /**
  * Up to this size the published verifier is handed the actual bytes. Past it
@@ -97,6 +99,48 @@ export interface CheckedBound {
   blockTime?: string;
   /** The header contradicted the anchor. Loud. */
   contradiction?: string;
+  /** The position this anchor's commit took, from its own signed body. */
+  counter?: string;
+  /** The position its slot took. An anchor costs two, like anything else. */
+  slotCounter?: string;
+  /**
+   * This anchor's own BitGraph on the site.
+   *
+   * ⚠️ DERIVED, NEVER FETCHED. An anchor's artifact digest is the SHA-256 of
+   * the block-hash STRING it signed, so the address is computable from bytes
+   * already in hand. That is what lets the floor carry a link even though the
+   * floor's own proof is never bundled beside a recording.
+   */
+  proofUrl?: string;
+}
+
+/**
+ * One position around a recording, in counter order.
+ *
+ * ⚠️ THE ANCHOR THE FLOOR NAMES IS NOT ALWAYS THE ANCHOR BEFORE. The floor is
+ * fixed when the SLOT opens; `anchor-before` is the anchor before the COMMIT.
+ * They coincide whenever slot and commit are adjacent, and diverge whenever
+ * anything landed in between (2026-09-13: set 8992→8995 has floor 8991 and
+ * anchor-before 8994). Both are true statements about different events, so the
+ * two are merged onto one row here and the floor is marked, rather than shown
+ * twice as if they disagreed.
+ */
+export interface NeighbourRow {
+  counter: string;
+  kind: "anchor" | "anchor-slot" | "mine-slot" | "mine-commit" | "unidentified";
+  blockNumber?: number;
+  /** Only ever set when keccak256(header) matched the hash the anchor signed. */
+  blockTime?: string;
+  /**
+   * ⚠️ WHY THERE IS NO TIME, WHEN THERE IS NONE. A blank beside a block reads
+   * as "this block has no time", which is never what is meant. Set whenever an
+   * anchor is named but its header is not in the folder to check.
+   */
+  timeNote?: string;
+  etherscanUrl?: string;
+  proofUrl?: string;
+  /** The anchor the enclave fixed as this recording's floor when the slot opened. */
+  floor?: boolean;
 }
 
 export interface CheckedFile {
@@ -128,6 +172,13 @@ export interface CheckedFile {
   /** What the hardware itself said, checked offline against the AWS root. */
   attestation?: AttestationReport;
   bounds?: CheckedBound[];
+  /**
+   * Every position around this recording that the folder can name, in order.
+   *
+   * ⚠️ ONCE PER POSITION, NEVER PER FILE, like the attestation and the bounds:
+   * a set of 100,000 members shares one proof and therefore one neighbourhood.
+   */
+  neighbourhood?: NeighbourRow[];
 }
 
 /**
@@ -480,6 +531,7 @@ export class Checker {
       : bindMember(bound, scanned, evidence, originB64);
 
     const bounds = await this.positions.bounds(evidence.position, found.bundleDir);
+    const neighbourhood = await this.positions.neighbourhood(bound.proof, evidence.position, found.bundleDir);
     const common = {
       ...base,
       ...where,
@@ -488,6 +540,7 @@ export class Checker {
       ...(bound.enclave !== null ? { enclave: bound.enclave } : {}),
       ...(bound.attestation !== null ? { attestation: bound.attestation } : {}),
       bounds,
+      ...(neighbourhood.length > 0 ? { neighbourhood } : {}),
     };
 
     if (bytesResult.kind === "failed") {
@@ -701,6 +754,7 @@ interface BoundPosition {
 class PositionCache {
   private readonly cache = new Map<string, BoundPosition>();
   private readonly boundsCache = new Map<string, CheckedBound[]>();
+  private readonly neighbourhoodCache = new Map<string, NeighbourRow[]>();
   constructor(private readonly paths: FolderPaths) {}
 
   get size(): number {
@@ -803,12 +857,23 @@ class PositionCache {
         const witness = await readJson(join(dir, ANCHOR_DIR, `anchor-${side}-witness.json`));
         const verdict = verifyWitness(witness, signedHash);
         const url = anchorEtherscan(anchor);
+        /* The anchor's own positions and its own page, all out of bytes that
+         * are already open. Nothing here reaches the network. */
+        const proofUrl = anchorProofUrl(signedHash);
+        const counter = proofCounter(anchor, "commit");
+        const slotCounter = proofCounter(anchor, "slotAllocation");
+        const ids = {
+          ...(counter !== null ? { counter } : {}),
+          ...(slotCounter !== null ? { slotCounter } : {}),
+          ...(proofUrl !== null ? { proofUrl } : {}),
+          ...(url !== null ? { etherscanUrl: url } : {}),
+        };
         if (verdict.ok) {
-          out.push({ side, state: "anchored", note: "An Ethereum anchor bounds this position on this side, and its block header was checked against the hash the anchor signed.", blockNumber: verdict.blockNumber, blockTime: verdict.blockTime.toISOString(), ...(url !== null ? { etherscanUrl: url } : {}) });
+          out.push({ side, state: "anchored", note: "An Ethereum anchor bounds this position on this side, and its block header was checked against the hash the anchor signed.", blockNumber: verdict.blockNumber, blockTime: verdict.blockTime.toISOString(), ...ids });
         } else if (verdict.kind === "contradicted") {
-          out.push({ side, state: "anchored", note: "An anchor is present but its block header contradicts it.", contradiction: verdict.reason, ...(url !== null ? { etherscanUrl: url } : {}) });
+          out.push({ side, state: "anchored", note: "An anchor is present but its block header contradicts it.", contradiction: verdict.reason, ...ids });
         } else {
-          out.push({ side, state: "anchored", note: `An Ethereum anchor bounds this position on this side. Its block time is not stated here: ${verdict.reason}`, ...(url !== null ? { etherscanUrl: url } : {}) });
+          out.push({ side, state: "anchored", note: `An Ethereum anchor bounds this position on this side. Its block time is not stated here: ${verdict.reason}`, ...ids });
         }
         continue;
       }
@@ -824,7 +889,113 @@ class PositionCache {
     this.boundsCache.set(key, out);
     return out;
   }
+
+  /**
+   * The positions around this recording, in order, named from the folder alone.
+   *
+   * ⚠️ NOTHING HERE ASKS THE NETWORK. Every row comes from the proof and the
+   * two anchor proofs already sitting in `ethereum-anchors/`. An anchor proof
+   * carries its own slot counter as well as its commit counter, which is what
+   * lets the two positions an anchor consumed both be named; the floor comes
+   * from the signed `commit.slotAnchor`, whose own proof is never bundled and
+   * does not need to be, because its page address derives from its block hash.
+   *
+   * ⚠️ A GAP IS NAMED AS A GAP. A counter nothing accounts for is emitted as
+   * `unidentified` rather than skipped, because a strip that silently closes
+   * up reads as "these positions were adjacent", which is a different and
+   * stronger claim than the folder can make.
+   */
+  async neighbourhood(proof: BitGraphProof | null, position: { epochId: string; counter: string }, bundleDir?: string): Promise<NeighbourRow[]> {
+    const dir = bundleDir ?? this.paths.position(position.epochId, position.counter);
+    const key = `${position.epochId} ${position.counter} ${dir}`;
+    const hit = this.neighbourhoodCache.get(key);
+    if (hit !== undefined) return hit;
+
+    const rows = new Map<number, NeighbourRow>();
+    const num = (s: string | null | undefined): number | null => {
+      if (typeof s !== "string" || !/^\d+$/.test(s)) return null;
+      const n = Number(s);
+      return Number.isSafeInteger(n) ? n : null;
+    };
+    const put = (n: number, row: Omit<NeighbourRow, "counter">): void => {
+      rows.set(n, { counter: String(n), ...row });
+    };
+
+    const commit = (proof as { commit?: Record<string, unknown> } | null)?.commit;
+    const epochId = typeof commit?.["epochId"] === "string" ? commit["epochId"] : null;
+
+    /* The floor, out of the signed body. Its block number is signed too, so
+     * the block page is addressed from a signed number rather than a guess. */
+    const slotAnchor = commit?.["slotAnchor"] as { counter?: unknown; blockNumber?: unknown; blockHash?: unknown } | undefined;
+    const floorAt = num(typeof slotAnchor?.counter === "string" ? slotAnchor.counter : null);
+    if (floorAt !== null && typeof slotAnchor?.blockNumber === "number") {
+      const hash = typeof slotAnchor.blockHash === "string" ? slotAnchor.blockHash : null;
+      const url = anchorProofUrl(hash);
+      put(floorAt, {
+        kind: "anchor",
+        floor: true,
+        blockNumber: slotAnchor.blockNumber,
+        timeNote: "no header beside this anchor, so its block time was not checked here.",
+        etherscanUrl: `https://etherscan.io/block/${slotAnchor.blockNumber}`,
+        ...(url !== null ? { proofUrl: url } : {}),
+      });
+    }
+
+    /* The two bundled anchors, each accounting for the pair of positions it
+     * consumed. An anchor whose epoch is not this one is skipped: counters
+     * restart every epoch, so mixing them would order rows that do not share
+     * a sequence. */
+    for (const side of ["before", "after"] as const) {
+      const anchor = await readJson(join(dir, ANCHOR_DIR, `anchor-${side}.json`));
+      if (anchor === null) continue;
+      const a = anchor as { commit?: Record<string, unknown> };
+      if (epochId !== null && typeof a.commit?.["epochId"] === "string" && a.commit["epochId"] !== epochId) continue;
+      const at = num(proofCounter(anchor, "commit"));
+      if (at === null) continue;
+      const blk = a.commit?.["anchor"] as { blockNumber?: unknown } | undefined;
+      const signedHash = anchorBlockHash(anchor);
+      const witness = await readJson(join(dir, ANCHOR_DIR, `anchor-${side}-witness.json`));
+      const verdict = verifyWitness(witness, signedHash);
+      const url = anchorProofUrl(signedHash);
+      const scan = anchorEtherscan(anchor);
+      const wasFloor = rows.get(at)?.floor === true;
+      put(at, {
+        kind: "anchor",
+        ...(wasFloor ? { floor: true } : {}),
+        ...(typeof blk?.blockNumber === "number" ? { blockNumber: blk.blockNumber } : {}),
+        ...(verdict.ok
+          ? { blockTime: verdict.blockTime.toISOString() }
+          : { timeNote: `its block time is not stated here: ${verdict.reason}` }),
+        ...(scan !== null ? { etherscanUrl: scan } : {}),
+        ...(url !== null ? { proofUrl: url } : {}),
+      });
+      const slotAt = num(proofCounter(anchor, "slotAllocation"));
+      if (slotAt !== null && !rows.has(slotAt)) put(slotAt, { kind: "anchor-slot" });
+    }
+
+    const mineSlot = num(proofCounter(proof, "slotAllocation"));
+    const mineCommit = num(typeof commit?.["counter"] === "string" ? commit["counter"] : null);
+    if (mineSlot !== null) put(mineSlot, { kind: "mine-slot" });
+    if (mineCommit !== null) put(mineCommit, { kind: "mine-commit" });
+
+    let out: NeighbourRow[] = [];
+    if (rows.size > 0 && mineCommit !== null) {
+      const lo = Math.min(...rows.keys()), hi = Math.max(...rows.keys());
+      /* ⚠️ A MALFORMED PROOF MUST NOT BECOME A THOUSAND ROWS. In practice the
+       * span is the two adjacent anchors around one recording, about seven
+       * positions. Anything wildly wider is not a neighbourhood worth drawing,
+       * and no neighbourhood is shown rather than a misleading one. */
+      if (hi - lo < NEIGHBOURHOOD_MAX_SPAN) {
+        for (let n = lo; n <= hi; n++) out.push(rows.get(n) ?? { counter: String(n), kind: "unidentified" });
+      }
+    }
+    this.neighbourhoodCache.set(key, out);
+    return out;
+  }
 }
+
+/** Beyond this many positions the strip is not drawn at all. See neighbourhood(). */
+const NEIGHBOURHOOD_MAX_SPAN = 64;
 
 async function soloCommitment(proof: BitGraphProof): Promise<{ commitment: Uint8Array | null; proofValid: boolean; proofReason: string | null }> {
   /* verifyFuse over the proof's own artifact digest is not possible without
@@ -896,6 +1067,32 @@ function anchorEtherscan(anchor: unknown): string | null {
 function anchorBlockHash(anchor: unknown): string | null {
   const a = anchor as { attribution?: { message?: unknown } } | null;
   return typeof a?.attribution?.message === "string" ? a.attribution.message : null;
+}
+
+/**
+ * An anchor's own BitGraph on the site, from the block hash it signed.
+ *
+ * ⚠️ DERIVED HERE, NEVER ASKED FOR. The enclave requires an anchor's artifact
+ * digest to be SHA-256 of the block-hash string, so the address follows from
+ * the hash with no lookup and no route of ours in the path. This is why a
+ * floor can be linked from `commit.slotAnchor` alone: that anchor's proof is
+ * not bundled beside a recording and does not need to be.
+ *
+ * Returns null on anything that is not a 0x-prefixed 32-byte hash, because a
+ * link built from a malformed hash would resolve to nothing and look like the
+ * ledger had lost the anchor.
+ */
+function anchorProofUrl(blockHash: string | null): string | null {
+  if (blockHash === null || !/^0x[0-9a-fA-F]{64}$/.test(blockHash)) return null;
+  const digest = createHash("sha256").update(blockHash, "utf8").digest("base64");
+  return `${DEFAULT_BASE_URL}/proof/${digest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`;
+}
+
+/** The counter an anchor proof's commit took, as a string, or null. */
+function proofCounter(anchor: unknown, where: "commit" | "slotAllocation"): string | null {
+  const a = anchor as Record<string, { counter?: unknown } | undefined> | null;
+  const c = a?.[where]?.counter;
+  return typeof c === "string" ? c : typeof c === "number" ? String(c) : null;
 }
 
 interface FoundEvidence {

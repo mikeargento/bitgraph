@@ -21,7 +21,7 @@ export { makeFiles, makeScanned, MAX_SOLO_BYTES, SET1_LIMIT } from "./make.js";
 export type { MakeOptions, MakeResult, MadeFile, SkippedFile, MakeProgress, MakePhase } from "./make.js";
 
 export { checkFolder, checkFile, walk, VERIFIER_BYTES } from "./check.js";
-export type { CheckOptions, CheckedFile, CheckedBound, FolderReport, CheckStatus } from "./check.js";
+export type { CheckOptions, CheckedFile, CheckedBound, NeighbourRow, FolderReport, CheckStatus } from "./check.js";
 
 export { completeFolder, completePosition, ANCHOR_STATUS_VERSION } from "./anchors.js";
 export type { AnchorPass, AnchorStatusFile, AnchorTransport, BoundState, SideStatus } from "./anchors.js";

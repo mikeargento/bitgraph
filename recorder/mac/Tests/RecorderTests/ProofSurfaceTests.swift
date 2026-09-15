@@ -179,6 +179,58 @@ final class ProofSurfaceTests: XCTestCase {
             CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25_735_833, blockTime: "2026-09-08T14:00:24Z", contradiction: nil),
         ], status: "verified")
         try shoot(ProofView(state: AppState(preview: nil), page: page), name: "proof", size: CGSize(width: 928, height: 700), into: out)
+
+        /* The strip, on the shape that makes it worth drawing: a set that held
+         * its position while an anchor committed inside the hold, so the floor
+         * is NOT the anchor before the commit. */
+        try shoot(
+            VStack(alignment: .leading, spacing: 2) { ForEach(Self.heldSet) { NeighbourLine(row: $0, noun: "your set") } }
+                .padding(12).background(Color.white).frame(width: 513).padding(40).background(G.ground),
+            name: "neighbourhood", size: CGSize(width: 593, height: 350), into: out)
+    }
+
+    // ── where this recording sits ───────────────────────────────────────────
+
+    /// The 2026-09-13 set, as the core reports it: floor 8991, an anchor at
+    /// 8993/8994 inside the hold, the set's own two positions at 8992 and 8995.
+    private static let heldSet: [NeighbourRow] = [
+        NeighbourRow(counter: "8991", kind: "anchor", blockNumber: 25_983_787,
+                     timeNote: "no header beside this anchor, so its block time was not checked here.",
+                     etherscanUrl: "https://etherscan.io/block/25983787",
+                     proofUrl: "https://bitgraph.ing/proof/LlgU-Q8CMaIkUWv7sgsXZUxNHUKbZAvA7g19w3UsqMI", floor: true),
+        NeighbourRow(counter: "8992", kind: "mine-slot"),
+        NeighbourRow(counter: "8993", kind: "anchor-slot"),
+        NeighbourRow(counter: "8994", kind: "anchor", blockNumber: 25_983_788, blockTime: "2026-09-15T15:33:59.000Z",
+                     etherscanUrl: "https://etherscan.io/block/25983788",
+                     proofUrl: "https://bitgraph.ing/proof/VYf-mf6w3Egwa6gUJFqV0lZQjdlNWWcP7tnbD_fqvIs"),
+        NeighbourRow(counter: "8995", kind: "mine-commit"),
+        NeighbourRow(counter: "8996", kind: "anchor-slot"),
+        NeighbourRow(counter: "8997", kind: "anchor", blockNumber: 25_983_789, blockTime: "2026-09-15T15:34:11.000Z",
+                     etherscanUrl: "https://etherscan.io/block/25983789",
+                     proofUrl: "https://bitgraph.ing/proof/jlwe7NCwpKyu7pGZrbk9JTuVusslqqJNLxkvtNAtoIQ"),
+    ]
+
+    /// ⚠️ THE FLOOR IS NOT THE ANCHOR BEFORE THE COMMIT, AND ONLY ONE ROW MAY
+    /// WEAR THE MARK. 8994 sits between the slot and the commit and is a true
+    /// statement about the commit; 8991 is the anchor the SLOT saw and is the
+    /// only floor. Marking both would show them as if they disagreed.
+    func testOnlyTheAnchorTheSlotSawIsMarkedAsTheFloor() {
+        XCTAssertEqual(Self.heldSet.filter { $0.floor == true }.map(\.counter), ["8991"])
+        XCTAssertNotEqual(Self.heldSet.first { $0.counter == "8994" }?.floor, true)
+    }
+
+    /// ⚠️ A BLOCK NUMBER WITH A BLANK BESIDE IT READS AS "THIS BLOCK HAS NO
+    /// TIME". Whenever an anchor is named without a verified header, the row
+    /// carries the reason instead of a gap.
+    func testAnAnchorWithNoVerifiedHeaderCarriesTheReasonNotABlank() {
+        for row in Self.heldSet where row.kind == "anchor" && row.blockTime == nil {
+            XCTAssertNotNil(row.timeNote, "position \(row.counter) has no time and does not say why")
+        }
+    }
+
+    /// The recording's own rows are the ones the eye should land on.
+    func testTheRecordingsOwnPositionsAreTheOnesMarkedAsMine() {
+        XCTAssertEqual(Self.heldSet.filter(\.isMine).map(\.counter), ["8992", "8995"])
     }
 
     // ── fixtures ────────────────────────────────────────────────────────────

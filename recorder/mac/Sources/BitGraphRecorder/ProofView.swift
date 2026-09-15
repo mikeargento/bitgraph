@@ -86,6 +86,7 @@ struct ProofView: View {
                      * more intuitively on TOP of the content that loads,
                      * and it expands down from top"). */
                     record
+                    around
                     details
                     subject
                 }
@@ -338,7 +339,38 @@ struct ProofView: View {
         }
     }
 
-    // ── 4. everything else, under one heading ───────────────────────────────
+    // ── 4. the positions on either side ─────────────────────────────────────
+
+    /// Where this recording sits among the positions around it.
+    ///
+    /// ⚠️ THIS IS THE ONE THING THE FIELD LIST CANNOT SAY. Every other value
+    /// on the page is about this recording alone. A slot counter and a commit
+    /// counter are two rows that never admit they bracket a span, or that an
+    /// anchor took a position inside it (Mike, 2026-09-13, on reconstructing
+    /// exactly this by hand: "is this all correct behavior?").
+    ///
+    /// ⚠️ NO CEILING IS DRAWN. The anchor after the commit is a neighbour,
+    /// not an upper bound: an anchor carries a block hash INWARD, which fixes
+    /// a floor and can never fix a ceiling. It is listed, and nothing is
+    /// claimed from it.
+    @ViewBuilder private var around: some View {
+        if let rows = page.checked?.neighbourhood, !rows.isEmpty {
+            Card(title: "Around this recording") {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(rows) { NeighbourLine(row: $0, noun: subjectNoun) }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+            }
+        }
+    }
+
+    /// What this recording is called in its own rows: a set, or a file.
+    private var subjectNoun: String {
+        (evidence?.member?.count ?? 1) > 1 ? "your set" : "your file"
+    }
+
+    // ── 5. everything else, under one heading ───────────────────────────────
 
     private var details: some View {
         Card(title: "Recording details") {
@@ -489,6 +521,119 @@ extension View {
 
 /// A disclosure card: the title row is the toggle, a chevron turns when it
 /// opens, and the row tints on hover like everything else here.
+/// One position in the strip: what took it, and where to go and look.
+///
+/// ⚠️ ACTIONS ARE ONE WEIGHT. The anchor's own BitGraph and its block on
+/// Etherscan are both links and neither is quieted to make the other look
+/// primary.
+struct NeighbourLine: View {
+    let row: NeighbourRow
+    let noun: String
+
+    private var isFloor: Bool { row.floor == true }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(row.counter)
+                .font(G.data)
+                .foregroundStyle(row.isMine ? G.blue : G.secondary)
+                .frame(width: 46, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(headline)
+                        .font(row.isMine ? G.label : G.small)
+                        .foregroundStyle(tint)
+                    if isFloor {
+                        Text("YOUR FLOOR")
+                            .font(G.tiny)
+                            .foregroundStyle(G.blue)
+                    }
+                }
+                if row.kind == "anchor" {
+                    HStack(spacing: 14) {
+                        if let u = row.proofUrl { LinkBit(title: "This anchor's BitGraph", url: u) }
+                        if let u = row.etherscanUrl { LinkBit(title: "Etherscan", url: u) }
+                    }
+                    /* The absence says which kind of absence it is. */
+                    if row.blockTime == nil, let why = row.timeNote {
+                        Text(why).font(G.small).foregroundStyle(G.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            Spacer(minLength: 8)
+            if let t = row.blockTime {
+                Text(Self.clock(t)).font(G.data).foregroundStyle(G.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, row.kind == "anchor-slot" ? 3 : 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(row.isMine ? G.blue.opacity(0.06) : (isFloor ? G.zone : Color.clear))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(row.isMine ? G.blue : Color.clear, lineWidth: 1)
+        )
+    }
+
+    private var headline: String {
+        switch row.kind {
+        case "mine-slot": return "\(noun) opens a position"
+        case "mine-commit": return "\(noun) commits"
+        case "anchor-slot": return "an anchor's slot"
+        case "unidentified": return "one position, not identified here"
+        default:
+            guard let n = row.blockNumber else { return "Ethereum anchor" }
+            return "Ethereum anchor · block \(G.count(n))"
+        }
+    }
+
+    private var tint: Color {
+        if row.isMine { return G.blue }
+        if row.kind == "anchor-slot" || row.kind == "unidentified" { return G.secondary }
+        return G.ink
+    }
+
+    /// The block's own time, as a clock. Only ever called on a time the core
+    /// set, which it sets only when keccak256(header) matched.
+    private static func clock(_ iso: String) -> String {
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = parser.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+        guard let date else { return "" }
+        let out = DateFormatter()
+        out.dateFormat = "HH:mm:ss"
+        return out.string(from: date)
+    }
+}
+
+/// A link inside a row, at the one weight every action on this page uses.
+struct LinkBit: View {
+    let title: String
+    let url: String
+    @State private var hovering = false
+
+    var body: some View {
+        /* ⚠️ `underline` IS A Text MODIFIER, SO IT GOES FIRST. After
+         * `foregroundStyle` the chain can resolve to `some View`, which has no
+         * such method. */
+        Text(title)
+            .underline(hovering)
+            .font(G.small)
+            .foregroundStyle(hovering ? G.blueDeep : G.blue)
+            .onHover { hovering = $0 }
+            .onTapGesture {
+                guard let u = URL(string: url) else { return }
+                NSWorkspace.shared.open(u)
+            }
+            .help("Open in your browser")
+    }
+}
+
 struct Card<Content: View>: View {
     let title: String
     var defaultOpen: Bool = false
