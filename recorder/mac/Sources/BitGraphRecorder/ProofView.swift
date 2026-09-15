@@ -360,6 +360,22 @@ struct ProofView: View {
         if let rows = page.checked?.neighbourhood, !rows.isEmpty {
             Card(title: "Around this recording") {
                 VStack(alignment: .leading, spacing: 2) {
+                    /* ⚠️ EVERY TIME ON THIS PAGE IS A BLOCK TIME, IN UTC, ON A
+                     * ROW THAT LINKS TO THAT BLOCK. That is the whole rule
+                     * (Mike, 2026-09-15: "whatever time you list on the proof,
+                     * when i click that eth link, it should match exact").
+                     * Etherscan shows UTC by default, so local time here drew
+                     * 13:25:47 for a block its own link called 17:25:47.
+                     *
+                     * The bracket this makes is POSITIONAL, not containing: it
+                     * says the recording sits between two anchored blocks in
+                     * the chain, not that it happened inside those two clock
+                     * values. A recording landing after the upper block's mint
+                     * time is expected, because that block happened before the
+                     * recording, which is what the floor says (maintainer's
+                     * ruling, canon §3.6). An earlier pass here hid the upper
+                     * row's time to stop it reading as containment; the ruling
+                     * replaced that with saying plainly what the bracket is. */
                     ForEach(rows) { NeighbourLine(row: $0, noun: subjectNoun) }
                 }
                 .padding(.horizontal, 12)
@@ -372,6 +388,7 @@ struct ProofView: View {
     private var subjectNoun: String {
         (evidence?.member?.count ?? 1) > 1 ? "your set" : "your file"
     }
+
 
     // ── 5. everything else, under one heading ───────────────────────────────
 
@@ -439,19 +456,29 @@ struct ProofView: View {
                     }
                 }
             }
+            /* ⚠️ ONLY THE LOWER SIDE IS A SECTION. THERE IS NO UPPER ONE.
+             *
+             * Reading a block hash proves the reader was LATE: it puts the
+             * anchor no earlier than that block. Proving something was EARLY
+             * needs the data to be IN a block, so the chain itself witnesses
+             * it, and BitGraph writes nothing to Ethereum. So a block gives a
+             * floor and can never give a ceiling (Mike, 2026-09-15: "eth
+             * proves wall clock time everything else is an assertion").
+             *
+             * The upper anchor had a section titled "(not an upper bound)",
+             * which is a heading whose own words say it establishes nothing.
+             * The monotonic counter does prove the recording came before that
+             * anchor, and that ordering is worth showing, so the anchor is
+             * still listed as a neighbour under "Around this recording" with
+             * both its links. What is gone is a section that looked like a
+             * bound and had to disclaim itself in its title.
+             *
+             * ⚠️ BOTH SIDES ARE STILL FETCHED. The upper anchor's proof is
+             * what names the two positions it took in the strip. Do not stop
+             * asking for it. */
             if let sides = page.checked?.bounds {
-                ForEach(sides) { bound in
-                    /* ⚠️ THE UPPER SIDE IS AN ORDER, NOT A TIME. "Recorded
-                     * before this block" was false: the recording sits before
-                     * the ANCHOR, and the anchor is made after the block it
-                     * carries, so the recording can be later than that block.
-                     * On 2026-09-13 it was, by twelve seconds.
-                     *
-                     * The words are the site's, verbatim (the proof page has
-                     * carried "(not an upper bound)" all along). This surface
-                     * had drifted from it, which is how the claim got made
-                     * twice in two different ways and only one of them wrong. */
-                    Section(bound.side == "before" ? "Recorded after this block" : "An anchor followed this position (not an upper bound)") {
+                ForEach(sides.filter { $0.side == "before" }) { bound in
+                    Section("Recorded after this block") {
                         if let n = bound.blockNumber { Field(label: "Block", value: "#\(G.count(n))") }
                         if let time = bound.blockTime { Field(label: "Block time", value: time, mono: true) }
                         /* A public block, with nothing of ours in the path: a
@@ -481,13 +508,20 @@ struct ProofView: View {
         let sides = page.checked?.bounds ?? []
         let before = sides.first { $0.side == "before" }?.blockTime.flatMap(Self.parse)
 
+        /* ⚠️ UTC HERE TOO. This line's number is a block's mint time, and the
+         * page's rule is that any time it draws matches the block it came
+         * from, as Etherscan shows it. Two zones on one page would mean the
+         * verdict and the strip disagreed about the same instant. */
+        let utc = TimeZone(identifier: "UTC")
         let dateOf: (Date) -> String = { d in
             let f = DateFormatter(); f.dateStyle = .long; f.timeStyle = .none
+            f.timeZone = utc
             return f.string(from: d)
         }
         let timeOf: (Date) -> String = { d in
-            let f = DateFormatter(); f.dateStyle = .none; f.timeStyle = .medium
-            return f.string(from: d)
+            let f = DateFormatter(); f.dateFormat = "hh:mm:ss a"
+            f.timeZone = utc
+            return f.string(from: d) + " UTC"
         }
 
         /* ⚠️ THE ANCHOR ON THE UPPER SIDE IS NOT A CEILING, AND THIS LINE USED
@@ -548,7 +582,6 @@ extension View {
 struct NeighbourLine: View {
     let row: NeighbourRow
     let noun: String
-
     private var isFloor: Bool { row.floor == true }
 
     var body: some View {
@@ -617,16 +650,28 @@ struct NeighbourLine: View {
         return G.ink
     }
 
-    /// The block's own time, as a clock. Only ever called on a time the core
-    /// set, which it sets only when keccak256(header) matched.
-    private static func clock(_ iso: String) -> String {
+    /// The block's own time, in UTC, marked. Only ever called on a time the
+    /// core set, which it sets only when keccak256(header) matched.
+    ///
+    /// ⚠️ UTC, NOT THIS MAC'S ZONE. The row links to Etherscan, Etherscan
+    /// shows UTC, and the digits have to be the same digits or the link
+    /// contradicts the row. In local time this drew 13:25:47 beside a link
+    /// whose page said 17:25:47 for the same block.
+    static func clock(_ iso: String) -> String {
+        guard let date = Self.parseISO(iso) else { return "" }
+        let out = DateFormatter()
+        /* ⚠️ 12-HOUR, PADDED, LIKE ETHERSCAN PRINTS IT. "match exact" is about
+         * the digits a person compares, and Etherscan writes 03:33:59 PM +UTC.
+         * 24-hour would be the same instant and different digits. */
+        out.dateFormat = "hh:mm:ss a"
+        out.timeZone = TimeZone(identifier: "UTC")
+        return out.string(from: date) + " UTC"
+    }
+
+    static func parseISO(_ iso: String) -> Date? {
         let parser = ISO8601DateFormatter()
         parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let date = parser.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
-        guard let date else { return "" }
-        let out = DateFormatter()
-        out.dateFormat = "HH:mm:ss"
-        return out.string(from: date)
+        return parser.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
     }
 }
 

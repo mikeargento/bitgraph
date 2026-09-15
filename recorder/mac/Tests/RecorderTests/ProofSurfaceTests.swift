@@ -64,12 +64,10 @@ final class ProofSurfaceTests: XCTestCase {
             CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 25_983_792, blockTime: "2026-09-15T15:34:47Z", contradiction: nil),
             CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25_983_793, blockTime: "2026-09-15T15:34:59Z", contradiction: nil),
         ])
-        let window = try? XCTUnwrap(ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting?.window)
-        let clock = DateFormatter(); clock.dateStyle = .none; clock.timeStyle = .medium
-        let upper = clock.string(from: ISO8601DateFormatter().date(from: "2026-09-15T15:34:59Z")!)
-        let lower = clock.string(from: ISO8601DateFormatter().date(from: "2026-09-15T15:34:47Z")!)
-        XCTAssertEqual(window, "after \(lower)")
-        XCTAssertEqual(window?.contains(upper), false, "the upper anchor's block is not a ceiling and must not be quoted as one")
+        let window = ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting?.window
+        /* UTC, the block's own zone, so the digits match what its link opens. */
+        XCTAssertEqual(window, "after 03:34:47 PM UTC")
+        XCTAssertEqual(window?.contains("15:34:59"), false, "the upper anchor's block is not a ceiling and must not be quoted as one")
     }
 
     /// ⚠️ A missing upper bound carries the ledger's own reason, so a reader can
@@ -260,6 +258,43 @@ final class ProofSurfaceTests: XCTestCase {
         for row in Self.heldSet where row.kind == "anchor" && row.blockTime == nil {
             XCTAssertNotNil(row.timeNote, "position \(row.counter) has no time and does not say why")
         }
+    }
+
+
+    /// ⚠️ THE RULE: ANY TIME THIS PAGE DRAWS MUST MATCH THE BLOCK IT CAME
+    /// FROM, AS ETHERSCAN SHOWS IT (Mike, 2026-09-15: "whatever time you list
+    /// on the proof, when i click that eth link, it should match exact").
+    /// Etherscan shows UTC. Local time drew 13:25:47 next to a link whose page
+    /// said 05:25:47 PM for the same block, so the row contradicted its own link.
+    func testEveryTimeIsUTCAndMatchesTheBlockItLinksTo() {
+        /* 25,983,788 was mined at 15:33:59 UTC. The row must say that, not the
+         * same instant rendered in whatever zone this Mac is set to. */
+        let row = Self.heldSet.first { $0.counter == "8994" }!
+        XCTAssertEqual(NeighbourLine.clock(row.blockTime!), "03:33:59 PM UTC")
+        XCTAssertTrue(row.etherscanUrl!.hasSuffix("/25983788"), "and it links to the block it just quoted")
+    }
+
+    /// Every anchor row that shows a time also links to the block that time
+    /// belongs to. A time with no link beside it cannot be checked by the
+    /// person the link exists for.
+    func testNoTimeIsDrawnWithoutItsBlockLink() {
+        for row in Self.heldSet where row.blockTime != nil {
+            XCTAssertEqual(row.kind, "anchor", "only an anchor carries a block time")
+            XCTAssertNotNil(row.etherscanUrl, "position \(row.counter) draws a time with nothing to check it against")
+            XCTAssertNotNil(row.blockNumber)
+        }
+    }
+
+    /// ⚠️ BOTH ANCHORS SHOW THEIR TIME. An earlier pass hid the upper one so
+    /// the strip would not read as a time bracket. The ruling (canon §3.6) is
+    /// that the bracket is POSITIONAL: the recording sits between two anchored
+    /// blocks in the chain, and may legitimately be later than the upper
+    /// block's mint time, because that block happened before the recording.
+    /// Hiding the row was solving the wrong problem.
+    func testTheAnchorAfterTheCommitStillShowsItsTime() {
+        let after = Self.heldSet.first { $0.counter == "8997" }!
+        XCTAssertNotNil(after.blockTime)
+        XCTAssertEqual(NeighbourLine.clock(after.blockTime!), "03:34:11 PM UTC")
     }
 
     /// The recording's own rows are the ones the eye should land on.
