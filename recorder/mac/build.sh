@@ -40,11 +40,19 @@ swift build --package-path "$here" -c release --arch "$arch" >/dev/null
 bin="$(swift build --package-path "$here" -c release --arch "$arch" --show-bin-path)"
 product="$bin/BitGraphRecorder"
 [ -f "$product" ] || { echo "no BitGraphRecorder at $product" >&2; exit 1; }
-# Built THIS run, or the copy below is a lie about what was compiled.
-if [ -n "$(find "$product" -mmin +5)" ]; then
-  echo "refusing: $product was not written by this build (older than 5 minutes)" >&2
-  exit 1
-fi
+# ⚠️ NO TIMESTAMP GUARD HERE, AND THAT IS DELIBERATE.
+#
+# Two were tried and both cried wolf. "Newer than five minutes ago" refuses an
+# incremental build that correctly had nothing to recompile. "Newer than every
+# source" refuses a source that was touched without being changed, because
+# swift decides on content, not mtime. Neither is the property that matters,
+# and a check that fails on healthy builds gets disabled the third time it
+# fires, taking the real protection with it.
+#
+# The real protection is one line up: --show-bin-path is the toolchain's own
+# answer to where it puts this configuration's product, so a successful
+# `swift build` leaves a current binary exactly there. The bug this replaced
+# was never staleness, it was asking the wrong directory.
 
 # ── 3. the bundle ────────────────────────────────────────────────────────────
 say "assembling the bundle"
