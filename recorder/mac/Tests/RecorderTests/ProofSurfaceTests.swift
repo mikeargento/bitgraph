@@ -96,6 +96,30 @@ final class ProofSurfaceTests: XCTestCase {
         XCTAssertEqual(view.verdictLineForTesting.hasSuffix("after …"), true, view.verdictLineForTesting)
     }
 
+    /// ⚠️ THE CEILING IS NAMED, NOT TIMED. The line states both bounds, each
+    /// in its own unit: a block's mint time below, an anchor's POSITION above.
+    /// Writing the ceiling as a clock reading is the claim deleted on
+    /// 2026-09-15, because an anchor is built after the block it carries.
+    func testTheLineNamesTheAnchorAboveAndNeverTimesIt() {
+        let page = makePage(bounds: [
+            CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 25_983_787, blockTime: "2026-09-15T15:33:47Z", contradiction: nil),
+            CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25_983_789, blockTime: "2026-09-15T15:34:11Z", contradiction: nil, counter: "8997"),
+        ])
+        let window = ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting?.window
+        XCTAssertEqual(window, "after 03:33:47 PM UTC, and before anchor #8997")
+        XCTAssertEqual(window?.contains("03:34:11"), false, "the upper anchor's block time is not the ceiling")
+    }
+
+    /// With no anchor above yet, the floor stands alone rather than inventing
+    /// an upper bound to keep the sentence symmetrical.
+    func testWithNoAnchorAboveTheLineStaysOneSided() {
+        let page = makePage(bounds: [
+            CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 25_983_787, blockTime: "2026-09-15T15:33:47Z", contradiction: nil),
+            CheckedBound(side: "after", state: "pending", note: "No anchor follows this position yet.", blockNumber: nil, blockTime: nil, contradiction: nil),
+        ])
+        XCTAssertEqual(ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting?.window, "after 03:33:47 PM UTC")
+    }
+
     func testTheCommitmentRowSaysHowItIsCarried() {
         XCTAssertEqual(ProofView(state: AppState(preview: nil), page: makePage(placement: "trailer/1")).carriedByForTesting, "in the bytes appended to the file")
         XCTAssertEqual(ProofView(state: AppState(preview: nil), page: makePage(placement: "container/2")).carriedByForTesting, "in a wrapper around the file")
@@ -206,9 +230,12 @@ final class ProofSurfaceTests: XCTestCase {
                                              library: "/Users/mike/BitGraph/Recordings", recordings: 2_566, recorded: 0, folderMissing: true, folders: []))
         try shoot(MovedFolderDialog(state: moved).padding(40).background(G.ground), name: "moved", size: CGSize(width: 660, height: 420), into: out)
 
+        /* The normal case: both anchors present, so the line states both bounds
+         * in their own units. The after side carries its counter, which is
+         * what the ceiling is denominated in. */
         let page = makePage(member: Evidence.Member(index: 11, count: 40), bounds: [
-            CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 25_735_831, blockTime: "2026-09-08T14:00:00Z", contradiction: nil),
-            CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25_735_833, blockTime: "2026-09-08T14:00:24Z", contradiction: nil),
+            CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 25_735_831, blockTime: "2026-09-08T14:00:00Z", contradiction: nil, counter: "4149"),
+            CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25_735_833, blockTime: "2026-09-08T14:00:24Z", contradiction: nil, counter: "4155"),
         ], status: "verified")
         try shoot(ProofView(state: AppState(preview: nil), page: page), name: "proof", size: CGSize(width: 928, height: 700), into: out)
 

@@ -524,26 +524,27 @@ struct ProofView: View {
             return f.string(from: d) + " UTC"
         }
 
-        /* ⚠️ THE ANCHOR ON THE UPPER SIDE IS NOT A CEILING, AND THIS LINE USED
-         * TO READ AS IF IT WERE.
+        /* ⚠️ TWO BOUNDS, IN TWO UNITS, AND THE UNITS ARE THE POINT.
          *
-         * A block hash travels INWARD. An anchor carries one into the chain,
-         * which proves the ANCHOR was made no earlier than that block. A
-         * recording that sits before that anchor is therefore ordered before a
-         * moment which is itself no earlier than the block, and that bounds
-         * nothing from above. Nothing flowing inward ever can: anchors write
-         * nothing to Ethereum, so Ethereum cannot witness that a recording had
-         * already happened.
+         * The floor is a TIME: the recording came after a block Ethereum
+         * dates, trusting nobody. The ceiling is a POSITION: the recording
+         * came before the anchor at that counter, because recording a block
+         * proves the block already existed there, and the monotonic counter
+         * puts this recording underneath it. Ethereum gives the chain a clock
+         * that runs one way; the counter gives it an order that runs both.
          *
-         * The window this returned was wrong by exactly the lag between a
-         * block and the anchor that carries it, about 12.6s. Caught on
-         * 2026-09-13 on a real drop: the upper edge read 11:34:59 and the
-         * enclave's own attestation put the commit at 11:35:11, twelve seconds
-         * PAST the edge. One side is all the evidence supports, so one side is
-         * all that is said. The anchor above is still shown under Recording
-         * details, as an ordering fact rather than a time. */
+         * ⚠️ THE CEILING IS NEVER WRITTEN AS A CLOCK READING. An anchor is
+         * built after the block it carries, so its position is later than that
+         * block's mint time and never at it. This line used to say "between
+         * 11:34:47 and 11:34:59" and was wrong by that lag on every proof it
+         * drew: on the 2026-09-13 drop the commit was at 11:35:11, twelve
+         * seconds past the edge shown. Naming the anchor is exact. Naming a
+         * time for the anchor is the deleted claim. Canon §3.6. */
         guard let floor = before else { return nil }
-        return (dateOf(floor), "after \(timeOf(floor))")
+        let ceiling = sides.first { $0.side == "after" }?.counter
+        let phrase = ceiling.map { "after \(timeOf(floor)), and before anchor #\($0)" }
+            ?? "after \(timeOf(floor))"
+        return (dateOf(floor), phrase)
     }
 
     // Reachable by the surface tests: these are decisions, not drawing.
