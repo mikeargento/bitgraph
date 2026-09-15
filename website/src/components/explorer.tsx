@@ -41,12 +41,14 @@ const rowId = (e: Entry) => `${e.ep ?? ""}:${e.counter}`;
 
 // Compact recorded time for a day row, e.g. "Jul 17, 9:22 PM". More useful
 // than the truncated hash it replaces (nobody reads a proof by 10 hash chars).
+/* ⚠️ UTC. This column is Ethereum block time and the row links to the block.
+   See lib/format-time.ts for why the site stopped localising. */
 const fmtWhen = (ms?: number) =>
-  ms ? new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  ms ? new Date(ms).toLocaleString("en-US", { timeZone: "UTC", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " UTC" : "";
 // The phone form: the time alone. The page names the day, so on a narrow
 // screen the date was only the part that got chopped (Mike, 2026-09-11).
 const fmtWhenShort = (ms?: number) =>
-  ms ? new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+  ms ? new Date(ms).toLocaleTimeString("en-US", { timeZone: "UTC", hour: "numeric", minute: "2-digit" }) + " UTC" : "";
 
 const fmt = (n: number) => n.toLocaleString();
 
