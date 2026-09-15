@@ -197,8 +197,11 @@ struct ProofView: View {
                 return Verdict(icon: "checkmark.seal.fill", color: G.ink, headline: "BitGraph recorded",
                                line: "\(when.date), \(when.window)")
             }
+            /* No floor yet, so no time at all. The ellipsis stands where the
+             * one-sided claim will go, never in a "between … and …" that
+             * promises an upper edge nothing can supply. */
             return Verdict(icon: "checkmark.seal.fill", color: G.ink, headline: "BitGraph recorded",
-                           line: "Position #\(evidence?.position.counter ?? "?"), time between … and …")
+                           line: "Position #\(evidence?.position.counter ?? "?"), after …")
         case "failed":
             return Verdict(icon: "exclamationmark.triangle.fill", color: G.red, headline: "Failed the check",
                            line: checked.reason ?? "Something contradicted the record.")
@@ -438,7 +441,17 @@ struct ProofView: View {
             }
             if let sides = page.checked?.bounds {
                 ForEach(sides) { bound in
-                    Section(bound.side == "before" ? "Recorded after this block" : "Recorded before this block") {
+                    /* ⚠️ THE UPPER SIDE IS AN ORDER, NOT A TIME. "Recorded
+                     * before this block" was false: the recording sits before
+                     * the ANCHOR, and the anchor is made after the block it
+                     * carries, so the recording can be later than that block.
+                     * On 2026-09-13 it was, by twelve seconds.
+                     *
+                     * The words are the site's, verbatim (the proof page has
+                     * carried "(not an upper bound)" all along). This surface
+                     * had drifted from it, which is how the claim got made
+                     * twice in two different ways and only one of them wrong. */
+                    Section(bound.side == "before" ? "Recorded after this block" : "An anchor followed this position (not an upper bound)") {
                         if let n = bound.blockNumber { Field(label: "Block", value: "#\(G.count(n))") }
                         if let time = bound.blockTime { Field(label: "Block time", value: time, mono: true) }
                         /* A public block, with nothing of ours in the path: a
@@ -467,7 +480,6 @@ struct ProofView: View {
     private var whenLines: (date: String, window: String)? {
         let sides = page.checked?.bounds ?? []
         let before = sides.first { $0.side == "before" }?.blockTime.flatMap(Self.parse)
-        let after = sides.first { $0.side == "after" }?.blockTime.flatMap(Self.parse)
 
         let dateOf: (Date) -> String = { d in
             let f = DateFormatter(); f.dateStyle = .long; f.timeStyle = .none
@@ -478,19 +490,26 @@ struct ProofView: View {
             return f.string(from: d)
         }
 
-        switch (before, after) {
-        case (.some(let a), .some(let b)):
-            return Calendar.current.isDate(a, inSameDayAs: b)
-                ? (dateOf(b), "between \(timeOf(a)) and \(timeOf(b))")
-                : (dateOf(b), "between \(dateOf(a)) \(timeOf(a)) and \(dateOf(b)) \(timeOf(b))")
-        case (.some(let a), .none):
-            /* The upper side has not landed: the ellipsis is the whole story here. */
-            return (dateOf(a), "between \(timeOf(a)) and …")
-        case (.none, .some(let b)):
-            return (dateOf(b), "between … and \(timeOf(b))")
-        case (.none, .none):
-            return nil
-        }
+        /* ⚠️ THE ANCHOR ON THE UPPER SIDE IS NOT A CEILING, AND THIS LINE USED
+         * TO READ AS IF IT WERE.
+         *
+         * A block hash travels INWARD. An anchor carries one into the chain,
+         * which proves the ANCHOR was made no earlier than that block. A
+         * recording that sits before that anchor is therefore ordered before a
+         * moment which is itself no earlier than the block, and that bounds
+         * nothing from above. Nothing flowing inward ever can: anchors write
+         * nothing to Ethereum, so Ethereum cannot witness that a recording had
+         * already happened.
+         *
+         * The window this returned was wrong by exactly the lag between a
+         * block and the anchor that carries it, about 12.6s. Caught on
+         * 2026-09-13 on a real drop: the upper edge read 11:34:59 and the
+         * enclave's own attestation put the commit at 11:35:11, twelve seconds
+         * PAST the edge. One side is all the evidence supports, so one side is
+         * all that is said. The anchor above is still shown under Recording
+         * details, as an ordering fact rather than a time. */
+        guard let floor = before else { return nil }
+        return (dateOf(floor), "after \(timeOf(floor))")
     }
 
     // Reachable by the surface tests: these are decisions, not drawing.

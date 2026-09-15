@@ -39,29 +39,63 @@ final class ProofSurfaceTests: XCTestCase {
         XCTAssertNil(view.whenLinesForTesting, "a time with no verified header is not a time")
     }
 
-    func testTheWindowReadsAsOneDayWhenBothAnchorsLandedOnIt() {
+    /// ⚠️ THE CLAIM IS ONE-SIDED, BECAUSE THE EVIDENCE IS.
+    ///
+    /// A block hash travels inward: an anchor carries one into the chain, which
+    /// dates the ANCHOR from below and says nothing about anything above it.
+    /// A recording before that anchor may be later than the block the anchor
+    /// carries, and the page must never imply otherwise.
+    func testTheLineClaimsAFloorAndNeverAWindow() {
         let page = makePage(bounds: [
             CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 25735831, blockTime: "2026-09-08T14:00:00Z", contradiction: nil),
             CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25735833, blockTime: "2026-09-08T14:00:24Z", contradiction: nil),
         ])
-        let view = ProofView(state: AppState(preview: nil), page: page)
-        let when = view.whenLinesForTesting
-        XCTAssertTrue(when?.window.hasPrefix("between") == true, String(describing: when))
+        let window = ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting?.window
+        XCTAssertEqual(window?.hasPrefix("after "), true, String(describing: window))
+        XCTAssertEqual(window?.contains("between"), false, "a window promises an upper edge nothing can supply")
+    }
+
+    /// The 2026-09-13 drop, in the numbers it actually failed on. The page read
+    /// "between 11:34:47 and 11:34:59"; the enclave's own attestation put the
+    /// commit at 11:35:11, twelve seconds past the edge the page drew. The
+    /// upper block's time must appear nowhere in the claim.
+    func testTheUpperBlocksTimeIsNotInTheClaim() {
+        let page = makePage(bounds: [
+            CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 25_983_792, blockTime: "2026-09-15T15:34:47Z", contradiction: nil),
+            CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25_983_793, blockTime: "2026-09-15T15:34:59Z", contradiction: nil),
+        ])
+        let window = try? XCTUnwrap(ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting?.window)
+        let clock = DateFormatter(); clock.dateStyle = .none; clock.timeStyle = .medium
+        let upper = clock.string(from: ISO8601DateFormatter().date(from: "2026-09-15T15:34:59Z")!)
+        let lower = clock.string(from: ISO8601DateFormatter().date(from: "2026-09-15T15:34:47Z")!)
+        XCTAssertEqual(window, "after \(lower)")
+        XCTAssertEqual(window?.contains(upper), false, "the upper anchor's block is not a ceiling and must not be quoted as one")
     }
 
     /// ⚠️ A missing upper bound carries the ledger's own reason, so a reader can
-    /// tell "not fetched yet" from "none will ever exist".
-    func testAMissingUpperBoundCarriesItsReason() {
+    /// tell "not fetched yet" from "none will ever exist". It does not change
+    /// the claim, because the claim never rested on that side.
+    func testAMissingUpperBoundCarriesItsReasonAndLeavesTheFloorAlone() {
         let page = makePage(bounds: [
             CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 1, blockTime: "2026-09-08T14:00:00Z", contradiction: nil),
             CheckedBound(side: "after", state: "closed", note: "This position's epoch closed with no anchor after it.", blockNumber: nil, blockTime: nil, contradiction: nil),
         ])
         let view = ProofView(state: AppState(preview: nil), page: page)
-        let when = view.whenLinesForTesting
-        /* The line goes quiet: an ellipsis where the side is missing. The
-         * reason is still on the page, under Details, for whoever digs. */
-        XCTAssertTrue(when?.window.hasSuffix("…") == true, String(describing: when))
+        XCTAssertEqual(view.whenLinesForTesting?.window.hasPrefix("after "), true)
         XCTAssertTrue(view.pendingWhyForTesting.contains("epoch closed"), view.pendingWhyForTesting)
+    }
+
+    /// With no verified header on the lower side there is no floor, so there is
+    /// no time on the page at all. An ellipsis stands where the floor will go.
+    func testNoFloorMeansNoTimeAtAll() {
+        let page = makePage(bounds: [
+            CheckedBound(side: "before", state: "pending", note: "No anchor precedes this position yet.", blockNumber: nil, blockTime: nil, contradiction: nil),
+            CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25_983_793, blockTime: "2026-09-15T15:34:59Z", contradiction: nil),
+        ])
+        let view = ProofView(state: AppState(preview: nil), page: page)
+        XCTAssertNil(view.whenLinesForTesting, "an upper anchor alone establishes no time")
+        XCTAssertEqual(view.verdictLineForTesting.contains("between"), false, view.verdictLineForTesting)
+        XCTAssertEqual(view.verdictLineForTesting.hasSuffix("after …"), true, view.verdictLineForTesting)
     }
 
     func testTheCommitmentRowSaysHowItIsCarried() {
