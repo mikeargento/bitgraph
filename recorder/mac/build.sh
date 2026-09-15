@@ -26,11 +26,31 @@ say "building the core"
 say "building the app"
 swift build --package-path "$here" -c release --arch "$arch" >/dev/null
 
+# ⚠️ ASK THE TOOLCHAIN WHERE IT PUT THE BINARY. NEVER GUESS.
+#
+# This used to read "$here/.build/$arch-apple-macosx/release/BitGraphRecorder".
+# Swift 6.4 builds release products into .build/out/Products/Release instead,
+# so that path silently kept pointing at whatever was last left there by an
+# older toolchain, and `cp` happily copied a two-day-old executable into a
+# freshly versioned bundle. Every check below still passed, because the version
+# is stamped into Info.plist by sed rather than read out of the binary.
+#
+# That is the exact failure this file's header warns about, arrived at from a
+# new direction. A guessed path cannot fail loudly; --show-bin-path can.
+bin="$(swift build --package-path "$here" -c release --arch "$arch" --show-bin-path)"
+product="$bin/BitGraphRecorder"
+[ -f "$product" ] || { echo "no BitGraphRecorder at $product" >&2; exit 1; }
+# Built THIS run, or the copy below is a lie about what was compiled.
+if [ -n "$(find "$product" -mmin +5)" ]; then
+  echo "refusing: $product was not written by this build (older than 5 minutes)" >&2
+  exit 1
+fi
+
 # ── 3. the bundle ────────────────────────────────────────────────────────────
 say "assembling the bundle"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp "$here/.build/$arch-apple-macosx/release/BitGraphRecorder" "$app/Contents/MacOS/BitGraphRecorder"
+cp "$product" "$app/Contents/MacOS/BitGraphRecorder"
 sed "s/__VERSION__/$version/g" "$here/Resources/Info.plist" > "$app/Contents/Info.plist"
 cp "$here/Resources/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
 # The name Finder and the Dock show (see Info.plist): read only from here.
