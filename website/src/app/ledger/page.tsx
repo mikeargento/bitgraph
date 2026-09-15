@@ -1,4 +1,5 @@
 import { Explorer } from "@/components/explorer";
+import { AnchorRecovery } from "@/components/anchor-recovery";
 import { ledgerFeed, type LedgerFeedBody } from "@/lib/ledger-feed";
 
 /* ── BitGraph Ledger — the ledger stream, on its own page. Every recording in
@@ -176,6 +177,17 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
             )
           }
         />
+        {/* Getting the anchors for a BitGraph you already hold. The page above
+            is the anchors as a list to read; this is the two that bracket one
+            position, as files to keep (Mike, 2026-09-15: "they have a proof
+            and the original files but need the eth proof because they dont
+            have it or they need a record of it for their files").
+
+            ⚠️ NOT THE DAY EXPORT. A link for a day's anchors as JSON stood in
+            the shelf above for one push on 2026-09-09 and was cut the same
+            evening, because nobody is matching whole days. This is the case
+            that was actually missing: one holder, one position, two anchors. */}
+        <AnchorRecovery />
       </div>
     </div>
   );

@@ -884,6 +884,23 @@ export default function ProofPage() {
   // hand and the proof, and offered only on this explicit click. A visitor who
   // dropped the fused file itself simply gets those bytes back.
 
+  /** The proof, as the file it already is. See the note at the call site. */
+  function downloadProof() {
+    if (!proof) return;
+    const blockNumber = (proof.metadata as { anchor?: { blockNumber?: number } } | undefined)?.anchor?.blockNumber;
+    const name = blockNumber ? `ethereum-anchor-${blockNumber}.json` : "bitgraph-proof.json";
+    const url = URL.createObjectURL(new Blob([JSON.stringify(proof, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    /* Freed on the next tick; revoking straight away races the download in
+       Safari, which has not read the blob yet when click() returns. */
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   async function exportZip() {
     if (exporting) return;
     setExporting(true);
@@ -1315,7 +1332,29 @@ export default function ProofPage() {
                   <div className="bg-page-title" style={{ marginBottom: 0 }}>
                     BitGraphed Ethereum Block
                   </div>
-                  <a href={href} className="bg-action-link" style={{ margin: 0 }}>All Ethereum anchors</a>
+                  <span style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+                    {/* ⚠️ THE ANCHOR AS A FILE, WHICH IS THE REASON THE BULK
+                        EXPORT WAS CUT. A day's-anchors Export link stood on
+                        /ledger for one push on 2026-09-09 and Mike removed it
+                        the same evening, because "an anchor's proof page is
+                        the anchor as a file". It was not: it was the anchor as
+                        text you click to copy out of the Raw JSON card, which
+                        is fine for a digest and awkward for a 10 KB proof
+                        carrying an embedded Nitro attestation.
+
+                        The package export next door is a zip and is switched
+                        off here on purpose: an anchor has no original file, so
+                        that zip would hold one member and the wrapper would be
+                        the only thing it added. A proof is already one file.
+
+                        Named for the block, because that is what the reader is
+                        looking at and what they will match it against. */}
+                    <button onClick={downloadProof} className="bg-action-link" style={{ margin: 0 }}>
+                      <span>Download JSON</span>
+                      <span className="arrow" aria-hidden>&darr;</span>
+                    </button>
+                    <a href={href} className="bg-action-link" style={{ margin: 0 }}>All Ethereum anchors</a>
+                  </span>
                 </div>
               );
             })()}
