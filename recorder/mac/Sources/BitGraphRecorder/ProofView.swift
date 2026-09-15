@@ -144,6 +144,10 @@ struct ProofView: View {
                     Text(s.headline).font(G.cardTitle).foregroundStyle(s.color)
                     Text(s.line).font(G.body).foregroundStyle(G.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let second = s.second {
+                        Text(second).font(G.body).foregroundStyle(G.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 Spacer(minLength: 16)
                 /* The two things to do with it, on the verdict: reveal the
@@ -178,6 +182,12 @@ struct ProofView: View {
         let color: Color
         let headline: String
         let line: String
+        /* ⚠️ THE CEILING GETS ITS OWN LINE. Both bounds in one sentence wrapped
+         * to two rows anyway and broke mid-phrase, at "and before anchor /
+         * #10087" (Mike, 2026-09-15: "you cant stuff all that info there. it
+         * needs its own whole line"). They are two facts in two units, so two
+         * lines is what they were. */
+        var second: String? = nil
     }
 
     /// The verdict comes from the check; the time comes from anchors whose
@@ -195,7 +205,7 @@ struct ProofView: View {
              * signed, is under Recording details for whoever goes looking. */
             if let when = whenLines {
                 return Verdict(icon: "checkmark.seal.fill", color: G.ink, headline: "BitGraph recorded",
-                               line: "\(when.date), \(when.window)")
+                               line: "\(when.date), \(when.window)", second: when.ceiling)
             }
             /* No floor yet, so no time at all. The ellipsis stands where the
              * one-sided claim will go, never in a "between … and …" that
@@ -504,7 +514,7 @@ struct ProofView: View {
     /// ⚠️ Built ONLY from anchors whose header was checked. A block time read
     /// off an unverified header would be a time asserted from an untrusted
     /// source, which is the one thing this product does not do.
-    private var whenLines: (date: String, window: String)? {
+    private var whenLines: (date: String, window: String, ceiling: String?)? {
         let sides = page.checked?.bounds ?? []
         let before = sides.first { $0.side == "before" }?.blockTime.flatMap(Self.parse)
 
@@ -542,13 +552,11 @@ struct ProofView: View {
          * time for the anchor is the deleted claim. Canon §3.6. */
         guard let floor = before else { return nil }
         let ceiling = sides.first { $0.side == "after" }?.counter
-        let phrase = ceiling.map { "after \(timeOf(floor)), and before anchor #\($0)" }
-            ?? "after \(timeOf(floor))"
-        return (dateOf(floor), phrase)
+        return (dateOf(floor), "after \(timeOf(floor))", ceiling.map { "Before anchor #\($0)" })
     }
 
     // Reachable by the surface tests: these are decisions, not drawing.
-    var whenLinesForTesting: (date: String, window: String)? { whenLines }
+    var whenLinesForTesting: (date: String, window: String, ceiling: String?)? { whenLines }
     var carriedByForTesting: String { carriedBy }
     var verdictLineForTesting: String { verdict.line }
     var verdictHeadlineForTesting: String { verdict.headline }

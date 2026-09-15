@@ -106,8 +106,11 @@ final class ProofSurfaceTests: XCTestCase {
             CheckedBound(side: "after", state: "anchored", note: "", blockNumber: 25_983_789, blockTime: "2026-09-15T15:34:11Z", contradiction: nil, counter: "8997"),
         ])
         let window = ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting?.window
-        XCTAssertEqual(window, "after 03:33:47 PM UTC, and before anchor #8997")
+        XCTAssertEqual(window, "after 03:33:47 PM UTC")
         XCTAssertEqual(window?.contains("03:34:11"), false, "the upper anchor's block time is not the ceiling")
+        /* ⚠️ ITS OWN LINE. Both bounds in one sentence wrapped and broke
+           mid-phrase in the verdict card. */
+        XCTAssertEqual(ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting?.ceiling, "Before anchor #8997")
     }
 
     /// With no anchor above yet, the floor stands alone rather than inventing
@@ -117,7 +120,9 @@ final class ProofSurfaceTests: XCTestCase {
             CheckedBound(side: "before", state: "anchored", note: "", blockNumber: 25_983_787, blockTime: "2026-09-15T15:33:47Z", contradiction: nil),
             CheckedBound(side: "after", state: "pending", note: "No anchor follows this position yet.", blockNumber: nil, blockTime: nil, contradiction: nil),
         ])
-        XCTAssertEqual(ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting?.window, "after 03:33:47 PM UTC")
+        let lines = ProofView(state: AppState(preview: nil), page: page).whenLinesForTesting
+        XCTAssertEqual(lines?.window, "after 03:33:47 PM UTC")
+        XCTAssertNil(lines?.ceiling, "no anchor above yet, so no second line at all")
     }
 
     func testTheCommitmentRowSaysHowItIsCarried() {
