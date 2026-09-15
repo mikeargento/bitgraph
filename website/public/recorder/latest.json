@@ -1,8 +1,8 @@
 {
-  "version": "0.1.20",
+  "version": "0.1.21",
   "url": "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraph-Recorder.pkg",
-  "notes": "https://github.com/mikeargento/bitgraph/releases/tag/recorder-v0.1.20",
-  "sha256": "e584ab7a93fa97bdbd3b97b5b4894a1d0056cb6e1cca56ce31e7f17058235a4c",
+  "notes": "https://github.com/mikeargento/bitgraph/releases/tag/recorder-v0.1.21",
+  "sha256": "ae64b7de70a58dc1dc78379b0b66a0ce1fe24b210c51f46711e8a5bc870696d3",
   "minimumSystemVersion": "14.0",
-  "publishedAt": "2026-09-15T20:22:52Z"
+  "publishedAt": "2026-09-15T21:11:05Z"
 }
