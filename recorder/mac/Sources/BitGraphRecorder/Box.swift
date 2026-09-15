@@ -67,10 +67,28 @@ extension AppState {
     }
 
     /// The app active and the window in front, without moving off whatever
-    /// surface is showing. What a drop and a Dock drop do first.
+    /// surface is showing, opening the window again if it was closed. What a
+    /// drop, a Dock drop and Open BitGraph all go through.
+    ///
+    /// ⚠️ A CLOSED WINDOW IS NOT IN `NSApp.windows`. This used to be
+    /// `NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront`
+    /// and nothing else. Close the window and that optional is nil, so the
+    /// call did nothing at all: Open BitGraph in the menu bar was dead, with
+    /// no error and nothing to click (Mike, 2026-09-15: "make sure that open
+    /// bitgraph button always works because it hasnt always"). A menu bar app
+    /// has no Dock icon, so that button is one of the only ways back in.
+    ///
+    /// Reopening a `Window` scene is SwiftUI's job, through `openWindow(id:)`,
+    /// which builds it again when it is gone and is a no-op when it is not.
+    ///
+    /// ⚠️ `canBecomeMain` WAS ALSO THE WRONG TEST. `NSApp.windows` holds the
+    /// menu bar popover too and its order is not defined, so the fallback
+    /// could raise the popover instead of the window. The titled style mask is
+    /// what the two correct sites in the delegate already matched on.
     func comeForward() {
+        reopenBox?()
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
+        NSApp.windows.first(where: { $0.styleMask.contains(.titled) })?.makeKeyAndOrderFront(nil)
     }
 
     private func performDrop(_ paths: [String]) async {
@@ -201,10 +219,11 @@ extension AppState {
     }
 
     /// Bring the window forward on the calendar, from the menu bar.
+    /// The menu bar's Open BitGraph. One path in, shared with every other
+    /// caller, so the four of them cannot drift apart again.
     func openWindow() {
         showCalendar()
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront(nil)
+        comeForward()
     }
 
     /// How to name a BitGraph to the core.

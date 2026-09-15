@@ -12,13 +12,13 @@ struct RecorderApp: App {
         /* The one window: the box, a batch, or a BitGraph. It is the product's
          * surface; the menu bar is the service behind it. */
         Window("BitGraph", id: "box") {
-            MainWindow(state: delegate.state)
+            MainWindow(state: delegate.state).modifier(WindowOpener(state: delegate.state))
         }
         .defaultSize(width: 1180, height: 780)
         .windowResizability(.contentMinSize)
 
         MenuBarExtra {
-            MenuView(state: delegate.state)
+            MenuView(state: delegate.state).modifier(WindowOpener(state: delegate.state))
         } label: {
             /* The record dot, the same mark as the app icon (Mike, 2026-09-11:
              * "icon doesnt match the top bar icon"; it was the site's dashed
@@ -28,6 +28,28 @@ struct RecorderApp: App {
             Image(systemName: delegate.state.everythingIsFine ? "circle.fill" : "exclamationmark.circle.fill")
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// Hands the state SwiftUI's own window opener.
+///
+/// ⚠️ ONLY SwiftUI CAN REBUILD A CLOSED `Window` SCENE. AppKit cannot: once
+/// the window is closed it is not in `NSApp.windows` at all, so every
+/// `makeKeyAndOrderFront` in this app was a no-op in exactly the state where
+/// somebody needed it most. `openWindow(id:)` builds it again, and does
+/// nothing when it already exists.
+///
+/// ⚠️ APPLIED TO BOTH SCENES, DELIBERATELY. The window's content does not
+/// exist while the window is closed, so binding only there would lose the
+/// opener precisely when it is required. The menu bar's content appears
+/// whenever the popover does, which is the moment before anyone can press
+/// Open BitGraph.
+private struct WindowOpener: ViewModifier {
+    let state: AppState
+    @Environment(\.openWindow) private var openWindow
+
+    func body(content: Content) -> some View {
+        content.onAppear { state.reopenBox = { openWindow(id: "box") } }
     }
 }
 

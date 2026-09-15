@@ -203,4 +203,31 @@ final class SurfaceTests: XCTestCase {
             try png.write(to: out.appendingPathComponent("\(name).png"))
         }
     }
+
+    // ── the way back in ─────────────────────────────────────────────────────
+
+    /// ⚠️ OPEN BITGRAPH HAS TO CALL SOMETHING. The old path was a lone
+    /// `NSApp.windows.first(where: { $0.canBecomeMain })?.makeKeyAndOrderFront`,
+    /// and a closed window is not in `NSApp.windows`, so in exactly the state
+    /// where the button is needed it did nothing and said nothing (Mike,
+    /// 2026-09-15: "that open bitgraph button always works because it hasnt
+    /// always"). Only SwiftUI can rebuild a closed `Window` scene, so the one
+    /// thing this must never go back to is not asking it.
+    func testOpenBitGraphAsksSwiftUIToReopenTheWindow() {
+        let state = AppState(preview: nil)
+        var asked = 0
+        state.reopenBox = { asked += 1 }
+        state.openWindow()
+        XCTAssertEqual(asked, 1, "the menu bar button did not ask for the window")
+        XCTAssertEqual(state.surface, .calendar, "and it lands on the calendar")
+    }
+
+    /// Every other way in shares the one path, so they cannot drift apart.
+    func testADropAlsoReopensAClosedWindow() {
+        let state = AppState(preview: nil)
+        var asked = 0
+        state.reopenBox = { asked += 1 }
+        state.comeForward()
+        XCTAssertEqual(asked, 1)
+    }
 }

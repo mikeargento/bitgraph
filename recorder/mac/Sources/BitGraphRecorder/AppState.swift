@@ -16,6 +16,13 @@ import ServiceManagement
 /// a title bar.
 @MainActor
 final class AppState: ObservableObject {
+
+    /// SwiftUI's own window opener, handed over by the surfaces that have the
+    /// environment (see WindowOpener in RecorderApp.swift). It is the only
+    /// thing that can rebuild the `box` window scene once it has been closed,
+    /// which AppKit cannot do: a closed window is not in `NSApp.windows` at
+    /// all. nil only before any surface has appeared.
+    var reopenBox: (() -> Void)?
     @Published private(set) var status: Status?
     @Published private(set) var activity: String?
     @Published private(set) var reports: [String: FolderReport] = [:]
