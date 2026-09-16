@@ -89,6 +89,13 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
          that runs easiest to hardest. A download button at the top of home
          was built and removed the same evening; the page is the door. */
       { href: "/docs/recorder", label: "BitGraph Recorder" },
+      /* The browser try (Mike, 2026-09-16: "build it as a try it page under
+         tools"): the site's own camera on one docs page, for whoever cannot
+         install the Mac app. It makes a real BitGraph and hands the proof
+         back. It also checks a dropped proof.json, because the camera always
+         has; the page says a check you would stake something on runs in the
+         Recorder or the terminal, per the 2026-09-08 note below. */
+      { href: "/docs/try", label: "Try it" },
       { href: "/docs/verification", label: "Verification" },
       /* ❄️ "Verify a BitGraph" (/verify, serving public/verify.html) lived here
          for a few hours on 2026-09-08 and Mike removed it: "they are trusting a

@@ -62,7 +62,7 @@ export default function ArchivePage() {
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
         {/* The one title size every page header uses. */}
         <div className="bg-page-title">Calendar</div>
-        <div style={{ fontSize: 14, fontWeight: 400, color: "#4b5563", marginTop: 2, marginBottom: 24 }}>
+        <div style={{ fontSize: 14, fontWeight: 400, color: "var(--dim)", marginTop: 2, marginBottom: 24 }}>
           One page per UTC day. Today&rsquo;s is still open.
         </div>
         <MonthShelf>

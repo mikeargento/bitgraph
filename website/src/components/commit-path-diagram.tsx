@@ -26,12 +26,12 @@ export function CommitPathDiagram() {
       {properties.map((p) => (
         <div
           key={p.label}
-          className="border border-[#e5e7eb] border-l-[3px] border-l-[#d0d5dd] bg-[#f9fafb] p-4 sm:p-5"
+          className="border border-[color:var(--line)] border-l-[3px] border-l-[color:var(--line)] bg-[color:var(--panel)] p-4 sm:p-5"
         >
-          <div className="text-[10px] font-medium uppercase tracking-wider text-[#111827] mb-3">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-[color:var(--ink)] mb-3">
             {p.label}
           </div>
-          <p className="text-base text-[#1f2937] leading-relaxed">
+          <p className="text-base text-[color:var(--text)] leading-relaxed">
             {p.note}
           </p>
         </div>

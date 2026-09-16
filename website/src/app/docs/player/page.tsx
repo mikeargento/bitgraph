@@ -38,25 +38,25 @@ export default function PlayerPage() {
       <h1 className="mb-2">BitGraph Player</h1>
       {/* Subtitle, Mike's line. Heading furniture, not body copy: no
           terminal period, grey, one step above body in the ladder. */}
-      <p style={{ color: "#1f2937", fontSize: 18, margin: "0 0 24px" }}>
+      <p style={{ color: "var(--text)", fontSize: 18, margin: "0 0 24px" }}>
         A Programmable Layer for BitGraph
       </p>
-      <p style={{ color: "#1f2937", marginBottom: 16 }}>
+      <p style={{ color: "var(--text)", marginBottom: 16 }}>
         <strong>BitGraph records. Player evaluates.</strong>
       </p>
-      <p style={{ color: "#1f2937", marginBottom: 16 }}>
+      <p style={{ color: "var(--text)", marginBottom: 16 }}>
         A BitGraph recording establishes that particular bytes occupied a particular causal position. Player takes a set of those recordings, applies a rule to them, and produces a verdict: {/* Deliberate break: the verdict triple always gets its own line;
             nowrap keeps it from splitting on narrow viewports */}
         <br />
         <strong style={{ whiteSpace: "nowrap" }}>TRUE, FALSE, or UNDETERMINED</strong>.
       </p>
-      <p style={{ color: "#1f2937", marginBottom: 16 }}>
+      <p style={{ color: "var(--text)", marginBottom: 16 }}>
         Anyone with the same rule and the same evidence can reproduce that verdict themselves, on their own machine, offline. No network, no clock, no account, and no trust in whoever ran Player first.
       </p>
-      <p style={{ color: "#1f2937", marginBottom: 16 }}>
+      <p style={{ color: "var(--text)", marginBottom: 16 }}>
         A purchase order was recorded. Later, a delivery was recorded. Later still, an approval was recorded. No declared cancellation was recorded before the approval.
       </p>
-      <p style={{ color: "#1f2937", marginBottom: 32 }}>
+      <p style={{ color: "var(--text)", marginBottom: 32 }}>
         A Player rule can express exactly that claim and determine whether the BitGraph evidence supports it.
       </p>
 
@@ -196,7 +196,7 @@ export default function PlayerPage() {
 
       <h2>Specification</h2>
       <p>
-        The semantics are specified precisely enough to reimplement. <a href={`${GITHUB}/blob/main/packages/player/SPEC.md`} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">SPEC.md</a> is normative. The <a href={NPM} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">published package</a> is the MIT-licensed reference implementation, built on the same <a href="/docs/audit" className="text-[#0065A4] font-medium no-underline">audit pipeline</a> used to inspect a BitGraph bundle by hand. A conforming Player in any language must reach the same verdict from the same rule and the same evidence.
+        The semantics are specified precisely enough to reimplement. <a href={`${GITHUB}/blob/main/packages/player/SPEC.md`} target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent)] font-medium no-underline">SPEC.md</a> is normative. The <a href={NPM} target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent)] font-medium no-underline">published package</a> is the MIT-licensed reference implementation, built on the same <a href="/docs/audit" className="text-[color:var(--accent)] font-medium no-underline">audit pipeline</a> used to inspect a BitGraph bundle by hand. A conforming Player in any language must reach the same verdict from the same rule and the same evidence.
       </p>
     </div>
   );

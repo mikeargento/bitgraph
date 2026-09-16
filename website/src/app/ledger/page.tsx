@@ -74,7 +74,7 @@ async function firstPage(day: string | null): Promise<LedgerFeedBody | null> {
 
 const linkStyle: React.CSSProperties = {
   fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-  color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap",
+  color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap",
 };
 
 export default async function LedgerPage({ searchParams }: { searchParams: Promise<{ day?: string }> }) {
@@ -132,7 +132,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
                   (Mike, 2026-09-09: "it doesnt need to say this"). A past day
                   keeps its date, which is the one thing the rows cannot say. */}
               {day && (
-                <div style={{ fontSize: 14, fontWeight: 400, color: "#4b5563", marginTop: 2 }}>
+                <div style={{ fontSize: 14, fontWeight: 400, color: "var(--dim)", marginTop: 2 }}>
                   {`${longLabel(day)} (UTC)`}
                 </div>
               )}

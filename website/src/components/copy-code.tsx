@@ -41,7 +41,7 @@ export function CopyCode() {
                 occludes the back one. That overlap is what makes the mark read
                 as two sheets rather than as a grid. */}
             <rect x="5.75" y="1.75" width="8.5" height="8.5" stroke="currentColor" strokeWidth="1.3" />
-            <rect x="1.75" y="5.75" width="8.5" height="8.5" fill="#f9fafb" stroke="currentColor" strokeWidth="1.3" />
+            <rect x="1.75" y="5.75" width="8.5" height="8.5" fill="var(--panel)" stroke="currentColor" strokeWidth="1.3" />
           </>
         )}
       </svg>

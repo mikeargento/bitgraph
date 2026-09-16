@@ -60,14 +60,14 @@ export function MonthCalendar({ title, total, leading, days }: {
 }) {
   const cell: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "center",
-    height: 40, fontSize: 14, borderBottom: "1px solid #eef0f1",
+    height: 40, fontSize: 14, borderBottom: "1px solid var(--line-2)",
     fontFamily: MONO, fontVariantNumeric: "tabular-nums", position: "relative",
   };
   // A recorded day and today are the same control (a link or a button) in
   // the same clothes; only the outline differs.
   const openable: React.CSSProperties = {
-    ...cell, color: "#0065A4", fontWeight: 700, textDecoration: "none",
-    background: "none", border: 0, borderBottom: "1px solid #eef0f1", cursor: "pointer", padding: 0, width: "100%",
+    ...cell, color: "var(--accent)", fontWeight: 700, textDecoration: "none",
+    background: "none", border: 0, borderBottom: "1px solid var(--line-2)", cursor: "pointer", padding: 0, width: "100%",
   };
   // Always six week rows, padded with blank cells, so every month card is the
   // same height and side-by-side months line up (Mike, 2026-08-19: "calendar
@@ -75,28 +75,28 @@ export function MonthCalendar({ title, total, leading, days }: {
   // is the most any month needs (31 days after a Saturday 1st is 37 cells).
   const trailing = 6 * 7 - leading - days.length;
   return (
-    <section style={{ background: "#fff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", padding: "14px 16px 6px" }}>
+    <section style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", padding: "14px 16px 6px" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.01em", color: "#111827" }}>{title}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--ink)" }}>{title}</div>
         {total && (
-          <div style={{ fontSize: 12.5, color: "#4b5563", fontFamily: MONO, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{total}</div>
+          <div style={{ fontSize: 12.5, color: "var(--dim)", fontFamily: MONO, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{total}</div>
         )}
       </div>
-      <div className="bg-month-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderTop: "1px solid #d0d5dd" }}>
+      <div className="bg-month-grid" style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderTop: "1px solid var(--line)" }}>
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <div key={`h${i}`} style={{ ...cell, height: 26, fontSize: 10.5, fontWeight: 600, color: "#6b7280", letterSpacing: "0.04em", borderBottom: "1px solid #d0d5dd" }}>{d}</div>
+          <div key={`h${i}`} style={{ ...cell, height: 26, fontSize: 10.5, fontWeight: 600, color: "var(--dim)", letterSpacing: "0.04em", borderBottom: "1px solid var(--line)" }}>{d}</div>
         ))}
         {Array.from({ length: leading }, (_, i) => <div key={`b${i}`} style={cell} />)}
         {days.map((d) => {
           if (d.kind === "recorded" || d.kind === "today") {
             // RESTYLE 2026-09-11: today is the app's filled blue rounded square.
-            const style = d.kind === "today" ? { ...openable, background: "#0065A4", color: "#fff", borderRadius: 8 } : openable;
+            const style = d.kind === "today" ? { ...openable, background: "var(--accent)", color: "var(--panel)", borderRadius: 8 } : openable;
             const inner = (
               <>
                 {d.n}
                 {d.count !== undefined && d.count > 0 && (
                   <span aria-label={`${d.count} recording${d.count === 1 ? "" : "s"}`}
-                    style={{ position: "absolute", right: 5, top: 4, fontSize: 9.5, fontWeight: 500, color: "#6b7280", letterSpacing: 0 }}>
+                    style={{ position: "absolute", right: 5, top: 4, fontSize: 9.5, fontWeight: 500, color: "var(--dim)", letterSpacing: 0 }}>
                     {d.count}
                   </span>
                 )}
@@ -109,7 +109,7 @@ export function MonthCalendar({ title, total, leading, days }: {
             );
           }
           return (
-            <div key={d.n} style={{ ...cell, color: d.kind === "future" ? "#d1d5db" : "#9ca3af" }}>{d.n}</div>
+            <div key={d.n} style={{ ...cell, color: d.kind === "future" ? "var(--line)" : "var(--faint)" }}>{d.n}</div>
           );
         })}
         {Array.from({ length: trailing }, (_, i) => <div key={`t${i}`} style={cell} />)}

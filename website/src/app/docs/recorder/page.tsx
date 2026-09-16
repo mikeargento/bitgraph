@@ -26,7 +26,7 @@ export default function RecorderPage() {
   return (
     <article className="prose-doc">
       <h1 className="mb-6">BitGraph Recorder</h1>
-      <p className="text-[#1f2937] mb-10">
+      <p className="text-[color:var(--text)] mb-10">
         A macOS app. Drop files or a folder on it and each drop becomes a <strong>recording</strong>: one self-contained folder holding the files, the proof, and the Ethereum anchors. Hand somebody the folder and they have the whole&nbsp;BitGraph.
       </p>
 
@@ -49,22 +49,25 @@ export default function RecorderPage() {
               disagree. The link's label never changes. Its own line at every
               width (Mike, 2026-09-10: "this should be next line under even
               on desktop"). */}
-          <span className="text-[#4b5563]" style={{ fontSize: 13.5 }}>Version {feed.version} · macOS 14 or later, Apple silicon · <a href="https://github.com/mikeargento/bitgraph/releases/latest" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 500 }}>Release notes and checksum</a></span>
+          {/* The browser try, one line under the download (Mike, 2026-09-16:
+              "on recorder page too as a link"). */}
+          <span className="text-[color:var(--dim)]" style={{ fontSize: 13.5 }}>No Mac? <a href="/docs/try">Try it in the browser</a>.</span>
+          <span className="text-[color:var(--dim)]" style={{ fontSize: 13.5 }}>Version {feed.version} · macOS 14 or later, Apple silicon · <a href="https://github.com/mikeargento/bitgraph/releases/latest" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 500 }}>Release notes and checksum</a></span>
         </p>
       ) : (
         <p className="mb-10 bg-download-row" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, marginTop: 28 }}>
           <button className="bg-action-link bg-download-link" type="button" disabled aria-describedby="recorder-soon">
             Download for Mac
           </button>
-          <span id="recorder-soon" className="text-[#4b5563]" style={{ fontSize: 13.5 }}>Coming soon · macOS 14 or later, Apple silicon</span>
+          <span id="recorder-soon" className="text-[color:var(--dim)]" style={{ fontSize: 13.5 }}>Coming soon · macOS 14 or later, Apple silicon</span>
         </p>
       )}
 
       {/* The terms, in the Terms' own words (sections 6 and 8): who owns the
           software, what is free, what is licensed. One line, so nobody
           downloads without having been told (Mike, 2026-09-10). */}
-      <p className="text-[#4b5563]" style={{ fontSize: 14, margin: "6px 0 40px" }}>
-        BitGraph Recorder is software of Argento Computing Inc., provided under the <a href="/terms" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>Terms</a>. Individual use and verification are free. Recording inside your own product, service or internal systems is licensed by separate agreement; <a href="/contact" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>get in&nbsp;touch</a>.
+      <p className="text-[color:var(--dim)]" style={{ fontSize: 14, margin: "6px 0 40px" }}>
+        BitGraph Recorder is software of Argento Computing Inc., provided under the <a href="/terms" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>Terms</a>. Individual use and verification are free. Recording inside your own product, service or internal systems is licensed by separate agreement; <a href="/contact" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>get in&nbsp;touch</a>.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">What a recording is</h2>
@@ -81,7 +84,7 @@ BitGraph (Photos 2026, 412 files)/
   manifest.json           the set's manifest
   members.jsonl           every member's row and inclusion path`}</pre>
       </div>
-      <p className="text-[#1f2937] mb-8">
+      <p className="text-[color:var(--text)] mb-8">
         Nothing points at anything. The proof file <em>is</em> the proof, and a recording checks on its own: no library, no index, no settings, no network.
       </p>
 
@@ -94,10 +97,10 @@ BitGraph (Photos 2026, 412 files)/
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Setting up</h2>
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         The first run asks one thing: what to call your BitGraph folder and where it lives. <code>~/BitGraph</code> is offered. Put it on the Desktop or in Documents and macOS asks once whether the app may use that folder; the app cannot record until it is allowed. An existing folder is continued, never replaced.
       </p>
-      <p className="text-[#1f2937] mb-8">
+      <p className="text-[color:var(--text)] mb-8">
         The app lives in the menu bar and opens one window. Move or rename the folder later and the app says so and asks where it went; <strong>Change folder&hellip;</strong> does the same on purpose. Pointing at a folder that already has recordings in it carries on with everything in it.
       </p>
 
@@ -108,20 +111,20 @@ BitGraph (Photos 2026, 412 files)/
         <li><strong>Two or more</strong> are listed first, then made as one BitGraph at one position, each file a member. Only a batch gets asked.</li>
         <li><strong>A folder holding a BitGraph</strong> is the same list: each file a recording covers carries what the check said, the rest are new, and Record records the new ones alone. Nothing records on landing when a recording is in the drop.</li>
       </ul>
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         Two files with the same bytes in one drop are one member: the record is by content, and the second name is covered by the first. Your BitGraph folder itself can never be dropped, and a drop of the folder above it walks around it.
       </p>
-      <p className="text-[#1f2937] mb-8">
+      <p className="text-[color:var(--text)] mb-8">
         The window has two sections. <strong>Record</strong> is where things are recorded and checked; <strong>New</strong> holds the two ways in that are not a drag, <strong>Record a BitGraph&hellip;</strong> and <strong>Check a folder&hellip;</strong>. <strong>Calendar</strong> is the library: the month&rsquo;s days, each a row saying how many recordings it holds, and a day opens to its recordings. A recording opens to its proof, read off the disk.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Export</h2>
-      <p className="text-[#1f2937] mb-8">
+      <p className="text-[color:var(--text)] mb-8">
         <strong>Export BitGraph</strong> on a recording&rsquo;s page writes a folder to hand to somebody: the original exactly as it is, <code>proof.json</code>, the new fused file rebuilt from the two and checked against the committed digest on the way out, and the Ethereum anchors that have landed. It carries everything a check needs.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">The reader</h2>
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         Dropping a folder that holds BitGraphs reads them, wherever in it they sit, and records nothing until Record is pressed for what is new. A folder somebody sends you checks on its own, because a recording carries everything a check asks for. Four outcomes, and the differences between them are the point.
       </p>
       <table>
@@ -132,7 +135,7 @@ BitGraph (Photos 2026, 412 files)/
           <tr><td><strong>not recorded</strong></td><td>no proof in this folder covers these bytes, which is not a fault</td></tr>
         </tbody>
       </table>
-      <p className="text-[#1f2937] mt-4">
+      <p className="text-[color:var(--text)] mt-4">
         Bytes alone cannot tell a file that was altered from one that was never recorded, so neither is called a failure. The same check runs anywhere with <code>npx @mikeargento/bitgraph-audit</code>; see <a href="/docs/verification">Verification</a>.
       </p>
     </article>

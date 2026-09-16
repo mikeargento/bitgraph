@@ -13,14 +13,14 @@ export default function ProofFormatPage() {
   return (
     <article className="prose-doc">
       <h1 className="mb-6">Proof Format: bitgraph/1</h1>
-      <p className="text-[#1f2937] mb-10">
-        Normative specification for the <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">bitgraph/1</code> proof format. Derived from the reference implementation.
+      <p className="text-[color:var(--text)] mb-10">
+        Normative specification for the <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">bitgraph/1</code> proof format. Derived from the reference implementation.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Proof JSON schema</h2>
       <div className="code-block mb-8">
         <div className="code-block-header"><span>proof.json</span><CopyCode /></div>
-        <pre className="text-[#1f2937]">{`{
+        <pre className="text-[color:var(--text)]">{`{
   "version": "bitgraph/1",                // REQUIRED - exact value
   "artifact": {
     "hashAlg": "sha256",             // REQUIRED - "sha256" only in v1
@@ -77,12 +77,12 @@ export default function ProofFormatPage() {
       </div>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Signed body</h2>
-      <p className="text-[#1f2937] mb-4">
-        The Ed25519 signature covers the canonical serialization of a <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">SignedBody</code> object:
+      <p className="text-[color:var(--text)] mb-4">
+        The Ed25519 signature covers the canonical serialization of a <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">SignedBody</code> object:
       </p>
       <div className="code-block mb-4">
         <div className="code-block-header"><span>SignedBody</span><CopyCode /></div>
-        <pre className="text-[#1f2937]">{`{
+        <pre className="text-[color:var(--text)]">{`{
   version:           proof.version,
   artifact:          proof.artifact,
   actor:             proof.agency?.actor,        // legacy; when present
@@ -99,25 +99,25 @@ export default function ProofFormatPage() {
       <div className="overflow-x-auto mb-8">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#e5e7eb]">
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Field</th>
-              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Reason</th>
+            <tr className="border-b border-[color:var(--line)]">
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Field</th>
+              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Reason</th>
             </tr>
           </thead>
-          <tbody className="text-[#1f2937]">
-            <tr className="border-b border-[#e5e7eb]">
+          <tbody className="text-[color:var(--text)]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">signatureB64</code></td>
               <td className="py-2">The signature cannot cover itself</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">attestation.reportB64</code></td>
               <td className="py-2">Vendor-signed, self-authenticating separately</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">slotAllocation</code></td>
               <td className="py-2">Self-authenticating (own Ed25519 signature); bound via commit.slotHashB64</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">metadata</code></td>
               <td className="py-2">Advisory, never trusted as a field. A set proof carries its committed artifact here: the member manifest for placement set/1, the Merkle root document for set/2; a reader re-canonicalizes it and counts it only if it hashes to the signed artifact.digestB64. A set/2 member's evidence (its row, leaf index and path) may ride under bitgraph-fuse/1/member</td>
             </tr>
@@ -130,28 +130,28 @@ export default function ProofFormatPage() {
       </div>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Causal slot allocation</h2>
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         Every proof is causally bound to a pre-allocated slot. The slot is created <em>before</em> the artifact hash reaches the enclave, so the enclave committed to a nonce
           and counter without having seen the artifact.
       </p>
       <div className="overflow-x-auto mb-4">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#e5e7eb]">
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Binding</th>
-              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[#4b5563]">How</th>
+            <tr className="border-b border-[color:var(--line)]">
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Binding</th>
+              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">How</th>
             </tr>
           </thead>
-          <tbody className="text-[#1f2937]">
-            <tr className="border-b border-[#e5e7eb]">
+          <tbody className="text-[color:var(--text)]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Nonce binding</td>
               <td className="py-2"><code className="text-xs font-mono">commit.nonceB64 === slotAllocation.nonceB64</code></td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Counter ordering</td>
               <td className="py-2"><code className="text-xs font-mono">commit.slotCounter &lt; commit.counter</code></td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Hash binding</td>
               <td className="py-2"><code className="text-xs font-mono">commit.slotHashB64 === SHA-256(canonicalize(slotBody))</code></td>
             </tr>
@@ -162,62 +162,62 @@ export default function ProofFormatPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-base text-[#4b5563] mb-8">
+      <p className="text-base text-[color:var(--dim)] mb-8">
         The slot has its own Ed25519 signature proving the enclave created it. The commit signature includes <code className="text-xs font-mono">slotHashB64</code>, cryptographically binding the proof to that exact slot.
       </p>
 
       <h3 className="text-lg font-semibold mt-8 mb-3">Anchor floor</h3>
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         Since enclave v7 (2026-09-06) the enclave writes the chain&apos;s latest Ethereum anchor into every slot it allocates, and signs it into the proof as <code className="text-xs font-mono">commit.slotAnchor</code>. The floor is signed into the slot record at allocation; whoever presents the proof cannot move it. A reader checks it offline from the Ethereum block header: the header&apos;s keccak must equal <code className="text-xs font-mono">slotAnchor.blockHash</code>, and the block&apos;s timestamp is then a lower bound on the proof. Since enclave v8 (2026-09-07) the enclave refuses to sign a proof whose slot carries no anchor, so the field is absent only on proofs from older enclaves.
       </p>
-      <p className="text-base text-[#4b5563] mb-8">
+      <p className="text-base text-[color:var(--dim)] mb-8">
         Anchor proofs themselves carry <code className="text-xs font-mono">commit.anchor</code>, holding the block number and hash the enclave signed. The enclave writes it only after verifying the anchor service&apos;s Ed25519 signature over the claim against a public key baked into the enclave image, and refuses the attribution name <code className="text-xs font-mono">Ethereum Anchor</code> without it. So a v7 or v8 proof whose attribution says anchor but lacks <code className="text-xs font-mono">commit.anchor</code> is not an anchor.
       </p>
-      <p className="text-base text-[#4b5563] mb-8">
+      <p className="text-base text-[color:var(--dim)] mb-8">
         <code className="text-xs font-mono">commit.anchor</code> is what identifies an anchor, and where its block should be read from. The attribution name is the older test and remains valid for proofs written before v7, which carry nothing else; it is not a requirement, and an anchor is free to spend its signed attribution on something else, such as the fuse marker below.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Fused artifacts</h2>
-      <p className="text-[#1f2937] mb-4">
-        A fused artifact is a file that carries a commitment to its slot record, written into the bytes before the file was finished. The proof is an ordinary <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">bitgraph/1</code> proof: <code className="text-xs font-mono">slotAllocation</code> is the slot the producer held, <code className="text-xs font-mono">commit.slotCounter</code> its counter, <code className="text-xs font-mono">commit.counter</code> the commit position, and <code className="text-xs font-mono">artifact.digestB64</code> the digest of the fused bytes. The signed <code className="text-xs font-mono">attribution</code> is the marker:
+      <p className="text-[color:var(--text)] mb-4">
+        A fused artifact is a file that carries a commitment to its slot record, written into the bytes before the file was finished. The proof is an ordinary <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">bitgraph/1</code> proof: <code className="text-xs font-mono">slotAllocation</code> is the slot the producer held, <code className="text-xs font-mono">commit.slotCounter</code> its counter, <code className="text-xs font-mono">commit.counter</code> the commit position, and <code className="text-xs font-mono">artifact.digestB64</code> the digest of the fused bytes. The signed <code className="text-xs font-mono">attribution</code> is the marker:
       </p>
       <div className="code-block mb-4">
         <div className="code-block-header"><span>attribution (fused)</span><CopyCode /></div>
-        <pre className="text-[#1f2937]">{`{
+        <pre className="text-[color:var(--text)]">{`{
   "name":    "bitgraph-fuse/1",      // fixed value; marks a fused proof
   "title":   "trailer/1",            // `}{`placement id, or the encoding id base64url`}{`
   "message": "<base64>"              // origin digest, SHA-256, standard base64
 }`}</pre>
       </div>
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         The commitment is derived from the signed slot record. The raw nonce never enters the artifact:
       </p>
       <div className="code-block mb-4">
-        <pre className="text-[#1f2937]">{`slotRecordHash = SHA-256(canonicalize(slotBody))                            // = commit.slotHashB64
+        <pre className="text-[color:var(--text)]">{`slotRecordHash = SHA-256(canonicalize(slotBody))                            // = commit.slotHashB64
 commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  // nonce: 32 raw bytes`}</pre>
       </div>
-      <p className="text-[#1f2937] mb-4">Two or more files made together are one set under one slot: the committed artifact is the set root, and each file is a member with its own row. Registered placements say, byte for byte, where the commitment sits:</p>
+      <p className="text-[color:var(--text)] mb-4">Two or more files made together are one set under one slot: the committed artifact is the set root, and each file is a member with its own row. Registered placements say, byte for byte, where the commitment sits:</p>
       <div className="overflow-x-auto mb-4">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#e5e7eb]">
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Placement</th>
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Bytes</th>
-              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Used for</th>
+            <tr className="border-b border-[color:var(--line)]">
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Placement</th>
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Bytes</th>
+              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Used for</th>
             </tr>
           </thead>
-          <tbody className="text-[#1f2937]">
-            <tr className="border-b border-[#e5e7eb]">
+          <tbody className="text-[color:var(--text)]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">trailer/1</code></td>
               <td className="py-2 pr-4">the original bytes, then the 8-byte magic <code className="text-xs font-mono">BGFUSE01</code>, 8 zero bytes, the 32-byte commitment</td>
               <td className="py-2">formats whose decoders ignore trailing bytes: JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, RIFF such as WebP</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">container/1</code></td>
               <td className="py-2 pr-4">an uncompressed ustar archive: <code className="text-xs font-mono">bitgraph-fuse/manifest.json</code>, then <code className="text-xs font-mono">bitgraph-fuse/original</code></td>
               <td className="py-2">older artifacts; readable, no longer made</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">container/2</code></td>
               <td className="py-2 pr-4">the same archive with <code className="text-xs font-mono">bitgraph-fuse/original</code> first, then <code className="text-xs font-mono">bitgraph-fuse/manifest.json</code>, so the file is hashed once and the digest finished later</td>
               <td className="py-2">everything else</td>
@@ -227,12 +227,12 @@ commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  
               <td className="py-2 pr-4">a canonical JSON payload naming the commitment and an optional origin digest</td>
               <td className="py-2">artifacts produced without a source file; SDK and CLI only</td>
             </tr>
-            <tr className="border-t border-[#e5e7eb]">
+            <tr className="border-t border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">set/1</code></td>
               <td className="py-2 pr-4">a canonical JSON manifest listing every member&apos;s fused digest, origin digest and placement; the manifest is the committed artifact</td>
               <td className="py-2">older sets; readable, no longer made</td>
             </tr>
-            <tr className="border-t border-[#e5e7eb]">
+            <tr className="border-t border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">set/2</code></td>
               <td className="py-2 pr-4">a Merkle root document over the member rows; each member keeps its row, leaf index and inclusion path</td>
               <td className="py-2">two or more files made together: one slot, one position, each file a member</td>
@@ -240,45 +240,45 @@ commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  
           </tbody>
         </table>
       </div>
-      <p className="text-base text-[#4b5563] mb-8">
+      <p className="text-base text-[color:var(--dim)] mb-8">
         The fused bytes are transient. The original plus the proof rebuilds them byte for byte with the declared placement, and verifying that reconstruction against the signed artifact digest is the evidence. A Frame file, <code className="text-xs font-mono">&lt;name&gt;.bitgraph-fuse.json</code>, carries the proof with an advisory manifest: <code className="text-xs font-mono">{`{ type: "bitgraph-fuse/1", manifest: { placement, origin, artifact, fusedFile }, proof }`}</code>.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Canonical serialization</h2>
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         The signed body is serialized to bytes using a deterministic algorithm:
       </p>
-      <ol className="space-y-2 mb-6 text-sm text-[#1f2937]">
+      <ol className="space-y-2 mb-6 text-sm text-[color:var(--text)]">
         <li>1. Recursively sort all object keys in Unicode code-point order</li>
-        <li>2. Serialize with <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1">JSON.stringify()</code>, no whitespace</li>
+        <li>2. Serialize with <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1">JSON.stringify()</code>, no whitespace</li>
         <li>3. Encode the resulting string as UTF-8 (no BOM)</li>
       </ol>
-      <p className="text-[#1f2937] mb-4">Top-level key order after sort:</p>
+      <p className="text-[color:var(--text)] mb-4">Top-level key order after sort:</p>
       <div className="code-block mb-8">
-        <pre className="text-[#1f2937]">
+        <pre className="text-[color:var(--text)]">
           actor? &rarr; artifact &rarr; attestationFormat? &rarr; attribution? &rarr; commit &rarr; enforcement &rarr; measurement &rarr; publicKeyB64 &rarr; version
         </pre>
       </div>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Field classification</h2>
       <h3 className="text-base font-semibold mt-6 mb-3">Signed (security-critical)</h3>
-      <p className="text-base text-[#1f2937] mb-2">
+      <p className="text-base text-[color:var(--text)] mb-2">
         These fields are in the SignedBody. Tampering invalidates the signature:
       </p>
-      <div className="text-sm text-[#1f2937] mb-6">
+      <div className="text-sm text-[color:var(--text)] mb-6">
         <code className="font-mono text-xs">version</code>, <code className="font-mono text-xs">artifact.*</code>, <code className="font-mono text-xs">attribution.*</code> (when present), <code className="font-mono text-xs">commit.*</code>, <code className="font-mono text-xs">signer.publicKeyB64</code>, <code className="font-mono text-xs">environment.enforcement</code>, <code className="font-mono text-xs">environment.measurement</code>, <code className="font-mono text-xs">attestation.format</code>
       </div>
 
       <h3 className="text-base font-semibold mt-6 mb-3">Self-authenticating</h3>
-      <p className="text-base text-[#1f2937] mb-2">
+      <p className="text-base text-[color:var(--text)] mb-2">
         Not in the signed body, but independently verifiable:
       </p>
-      <div className="text-sm text-[#1f2937] mb-6">
+      <div className="text-sm text-[color:var(--text)] mb-6">
         <code className="font-mono text-xs">signatureB64</code> (Ed25519), <code className="font-mono text-xs">attestation.reportB64</code> (vendor-signed), <code className="font-mono text-xs">slotAllocation</code> (own Ed25519 signature)
       </div>
 
       <h3 className="text-base font-semibold mt-6 mb-3">Advisory (unsigned)</h3>
-      <p className="text-base text-[#1f2937] mb-6">
+      <p className="text-base text-[color:var(--text)] mb-6">
         Not signed. Must not be used for security decisions: <code className="font-mono text-xs">timestamps</code>, <code className="font-mono text-xs">metadata</code>, <code className="font-mono text-xs">claims</code>.
       </p>
 
@@ -286,24 +286,24 @@ commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  
       <div className="overflow-x-auto mb-8">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#e5e7eb]">
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Purpose</th>
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Algorithm</th>
-              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Details</th>
+            <tr className="border-b border-[color:var(--line)]">
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Purpose</th>
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Algorithm</th>
+              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Details</th>
             </tr>
           </thead>
-          <tbody className="text-[#1f2937]">
-            <tr className="border-b border-[#e5e7eb]">
+          <tbody className="text-[color:var(--text)]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Proof signature</td>
               <td className="py-2 pr-4">Ed25519 (RFC 8032)</td>
               <td className="py-2">32-byte key, 64-byte signature</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Hash</td>
               <td className="py-2 pr-4">SHA-256 (FIPS 180-4)</td>
               <td className="py-2">32 bytes, Base64 encoded</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Encoding</td>
               <td className="py-2 pr-4">Base64 (RFC 4648 &sect;4)</td>
               <td className="py-2">Standard, with = padding</td>

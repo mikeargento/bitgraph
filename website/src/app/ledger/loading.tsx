@@ -6,7 +6,7 @@
    visual wait, so transition and data read as one moment.
 
    The geometry below mirrors the loaded page and the Explorer's row chrome
-   (xp-row: 14px 16px padding, 12px gap, #d0d5dd border, 10px row gap) so
+   (xp-row: 14px 16px padding, 12px gap, var(--line) border, 10px row gap) so
    content lands in place with no jump. The title is real text because it is
    the one thing on the page that never varies; everything whose content
    depends on data (subtitle, nav line, search, rows) shimmers. Server
@@ -18,7 +18,7 @@ export default function Loading() {
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
       <style>{`
         @keyframes rlSkel { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }
-        .rl-skel { background: linear-gradient(90deg, #edeff1 25%, #e0e3e7 37%, #edeff1 63%); background-size: 400% 100%; animation: rlSkel 1.4s ease-in-out infinite; }
+        .rl-skel { background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 37%, var(--line-2) 63%); background-size: 400% 100%; animation: rlSkel 1.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) { .rl-skel { animation: none; } }
       `}</style>
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px" }} aria-hidden>
@@ -39,12 +39,12 @@ export default function Loading() {
             seamlessly and real entries land with no jump. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "#fff", border: "1px solid #d0d5dd" }}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "var(--panel)", border: "1px solid var(--line)" }}>
               <span className="rl-skel" style={{ ...bar, width: 60, height: 14, flexShrink: 0 }} />
               <span className="rl-skel" style={{ ...bar, width: 34, height: 12, flexShrink: 0 }} />
               <span style={{ flex: 1 }} />
               <span className="rl-skel" style={{ ...bar, width: 84, height: 12, flexShrink: 0 }} />
-              <span style={{ display: "inline-flex", flexShrink: 0, color: "#c7ccd1" }}>
+              <span style={{ display: "inline-flex", flexShrink: 0, color: "var(--faint)" }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
               </span>
             </div>

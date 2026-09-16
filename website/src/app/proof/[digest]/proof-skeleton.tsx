@@ -31,7 +31,7 @@ export function ProofSkeleton() {
     <Shell>
       <style>{`
         @keyframes bgSkel { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }
-        .bg-skel { background: linear-gradient(90deg, #edeff1 25%, #e0e3e7 37%, #edeff1 63%); background-size: 400% 100%; animation: bgSkel 1.4s ease-in-out infinite; }
+        .bg-skel { background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 37%, var(--line-2) 63%); background-size: 400% 100%; animation: bgSkel 1.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) { .bg-skel { animation: none; } }
       `}</style>
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px" }}>
@@ -41,14 +41,14 @@ export function ProofSkeleton() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }} aria-hidden>
           {/* Primary card: no header band any more — it opens straight on the
               "when" block, then the hash, then the Export action link. */}
-          <div style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 0 }}>
             {/* "when": a date line over a time line. */}
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
               <div className="bg-skel" style={{ ...bar, width: 132, height: 15 }} />
               <div className="bg-skel" style={{ ...bar, width: 212, height: 13 }} />
             </div>
             {/* File Hash: a label over its value. */}
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
               <div className="bg-skel" style={{ ...bar, width: 68, height: 14 }} />
               <div className="bg-skel" style={{ ...bar, width: "64%", height: 13 }} />
             </div>
@@ -58,12 +58,12 @@ export function ProofSkeleton() {
             </div>
           </div>
           {titleWidths.map((w, i) => (
-            <div key={i} style={{ background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0 }}>
+            <div key={i} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 0 }}>
               {/* Same header geometry as CollapsibleCard: 14px 16px, title left,
                   collapsed chevron right (matching the real card's toggle). */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 16px" }}>
                 <div className="bg-skel" style={{ ...bar, width: w, height: 15 }} />
-                <span aria-hidden style={{ display: "inline-flex", flexShrink: 0, color: "#c7ccd1" }}>
+                <span aria-hidden style={{ display: "inline-flex", flexShrink: 0, color: "var(--faint)" }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
                 </span>
               </div>

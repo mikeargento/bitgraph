@@ -109,13 +109,13 @@ export default function ExamPage() {
           the only version of this paragraph they will finish. It is the
           README's own opening, kept word for word so the page and the
           package cannot drift. */}
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         <strong>Proves:</strong> the exact question instances were derived from a commitment that did not exist before the floor block, so they were not in any training set frozen before that block; the paper&rsquo;s digest spent that slot; the answer sheet names the paper and sits at a later position on the same chain.
       </p>
-      <p className="text-[#1f2937] mb-8">
+      <p className="text-[color:var(--text)] mb-8">
         <strong>Does not prove:</strong> that the template families are unfamiliar to the model; that the model worked alone, without tools, or quickly; when the answers were produced beyond their own floor. The answer sheet has a floor, not a ceiling.
       </p>
-      <p className="text-[#1f2937] mb-10">
+      <p className="text-[color:var(--text)] mb-10">
         That paragraph is the whole claim, and this package asks you to attack it. Everything else is running code and real evidence: six models from three vendors sat the same kind of paper on 12 and 13 September 2026, each paper derived from a value that came into existence at a signed position on a public chain, and each sitting is a folder you verify with nothing but Node, offline, in three commands.
       </p>
 
@@ -166,7 +166,7 @@ export default function ExamPage() {
             <button className="bg-action-link" type="button" disabled>Download BitGraph-Sealed-Exam.zip</button>
           )}
         </span>
-        <span className="text-[#4b5563]" style={{ fontSize: 13.5 }}>
+        <span className="text-[color:var(--dim)]" style={{ fontSize: 13.5 }}>
           Node 20 or later &middot; a clone installs once, the {ZIP_SIZE} download installs nothing and never touches the network
         </span>
       </p>
@@ -181,7 +181,7 @@ export default function ExamPage() {
 
 ${ZIP_SHA256}`}</pre>
       </div>
-      <p className="text-[#4b5563]" style={{ fontSize: 14, margin: "6px 0 40px" }}>
+      <p className="text-[color:var(--dim)]" style={{ fontSize: 14, margin: "6px 0 40px" }}>
         The repository and the zip are the same package in two forms. The repository holds the five packages in source, so the code can be read before it is run; the zip is that tree with the packages packed and the verification path vendored, so it runs with nothing installed and no network at all. Six sittings and seven fixtures in both.
       </p>
 
@@ -192,15 +192,15 @@ ${ZIP_SHA256}`}</pre>
       {/* The URL belongs in this sentence, not only in the pill at the top of
           the page: the section says "from a clone" and a reader who starts
           here would otherwise have to go and find what to clone. */}
-      <p className="text-[#1f2937] mb-4">
-        From a clone of <a href={REPO_URL ?? undefined} target="_blank" rel="noopener" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>github.com/mikeargento/sealed-exam</a>, one install, and it is the only moment anything touches the network:
+      <p className="text-[color:var(--text)] mb-4">
+        From a clone of <a href={REPO_URL ?? undefined} target="_blank" rel="noopener" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>github.com/mikeargento/sealed-exam</a>, one install, and it is the only moment anything touches the network:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>sealed-exam/</span></div>
         <pre>{`npm install
 npm run build`}</pre>
       </div>
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         From the zip, nothing: the five packages and their dependencies are vendored under <code>verifier/node_modules/</code>. Then the same three commands either way.
       </p>
       <div className="code-block">
@@ -209,12 +209,12 @@ npm run build`}</pre>
 node verifier/exam.mjs verify demo/claude-sonnet-5.exam  # one folder, every check listed
 node verifier/exam.mjs selftest                          # DRBG vectors, determinism, checkers, fences: 11 self-tests`}</pre>
       </div>
-      <p className="text-[#1f2937] mb-8">
+      <p className="text-[color:var(--text)] mb-8">
         The verifier runs in a process where <code>fetch</code> and sockets throw, so a verifier that reached for the network would fail loudly rather than quietly; the shortest test of that is to turn the wifi off first. The second command writes <code>report.html</code> beside the folder: one page, no scripts, the verdict, the score, the block number linked to a public explorer, the two floors, one question opened up, and the claim boundary again at the bottom. It reads with CSS off.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">What the table says</h2>
-      <p className="text-[#1f2937] mb-4">
+      <p className="text-[color:var(--text)] mb-4">
         Six real sittings and seven fixtures, printed by the verifier from the files in the package. Four of the six scored 20/20; the bank is small and the families are easy for a frontier model on purpose, because the demonstration is about freshness, not difficulty.
       </p>
       <table>
@@ -224,19 +224,19 @@ node verifier/exam.mjs selftest                          # DRBG vectors, determi
           <tr><td><strong>NO-EVIDENCE</strong></td><td>something the claim needs is not in hand. Absence is never a verdict against the run</td></tr>
         </tbody>
       </table>
-      <p className="text-[#1f2937] mt-4 mb-8">
+      <p className="text-[color:var(--text)] mt-4 mb-8">
         The seven fixtures are what the verifier is for, and each was made from real positions rather than by editing signatures into shape: a paper edited and then genuinely committed under its own slot, one sitting&rsquo;s paper presented with another&rsquo;s proof, an answer sheet moved below the paper it answers, a folder whose <code>grade.json</code> claims 20/20 and is never read. One model refused four questions outright; the refusals are in the package as the API returned them, counted wrong, with a note in the verdict.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Where the floor comes from</h2>
-      <p className="text-[#1f2937] mb-8">
+      <p className="text-[color:var(--text)] mb-8">
         A hash of a question set published today is a postmark: it proves the set existed no later than now, which is the wrong direction for contamination. What contamination needs is a floor &mdash; proof that the questions could not have existed <em>before</em> a public moment, so no corpus frozen before it can contain them. A slot is allocated on the BitGraph chain; the enclave signs into it the latest Ethereum block it has authenticated; the commitment is derived from that signed slot record; the questions are derived from the commitment and a public bank; the paper is committed under the same slot. <code>SPEC.md</code> is the whole derivation &mdash; the seed, the DRBG with test vectors, the draw order, the two positions &mdash; and re-deriving a paper from it without any of this code is an afternoon in Python.
       </p>
 
       {/* The Recorder page's terms line, in the same place and the same
           words, so nobody downloads without having been told. */}
-      <p className="text-[#4b5563]" style={{ fontSize: 14, margin: "6px 0 40px" }}>
-        The packages that make positions are software of Argento Computing Inc., provided under the licence in the package, which grants evaluation use. The verifier is MIT. Questions, or a sitting of your own: <a href="/contact" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>get in&nbsp;touch</a>.
+      <p className="text-[color:var(--dim)]" style={{ fontSize: 14, margin: "6px 0 40px" }}>
+        The packages that make positions are software of Argento Computing Inc., provided under the licence in the package, which grants evaluation use. The verifier is MIT. Questions, or a sitting of your own: <a href="/contact" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>get in&nbsp;touch</a>.
       </p>
     </article>
     </div>

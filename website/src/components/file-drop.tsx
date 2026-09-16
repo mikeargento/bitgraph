@@ -236,7 +236,7 @@ export function FileDrop({
     <div
       className="mt-3 text-center"
       style={{
-        color: "#dc2626", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5,
+        color: "var(--err)", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5,
         position: "relative", zIndex: 2,
       }}
     >
@@ -269,13 +269,13 @@ export function FileDrop({
       /* ⚠️ DASHED EDGES, drawn per edge by use-dashed-edges — the drop-target
          doctrine (2026-08-06): a dashed border means "this is where you drop
          files", every drop box wears it. Rest is a step darker than the card
-         hairlines (#b3bac2) so the box has presence sitting still. It
+         hairlines (var(--faint)) so the box has presence sitting still. It
          deliberately does NOT start blue: blue is what hover means, and the
          light fill on top of blue is what dragging over means. Starting blue
          collapses those two rungs and leaves hover nothing to say. */
       ref={edges.ref}
       style={shutter ? undefined : edges.edgeStyle(
-        !disabled && (dragover || ((hovered || focused) && !hasFiles)) ? "#0065A4" : "#b3bac2",
+        !disabled && (dragover || ((hovered || focused) && !hasFiles)) ? "var(--accent)" : "var(--faint)",
       )}
       className={
         shutter
@@ -284,10 +284,10 @@ export function FileDrop({
         h-full relative rounded-none transition-all duration-200 cursor-pointer flex items-center outline-none
         ${disabled ? "opacity-50 cursor-not-allowed" : ""}
         ${dragover
-          ? "bg-[#f0f6ff] ring-2 ring-[#0065A4]/20 scale-[1.005]"
+          ? "bg-[color:var(--tint)] ring-2 ring-[color:var(--accent)]/20 scale-[1.005]"
           : hasFiles
-          ? "bg-white"
-          : "bg-white hover:bg-[#fafbfd] focus-visible:ring-2 focus-visible:ring-[#0065A4]/20"
+          ? "bg-[color:var(--panel)]"
+          : "bg-[color:var(--panel)] hover:bg-[color:var(--panel)] focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]/20"
         }
       `
       }
@@ -394,7 +394,7 @@ export function FileDrop({
             </span>
           </button>
           {hint && (
-            <div className="mt-4 text-center" style={{ color: "#4b5563", fontSize: "min(12.5px, 2.9vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{hint}</div>
+            <div className="mt-4 text-center" style={{ color: "var(--dim)", fontSize: "min(12.5px, 2.9vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{hint}</div>
           )}
           {refusalNote}
         </div>
@@ -407,16 +407,16 @@ export function FileDrop({
             type="button"
             onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
             disabled={disabled}
-            className="relative z-[2] cursor-pointer rounded-none border-none bg-[#0065A4] text-white transition-colors hover:bg-[#005089]"
+            className="relative z-[2] cursor-pointer rounded-none border-none bg-[color:var(--accent)] text-[color:var(--bg)] transition-colors hover:bg-[color:var(--accent-2)]"
             style={{ padding: "14px 26px", fontSize: 15, fontWeight: 600, letterSpacing: "-0.01em", fontFamily: "inherit" }}
           >
             {buttonLabel}
           </button>
           {hint && (
-            <div className="mt-4 text-center" style={{ color: "#111827", fontSize: "min(13px, 3vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{hint}</div>
+            <div className="mt-4 text-center" style={{ color: "var(--ink)", fontSize: "min(13px, 3vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{hint}</div>
           )}
           {subhint && (
-            <div className="mt-1.5 text-center" style={{ color: "#4b5563", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{subhint}</div>
+            <div className="mt-1.5 text-center" style={{ color: "var(--dim)", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{subhint}</div>
           )}
           {refusalNote}
         </div>
@@ -448,8 +448,8 @@ export function FileDrop({
                  :hover rule because the edges are painted, not bordered, and
                  the two must not be able to disagree. */
               color: (hovered || focused) && !disabled
-                ? "var(--fd-title-hover, #0065A4)"
-                : "var(--fd-title, #111827)",
+                ? "var(--fd-title-hover, var(--accent))"
+                : "var(--fd-title, var(--ink))",
               transition: "color .2s",
               // Size/weight are overridable per-breakpoint via CSS custom
               // properties (the home hero bumps both on desktop); fall back to
@@ -483,7 +483,7 @@ export function FileDrop({
               <div
                 className="text-center"
                 style={{
-                  color: "var(--fd-subhint, #4b5563)",
+                  color: "var(--fd-subhint, var(--dim))",
                   fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
                   lineHeight: 1.5,
                   textWrap: "balance",
@@ -501,7 +501,7 @@ export function FileDrop({
                   // Color and size are overridable per-instance (the home box grays
                   // both lines and matches them to the explainer's size). Defaults
                   // unchanged for the maker/proof FileDrops.
-                  color: "var(--fd-hint, #111827)",
+                  color: "var(--fd-hint, var(--ink))",
                   fontSize: "var(--fd-hint-size, min(13px, 3vw))",
                   lineHeight: 1.5,
                   whiteSpace: "pre-line",
@@ -515,7 +515,7 @@ export function FileDrop({
               <div
                 className="mt-1.5 text-center"
                 style={{
-                  color: "var(--fd-subhint, #4b5563)",
+                  color: "var(--fd-subhint, var(--dim))",
                   fontSize: "var(--fd-subhint-size, min(12px, 2.8vw))",
                   lineHeight: 1.5,
                   whiteSpace: "pre-line",
@@ -534,13 +534,13 @@ export function FileDrop({
                 ⚠️ A COUNT, NEVER A DOT: it carries the same signal and adds
                 information. ⚠️ NOTHING RED — not-connected is the normal first
                 state, not a fault, and red is off-palette anyway (green
-                retired 2026-07-19, the brand is #0065A4). Same WEIGHT as the
+                retired 2026-07-19, the brand is var(--accent)). Same WEIGHT as the
                 lines above it, one step down the size ladder. */}
             {stateLine && (
               <div
                 className="mt-1.5 text-center"
                 style={{
-                  color: "var(--fd-subhint, #4b5563)",
+                  color: "var(--fd-subhint, var(--dim))",
                   fontSize: "var(--fd-state-size, min(11.5px, 2.7vw))",
                   lineHeight: 1.5,
                   textWrap: "balance",

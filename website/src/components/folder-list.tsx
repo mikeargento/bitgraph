@@ -106,7 +106,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
   const older = day === null ? (groups.length > 1 ? groups[1] : null) : groups[dayIdx + 1] ?? null;
   const newer = day === null ? null : dayIdx > 0 ? groups[dayIdx - 1] : null;
 
-  const stepLink: React.CSSProperties = { color: "#0065A4", fontWeight: 600, fontSize: 13.5, textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" };
+  const stepLink: React.CSSProperties = { color: "var(--accent)", fontWeight: 600, fontSize: 13.5, textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" };
 
   /**
    * One flat list of rows, windowed, exactly like the drop's results list.
@@ -152,37 +152,37 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
         /* The ledger's own title, at the one size every page title on the site
            uses (docs h1, /day, /folder), with the caller's aside on its right. */
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16 }}>
-          <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "#111827" }}>
+          <div style={{ fontSize: "clamp(26px, 6vw, 32px)", fontWeight: 600, letterSpacing: "-0.03em", color: "var(--ink)" }}>
             {heading}
           </div>
           {aside}
         </div>
       )}
       {(heading || view) && (
-        <div style={{ fontSize: 14, color: "#4b5563", marginTop: 2, marginBottom: 10 }}>
+        <div style={{ fontSize: 14, color: "var(--dim)", marginTop: 2, marginBottom: 10 }}>
           {view
             ? `The recordings for ${view.label}.`
             : `${checked.length.toLocaleString()} recording${checked.length === 1 ? "" : "s"} from your folder, newest first.`}
         </div>
       )}
-      <div style={{ background: "#fff", border: "1px solid #d0d5dd", padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 10 }}>
+      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 10 }}>
         {pending > 0 ? (
-          <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
             Checking {checked.length - pending} of {checked.length}&hellip;
           </span>
         ) : (
-          <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
             {okCount} of {checked.length} {okCount === 1 ? "matches" : "match"} the ledger
           </span>
         )}
         <span style={{ display: "flex", gap: 14, whiteSpace: "nowrap" }}>
           {failCount > 0 && (
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--err)" }}>
               {failCount} {failCount === 1 ? "does" : "do"} not
             </span>
           )}
           {uncheckedCount > 0 && (
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#6b7280" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--dim)" }}>
               {uncheckedCount} not checked
             </span>
           )}
@@ -247,11 +247,11 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
                   style={{
                     display: "flex", alignItems: "center", gap: 12,
                     height: CHECKED_ROW_H, padding: "0 14px", overflow: "hidden",
-                    borderTop: i > 0 ? "1px solid #eef0f1" : "none",
+                    borderTop: i > 0 ? "1px solid var(--line-2)" : "none",
                     cursor: clickable ? "pointer" : "default",
                   }}
                 >
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "#111827" }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "var(--ink)" }}>
                     {r.fileName ?? r.dirName}
                   </span>
                   {/* Only a row with something WRONG says anything here. "matches
@@ -263,14 +263,14 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
                     <span style={{
                       flexShrink: 0, maxWidth: "45%", fontSize: 12.5, textAlign: "right",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      color: r.ok === false ? (isUnchecked(r) ? "#6b7280" : "#dc2626") : "#9ca3af",
+                      color: r.ok === false ? (isUnchecked(r) ? "var(--dim)" : "var(--err)") : "var(--faint)",
                     }}>{verdict}</span>
                   )}
                   <span style={{
                     flexShrink: 0, fontSize: 13, fontVariantNumeric: "tabular-nums",
                     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                     fontWeight: r.counter != null ? 700 : 400,
-                    color: r.ok === false && !isUnchecked(r) ? "#dc2626" : r.counter != null ? "#0065A4" : "#4b5563",
+                    color: r.ok === false && !isUnchecked(r) ? "var(--err)" : r.counter != null ? "var(--accent)" : "var(--dim)",
                   }}>{right}</span>
                 </div>
               );

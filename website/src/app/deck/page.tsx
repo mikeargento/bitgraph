@@ -40,11 +40,11 @@ export default function DeckPage() {
             fontWeight: 800,
             letterSpacing: "-0.015em",
             lineHeight: 1.12,
-            color: "#111827",
+            color: "var(--ink)",
             margin: 0,
           }}
         >
-          A BitGraph gives bits <span style={{ color: "#0065A4" }}>a place</span>
+          A BitGraph gives bits <span style={{ color: "var(--accent)" }}>a place</span>
         </h1>
         <a
           className="bg-arrow-link"
@@ -54,7 +54,7 @@ export default function DeckPage() {
             fontSize: 19,
             fontWeight: 600,
             letterSpacing: "-0.01em",
-            color: "#0065A4",
+            color: "var(--accent)",
             textDecoration: "none",
           }}
         >
@@ -66,7 +66,7 @@ export default function DeckPage() {
           padding: "20px 24px 26px",
           textAlign: "center",
           fontSize: 13,
-          color: "#6b7280",
+          color: "var(--dim)",
         }}
       >
         Mike Argento &middot; Buffalo, NY &middot; 2026

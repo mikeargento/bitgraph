@@ -17,60 +17,104 @@
   --color-syntax-key: var(--c-syntax-key);
   --color-syntax-string: var(--c-syntax-string);
   --color-syntax-number: var(--c-syntax-number);
-  --color-success: #22c55e;
-  --color-warning: #eab308;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
+  --color-success: var(--ok);
+  --color-warning: var(--warn);
+  --color-error: var(--err);
+  --color-info: var(--accent);
   /* RESTYLE 2026-09-11 (Mike: "lets restyle it to look like the app"): the
      system face the Recorder wears, first. Acumin (Typekit) still loads and
      is unused; the 08-16 stack is the one-line revert. */
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), "SF Mono", SFMono-Regular, monospace;
+  /* 2026-09-16, settled: Acumin for prose and chrome, the mono for code, hashes,
+     counters and every field that was mono before (they all reference
+     --font-mono, 97 places). Mike: "acumin for prose, keep mono for code and
+     hashes". */
+  --font-sans: var(--font-term);
+  --font-mono: var(--font-term-mono);
 }
 
 /* ── Design Tokens ── */
 :root {
-  /* PROPOSAL 2026-09-11 (Mike: "actually all white"): one white ground for
-     the page and both bars; the hairlines under the nav and above the footer
-     are what separate them. The page grey (#f5f5f5, since April) is gone,
-     so every surface that was white-on-grey (proof cards, ledger rows, the
-     figures on /subjects, the dashed frame) now stands on its border alone. */
-  --bg: #ffffff;
-  /* The bars carry a faint grey instead of a hairline (Mike, 2026-09-11:
-     "instead of strokes for header and footer, what about a slight shade").
-     Also the canvas above and below the page, so a rubber band shows it. */
-  --bar: #f5f6f8;
-  /* The app's surface vocabulary: pills, 14px cards with a faint shadow,
-     10px rows, a light blue fill for the active thing. */
-  /* RE-SPACE 2026-09-11 (Mike: "re-space the site at 1040"): one frame for
-     everything, chrome, cards, figures, code, tables and the prose alike.
-     A 760px measure for the prose inside the frame lasted ten minutes
-     (Mike: "why is prose left aligned like that? shouldnt you just take
-     advantage of width?"), so the measure equals the frame; the token
-     stays so a narrower measure is one line if it is ever wanted. */
-  --frame: 1040px;
+  /* TERMINAL REGISTER (2026-09-16, Mike: "make it like the dark mode terminal
+     on this claude code app. then you have more colors to work with … square
+     edges … the less complex the better"). One dark palette, each colour with
+     one meaning, and every colour in the source is one of these tokens (the
+     hex sweep of the same day left no literal colour anywhere in src/). */
+  /* THE REAL PALETTE (Mike, 2026-09-16: "yea i literally want the colors you
+     have at your disposal"). Grounds and text are the Claude desktop app's own
+     dark tokens (read from its bundle: bg-200 / bg-100 / bg-000 / text-100 /
+     text-300 / text-500 as HSL, converted here); the state colours are Claude
+     Code's dark terminal theme, read from the installed cli.js: claude, suggestion,
+     success, warning, error, autoAccept, inactive, subtle. */
+  --bg: #141413;            /* the app's darkest ground (bg-300), the chat pane itself (Mike, 2026-09-16: "make it as dark as you") */
+  --panel: #1f1e1d;         /* one step up (bg-200): cards, code blocks, menus */
+  --panel-2: #262624;       /* two steps up (bg-100): hover fills */
+  --line: rgb(80,80,80);        /* Claude Code "subtle": the box-drawing lines */
+  --line-2: #34332f;            /* rows inside a card: between bg-000 and subtle */
+  --ink: #faf9f5;         /* the app's text-100: headings, bold */
+  --text: #faf9f5;        /* body: the app's text-100. ❌ Green prose ("old terminals") was tried and
+                              rejected 2026-09-16; pure white was a misreading, reverted the same minute. */
+  --dim: #c2c0b6;         /* the app's text-300 */
+  --faint: rgb(153,153,153);    /* Claude Code "inactive" */
+  --accent: rgb(122,180,232);   /* Claude Code "briefLabelYou", its light blue: links, the floor (Mike, 2026-09-16: "would blue be better than purple?" yes; the periwinkle "suggestion" read violet) */
+  --accent-2: rgb(180,205,240); /* Claude Code "rainbow_blue_shimmer": hover */
+  --tint: rgba(122,180,232,0.14);
+  --code-bg: #30302e;       /* the chip behind inline code, as in the pane (bg-000) */
+  --ok: rgb(78,186,101);   --ok-tint: rgba(78,186,101,0.14);      /* Claude Code "success" */
+  --warn: rgb(255,193,7);  --warn-tint: rgba(255,193,7,0.14);     /* Claude Code "warning": pending, not yet */
+  --err: rgb(255,107,128); --err-tint: rgba(255,107,128,0.14);    /* Claude Code "error": failures only */
+  --ceil: rgb(175,135,255); --ceil-tint: rgba(175,135,255,0.14);  /* Claude Code "autoAccept": the ceiling anchor */
+  --head: var(--ink);      /* HEADINGS IN THE TEXT COLOUR (Mike, 2026-09-16: "if we got rid of the orange…
+                              do what you think is the best"). Weight, size, the rule above each h2 and the
+                              space above every heading do the separating, as a man page does it. The pane's
+                              coral rgb(215,119,87) was the heading colour for the evening and is one line back. */
+  --code: rgb(215,119,87);      /* Claude Code "claude", the pane's coral: inline code, as the pane paints its own chips (Mike, 2026-09-16: "now green can be that orange color") */
+  /* The older names, kept so nothing had to be renamed. */
+  --bar: var(--bg);
+  --hair: var(--line);
+  --bg-elevated: var(--panel);
+  --bg-subtle: var(--panel-2);
+  --c-border: var(--line);
+  --c-border-subtle: var(--line-2);
+  --c-text: var(--ink);
+  --c-text-secondary: var(--dim);
+  --c-text-tertiary: var(--dim);
+  --c-accent: var(--accent);
+  --c-accent-dim: var(--accent-2);
+  --c-syntax-key: var(--accent);
+  --c-syntax-string: var(--ok);
+  --c-syntax-number: var(--warn);
+  /* Width: one frame, 90% of the window up to this, for chrome and content
+     alike (Mike, 2026-09-16: "you have more width to use. it should just be
+     responsive based on browser size"; and 2026-09-11, the prose fills the
+     frame rather than a narrower measure). */
+  --frame: 1040px;          /* 1280 for the mono afternoon; back to the 2026-09-11 frame once the prose
+                               became Acumin (Mike, 2026-09-16: "site container is a bit wide now with
+                               this style") */
   --measure: var(--frame);
-  --radius-pill: 999px;
-  --radius-card: 14px;
-  --radius-row: 10px;
-  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05), 0 2px 10px rgba(16, 24, 40, 0.06);
-  --shadow-menu: 0 12px 32px rgba(16, 24, 40, 0.14), 0 1px 3px rgba(16, 24, 40, 0.08);
-  --tint: #e8f1f8;
-  --hair: #e5e7eb;
-  --bg-elevated: #f9fafb;
-  --bg-subtle: #f3f4f6;
-  --c-border: #e5e7eb;
-  --c-border-subtle: #f0f0f0;
-  --c-text: #111827;
-  --c-text-secondary: #4b5563;
-  --c-text-tertiary: #4b5563;
-  --c-accent: #0065A4;
-  --c-accent-dim: #4A90E2;
-  --c-syntax-key: #2563eb;
-  --c-syntax-string: #059669;
-  --c-syntax-number: #d97706;
-  color-scheme: light;
+  /* Square. The tokens are zero and a rule at the end of this file squares
+     whatever set its own radius inline. */
+  --radius-pill: 0;
+  --radius-card: 0;
+  --radius-row: 0;
+  --shadow-card: none;
+  --shadow-menu: none;
+  /* The terminal face: the system mono first (SF Mono on a Mac, the same
+     face the Recorder and Terminal wear), JetBrains Mono (bundled, next/font)
+     everywhere else. */
+  --font-term-mono: ui-monospace, "SF Mono", Menlo, Monaco, var(--font-jetbrains-mono), Consolas, "Liberation Mono", monospace;
+  --font-inter-stack: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* SETTLED 2026-09-16 after trying the mono, Inter and Acumin for everything:
+     --font-term is the prose face, Acumin Pro (Typekit kit svq0oqy, weights
+     400/600/700 + italics); --font-term-mono is code, hashes, counters. */
+  --font-term: "acumin-pro", var(--font-inter-stack);
+  color-scheme: dark;
 }
+
+/* ❌ LIGHT MODE: built on 2026-09-16 from the app's light tokens (ground
+   #faf9f5, panels white, chips #f0eee6, text #141413, lines #afafaf, coral
+   darkened to #bc512d and blue to #4d60f7 for contrast) with a footer toggle,
+   and scrapped the same night (Mike: "i actually want to scrap light mode").
+   The site is dark, only. Do not re-add without asking. ── */
 
 /* ── Base ── */
 
@@ -80,7 +124,7 @@ html {
      scroll above the origin shows this colour, and with the bar white
      (2026-08-16) a grey canvas would flash between the bar and the top edge.
      The trade is a white sliver on an over-scroll past the bottom of a
-     #f5f5f5 page, which is rarer and reads as nothing. */
+     var(--bg) page, which is rarer and reads as nothing. */
   background: var(--bar);
 }
 
@@ -220,7 +264,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.1;
-  color: #111827;
+  color: var(--ink);
 }
 
 /* Docs prose typography */
@@ -230,16 +274,16 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 /* In @layer base so a utility class on the anchor can override it. Tailwind's
    utilities live in a cascade layer, and an unlayered rule beats a layered one
    no matter how specific the layered one is, so an unlayered `.prose-doc a`
-   silently defeated every `text-[#0065A4] no-underline` written on a docs page.
+   silently defeated every `text-[color:var(--accent)] no-underline` written on a docs page.
    Layering the default keeps plain prose links grey and underlined while
    letting deliberate blue action links render as intended. */
 @layer base {
   .prose-doc a {
-    color: #111827;
+    color: var(--ink);
     text-decoration: underline;
   }
   .prose-doc a:hover {
-    color: #374151;
+    color: var(--text);
   }
 }
 .prose-doc h2 {
@@ -248,19 +292,19 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-  color: #111827;
+  color: var(--ink);
 }
 .prose-doc h3 {
   margin-top: 2rem;
   margin-bottom: 0.75rem;
   font-size: 1.125rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--ink);
 }
 .prose-doc p {
   margin-bottom: 1.25rem;
   line-height: 1.75;
-  color: #1f2937;
+  color: var(--text);
 }
 .prose-doc ul, .prose-doc ol {
   margin-bottom: 1.5rem;
@@ -268,7 +312,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .prose-doc li {
   margin-bottom: 0.5rem;
   line-height: 1.75;
-  color: #1f2937;
+  color: var(--text);
 }
 /* Inline code is a FILLED chip, so wrapping it is a visual problem the way
    wrapping plain text is not: without box-decoration-break the background,
@@ -289,8 +333,8 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .prose-doc code {
   font-size: 0.95em;
   font-family: var(--font-mono);
-  background: #dbeafe;
-  color: #0065A4;
+  background: var(--code-bg);
+  color: var(--accent);
   padding: 0.125rem 0.375rem;
   border-radius: 6px;
   -webkit-box-decoration-break: clone;
@@ -307,13 +351,13 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #4b5563;
-  border-bottom: 1px solid #e5e7eb;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
 }
 .prose-doc td {
   padding: 0.625rem 1rem 0.625rem 0;
-  border-bottom: 1px solid #e5e7eb;
-  color: #1f2937;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
 }
 
 /* ── Overview: long-form explainer typography ── */
@@ -321,7 +365,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   max-width: 760px;
   margin: 0 auto;
   padding: 64px 24px 120px;
-  color: #1f2937;
+  color: var(--text);
 }
 /* The overview h1 is on the page-title scale like every other page. It spent
    one evening (2026-09-09) on the h2 scale for a download that was going to
@@ -347,21 +391,21 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: -0.015em;
-  color: #111827;
+  color: var(--ink);
 }
 .overview p {
   font-size: 1rem;
   line-height: 1.75;
   margin-bottom: 1.25rem;
-  color: #1f2937;
+  color: var(--text);
 }
 .overview blockquote {
-  border-left: 2px solid #d0d5dd;
+  border-left: 2px solid var(--line);
   padding-left: 1.25rem;
   margin: 1.5rem 0;
   font-size: 1rem;
   line-height: 1.6;
-  color: #111827;
+  color: var(--ink);
 }
 .overview ul, .overview ol {
   margin: 0 0 1.5rem 1.25rem;
@@ -371,15 +415,15 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   font-size: 1rem;
   line-height: 1.75;
   margin-bottom: 0.5rem;
-  color: #1f2937;
+  color: var(--text);
 }
 .overview a {
-  color: #0065A4;
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .overview a:hover {
-  color: #004e7c;
+  color: var(--accent-2);
 }
 .overview table {
   width: 100%;
@@ -394,19 +438,19 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #4b5563;
-  border-bottom: 1px solid #d0d5dd;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
 }
 .overview td {
   padding: 0.75rem 1rem 0.75rem 0;
-  border-bottom: 1px solid #e5e7eb;
-  color: #1f2937;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
   vertical-align: top;
   line-height: 1.55;
 }
 .overview td:first-child {
   font-weight: 500;
-  color: #111827;
+  color: var(--ink);
   padding-right: 1.5rem;
   white-space: nowrap;
 }
@@ -419,7 +463,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* Code block container */
 .code-block {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--line);
   overflow: hidden;
   margin-bottom: 1.5rem;
   transform: translateZ(0);
@@ -430,11 +474,11 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   align-items: center;
   justify-content: space-between;
   padding: 0.625rem 1rem;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
   font-size: 0.6875rem;
   font-family: var(--font-mono);
-  color: #4b5563;
+  color: var(--dim);
   font-weight: 600;
 }
 
@@ -443,18 +487,18 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    square, and sized so the header row does not grow around it. */
 .code-copy {
   background: none; border: none; cursor: pointer; line-height: 0;
-  padding: 4px; margin: -4px -4px -4px 0; color: #9ca3af; transition: color .15s;
+  padding: 4px; margin: -4px -4px -4px 0; color: var(--faint); transition: color .15s;
 }
-.code-copy:hover { color: #0065A4; }
-.code-copy:focus-visible { outline: 2px solid #0065A4; outline-offset: 1px; }
+.code-copy:hover { color: var(--accent); }
+.code-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .code-block pre {
   padding: 1.25rem 1rem;
   overflow-x: auto;
   font-size: 0.75rem;
   font-family: var(--font-mono);
   line-height: 1.7;
-  color: #374151;
-  background: #fff;
+  color: var(--text);
+  background: var(--panel);
   margin: 0;
 }
 
@@ -469,7 +513,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   top: 0.25rem;
   bottom: 0.25rem;
   width: 2px;
-  background: #0065A4;
+  background: var(--accent);
 }
 
 /* Mobile menu slide transition */
@@ -529,7 +573,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 /* Gradient text */
 .text-gradient {
-  background: linear-gradient(135deg, #f5f5f7 0%, #60a5fa 100%);
+  background: linear-gradient(135deg, var(--panel) 0%, var(--accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -553,7 +597,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    Greying the whole card would light up 19 rows when only the one under the
    cursor is clickable. Background lives here (not inline) so :hover can
    override it. */
-.bitgraph-file-card { background: #fff; }
+.bitgraph-file-card { background: var(--panel); }
 .bitgraph-file-row { transition: background 0.15s; }
 /* A month calendar's openable day (components/month-calendar.tsx): the same
    quiet answer under the cursor as a file row. */
@@ -568,13 +612,13 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .bg-short { display: inline; }
 }
 @media (hover: hover) {
-  .bg-btn-outline:hover { background: #e8eef5 !important; }
-  .bitgraph-file-row:hover { background: #f3f5f7; }
-  .bg-month-day:hover { background: #f0f6ff; }
+  .bg-btn-outline:hover { background: var(--line) !important; }
+  .bitgraph-file-row:hover { background: var(--line-2); }
+  .bg-month-day:hover { background: var(--tint); }
   /* The shutter answers the hand: one step darker under the cursor. */
-  .bg-btn-fill:hover { background: #00568c !important; }
+  .bg-btn-fill:hover { background: var(--accent-2) !important; }
 }
-.bg-btn-fill:active { background: #004a79 !important; }
+.bg-btn-fill:active { background: var(--accent-2) !important; }
 /* ── Nav responsive ── */
 @media (max-width: 768px) {
   .nav-desktop { display: none !important; }
@@ -628,7 +672,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    box: .bitgraph-camera mirrors it, the proof page's checker wears
    .bg-frame directly. */
 .bg-frame { width: min(100%, calc(min(520px, 100dvh - 320px) * 5 / 4)); aspect-ratio: 5 / 4; height: auto; margin: 0 auto; }
-.bitgraph-camera { width: 100%; aspect-ratio: 5 / 4; height: auto; max-height: var(--bg-cam-avail, calc(100dvh - 320px)); min-height: 180px; align-self: center; margin: 0 auto; --fd-headline: min(22px, 5.9vw); --fd-weight: 600; --fd-hint: #374151; --fd-subhint: #374151; --fd-hint-size: 12px; --fd-subhint-size: 12px; }
+.bitgraph-camera { width: 100%; aspect-ratio: 5 / 4; height: auto; max-height: var(--bg-cam-avail, calc(100dvh - 320px)); min-height: 180px; align-self: center; margin: 0 auto; --fd-headline: min(22px, 5.9vw); --fd-weight: 600; --fd-hint: var(--text); --fd-subhint: var(--text); --fd-hint-size: 12px; --fd-subhint-size: 12px; }
 @media (min-width: 769px) {
   .bg-frame { width: min(100%, calc(min(640px, 100dvh - 280px) * 3 / 2)); aspect-ratio: 3 / 2; }
   /* The home frame is always the full column and never narrows (2026-08-09).
@@ -696,14 +740,14 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    folder…". The chrome-free form above it is the one-block revert. */
 .bg-action-link {
   appearance: none; cursor: pointer;
-  border: 1px solid #d0d5dd; background: #fff; border-radius: var(--radius-pill);
+  border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-pill);
   font-family: inherit; font-size: 15px; font-weight: 500;
-  letter-spacing: -0.01em; color: #0065A4; text-decoration: none;
+  letter-spacing: -0.01em; color: var(--accent); text-decoration: none;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 9px 18px; margin: 6px 0 10px; text-align: left; line-height: 1.3;
   transition: background .12s, border-color .12s;
 }
-@media (hover: hover) { .bg-action-link:hover { background: #f3f7fa; border-color: #b9c2cf; } }
+@media (hover: hover) { .bg-action-link:hover { background: var(--panel); border-color: var(--line); } }
 /* Every action, the page-to-page trail included, wears the outlined pill;
    only the Recorder download is filled (Mike, 2026-09-11: "revert all links
    the way you had them… pill style to your choice"). */
@@ -711,8 +755,8 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    pills?"): the pill already says it acts, and the app's pills carry none.
    The markup keeps its arrows so a plain-link revert is one line here. */
 .bg-action-link .arrow { display: none; }
-.bg-action-link:disabled { color: #9ca3af; cursor: default; background: #fff; border-color: #e5e7eb; }
-.bg-action-link:focus-visible { outline: 2px solid #0065A4; outline-offset: 3px; }
+.bg-action-link:disabled { color: var(--faint); cursor: default; background: var(--panel); border-color: var(--line); }
+.bg-action-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* ── Page-to-page nav, at the foot of every docs page. Two .bg-action-links
    pushed to the edges of the reading column, under a hairline: the same rule
@@ -758,7 +802,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    phone; it scrolls inside itself rather than off the screen. */
 .wp-toc {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 1;
-  background: #fff; border: 1px solid #d0d5dd; border-radius: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 0;
   box-shadow: 0 4px 12px rgba(0,0,0,0.06);
   /* More at the foot than at the head, deliberately. The card scrolls, and at
      the end of a scroll 16px reads as the list being cut off by the border
@@ -793,16 +837,16 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .wp-toc-row {
   display: flex; gap: 10px; align-items: baseline;
   padding: 3px 0; font-size: 14px; line-height: 1.45;
-  color: #111827; font-weight: 600; text-decoration: none;
+  color: var(--ink); font-weight: 600; text-decoration: none;
 }
-.wp-toc-sub { color: #4b5563; font-weight: 400; padding-left: 22px; }
+.wp-toc-sub { color: var(--dim); font-weight: 400; padding-left: 22px; }
 .wp-toc-num {
-  flex: 0 0 34px; font-size: 12px; color: #6b7280;
+  flex: 0 0 34px; font-size: 12px; color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
 .wp-toc-sub .wp-toc-num { flex-basis: 32px; }
-@media (hover: hover) { .wp-toc-row:hover { color: #0065A4; } }
-.wp-toc-row:focus-visible { outline: 2px solid #0065A4; outline-offset: 2px; }
+@media (hover: hover) { .wp-toc-row:hover { color: var(--accent); } }
+.wp-toc-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Jumping to a section must not park it under what is stuck above it, and on
    this page that is TWO things: the site bar (58px) and then the Contents
@@ -835,7 +879,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    all fifteen rows would go flat. ── */
 /* RESTYLE 2026-09-11: the bar's controls are the app's pills, so blue. */
 .bg-nav-links > a,
-.bg-nav-links > div > button { color: #0065A4; }
+.bg-nav-links > div > button { color: var(--accent); }
 
 /* ── The docs panel's columns: a fixed grid of four, one cell per group, tops
    aligned and bottoms ragged. Understand is 6 rows, Use is 3, so Use simply
@@ -894,13 +938,13 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    something you are about to click: blue reads as live there rather than as
    "you are here". The page you are on is marked by weight and a fill instead,
    so the two never say the same thing in the same way. */
-.docs-menu-item { color: #4b5563; background: transparent; transition: color .15s, background .15s; border-radius: 8px; }
-.docs-menu-item[aria-current="page"] { color: #111827; background: #f3f4f6; }
+.docs-menu-item { color: var(--dim); background: transparent; transition: color .15s, background .15s; border-radius: 8px; }
+.docs-menu-item[aria-current="page"] { color: var(--ink); background: var(--panel); }
 /* The bar's own links (Ledger, Folder) mark the page they are on in the brand
    blue: colour in text, never a background (2026-08-16). Docs is a menu, not
    a page, and keeps its own rule above. */
-#site-nav .bg-nav-links a[aria-current="page"] { color: #0065A4; }
-@media (hover: hover) { .docs-menu-item:hover { color: #0065A4; } }
+#site-nav .bg-nav-links a[aria-current="page"] { color: var(--accent); }
+@media (hover: hover) { .docs-menu-item:hover { color: var(--accent); } }
 
 /* ── Applications: separation between the six entries. On a phone the column
    narrows, every paragraph reflows to more lines, and six identically shaped
@@ -924,7 +968,7 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .bg-case { margin-bottom: 38px; }
 @media (max-width: 640px) { .bg-case { margin-bottom: 56px; } }
 
-/* The footer bar mirrors the nav bar (white surface, #e5e7eb hairline, one
+/* The footer bar mirrors the nav bar (white surface, var(--line) hairline, one
    56px row) on the same measure: the 90%/800px reading column (2026-09-11).
    Entity at the column's left edge, legal links at its right. Two chunks
    only, so no centring track; on a phone too narrow for both, the row wraps
@@ -938,9 +982,9 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
    day (.bg-download-pill, the app's pill squared); that is gone, and the
    no-buttons rule now holds everywhere. ── */
 /* RESTYLE 2026-09-11: the one filled pill, like the app's "+ New". */
-.bg-download-link { font-size: 17px; font-weight: 600; padding: 14px 30px; margin: 0; background: #0065A4; border-color: #0065A4; color: #fff; }
-@media (hover: hover) { .bg-download-link:hover { background: #00568c; border-color: #00568c; } }
-.bg-download-link:disabled { color: #fff; background: #c5ccd6; border-color: #c5ccd6; }
+.bg-download-link { font-size: 17px; font-weight: 600; padding: 14px 30px; margin: 0; background: var(--accent); border-color: var(--accent); color: var(--panel); }
+@media (hover: hover) { .bg-download-link:hover { background: var(--accent-2); border-color: var(--accent-2); } }
+.bg-download-link:disabled { color: var(--panel); background: var(--faint); border-color: var(--faint); }
 
 
 /* ── RESTYLE 2026-09-11: rounding on the bordered boxes in the docs (the
@@ -964,3 +1008,120 @@ pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .prose-doc :is(p, ul, ol, h1, h2, h3, h4, blockquote):not(:is(table, figure, pre, .code-block, .bg-case, .bg-c2pa-grid, [class*="border"], [class*="grid"]) *),
 .overview :is(p, ul, ol, h1, h2, blockquote):not(:is(table, figure, pre, .code-block) *),
 .bg-measure { max-width: var(--measure); }
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TERMINAL REGISTER (2026-09-16). Everything below is the whole restyle
+   beyond the tokens above: the type, the square corners, no shadows, the bar.
+   It sits last so it wins ties with everything above it.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+html { font-size: 14px; background: var(--bg); }
+@media (max-width: 600px) { html { font-size: 13px; } }
+body { font-family: var(--font-term); line-height: 1.6; color: var(--text); }
+
+/* Type: one scale. Titles 22px, section titles are uppercase rules (as the
+   pane's own section labels), body one rem. */
+/* !important because a dozen pages set their own heading sizes inline, and
+   one ladder for the whole site is the point (the alternative was editing
+   each page). */
+/* Headlines in the pane's coral, code and the prompt glyph in its green
+   (Mike, 2026-09-16, after green headlines and then green prose: "then maybe
+   headlines that orange and the things that are orange now green?"). h3
+   included, so the /subjects titles do not get lost. */
+h1, .bg-page-title {
+  font-size: 22px !important; line-height: 1.35 !important; font-weight: 700 !important;
+  letter-spacing: -0.01em !important; text-transform: none !important; color: var(--head) !important;
+}
+h2 {
+  font-size: 13px !important; line-height: 1.5 !important; letter-spacing: 0.08em !important;
+  text-transform: uppercase !important; font-weight: 700 !important; color: var(--head) !important;
+  margin: 56px 0 14px !important; padding-top: 22px !important; border-top: 1px solid var(--line) !important;
+}
+h3 { font-size: 14px !important; line-height: 1.5 !important; font-weight: 700 !important; letter-spacing: 0 !important; text-transform: none !important; color: var(--head) !important; margin: 34px 0 8px !important; }
+.prose-doc p, .overview p, .prose-doc li, .overview li { font-size: 1rem; line-height: 1.7; color: var(--text); }
+.prose-doc code, .overview code, code { font-family: var(--font-term-mono); color: var(--code); background: var(--code-bg); font-size: 13px; padding: 1px 5px; }
+pre code { background: none; padding: 0; color: inherit; }
+.prose-doc th, .overview th, th { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 400; color: var(--dim); }
+.overview blockquote { border-left: 2px solid var(--line); color: var(--ink); }
+a { color: var(--accent); }
+::selection { background: rgba(121,184,236,0.35); }
+::-webkit-scrollbar-thumb { background: var(--line); }
+
+/* Square, everywhere, including what set a radius inline. The two spinners
+   (a circle drawn with a border) keep theirs. */
+*, *::before, *::after { border-radius: 0 !important; }
+[role="status"][aria-label="BitGraphing"] { border-radius: 50% !important; }
+.shadow, .shadow-card, .shadow-menu { box-shadow: none !important; }
+
+/* The bar: the pane's prompt glyph before the wordmark, the wordmark on the
+   text scale, the bar a hairline over the page. */
+#site-nav a[href="/"] { font-size: 18px !important; color: var(--ink) !important; letter-spacing: -0.01em !important; }
+/* ❌ The "❯" prompt glyph before the wordmark lasted a day (Mike, 2026-09-16: "logo needs no arrow. just a bit bigger maybe"). */
+
+/* Fewer boxes (Mike, 2026-09-16: "you use TOO many squares … the docs button
+   doesnt have to be a square"). Actions are plain links; only the Recorder
+   download keeps its fill. The Docs button is its word and a chevron. Ledger
+   rows are lines, not cards. Frames stay only where they hold data: proof
+   cards, code blocks, the menu. */
+.bg-action-link:not(.bg-download-link) {
+  border: 0 !important; background: none !important; padding: 4px 0 !important;
+  margin: 0 18px 0 0 !important; color: var(--accent) !important;
+}
+.bg-action-link:not(.bg-download-link):hover { text-decoration: underline; text-underline-offset: 3px; }
+.bg-nav-links > div > button {
+  border: 0 !important; background: none !important; padding: 0 !important;
+  min-width: 0 !important; height: auto !important; color: var(--text) !important;
+}
+.bg-nav-links > div > button:hover { color: var(--accent) !important; }
+.xp-row { background: transparent !important; border-width: 0 0 1px 0 !important; padding: 12px 4px !important; }
+.xp-row:hover { background: var(--panel) !important; }
+
+/* Acumin: numbers in the text face stay tabular so the few counts set in prose
+   line up; the data fields are mono anyway. Acumin at 14px reads small (its
+   x-height is lower than the mono's), so the base is one point larger. */
+body { font-variant-numeric: tabular-nums; }
+html { font-size: 15px; }
+@media (max-width: 600px) { html { font-size: 14px; } }
+
+/* Links wear their underline at rest (Mike, 2026-09-16: "make links already
+   have an underline when not active"). !important because 33 links set
+   textDecoration: none inline. Not underlined: the bar and its menu, the
+   filled download, the ledger's rows (a row is one link holding four), and
+   anything drawn inside a figure. */
+a, button.bg-action-link:not(.bg-download-link) { text-decoration: underline !important; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+/* A button dressed as a link (the contact form's Send message) is underlined
+   like one (Mike, 2026-09-16). */
+#site-nav a, .docs-menu-item, .bg-download-link, .xp-row, .xp-row a, figure a, svg a { text-decoration: none !important; }
+
+/* One rule per section. Where a page still draws its own divider right before
+   an h2 (api-reference), the divider yields to the heading's rule. */
+hr:has(+ h2), .section-divider:has(+ h2) { display: none !important; }
+
+/* The one real button: the Recorder download. A coral outline in the heading
+   colour, filling on hover with the page colour as text, the terminal's own
+   inverse. The periwinkle slab it was for an afternoon read as a wrong pale
+   block (Mike, 2026-09-16: "that button is off"). */
+.bg-download-link {
+  background: transparent !important; border: 1px solid var(--head) !important; color: var(--head) !important;
+  font-size: 15px !important; font-weight: 600 !important; padding: 12px 22px !important; margin: 0 !important;
+  text-decoration: none !important; transition: background .12s, color .12s;
+}
+@media (hover: hover) { .bg-download-link:hover { background: var(--head) !important; color: var(--bg) !important; } }
+.bg-download-link:disabled { border-color: var(--faint) !important; color: var(--faint) !important; background: transparent !important; }
+
+/* The proof page's when-box: date and window on the left, the export on the
+   right; on a phone the export drops under the window and sits left. */
+@media (max-width: 640px) {
+  .bg-when-box { flex-direction: column; align-items: flex-start; }
+  .bg-when-box > .bg-when-actions { margin-left: 0; padding-top: 0; text-align: left; }
+}
+
+/* The ledger row's "Open" chevron is gone (Mike, 2026-09-16: "open shouldnt
+   have an arrow"); the whole row is the link. */
+.xp-open { display: none !important; }
+
+/* No arrows on "Open" anywhere (Mike, 2026-09-16: "that open has an arrow"):
+   the file rows' Open link and the camera's arrow-links drop their glyph, as
+   the action links did this afternoon. */
+.bg-arrow-link .arrow { display: none !important; }

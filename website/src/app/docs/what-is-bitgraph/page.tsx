@@ -24,7 +24,7 @@ export default function WhatIsBitGraphPage() {
           Do that before adding anything else here. */}
       <h1 className="mb-6">The protocol</h1>
 
-      <p className="text-[#1f2937] leading-relaxed mb-10">
+      <p className="text-[color:var(--text)] leading-relaxed mb-10">
         BitGraph is a protocol that produces portable cryptographic proof when
         a file is committed through an authorized execution boundary. The proof
         does not assert a time. It asserts a place: this exact file, in this
@@ -33,19 +33,19 @@ export default function WhatIsBitGraphPage() {
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">The core idea</h2>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         Most systems produce artifacts first and try to prove things about
         them later, attaching signatures, metadata, timestamps, or ledger
         entries after the fact.
       </p>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         BitGraph inverts this. Valid proof can only exist if the file was
         committed through the authorized commit path. The proof is not added to
         the file. It is caused by the act of committing through that path.
       </p>
 
-      <div className="border-l-2 border-l-[#d0d5dd] pl-6 my-8">
-        <p className="text-sm text-[#111827] italic">
+      <div className="border-l-2 border-l-[color:var(--line)] pl-6 my-8">
+        <p className="text-sm text-[color:var(--ink)] italic">
           If proof exists, the authorized commit path was traversed.
         </p>
       </div>
@@ -54,71 +54,71 @@ export default function WhatIsBitGraphPage() {
       {/* The four actions the home figure draws, in the order they happen,
           from your device (2026-09-11). Replaced the enclave-only telling
           (Allocate, Bind, Commit) with the fused path as a footnote. */}
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         Four actions, alternating between your device and the enclave. Your file is the input and the proof is the output; neither is a step.
       </p>
       <ol className="space-y-3 mb-6">
-        <li className="text-[#1f2937] leading-relaxed">
+        <li className="text-[color:var(--text)] leading-relaxed">
           <strong className="text-text">1. Ask for a position.</strong> Your device sends an empty request to the enclave: a chain name and nothing else. Nothing of the file is in it.
         </li>
-        <li className="text-[#1f2937] leading-relaxed">
+        <li className="text-[color:var(--text)] leading-relaxed">
           <strong className="text-text">2. Open a position.</strong> The enclave advances its counter, draws a 32-byte nonce from hardware entropy, and signs a slot record with its Ed25519 key: the nonce, the counter, the epoch, the enclave&apos;s public key, the chain. The record holds no artifact hash and no clock. The enclave files the slot as single-use, expiring unused after 120 seconds, and returns the whole signed record, nonce included, to your device.
         </li>
-        <li className="text-[#1f2937] leading-relaxed">
+        <li className="text-[color:var(--text)] leading-relaxed">
           <strong className="text-text">3. New bytes.</strong> On your device, a 32-byte commitment is derived from the slot record: SHA-256 over the profile label, a zero byte, the hash of the record&apos;s canonical body, and the raw nonce. The new bytes are the original file plus that commitment, under a registered placement. The raw nonce never enters the bytes; only the commitment does. The original is never uploaded.
         </li>
-        <li className="text-[#1f2937] leading-relaxed">
+        <li className="text-[color:var(--text)] leading-relaxed">
           <strong className="text-text">4. Commit under the position.</strong> Your device hashes the new bytes and sends the digest with the slot record. In one indivisible operation the enclave checks the slot exists and has not expired, binds the digest under it, records the slot counter and the commit counter and the hash of the slot record in the signed body, signs the body, obtains a Nitro attestation whose user data is the hash of that body, and removes the slot. A position is spent once. Fail-closed: if any part fails, no proof exists. The slot record names the Ethereum anchor the enclave had already authenticated when the position was opened, so the proof carries its own floor.
         </li>
       </ol>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         Between steps 2 and 4 the position is held, open and unspent. That gap is where the file is finished, and it is why the new bytes could not have been finalized before the position existed. Recording existing bytes as they are, with no new bytes, is the HTTP API&apos;s compatibility path.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">What you get</h2>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
-        A BitGraph proof is a JSON object (schema version <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">bitgraph/1</code>) containing:
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
+        A BitGraph proof is a JSON object (schema version <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">bitgraph/1</code>) containing:
       </p>
       <ul className="space-y-2 mb-6">
-        <li className="text-[#1f2937]"><strong className="text-text">artifact</strong> - SHA-256 digest of the committed bytes</li>
-        <li className="text-[#1f2937]"><strong className="text-text">commit</strong> - fresh nonce, monotonic counter, slot binding (slotCounter, slotHashB64), the latest Ethereum anchor at allocation (slotAnchor, the proof&apos;s floor), epoch identity, optional chain link</li>
-        <li className="text-[#1f2937]"><strong className="text-text">signer</strong> - Ed25519 public key and signature over the canonical signed body</li>
-        <li className="text-[#1f2937]"><strong className="text-text">environment</strong> - enforcement tier, platform measurement (PCR0), hardware attestation</li>
-        <li className="text-[#1f2937]"><strong className="text-text">slotAllocation</strong> - the pre-allocated causal slot record, independently signed by the enclave</li>
-        <li className="text-[#1f2937]"><strong className="text-text">agency</strong> - optional, legacy</li>
-        <li className="text-[#1f2937]"><strong className="text-text">attribution</strong> - optional signed metadata (name, title, message); for a fused artifact it carries the profile identifier <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">bitgraph-fuse/1</code>, the placement, and the origin digest</li>
-        <li className="text-[#1f2937]"><strong className="text-text">timestamps</strong> - optional and advisory only. A proof&apos;s place comes from its slot and counter. A time bound comes from Ethereum anchors, never from this field: an anchor is a proof whose artifact is a recent block hash, so every position after it was placed no earlier than that block.</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">artifact</strong> - SHA-256 digest of the committed bytes</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">commit</strong> - fresh nonce, monotonic counter, slot binding (slotCounter, slotHashB64), the latest Ethereum anchor at allocation (slotAnchor, the proof&apos;s floor), epoch identity, optional chain link</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">signer</strong> - Ed25519 public key and signature over the canonical signed body</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">environment</strong> - enforcement tier, platform measurement (PCR0), hardware attestation</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">slotAllocation</strong> - the pre-allocated causal slot record, independently signed by the enclave</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">agency</strong> - optional, legacy</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">attribution</strong> - optional signed metadata (name, title, message); for a fused artifact it carries the profile identifier <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">bitgraph-fuse/1</code>, the placement, and the origin digest</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">timestamps</strong> - optional and advisory only. A proof&apos;s place comes from its slot and counter. A time bound comes from Ethereum anchors, never from this field: an anchor is a proof whose artifact is a recent block hash, so every position after it was placed no earlier than that block.</li>
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Key properties</h2>
       <ul className="space-y-2 mb-6">
-        <li className="text-[#1f2937]"><strong className="text-text">Portable</strong> - a self-contained JSON object. A verifier checks it without contacting anyone: the signature against the key the proof carries, the attestation against the AWS Nitro root, the slot binding, and the floor; a fused artifact is rebuilt from its origin and the proof.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Atomic</strong> - fail-closed. Either a complete, valid proof is produced, or nothing is.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Causal</strong> - every proof is bound to a pre-allocated slot created before the artifact hash reached the enclave.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Ordered</strong> - one place in a sequence, fixed by a monotonic counter within its epoch. Counter, epoch, and chain link establish sequencing.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Measured</strong> - binds to a specific execution environment via its platform measurement. Production is AWS Nitro, where that measurement is PCR0; the schema names no platform, so another TEE&rsquo;s would fit it.</li>
-        <li className="text-[#1f2937]"><strong className="text-text">Verifiable</strong> - Ed25519 signature, SHA-256 digest, canonical serialization. Standard cryptographic primitives.</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">Portable</strong> - a self-contained JSON object. A verifier checks it without contacting anyone: the signature against the key the proof carries, the attestation against the AWS Nitro root, the slot binding, and the floor; a fused artifact is rebuilt from its origin and the proof.</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">Atomic</strong> - fail-closed. Either a complete, valid proof is produced, or nothing is.</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">Causal</strong> - every proof is bound to a pre-allocated slot created before the artifact hash reached the enclave.</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">Ordered</strong> - one place in a sequence, fixed by a monotonic counter within its epoch. Counter, epoch, and chain link establish sequencing.</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">Measured</strong> - binds to a specific execution environment via its platform measurement. Production is AWS Nitro, where that measurement is PCR0; the schema names no platform, so another TEE&rsquo;s would fit it.</li>
+        <li className="text-[color:var(--text)]"><strong className="text-text">Verifiable</strong> - Ed25519 signature, SHA-256 digest, canonical serialization. Standard cryptographic primitives.</li>
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Enforcement tiers</h2>
       <div className="overflow-x-auto mb-8">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#e5e7eb]">
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Tier</th>
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Key Location</th>
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Boundary</th>
-              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Use Case</th>
+            <tr className="border-b border-[color:var(--line)]">
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Tier</th>
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Key Location</th>
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Boundary</th>
+              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Use Case</th>
             </tr>
           </thead>
-          <tbody className="text-[#1f2937]">
-            <tr className="border-b border-[#e5e7eb]">
+          <tbody className="text-[color:var(--text)]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">measured-tee</code></td>
               <td className="py-2 pr-4">TEE memory</td>
               <td className="py-2 pr-4">Hardware enclave</td>
               <td className="py-2">Production, highest assurance</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4"><code className="text-xs font-mono">hw-key</code></td>
               <td className="py-2 pr-4">HSM / Secure Enclave</td>
               <td className="py-2 pr-4">Software</td>
@@ -134,22 +134,22 @@ export default function WhatIsBitGraphPage() {
         </table>
       </div>
 
-      <p className="text-[#1f2937] leading-relaxed mb-4">
-        bitgraph.ing issues <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">measured-tee</code> proofs
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
+        bitgraph.ing issues <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">measured-tee</code> proofs
         only. If the enclave is unreachable, no proof is produced. The other
         tiers exist for local development and for integrations that keep keys
         in an HSM.
       </p>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
-        <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">enforcement</code> is signed, but it is
-        self-reported. A verifier that needs enclave guarantees pins <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">measurement</code> to
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
+        <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">enforcement</code> is signed, but it is
+        self-reported. A verifier that needs enclave guarantees pins <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">measurement</code> to
         a known enclave image and validates the attestation, which a software
-        tier cannot produce. See <a href="/docs/verification" className="text-[#0065A4] underline underline-offset-2">Verification</a> for
+        tier cannot produce. See <a href="/docs/verification" className="text-[color:var(--accent)] underline underline-offset-2">Verification</a> for
         the algorithm.
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Structural properties</h2>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         The commit path satisfies these structural properties:
       </p>
       <CommitPathDiagram />

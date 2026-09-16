@@ -506,7 +506,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      what this actually does. */
   const openLink = showingResults && !boxOpen ? (
     <button type="button" className="bg-arrow-link" onClick={() => setBoxOpen(true)}
-      style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "#0065A4", whiteSpace: "nowrap", flexShrink: 0 }}>
+      style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--accent)", whiteSpace: "nowrap", flexShrink: 0 }}>
       <span className="bg-long">View more BitGraphs</span><span className="bg-short">More</span> <span className="arrow" aria-hidden="true">&rarr;</span>
     </button>
   ) : null;
@@ -2357,10 +2357,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      the same spinner, the same label, and a determinate bar whenever there is a
      live count to show. Keeps the whole drop→record flow cohesive: one gerund
      label "{Verb} {n} of {total}", one Unicode ellipsis, no stray percentages. ── */
-  const waitSpinner: React.CSSProperties = { width: 32, height: 32, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" };
-  const waitLabel: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
-  const waitTrack: React.CSSProperties = { width: "min(260px, 72vw)", height: 2, borderRadius: 1, background: "#e2e5e9", overflow: "hidden" };
-  const waitFill = (pct: number): React.CSSProperties => ({ width: `${pct}%`, height: "100%", background: "#0065A4", transition: "width 0.15s" });
+  const waitSpinner: React.CSSProperties = { width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" };
+  const waitLabel: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+  const waitTrack: React.CSSProperties = { width: "min(260px, 72vw)", height: 2, borderRadius: 1, background: "var(--line)", overflow: "hidden" };
+  const waitFill = (pct: number): React.CSSProperties => ({ width: `${pct}%`, height: "100%", background: "var(--accent)", transition: "width 0.15s" });
 
   return (
     <div style={{ background: "var(--bg)", color: "var(--c-text)", display: "flex", flexDirection: "column" }}>
@@ -2503,7 +2503,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         @keyframes glow { 0%, 100% { box-shadow: none } 50% { box-shadow: none } }
         /* Freshly-created BitGraph row: slides up while a brand-tinted wash
            fades out, so the eye lands on the new #number. */
-        @keyframes proveReveal { 0% { opacity: 0; transform: translateY(12px); background: rgba(0,101,164,0.16) } 55% { background: rgba(0,101,164,0.16) } 100% { opacity: 1; transform: translateY(0); background: rgba(0,101,164,0) } }
+        @keyframes proveReveal { 0% { opacity: 0; transform: translateY(12px); background: rgba(121,184,236,0.318) } 55% { background: rgba(121,184,236,0.318) } 100% { opacity: 1; transform: translateY(0); background: rgba(121,184,236,0) } }
         /* Success header: the badge pops and the check strokes itself in — the
            canonical "done" cue — while the count tallies up beside it. */
         @keyframes headerReveal { from { opacity: 0 } to { opacity: 1 } }
@@ -2699,7 +2699,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 The files are hashed and safe; nothing is lost by waiting.
                 One line, quiet gray, same voice as the drop hints. */}
             {teeRestarting && (
-              <div style={{ fontSize: 13, color: "#4b5563", textAlign: "center", maxWidth: 420 }}>
+              <div style={{ fontSize: 13, color: "var(--dim)", textAlign: "center", maxWidth: 420 }}>
                 The camera is restarting for its daily key renewal. Your file is
                 hashed and held; recording resumes automatically.
               </div>
@@ -2721,8 +2721,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 {counted ? `${word} ${exportProgress.current} of ${exportProgress.total}` : `${word}\u2026`}
               </div>
               {counted && (
-                <div style={{ width: "min(320px, 70vw)", height: 3, background: "#e2e5e9", marginTop: 12 }}>
-                  <div style={{ width: `${Math.round((exportProgress.current / exportProgress.total) * 100)}%`, height: "100%", background: "#0065A4", transition: "width .2s ease" }} />
+                <div style={{ width: "min(320px, 70vw)", height: 3, background: "var(--line)", marginTop: 12 }}>
+                  <div style={{ width: `${Math.round((exportProgress.current / exportProgress.total) * 100)}%`, height: "100%", background: "var(--accent)", transition: "width .2s ease" }} />
                 </div>
               )}
             </div>
@@ -2767,11 +2767,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   "3 positions · all anchored" is a finding: it is the folder
                   telling you it is finished. */}
               {anchorPlan && anchorPlan.positions > 0 && (
-                <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
+                <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
                   <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
                       {anchorPlan.positions} position{anchorPlan.positions === 1 ? "" : "s"}
-                      <span style={{ fontWeight: 400, color: "#4b5563" }}>
+                      <span style={{ fontWeight: 400, color: "var(--dim)" }}>
                         {/* "not fully anchored" rather than "needs anchors":
                             a position with a lower bound and no upper one has
                             half its evidence, and the count reads at every
@@ -2782,7 +2782,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                       </span>
                     </span>
                     {anchorBusy ? (
-                      <span style={{ fontSize: 13, color: "#4b5563", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ fontSize: 13, color: "var(--dim)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                         Fetching {anchorBusy.current} of {anchorBusy.total}
                       </span>
                     ) : anchorPlan.needs.length > 0 ? (
@@ -2795,7 +2795,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   {/* What the run found, including when it found nothing. A
                       fetch that produces no file must still say so. */}
                   {anchorNote && (
-                    <div style={{ borderTop: "1px solid #eef0f1", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "#4b5563" }}>
+                    <div style={{ borderTop: "1px solid var(--line-2)", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "var(--dim)" }}>
                       {anchorNote}
                     </div>
                   )}
@@ -2853,13 +2853,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   {checked.length === 0 && openLink}
                 </div>
               )}
-              <div style={{ background: "#fff", border: "1px solid #d0d5dd" }}>
+              <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
                 <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                   {/* Files and positions, both true at once: a set is one
                       position for many files, a file BitGraphed twice holds
                       two. Position is the ledger's own word, the one every
                       row and proof page already uses. */}
-                  <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
+                  <span key={`${allDone}-${items.length}`} style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", animation: "headerReveal 0.4s ease-out both" }}>
                     {animCount} of {items.length} file{items.length === 1 ? "" : "s"}{positionCount > 0 ? ` \u00b7 ${positionCount} position${positionCount === 1 ? "" : "s"}` : ""}
                   </span>
                   {found.length > 0 && (
@@ -2882,7 +2882,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 {/* What the package that just downloaded is short, and what to
                     do about it. Only ever rendered when something IS short. */}
                 {packageNote && (
-                  <div style={{ borderTop: "1px solid #eef0f1", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "#4b5563" }}>
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "12px 16px", fontSize: 13, lineHeight: 1.55, color: "var(--dim)" }}>
                     {packageNote}
                   </div>
                 )}
@@ -2897,7 +2897,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     commit is an API and MCP compatibility path, not a second
                     choice put in front of whoever dropped the files. */}
                 {unproven.length > 0 && (
-                  <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "0 16px" }}>
                     <button type="button" className="bg-action-link" onClick={proveRemaining}>
                       <span>{fuseByDefault ? "BitGraph" : "Record"} {unproven.length} file{unproven.length === 1 ? "" : "s"}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
@@ -2912,7 +2912,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     after a fresh recording: the files have to be dropped
                     again first. Still the one operation, at a later place. */}
                 {fuseByDefault && unproven.length === 0 && againRows.length > 0 && (
-                  <div style={{ borderTop: "1px solid #eef0f1", padding: "0 16px" }}>
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "0 16px" }}>
                     <button type="button" className="bg-action-link" onClick={() => fuseRemaining(true)}>
                       <span>{againRows.length === 1 ? "BitGraph this file again" : `BitGraph these ${againRows.length} files again`}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
@@ -2920,7 +2920,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   </div>
                 )}
                 {recordMessage && (
-                  <div style={{ borderTop: "1px solid #eef0f1", padding: "12px 16px", fontSize: 13, color: "#dc2626" }}>
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "12px 16px", fontSize: 13, color: "var(--err)" }}>
                     {recordMessage}
                   </div>
                 )}
@@ -2933,7 +2933,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 const p = item.proof ?? null;
                 const counter = p?.commit?.counter;
                 return (
-                  <div key={`pj-${item.file.name}`} className="bitgraph-file-card" style={{ border: "1px solid #d0d5dd", marginBottom: 10 }}>
+                  <div key={`pj-${item.file.name}`} className="bitgraph-file-card" style={{ border: "1px solid var(--line)", marginBottom: 10 }}>
                     <div
                       role={p ? "button" : undefined}
                       tabIndex={p ? 0 : undefined}
@@ -2942,15 +2942,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                       className={`bitgraph-result-row${p ? " bitgraph-file-row" : ""}`}
                       style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", cursor: p ? "pointer" : "default" }}
                     >
-                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "#111827" }}>{item.file.name}</span>
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "var(--ink)" }}>{item.file.name}</span>
                       {counter != null && (
-                        <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: "#0065A4", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
+                        <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: "var(--accent)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
                       )}
                     </div>
                     {item.proof && (
                       <div style={{ padding: "0 16px 14px" }}>
                         {item.matchedFile ? (
-                          <div style={{ padding: "12px 14px", border: "1px solid #0065A4", background: "#fff", fontSize: 13, fontWeight: 600, color: "#0065A4", display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ padding: "12px 14px", border: "1px solid var(--accent)", background: "var(--panel)", fontSize: 13, fontWeight: 600, color: "var(--accent)", display: "flex", alignItems: "center", gap: 8 }}>
                             <span style={{ fontWeight: 700 }}>&#10003;</span>
                             <span>This file matches the proof. Open to view it.</span>
                           </div>
@@ -2971,7 +2971,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   the position it holds on the right. Fixed height, because the
                   window above and below it is measured in rows. */}
               {lines.length > 0 && (
-                <div ref={resultListRef} style={{ border: "1px solid #d0d5dd", background: "#ffffff" }}>
+                <div ref={resultListRef} style={{ border: "1px solid var(--line)", background: "var(--panel)" }}>
                   <div style={{ height: rowFirst * RESULT_ROW_H }} aria-hidden />
                   {lines.slice(rowFirst, rowLast).map(({ item, p, k, of }, n) => {
                     const idx = rowFirst + n;
@@ -3001,16 +3001,16 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                         style={{
                           display: "flex", alignItems: "center", gap: 12,
                           height: RESULT_ROW_H, padding: "0 14px", overflow: "hidden",
-                          borderTop: idx > 0 ? "1px solid #eef0f1" : "none",
+                          borderTop: idx > 0 ? "1px solid var(--line-2)" : "none",
                           cursor: clickable ? "pointer" : "default",
                         }}
                       >
-                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "#111827" }}>{item.file.name}</span>
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "var(--ink)" }}>{item.file.name}</span>
                         <span style={{
                           flexShrink: 0, fontSize: 13, fontVariantNumeric: "tabular-nums",
                           fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                           fontWeight: counter != null ? 700 : 400,
-                          color: counter != null ? "#0065A4" : item.status === "error" ? "#dc2626" : "#4b5563",
+                          color: counter != null ? "var(--accent)" : item.status === "error" ? "var(--err)" : "var(--dim)",
                         }}>{right}</span>
                       </div>
                     );
@@ -3121,8 +3121,8 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
       onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(captureDrop(e.dataTransfer)); }}
       style={{
         marginTop: 8,
-        background: "#fff",
-        border: `1.5px dashed ${mismatch ? "#dc2626" : dragOver ? "#0065A4" : "#c4c9d0"}`,
+        background: "var(--panel)",
+        border: `1.5px dashed ${mismatch ? "var(--err)" : dragOver ? "var(--accent)" : "var(--faint)"}`,
         padding: "18px 16px",
         textAlign: "center",
         cursor: "pointer",
@@ -3131,22 +3131,22 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
     >
       <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
       {state === "checking" ? (
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#4b5563" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--dim)" }}>
           {progress.total > 1 ? `Checking ${progress.done} of ${progress.total}…` : "Checking…"}
         </div>
       ) : mismatch ? (
         <>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#dc2626" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--err)" }}>
             {checkedCount > 1
               ? `None of the ${checkedCount.toLocaleString()} files match this proof`
               : "These bytes don’t match this proof"}
           </div>
-          <div style={{ fontSize: 12.5, color: "#4b5563", marginTop: 5 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
+          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 5 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#111827" }}>Have the file? Check it matches this proof.</div>
-          <div style={{ fontSize: 12.5, color: "#4b5563", marginTop: 5 }}>Drop files or a whole folder and the match is found by hash. In your browser; nothing is uploaded.</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>Have the file? Check it matches this proof.</div>
+          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 5 }}>Drop files or a whole folder and the match is found by hash. In your browser; nothing is uploaded.</div>
         </>
       )}
     </div>

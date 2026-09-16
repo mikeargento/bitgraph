@@ -11,9 +11,9 @@ export function TerminalWindow({ title = "proof.json", children }: TerminalWindo
       {/* macOS title bar */}
       <div className="flex items-center gap-2 px-4 py-3 bg-bg-elevated border-b border-border-subtle">
         <div className="flex items-center gap-[6px]">
-          <span className="w-3 h-3 bg-[#ff5f57]" />
-          <span className="w-3 h-3 bg-[#febc2e]" />
-          <span className="w-3 h-3 bg-[#28c840]" />
+          <span className="w-3 h-3 bg-[color:var(--err)]" />
+          <span className="w-3 h-3 bg-[color:var(--warn)]" />
+          <span className="w-3 h-3 bg-[color:var(--ok)]" />
         </div>
         <span className="flex-1 text-center text-xs font-mono text-text-tertiary -ml-[54px]">
           {title}

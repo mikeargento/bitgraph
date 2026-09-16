@@ -12,7 +12,7 @@ export default function AuditPage() {
   return (
     <div className="prose-doc">
       <h1 className="mb-6">Audit a Bundle</h1>
-      <p style={{ color: "#4b5563", marginBottom: 32 }}>
+      <p style={{ color: "var(--dim)", marginBottom: 32 }}>
         You have been handed an Audit Bundle: an archive of BitGraph proof files, and optionally the artifact bytes, Ethereum anchor witnesses, and a manifest. This is the recipient&apos;s walkthrough. The audit runs entirely on your machine, fully offline, and reports exactly what the supplied evidence supports, nothing more.
       </p>
 
@@ -22,7 +22,7 @@ export default function AuditPage() {
       </p>
       <ul>
         <li>
-          <a href={`${GITHUB}/blob/main/docs/BUNDLE-FORMAT.md`} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">Bundle Format specification</a>: the wire format, precise enough to reimplement either role from the document alone (the Frame carrier is not yet in the document; the audit source shows how it is unwrapped).
+          <a href={`${GITHUB}/blob/main/docs/BUNDLE-FORMAT.md`} target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent)] font-medium no-underline">Bundle Format specification</a>: the wire format, precise enough to reimplement either role from the document alone (the Frame carrier is not yet in the document; the audit source shows how it is unwrapped).
         </li>
       </ul>
 
@@ -84,7 +84,7 @@ node packages/audit/dist/cli.js /path/to/bundle.tar.gz --out ./audit`}</pre>
 
       <h2>6. If you do not trust this tool</h2>
       <p>
-        You do not have to. The audit package and the verifier it delegates to (<code>@mikeargento/bitgraph-verify</code>) are MIT-licensed source you can read: <code>packages/audit/</code> and <code>packages/verify/</code> in the <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">repository</a>. The <a href={`${GITHUB}/blob/main/docs/BUNDLE-FORMAT.md`} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">bundle format</a> is specified precisely so a stranger can reimplement both the producer and the consumer from the document and check the same evidence independently.
+        You do not have to. The audit package and the verifier it delegates to (<code>@mikeargento/bitgraph-verify</code>) are MIT-licensed source you can read: <code>packages/audit/</code> and <code>packages/verify/</code> in the <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent)] font-medium no-underline">repository</a>. The <a href={`${GITHUB}/blob/main/docs/BUNDLE-FORMAT.md`} target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent)] font-medium no-underline">bundle format</a> is specified precisely so a stranger can reimplement both the producer and the consumer from the document and check the same evidence independently.
       </p>
     </div>
   );

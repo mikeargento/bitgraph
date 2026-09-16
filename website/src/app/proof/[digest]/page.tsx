@@ -10,7 +10,7 @@ import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFi
 import { zipSync, strToU8 } from "fflate";
 import { anchorStatusDoc, isSettled, ANCHOR_STATUS_FILE, type BoundReport } from "@/lib/anchor-export";
 import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
-import { timeTz, stampTz, timeNoTz, stampNoTz } from "@/lib/format-time";
+import { timeTz, stampTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
@@ -49,21 +49,18 @@ const toSafeB64 = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").repla
 // take the plain record.
 const asRecord = (p: BitGraphProof) => p as unknown as Record<string, unknown>;
 
-// The two-sided ETH anchor window as a compact phrase, matching the lead
-// "Recorded" card: "between X and Y on DATE" when both bounds share a day, a
-// full range across days, or a one-sided "after/before X" when only one anchor
-// is known yet (a very recent recording whose next anchor is unmined).
+// The window as a phrase: "after <floor block time>, before <the following
+// anchor's block time>". Maintainer ruling 2026-09-16 (Mike, three times: "it
+// should say before and then the time of that eth block"), knowing CANON §3.6
+// prefers the anchor's number for the ceiling; recorded as §22.13.
 function formatWindow(lower: string | null, upper: string | null): string | null {
   if (lower && upper) {
     const t1 = new Date(lower), t2 = new Date(upper);
-    // 2026-09-10: the floor is the only bound the proof carries; a following
-    // anchor is named but never as a ceiling.
     return t1.toDateString() === t2.toDateString()
-      ? `after ${timeTz(t1)} on ${t1.toLocaleDateString()}, then an anchor at ${timeTz(t2)} (not an upper bound)`
-      : `after ${stampTz(t1)}, then an anchor at ${stampTz(t2)} (not an upper bound)`;
+      ? `after ${timeTz(t1)} on ${t1.toLocaleDateString()}, before ${timeTz(t2)}`
+      : `after ${stampTz(t1)}, before ${stampTz(t2)}`;
   }
   if (lower) { const t = new Date(lower); return `after ${timeTz(t)} on ${t.toLocaleDateString()}`; }
-  if (upper) { const t = new Date(upper); return `an anchor followed at ${timeTz(t)} on ${t.toLocaleDateString()} (not an upper bound)`; }
   return null;
 }
 
@@ -77,7 +74,7 @@ function formatHashAlg(alg: string): string {
 
 // Leading icon for the page's action buttons, so they read as controls rather
 // than as bordered panels. Stroke style matches the title check mark.
-function BtnIcon({ name, color = "#0065A4", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus"; color?: string; size?: number }) {
+function BtnIcon({ name, color = "var(--accent)", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus"; color?: string; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, style: { flexShrink: 0 } };
   if (name === "code") return <svg {...common}><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>;
   // Attestation = a signed credential: a document with a ribboned seal (the
@@ -626,10 +623,10 @@ export default function ProofPage() {
       <div style={{ padding: "80px 20px", textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
         {retired ? (
           <>
-            <div style={{ fontSize: 16, color: "#111827", marginBottom: 12, fontWeight: 700 }}>
+            <div style={{ fontSize: 16, color: "var(--ink)", marginBottom: 12, fontWeight: 700 }}>
               Nothing here to look up
             </div>
-            <div style={{ fontSize: 14, color: "#4b5563", lineHeight: 1.6, marginBottom: 20 }}>
+            <div style={{ fontSize: 14, color: "var(--dim)", lineHeight: 1.6, marginBottom: 20 }}>
               BitGraph keeps no index of proofs by digest, so this is not a finding
               about those bytes. If you have the BitGraph itself, check it offline.
             </div>
@@ -645,7 +642,7 @@ export default function ProofPage() {
           </>
         ) : (
           <>
-            <div style={{ fontSize: 16, color: "#f87171", marginBottom: 12 }}>{error || <>Could not read the ledger</>}</div>
+            <div style={{ fontSize: 16, color: "var(--err)", marginBottom: 12 }}>{error || <>Could not read the ledger</>}</div>
             <a href="/" style={{ fontSize: 14, color: "var(--c-accent)" }}>BitGraph</a>
           </>
         )}
@@ -736,7 +733,7 @@ export default function ProofPage() {
   // The actual time/date values are emphasized in brand blue (the connector
   // words stay default gray), so the receipt's key temporal fact reads as the
   // focal point, consistent with how counters/block numbers are highlighted.
-  const emStyle: React.CSSProperties = { color: "#111827", fontWeight: 600 };
+  const emStyle: React.CSSProperties = { color: "var(--ink)", fontWeight: 600 };
   const Em = ({ children }: { children: React.ReactNode }) => <span style={emStyle}>{children}</span>;
   if (isEth && ethBlockNum) {
     // An anchor is just a BitGraph (of an Ethereum block hash), so it reads
@@ -767,19 +764,18 @@ export default function ProofPage() {
       leadNode = <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>;
     }
   } else if (!isEth && lowerTime && upperTime) {
+    // "after <floor block time>" then "before <following anchor's block time>"
+    // (maintainer ruling 2026-09-16, see formatWindow above and CANON §22.13).
     const t1 = new Date(lowerTime), t2 = new Date(upperTime);
     if (t1.toDateString() === t2.toDateString()) {
-      // Each time-with-zone is an unbreakable unit, so on narrow screens the
-      // phrase wraps at the connector words instead of splitting "PM" from
-      // "EDT" mid-time.
-      recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}, then an anchor at ${timeTz(t2)} (not an upper bound)`;
-      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t1.toLocaleDateString()}</span></Em>, then an anchor at <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em> (not an upper bound)</>;
+      recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}, before ${timeTz(t2)}`;
+      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t1.toLocaleDateString()}</span></Em>, before <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em></>;
       recordedDate = longDate(t1);
-      leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
     } else {
-      recordedLine = `after ${stampTz(t1)}, then an anchor at ${stampTz(t2)} (not an upper bound)`;
-      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t1)}</span></Em>, then an anchor at <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t2)}</span></Em> (not an upper bound)</>;
+      recordedLine = `after ${stampTz(t1)}, before ${stampTz(t2)}`;
+      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t1)}</span></Em>, before <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t2)}</span></Em></>;
     }
+    leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
     recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}`;
@@ -806,10 +802,10 @@ export default function ProofPage() {
   // in black, kept as unbreakable units. A cross-midnight window carries full
   // date stamps, long enough to wrap at its connectors — fine for that rare case.
   let leadStack: React.ReactNode = null;
-  const conn = (label: string) => <span style={{ color: "#4b5563", fontWeight: 400 }}>{label}</span>;
-  const val = (t: string) => <span style={{ color: "#111827", fontWeight: 400, whiteSpace: "nowrap" }}>{t}</span>;
+  const conn = (label: string) => <span style={{ color: "var(--dim)", fontWeight: 400 }}>{label}</span>;
+  const val = (t: string) => <span style={{ color: "var(--ink)", fontWeight: 400, whiteSpace: "nowrap" }}>{t}</span>;
   const winLine = (children: React.ReactNode) => (
-    <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "#4b5563" }}>{children}</div>
+    <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "var(--dim)" }}>{children}</div>
   );
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
     // The block number lives in the "BitGraphed Ethereum Block" card below, so
@@ -819,14 +815,14 @@ export default function ProofPage() {
     leadStack = winLine(val(timeTz(d)));
   } else if (!isEth && lowerTime) {
     if (upperTime) {
+      // Two lines: "after <time>" and "before <time>" (2026-09-16 ruling).
       const s1 = new Date(lowerTime), s2 = new Date(upperTime);
       const sameDay = s1.toDateString() === s2.toDateString();
-      // "between X and Y" bounds the window ("between 12:00:59 AM and 12:01:11 AM
-      // EDT"). One shared zone per phrase, so the opening time drops the zone and
-      // the closing time carries it.
-      const fmtOpen = sameDay ? timeNoTz : stampNoTz;
-      const fmtClose = sameDay ? timeTz : stampTz;
-      leadStack = winLine(<>{conn("after ")}{val(fmtClose(s1))}{conn(", then an anchor at ")}{val(fmtClose(s2))}{conn(" (not an upper bound)")}</>);
+      const fmt = sameDay ? timeTz : stampTz;
+      // One line (Mike, 2026-09-16, settled after trying both: "back to one line
+      // for times i like how that looked"). Each time is an unbreakable unit,
+      // so on a phone the phrase wraps at ", before" and stacks by itself.
+      leadStack = winLine(<>{conn("after ")}{val(fmt(s1))}{conn(", before ")}{val(fmt(s2))}</>);
     } else if (ethWait) {
       const s1 = new Date(lowerTime);
       // Not sealed yet: the close time is unknown. Show the open time and a
@@ -855,7 +851,7 @@ export default function ProofPage() {
        counters elsewhere on the page. */
     <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 16px" }}>
       {recordedDate && (
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
           {recordedDate}
         </div>
       )}
@@ -1032,9 +1028,9 @@ export default function ProofPage() {
         if (Array.isArray(data.anchors) && data.anchors.length > 0) {
           files[name] = strToU8(JSON.stringify(data.anchors[0], null, 2));
           await addWitness(witnessName, data.anchors[0]);
-          // 2026-09-10: the anchor before is the floor; an anchor after is a
-          // later position in the order, never an upper bound.
-          return { state: "anchored", note: name.includes("before") ? "An Ethereum anchor is the floor of this position." : "An Ethereum anchor followed this position (not an upper bound)." };
+          // The anchor before is the floor in time; the anchor after is the
+          // ceiling in position (CANON §3.6, 2026-09-16).
+          return { state: "anchored", note: name.includes("before") ? "An Ethereum anchor is the floor of this position." : "An Ethereum anchor is the ceiling of this position: it sits after it in the order." };
         }
         const b = data.bound as { state?: string; note?: string } | undefined;
         if (!b?.state) {
@@ -1103,12 +1099,12 @@ export default function ProofPage() {
         /* Collapsible card header — the disclosure affordance is a single blue
            chevron that rotates down when open; the row tints on hover. */
         .bg-collapse-head { transition: background .12s; }
-        .bg-collapse-chev { color:#0065A4; transition: color .15s; }
+        .bg-collapse-chev { color:var(--accent); transition: color .15s; }
         @media (hover:hover) {
           /* Hover previews the open state: same tint the header band carries
              once the card is open, so hovering shows you where you are going. */
-          .bg-collapse-head:hover { background:rgba(0,101,164,0.07) !important; }
-          .bg-collapse-head:hover .bg-collapse-chev { color:#004b7a; }
+          .bg-collapse-head:hover { background:rgba(121,184,236,0.156) !important; }
+          .bg-collapse-head:hover .bg-collapse-chev { color:var(--accent-2); }
         }
         /* Face-ID-style success: a brand-blue ring sweeps closed, then the checkmark
            draws itself, the whole badge springs in and fades away. Plays once
@@ -1117,10 +1113,10 @@ export default function ProofPage() {
         @keyframes fidPop { 0%{transform:translate(-50%,-50%) scale(.6);opacity:0} 45%{opacity:1} 62%{transform:translate(-50%,-50%) scale(1.07)} 100%{transform:translate(-50%,-50%) scale(1);opacity:1} }
         @keyframes fidFade { to { opacity:0 } }
         @keyframes fidDraw { to { stroke-dashoffset:0 } }
-        .fid-scrim { position:fixed; inset:0; z-index:9998; pointer-events:none; background:rgba(245,245,245,.72); animation:fidScrim 1.5s ease-out forwards; }
+        .fid-scrim { position:fixed; inset:0; z-index:9998; pointer-events:none; background:rgba(28,27,25,.8); animation:fidScrim 1.5s ease-out forwards; }
         .fid-badge { position:fixed; top:44%; left:50%; z-index:9999; pointer-events:none; width:104px; height:104px; animation:fidPop .5s cubic-bezier(.2,.8,.3,1) forwards, fidFade .35s ease-out 1.15s forwards; }
-        .fid-ring { fill:none; stroke:#0065A4; stroke-width:6; stroke-linecap:round; stroke-dasharray:295; stroke-dashoffset:295; animation:fidDraw .5s ease-out .05s forwards; }
-        .fid-check { fill:none; stroke:#0065A4; stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:fidDraw .3s ease-out .46s forwards; }
+        .fid-ring { fill:none; stroke:var(--accent); stroke-width:6; stroke-linecap:round; stroke-dasharray:295; stroke-dashoffset:295; animation:fidDraw .5s ease-out .05s forwards; }
+        .fid-check { fill:none; stroke:var(--accent); stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:fidDraw .3s ease-out .46s forwards; }
         @media (prefers-reduced-motion: reduce) { .fid-badge, .fid-scrim, .fid-ring, .fid-check { animation-duration:.01ms !important; animation-delay:0s !important; } }
         .proof-fields > div:last-child { border-bottom: none !important; }
         /* Causal Positions rows: a stacked entry that reads the same at every
@@ -1132,8 +1128,8 @@ export default function ProofPage() {
         .causal-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .causal-label { font-size: 14px; font-weight: 700; white-space: nowrap; }
         .causal-action { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-        .causal-role { font-size: 13px; font-weight: 700; color: #111827; margin-top: 6px; }
-        .causal-window { font-size: 13px; color: #4b5563; line-height: 1.5; margin-top: 2px; }
+        .causal-role { font-size: 13px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+        .causal-window { font-size: 13px; color: var(--dim); line-height: 1.5; margin-top: 2px; }
         @media print {
         }
       `}</style>
@@ -1173,7 +1169,7 @@ export default function ProofPage() {
               anchor that still needs a standalone when-card is the rare Ethereum
               anchor with no etherscan title (no block card to hold it). */}
           {(isInterval || (isEth && !attr?.title)) && whenRow && (
-            <div style={{ background: "#fff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)" }}>
+            <div style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)" }}>
               {whenRow}
             </div>
           )}
@@ -1198,7 +1194,26 @@ export default function ProofPage() {
               BitGraph Record
             </div>
             <CollapsibleCard title="BitGraph Record" plain>
-              {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
+              {/* The "when" and the export share one box at the top of the card,
+                  as the Recorder puts its actions under its verdict (Mike,
+                  2026-09-16: "this button should share that box and say .zip"). */}
+              {whenRow && (
+                <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                  {whenRow}
+                  {/* The export rides on the right (Mike, 2026-09-16); on a phone
+                      it wraps under the when, see .bg-when-box in globals.css. */}
+                  <div className="bg-when-actions" style={{ padding: "14px 16px", marginLeft: "auto", textAlign: "right" }}>
+                    <button onClick={exportZip} disabled={exporting} className="bg-action-link" style={{ margin: 0 }}>
+                      <span>{exporting ? "Exporting…" : "Export BitGraph package (.zip)"}</span>
+                    </button>
+                    {!cachedFile && (
+                      <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4 }}>
+                        BitGraph only: the original file is not on this device
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
                 <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} />
               ) : cachedFile ? (
@@ -1215,20 +1230,7 @@ export default function ProofPage() {
                   the Hashes card for a fused artifact, which made one kind of
                   BitGraph look like a different kind of object. Both now put
                   every hash in the Hashes card below (Mike, 2026-09-07). */}
-              {/* Export — the card's own closing action, in its bottom box.
-                  Same link idiom as every other action on the page; it carries
-                  a touch more type weight because it is the primary one. */}
-              <div style={{ padding: "0 16px" }}>
-                <button onClick={exportZip} disabled={exporting} className="bg-action-link">
-                  <span>{exporting ? "Exporting…" : "Export BitGraph package"}</span>
-                  {!exporting && <span className="arrow" aria-hidden>&rarr;</span>}
-                </button>
-                {!cachedFile && (
-                  <div style={{ fontSize: 12.5, color: "#4b5563", paddingBottom: 6 }}>
-                    BitGraph only: the original file is not on this device
-                  </div>
-                )}
-              </div>
+              {/* The export moved up into the "when" box (2026-09-16). */}
             </CollapsibleCard>
             {/* A fused proof has two hashes, the new file's and the original's.
                 They sit in their own collapsed card under the receipt, like every
@@ -1275,7 +1277,7 @@ export default function ProofPage() {
                   <>
                     <Field label="Members" value={setBound.count.toLocaleString()} />
                     {setBound.root && <Field label="Set root" value={bytesToHex(setBound.root)} mono />}
-                    <div style={{ padding: "0 16px 12px", fontSize: 12.5, color: "#4b5563" }}>
+                    <div style={{ padding: "0 16px 12px", fontSize: 12.5, color: "var(--dim)" }}>
                       A member's row comes with the member: drop one of these files above.
                     </div>
                   </>
@@ -1284,11 +1286,11 @@ export default function ProofPage() {
                   const isHeld = viewingRow !== null && viewingRow.index === m.index;
                   const ordinal = setBound.kind === "set/2" ? m.index + 1 : i + 1;
                   return (
-                    <div key={m.index} className="causal-row" style={{ borderBottom: "1px solid #e2e5e9" }}>
+                    <div key={m.index} className="causal-row" style={{ borderBottom: "1px solid var(--line)" }}>
                       <div className="causal-top">
                         <span className="causal-label" style={{ color: "var(--c-accent)" }}>{ordinal} of {setBound.count}</span>
                         {isHeld ? (
-                          <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>
+                          <span className="causal-action" style={{ color: "var(--text)" }}>Viewing</span>
                         ) : (
                           <a
                             className="causal-action bg-arrow-link"
@@ -1359,7 +1361,7 @@ export default function ProofPage() {
               );
             })()}
             <CollapsibleCard title="BitGraphed Ethereum Block" plain>
-              {whenRow && <div style={{ borderBottom: "1px solid #e2e5e9" }}>{whenRow}</div>}
+              {whenRow && <div style={{ borderBottom: "1px solid var(--line)" }}>{whenRow}</div>}
               <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
               <Field label="Etherscan" value={attr.title} link />
             </CollapsibleCard>
@@ -1388,7 +1390,7 @@ export default function ProofPage() {
               proofs keep the old "only when more than one" behaviour. */}
           {((!isEth && !isInterval) ? positions.length >= 1 : positions.length > 1) && (
             <CollapsibleCard title={`Positions (${positions.length})`}>
-              <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9", fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
+              <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)", fontSize: 13, color: "var(--text)", lineHeight: 1.5 }}>
                 {(() => {
                   // One voice for every position: the original and the new file
                   // made from it find the same proof, so nothing here says which
@@ -1443,15 +1445,15 @@ export default function ProofPage() {
                 const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
                 const timesNode = t1 && t2
                   ? (sameDay
-                      ? <>{conn("after ")}{val(timeTz(t1))}{conn(", then an anchor at ")}{val(timeTz(t2))}{conn(" (not an upper bound)")}</>
-                      : <>{conn("after ")}{val(stampTz(t1))}{conn(", then an anchor at ")}{val(stampTz(t2))}{conn(" (not an upper bound)")}</>)
+                      ? <>{conn("after ")}{val(timeTz(t1))}{conn(", before ")}{val(timeTz(t2))}</>
+                      : <>{conn("after ")}{val(stampTz(t1))}{conn(", before ")}{val(stampTz(t2))}</>)
                   : (t1 ? <>{conn("after ")}{val(timeTz(t1))}</> : null);
                 return (
-                  <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid #e2e5e9" }}>
+                  <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid var(--line)" }}>
                     <div className="causal-top">
                       <span className="causal-label" style={{ color: "var(--c-accent)" }}>BitGraph <span style={{ fontFamily: mono }}>#{num}</span></span>
                       {isCurrent ? (
-                        <span className="causal-action" style={{ color: "#374151" }}>Viewing</span>
+                        <span className="causal-action" style={{ color: "var(--text)" }}>Viewing</span>
                       ) : (
                         <a
                           className="causal-action bg-arrow-link"
@@ -1480,7 +1482,7 @@ export default function ProofPage() {
               {!isEth && !isInterval && cachedFile && (
                 /* A column: side by side they collided, and they are two
                    choices about the same act rather than one sentence. */
-                <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
                   <BitGraphAgainButton proof={proof} cachedFile={cachedFile} />
                 </div>
               )}
@@ -1563,7 +1565,7 @@ export default function ProofPage() {
             {proof.environment?.measurement && <Field label="PCR0 Measurement" value={proof.environment.measurement} mono />}
             {proof.environment?.attestation?.format && <Field label="Attestation Format" value={proof.environment.attestation.format} />}
             {proof.environment?.attestation?.reportB64 && proof.environment?.measurement && (
-              <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e5e9" }}>
+              <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
                 <AttestationButton reportB64={proof.environment.attestation.reportB64} measurement={proof.environment.measurement} proof={proof} />
               </div>
             )}
@@ -1589,7 +1591,7 @@ export default function ProofPage() {
                 <Field label="Etherscan" value={causalWindow.anchorBefore.etherscanUrl} link />
               )}
               {causalWindow.anchorBefore.digestB64 && (
-                <div style={{ padding: "0 16px", borderBottom: "1px solid #e2e5e9" }}>
+                <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
                   <a
                     href={`/proof/${encodeURIComponent((causalWindow.anchorBefore.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
                     className="bg-action-link"
@@ -1606,7 +1608,7 @@ export default function ProofPage() {
               only the file proof's sealing "Before" anchor renders — an anchor
               is the bracket, so it has no before/after window of its own. */}
           {!isEth && causalWindow?.anchorAfter ? (
-            <CollapsibleCard title="An anchor followed this position (not an upper bound)">
+            <CollapsibleCard title={`Before anchor #${Number(causalWindow.anchorAfter.counter).toLocaleString()}`}>
               {causalWindow.anchorAfter.blockNumber !== null && (
                 <Field label="Block" value={`#${causalWindow.anchorAfter.blockNumber.toLocaleString()}`} highlight />
               )}
@@ -1617,7 +1619,7 @@ export default function ProofPage() {
                 <Field label="Etherscan" value={causalWindow.anchorAfter.etherscanUrl} link />
               )}
               {causalWindow.anchorAfter.digestB64 && (
-                <div style={{ padding: "0 16px", borderBottom: "1px solid #e2e5e9" }}>
+                <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
                   <a
                     href={`/proof/${encodeURIComponent((causalWindow.anchorAfter.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
                     className="bg-action-link"
@@ -1696,8 +1698,8 @@ function FreshRecordingWait() {
           other wait state and the success checkmark use, so the spinner never
           jumps between the drop flow's "BitGraphing…" and this. */}
       <div style={{ position: "fixed", top: "44%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "max-content", maxWidth: "92vw", animation: "fpIn 0.45s ease-out" }}>
-        <div role="status" aria-label="BitGraphing" style={{ width: 32, height: 32, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "fpSpin 0.8s linear infinite" }} />
-        <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>BitGraphing&hellip;</div>
+        <div role="status" aria-label="BitGraphing" style={{ width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "fpSpin 0.8s linear infinite" }} />
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>BitGraphing&hellip;</div>
       </div>
     </Shell>
   );
@@ -1716,13 +1718,13 @@ function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React
   const [open, setOpen] = useState(!!defaultOpen || !!plain);
   const headerStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
-    fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "#0065A4",
-    padding: "14px 16px", background: open ? "rgba(0,101,164,0.07)" : "#fff",
-    border: "none", borderBottom: open ? "1px solid #e2e5e9" : "none",
+    fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "var(--accent)",
+    padding: "14px 16px", background: open ? "rgba(121,184,236,0.156)" : "var(--panel)",
+    border: "none", borderBottom: open ? "1px solid var(--line)" : "none",
     textAlign: "left", fontFamily: "inherit",
   };
   return (
-    <div style={{ background: "#fff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
       {plain ? null : (
         /* The header is a full-row toggle with the same hover + outlined-button
            affordance as the explorer rows: the row tints on hover and the
@@ -1755,14 +1757,14 @@ function Field({ label, value, valueNode, mono: isMono, highlight, link, center,
       onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
       style={{
         display: "flex", flexDirection: "column", gap: 5,
-        padding: "14px 16px", borderBottom: "1px solid #e2e5e9", cursor: "pointer",
+        padding: "14px 16px", borderBottom: "1px solid var(--line)", cursor: "pointer",
         textAlign: center ? "center" : undefined,
         // Divider above the row, for when it follows non-field content (e.g. the
         // File Hash under the file image/dropzone, which has no bottom border).
-        ...(topBorder ? { borderTop: "1px solid #e2e5e9" } : {}),
+        ...(topBorder ? { borderTop: "1px solid var(--line)" } : {}),
       }}
     >
-      <span style={{ fontSize: 14, color: "#374151", fontWeight: 700 }}>{label}</span>
+      <span style={{ fontSize: 14, color: "var(--text)", fontWeight: 700 }}>{label}</span>
       {link ? (
         <a href={value} target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{
           fontSize: 13, color: "var(--c-accent)", textDecoration: "none", wordBreak: "break-all",
@@ -1771,7 +1773,7 @@ function Field({ label, value, valueNode, mono: isMono, highlight, link, center,
         <span style={{
           fontSize: isMono ? 12 : 14,
           fontFamily: isMono ? mono : "inherit",
-          color: copied ? "#0065A4" : highlight ? "var(--c-accent)" : "#1f2937",
+          color: copied ? "var(--accent)" : highlight ? "var(--c-accent)" : "var(--text)",
           fontWeight: highlight ? 700 : 400,
           transition: "color .2s", lineHeight: 1.6,
           // Mono values (hashes, keys, nonces) are long fixed-length strings:
@@ -1790,8 +1792,8 @@ function Field({ label, value, valueNode, mono: isMono, highlight, link, center,
 }
 
 const btnStyle: React.CSSProperties = {
-  padding: "8px 16px", fontSize: 13, fontWeight: 600, color: "#ffffff",
-  background: "#0065A4", border: "1px solid #0065A4", borderRadius: 0, cursor: "pointer",
+  padding: "8px 16px", fontSize: 13, fontWeight: 600, color: "var(--panel)",
+  background: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 0, cursor: "pointer",
 };
 
 /* ── BitGraph again — fuse the file in hand into a NEW artifact under a fresh
@@ -1830,7 +1832,7 @@ function BitGraphAgainButton({ proof, cachedFile }: { proof: BitGraphProof; cach
         {state !== "working" && <span className="arrow" aria-hidden>&rarr;</span>}
       </button>
       {state === "error" && (
-        <div style={{ fontSize: 12.5, color: "#dc2626", textAlign: "center" }}>{message}</div>
+        <div style={{ fontSize: 12.5, color: "var(--err)", textAlign: "center" }}>{message}</div>
       )}
     </>
   );
@@ -1848,8 +1850,8 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
         {copied && (
           <span style={{
             position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 50,
-            padding: "10px 22px", fontSize: 14, fontWeight: 700, color: "#fff",
-            background: "#0065A4", borderRadius: 0, pointerEvents: "none",
+            padding: "10px 22px", fontSize: 14, fontWeight: 700, color: "var(--panel)",
+            background: "var(--accent)", borderRadius: 0, pointerEvents: "none",
             boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
           }}>
             Copied!
@@ -1860,11 +1862,11 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
           style={{
             fontSize: 12,
             lineHeight: 1.6,
-            color: "#374151",
+            color: "var(--text)",
             padding: 14,
             margin: 0,
-            background: "#f9fafb",
-            border: "1px solid #e5e7eb",
+            background: "var(--panel)",
+            border: "1px solid var(--line)",
             whiteSpace: "pre-wrap",
             wordBreak: "break-all",
             fontFamily: mono,
@@ -2092,7 +2094,7 @@ function BringYourFile({
   // without spending the hover signal: blue stays the thing that means
   // "interactive", and the fill on top of it means "release here". Starting
   // blue would collapse rest and hover into one rung.
-  const edge = mismatch ? "#dc2626" : dragOver || hover ? "#0065A4" : "#b3bac2";
+  const edge = mismatch ? "var(--err)" : dragOver || hover ? "var(--accent)" : "var(--faint)";
   return (
     <div
       onClick={() => inputRef.current?.click()}
@@ -2111,7 +2113,7 @@ function BringYourFile({
       ref={edges.ref}
       className="bg-frame"
       style={{
-        backgroundColor: dragOver ? "#f0f6ff" : "#fff",
+        backgroundColor: dragOver ? "var(--tint)" : "var(--panel)",
         ...edges.edgeStyle(edge),
         // Width rides on .bg-frame (globals) like every drop box, but the
         // height does not: this page is a receipt, not the camera, so the
@@ -2133,7 +2135,7 @@ function BringYourFile({
     >
       <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
       {state === "reading" ? (
-        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
+        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "var(--dim)" }}>
           {readCount > 0
             /* Not "your folder": a drop may be several folders at once, and
                the walk handles that, so the singular was quietly wrong every
@@ -2143,7 +2145,7 @@ function BringYourFile({
             : "Reading…"}
         </div>
       ) : state === "checking" ? (
-        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
+        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "var(--dim)" }}>
           {progress.total > 1
             ? `Searching… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`
             : "Searching…"}
@@ -2154,19 +2156,19 @@ function BringYourFile({
            which file belongs here. It is a second phase with its own count,
            and saying nothing during it is what made a finished search look
            like a hung one. */
-        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "#4b5563" }}>
+        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "var(--dim)" }}>
           {progress.total > 1
             ? <>{`Matching members… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`}</>
             : <>Matching members…</>}
         </div>
       ) : mismatch ? (
         <>
-          <div style={{ fontSize: "clamp(16px, 4vw, 19px)", fontWeight: 700, color: "#dc2626", textWrap: "balance" }}>
+          <div style={{ fontSize: "clamp(16px, 4vw, 19px)", fontWeight: 700, color: "var(--err)", textWrap: "balance" }}>
             {checkedCount > 1
               ? `No match. None of the ${checkedCount.toLocaleString()} files you dropped are this file.`
               : "No match. Those are not the bytes this BitGraph describes."}
           </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 8, lineHeight: 1.5, maxWidth: 460, textWrap: "balance" }}>
+          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "var(--text)", marginTop: 8, lineHeight: 1.5, maxWidth: 460, textWrap: "balance" }}>
             Changing a single bit changes the hash completely, so an edited or re-saved copy will never match. Drop the original to try again.
           </div>
         </>
@@ -2196,13 +2198,13 @@ function BringYourFile({
               or pads one side would break it. */}
           {/* Black at rest, brand blue on hover, off the same state the
               dashed edges use, so title and frame light up together. */}
-          <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: hover ? "#0065A4" : "#111827", transition: "color .2s", letterSpacing: "-0.01em", textWrap: "balance" }}>
+          <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: hover ? "var(--accent)" : "var(--ink)", transition: "color .2s", letterSpacing: "-0.01em", textWrap: "balance" }}>
             Find this file on your device
           </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#374151", marginTop: 12, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
+          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "var(--text)", marginTop: 12, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
             Choose files, or drag in a whole folder. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
           </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "#4b5563", marginTop: 6, textWrap: "balance" }}>
+          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "var(--dim)", marginTop: 6, textWrap: "balance" }}>
             Nothing is uploaded. The search runs in your browser.
           </div>
           {/* ⚠️ No "choose a folder" link here either, in any browser: every
@@ -2375,8 +2377,8 @@ function PhotoCard({
   return (
     <div
       style={{
-        background: "#ffffff",
-        border: bare ? "none" : "1px solid #d0d5dd",
+        background: "var(--panel)",
+        border: bare ? "none" : "1px solid var(--line)",
         borderRadius: 0,
       }}
     >
@@ -2402,8 +2404,8 @@ function PhotoCard({
              label), so a slow decode is a decode in progress and not a blank
              card. Tall enough to hold the slot's shape while it works. */
           <div role="status" aria-label="Preparing preview" style={{ minHeight: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
-            <div style={{ width: 32, height: 32, border: "3px solid #e2e5e9", borderTopColor: "#0065A4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#111827", letterSpacing: "-0.01em" }}>Preparing preview…</div>
+            <div style={{ width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>Preparing preview…</div>
           </div>
         )}
       </div>
@@ -2412,14 +2414,14 @@ function PhotoCard({
           full resolution in a new tab. Only when the artifact bytes are in hand
           (a C2PA-thumbnail-only preview has no full file to name or open). */}
       {cachedFile && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid #eef0f1" }}>
-          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "#4b5563" }}>
-            <span style={{ fontWeight: 600, color: "#111827" }}>{cachedFile.name}</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid var(--line-2)" }}>
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
+            <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
             {" · "}{fmtBytes(cachedFile.data.byteLength)}
           </span>
           {openUrl && (
-            <a href={openUrl} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-              Open <span className="arrow" aria-hidden>&rarr;</span>
+            <a href={openUrl} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+              Open
             </a>
           )}
         </div>
@@ -2533,9 +2535,9 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
   const openable = kind === "text" || kind === "pdf";
   const hasPreviewAbove = kind === "text" || kind === "video" || kind === "audio" || (kind === "docx" && !!docx);
   return (
-    <div style={{ background: "#ffffff" }}>
+    <div style={{ background: "var(--panel)" }}>
       {kind === "text" && excerpt && (
-        <pre style={{ margin: 0, padding: 16, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12.5, lineHeight: 1.6, color: "#374151", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
+        <pre style={{ margin: 0, padding: 16, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12.5, lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
           {excerpt.text}{excerpt.truncated ? "\n…" : ""}
         </pre>
       )}
@@ -2546,10 +2548,10 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
           costs one quiet line and makes the preview honest. */}
       {kind === "docx" && docx && (
         <div style={{ padding: "14px 16px 16px" }}>
-          <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "#6b7280", marginBottom: 8 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--dim)", marginBottom: 8 }}>
             Text from this document
           </div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: "#374151", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
+          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
             {docx.split("\n").slice(0, 24).join("\n").slice(0, 3000)}
             {docx.length > 3000 || docx.split("\n").length > 24 ? "\n…" : ""}
           </div>
@@ -2570,14 +2572,14 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
       {/* The identity row every kind closes with. For formats with no inline
           rendering it is the whole display: the file's name and size, held by
           the receipt — the hash below is the part that matters. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: hasPreviewAbove ? "1px solid #eef0f1" : "none" }}>
-        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "#4b5563" }}>
-          <span style={{ fontWeight: 600, color: "#111827" }}>{cachedFile.name}</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: hasPreviewAbove ? "1px solid var(--line-2)" : "none" }}>
+        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
+          <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
           {" · "}{fmtBytes(cachedFile.data.byteLength)}
         </span>
         {openable && url && (
-          <a href={url} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-            Open <span className="arrow" aria-hidden>&rarr;</span>
+          <a href={url} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+            Open
           </a>
         )}
       </div>
@@ -2657,7 +2659,7 @@ function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
         />
       ))}
       {isOpenAI && (
-        <div style={{ padding: "0 16px", borderBottom: "1px solid #e2e5e9" }}>
+        <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
           <a href="https://openai.com/research/verify/" target="_blank" rel="noopener" className="bg-action-link">
             <span>Verify with OpenAI</span>
             <span className="arrow" aria-hidden>&rarr;</span>
@@ -2853,12 +2855,12 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
       onClick={() => setOpen(false)}
     >
       <div
-        style={{ width: "100%", maxWidth: 920, maxHeight: "85vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "var(--radius-card)", border: "1px solid var(--hair)", boxShadow: "var(--shadow-menu)", overflow: "hidden" }}
+        style={{ width: "100%", maxWidth: 920, maxHeight: "85vh", display: "flex", flexDirection: "column", background: "var(--panel)", borderRadius: "var(--radius-card)", border: "1px solid var(--hair)", boxShadow: "var(--shadow-menu)", overflow: "hidden" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #e5e7eb" }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: "#111827" }}>AWS Nitro attestation</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--line)" }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>AWS Nitro attestation</span>
           {/* RESTYLE 2026-09-11: the app's pill, like every action. */}
           <button type="button" onClick={() => setOpen(false)} className="bg-action-link" style={{ margin: 0, padding: "7px 16px", fontSize: 14 }}>Close</button>
         </div>
@@ -2866,7 +2868,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
         {/* Body */}
         <div style={{ flex: 1, overflow: "auto", padding: "18px 20px" }}>
           {running && (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "#4b5563", fontSize: 14 }}>
+            <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--dim)", fontSize: 14 }}>
               Verifying signature, certificate chain, and PCR0…
             </div>
           )}
@@ -2876,13 +2878,13 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               {/* Overall status */}
               <div style={{
                 padding: "14px 18px", marginBottom: 16, borderRadius: "var(--radius-row)",
-                background: result.valid ? "#f0f6ff" : "#fef2f2",
-                border: `1px solid ${result.valid ? "#bfdbfe" : "#fecaca"}`,
+                background: result.valid ? "var(--tint)" : "var(--err-tint)",
+                border: `1px solid ${result.valid ? "var(--tint)" : "var(--err-tint)"}`,
               }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: result.valid ? "#0065A4" : "#dc2626" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: result.valid ? "var(--accent)" : "var(--err)" }}>
                   {result.valid ? "Attestation Verified" : "Verification Failed"}
                 </div>
-                <div style={{ fontSize: 12, color: "#4b5563", marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: "var(--dim)", marginTop: 4 }}>
                   {result.valid
                     ? "All checks passed. This BitGraph was signed inside an AWS Nitro Enclave with the displayed PCR0."
                     : "One or more verification steps failed. See details below."}
@@ -2892,11 +2894,11 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               {/* Checks */}
               <div style={{ marginBottom: 18 }}>
                 {result.checks.map((c, i) => (
-                  <div key={i} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: i < result.checks.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-                    <span style={{ fontSize: 16, color: c.pass ? "#0065A4" : "#dc2626", flexShrink: 0 }}>{c.pass ? "✓" : "✗"}</span>
+                  <div key={i} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: i < result.checks.length - 1 ? "1px solid var(--panel)" : "none" }}>
+                    <span style={{ fontSize: 16, color: c.pass ? "var(--accent)" : "var(--err)", flexShrink: 0 }}>{c.pass ? "✓" : "✗"}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: "#4b5563", marginTop: 2, wordBreak: "break-all" }}>{c.detail}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{c.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--dim)", marginTop: 2, wordBreak: "break-all" }}>{c.detail}</div>
                     </div>
                   </div>
                 ))}
@@ -2904,21 +2906,21 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
 
               {/* Decoded fields */}
               {(result.moduleId || result.timestamp || result.certChainLength) && (
-                <div style={{ marginBottom: 18, padding: "14px 18px", background: "#f9fafb", borderRadius: "var(--radius-row)", border: "1px solid #e5e7eb" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Decoded from Attestation Document</div>
+                <div style={{ marginBottom: 18, padding: "14px 18px", background: "var(--panel)", borderRadius: "var(--radius-row)", border: "1px solid var(--line)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Decoded from Attestation Document</div>
                   {result.moduleId && (
-                    <div style={{ fontSize: 12, color: "#374151", marginBottom: 4, wordBreak: "break-all" }}>
-                      <span style={{ color: "#4b5563" }}>Module ID: </span>{result.moduleId}
+                    <div style={{ fontSize: 12, color: "var(--text)", marginBottom: 4, wordBreak: "break-all" }}>
+                      <span style={{ color: "var(--dim)" }}>Module ID: </span>{result.moduleId}
                     </div>
                   )}
                   {result.timestamp && (
-                    <div style={{ fontSize: 12, color: "#374151", marginBottom: 4 }}>
-                      <span style={{ color: "#4b5563" }}>Timestamp: </span>{stampTz(new Date(result.timestamp))}
+                    <div style={{ fontSize: 12, color: "var(--text)", marginBottom: 4 }}>
+                      <span style={{ color: "var(--dim)" }}>Timestamp: </span>{stampTz(new Date(result.timestamp))}
                     </div>
                   )}
                   {result.certChainLength && (
-                    <div style={{ fontSize: 12, color: "#374151" }}>
-                      <span style={{ color: "#4b5563" }}>Certificate Chain: </span>{result.certChainLength} certificates
+                    <div style={{ fontSize: 12, color: "var(--text)" }}>
+                      <span style={{ color: "var(--dim)" }}>Certificate Chain: </span>{result.certChainLength} certificates
                     </div>
                   )}
                 </div>
@@ -2927,21 +2929,21 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               {/* Other PCRs */}
               {Object.keys(result.pcrs).length > 1 && (
                 <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Other Active PCRs</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Other Active PCRs</div>
                   {Object.entries(result.pcrs)
                     .filter(([idx]) => idx !== "0")
                     .map(([idx, hex]) => (
-                      <div key={idx} style={{ fontSize: 11, fontFamily: mono, color: "#4b5563", marginBottom: 4, wordBreak: "break-all" }}>
-                        <span style={{ color: "#4b5563" }}>PCR{idx}: </span>{hex}
+                      <div key={idx} style={{ fontSize: 11, fontFamily: mono, color: "var(--dim)", marginBottom: 4, wordBreak: "break-all" }}>
+                        <span style={{ color: "var(--dim)" }}>PCR{idx}: </span>{hex}
                       </div>
                     ))}
                 </div>
               )}
 
               {/* Reproducible build */}
-              <div style={{ padding: "14px 18px", background: "rgba(0,101,164,0.07)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: "var(--radius-row)", marginBottom: 12 }}>
+              <div style={{ padding: "14px 18px", background: "rgba(121,184,236,0.156)", border: "1px solid rgba(121,184,236,0.3)", borderRadius: "var(--radius-row)", marginBottom: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-accent)", marginBottom: 6 }}>What PCR0 proves</div>
-                <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5, marginBottom: 8 }}>
+                <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.5, marginBottom: 8 }}>
                   PCR0 is the SHA-384 hash of the exact enclave image that signed this BitGraph, shown above. The enclave source is published and the measurement is reproducible: you can rebuild it on any linux/amd64 host and re-derive this exact PCR0 yourself. You do not have to take BitGraph at its word for what runs inside the boundary.
                 </div>
                 <a href="/docs/self-host-tee" target="_blank" rel="noopener" style={{ fontSize: 12, fontWeight: 600, color: "var(--c-accent)", textDecoration: "none" }}>
@@ -2950,9 +2952,9 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               </div>
 
               {/* Raw report */}
-              <div style={{ padding: "12px 16px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "var(--radius-row)" }}>
+              <div style={{ padding: "12px 16px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-row)" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.06em" }}>Raw Attestation Report</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Raw Attestation Report</div>
                   <button
                     onClick={() => { navigator.clipboard.writeText(reportB64); setCopiedReport(true); setTimeout(() => setCopiedReport(false), 1500); }}
                     style={{ fontSize: 11, fontWeight: 600, color: "var(--c-accent)", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
@@ -2960,7 +2962,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
                     {copiedReport ? "Copied!" : "Copy"}
                   </button>
                 </div>
-                <div style={{ fontSize: 10, fontFamily: mono, color: "#4b5563", wordBreak: "break-all", maxHeight: 60, overflow: "hidden" }}>
+                <div style={{ fontSize: 10, fontFamily: mono, color: "var(--dim)", wordBreak: "break-all", maxHeight: 60, overflow: "hidden" }}>
                   {reportB64.slice(0, 200)}...
                 </div>
               </div>

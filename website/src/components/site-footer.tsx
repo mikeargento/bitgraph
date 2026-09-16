@@ -25,7 +25,7 @@ const links: Array<{ href: string; label: string }> = [
   { href: "/contact", label: "Contact" },
 ];
 
-const linkStyle: React.CSSProperties = { color: "#0065A4", textDecoration: "none" };
+const linkStyle: React.CSSProperties = { color: "var(--accent)", textDecoration: "none" };
 
 export function SiteFooter() {
   // Computed at render, never hardcoded.
@@ -37,7 +37,7 @@ export function SiteFooter() {
         background: "var(--bar)",
         fontSize: 13,
         lineHeight: 1.8,
-        color: "#4b5563",
+        color: "var(--dim)",
       }}
     >
       <div className="bg-footer-inner">

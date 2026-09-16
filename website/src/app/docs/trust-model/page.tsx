@@ -11,8 +11,8 @@ export default function TrustModelPage() {
     <article className="prose-doc">
       <h1 className="mb-6">Trust Model</h1>
 
-      <div className="border-l-2 border-l-[#d0d5dd] pl-6 mb-8">
-        <p className="text-sm text-[#111827] italic leading-relaxed">
+      <div className="border-l-2 border-l-[color:var(--line)] pl-6 mb-8">
+        <p className="text-sm text-[color:var(--ink)] italic leading-relaxed">
           BitGraph guarantees single-successor semantics within the verifier-accepted
           measurement and monotonicity domain of the enforcing boundary.
         </p>
@@ -27,7 +27,7 @@ export default function TrustModelPage() {
           observed both branches (verifyEpochLink keeps its single-successor
           registry in memory, per process). Saying so here costs nothing and
           keeps the page from claiming more than the code does. */}
-      <p className="text-base text-[#4b5563] leading-relaxed mb-8">
+      <p className="text-base text-[color:var(--dim)] leading-relaxed mb-8">
         Read precisely: the boundary <em>enforces</em> this within an epoch, and a
         fork across epochs is <em>detected</em> rather than prevented. Detection
         requires a verifier that has observed both branches, so an auditor holding
@@ -38,33 +38,33 @@ export default function TrustModelPage() {
       <div className="overflow-x-auto mb-8">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#e5e7eb]">
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Assumption</th>
-              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[#4b5563]">If it fails</th>
+            <tr className="border-b border-[color:var(--line)]">
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Assumption</th>
+              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">If it fails</th>
             </tr>
           </thead>
-          <tbody className="text-[#1f2937]">
-            <tr className="border-b border-[#e5e7eb]">
+          <tbody className="text-[color:var(--text)]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Boundary isolation - TEE prevents external key access</td>
               <td className="py-2">All guarantees collapse</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Key secrecy - Ed25519 private key never leaves boundary</td>
               <td className="py-2">Proof forgery becomes possible</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Nonce freshness - ≥128 bits, never reused</td>
               <td className="py-2">Replay within a session</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Honest measurement - hardware correctly measures enclave</td>
               <td className="py-2">Delegated to TEE vendor</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Monotonic counter within an epoch - never repeats or moves backward while the enclave runs</td>
               <td className="py-2">Positions inside one epoch become ambiguous</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Causal slot integrity - slot allocated before the artifact hash reached the enclave</td>
               <td className="py-2">Without pre-allocation, commit order could be forged</td>
             </tr>
@@ -76,10 +76,10 @@ export default function TrustModelPage() {
         </table>
       </div>
 
-      <div className="border border-[#d0d5dd] p-4 mb-8 text-sm text-[#374151] leading-relaxed">
-        <span className="font-semibold text-[#0065A4]">Honest measurement is verifiable, not just assumed.</span>{" "}
+      <div className="border border-[color:var(--line)] p-4 mb-8 text-sm text-[color:var(--text)] leading-relaxed">
+        <span className="font-semibold text-[color:var(--accent)]">Honest measurement is verifiable, not just assumed.</span>{" "}
         The enclave build is bit-for-bit reproducible: rebuild it from source on any linux/amd64 host and you re-derive the exact PCR0 the production enclave reports. You confirm yourself that the measurement corresponds to the published source, trusting no one, so the only part delegated to the TEE vendor is the hardware honestly reporting that measurement (and AWS&apos;s signed kernel, which PCR1 measures independently).{" "}
-        <a href="/docs/self-host-tee" className="text-[#0065A4] font-medium no-underline whitespace-nowrap">Rebuild and verify the PCR0 &rarr;</a>
+        <a href="/docs/self-host-tee" className="text-[color:var(--accent)] font-medium no-underline whitespace-nowrap">Rebuild and verify the PCR0 &rarr;</a>
       </div>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Threat model</h2>
@@ -96,15 +96,15 @@ export default function TrustModelPage() {
           { threat: "Retroactive forgery after compromise", mitigation: "Per-epoch keypair destroyed on restart + anchors hash-link prior history, fixing pre-anchor proofs against rewrite" },
           { threat: "Cross-epoch identity confusion", mitigation: "`epochId` binds every proof to a specific compartment; verifiers pin the epoch's public key" },
         ].map((t) => (
-          <div key={t.threat} className="flex gap-4 border-l-2 border-l-[#d0d5dd] pl-4 py-1">
-            <div className="text-sm font-medium text-[#111827] shrink-0 w-44">{t.threat}</div>
-            <div className="text-sm text-[#1f2937]">{renderInline(t.mitigation)}</div>
+          <div key={t.threat} className="flex gap-4 border-l-2 border-l-[color:var(--line)] pl-4 py-1">
+            <div className="text-sm font-medium text-[color:var(--ink)] shrink-0 w-44">{t.threat}</div>
+            <div className="text-sm text-[color:var(--text)]">{renderInline(t.mitigation)}</div>
           </div>
         ))}
       </div>
 
       <h3 className="text-base font-semibold mt-6 mb-3">Out-of-scope threats</h3>
-      <ul className="space-y-2 mb-8 text-sm text-[#1f2937]">
+      <ul className="space-y-2 mb-8 text-sm text-[color:var(--text)]">
         <li>• Signing key exfiltration - assumes boundary is secure</li>
         <li>• TEE firmware vulnerability - delegated to hardware vendor</li>
         <li>• Weak verifier policy - caller responsibility</li>
@@ -112,7 +112,7 @@ export default function TrustModelPage() {
       </ul>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Ethereum anchors</h2>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         BitGraph writes nothing to a
         blockchain, but it uses Ethereum as an external public timeline: since
         enclave v8 every slot on the anchored chain carries the latest Ethereum
@@ -124,7 +124,7 @@ export default function TrustModelPage() {
         the block it references: nothing about any individual user or file.
         Nothing is written to Ethereum.
       </p>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         Each anchor is itself a BitGraph proof signed by the enclave, so it
         participates in the same counter chain as the user proofs that came
         before it. Its artifact is the hash of a recent Ethereum block, a
@@ -138,7 +138,7 @@ export default function TrustModelPage() {
         the anchors and holders keep their proofs, so it is a reader holding
         the proofs between two anchors who checks that the chain is unbroken.
       </p>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         This is the mechanism behind the phrase &quot;everything before me already
         existed.&quot; An anchor fixes backward, not forward. It does not prove
         when individual proofs were created, only that they preceded the
@@ -152,7 +152,7 @@ export default function TrustModelPage() {
         finalized before the slot, and the slot follows the block named by
         the anchor before it.
       </p>
-      <p className="text-[#1f2937] leading-relaxed mb-8">
+      <p className="text-[color:var(--text)] leading-relaxed mb-8">
         Anchors are public, but they reveal no user-identifying information.
         A verifier
         can confirm the block an anchor names on Ethereum and use its date as a
@@ -162,15 +162,15 @@ export default function TrustModelPage() {
       </p>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Epoch isolation: blast-radius containment</h2>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         BitGraph&apos;s strongest containment property is structural, not behavioral.
         Each restart of the enclave generates a new Ed25519 keypair inside the
-        boundary, derives a new <code className="text-xs font-mono bg-[#dbeafe] text-[#0065A4] px-1.5 py-0.5">epochId</code> from
+        boundary, derives a new <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">epochId</code> from
         fresh hardware entropy, and resets the monotonic counter. This means
         every epoch is a closed compartment, identified by a key that exists
         nowhere else in the world.
       </p>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         The consequence: a compromise can only forge proofs that carry the
         live epoch&apos;s public key. It cannot retroactively produce valid proofs
         under any prior epoch&apos;s key, because that key was destroyed when its
@@ -178,7 +178,7 @@ export default function TrustModelPage() {
         place. Past proofs remain verifiable because their signatures bind to
         a public key that no surviving system can sign with.
       </p>
-      <p className="text-[#1f2937] leading-relaxed mb-4">
+      <p className="text-[color:var(--text)] leading-relaxed mb-4">
         Ethereum anchors tighten this further. The same TEE periodically
         commits the hash of a recent Ethereum block into the epoch&apos;s counter
         chain. Each anchor is hash-linked to every proof before it, so once an
@@ -188,7 +188,7 @@ export default function TrustModelPage() {
         breach window is therefore bounded on one side by the epoch boundary
         and on the other side by the most recent anchor that preceded it.
       </p>
-      <p className="text-[#1f2937] leading-relaxed mb-6">
+      <p className="text-[color:var(--text)] leading-relaxed mb-6">
         Restarting the TEE is not just operational hygiene. It is a deliberate
         containment action. Each restart closes one compartment and opens a
         fresh one, so any undetected compromise is quarantined to the bounded
@@ -200,21 +200,21 @@ export default function TrustModelPage() {
       <div className="overflow-x-auto mb-8">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#e5e7eb]">
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[#4b5563]">Containment property</th>
-              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[#4b5563]">What it bounds</th>
+            <tr className="border-b border-[color:var(--line)]">
+              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Containment property</th>
+              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">What it bounds</th>
             </tr>
           </thead>
-          <tbody className="text-[#1f2937]">
-            <tr className="border-b border-[#e5e7eb]">
+          <tbody className="text-[color:var(--text)]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Per-epoch keypair</td>
               <td className="py-2">A compromise of one epoch cannot sign as another epoch</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Key destroyed on restart</td>
               <td className="py-2">No surviving artifact can produce a valid signature under a closed epoch</td>
             </tr>
-            <tr className="border-b border-[#e5e7eb]">
+            <tr className="border-b border-[color:var(--line)]">
               <td className="py-2 pr-4">Ethereum anchors</td>
               <td className="py-2">Pre-anchor proofs are hash-linked into the anchor, fixed against retroactive rewrite</td>
             </tr>
@@ -227,7 +227,7 @@ export default function TrustModelPage() {
       </div>
 
       <h2 className="text-xl font-semibold mt-12 mb-4">Non-goals</h2>
-      <ul className="space-y-2 mb-8 text-sm text-[#1f2937]">
+      <ul className="space-y-2 mb-8 text-sm text-[color:var(--text)]">
         <li>• <strong className="text-text">Global ordering from the counter alone</strong> - every TEE instance and every new epoch resets the counter to 1, so the counter by itself only orders proofs within a single epoch. Ordering relative to the outside world is established by Ethereum anchors: each anchor records the hash of a recent block, so everything chained after it provably follows that block&apos;s public date: across epochs, across TEE instances, and against any other event that can be placed on the same public timeline.</li>
         <li>• <strong className="text-text">Cross-boundary double-spend</strong> - same artifact can be submitted to separate boundaries</li>
         <li>• <strong className="text-text">Copy prevention</strong> - BitGraph does not prevent raw byte copying</li>

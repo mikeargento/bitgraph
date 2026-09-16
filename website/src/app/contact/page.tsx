@@ -48,17 +48,17 @@ export default function ContactPage() {
      the nav, the action links, the menu card. A form left at borderRadius 0
      is the last square thing a visitor touches. 10px, not the card's 14:
      these sit at 46px tall and the card radius reads as a lozenge at that
-     height. The border stays #d0d5dd, which is .bg-action-link's border, so
+     height. The border stays var(--line), which is .bg-action-link's border, so
      the fields and the button they sit above are the same weight of line;
-     --hair (#e5e7eb) is for dividers, not for things you click. */
+     --hair (var(--line)) is for dividers, not for things you click. */
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "12px 14px",
-    background: "#ffffff",
-    border: "1px solid #d0d5dd",
+    background: "var(--panel)",
+    border: "1px solid var(--line)",
     borderRadius: 10,
     fontSize: 15,
-    color: "#111827",
+    color: "var(--ink)",
     fontFamily: "inherit",
     outline: "none",
     transition: "border-color 0.15s",
@@ -68,7 +68,7 @@ export default function ContactPage() {
     display: "block",
     fontSize: 13,
     fontWeight: 500,
-    color: "#374151",
+    color: "var(--text)",
     marginBottom: 6,
   };
 
@@ -98,14 +98,14 @@ export default function ContactPage() {
           three reasons to write, which quietly tells anyone with a fourth
           that they are in the wrong place. The h1 says Contact; the page
           does not need to list what contact is for. */}
-      <p style={{ fontSize: 16, lineHeight: 1.6, color: "#1f2937", margin: "0 0 8px" }}>
-        Fill out and submit the form below, or email <a href="mailto:mike@bitgraph.ing" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>mike@bitgraph.ing</a>.
+      <p style={{ fontSize: 16, lineHeight: 1.6, color: "var(--text)", margin: "0 0 8px" }}>
+        Fill out and submit the form below, or email <a href="mailto:mike@bitgraph.ing" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>mike@bitgraph.ing</a>.
       </p>
       <div style={{ height: 20 }} />
       {status === "sent" ? (
         <div
           style={{
-            background: "#ffffff",
+            background: "var(--panel)",
             border: "1px solid var(--hair)",
             borderRadius: "var(--radius-card)",
             padding: "32px 28px",
@@ -116,13 +116,13 @@ export default function ContactPage() {
             style={{
               fontSize: 18,
               fontWeight: 600,
-              color: "#111827",
+              color: "var(--ink)",
               marginBottom: 8,
             }}
           >
             Message sent.
           </div>
-          <div style={{ fontSize: 14, color: "#6b7280" }}>
+          <div style={{ fontSize: 14, color: "var(--dim)" }}>
             Thanks for reaching out. You&apos;ll hear back at the email you
             provided.
           </div>
@@ -168,8 +168,8 @@ export default function ContactPage() {
                 onChange={(e) => setName(e.target.value)}
                 maxLength={200}
                 style={inputStyle}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "#0065A4")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#d0d5dd")}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--line)")}
               />
             </div>
 
@@ -185,8 +185,8 @@ export default function ContactPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 maxLength={254}
                 style={inputStyle}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "#0065A4")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#d0d5dd")}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--line)")}
               />
             </div>
 
@@ -195,7 +195,7 @@ export default function ContactPage() {
                 than a headline the message's first line already carries. */}
             <div>
               <label htmlFor="contact-company" style={labelStyle}>
-                Company <span style={{ color: "#6b7280", fontWeight: 400 }}>(optional)</span>
+                Company <span style={{ color: "var(--dim)", fontWeight: 400 }}>(optional)</span>
               </label>
               <input
                 id="contact-company"
@@ -204,8 +204,8 @@ export default function ContactPage() {
                 onChange={(e) => setCompany(e.target.value)}
                 maxLength={200}
                 style={inputStyle}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "#0065A4")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#d0d5dd")}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--line)")}
               />
             </div>
 
@@ -227,13 +227,13 @@ export default function ContactPage() {
                   minHeight: 140,
                   lineHeight: 1.55,
                 }}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "#0065A4")}
-                onBlur={(e) => (e.currentTarget.style.borderColor = "#d0d5dd")}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
+                onBlur={(e) => (e.currentTarget.style.borderColor = "var(--line)")}
               />
               <div
                 style={{
                   fontSize: 12,
-                  color: "#6b7280",
+                  color: "var(--dim)",
                   marginTop: 6,
                   textAlign: "right",
                 }}
@@ -245,12 +245,12 @@ export default function ContactPage() {
             {status === "error" && (
               <div
                 style={{
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
+                  background: "var(--err-tint)",
+                  border: "1px solid var(--err-tint)",
                   borderRadius: 10,
                   padding: "10px 14px",
                   fontSize: 13,
-                  color: "#991b1b",
+                  color: "var(--err)",
                 }}
               >
                 {errorMsg}

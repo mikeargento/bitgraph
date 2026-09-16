@@ -31,32 +31,35 @@ export const metadata: Metadata = {
    One declaration per text role, so the page carries a single body signature
    and the ladder stays visible in one place: h2 22, h3 18, body 16
    (project type ladder). Margins are per-use. */
-const pStyle: CSSProperties = { fontSize: 16, lineHeight: 1.75, color: "#1f2937", maxWidth: "var(--measure)" };
+const pStyle: CSSProperties = { fontSize: 16, lineHeight: 1.75, color: "var(--text)", maxWidth: "var(--measure)" };
 const h2Style: CSSProperties = {
-  fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: "0 0 12px",
+  fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--ink)", margin: "0 0 12px",
 };
 const h3Style: CSSProperties = {
-  fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "#111827", margin: 0,
+  fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--ink)", margin: 0,
 };
 /* The examples line under each environment: italic, sentence case, a step
    under body (Mike, 2026-09-10: "these type headings should be italic text
    to distinguish"). It read as a tracked uppercase kicker for one evening. */
 const kickerStyle: CSSProperties = {
   fontSize: 15, fontStyle: "italic", lineHeight: 1.6,
-  color: "#4b5563", margin: "6px 0 12px", maxWidth: "var(--measure)" };
-const strongStyle: CSSProperties = { color: "#111827", fontWeight: 700 };
-/* The seam: the same 1px #e5e7eb hairline .bg-page-nav draws above the trail,
+  color: "var(--dim)", margin: "6px 0 12px", maxWidth: "var(--measure)" };
+const strongStyle: CSSProperties = { color: "var(--ink)", fontWeight: 700 };
+/* The seam: the same 1px var(--line) hairline .bg-page-nav draws above the trail,
    at the top of each section. 44 above the line, 36 below it. */
-const sectionStyle: CSSProperties = { borderTop: "1px solid #e5e7eb", marginTop: 44, paddingTop: 36 };
+/* The rule above each section is drawn by its h2 now (the site-wide heading
+   rule, 2026-09-16); a border here as well made a double line (Mike: "you made
+   sections have a double line. is that a mistake?"). */
+const sectionStyle: CSSProperties = { marginTop: 0, paddingTop: 0 };
 /* Figures: white, hairline, square, mono. Cards on this site hold data, not
    prose, and a figure is data. */
 const figureStyle: CSSProperties = {
-  fontFamily: "var(--font-mono)", fontSize: 13, lineHeight: 1.7, color: "#1f2937",
-  background: "#ffffff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)",
+  fontFamily: "var(--font-mono)", fontSize: 13, lineHeight: 1.7, color: "var(--text)",
+  background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)",
   padding: "14px 18px", margin: "18px 0 22px", overflowX: "auto",
 };
-const muted: CSSProperties = { color: "#4b5563" };
-const faint: CSSProperties = { color: "#9ca3af" };
+const muted: CSSProperties = { color: "var(--dim)" };
+const faint: CSSProperties = { color: "var(--faint)" };
 
 /* Widow control. The last two words of every paragraph are joined with a
    no-break space so no line can be a single word (Mike, 2026-09-10: "i see a
@@ -242,7 +245,7 @@ export default function SubjectsPage() {
             id={c.id}
             className="bg-case"
             style={{
-              borderLeft: "2px solid #d0d5dd",
+              borderLeft: "2px solid var(--line)",
               paddingLeft: 22,
               scrollMarginTop: 72,
               ...(i === environments.length - 1 ? { marginBottom: 0 } : {}),
@@ -270,7 +273,7 @@ export default function SubjectsPage() {
                 <strong style={strongStyle}>What this looks like in practice.</strong>{" "}
                 Six models from three vendors sat a paper made this way on 12 and 13 September 2026.
                 Every sitting is a folder that verifies offline, and the packages that made them are
-                public: <a href="/exam" style={{ color: "#0065A4", textDecoration: "none", fontWeight: 600 }}>the sealed exam</a>.
+                public: <a href="/exam" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>the sealed exam</a>.
               </p>
             )}
             {c.callout && (
@@ -307,7 +310,7 @@ export default function SubjectsPage() {
           <div style={faint}>↓</div>
           <div>exact artifact <span style={muted}>(a SHA-256 digest; the record itself stays home)</span></div>
           <div style={faint}>↓</div>
-          <div><span style={{ fontWeight: 700, color: "#0065A4" }}>BITGRAPH</span> <span style={muted}>causal position: slot issued first, digest bound into it, floored by a public block</span></div>
+          <div><span style={{ fontWeight: 700, color: "var(--accent)" }}>BITGRAPH</span> <span style={muted}>causal position: slot issued first, digest bound into it, floored by a public block</span></div>
           <div style={faint}>↓</div>
           <div>portable proof <span style={muted}>(travels with the artifact)</span></div>
           <div style={faint}>↓</div>

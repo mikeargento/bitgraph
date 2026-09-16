@@ -67,7 +67,7 @@ export default function CreateVersion({ data }: { fileName: string; data: ArrayB
           <span>Create a Version</span>
           <span className="arrow" aria-hidden>&rarr;</span>
         </button>
-        <div style={{ fontSize: 12.5, color: "#4b5563", paddingBottom: 6 }}>
+        <div style={{ fontSize: 12.5, color: "var(--dim)", paddingBottom: 6 }}>
           A sealed one-of-a-kind file referencing this BitGraph: downloaded to you, then recorded
           at its own causal position
         </div>
@@ -76,16 +76,16 @@ export default function CreateVersion({ data }: { fileName: string; data: ArrayB
   }
 
   if (stage.kind === "working") {
-    return <div style={{ fontSize: 14, color: "#374151", padding: "8px 0" }}>{stage.step}</div>;
+    return <div style={{ fontSize: 14, color: "var(--text)", padding: "8px 0" }}>{stage.step}</div>;
   }
 
   if (stage.kind === "error") {
-    return <div style={{ fontSize: 14, color: "#dc2626", padding: "8px 0" }}>{stage.message}</div>;
+    return <div style={{ fontSize: 14, color: "var(--err)", padding: "8px 0" }}>{stage.message}</div>;
   }
 
   return (
-    <div style={{ fontSize: 14, color: "#374151", padding: "8px 0" }}>
-      <div style={{ fontWeight: 600, color: "#111827", marginBottom: 4 }}>
+    <div style={{ fontSize: 14, color: "var(--text)", padding: "8px 0" }}>
+      <div style={{ fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>
         {stage.recorded ? "Version created." : "Version minted and downloaded."}
       </div>
       {stage.recorded ? (

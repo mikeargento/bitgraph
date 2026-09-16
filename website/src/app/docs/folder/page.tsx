@@ -35,13 +35,13 @@ export default function FolderRetiredPage() {
   return (
     <div className="prose-doc">
       <h1 className="mb-2">BitGraph Folder is retired</h1>
-      <p style={{ color: "#1f2937", fontSize: 18, margin: "0 0 24px" }}>
+      <p style={{ color: "var(--text)", fontSize: 18, margin: "0 0 24px" }}>
         Retired 1 September 2026
       </p>
-      <p style={{ color: "#1f2937", marginBottom: 16 }}>
+      <p style={{ color: "var(--text)", marginBottom: 16 }}>
         <strong>Folder was a beta. It is no longer developed or distributed, and it should be uninstalled.</strong>
       </p>
-      <p style={{ color: "#1f2937", marginBottom: 16 }}>
+      <p style={{ color: "var(--text)", marginBottom: 16 }}>
         It proved the shape of the idea: hash locally, send only the digest, keep the proof beside the file. It was never the shape of the product. A recorder belongs inside the workflows people already have, not in a folder they have to remember to use. That is what replaces it.
       </p>
 
@@ -87,7 +87,7 @@ export default function FolderRetiredPage() {
       </p>
       <p>
         Fuller notes, including how to read the source of any released version from its git tag, are in the{" "}
-        <a href={NOTICE} target="_blank" rel="noopener noreferrer" className="text-[#0065A4] font-medium no-underline">
+        <a href={NOTICE} target="_blank" rel="noopener noreferrer" className="text-[color:var(--accent)] font-medium no-underline">
           retirement notice
         </a>.
       </p>

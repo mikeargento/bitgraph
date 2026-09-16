@@ -121,15 +121,15 @@ export default function FAQPage() {
   return (
     <article className="prose-doc">
       <h1 className="mb-6">FAQ</h1>
-      <p className="text-[#1f2937] mb-10">
+      <p className="text-[color:var(--text)] mb-10">
         Common questions about the BitGraph Protocol.
       </p>
 
       <div className="space-y-8">
         {faqs.map((faq) => (
-          <div key={faq.q} className="border-b border-[#e5e7eb] pb-8">
+          <div key={faq.q} className="border-b border-[color:var(--line)] pb-8">
             <h2 className="text-lg font-semibold mb-3">{renderInline(faq.q)}</h2>
-            <p className="text-base text-[#1f2937] leading-relaxed">{renderInline(faq.a)}</p>
+            <p className="text-base text-[color:var(--text)] leading-relaxed">{renderInline(faq.a)}</p>
           </div>
         ))}
       </div>

@@ -1,13 +1,26 @@
-import type { Metadata } from "next";
-import { JetBrains_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { JetBrains_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-mono",
+  variable: "--font-jetbrains-mono",
   display: "swap",
 });
+
+/* PREVIEW 2026-09-16 (Mike: "what would inter look like if you replaced every
+   mono with inter"). Loaded beside the mono so the swap is one token in
+   globals.css (--font-term) either way. */
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+/* The tab strip and the phone's chrome take the page colour (2026-09-16,
+   the terminal register). */
+export const viewport: Viewport = { themeColor: "#141413" };
 
 export const metadata: Metadata = {
   title: {
@@ -52,8 +65,11 @@ import { ScrollToTop } from "@/components/scroll-to-top";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={jetbrainsMono.variable}>
+    <html lang="en" className={`${jetbrainsMono.variable} ${inter.variable}`}>
       <head>
+        {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
+            700 and italics). PREVIEW 2026-09-16 (Mike: "what about good ol
+            acumen"): --font-term in globals.css points at it. */}
         <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
         {/* Runs during parse, before the browser restores scroll. On a reload
             the browser re-applies your saved offset as the page grows, and our

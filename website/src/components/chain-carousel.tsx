@@ -85,9 +85,9 @@ export default function ChainCarousel({ epochId, currentCounter }: { epochId: st
         aria-label="Scroll left"
         style={{
           position: "absolute", left: -6, top: "50%", transform: "translateY(-50%)", zIndex: 2,
-          width: 32, height: 32, borderRadius: "50%", border: "1px solid #d0d5dd",
-          background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, color: "#4b5563", boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          width: 32, height: 32, borderRadius: "50%", border: "1px solid var(--line)",
+          background: "var(--panel)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 14, color: "var(--dim)", boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
         }}
       >
         &#8249;
@@ -117,13 +117,13 @@ export default function ChainCarousel({ epochId, currentCounter }: { epochId: st
               style={{
                 flex: "0 0 auto", width: 120, minHeight: 120,
                 scrollSnapAlign: "center",
-                background: isAnchor ? "#f0fdf4" : "#fff",
-                border: isCurrent ? "2px solid #0065A4" : isAnchor ? "1px solid #bbf7d0" : "1px solid #d0d5dd",
+                background: isAnchor ? "var(--ok-tint)" : "var(--panel)",
+                border: isCurrent ? "2px solid var(--accent)" : isAnchor ? "1px solid var(--ok-tint)" : "1px solid var(--line)",
                 borderRadius: 0,
                 cursor: isCurrent ? "default" : "pointer",
                 display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 padding: "14px 8px", gap: 4,
-                boxShadow: isCurrent ? "0 0 0 3px rgba(0,101,164,0.15)" : "none",
+                boxShadow: isCurrent ? "0 0 0 3px rgba(121,184,236,0.3)" : "none",
                 transition: "border-color 0.15s, box-shadow 0.15s",
                 opacity: isCurrent ? 1 : 0.85,
               }}
@@ -132,13 +132,13 @@ export default function ChainCarousel({ epochId, currentCounter }: { epochId: st
             >
               <span style={{ fontSize: 22 }}>{icon}</span>
               <span style={{
-                fontSize: 18, fontWeight: 800, color: "#111827",
+                fontSize: 18, fontWeight: 800, color: "var(--ink)",
                 lineHeight: 1.1,
               }}>
                 #{p.commit.counter}
               </span>
               <span style={{
-                fontSize: 10, color: isAnchor ? "#16a34a" : "#4b5563",
+                fontSize: 10, color: isAnchor ? "var(--ok)" : "var(--dim)",
                 textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600,
               }}>
                 {label}
@@ -154,9 +154,9 @@ export default function ChainCarousel({ epochId, currentCounter }: { epochId: st
         aria-label="Scroll right"
         style={{
           position: "absolute", right: -6, top: "50%", transform: "translateY(-50%)", zIndex: 2,
-          width: 32, height: 32, borderRadius: "50%", border: "1px solid #d0d5dd",
-          background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, color: "#4b5563", boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          width: 32, height: 32, borderRadius: "50%", border: "1px solid var(--line)",
+          background: "var(--panel)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 14, color: "var(--dim)", boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
         }}
       >
         &#8250;

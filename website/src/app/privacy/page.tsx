@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "40px 0 40px" }}>
       <article className="prose-doc">
         <h1>Privacy Policy</h1>
-        <p style={{ color: "#4b5563" }}>Effective date: August 27, 2026</p>
+        <p style={{ color: "var(--dim)" }}>Effective date: August 27, 2026</p>
 
         <h2>1. What we collect</h2>
         <ul>

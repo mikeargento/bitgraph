@@ -10,7 +10,7 @@ export default function SelfHostTEEPage() {
   return (
     <div className="prose-doc">
       <h1 className="mb-6">Self-Host TEE</h1>
-      <p style={{ color: "#4b5563", marginBottom: 32 }}>
+      <p style={{ color: "var(--dim)", marginBottom: 32 }}>
         Deploy your own BitGraph Trusted Execution Environment using AWS Nitro Enclaves. This guide assumes no prior TEE experience. A self-hosted enclave is a separate ledger: its proofs are signed and attested, but they carry no Ethereum floor unless you run an anchor service of your own on a chain of your own. The bitgraph:main chain and its anchors belong to bitgraph.ing.
       </p>
 
@@ -145,13 +145,13 @@ cd bitgraph
 # digest/version, and README.md for how the determinism is achieved.`}</pre>
       </div>
 
-      <div style={{ padding: "16px 18px", background: "rgba(0,101,164,0.04)", border: "1px solid rgba(0,101,164,0.15)", borderRadius: 0, margin: "16px 0" }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#0065A4", marginBottom: 8 }}>BitGraph&apos;s published measurement</div>
+      <div style={{ padding: "16px 18px", background: "rgba(121,184,236,0.102)", border: "1px solid rgba(121,184,236,0.3)", borderRadius: 0, margin: "16px 0" }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)", marginBottom: 8 }}>BitGraph&apos;s published measurement</div>
         <p style={{ marginTop: 0, marginBottom: 10 }}>The BitGraph enclave image in production measures as:</p>
-        <div style={{ fontSize: 12, fontFamily: "var(--font-mono), monospace", wordBreak: "break-all", background: "#fff", border: "1px solid #d0d5dd", padding: "10px 12px", marginBottom: 10 }}>
+        <div style={{ fontSize: 12, fontFamily: "var(--font-mono), monospace", wordBreak: "break-all", background: "var(--panel)", border: "1px solid var(--line)", padding: "10px 12px", marginBottom: 10 }}>
           PCR0 eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b
         </div>
-        <p style={{ marginTop: 0, marginBottom: 0, color: "#374151" }}>
+        <p style={{ marginTop: 0, marginBottom: 0, color: "var(--text)" }}>
           This is the value BitGraph publishes and stands behind. Every proof embeds this measurement, and the &quot;Verify Attestation&quot; check confirms the attestation&apos;s PCR0 matches it. The measurement is <strong>reproducible</strong>: rebuild from this source on any linux/amd64 host with <code>verify-pcr0.sh</code> and you will re-derive exactly this PCR0. (The <code>.eif</code> file itself is not byte-identical between builds, because its header embeds a build timestamp. PCR0 measures the enclave contents, not that header, which is why the measurement is stable while the file hash is not.) You do not have to trust BitGraph&apos;s assertion, you can recompute it yourself. The one input you trust AWS for is their signed enclave kernel, which is what PCR1 independently measures; everything else folded into PCR0 is built from the auditable source in this repository.
         </p>
       </div>

@@ -49,7 +49,7 @@ export function SiteNav() {
   // their own. The panel is type and the card's edge.
   //
   // Small, tracked-out, uppercase, 800, near-black. These shipped grey twice
-  // (600/#9ca3af, then 700/#6b7280) and read as faded rows both times: a label
+  // (600/var(--faint), then 700/var(--dim)) and read as faded rows both times: a label
   // in a value between the rows' grey and the panel's white cannot be told from
   // a row at a glance, whatever its weight. The value has to LEAD the items it
   // heads. Size is what keeps it quiet, 11px against their 14px.
@@ -62,7 +62,7 @@ export function SiteNav() {
       style={{
         padding: "0 10px 8px",
         fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
-        textTransform: "uppercase", color: "#111827",
+        textTransform: "uppercase", color: "var(--ink)",
       }}
     >
       {label}
@@ -99,7 +99,7 @@ export function SiteNav() {
     // turned the site's one continuous surface into chrome plus content, which
     // is the thing that makes this read as a document rather than an app. White
     // is the cards' value too, so on the ledger and on proof pages the bar and the
-    // content were the same colour anyway. If it is ever revisited, #fafafa is
+    // content were the same colour anyway. If it is ever revisited, var(--panel) is
     // the middle option: distinct from the page without borrowing the cards'
     // white. It IS a surface now (white, hairline), and the overscroll canvas
     // is handled by the html background in globals.css.
@@ -145,7 +145,7 @@ export function SiteNav() {
           }}
           style={{
             // RESTYLE 2026-09-11: the app's title, "BitGraph" at 26px bold.
-            fontSize: 26, fontWeight: 700, color: "#111827",
+            fontSize: 26, fontWeight: 700, color: "var(--ink)",
             textDecoration: "none", letterSpacing: "-0.02em",
           }}
         >
@@ -224,8 +224,8 @@ export function SiteNav() {
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "8px 16px", margin: 0,
-                border: `1px solid ${docsOpen ? "#e8f1f8" : "#d0d5dd"}`,
-                background: docsOpen ? "var(--tint)" : "#fff", borderRadius: "var(--radius-pill)",
+                border: `1px solid ${docsOpen ? "var(--tint)" : "var(--line)"}`,
+                background: docsOpen ? "var(--tint)" : "var(--panel)", borderRadius: "var(--radius-pill)",
                 fontSize: 15, fontWeight: 500,
                 fontFamily: "inherit", letterSpacing: "inherit", cursor: "pointer",
               }}
@@ -256,7 +256,7 @@ export function SiteNav() {
           site keeps refusing to be. At the 90%/800px measure it is a card in
           the column, its edges under the wordmark and over the page's own,
           which is how every other surface here behaves. Square corners, 1px
-          #d0d5dd, per the cards.
+          var(--line), per the cards.
 
           Absolute against #site-nav, which is sticky and therefore already a
           containing block; centred on it rather than hung off the Docs link,
@@ -275,7 +275,7 @@ export function SiteNav() {
             // down within the content width"). The panel is a sibling of the
             // column div, so it centres itself on the same measure.
             position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", width: "90%", maxWidth: "var(--frame)",
-            background: "#fff", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)",
+            background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)",
             boxShadow: "var(--shadow-menu)",
             maxHeight: "calc(100dvh - 90px)", overflowY: "auto",
             overscrollBehavior: "contain",

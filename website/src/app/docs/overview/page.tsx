@@ -88,7 +88,14 @@ export default function OverviewPage() {
             proof costs; checking one does not. The page under it says so.
             Rejected candidates and the reasoning are in
             project_home_headline_2026_09_03. */}
-        Trust is expensive. Proof&nbsp;isn&rsquo;t.
+        {/* 2026-09-16, Mike: "just replace Trust is expensive. Proof isn't. with
+            BitGraph gives bits a place." His own line, back in the h1 it held
+            until 2026-09-03; the product's vocabulary (place -> position ->
+            slot -> occupy -> order). "Trust is expensive. Proof isn't." keeps
+            its place in the deck and outreach. Same day, an abstract page
+            replaced this page at "/" for an afternoon and was parked
+            (.parked/2026-09-16-abstract); home renders this page again. */}
+        BitGraph gives bits a&nbsp;place.
       </h1>
       {/* The who/when/where triad lived here for one evening (2026-08-26,
           built with the Polaroid cut, removed the same night, Mike: "just
@@ -436,7 +443,7 @@ export default function OverviewPage() {
       {/* On a phone the line breaks after the colon (.bg-phone-break, globals),
           two clean lines, instead of stranding "position." on its own (Mike,
           2026-09-11). Desktop is one line and the break is inert there. */}
-      <p style={{ fontWeight: 600, color: "#111827" }}>
+      <p style={{ fontWeight: 600, color: "var(--ink)" }}>
         It proves:<br className="bg-phone-break" /> these exact bits occupy this&nbsp;position.
       </p>
     </article>

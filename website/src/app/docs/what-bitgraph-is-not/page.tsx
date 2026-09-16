@@ -10,7 +10,7 @@ export default function WhatBitGraphIsNotPage() {
   return (
     <article className="prose-doc">
       <h1 className="mb-6">What BitGraph is Not</h1>
-      <p className="text-[#1f2937] mb-10">
+      <p className="text-[color:var(--text)] mb-10">
         Precise distinctions matter for a protocol that makes specific
         cryptographic claims. Here is what BitGraph does not claim and does not do.
       </p>
@@ -50,9 +50,9 @@ export default function WhatBitGraphIsNotPage() {
             body: "Traditional notarization involves a trusted third party witnessing a signing event. BitGraph is a self-contained proof system. The proof verifies without contacting anyone: the signature, the attestation chain to the AWS Nitro root, the slot binding and the floor carried in the signed body. No trusted third party is required.",
           },
         ].map((item) => (
-          <div key={item.title} className="border-l-2 border-l-[#d0d5dd] pl-6">
+          <div key={item.title} className="border-l-2 border-l-[color:var(--line)] pl-6">
             <h2 className="text-base font-semibold mb-3">{item.title}</h2>
-            <p className="text-base text-[#1f2937] leading-relaxed">{renderInline(item.body)}</p>
+            <p className="text-base text-[color:var(--text)] leading-relaxed">{renderInline(item.body)}</p>
           </div>
         ))}
       </div>

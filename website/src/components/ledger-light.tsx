@@ -125,14 +125,14 @@ export function LedgerLight() {
           display: "flex", alignItems: "center", gap: 7, padding: 0,
           background: "none", border: "none", cursor: "pointer",
           fontSize: 13, fontWeight: 700, fontFamily: "inherit",
-          color: "#111827", whiteSpace: "nowrap",
+          color: "var(--ink)", whiteSpace: "nowrap",
         }}
       >
         <span
           aria-hidden
           style={{
             width: 9, height: 9, borderRadius: "50%", flex: "none",
-            background: on ? "#16a34a" : "#dc2626",
+            background: on ? "var(--ok)" : "var(--err)",
           }}
         />
         {/* Names the noun. Under the box this is the only line there is, so
@@ -155,7 +155,7 @@ export function LedgerLight() {
             onDragLeave={() => setDragging(false)}
             onDrop={(e) => { e.preventDefault(); void connect(e.dataTransfer); }}
             style={{
-              background: "#fff", border: "1px solid #d0d5dd", borderRadius: 0,
+              background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 0,
               width: "min(480px, 100%)", padding: 24,
               /* ⚠️ SET EXPLICITLY, DO NOT INHERIT. The light lives inside a
                  centring wrapper under the box on home, so every line in here
@@ -170,7 +170,7 @@ export function LedgerLight() {
                 label: that one is a target, and a centred label is what says
                 so. Everything else is prose, and prose read against a ragged
                 left edge is slower — the site sets every other card this way. */}
-            <div style={{ fontSize: 17, fontWeight: 800, color: "#111827", marginBottom: 6, letterSpacing: "-0.01em" }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 6, letterSpacing: "-0.01em" }}>
               Your BitGraphs folder
             </div>
             {/* ⚠️ textWrap "pretty" because THE COUNT CHANGES THE WRAP. At five
@@ -180,25 +180,25 @@ export function LedgerLight() {
                 it. "pretty" is the rule for running text (balance is for
                 headings); the browsers without it get the shorter sentence,
                 which is better anyway. */}
-            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "#4b5563", marginBottom: 16, textWrap: "pretty" }}>
+            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--dim)", marginBottom: 16, textWrap: "pretty" }}>
               {on
                 ? `${count.toLocaleString()} BitGraph${count === 1 ? " is" : "s are"} kept in this browser. Save a copy somewhere you back up: a browser can clear its storage without asking.`
                 : "Nothing connected yet. Drag in a folder of BitGraphs files, or make one and it is kept here."}
             </div>
             <div
               style={{
-                border: `1px dashed ${dragging ? "#16a34a" : "#b3bac2"}`,
+                border: `1px dashed ${dragging ? "var(--ok)" : "var(--faint)"}`,
                 padding: "30px 20px", textAlign: "center",
                 fontSize: 13.5, fontWeight: 600,
-                color: dragging ? "#16a34a" : "#4b5563",
-                background: dragging ? "rgba(22,163,74,0.05)" : "transparent",
+                color: dragging ? "var(--ok)" : "var(--dim)",
+                background: dragging ? "rgba(143,214,148,0.10)" : "transparent",
               }}
             >
               {busy ? "Reading…" : "Drag your BitGraphs folder here"}
             </div>
             {/* Said once, plainly, instead of implying a file dialog that a web
                 page is not allowed to open. */}
-            <div style={{ fontSize: 12, lineHeight: 1.55, color: "#6b7280", marginTop: 10, textWrap: "pretty" }}>
+            <div style={{ fontSize: 12, lineHeight: 1.55, color: "var(--dim)", marginTop: 10, textWrap: "pretty" }}>
               A web page cannot browse your disk or be told a path, so dragging is
               the way in. Nothing is uploaded and nothing is recorded.
             </div>
@@ -213,7 +213,7 @@ export function LedgerLight() {
                 {on && (
                   <button type="button" onClick={() => void forget()}
                     style={{ background: "none", border: "none", padding: 0, cursor: "pointer",
-                             fontFamily: "inherit", fontSize: 12.5, color: "#6b7280" }}>
+                             fontFamily: "inherit", fontSize: 12.5, color: "var(--dim)" }}>
                     Forget it
                   </button>
                 )}

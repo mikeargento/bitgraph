@@ -126,7 +126,7 @@ export function AnchorRecovery() {
   return (
     <div style={{ marginTop: 34 }}>
       <div className="bg-page-title" style={{ marginBottom: 6 }}>Get the anchors for a BitGraph</div>
-      <p style={{ fontSize: 15, lineHeight: 1.65, color: "#374151", margin: "0 0 14px", maxWidth: 640 }}>
+      <p style={{ fontSize: 15, lineHeight: 1.65, color: "var(--text)", margin: "0 0 14px", maxWidth: 640 }}>
         Drop a <code>proof.json</code> and this finds the two Ethereum anchors that bracket its
         position, to download and keep beside your files. The proof is read here; only its epoch
         and counter are sent.
@@ -143,28 +143,28 @@ export function AnchorRecovery() {
       </div>
 
       {problem && (
-        <p style={{ fontSize: 14, color: "#b21c1b", margin: "14px 0 0" }}>{problem}</p>
+        <p style={{ fontSize: 14, color: "var(--err)", margin: "14px 0 0" }}>{problem}</p>
       )}
 
       {found && (
         <div style={{ marginTop: 18 }}>
-          <div style={{ fontSize: 13, color: "#4b5563", marginBottom: 8 }}>
+          <div style={{ fontSize: 13, color: "var(--dim)", marginBottom: 8 }}>
             Position #{position}
           </div>
           {found.map((f) => (
             <div
               key={f.side}
               style={{
-                border: "1px solid #d0d5dd", borderRadius: "var(--radius-card)",
-                background: "#fff", padding: "14px 16px", marginBottom: 10,
+                border: "1px solid var(--line)", borderRadius: "var(--radius-card)",
+                background: "var(--panel)", padding: "14px 16px", marginBottom: 10,
               }}
             >
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "#111827", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--ink)", marginBottom: 6 }}>
                 {f.side === "before" ? "The anchor below it" : "The anchor above it"}
               </div>
               {f.proof ? (
                 <>
-                  <div style={{ fontSize: 15, color: "#374151" }}>
+                  <div style={{ fontSize: 15, color: "var(--text)" }}>
                     Position #{f.counter}
                     {f.blockNumber !== undefined && <> · Ethereum block {f.blockNumber.toLocaleString()}</>}
                     {f.blockTimeISO && (
@@ -198,7 +198,7 @@ export function AnchorRecovery() {
                 </>
               ) : (
                 /* ⚠️ THE LEDGER'S OWN WORDS. Not "not found". */
-                <div style={{ fontSize: 14, color: "#4b5563" }}>{f.note}</div>
+                <div style={{ fontSize: 14, color: "var(--dim)" }}>{f.note}</div>
               )}
             </div>
           ))}

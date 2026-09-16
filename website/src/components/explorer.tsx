@@ -450,27 +450,27 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
       <style>{`
         @keyframes xpBlink { 0%,100%{opacity:1} 50%{opacity:.25} }
         @keyframes xpIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
-        @keyframes xpArrive { 0%{opacity:0;transform:translateY(-8px);background:#f0f6ff} 50%{opacity:1;transform:none;background:#f0f6ff} 100%{opacity:1;transform:none;background:transparent} }
-        .xp-row { display:flex; align-items:center; gap:12px; padding:14px 16px; background:#fff; border:1px solid var(--hair); border-radius:var(--radius-row); text-decoration:none; animation:xpIn .25s ease-out; transition:background .12s; }
+        @keyframes xpArrive { 0%{opacity:0;transform:translateY(-8px);background:var(--tint)} 50%{opacity:1;transform:none;background:var(--tint)} 100%{opacity:1;transform:none;background:transparent} }
+        .xp-row { display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--panel); border:1px solid var(--hair); border-radius:var(--radius-row); text-decoration:none; animation:xpIn .25s ease-out; transition:background .12s; }
         /* Live arrivals only: a stronger slide plus a brief brand-blue flash
            that ends fully transparent, so nothing tinted is left behind. */
         .xp-row-fresh { animation: xpArrive 1.4s ease-out; }
         /* Interval rows: a violet wash plus a violet left rail so they read as
            a distinct kind of row at a glance, not just a colored label. */
-        .xp-row-interval { background:#f4f1fe; box-shadow: inset 3px 0 0 0 #7c3aed; }
+        .xp-row-interval { background:var(--ceil-tint); box-shadow: inset 3px 0 0 0 var(--ceil); }
         /* The counter column: wide enough on desktop that a five-digit counter
            gets the same air before "block" as a one-digit one; on a phone every
            pixel is needed, so it sizes to its label. */
         .xp-counter { min-width: 88px; }
         @media (max-width: 640px) { .xp-counter { min-width: 0; } }
-        .xp-open { color:#0065A4; transition: color .15s; }
+        .xp-open { color:var(--accent); transition: color .15s; }
         @media (hover:hover){
-          .xp-row:hover { background:#f3f5f7; }
-          .xp-row-interval:hover { background:#ece5fd; }
-          .xp-row:hover .xp-open { color:#004b7a; }
+          .xp-row:hover { background:var(--line-2); }
+          .xp-row-interval:hover { background:var(--ceil-tint); }
+          .xp-row:hover .xp-open { color:var(--accent-2); }
         }
         @keyframes xpSkel { 0%{background-position:100% 0} 100%{background-position:0 0} }
-        .xp-skel { background:linear-gradient(90deg,#edeff1 25%,#e0e3e7 37%,#edeff1 63%); background-size:400% 100%; animation:xpSkel 1.4s ease-in-out infinite; border-radius:3px; }
+        .xp-skel { background:linear-gradient(90deg,var(--line-2) 25%,var(--line) 37%,var(--line-2) 63%); background-size:400% 100%; animation:xpSkel 1.4s ease-in-out infinite; border-radius:3px; }
         @media (prefers-reduced-motion: reduce){ .xp-skel{ animation:none; } }
       `}</style>
 
@@ -487,12 +487,12 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "22px 0 26px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>{subnav}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
-            {!anchorsOnly && <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#4b5563", cursor: "pointer", userSelect: "none", flexShrink: 0, whiteSpace: "nowrap" }}>
+            {!anchorsOnly && <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--dim)", cursor: "pointer", userSelect: "none", flexShrink: 0, whiteSpace: "nowrap" }}>
               <input
                 type="checkbox"
                 checked={showAnchors}
                 onChange={(ev) => setShowAnchors(ev.target.checked)}
-                style={{ accentColor: "#0065A4", width: 13, height: 13 }}
+                style={{ accentColor: "var(--accent)", width: 13, height: 13 }}
               />
               Show anchors
             </label>}
@@ -519,7 +519,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
         onSubmit={runSearch}
         style={{
           display: "flex", alignItems: "center", marginBottom: searchError ? 6 : 12,
-          background: "#fff", border: `1px solid ${searchFocus ? "#0065A4" : "#d0d5dd"}`, borderRadius: 0,
+          background: "var(--panel)", border: `1px solid ${searchFocus ? "var(--accent)" : "var(--line)"}`, borderRadius: 0,
         }}
       >
         <input
@@ -529,7 +529,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
           onBlur={() => setSearchFocus(false)}
           placeholder="Search by hash"
           aria-label="Search by hash"
-          style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 14, color: "#111827", background: "transparent", border: "none", borderRadius: 0, outline: "none" }}
+          style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 14, color: "var(--ink)", background: "transparent", border: "none", borderRadius: 0, outline: "none" }}
         />
         <button
           type="submit"
@@ -537,7 +537,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
           className="bg-arrow-link"
           style={{
             flexShrink: 0, padding: "10px 14px", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em",
-            color: "#0065A4", background: "none", border: "none", borderRadius: 0, fontFamily: "inherit",
+            color: "var(--accent)", background: "none", border: "none", borderRadius: 0, fontFamily: "inherit",
             cursor: searching || !query.trim() ? "default" : "pointer",
             opacity: searching || !query.trim() ? 0.45 : 1, whiteSpace: "nowrap",
           }}
@@ -546,7 +546,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
         </button>
       </form>}
       {searchError && (
-        <div style={{ marginBottom: 12, fontSize: 13, color: "#dc2626" }}>{searchError}</div>
+        <div style={{ marginBottom: 12, fontSize: 13, color: "var(--err)" }}>{searchError}</div>
       )}
 
       {/* Stream — generic ledger rows; type and specifics live on the drill-in.
@@ -565,14 +565,14 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                 <span className="xp-skel" style={{ width: 34, height: 12, flexShrink: 0 }} />
                 <span style={{ flex: 1 }} />
                 <span className="xp-skel" style={{ width: 84, height: 12, flexShrink: 0 }} />
-                <span aria-hidden style={{ display: "inline-flex", flexShrink: 0, color: "#c7ccd1" }}>
+                <span aria-hidden style={{ display: "inline-flex", flexShrink: 0, color: "var(--faint)" }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
                 </span>
               </div>
             ))}
           </>
         )}
-        {error && !loading && <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>Ledger unavailable right now.</div>}
+        {error && !loading && <div style={{ padding: 40, textAlign: "center", color: "var(--faint)", fontSize: 14 }}>Ledger unavailable right now.</div>}
 
         {!loading && !error && visible.map((e) => {
           const isAnchor = e.type === "anchor";
@@ -583,7 +583,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
           // A set proof (N files under one slot) reads "set of N"; same
           // colour and weight as "file", one label and nothing else new.
           const tagLabel = isAnchor ? "anchor" : isInterval ? "interval" : setRowLabel(e.set);
-          const tagColor = isAnchor ? "#4b5563" : isInterval ? "#7c3aed" : "#0065A4";
+          const tagColor = isAnchor ? "var(--dim)" : isInterval ? "var(--ceil)" : "var(--accent)";
           const tagWeight = isAnchor ? 400 : 600;
           // ?counter=&epoch= pin the drill-in to THIS row's causal position;
           // the same bytes can occupy several (BitGraphed more than once), and
@@ -600,7 +600,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                     2026-09-11: "should block number be left aligned like
                     that?"). Wide enough for a five-digit counter with its
                     separator. */}
-                <a href={proofHref} className="xp-counter" style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", fontFamily: mono, textDecoration: "none" }}>
+                <a href={proofHref} className="xp-counter" style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", fontFamily: mono, textDecoration: "none" }}>
                   #{fmt(e.counter)}
                 </a>
                 {/* No "anchor" tag on a page of nothing but anchors: the word
@@ -613,7 +613,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                   </span>
                 )}
                 {e.etherscanUrl && (
-                  <a href={e.etherscanUrl} target="_blank" rel="noopener" style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: "#0065A4", textDecoration: "none", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                  <a href={e.etherscanUrl} target="_blank" rel="noopener" style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                     {e.blockNumber != null ? `block ${fmt(e.blockNumber)}` : "block"} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
                   </a>
                 )}
@@ -623,11 +623,11 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
                     Etherscan, is the proof. Links, not a row-wide onClick, so
                     nothing nests inside the block's own anchor. */}
                 {e.blockHash && (
-                  <a href={proofHref} style={{ flex: 1, minWidth: 0, fontSize: 12, color: "#6b7280", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }} title={e.blockHash}>
+                  <a href={proofHref} style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--dim)", fontFamily: mono, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }} title={e.blockHash}>
                     {e.blockHash}
                   </a>
                 )}
-                <a href={proofHref} style={{ flex: e.blockHash ? "0 0 auto" : 1, minWidth: 0, fontSize: 12.5, color: "#4b5563", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums", textDecoration: "none" }}>
+                <a href={proofHref} style={{ flex: e.blockHash ? "0 0 auto" : 1, minWidth: 0, fontSize: 12.5, color: "var(--dim)", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums", textDecoration: "none" }}>
                   <span className="bg-day-long">{fmtWhen(e.at)}</span>
                   <span className="bg-day-short">{fmtWhenShort(e.at)}</span>
                 </a>
@@ -639,7 +639,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
           }
           return (
             <a key={rowId(e)} href={proofHref} className={`xp-row${isInterval ? " xp-row-interval" : ""}${freshIds.has(e.counter) ? " xp-row-fresh" : ""}`}>
-              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>
+              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", fontFamily: mono }}>
                 #{fmt(e.counter)}
               </span>
               <span style={{ flexShrink: 0, fontSize: 12, color: tagColor, fontWeight: tagWeight, whiteSpace: "nowrap" }}>
@@ -648,11 +648,11 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
               {/* Just-landed rows only; expires ~30s after first render, same
                   green as the live-arrival flash. */}
               {newIds.has(e.counter) && (
-                <span style={{ flexShrink: 0, fontSize: 12, color: "#0065A4", fontWeight: 700, whiteSpace: "nowrap" }}>
+                <span style={{ flexShrink: 0, fontSize: 12, color: "var(--accent)", fontWeight: 700, whiteSpace: "nowrap" }}>
                   (New)
                 </span>
               )}
-              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#4b5563", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                 {fmtWhen(e.at)}
               </span>
               <span className="xp-open" aria-label="Open" style={{ display: "inline-flex", flexShrink: 0 }}>
@@ -663,12 +663,12 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
         })}
 
         {!loading && !error && day && shown === 0 && !hasMore && (
-          <div style={{ padding: 40, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>
+          <div style={{ padding: 40, textAlign: "center", color: "var(--faint)", fontSize: 14 }}>
             {anchorsOnly ? "No anchors on this day." : showAnchors ? "No recordings on this day." : "No files recorded on this day."}
           </div>
         )}
         {!loading && !error && (
-          <div ref={sentinel} style={{ padding: 16, textAlign: "center", color: claim === "short" ? "#dc2626" : "#9ca3af", fontSize: 12 }}>
+          <div ref={sentinel} style={{ padding: 16, textAlign: "center", color: claim === "short" ? "var(--err)" : "var(--faint)", fontSize: 12 }}>
             {loadingMore ? "Loading…"
               // Paging has stopped and the day declares more rows than are on
               // screen. This is the whole reason the day declares a total.
