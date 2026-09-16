@@ -21,8 +21,19 @@ export function TryZone() {
         .try-zone .bitgraph-camera > div { border: 1px dashed var(--line) !important; background: var(--panel) !important; }
         @media (max-width: 640px) { .try-zone .bitgraph-camera { height: 240px !important; } }
       `}</style>
-      {/* id is typed as the one the camera knows; it only keys the camera's result cache. */}
-      <BitGraphCamera id="home" strategy={anonymous} fuseByDefault acceptsPendingDrop fitViewport={false} />
+      {/* id is typed as the one the camera knows; it only keys the camera's
+          result cache. The three lines are this page's own words, passed as
+          props so the shared camera keeps its defaults elsewhere. */}
+      <BitGraphCamera
+        id="home"
+        strategy={anonymous}
+        fuseByDefault
+        acceptsPendingDrop
+        fitViewport={false}
+        dropHeadline="Create or check a proof"
+        dropHint="Choose files, or drag in a folder."
+        dropSubhint="Your files stay on your computer."
+      />
     </div>
   );
 }

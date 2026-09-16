@@ -339,8 +339,7 @@ export default function SubjectsPage() {
         </ul>
         <p style={{ ...pStyle, margin: 0 }}>
           Nothing is submitted to BitGraph and nothing is fetched from it. The
-          same check runs in <Link href="/docs/recorder">BitGraph Recorder</Link>,
-          in <code>npx @mikeargento/bitgraph-audit</code>, and in any verifier
+          same check runs in <code>npx @mikeargento/bitgraph-audit</code> and in any verifier
           built from the <Link href="/docs/proof-format">proof&nbsp;format</Link>.
         </p>
       </div>
@@ -420,11 +419,11 @@ export default function SubjectsPage() {
       <div style={sectionStyle}>
         <h2 style={h2Style}>Applying it</h2>
         <p style={{ ...pStyle, margin: "0 0 4px" }}>
-          Recording a file needs no integration. BitGraph Recorder hashes the
-          file on your Mac and writes the recording beside it, without
-          uploading the file itself. Issuing in volume, or recording from
-          inside your own systems, is covered in the integration guide; an AI
-          agent connects over MCP with one&nbsp;URL.
+          Recording a file needs no integration: the browser try hashes it on
+          your machine and hands you the proof, without uploading the file
+          itself. Issuing in volume, or recording from inside your own
+          systems, is covered in the integration guide; an AI agent connects
+          over MCP with one&nbsp;URL.
         </p>
         {/* All at the default size. The primary action is marked by being
             first, which is the rule globals.css already states for
@@ -433,8 +432,10 @@ export default function SubjectsPage() {
         {/* One row of pills, wrapping on a phone; a column of four was "a bit
             much" (Mike, 2026-09-11). */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 12px", marginTop: 12 }}>
-          <Link href="/docs/recorder" className="bg-action-link">
-            Record a file <span className="arrow">&rarr;</span>
+          {/* Led to the Recorder page until 2026-09-16; the browser try is the
+              no-code way in now. */}
+          <Link href="/docs/try" className="bg-action-link">
+            Try it in the browser <span className="arrow">&rarr;</span>
           </Link>
           <Link href="/docs/integration" className="bg-action-link">
             Integration guide <span className="arrow">&rarr;</span>

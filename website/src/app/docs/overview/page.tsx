@@ -177,9 +177,10 @@ export default function OverviewPage() {
         This exact digital state was committed through this measured process, in this order, under these constraints.
       </blockquote>
 
-      <p>
-        <a href="/docs/recorder">BitGraph Recorder</a> is the product. This page describes the protocol it writes.
-      </p>
+      {/* "BitGraph Recorder is the product. This page describes the protocol
+          it writes." stood here 2026-09-09 to 2026-09-16 and left with the
+          Recorder page: the app is one client, the protocol is what the
+          page describes. */}
 
       <h2>The primitive</h2>
 
@@ -220,7 +221,7 @@ export default function OverviewPage() {
       </p>
 
       <p>
-        Making a BitGraph adds a bound from below. The file is the origin. Before any artifact exists, the Recorder, or your own code, asks the enclave for an unused slot and derives a commitment to the signed slot record. It builds a new fused artifact from the origin by placing that commitment under a registered placement: a 48-byte trailer where the format ignores trailing bytes, a small tar container otherwise. The fused artifact is hashed and committed into the same slot. Those bytes could not have been finalized before the slot was allocated, and they were committed no later than the commit position. The origin gets the upper bound only: rebuilding the fused artifact from the origin and the proof shows the origin existed no later than the commit. Neither bound says when the content was created or whether it is authentic. Recording existing bytes as they are remains available on the HTTP API and gives the upper bound alone.
+        Making a BitGraph adds a bound from below. The file is the origin. Before any artifact exists, your own code, or the browser, asks the enclave for an unused slot and derives a commitment to the signed slot record. It builds a new fused artifact from the origin by placing that commitment under a registered placement: a 48-byte trailer where the format ignores trailing bytes, a small tar container otherwise. The fused artifact is hashed and committed into the same slot. Those bytes could not have been finalized before the slot was allocated, and they were committed no later than the commit position. The origin gets the upper bound only: rebuilding the fused artifact from the origin and the proof shows the origin existed no later than the commit. Neither bound says when the content was created or whether it is authentic. Recording existing bytes as they are remains available on the HTTP API and gives the upper bound alone.
       </p>
 
       <h2>What a BitGraph proof contains</h2>

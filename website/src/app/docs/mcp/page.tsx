@@ -148,14 +148,14 @@ export default function McpPage() {
         The endpoint never receives a file. If an agent can hash a file it can build the
         virtual new file and hash that, so the two steps above are all it takes: hash the
         originals, open a slot, build each new file exactly as its recipe says, hash it, commit
-        them together. A batch is one position however many files it holds, the same as the Recorder. Only digests, byte sizes, a file&apos;s first bytes, the signed slot record
+        them together. A batch is one position however many files it holds. Only digests, byte sizes, a file&apos;s first bytes, the signed slot record
         and the recipes cross the network. Agents with code execution, ChatGPT and Claude among
         them, do this on any files you give them.
       </p>
       <p className="text-[color:var(--text)] mb-4">
         For clients that run on your machine, the stdio package does the same in one call from
         plain file paths, and makes one BitGraph of everything in the call: a folder of any size
-        becomes one set under one slot, the way the Recorder does. Each file is read once
+        becomes one set under one slot. Each file is read once
         for its digest; the new files are never written.
       </p>
       <div className="code-block">

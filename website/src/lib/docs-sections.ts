@@ -88,7 +88,13 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
          separate page"). It is the no-code way in, so it leads the column
          that runs easiest to hardest. A download button at the top of home
          was built and removed the same evening; the page is the door. */
-      { href: "/docs/recorder", label: "BitGraph Recorder" },
+      /* ❌ "BitGraph Recorder" (/docs/recorder, the Mac app's download page)
+         led TOOLS from 2026-09-09 to 2026-09-16, when Mike removed it: "no
+         company is going to make bitgraphs with the software", so the site
+         stops presenting the app as the way to record. The app itself goes
+         on (its update feed stays at public/recorder/latest.json, and the
+         download lives on the GitHub release, where /docs/recorder now
+         redirects). The Try page leads TOOLS instead. */
       /* The browser try (Mike, 2026-09-16: "build it as a try it page under
          tools"): the site's own camera on one docs page, for whoever cannot
          install the Mac app. It makes a real BitGraph and hands the proof

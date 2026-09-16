@@ -9,11 +9,11 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "Does BitGraph upload my file?",
-    a: "No. Your file is hashed on your own machine, by BitGraph Recorder, the MCP server or your own code, and the fused artifact is built there too. Only SHA-256 digests (32 bytes each) reach the enclave. The file bytes never leave your machine, and the original is never modified.",
+    a: "No. Your file is hashed on your own machine, by the MCP server, the browser or your own code, and the fused artifact is built there too. Only SHA-256 digests (32 bytes each) reach the enclave. The file bytes never leave your machine, and the original is never modified.",
   },
   {
     q: "What happens when I record a file?",
-    a: "The file is the origin. On your machine: the origin is hashed; the enclave allocates an unused slot before any artifact exists; a commitment to the signed slot record is derived; a new fused artifact is built from the origin under a registered placement; the fused artifact is hashed and its digest is committed into the same slot. The result is an ordinary `bitgraph/1` proof whose signed attribution names the placement and the origin digest under the profile identifier `bitgraph-fuse/1`. The origin is never modified and nothing is uploaded. The fused bytes are virtual: you only need to keep the origin, because the origin plus the proof rebuilds them byte for byte, and checking that reconstruction against the signed artifact digest is the evidence. In BitGraph Recorder a drop becomes a recording, one folder holding the file, `proof.json` and the Ethereum anchors as they land; its export writes the rebuilt file beside them. The MCP servers and the two-call API do the same for your own tools; file contents never travel, only digests, sizes, a file's first bytes for the placement choice, the slot record and the placement id.",
+    a: "The file is the origin. On your machine: the origin is hashed; the enclave allocates an unused slot before any artifact exists; a commitment to the signed slot record is derived; a new fused artifact is built from the origin under a registered placement; the fused artifact is hashed and its digest is committed into the same slot. The result is an ordinary `bitgraph/1` proof whose signed attribution names the placement and the origin digest under the profile identifier `bitgraph-fuse/1`. The origin is never modified and nothing is uploaded. The fused bytes are virtual: you only need to keep the origin, because the origin plus the proof rebuilds them byte for byte, and checking that reconstruction against the signed artifact digest is the evidence. The MCP servers and the two-call API hand the proof back to your own tools; file contents never travel, only digests, sizes, a file's first bytes for the placement choice, the slot record and the placement id.",
   },
   {
     q: "What does a BitGraph prove, exactly?",
@@ -49,7 +49,7 @@ const faqs = [
   },
   {
     q: "What happens when I drop the original again later?",
-    a: "In BitGraph Recorder a file already on record opens its recording instead of making a second one, and a folder somebody sends you checks on its own: verified, failed, could not be checked, or not recorded, per file. A fused artifact carries its own commitment, so it is checked directly; its proof names the origin and accepts the original by reconstruction. Recordings are never ranked or read as versions.",
+    a: "Dropping a file again makes a new recording: the site keeps no index of proofs, so whether a file already has one is known only to whoever holds its proof. A folder of proofs somebody sends you checks on its own: verified, failed, could not be checked, or not recorded, per file. A fused artifact carries its own commitment, so it is checked directly; its proof names the origin and accepts the original by reconstruction. Recordings are never ranked or read as versions.",
   },
   {
     q: "Can I make or check a BitGraph without the app?",
@@ -81,7 +81,7 @@ const faqs = [
   },
   {
     q: "What is the measurement field?",
-    a: "For AWS Nitro Enclaves, it is the PCR0 value, a SHA-384 hash of the enclave image. It uniquely identifies the exact code running inside the boundary, and the image is built reproducibly, so two independent builds of the published source arrive at the same value. Verifiers should pin `allowedMeasurements` to known-good values. The Recorder and the player report a proof signed under a measurement they do not carry as could not be checked, never as valid; a verifier that pins `allowedMeasurements` rejects it outright.",
+    a: "For AWS Nitro Enclaves, it is the PCR0 value, a SHA-384 hash of the enclave image. It uniquely identifies the exact code running inside the boundary, and the image is built reproducibly, so two independent builds of the published source arrive at the same value. Verifiers should pin `allowedMeasurements` to known-good values. The player reports a proof signed under a measurement it does not carry as could not be checked, never as valid; a verifier that pins `allowedMeasurements` rejects it outright.",
   },
   {
     q: "How does BitGraph establish time?",
@@ -89,7 +89,7 @@ const faqs = [
   },
   {
     q: "Can the same file produce different proofs?",
-    a: "Yes. Each recording takes a fresh slot, whose nonce came from hardware entropy at allocation, advances the counter, and produces a new signature. The artifact digest will be the same (same file = same SHA-256), but the commit context differs. This is correct behavior. Each is a distinct commit event. Recording the same original again through the two-call API, or through an MCP server with `again=true`, makes a new fused artifact with a new slot commitment, so its bytes and digest differ from the first; both name the same origin, and neither outranks the other. BitGraph Recorder opens an existing recording rather than making a second one. The MCP servers make a new BitGraph when asked: BitGraph no longer indexes proofs, so whether a file already has one is known only to whoever holds its proof.",
+    a: "Yes. Each recording takes a fresh slot, whose nonce came from hardware entropy at allocation, advances the counter, and produces a new signature. The artifact digest will be the same (same file = same SHA-256), but the commit context differs. This is correct behavior. Each is a distinct commit event. Recording the same original again through the two-call API, or through an MCP server with `again=true`, makes a new fused artifact with a new slot commitment, so its bytes and digest differ from the first; both name the same origin, and neither outranks the other. The MCP servers and the browser make a new BitGraph when asked: BitGraph no longer indexes proofs, so whether a file already has one is known only to whoever holds its proof.",
   },
   {
     q: "What is `prevB64`?",
@@ -125,9 +125,12 @@ export default function FAQPage() {
         Common questions about the BitGraph Protocol.
       </p>
 
-      <div className="space-y-8">
+      {/* Each question's h2 carries the site-wide rule above it (2026-09-16),
+          so the items draw no border of their own: with both, every question
+          had a double line (Mike: "looks like double dividers on the faq page"). */}
+      <div className="space-y-0">
         {faqs.map((faq) => (
-          <div key={faq.q} className="border-b border-[color:var(--line)] pb-8">
+          <div key={faq.q} className="pb-2">
             <h2 className="text-lg font-semibold mb-3">{renderInline(faq.q)}</h2>
             <p className="text-base text-[color:var(--text)] leading-relaxed">{renderInline(faq.a)}</p>
           </div>

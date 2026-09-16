@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/overview", destination: "/docs/overview", permanent: true },
+      // The Recorder page left the site on 2026-09-16 (Mike: "no company is
+      // going to make bitgraphs with the software"). Anyone holding its URL,
+      // the release notes included, lands on the app's own release.
+      { source: "/docs/recorder", destination: "https://github.com/mikeargento/bitgraph/releases/latest", permanent: false },
       // The Roll became the Ledger on 2026-09-03: a photography word for an
       // audience that is now developers. Every old path keeps working, because
       // proof pages, the docs and anything anyone bookmarked point at these.

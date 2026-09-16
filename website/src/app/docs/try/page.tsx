@@ -4,7 +4,7 @@ import { TryZone } from "./try-zone";
 export const metadata: Metadata = {
   title: "Try it",
   description:
-    "Make a BitGraph in the browser: the file is hashed on your machine, the enclave opens a position, the digest is committed under it, and the proof comes back to you.",
+    "Drop a file to create a proof, or add an existing proof to check it. Your file is hashed in your browser; only its hash is sent to BitGraph.",
 };
 
 /* The browser try (Mike, 2026-09-16: "build it as a try it page under tools
@@ -17,25 +17,33 @@ export const metadata: Metadata = {
    comes back to the visitor and is not held here; no hosted proof page for
    what it makes (discovery retired 2026-09-08); the position is real. */
 export default function TryPage() {
+  // Copy as supplied by Mike, 2026-09-16 ("Update the prose on /docs/try using
+  // the exact copy below"), verbatim.
   return (
     <article className="prose-doc" style={{ maxWidth: "none" }}>
-      <h1>Try it in the browser</h1>
+      <h1>Try BitGraph in your browser</h1>
+      <p>Drop a file to create a proof, or add an existing proof to check it.</p>
       <p>
-        Drop a file below. It is hashed on your machine, the enclave opens a position, the digest is committed under it, and the proof comes back to you. The file never leaves your computer. Only its digest crosses.
+        Your file is hashed in your browser. Only its hash—a digital fingerprint—is sent to BitGraph. The file stays on your computer.
       </p>
       <p>
-        The position is real. There is no sandbox, because there is no pretend mode: what you make here sits on the same ledger as everything else, and the proof is yours to keep. Save it from the page that opens.
+        Creating a proof records that fingerprint on BitGraph&rsquo;s live ledger. Save your proof from the results page.
       </p>
 
       <TryZone />
 
-      <h2>Checking one</h2>
+      <h2>Check an existing proof</h2>
       <p>
-        To check a BitGraph you were handed, drop its <code>proof.json</code> in the same box, with the file if you have it. The check runs in this tab and asks nothing of anyone. For a check you would stake something on, run it yourself, in the <a href="/docs/recorder">Recorder</a> or with <code>npx @mikeargento/bitgraph-audit</code> in a terminal, so that nothing you trust was served by the party you are checking.
+        Drop <code>proof.json</code> into the box above. Include the original file to check that it matches the proof. Verification runs in your browser.
       </p>
       <p>
-        The Mac app does everything this page does, writes the proof beside your file, and keeps the Ethereum anchors as they land. <a href="/docs/recorder">BitGraph Recorder</a>.
+        To verify outside this website, use the command-line verifier:
       </p>
+      <p><code>npx @mikeargento/bitgraph-audit</code></p>
+
+      {/* "Save proofs automatically", a section about the Mac app, was cut
+          minutes after it went in (Mike, 2026-09-16: "pretend recorder app
+          doesnt even exist"). */}
     </article>
   );
 }
