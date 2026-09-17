@@ -2135,7 +2135,7 @@ function BringYourFile({
          page. Same mark, same blue on hover and drag. Dashed edges from the
          shared hook, like every drop target. */
       ref={edges.ref}
-      /* One drop box site-wide (Mike, 2026-09-18: 16:9, and every box the
+      /* One drop box site-wide (Mike, 2026-09-17: 16:9, and every box the
          same): the geometry, the centring and the type are the .dropbox
          rules in globals.css; only the state colours are set here. */
       className="dropbox"
@@ -2208,7 +2208,7 @@ function BringYourFile({
               or pads one side would break it. */}
           {/* Black at rest, brand blue on hover, off the same state the
               dashed edges use, so title and frame light up together. */}
-          {/* One drop box site-wide (2026-09-18): the mark, one sentence, one quiet line. */}
+          {/* One drop box site-wide (2026-09-17): the mark, one sentence, one quiet line. */}
           <DropPrompt quiet="BitGraph searches by hash and finds the match for you, even if you do not know which file it is. Nothing is uploaded; the search runs in your browser.">
             Find this file: drag files or a folder here, or <Browse />
           </DropPrompt>

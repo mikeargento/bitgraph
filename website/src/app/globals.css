@@ -1050,7 +1050,7 @@ a { color: var(--accent); }
 
 /* Square, everywhere, including what set a radius inline. The two spinners
    (a circle drawn with a border) keep theirs. */
-/* (2026-09-18) The rule that squared every corner stood here. Corners are 6px now, from the radius tokens; see GITHUB'S COMPONENT LANGUAGE at the end of this file. */
+/* (2026-09-17) The rule that squared every corner stood here. Corners are 6px now, from the radius tokens; see GITHUB'S COMPONENT LANGUAGE at the end of this file. */
 .bg-spinner { border-radius: 50% !important; }
 .shadow, .shadow-card, .shadow-menu { box-shadow: none !important; }
 
@@ -1450,7 +1450,7 @@ th, .prose th, .prose-doc th, .overview th { font-size: 12px; font-weight: 700; 
 .anchor-zone .bitgraph-camera { width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: auto; margin: 0; display: block; }
 .anchor-zone .bitgraph-camera > div { min-height: 128px; }
 
-/* ═══ 2026-09-18: GITHUB'S COMPONENT LANGUAGE (Mike, with screenshots of the
+/* ═══ 2026-09-17: GITHUB'S COMPONENT LANGUAGE (Mike, with screenshots of the
    repository page: "we are SO close to what GitHub is that maybe you should
    borrow ideas from it like the borders and boxes with slightly rounded
    edges"). Borrowed: 6px corners on every box, control, code block and chip;
@@ -1510,7 +1510,7 @@ th, .prose th, .prose-doc th, .overview th { font-size: 14px; font-weight: 600; 
 .fig svg .box, .fig svg .box-b, .fig svg .lane, .fig svg .lane-enc { rx: 6px; }
 .fig svg .chip { rx: 4px; }
 
-/* The shading, copied (Mike, 2026-09-18, of a README code block: "dont be afraid to
+/* The shading, copied (Mike, 2026-09-17, of a README code block: "dont be afraid to
    copy that shading either, one color is a touch lighter"). GitHub's dark ground and
    the surface one step above it; boxes are told from the page by that step, so a code
    block needs no border. Text, accent and state colours stay this site's own. */
@@ -1529,11 +1529,11 @@ th, .prose th, .prose-doc th, .overview th { background: transparent; }
 .prose tbody tr:nth-child(even) { background: var(--panel); }
 
 /* The one destructive event in the figures, a key destroyed at the end of an epoch, wears the
-   destructive colour, as a delete control does (Mike, 2026-09-18: it "should be a more
+   destructive colour, as a delete control does (Mike, 2026-09-17: it "should be a more
    distinctive color"). */
 .fig svg .t-r { fill: var(--err); font-weight: 700; }
 
-/* Syntax colouring inside code blocks (components/code.tsx; Mike, 2026-09-18: "do it").
+/* Syntax colouring inside code blocks (components/code.tsx; Mike, 2026-09-17: "do it").
    Shiki's CSS-variables theme reads these, so the colours are tokens like every other
    colour on the site. The values are GitHub's dark theme. An unquoted shell argument is
    a "string" to the grammar and stays in the text colour, as it does there. */
@@ -1552,7 +1552,7 @@ th, .prose th, .prose-doc th, .overview th { background: transparent; }
 .code-block pre[data-lang^="json"] { --syn-token-keyword: #7ee787; }
 .code-block pre[data-lang="yaml"] { --syn-token-keyword: #7ee787; --syn-token-string: #a5d6ff; }
 
-/* ═══ The bar (2026-09-18): four dropdowns and one filled button, as GitHub sets a
+/* ═══ The bar (2026-09-17): four dropdowns and one filled button, as GitHub sets a
    header. The button's green is GitHub's and is its own token: the site's green text
    colour still means "verified" and nothing else. */
 :root { --btn-primary: #238636; --btn-primary-hover: #2ea043; --btn-primary-text: #ffffff; }
@@ -1582,11 +1582,11 @@ th, .prose th, .prose-doc th, .overview th { background: transparent; }
 .prose .meta, .prose-doc .meta { font-family: var(--font-prose); font-size: 14px; line-height: 1.55; color: var(--dim); }
 
 /* The button's label is white in every state, the page it opens included: the bar's
-   rule that turns the current page's link blue was reaching it (Mike, 2026-09-18:
+   rule that turns the current page's link blue was reaching it (Mike, 2026-09-17:
    "it should just remain same color text cause blue is bad"). */
 #site-nav .bg-nav-links a.nav-cta, #site-nav .bg-nav-links a.nav-cta:hover, #site-nav .bg-nav-links a.nav-cta[aria-current="page"] { color: var(--btn-primary-text); }
 
-/* ═══ ONE DROP BOX (2026-09-18, Mike: "drop boxes should be more like a 16:9 ratio and make
+/* ═══ ONE DROP BOX (2026-09-17, Mike: "drop boxes should be more like a 16:9 ratio and make
    sure ALL dropboxes across site match including on proof pages when something is missing or
    the ethereum json lookup"). Four places take a drop: the Try page, the ledger's anchor
    lookup, the proof page's find-this-file box, and the have-the-file box inside a results
@@ -1614,20 +1614,20 @@ th, .prose th, .prose-doc th, .overview th { background: transparent; }
 .dropbox-line { font-size: 14px; line-height: 1.55; color: var(--text); margin-top: 10px; max-width: 460px; text-wrap: balance; }
 .dropbox-quiet { font-size: 14px; line-height: 1.55; color: var(--dim); margin-top: 4px; max-width: 460px; text-wrap: balance; }
 
-/* ═══ THE FACES (2026-09-18). Three voices, one job each.
+/* ═══ THE FACES (2026-09-17). Three voices, one job each.
    SENTENCES are Source Serif 4: paragraphs, list items, table cells, captions, notes, the
    lines inside a drop box. Self-hosted by next/font with its optical-size axis, real italics
    and weights (Mike: "do the fonts exactly how you want. your choice").
    HEADINGS AND INTERFACE are Acumin Pro, the site's face all along (--font-term, from the
    Typekit kit): h1 to h3, the bar, buttons, lead-ins, labels, table heads, the lettering in
-   figures. Two others were tried on 2026-09-18 and withdrawn the same hour: Source Code Pro
+   figures. Two others were tried on 2026-09-17 and withdrawn the same hour: Source Code Pro
    (mono headings, my pick) and Avenir Next ("yea maybe avenir is better for headings"), then
    Mike: "use acumin pro". A sans heading it is, and the one already in the kit and the
    wordmark, so nothing depends on a visitor's system fonts.
    DATA AND CODE are Source Code Pro: digests, counters, field names, code, tags.
    Acumin is also the wordmark and the lettering inside the data views (proof page, ledger rows, results). */
 :root {
-  /* Plantin from the Typekit kit (Mike added it 2026-09-18 on my recommendation: the sturdy,
+  /* Plantin from the Typekit kit (Mike added it 2026-09-17 on my recommendation: the sturdy,
      compact ancestor of Tiempos). Source Serif 4, self-hosted, stands behind it. */
   --font-serif: "plantin", var(--font-source-serif), "Source Serif 4", Georgia, "Times New Roman", serif;
   --font-data: var(--font-source-code), "Source Code Pro", ui-monospace, "SF Mono", Menlo, monospace;
@@ -1669,7 +1669,7 @@ figcaption { font-family: var(--font-serif); }
 /* The caption lives inside the well, under the drawing and a hairline. */
 .fig-well figcaption { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-2); max-width: none; }
 
-/* The wordmark (Mike, 2026-09-18: "make bitgraph logo the size you think it should be").
+/* The wordmark (Mike, 2026-09-17: "make bitgraph logo the size you think it should be").
    22px: about one and a half times the 15px bar labels, so it leads the row the way a mark
    does beside GitHub's controls without reaching the h1 (32) or crowding a 64px bar; its
    cap height matches the 32px buttons' text box. It has no symbol beside it, so it carries
@@ -1686,7 +1686,7 @@ figcaption { font-family: var(--font-serif); }
 /* An open position: fitted round dots (set per square in fig.tsx), filled with the well's colour. */
 .fig svg .pos-open { fill: var(--inset); stroke: var(--warn); }
 
-/* State colours on GitHub's dark scale (2026-09-18, Mike of the figure's green: "something about
+/* State colours on GitHub's dark scale (2026-09-17, Mike of the figure's green: "something about
    it seems off to me"). The pastel set was chosen for the old graphite ground; on GitHub's
    ground, beside its green button, the mint read as a different green and the yellow as neon.
    Success, attention, danger and done are GitHub's own values; links keep the site's azure,
@@ -1705,7 +1705,7 @@ figcaption { font-family: var(--font-serif); }
    column's top edge and the words start a block below. */
 .prose > .sr-only + .try-zone { margin-top: 0; }
 
-/* An inline code chip is one thing and moves to the next line whole (Mike, 2026-09-18, of
+/* An inline code chip is one thing and moves to the next line whole (Mike, 2026-09-17, of
    `commitCounter(A) < slotCounter(B)` split at its space: "does a line wrap there that
    shouldnt?"). From 601px up the column holds the longest ordinary chip (64 characters at
    its narrowest); the few longer ones, a full measurement or a whole object, carry .break and
@@ -1714,7 +1714,7 @@ figcaption { font-family: var(--font-serif); }
   .prose code:not(.break), .prose-doc code:not(.break), .lede code:not(.break), .note code:not(.break), figcaption code:not(.break) { white-space: nowrap; }
 }
 
-/* ═══ Buttons (Mike, 2026-09-18, with GitHub's Pin / Watch / Fork / Star row beside the
+/* ═══ Buttons (Mike, 2026-09-17, with GitHub's Pin / Watch / Fork / Star row beside the
    previous and next links at the foot of a page: "all these types of buttons should have some
    kind of button element to them like on github"). Every action that is not a sentence link
    wears GitHub's secondary button: a surface one step up, a hairline, 6px corners, 32px tall,
@@ -1757,7 +1757,7 @@ figcaption { font-family: var(--font-serif); }
 /* The Make a BitGraph page opens with the box, flush with the column's top. */
 .prose > .try-zone:first-child { margin-top: 0; }
 
-/* ONE TREATMENT FOR EVERY FIGURE (Mike, 2026-09-18, of the two-lane figure beside the home
+/* ONE TREATMENT FOR EVERY FIGURE (Mike, 2026-09-17, of the two-lane figure beside the home
    page's: "these graphs should keep same colors or at least borrow ... page one graphic could
    use the more subdued treatment"). The two-lane figure speaks in thin coloured outlines on
    dark panels and coloured lettering, never in solid blocks of colour. The sequence figures now
@@ -1779,7 +1779,7 @@ figcaption { font-family: var(--font-serif); }
 .fig svg .chip-g { stroke: var(--ok); }
 .fig svg .chip-c { stroke: var(--code); }
 
-/* Every figure's titles wear one colour, the two-lane figure's heading ink (Mike, 2026-09-18:
+/* Every figure's titles wear one colour, the two-lane figure's heading ink (Mike, 2026-09-17:
    "1. UNUSED 2. CONSUMED should be same label color as other charts ive decided"). */
 .fig svg .ttl { fill: var(--head); }
 

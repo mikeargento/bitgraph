@@ -12,7 +12,7 @@ export function FusedFigure() {
     </>
   );
 
-  /* Two rows across the whole canvas (Mike, 2026-09-18: "its not using space right";
+  /* Two rows across the whole canvas (Mike, 2026-09-17: "its not using space right";
      the first drawing hugged the left, floated its note and left the right fifth empty).
      Row one is the sum, edge to edge: original + commitment = new file. Row two sits
      under it in the same columns: the note under the two inputs, the fingerprint chain

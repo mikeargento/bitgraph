@@ -2,7 +2,7 @@ import { Arrow, Chip, Doc, Fig, Others, OthersV, Pos, Svg, T } from "./fig";
 
 /**
  * The state transition, in two panels, named as the site's opening sentence names them
- * (Mike, 2026-09-18: "should EMPTY be UNUSED?"): the position allocated and unused, then
+ * (Mike, 2026-09-17: "should EMPTY be UNUSED?"): the position allocated and unused, then
  * the same position consumed by a fingerprint. The commit itself takes the
  * next counter value, so the second panel shows two marks: the slot, now
  * filled, and the commit beside it. Numbers are illustrative.

@@ -10,7 +10,7 @@ import { DropPrompt, Browse } from "@/components/drop-prompt";
    straight to its proof page; a folder becomes one set; a dropped proof.json
    is checked). Inside the box: the mark and one sentence (drop-prompt.tsx). The
    page's headline, "Make or check a BitGraph", sits under the box, over the words
-   that explain it (Mike, 2026-09-18). */
+   that explain it (Mike, 2026-09-17). */
 export function TryZone() {
   return (
     <div className="try-zone">

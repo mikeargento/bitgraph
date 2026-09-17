@@ -15,7 +15,7 @@ export function EpochFigure() {
 
   /* Three compartments 253 wide with 100 between them: the gap has to hold the
      two-line label for the key's destruction without touching either box
-     (Mike, 2026-09-18: it overlapped the borders at 40). */
+     (Mike, 2026-09-17: it overlapped the borders at 40). */
   const BOX_W = 253;
   const wide = (
     <Svg w={960} h={240} top={22} title="Three compartments side by side, labelled as three consecutive UTC days, each with its own key and a counter that restarts. Inside each, a short sequence with blue anchors at both ends. Between compartments: 23:59 UTC, key destroyed. Below, the Ethereum block numbers named by the anchors increase from left to right.">

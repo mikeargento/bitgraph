@@ -3,7 +3,7 @@ import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro } from "next/fon
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
-/* THE FACES (2026-09-18, Mike: "do the fonts exactly how you want. your choice").
+/* THE FACES (2026-09-17, Mike: "do the fonts exactly how you want. your choice").
    Two voices from one superfamily, Adobe's Source: Source Serif 4 for every
    sentence, Source Code Pro for all structure (headings, the bar, labels,
    lead-ins, field names, data, code). They were drawn to sit together, so
@@ -18,7 +18,7 @@ const sourceSerif = Source_Serif_4({
   axes: ["opsz"],
   variable: "--font-source-serif",
   display: "swap",
-  // The fallback behind Plantin (Typekit) since 2026-09-18, so it is no longer preloaded:
+  // The fallback behind Plantin (Typekit) since 2026-09-17, so it is no longer preloaded:
   // a browser fetches it only if Plantin is missing.
   preload: false,
 });

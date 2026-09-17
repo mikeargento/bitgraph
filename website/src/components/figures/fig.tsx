@@ -8,7 +8,7 @@
  * bottom on a phone). A square is a position. Dotted amber is open and
  * unspent; filled ink is consumed; grey is somebody else's; blue is an
  * Ethereum anchor (a floor); purple is the anchor that follows (a ceiling).
- * A label and its square wear the same colour (Mike, 2026-09-18): the slot is
+ * A label and its square wear the same colour (Mike, 2026-09-17): the slot is
  * amber, dotted while open and solid once spent; the commit that spends it is
  * green. Panel titles are NOT coloured (Mike decided, same day): every figure's
  * titles wear one label colour, the two-lane figure's.
@@ -20,14 +20,14 @@ export type PosKind = "open" | "held" | "spent" | "commit" | "done" | "other" | 
 export function Fig({ wide, narrow, caption, label }: { wide: ReactNode; narrow: ReactNode; caption?: ReactNode; label: string }) {
   return (
     <figure className="fig" role="group" aria-label={label}>
-      {/* The well (Mike, 2026-09-18: "should diagrams sit on darker background with a
+      {/* The well (Mike, 2026-09-17: "should diagrams sit on darker background with a
           light stroke to separate them??"). One step darker than the page with a
           hairline round it, the opposite of a code block's lighter box, so a drawing
           reads as one object. The caption sits inside it, under the drawing. */}
       <div className="fig-well">
         <div className="fig-wide">{wide}</div>
         <div className="fig-narrow">{narrow}</div>
-        {/* Inside the well, under a hairline (Mike, 2026-09-18: "shouldnt the diagrams
+        {/* Inside the well, under a hairline (Mike, 2026-09-17: "shouldnt the diagrams
             descriptions be inside black?"; the two-lane figure has carried its caption
             inside its card since 2026-09-11). */}
         {caption && <figcaption>{caption}</figcaption>}
@@ -62,7 +62,7 @@ export function Svg({ w, h, top = 0, children, title }: { w: number; h: number; 
 export function Pos({ cx, cy, kind, size = 18 }: { cx: number; cy: number; kind: PosKind; size?: number }) {
   const s = kind === "other" ? size * 0.55 : size;
   if (kind === "open") {
-    /* An open position: a dotted outline fitted to the square (Mike, 2026-09-18: "could this
+    /* An open position: a dotted outline fitted to the square (Mike, 2026-09-17: "could this
        look better???", then "why not dots instead of dashes"). A 22px square has room for
        two dashes a side, which reads chunky and ends ragged at the corners; round dots give
        it five marks a side and no corner problem. A zero-length dash with a round cap is a
@@ -105,7 +105,7 @@ type ChipTone = "b" | "w" | "p" | "g" | "c" | "d";
 
 /** One label, one chip. `parts` sets differently toned runs inside a single chip: two
     neighbouring positions get ONE chip naming both, never two chips side by side, which
-    overlapped by a few pixels and puffed up where they met (Mike, 2026-09-18). */
+    overlapped by a few pixels and puffed up where they met (Mike, 2026-09-17). */
 export function Chip({ cx, cy, text, tone, w, parts }: { cx: number; cy: number; text?: string; tone?: ChipTone; w?: number; parts?: { text: string; tone?: ChipTone }[] }) {
   const full = parts ? parts.map((p) => p.text).join("") : (text ?? "");
   const width = w ?? Math.round(full.length * 6.6 + 18);

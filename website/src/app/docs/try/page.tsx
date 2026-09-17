@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 /**
  * The real tool on one page. The box comes first and the words follow it
- * (Mike, 2026-09-18: "move box to the top, remove 'try it' and drop this text
+ * (Mike, 2026-09-17: "move box to the top, remove 'try it' and drop this text
  * below. i feel like this would be a better UI"): whoever arrives from the
  * green button came to drop files, and the results of a drop appear in the
  * box's place, at the top, where the eye already is. Under it, the facts worth

@@ -4,7 +4,7 @@
  * "this is where you drop files", and every drop box wears it: the Try page's
  * band, the ledger's anchor box, the proof page's find-this-file box.
  *
- * 2026-09-18: a fine CSS dashed border with the site's 6px corners (Mike, of
+ * 2026-09-17: a fine CSS dashed border with the site's 6px corners (Mike, of
  * the drawn version: "dotted lines on drop boxes should be tighter. smaller").
  * Until today the dashes were DRAWN, four background gradients 2px thick with
  * a 9:7 dash solved per edge, because at 2px with square corners a CSS dashed

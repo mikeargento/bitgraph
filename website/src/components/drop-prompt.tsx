@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 /**
  * What every drop box says inside: the two-sheets mark, one sentence naming both
- * gestures, and at most one quiet line under it (Mike, 2026-09-18, with a reference:
+ * gestures, and at most one quiet line under it (Mike, 2026-09-17, with a reference:
  * "inside box should be [an icon and 'Drag files or a folder here, or browse files']
  * but obviously with correct color"). The mark and the browse words wear the link blue;
  * the sentence is ink.

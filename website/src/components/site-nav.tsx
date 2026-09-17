@@ -8,17 +8,17 @@ import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-
 /**
  * The bar. Wordmark, the four documentation groups each as its own dropdown,
  * and one filled button that opens the page where a BitGraph is made (Mike,
- * 2026-09-18, with GitHub's green Code button beside the old panel's four
+ * 2026-09-17, with GitHub's green Code button beside the old panel's four
  * headings: "the +New or 'make a bitgraph' button should be like this and the
  * menu items should be these as each dropdown menus each containing their
  * links").
  *
  * Below 900px four labels and a button do not fit, so the groups fold into one
  * Menu button whose panel lists all four, and the green button's label shortens
- * to New. It says Menu, not Docs (Mike, 2026-09-18): on a phone it holds
+ * to New. It says Menu, not Docs (Mike, 2026-09-17): on a phone it holds
  * everything, Use cases, Contact and GitHub included.
  *
- * Menus open under the cursor on a device that has one (Mike, 2026-09-18:
+ * Menus open under the cursor on a device that has one (Mike, 2026-09-17:
  * "should you have to click menu items or should hover just work"), and on a
  * click or Enter everywhere, which is what a touch screen and a keyboard use.
  * The production bar was click-only because a hover-ONLY menu has no touch
