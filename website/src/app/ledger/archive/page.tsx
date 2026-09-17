@@ -9,6 +9,7 @@
    Folder's shelf (folder-list.tsx) so the two cannot drift. That one knows
    its counts and says them; this one, by design, does not. ── */
 
+import { AnchorRecovery } from "@/components/anchor-recovery";
 import { DocsPageNav } from "@/components/docs-page-nav";
 import { MonthCalendar, MonthShelf, MONTH_NAMES, type CalendarDay } from "@/components/month-calendar";
 
@@ -71,6 +72,18 @@ export default function ArchivePage() {
             <MonthCalendar key={mo.label} title={mo.label} leading={mo.leading} days={mo.days} />
           ))}
         </MonthShelf>
+        {/* Getting the anchors for a BitGraph you already hold. The ledger page
+            is the anchors as a list to read; this is the two that bracket one
+            position, as files to keep (Mike, 2026-09-15: "they have a proof
+            and the original files but need the eth proof because they dont
+            have it or they need a record of it for their files").
+
+            ⚠️ NOT THE DAY EXPORT. A link for a day's anchors as JSON stood in
+            the ledger's shelf for one push on 2026-09-09 and was cut the same
+            evening, because nobody is matching whole days. This is the case
+            that was actually missing: one holder, one position, two anchors. */}
+        <AnchorRecovery />
+        {/* Moved here from /ledger on 2026-09-17: that page is an infinite scroll. */}
       </div>
     <DocsPageNav current="/ledger" />
     </div>

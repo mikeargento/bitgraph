@@ -1113,8 +1113,10 @@ hr:has(+ h2), .section-divider:has(+ h2) { display: none !important; }
 /* The proof page's when-box: date and window on the left, the export on the
    right; on a phone the export drops under the window and sits left. */
 @media (max-width: 640px) {
-  .bg-when-box { flex-direction: column; align-items: flex-start; }
-  .bg-when-box > .bg-when-actions { margin-left: 0; padding-top: 0; text-align: left; }
+  /* !important: the box and its actions carry inline styles on the page, which
+     beat these rules without it (that is why the phone layout never applied). */
+  .bg-when-box { flex-direction: column !important; align-items: flex-start !important; gap: 0 !important; }
+  .bg-when-box > .bg-when-actions { margin-left: 0 !important; padding-top: 0 !important; text-align: left !important; }
 }
 
 /* The ledger row's "Open" chevron is gone (Mike, 2026-09-16: "open shouldnt
@@ -1344,7 +1346,9 @@ figure svg { display: block; width: 100%; height: auto; }
    always-underlined rule above; the bar, menu rows and figure links already
    carry none and keep none. */
 a, button.bg-action-link:not(.bg-download-link) { text-decoration: none !important; }
-a:hover, button.bg-action-link:not(.bg-download-link):hover { text-decoration: underline !important; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+/* Button-shaped actions never underline, hover included (Mike, 2026-09-17); the
+   button selector used to sit here and out-ranked the button rule's own hover. */
+a:hover { text-decoration: underline !important; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 #site-nav a:hover, .docs-menu-item:hover, .bg-download-link:hover, .xp-row:hover, .xp-row a:hover, figure a:hover, svg a:hover { text-decoration: none !important; }
 
 /* ═══ 2026-09-17: THE COLOUR PASS (Mike: "do a color pass and make the colors

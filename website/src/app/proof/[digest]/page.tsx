@@ -749,7 +749,10 @@ export default function ProofPage() {
   // which wrapped on mobile), written long ("October 24, 2025") so there is no
   // M/D vs D/M ambiguity across locales.
   let recordedDate: string | null = null;
-  const longDate = (d: Date) => d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+  // UTC, like every time under it: the heading names the day, so the times
+  // beneath it drop their date when they fall on that day (Mike, 2026-09-17).
+  const longDate = (d: Date) => d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+  const sameUtcDay = (a: Date, b: Date) => a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
   let leadNode: React.ReactNode = null;
   // The actual time/date values are emphasized in brand blue (the connector
   // words stay default gray), so the receipt's key temporal fact reads as the
@@ -785,13 +788,16 @@ export default function ProofPage() {
       leadNode = <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>;
     }
   } else if (!isEth && lowerTime && upperTime) {
-    // The floor as a time; the ceiling as the following anchor's POSITION.
-    // That anchor's block time is not an upper bound on this record (an anchor
-    // is made after its block), so it is not printed as one.
+    // Mike's ruling (2026-09-16, restated 2026-09-17): the verdict reads
+    // "after <time>, before <time>", each time a block's own mint time, so it
+    // matches the Etherscan page its row links to. The 09-16 redesign printed
+    // the ceiling as an anchor position instead; he reversed that. The anchor's
+    // position still has its own card below.
     const t1 = new Date(lowerTime);
-    const ceil = causalWindow?.anchorAfter?.counter ? `anchor #${Number(causalWindow.anchorAfter.counter).toLocaleString()}` : null;
-    recordedLine = ceil ? `after ${stampTz(t1)}, before ${ceil}` : `after ${stampTz(t1)}`;
-    recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t1)}</span></Em>{ceil && <>, before <Em><span style={{ whiteSpace: "nowrap" }}>{ceil}</span></Em></>}</>;
+    const t2 = new Date(upperTime);
+    const upper = sameUtcDay(t1, t2) ? timeTz(t2) : stampTz(t2);
+    recordedLine = `after ${stampTz(t1)}, before ${stampTz(t2)}`;
+    recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em>, before <Em><span style={{ whiteSpace: "nowrap" }}>{upper}</span></Em></>;
     recordedDate = longDate(t1);
     leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
   } else if (!isEth && lowerTime) {
@@ -833,20 +839,16 @@ export default function ProofPage() {
     leadStack = winLine(val(timeTz(d)));
   } else if (!isEth && lowerTime) {
     if (upperTime) {
-      // The floor is a time: the block the slot record names was mined before
-      // the slot existed. The ceiling is a POSITION: the next anchor in the
-      // sequence, named with the block it carries. An anchor is made after its
-      // block, so that block's clock time is not an upper bound on this record
-      // and is deliberately not printed as one (2026-09-16 redesign; the
-      // earlier "before <block time>" wording overstated the claim).
+      // "after <time>, before <time>": both are block mint times (Mike's
+      // ruling, see the verdict above).
       const s1 = new Date(lowerTime);
-      const after = causalWindow?.anchorAfter;
-      const ceilCounter = after?.counter ? `#${Number(after.counter).toLocaleString()}` : null;
-      const ceilBlock = after?.blockNumber != null ? `block ${Number(after.blockNumber).toLocaleString()}` : null;
+      const s2 = new Date(upperTime);
       leadStack = winLine(
         <>
-          {conn("after ")}{val(stampTz(s1))}
-          {ceilCounter && <>{conn(", before anchor ")}{val(ceilCounter)}{ceilBlock && <>{conn(" (")}{val(ceilBlock)}{conn(")")}</>}</>}
+          {/* Two unbreakable clauses: on a phone the line breaks between
+              them, never inside one. */}
+          <span style={{ whiteSpace: "nowrap" }}>{conn("after ")}{val(timeTz(s1))}{conn(",")}</span>{" "}
+          <span style={{ whiteSpace: "nowrap" }}>{conn("before ")}{val(sameUtcDay(s1, s2) ? timeTz(s2) : stampTz(s2))}</span>
         </>
       );
     } else if (ethWait) {

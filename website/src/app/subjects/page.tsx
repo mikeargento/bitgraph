@@ -135,7 +135,8 @@ export default function UseCasesPage() {
         <h2 id="before">Before adopting it in a regulated setting</h2>
         <div className="callout is-limit">
           <span className="kicker">Read this first</span>
-          <p>Every recorded digest, position and anchor is public and permanent; the ledger&rsquo;s compliance lock prevents deletion by anyone, including the operator. A digest reveals nothing about a record unless someone already holds the exact bytes, but for low-entropy records, such as a short form from a known template, a holder of a candidate can confirm whether it was recorded. The record itself never leaves your systems. The <Link href="/docs/trust-model#privacy">trust model</Link> lists the exposures in full.</p>
+          <p>Every recorded digest, position and anchor is public and permanent; the ledger&rsquo;s compliance lock prevents deletion by anyone, including the operator. A digest reveals nothing about a record unless someone already holds the exact bytes, but for low-entropy records, such as a short form from a known template, a holder of a candidate can confirm whether it was recorded. The record itself never leaves your systems.</p>
+          <p>The public ledger is a convenience, not the evidence: whoever holds the exact bytes can use it to find the proof again, and the verifier never consults it. The evidence is the proof itself, a small JSON file that comes back to you. Keep it beside the record or in any database, public or private. Anyone holding the record and the proof can check them together, offline, without contacting BitGraph. The <Link href="/docs/trust-model#privacy">trust model</Link> lists the exposures in full.</p>
         </div>
 
         <h2 id="next">Where next</h2>
