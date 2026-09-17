@@ -13,7 +13,7 @@ export function renderInline(text: string): React.ReactNode {
     i % 2 === 1 ? (
       <code
         key={i}
-        className="font-mono text-[0.95em] bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5 rounded"
+        className="font-mono text-[0.95em] bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5"
       >
         {part}
       </code>

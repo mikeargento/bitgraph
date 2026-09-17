@@ -30,6 +30,11 @@
  *
  * Wide figures scroll sideways on a phone, as the whitepaper's did.
  *
+ * 2026-09-17: back on How it works in place of the redesign's boundary figure
+ * (Mike: "we should keep this diagram ... yours is way messier"). The frame
+ * and caption follow the site's figure rules now; the inline margin and the
+ * rule under the caption are gone.
+ *
  * 2026-09-16: the drawing spans the text column exactly (the viewBox is cut to
  * the lanes' outer edges, no wrapper card, no max width), and every stroke is
  * a fixed 1 CSS px at any scale (vector-effect: non-scaling-stroke). Mike:
@@ -48,8 +53,6 @@ const C = {
   line: "var(--line)",
   white: "var(--panel)",
   brand: "var(--accent)",
-  brandTint: "rgba(121,184,236,0.111)",
-  brandTintLight: "rgba(121,184,236,0.07)",
 };
 const MONO = "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -73,7 +76,7 @@ function Box({ x, y, w, h, title, sub, stroke = C.line, sw = 1, titleFill = C.in
   const ty = y + h / 2 - blockH / 2 + titleSize;
   return (
     <g>
-      <rect vectorEffect="non-scaling-stroke" x={x} y={y} width={w} height={h} rx={0} fill={fill} stroke={stroke} strokeWidth={sw} />
+      <rect vectorEffect="non-scaling-stroke" x={x} y={y} width={w} height={h} rx={6} fill={fill} stroke={stroke} strokeWidth={sw} />
       <text x={cx} y={ty} textAnchor="middle" fontSize={titleSize} fontWeight={600} fill={titleFill}>{rich(title, titleSize)}</text>
       {subs.map((s, i) => (
         <text key={i} x={cx} y={ty + 13 + i * lineH} textAnchor="middle" fontSize={10} fill={C.mut}>{rich(s, 10)}</text>
@@ -105,7 +108,7 @@ function Tag({ x, y, text, brand, held, proof, w: given }: { x: number; y: numbe
   const h = 22;
   return (
     <g>
-      <rect vectorEffect="non-scaling-stroke" x={x - w / 2} y={y - h / 2} width={w} height={h} rx={0} fill={C.white} stroke={tone ?? "var(--faint)"} strokeWidth={1} />
+      <rect vectorEffect="non-scaling-stroke" x={x - w / 2} y={y - h / 2} width={w} height={h} rx={6} fill={C.white} stroke={tone ?? "var(--faint)"} strokeWidth={1} />
       <text x={x} y={y + 3.5} textAnchor="middle" fontSize={9.5} fill={tone ?? C.mut} letterSpacing="0.04em">{rich(text, 9.5)}</text>
     </g>
   );
@@ -117,13 +120,14 @@ export function HowFigure() {
   // caption is set flush with the prose and in the secondary grey, and the
   // rule under it hands the page back to the body text.
   return (
-    <figure style={{ margin: "12px 0 36px", paddingBottom: 26, borderBottom: "1px solid var(--line)" }}>
+    <figure>
       {/* One shaded card holds the drawing and its caption, caption inside,
           left-set (Mike, 2026-09-11). The device lane is white on the card's
           grey so the two lanes still read as two. */}
       <div>
         {/* Only the drawing scrolls on a phone; the caption below wraps and
             stays put (Mike, 2026-09-11). */}
+        <div className="fig-well">
         <div style={{ overflowX: "auto" }}>
         <div style={{ minWidth: 760 }} role="img" aria-label="Two lanes, your device over the enclave. In the enclave lane, position N is opened first from a hardware nonce while no digest exists, and its signed slot record goes down to your device. In the device lane, your file becomes new bytes that carry a commitment to N, built on your device. Their digest H goes back up to the enclave and is committed under N, signed and attested; N is consumed. The proof comes back down and leaves with the file. N was held, unspent, between opening and commit.">
           <svg viewBox="19 19 962 398" width="100%" style={{ display: "block", fontFamily: "inherit" }}>
@@ -137,10 +141,10 @@ export function HowFigure() {
             </defs>
 
             {/* the two lanes: where each step happens */}
-            <rect vectorEffect="non-scaling-stroke" x={20} y={20} width={960} height={176} rx={0} fill="var(--bg)" stroke={C.line} strokeWidth={1} />
+            <rect vectorEffect="non-scaling-stroke" x={20} y={20} width={960} height={176} rx={6} fill="var(--bg)" stroke={C.line} strokeWidth={1} />
             {/* Lane titles are section titles, so they wear the site's heading colour (Mike, 2026-09-16). */}
             <text x={44} y={50} fontSize={9} fontWeight={700} letterSpacing="0.09em" fill="var(--head)">YOUR DEVICE</text>
-            <rect vectorEffect="non-scaling-stroke" x={20} y={240} width={960} height={176} rx={0} fill="var(--bg)" stroke={C.brand} strokeWidth={1} />
+            <rect vectorEffect="non-scaling-stroke" x={20} y={240} width={960} height={176} rx={6} fill="var(--bg)" stroke={C.brand} strokeWidth={1} />
             <text x={44} y={270} fontSize={9} fontWeight={700} letterSpacing="0.09em" fill="var(--head)">ENCLAVE / TEE</text>
 
             {/* enclave lane: 1 opens N, 3 commits under it; between them N is held */}
@@ -176,12 +180,13 @@ export function HowFigure() {
           </svg>
         </div>
         </div>
-        <p style={{ fontSize: 13.5, lineHeight: 1.65, color: "var(--dim)", textAlign: "left", margin: "18px 0 0", padding: 0, textWrap: "pretty" }}>
+        <figcaption>
           {/* Plain words, no symbol: N lasted an afternoon and needed
               defining twice (Mike, 2026-09-11: "should N just be replaced by
               position?"). */}
           The bytes name the position, and the position names the bytes. The position was open before the new bytes were final, so they could not have been finished before it. The commit spends the position on exactly those bytes in one indivisible step, so it can never name any&nbsp;others.
-        </p>
+        </figcaption>
+        </div>
       </div>
     </figure>
   );

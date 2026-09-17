@@ -2,37 +2,28 @@
 
 import { BitGraphCamera } from "@/components/bitgraph-camera";
 import { anonymous } from "@/lib/commit-strategy";
+import { DropPrompt, Browse } from "@/components/drop-prompt";
 
-/* The site's camera, in the terminal register: one dashed hairline box in the
-   reading column, 300px tall, nothing else. The camera keeps its own copy and
-   its own flow (a lone file goes straight to its proof page; a folder becomes
-   one set; a dropped proof.json is checked). Only the frame is styled here.
-
-   ⚠️ The camera's own stylesheet wins ties (equal specificity, later in the
-   DOM), so the few overrides below carry !important rather than chasing its
-   class chain (the 2026-09-16 box needed four classes for the same fight). */
+/* The site's drop target on the Try page: a short band across the reading
+   column with two lines in it. Its geometry and text sizes are the `.try-zone`
+   rules in globals.css. The camera keeps its own flow (a lone file goes
+   straight to its proof page; a folder becomes one set; a dropped proof.json
+   is checked). Inside the box: the mark and one sentence (drop-prompt.tsx). The
+   page's headline, "Make or check a BitGraph", sits under the box, over the words
+   that explain it (Mike, 2026-09-18). */
 export function TryZone() {
   return (
     <div className="try-zone">
-      <style>{`
-        .try-zone { margin: 28px 0 8px; }
-        .try-zone .bitgraph-wrap { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; min-height: 0 !important; }
-        .try-zone .bitgraph-camera { width: 100% !important; max-width: none !important; height: 300px !important; max-height: none !important; aspect-ratio: auto !important; margin: 0 !important; }
-        .try-zone .bitgraph-camera > div { border: 1px dashed var(--line) !important; background: var(--panel) !important; }
-        @media (max-width: 640px) { .try-zone .bitgraph-camera { height: 240px !important; } }
-      `}</style>
       {/* id is typed as the one the camera knows; it only keys the camera's
-          result cache. The three lines are this page's own words, passed as
-          props so the shared camera keeps its defaults elsewhere. */}
+          result cache. The lines are this page's own words, passed as props so
+          the shared camera keeps its defaults elsewhere. */}
       <BitGraphCamera
         id="home"
         strategy={anonymous}
         fuseByDefault
         acceptsPendingDrop
         fitViewport={false}
-        dropHeadline="Create or check a proof"
-        dropHint="Choose files, or drag in a folder."
-        dropSubhint="Your files stay on your computer."
+        dropPrompt={<DropPrompt>Drag files or a folder here, or <Browse /></DropPrompt>}
       />
     </div>
   );

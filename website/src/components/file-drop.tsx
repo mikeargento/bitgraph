@@ -72,6 +72,9 @@ interface FileDropProps {
   headline?: string;
   /** Headline font size (CSS length/clamp). Defaults to the compact card size. */
   headlineSize?: string;
+  /** The box's whole idle content, in place of the headline and the lines under it
+      (components/drop-prompt.tsx). The box is still one button and one drop target. */
+  prompt?: ReactNode;
 }
 
 export function FileDrop({
@@ -97,6 +100,7 @@ export function FileDrop({
   browseLabel = "browse",
   headline = "Record a BitGraph",
   headlineSize = "clamp(20px, 6vw, 24px)",
+  prompt,
 }: FileDropProps) {
   const [dragover, setDragover] = useState(false);
   // The edges are painted (see use-dashed-edges), so hover and focus have to
@@ -418,6 +422,11 @@ export function FileDrop({
           {subhint && (
             <div className="mt-1.5 text-center" style={{ color: "var(--dim)", fontSize: "min(12px, 2.8vw)", lineHeight: 1.5, whiteSpace: "pre-line", textWrap: "balance" }}>{subhint}</div>
           )}
+          {refusalNote}
+        </div>
+      ) : prompt ? (
+        <div className="w-full">
+          {prompt}
           {refusalNote}
         </div>
       ) : (

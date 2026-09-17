@@ -9,6 +9,7 @@
    Folder's shelf (folder-list.tsx) so the two cannot drift. That one knows
    its counts and says them; this one, by design, does not. ── */
 
+import { DocsPageNav } from "@/components/docs-page-nav";
 import { MonthCalendar, MonthShelf, MONTH_NAMES, type CalendarDay } from "@/components/month-calendar";
 
 export const dynamic = "force-dynamic"; // "today" must not freeze at build time
@@ -55,13 +56,13 @@ export default function ArchivePage() {
   const months = buildMonths(todayISO);
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
+    <div className="frame" style={{ padding: "56px 0 96px" }}>
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
       `}</style>
-      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
+      <div style={{ animation: "fadeIn .3s ease-out" }}>
         {/* The one title size every page header uses. */}
-        <div className="bg-page-title">Calendar</div>
+        <h1 className="bg-page-title" style={{ margin: 0 }}>Anchor calendar</h1>
         <div style={{ fontSize: 14, fontWeight: 400, color: "var(--dim)", marginTop: 2, marginBottom: 24 }}>
           One page per UTC day. Today&rsquo;s is still open.
         </div>
@@ -71,6 +72,7 @@ export default function ArchivePage() {
           ))}
         </MonthShelf>
       </div>
+    <DocsPageNav current="/ledger" />
     </div>
   );
 }

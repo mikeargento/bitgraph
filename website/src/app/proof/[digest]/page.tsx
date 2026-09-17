@@ -1,5 +1,6 @@
 "use client";
 
+import { DropPrompt, Browse } from "@/components/drop-prompt";
 import { useState, useEffect, useRef } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { docxText, isDocx } from "@/lib/docx-text";
@@ -56,18 +57,12 @@ const toSafeB64 = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").repla
 // take the plain record.
 const asRecord = (p: BitGraphProof) => p as unknown as Record<string, unknown>;
 
-// The window as a phrase: "after <floor block time>, before <the following
-// anchor's block time>". Maintainer ruling 2026-09-16 (Mike, three times: "it
-// should say before and then the time of that eth block"), knowing CANON §3.6
-// prefers the anchor's number for the ceiling; recorded as §22.13.
-function formatWindow(lower: string | null, upper: string | null): string | null {
-  if (lower && upper) {
-    const t1 = new Date(lower), t2 = new Date(upper);
-    return t1.toDateString() === t2.toDateString()
-      ? `after ${timeTz(t1)} on ${t1.toLocaleDateString()}, before ${timeTz(t2)}`
-      : `after ${stampTz(t1)}, before ${stampTz(t2)}`;
-  }
-  if (lower) { const t = new Date(lower); return `after ${timeTz(t)} on ${t.toLocaleDateString()}`; }
+// The window as a phrase, for interval proofs only (a legacy type): the floor
+// as a time. The upper bound is omitted on purpose: the next anchor's block
+// time is not an upper bound on a position (see the overview, "Where time
+// comes from"); the lead card names the following anchor by position.
+function formatWindow(lower: string | null, _upper: string | null): string | null {
+  if (lower) { const t = new Date(lower); return `after ${stampTz(t)}`; }
   return null;
 }
 
@@ -534,7 +529,19 @@ export default function ProofPage() {
         } finally {
           clearTimeout(timeoutId);
         }
-        if (!resp.ok) { if (!seeded && !cancelled) setError("BitGraph not found"); return; }
+        if (!resp.ok) {
+          // A failed READ is not a verdict about the bytes. 5xx means the
+          // ledger could not be consulted; only a clean 404 means the index
+          // holds nothing. Either way the wait ends here rather than leaving
+          // the skeleton up forever.
+          if (!seeded && !cancelled) {
+            setError(resp.status >= 500
+              ? "The ledger could not be read just now. That is not a finding about this BitGraph. Try again in a moment, or check the proof offline."
+              : "BitGraph not found");
+            setLoading(false);
+          }
+          return;
+        }
         const data = await resp.json();
         // Guard on !cancelled: applyData returns false for a cancelled (unmounted
         // or strict-mode double-invoked) effect, and without this a cancelled run
@@ -590,7 +597,7 @@ export default function ProofPage() {
             if (freshResp.ok && !cancelled) applyData(await freshResp.json());
           } catch { /* keep the stale render; SWR heals it on the next visit */ }
         }
-      } catch { if (!seeded && !cancelled) setError("Failed to load BitGraph"); }
+      } catch { if (!seeded && !cancelled) setError("The BitGraph could not be loaded: the request failed. That is not a finding about the bytes; try again."); }
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -778,17 +785,14 @@ export default function ProofPage() {
       leadNode = <span style={{ whiteSpace: "nowrap" }}>{blockPart}</span>;
     }
   } else if (!isEth && lowerTime && upperTime) {
-    // "after <floor block time>" then "before <following anchor's block time>"
-    // (maintainer ruling 2026-09-16, see formatWindow above and CANON §22.13).
-    const t1 = new Date(lowerTime), t2 = new Date(upperTime);
-    if (t1.toDateString() === t2.toDateString()) {
-      recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}, before ${timeTz(t2)}`;
-      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t1.toLocaleDateString()}</span></Em>, before <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t2)}</span></Em></>;
-      recordedDate = longDate(t1);
-    } else {
-      recordedLine = `after ${stampTz(t1)}, before ${stampTz(t2)}`;
-      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t1)}</span></Em>, before <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t2)}</span></Em></>;
-    }
+    // The floor as a time; the ceiling as the following anchor's POSITION.
+    // That anchor's block time is not an upper bound on this record (an anchor
+    // is made after its block), so it is not printed as one.
+    const t1 = new Date(lowerTime);
+    const ceil = causalWindow?.anchorAfter?.counter ? `anchor #${Number(causalWindow.anchorAfter.counter).toLocaleString()}` : null;
+    recordedLine = ceil ? `after ${stampTz(t1)}, before ${ceil}` : `after ${stampTz(t1)}`;
+    recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{stampTz(t1)}</span></Em>{ceil && <>, before <Em><span style={{ whiteSpace: "nowrap" }}>{ceil}</span></Em></>}</>;
+    recordedDate = longDate(t1);
     leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
@@ -829,14 +833,22 @@ export default function ProofPage() {
     leadStack = winLine(val(timeTz(d)));
   } else if (!isEth && lowerTime) {
     if (upperTime) {
-      // Two lines: "after <time>" and "before <time>" (2026-09-16 ruling).
-      const s1 = new Date(lowerTime), s2 = new Date(upperTime);
-      const sameDay = s1.toDateString() === s2.toDateString();
-      const fmt = sameDay ? timeTz : stampTz;
-      // One line (Mike, 2026-09-16, settled after trying both: "back to one line
-      // for times i like how that looked"). Each time is an unbreakable unit,
-      // so on a phone the phrase wraps at ", before" and stacks by itself.
-      leadStack = winLine(<>{conn("after ")}{val(fmt(s1))}{conn(", before ")}{val(fmt(s2))}</>);
+      // The floor is a time: the block the slot record names was mined before
+      // the slot existed. The ceiling is a POSITION: the next anchor in the
+      // sequence, named with the block it carries. An anchor is made after its
+      // block, so that block's clock time is not an upper bound on this record
+      // and is deliberately not printed as one (2026-09-16 redesign; the
+      // earlier "before <block time>" wording overstated the claim).
+      const s1 = new Date(lowerTime);
+      const after = causalWindow?.anchorAfter;
+      const ceilCounter = after?.counter ? `#${Number(after.counter).toLocaleString()}` : null;
+      const ceilBlock = after?.blockNumber != null ? `block ${Number(after.blockNumber).toLocaleString()}` : null;
+      leadStack = winLine(
+        <>
+          {conn("after ")}{val(stampTz(s1))}
+          {ceilCounter && <>{conn(", before anchor ")}{val(ceilCounter)}{ceilBlock && <>{conn(" (")}{val(ceilBlock)}{conn(")")}</>}</>}
+        </>
+      );
     } else if (ethWait) {
       const s1 = new Date(lowerTime);
       // Not sealed yet: the close time is unknown. Show the open time and a
@@ -1117,7 +1129,7 @@ export default function ProofPage() {
         @media (hover:hover) {
           /* Hover previews the open state: same tint the header band carries
              once the card is open, so hovering shows you where you are going. */
-          .bg-collapse-head:hover { background:rgba(121,184,236,0.156) !important; }
+          .bg-collapse-head:hover { background:var(--tint) !important; }
           .bg-collapse-head:hover .bg-collapse-chev { color:var(--accent-2); }
         }
         /* Face-ID-style success: a brand-blue ring sweeps closed, then the checkmark
@@ -1127,7 +1139,7 @@ export default function ProofPage() {
         @keyframes fidPop { 0%{transform:translate(-50%,-50%) scale(.6);opacity:0} 45%{opacity:1} 62%{transform:translate(-50%,-50%) scale(1.07)} 100%{transform:translate(-50%,-50%) scale(1);opacity:1} }
         @keyframes fidFade { to { opacity:0 } }
         @keyframes fidDraw { to { stroke-dashoffset:0 } }
-        .fid-scrim { position:fixed; inset:0; z-index:9998; pointer-events:none; background:rgba(28,27,25,.8); animation:fidScrim 1.5s ease-out forwards; }
+        .fid-scrim { position:fixed; inset:0; z-index:9998; pointer-events:none; background:rgba(20,20,19,.55); animation:fidScrim 1.5s ease-out forwards; }
         .fid-badge { position:fixed; top:44%; left:50%; z-index:9999; pointer-events:none; width:104px; height:104px; animation:fidPop .5s cubic-bezier(.2,.8,.3,1) forwards, fidFade .35s ease-out 1.15s forwards; }
         .fid-ring { fill:none; stroke:var(--accent); stroke-width:6; stroke-linecap:round; stroke-dasharray:295; stroke-dashoffset:295; animation:fidDraw .5s ease-out .05s forwards; }
         .fid-check { fill:none; stroke:var(--accent); stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:fidDraw .3s ease-out .46s forwards; }
@@ -1457,11 +1469,9 @@ export default function ProofPage() {
                   : recordedPositions.length === 1 ? "Placed" : isEarliest ? "Earliest placement" : "Placed again";
                 const rowDigest = isFusedRow && pos.artifactDigest ? pos.artifactDigest : digestParam;
                 const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
-                const timesNode = t1 && t2
-                  ? (sameDay
-                      ? <>{conn("after ")}{val(timeTz(t1))}{conn(", before ")}{val(timeTz(t2))}</>
-                      : <>{conn("after ")}{val(stampTz(t1))}{conn(", before ")}{val(stampTz(t2))}</>)
-                  : (t1 ? <>{conn("after ")}{val(timeTz(t1))}</> : null);
+                // The floor only: a position row carries no anchor counter,
+                // and the next anchor's block time is not an upper bound.
+                const timesNode = t1 ? <>{conn("after ")}{val(sameDay || !t2 ? timeTz(t1) : stampTz(t1))}</> : null;
                 return (
                   <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid var(--line)" }}>
                     <div className="causal-top">
@@ -1733,7 +1743,7 @@ function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React
   const headerStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
     fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "var(--accent)",
-    padding: "14px 16px", background: open ? "rgba(121,184,236,0.156)" : "var(--panel)",
+    padding: "14px 16px", background: open ? "var(--tint)" : "var(--panel)",
     border: "none", borderBottom: open ? "1px solid var(--line)" : "none",
     textAlign: "left", fontFamily: "inherit",
   };
@@ -1807,7 +1817,7 @@ function Field({ label, value, valueNode, mono: isMono, highlight, link, center,
 
 const btnStyle: React.CSSProperties = {
   padding: "8px 16px", fontSize: 13, fontWeight: 600, color: "var(--panel)",
-  background: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 0, cursor: "pointer",
+  background: "var(--accent)", border: "1px solid var(--accent)", borderRadius: "var(--radius-card)", cursor: "pointer",
 };
 
 /* ── BitGraph again — fuse the file in hand into a NEW artifact under a fresh
@@ -1865,7 +1875,7 @@ function JsonSection({ proof }: { proof: BitGraphProof }) {
           <span style={{
             position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 50,
             padding: "10px 22px", fontSize: 14, fontWeight: 700, color: "var(--panel)",
-            background: "var(--accent)", borderRadius: 0, pointerEvents: "none",
+            background: "var(--accent)", borderRadius: "var(--radius-card)", pointerEvents: "none",
             boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
           }}>
             Copied!
@@ -2125,31 +2135,17 @@ function BringYourFile({
          page. Same mark, same blue on hover and drag. Dashed edges from the
          shared hook, like every drop target. */
       ref={edges.ref}
-      className="bg-frame"
-      style={{
-        backgroundColor: dragOver ? "var(--tint)" : "var(--panel)",
-        ...edges.edgeStyle(edge),
-        // Width rides on .bg-frame (globals) like every drop box, but the
-        // height does not: this page is a receipt, not the camera, so the
-        // box is as tall as its words need with room around them, not the
-        // home frame's 3:2 (Mike, 2026-09-03: "verbiage needs room").
-        aspectRatio: "auto",
-        minHeight: "clamp(200px, 30vw, 236px)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "28px clamp(20px, 5vw, 34px)",
-        textAlign: "center",
-        cursor: "pointer",
-        transition: "background-color .15s",
-      }}
+      /* One drop box site-wide (Mike, 2026-09-18: 16:9, and every box the
+         same): the geometry, the centring and the type are the .dropbox
+         rules in globals.css; only the state colours are set here. */
+      className="dropbox"
+      style={{ backgroundColor: dragOver ? "var(--tint)" : "var(--panel)", ...edges.edgeStyle(edge) }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
       <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
       {state === "reading" ? (
-        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "var(--dim)" }}>
+        <div className="dropbox-title" style={{ color: "var(--dim)" }}>
           {readCount > 0
             /* Not "your folder": a drop may be several folders at once, and
                the walk handles that, so the singular was quietly wrong every
@@ -2159,7 +2155,7 @@ function BringYourFile({
             : "Reading…"}
         </div>
       ) : state === "checking" ? (
-        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "var(--dim)" }}>
+        <div className="dropbox-title" style={{ color: "var(--dim)" }}>
           {progress.total > 1
             ? `Searching… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`
             : "Searching…"}
@@ -2170,19 +2166,19 @@ function BringYourFile({
            which file belongs here. It is a second phase with its own count,
            and saying nothing during it is what made a finished search look
            like a hung one. */
-        <div style={{ fontSize: "clamp(15px, 3.6vw, 17px)", fontWeight: 600, color: "var(--dim)" }}>
+        <div className="dropbox-title" style={{ color: "var(--dim)" }}>
           {progress.total > 1
             ? <>{`Matching members… ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`}</>
             : <>Matching members…</>}
         </div>
       ) : mismatch ? (
         <>
-          <div style={{ fontSize: "clamp(16px, 4vw, 19px)", fontWeight: 700, color: "var(--err)", textWrap: "balance" }}>
+          <div className="dropbox-title" style={{ color: "var(--err)" }}>
             {checkedCount > 1
               ? `No match. None of the ${checkedCount.toLocaleString()} files you dropped are this file.`
               : "No match. Those are not the bytes this BitGraph describes."}
           </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "var(--text)", marginTop: 8, lineHeight: 1.5, maxWidth: 460, textWrap: "balance" }}>
+          <div className="dropbox-line">
             Changing a single bit changes the hash completely, so an edited or re-saved copy will never match. Drop the original to try again.
           </div>
         </>
@@ -2212,15 +2208,10 @@ function BringYourFile({
               or pads one side would break it. */}
           {/* Black at rest, brand blue on hover, off the same state the
               dashed edges use, so title and frame light up together. */}
-          <div style={{ fontSize: "clamp(18px, 4.6vw, 22px)", fontWeight: 600, color: hover ? "var(--accent)" : "var(--ink)", transition: "color .2s", letterSpacing: "-0.01em", textWrap: "balance" }}>
-            Find this file on your device
-          </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "var(--text)", marginTop: 12, lineHeight: 1.55, maxWidth: 460, textWrap: "balance" }}>
-            Choose files, or drag in a whole folder. BitGraph searches by hash and finds the match for you, even if you do not know which file it is.
-          </div>
-          <div style={{ fontSize: "clamp(13px, 3vw, 14px)", color: "var(--dim)", marginTop: 6, textWrap: "balance" }}>
-            Nothing is uploaded. The search runs in your browser.
-          </div>
+          {/* One drop box site-wide (2026-09-18): the mark, one sentence, one quiet line. */}
+          <DropPrompt quiet="BitGraph searches by hash and finds the match for you, even if you do not know which file it is. Nothing is uploaded; the search runs in your browser.">
+            Find this file: drag files or a folder here, or <Browse />
+          </DropPrompt>
           {/* ⚠️ No "choose a folder" link here either, in any browser: every
               click path to a folder raises a view-files or upload-files
               warning, which is intolerable on a box whose own copy promises
@@ -2393,7 +2384,7 @@ function PhotoCard({
       style={{
         background: "var(--panel)",
         border: bare ? "none" : "1px solid var(--line)",
-        borderRadius: 0,
+        borderRadius: "var(--radius-card)",
       }}
     >
       <div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -2410,7 +2401,7 @@ function PhotoCard({
               width: "auto",
               height: "auto",
               objectFit: "contain",
-              borderRadius: 0,
+              borderRadius: "var(--radius-card)",
             }}
           />
         ) : (
@@ -2551,7 +2542,7 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
   return (
     <div style={{ background: "var(--panel)" }}>
       {kind === "text" && excerpt && (
-        <pre style={{ margin: 0, padding: 16, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12.5, lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
+        <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: 12.5, lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
           {excerpt.text}{excerpt.truncated ? "\n…" : ""}
         </pre>
       )}
@@ -2574,7 +2565,7 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
       {kind === "video" && url && (
         <div style={{ padding: 20, display: "flex", justifyContent: "center" }}>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video src={url} controls style={{ display: "block", maxWidth: "100%", maxHeight: "min(70vh, 640px)", borderRadius: 0 }} />
+          <video src={url} controls style={{ display: "block", maxWidth: "100%", maxHeight: "min(70vh, 640px)", borderRadius: "var(--radius-card)" }} />
         </div>
       )}
       {kind === "audio" && url && (
@@ -2955,7 +2946,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               )}
 
               {/* Reproducible build */}
-              <div style={{ padding: "14px 18px", background: "rgba(121,184,236,0.156)", border: "1px solid rgba(121,184,236,0.3)", borderRadius: "var(--radius-row)", marginBottom: 12 }}>
+              <div style={{ padding: "14px 18px", background: "var(--tint)", border: "1px solid var(--line)", borderRadius: "var(--radius-row)", marginBottom: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-accent)", marginBottom: 6 }}>What PCR0 proves</div>
                 <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.5, marginBottom: 8 }}>
                   PCR0 is the SHA-384 hash of the exact enclave image that signed this BitGraph, shown above. The enclave source is published and the measurement is reproducible: you can rebuild it on any linux/amd64 host and re-derive this exact PCR0 yourself. You do not have to take BitGraph at its word for what runs inside the boundary.

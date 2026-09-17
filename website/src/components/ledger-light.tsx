@@ -155,7 +155,7 @@ export function LedgerLight() {
             onDragLeave={() => setDragging(false)}
             onDrop={(e) => { e.preventDefault(); void connect(e.dataTransfer); }}
             style={{
-              background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 0,
+              background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)",
               width: "min(480px, 100%)", padding: 24,
               /* ⚠️ SET EXPLICITLY, DO NOT INHERIT. The light lives inside a
                  centring wrapper under the box on home, so every line in here
@@ -191,7 +191,7 @@ export function LedgerLight() {
                 padding: "30px 20px", textAlign: "center",
                 fontSize: 13.5, fontWeight: 600,
                 color: dragging ? "var(--ok)" : "var(--dim)",
-                background: dragging ? "rgba(143,214,148,0.10)" : "transparent",
+                background: dragging ? "var(--ok-tint)" : "transparent",
               }}
             >
               {busy ? "Reading…" : "Drag your BitGraphs folder here"}

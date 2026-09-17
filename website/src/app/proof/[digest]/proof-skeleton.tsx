@@ -26,7 +26,7 @@ export function ProofSkeleton() {
   // (reads as content arriving), and a plain file matches with no jump.
   // Varied title widths so the collapsed rows below look like real labels.
   const titleWidths = [92, 150, 104, 132, 96, 140, 88];
-  const bar: React.CSSProperties = { borderRadius: 3 };
+  const bar: React.CSSProperties = { borderRadius: "var(--radius-card)" };
   return (
     <Shell>
       <style>{`
@@ -41,7 +41,7 @@ export function ProofSkeleton() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }} aria-hidden>
           {/* Primary card: no header band any more — it opens straight on the
               "when" block, then the hash, then the Export action link. */}
-          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 0 }}>
+          <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)" }}>
             {/* "when": a date line over a time line. */}
             <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
               <div className="bg-skel" style={{ ...bar, width: 132, height: 15 }} />
@@ -58,7 +58,7 @@ export function ProofSkeleton() {
             </div>
           </div>
           {titleWidths.map((w, i) => (
-            <div key={i} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 0 }}>
+            <div key={i} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)" }}>
               {/* Same header geometry as CollapsibleCard: 14px 16px, title left,
                   collapsed chevron right (matching the real card's toggle). */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 16px" }}>

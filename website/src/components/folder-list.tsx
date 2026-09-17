@@ -268,7 +268,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
                   )}
                   <span style={{
                     flexShrink: 0, fontSize: 13, fontVariantNumeric: "tabular-nums",
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    fontFamily: "var(--font-mono)",
                     fontWeight: r.counter != null ? 700 : 400,
                     color: r.ok === false && !isUnchecked(r) ? "var(--err)" : r.counter != null ? "var(--accent)" : "var(--dim)",
                   }}>{right}</span>

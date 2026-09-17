@@ -1,12 +1,43 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Inter } from "next/font/google";
+import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro } from "next/font/google";
 import "./globals.css";
 import "katex/dist/katex.min.css";
+
+/* THE FACES (2026-09-18, Mike: "do the fonts exactly how you want. your choice").
+   Two voices from one superfamily, Adobe's Source: Source Serif 4 for every
+   sentence, Source Code Pro for all structure (headings, the bar, labels,
+   lead-ins, field names, data, code). They were drawn to sit together, so
+   the serif and the mono share proportions and colour. Both are variable,
+   self-hosted by next/font, with real italics and weights; the serif carries
+   its optical-size axis, so 17px text and a 15px caption each get their cut.
+   JetBrains Mono and Inter stay only as fallbacks behind them and no longer
+   preload. Acumin (Typekit) remains for the wordmark and the data views. */
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  axes: ["opsz"],
+  variable: "--font-source-serif",
+  display: "swap",
+  // The fallback behind Plantin (Typekit) since 2026-09-18, so it is no longer preloaded:
+  // a browser fetches it only if Plantin is missing.
+  preload: false,
+});
+const sourceCode = Source_Code_Pro({
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  variable: "--font-source-code",
+  display: "swap",
+  // next/font's automatic fallback for a non-serif is a resized Arial, which would
+  // flash proportional text through code blocks on a first load. Off: the stack in
+  // globals.css falls back to the system monospace instead.
+  adjustFontFallback: false,
+});
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-jetbrains-mono",
   display: "swap",
+  preload: false,
 });
 
 /* PREVIEW 2026-09-16 (Mike: "what would inter look like if you replaced every
@@ -16,11 +47,12 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+  preload: false,
 });
 
 /* The tab strip and the phone's chrome take the page colour (2026-09-16,
    the terminal register). */
-export const viewport: Viewport = { themeColor: "#141413" };
+export const viewport: Viewport = { themeColor: "#0d1117" };
 
 export const metadata: Metadata = {
   title: {
@@ -40,21 +72,21 @@ export const metadata: Metadata = {
   // Nothing else can hold that position, and it cannot be moved later.")
   // predated the opener and local-first.
   description:
-    "BitGraph gives a record a position it did not choose and a floor it cannot move. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
+    "BitGraph allocates an unused position before it receives a file's SHA-256 fingerprint, then binds the fingerprint to that position and consumes it. The proof is a file you keep. It verifies offline.",
   keywords: [
-    "BitGraph", "causal order", "verifiable order", "proof of integrity",
+    "BitGraph", "causal order", "verifiable order", "proof of position",
     "tamper-evident", "AI agent records", "Ethereum anchors",
   ],
   openGraph: {
     title: "BitGraph",
-    description: "BitGraph gives a record a position it did not choose and a floor it cannot move. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
+    description: "BitGraph allocates an unused position before it receives a file's SHA-256 fingerprint, then binds the fingerprint to that position and consumes it. The proof is a file you keep. It verifies offline.",
     type: "website",
     siteName: "BitGraph",
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: "BitGraph",
-    description: "BitGraph gives a record a position it did not choose and a floor it cannot move. The proof travels with the record, verifies without contacting anyone, and is detectably invalid if the record is altered.",
+    description: "BitGraph allocates an unused position before it receives a file's SHA-256 fingerprint, then binds the fingerprint to that position and consumes it. The proof is a file you keep. It verifies offline.",
   },
   robots: { index: true, follow: true },
 };
@@ -62,10 +94,11 @@ export const metadata: Metadata = {
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
+import { NoOrphans } from "@/components/no-orphans";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} ${inter.variable}`}>
+    <html lang="en" className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable}`}>
       <head>
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
             700 and italics). PREVIEW 2026-09-16 (Mike: "what about good ol
@@ -96,6 +129,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           unaffected: main is already taller than the slack. */}
       <body style={{ fontFamily: "var(--font-sans)", margin: 0, minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
         <ScrollToTop />
+        {/* No one-word last lines in prose (Mike, 2026-09-17: '"it" gets orphaned'). */}
+        <NoOrphans />
         <SiteNav />
         {/* Main owns the page grey (2026-08-27); body and both bars are
             white, so nothing outside the content can ever paint grey. See

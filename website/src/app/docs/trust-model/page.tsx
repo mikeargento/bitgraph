@@ -1,238 +1,158 @@
 import type { Metadata } from "next";
-import { renderInline } from "@/lib/render-inline";
+import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Trust Model",
-  description: "BitGraph trust model: assumptions, threat model, enforcement tiers, non-goals.",
+  title: "Trust model",
+  description:
+    "What a BitGraph proof assumes, what it guarantees and under which assumptions, what an attacker is prevented from doing, what is only detected, what is neither, what a verifier is responsible for, and what has not been independently reviewed.",
 };
 
+/**
+ * For the sceptical evaluator. Assumptions, guarantees by class, the threat
+ * model in three lists, privacy exposures, and the verifier's duties. Limits
+ * sit next to the claims they qualify.
+ */
 export default function TrustModelPage() {
   return (
-    <article className="prose-doc">
-      <h1 className="mb-6">Trust Model</h1>
-
-      <div className="border-l-2 border-l-[color:var(--line)] pl-6 mb-8">
-        <p className="text-sm text-[color:var(--ink)] italic leading-relaxed">
-          BitGraph guarantees single-successor semantics within the verifier-accepted
-          measurement and monotonicity domain of the enforcing boundary.
-        </p>
-      </div>
-
-      {/* The italic line above is the thesis and is scoped correctly, but on its
-          own it reads as though a verifier enforces single-successor globally.
-          It does not. The boundary enforces it inside an epoch: an epoch link is
-          injected once and then cleared, so one epoch consumes its predecessor
-          exactly once. Two boundaries handed the same predecessor is a fork the
-          protocol DETECTS rather than prevents, and only in a verifier that has
-          observed both branches (verifyEpochLink keeps its single-successor
-          registry in memory, per process). Saying so here costs nothing and
-          keeps the page from claiming more than the code does. */}
-      <p className="text-base text-[color:var(--dim)] leading-relaxed mb-8">
-        Read precisely: the boundary <em>enforces</em> this within an epoch, and a
-        fork across epochs is <em>detected</em> rather than prevented. Detection
-        requires a verifier that has observed both branches, so an auditor holding
-        the full ledger sees a fork that a verifier checking one proof cannot.
+    <article className="prose">
+      <h1>Trust model</h1>
+      <p className="lede">
+        This page is for the reader who wants to know exactly what enforces each claim and what happens when an assumption fails. It is organised so the limits can be found without reading everything: what is trusted, what is assumed, what is guaranteed and by what, what an attacker is prevented from doing, what is only detected, what is neither, and what the verifier has to do for any of it to hold.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Assumptions</h2>
-      <div className="overflow-x-auto mb-8">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[color:var(--line)]">
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Assumption</th>
-              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">If it fails</th>
-            </tr>
-          </thead>
-          <tbody className="text-[color:var(--text)]">
-            <tr className="border-b border-[color:var(--line)]">
-              <td className="py-2 pr-4">Boundary isolation - TEE prevents external key access</td>
-              <td className="py-2">All guarantees collapse</td>
-            </tr>
-            <tr className="border-b border-[color:var(--line)]">
-              <td className="py-2 pr-4">Key secrecy - Ed25519 private key never leaves boundary</td>
-              <td className="py-2">Proof forgery becomes possible</td>
-            </tr>
-            <tr className="border-b border-[color:var(--line)]">
-              <td className="py-2 pr-4">Nonce freshness - ≥128 bits, never reused</td>
-              <td className="py-2">Replay within a session</td>
-            </tr>
-            <tr className="border-b border-[color:var(--line)]">
-              <td className="py-2 pr-4">Honest measurement - hardware correctly measures enclave</td>
-              <td className="py-2">Delegated to TEE vendor</td>
-            </tr>
-            <tr className="border-b border-[color:var(--line)]">
-              <td className="py-2 pr-4">Monotonic counter within an epoch - never repeats or moves backward while the enclave runs</td>
-              <td className="py-2">Positions inside one epoch become ambiguous</td>
-            </tr>
-            <tr className="border-b border-[color:var(--line)]">
-              <td className="py-2 pr-4">Causal slot integrity - slot allocated before the artifact hash reached the enclave</td>
-              <td className="py-2">Without pre-allocation, commit order could be forged</td>
-            </tr>
-            <tr>
-              <td className="py-2 pr-4">Strict verifier policy - caller pins measurements + counters</td>
-              <td className="py-2">Weak policy accepts more than intended</td>
-            </tr>
+      <h2 id="trusted">What is trusted, and what is not</h2>
+      <div className="home-two">
+        <div>
+          <h3>Trusted</h3>
+          <ul>
+            <li>The enclave image identified by its PCR0 measurement, which is published and reproducible from source.</li>
+            <li>The AWS Nitro hardware root of trust and its security module, which draws the entropy and signs the attestations.</li>
+            <li>The AWS Nitro Root CA G1, embedded in the verifier as a constant.</li>
+            <li>Ed25519 and SHA-256.</li>
+            <li>The verifier&rsquo;s own execution, on the reader&rsquo;s machine.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Not trusted</h3>
+          <ul>
+            <li>The EC2 host the enclave runs on. It is a transport.</li>
+            <li>The network, this website, and the anchor service.</li>
+            <li>The S3 ledger. It is a convenience copy under a compliance lock, not the evidence.</li>
+            <li>The client that hashes the file, including this site&rsquo;s own page. A client can hash whatever it likes.</li>
+            <li>The operator, Argento Computing Inc.</li>
+          </ul>
+        </div>
+      </div>
+      <p>
+        The trust root is one vendor and one build: Amazon&rsquo;s hardware and the published enclave image. Accepting that root is a one-time decision by the reader, not an ongoing dependency. After it, a proof stands on its own, in as many copies as it is made, with nothing of BitGraph&rsquo;s required to be online. The word for that is portable and independently verifiable, not decentralised.
+      </p>
+
+      <h2 id="assumptions">Assumptions, and what fails with them</h2>
+      <div className="table-scroll">
+        <table>
+          <thead><tr><th>Assumption</th><th>If it fails</th></tr></thead>
+          <tbody>
+            <tr><td className="k">Boundary isolation</td><td>If the enclave&rsquo;s memory or key can be read from outside, every guarantee under that epoch&rsquo;s key collapses. Earlier epochs are untouched: their keys no longer exist.</td></tr>
+            <tr><td className="k">Honest measurement</td><td>If the hardware misreports PCR0, an image other than the published one could pass as it. This is delegated to the vendor and is why the root is Amazon&rsquo;s.</td></tr>
+            <tr><td className="k">Reproducible build</td><td>If the pinned build stops reproducing the published PCR0, the measurement means only &ldquo;some image AWS measured&rdquo;. The build pins every input and can be checked by anyone; a lapse is a defect to report.</td></tr>
+            <tr><td className="k">Nonce freshness</td><td>A predictable or repeated nonce would let a position be precomputed or replayed within an epoch. The nonce is 32 bytes from the hardware generator.</td></tr>
+            <tr><td className="k">Monotonic counter</td><td>If the counter repeated or moved backward within an epoch, positions inside it would be ambiguous. The counter is per chain, single-threaded, and in enclave memory.</td></tr>
+            <tr><td className="k">Slot before digest</td><td>If a slot could be minted after a digest was known, the position would be a label. The slot body has no field for a digest and is signed at allocation; the commit signature covers its hash.</td></tr>
+            <tr><td className="k">Honest Ethereum block times</td><td>The floor is the time in a block header. If block times were wrong, the floor would be too. A reorganisation near an anchor orphans its block; the witness check then fails and that bound is lost rather than silently wrong.</td></tr>
+            <tr><td className="k">A strict verifier policy</td><td>A verifier that accepts any measurement, or skips the attestation, has verified a signature by an unknown key. Everything below the cryptographic class depends on the reader pinning PCR0.</td></tr>
           </tbody>
         </table>
       </div>
 
-      <div className="border border-[color:var(--line)] p-4 mb-8 text-sm text-[color:var(--text)] leading-relaxed">
-        <span className="font-semibold text-[color:var(--accent)]">Honest measurement is verifiable, not just assumed.</span>{" "}
-        The enclave build is bit-for-bit reproducible: rebuild it from source on any linux/amd64 host and you re-derive the exact PCR0 the production enclave reports. You confirm yourself that the measurement corresponds to the published source, trusting no one, so the only part delegated to the TEE vendor is the hardware honestly reporting that measurement (and AWS&apos;s signed kernel, which PCR1 measures independently).{" "}
-        <a href="/docs/self-host-tee" className="text-[color:var(--accent)] font-medium no-underline whitespace-nowrap">Rebuild and verify the PCR0 &rarr;</a>
-      </div>
+      <h2 id="guarantees">What is guaranteed, by class</h2>
+      <p>Each class names what it assumes and what weakens it. They are not interchangeable, and a verifier that checks one has not checked the others.</p>
+      <dl className="terms">
+        <dt>Cryptographic</dt>
+        <dd>The Ed25519 signature is valid over the canonical signed body under the proof&rsquo;s public key. Assumes the security of Ed25519 and SHA-256 and correct canonicalisation. Trusts nothing beyond the mathematics and the reconstruction logic.</dd>
+        <dt>Causal ordering</dt>
+        <dd>A slot existed, signed and without a digest, before this digest was bound to it. Assumes the boundary is uncompromised and is the published image. Weakened to &ldquo;some key asserted this&rdquo; by any verifier that does not pin the measurement.</dd>
+        <dt>Sequence</dt>
+        <dd>This proof occupies a position linked to its predecessor by the previous-proof hash, within a named epoch. Assumes the reader holds the neighbouring proofs to check the links. Counters alone do not establish order across a gap.</dd>
+        <dt>Integrity</dt>
+        <dd>Every field in the signed body is tamper-evident. <code>metadata</code>, <code>timestamps</code> and <code>claims</code> sit outside the signature and are advisory; the attestation, the agency envelope and the slot record are outside it but self-authenticating.</dd>
+        <dt>Exact bits</dt>
+        <dd>The proof is about one byte sequence. Any transformation that changes a byte produces a file the proof does not cover.</dd>
+        <dt>Privacy</dt>
+        <dd>Only the digest is committed. Assumes the client hashes locally, which is true of this site, the SDK and the MCP server and is a property of each client, not of the protocol. Recording is not private: the digest, the position and the anchors are published.</dd>
+        <dt>Portability</dt>
+        <dd>Verification is offline and requires no BitGraph service. The one external reference is that the anchored block is canonical Ethereum, checkable against any node or explorer.</dd>
+        <dt>Temporal</dt>
+        <dd>One direction. The position was placed after the block its slot record names was mined: a floor that needs no trust in the anchor service, because a block hash cannot precede its block. The position also preceded the next anchor in the chain: a ceiling in position, which does not convert to a wall-clock bound and is not claimed as one.</dd>
+        <dt>Attestation</dt>
+        <dd>The Nitro document&rsquo;s user data equals SHA-256 of this proof&rsquo;s signed body, and the document chains to the AWS Nitro Root CA G1. Assumes the reader parses and validates it; the core verifier deliberately leaves that to the audit package.</dd>
+        <dt>Deployment</dt>
+        <dd>Proofs from the public service carry <code>enforcement: &quot;measured-tee&quot;</code> and the published PCR0. The ledger is under a ten-year compliance lock, so the operator cannot delete records. That is an operational fact about this deployment, not a protocol guarantee.</dd>
+      </dl>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Threat model</h2>
-      <h3 className="text-base font-semibold mt-6 mb-3">In-scope threats</h3>
-      <div className="space-y-3 mb-8">
-        {[
-          { threat: "Proof replay", mitigation: "`minCounter` in policy rejects old proofs" },
-          { threat: "Measurement substitution", mitigation: "`allowedMeasurements` pins exact values" },
-          { threat: "Signature forgery", mitigation: "Ed25519 signatures; the private key never leaves the boundary" },
-          { threat: "Downgrade attack", mitigation: "Enforcement tier is signed; `requireEnforcement` rejects weaker tiers" },
-          { threat: "Chain gap insertion", mitigation: "`prevB64` chaining: any removed link breaks hash continuity" },
-          { threat: "Counter position forgery", mitigation: "Causal slot pre-allocation: `slotHashB64` binding + `slotCounter` < counter ordering proves pre-allocation" },
-          { threat: "Slot commitment mismatch", mitigation: "A fused artifact carries a commitment derived from the signed slot record; the verifier recomputes it from the proof's own slot and rejects a mismatch (`INVALID_SLOT_COMMITMENT`). The holder must rebuild the artifact byte for byte from the original file and the proof (`RECONSTRUCTION_MISMATCH` otherwise)" },
-          { threat: "Retroactive forgery after compromise", mitigation: "Per-epoch keypair destroyed on restart + anchors hash-link prior history, fixing pre-anchor proofs against rewrite" },
-          { threat: "Cross-epoch identity confusion", mitigation: "`epochId` binds every proof to a specific compartment; verifiers pin the epoch's public key" },
-        ].map((t) => (
-          <div key={t.threat} className="flex gap-4 border-l-2 border-l-[color:var(--line)] pl-4 py-1">
-            <div className="text-sm font-medium text-[color:var(--ink)] shrink-0 w-44">{t.threat}</div>
-            <div className="text-sm text-[color:var(--text)]">{renderInline(t.mitigation)}</div>
-          </div>
-        ))}
-      </div>
-
-      <h3 className="text-base font-semibold mt-6 mb-3">Out-of-scope threats</h3>
-      <ul className="space-y-2 mb-8 text-sm text-[color:var(--text)]">
-        <li>• Signing key exfiltration - assumes boundary is secure</li>
-        <li>• TEE firmware vulnerability - delegated to hardware vendor</li>
-        <li>• Weak verifier policy - caller responsibility</li>
-        <li>• Physical access to enclave host - outside threat model</li>
+      <h2 id="threats">Threats</h2>
+      <h3>Prevented: impossible without breaking an assumption above</h3>
+      <ul>
+        <li><strong>Retroactive slot fabrication.</strong> No operation produces a slot signature over a body containing a digest.</li>
+        <li><strong>Double consumption.</strong> The slot is deleted synchronously on lookup; the event loop is single-threaded.</li>
+        <li><strong>Slot swapping.</strong> The slot record&rsquo;s hash is inside the signed body.</li>
+        <li><strong>Forgery under a closed epoch&rsquo;s key.</strong> Keys live only in enclave memory and are destroyed at restart.</li>
+        <li><strong>Silent epoch continuation.</strong> Initialisation is fail-closed; a genesis must be explicit.</li>
+        <li><strong>Tampering with signed fields in transit.</strong> Any edit breaks the signature.</li>
+        <li><strong>Downgrading the tier field.</strong> <code>enforcement</code> is signed.</li>
+      </ul>
+      <h3>Detected: possible, but leaves evidence</h3>
+      <ul>
+        <li><strong>Forked epochs.</strong> A verifier that has seen both successors of one predecessor rejects the second. The registry is per verifier process, so a fork whose branches are never seen together is not detected; this is detection, not prevention.</li>
+        <li><strong>Rollback of the chain.</strong> A replayed predecessor produces two proofs naming the same previous hash, which the audit tool reports.</li>
+        <li><strong>Substitution or backdating within a sequence.</strong> An entry cannot occupy a position earlier than the one it took.</li>
+        <li><strong>Attestation failure.</strong> Reported by the audit tool, never silently ignored.</li>
+      </ul>
+      <h3>Neither prevented nor reliably detected</h3>
+      <ul>
+        <li><strong>Compromise of the boundary or its key.</strong> Forged proofs under that epoch&rsquo;s identity are indistinguishable from real ones. The damage is contained to one epoch, identified permanently by its identifier, and recovered by quarantining it. It is not retroactively repairable.</li>
+        <li><strong>A malicious client.</strong> It hashes whatever it wants; BitGraph positions that digest faithfully.</li>
+        <li><strong>A compromised build pipeline.</strong> Mitigated only by the reproducible build. If that lapses, PCR0 means &ldquo;some image AWS measured&rdquo;.</li>
+        <li><strong>Measurement drift.</strong> A legitimate rebuild changes PCR0. Verifiers pinning the old value reject valid proofs; there is no automated allowlist distribution, so a reader obtains the current measurement out of band.</li>
+        <li><strong>A malicious operator.</strong> Can refuse service, decline to anchor, or lose the ledger. Cannot forge or, given the compliance lock, delete records.</li>
+        <li><strong>Anchor censorship or outage.</strong> Ordering within an epoch survives; temporal bounds degrade to one-sided or absent. Across epochs, anchors are the only common reference, so a sustained outage leaves a new epoch unrelatable to the old one by public evidence.</li>
+        <li><strong>Collusion among independent boundaries.</strong> Two enclaves are two sequences with no global order. The protocol does not arbitrate between them.</li>
+        <li><strong>Omission.</strong> A record that was never made leaves no trace. Counter gaps are expected, so a gap never shows an omission; only an external expectation of what should be there can.</li>
+        <li><strong>A malicious verifier.</strong> It can lie to its own user. The mitigation is that anyone can repeat the verification.</li>
+        <li><strong>Denial of service.</strong> Rate limits exist at the host and are not a security boundary.</li>
       </ul>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Ethereum anchors</h2>
-      <p className="text-[color:var(--text)] leading-relaxed mb-4">
-        BitGraph writes nothing to a
-        blockchain, but it uses Ethereum as an external public timeline: since
-        enclave v8 every slot on the anchored chain carries the latest Ethereum
-        anchor as its floor, and the enclave refuses to issue a proof without
-        one. The same TEE that signs user proofs
-        periodically commits the hash of a recent Ethereum block into its own
-        counter chain as an ordinary anchor proof. The anchor carries the
-        enclave&apos;s public key, the epoch identifier, the current counter, and
-        the block it references: nothing about any individual user or file.
-        Nothing is written to Ethereum.
-      </p>
-      <p className="text-[color:var(--text)] leading-relaxed mb-4">
-        Each anchor is itself a BitGraph proof signed by the enclave, so it
-        participates in the same counter chain as the user proofs that came
-        before it. Its artifact is the hash of a recent Ethereum block, a
-        value that did not exist before that block was produced, so the
-        anchor and everything chained after it provably follow that block&apos;s
-        public date. Every proof committed before the anchor is fixed against
-        retroactive rewrite: the anchor is hash-linked to the entire chain
-        behind it, so any alternative earlier history breaks the chain that
-        reaches an anchor already stored and observed, and once the epoch&apos;s
-        key is destroyed no alternative can ever be signed. The ledger keeps
-        the anchors and holders keep their proofs, so it is a reader holding
-        the proofs between two anchors who checks that the chain is unbroken.
-      </p>
-      <p className="text-[color:var(--text)] leading-relaxed mb-4">
-        This is the mechanism behind the phrase &quot;everything before me already
-        existed.&quot; An anchor fixes backward, not forward. It does not prove
-        when individual proofs were created, only that they preceded the
-        anchor in the chain, while the anchor itself provably followed its
-        block. Combined with per-epoch keypairs, anchors give BitGraph a
-        bounded breach window: between one anchor and the next, a compromise
-        could in theory rewrite the live chain, but anything behind the most
-        recent stored anchor cannot be rewritten without breaking the chain
-        that reaches it. A fused artifact carries a commitment to its slot,
-        so the same bound reaches its bytes: they could not have been
-        finalized before the slot, and the slot follows the block named by
-        the anchor before it.
-      </p>
-      <p className="text-[color:var(--text)] leading-relaxed mb-8">
-        Anchors are public, but they reveal no user-identifying information.
-        A verifier
-        can confirm the block an anchor names on Ethereum and use its date as a
-        floor: every proof chained after that anchor was placed no earlier than
-        that block. The export ships the block header, so the check contacts
-        no one.
+      <h2 id="privacy">Privacy exposures</h2>
+      <ul>
+        <li><strong>Public digests.</strong> Every recorded digest, position and anchor is published, permanently.</li>
+        <li><strong>Dictionary confirmation.</strong> Digests are not salted. For a low-entropy file, such as a short document from a known template, anyone can hash candidates and confirm whether one was recorded. State this to anyone with sensitive low-entropy content.</li>
+        <li><strong>Correlation.</strong> Recording many files from one workflow leaves an adjacency pattern in the counters, even though contents do not.</li>
+        <li><strong>Operator visibility.</strong> The host sees source addresses and digests.</li>
+        <li><strong>Attribution is permanent.</strong> The signed attribution field, and any metadata a client attaches, cannot be removed later. Put nothing private there.</li>
+        <li><strong>No deletion.</strong> The ledger&rsquo;s lock applies to everyone, including the operator.</li>
+      </ul>
+
+      <h2 id="verifier">What a verifier is responsible for</h2>
+      <ol className="steps">
+        <li><strong>Pin the measurement.</strong> Set <code>allowedMeasurements</code> to the PCR0 you accept and require <code>measured-tee</code>. The published value is <code className="break">eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b</code>, and you can rebuild it yourself.</li>
+        <li><strong>Require and validate the attestation.</strong> The core verifier does not parse it; the audit package does, chaining to the embedded Nitro root and checking user data against the signed body.</li>
+        <li><strong>Check the artifact binding.</strong> A result whose <code>artifactBinding</code> is <code>not-checked</code> has not tied the proof to any file.</li>
+        <li><strong>Hold the neighbours for chain claims.</strong> Order across a gap is not established by counters alone.</li>
+        <li><strong>Hold both anchors and their witnesses for temporal claims.</strong> The floor needs the block header; the ceiling needs the following anchor. An export includes both.</li>
+        <li><strong>Treat unsigned fields as advisory.</strong> <code>metadata</code>, <code>timestamps</code> and <code>claims</code> are never evidence.</li>
+        <li><strong>Refuse debug enclaves.</strong> A measurement of all zeros means a debug-mode enclave; treat its proofs as software tier.</li>
+      </ol>
+
+      <h2 id="review">Review status</h2>
+      <p>
+        The properties above are argued from the published source and from the reproducible measurement. The implementation has not had an independent security audit. In particular, single-use consumption under concurrency is argued from the runtime&rsquo;s single-threaded event loop rather than tested adversarially, and fork detection is per verifier process. Anyone evaluating BitGraph for a setting where these matter should read the source, rebuild the measurement, and run the negative cases against the verifier before relying on it.
       </p>
 
-      <h2 className="text-xl font-semibold mt-12 mb-4">Epoch isolation: blast-radius containment</h2>
-      <p className="text-[color:var(--text)] leading-relaxed mb-4">
-        BitGraph&apos;s strongest containment property is structural, not behavioral.
-        Each restart of the enclave generates a new Ed25519 keypair inside the
-        boundary, derives a new <code className="text-xs font-mono bg-[color:var(--code-bg)] text-[color:var(--accent)] px-1.5 py-0.5">epochId</code> from
-        fresh hardware entropy, and resets the monotonic counter. This means
-        every epoch is a closed compartment, identified by a key that exists
-        nowhere else in the world.
-      </p>
-      <p className="text-[color:var(--text)] leading-relaxed mb-4">
-        The consequence: a compromise can only forge proofs that carry the
-        live epoch&apos;s public key. It cannot retroactively produce valid proofs
-        under any prior epoch&apos;s key, because that key was destroyed when its
-        enclave terminated and never existed outside the boundary in the first
-        place. Past proofs remain verifiable because their signatures bind to
-        a public key that no surviving system can sign with.
-      </p>
-      <p className="text-[color:var(--text)] leading-relaxed mb-4">
-        Ethereum anchors tighten this further. The same TEE periodically
-        commits the hash of a recent Ethereum block into the epoch&apos;s counter
-        chain. Each anchor is hash-linked to every proof before it, so once an
-        anchor exists, the history behind it is fixed: nothing earlier can be
-        altered without breaking the chain that reaches the anchor, and
-        everything after it provably follows that block&apos;s public date. A
-        breach window is therefore bounded on one side by the epoch boundary
-        and on the other side by the most recent anchor that preceded it.
-      </p>
-      <p className="text-[color:var(--text)] leading-relaxed mb-6">
-        Restarting the TEE is not just operational hygiene. It is a deliberate
-        containment action. Each restart closes one compartment and opens a
-        fresh one, so any undetected compromise is quarantined to the bounded
-        window of a single epoch. Verifiers can refuse to accept proofs from
-        any key they have not pinned, narrowing trust to known-good
-        compartments only.
-      </p>
-
-      <div className="overflow-x-auto mb-8">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[color:var(--line)]">
-              <th className="text-left py-2 pr-4 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">Containment property</th>
-              <th className="text-left py-2 text-xs font-medium uppercase tracking-wider text-[color:var(--dim)]">What it bounds</th>
-            </tr>
-          </thead>
-          <tbody className="text-[color:var(--text)]">
-            <tr className="border-b border-[color:var(--line)]">
-              <td className="py-2 pr-4">Per-epoch keypair</td>
-              <td className="py-2">A compromise of one epoch cannot sign as another epoch</td>
-            </tr>
-            <tr className="border-b border-[color:var(--line)]">
-              <td className="py-2 pr-4">Key destroyed on restart</td>
-              <td className="py-2">No surviving artifact can produce a valid signature under a closed epoch</td>
-            </tr>
-            <tr className="border-b border-[color:var(--line)]">
-              <td className="py-2 pr-4">Ethereum anchors</td>
-              <td className="py-2">Pre-anchor proofs are hash-linked into the anchor, fixed against retroactive rewrite</td>
-            </tr>
-            <tr>
-              <td className="py-2 pr-4">Verifier epoch pinning</td>
-              <td className="py-2">Trust scope can be restricted to known-good compartments only</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <h2 className="text-xl font-semibold mt-12 mb-4">Non-goals</h2>
-      <ul className="space-y-2 mb-8 text-sm text-[color:var(--text)]">
-        <li>• <strong className="text-text">Global ordering from the counter alone</strong> - every TEE instance and every new epoch resets the counter to 1, so the counter by itself only orders proofs within a single epoch. Ordering relative to the outside world is established by Ethereum anchors: each anchor records the hash of a recent block, so everything chained after it provably follows that block&apos;s public date: across epochs, across TEE instances, and against any other event that can be placed on the same public timeline.</li>
-        <li>• <strong className="text-text">Cross-boundary double-spend</strong> - same artifact can be submitted to separate boundaries</li>
-        <li>• <strong className="text-text">Copy prevention</strong> - BitGraph does not prevent raw byte copying</li>
-        <li>• <strong className="text-text">Consensus replacement</strong> - BitGraph constrains a single boundary, not distributed parties</li>
-        <li>• <strong className="text-text">Metadata integrity</strong> - the metadata field is advisory and unsigned</li>
+      <h2 id="next">Where next</h2>
+      <ul className="doors">
+        <li><Link href="/docs/what-bitgraph-is-not">Limits</Link><span>The non-claims, stated one by one.</span></li>
+        <li><Link href="/docs/self-host-tee">Self-host a TEE</Link><span>Rebuild the enclave image and confirm the published PCR0 yourself.</span></li>
+        <li><Link href="/docs/verification">Verification</Link><span>The checks, the results, and what they cannot conclude.</span></li>
+        <li><Link href="/docs/audit">Audit a bundle</Link><span>Check many proofs, their order and their anchors, offline.</span></li>
       </ul>
     </article>
   );

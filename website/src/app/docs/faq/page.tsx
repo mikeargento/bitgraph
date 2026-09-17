@@ -1,141 +1,115 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { renderInline } from "@/lib/render-inline";
 
 export const metadata: Metadata = {
   title: "FAQ",
-  description: "Frequently asked questions about the BitGraph Protocol.",
+  description: "Short answers to the questions people ask about BitGraph, each pointing at the page that answers it fully.",
 };
 
-const faqs = [
+/**
+ * Short answers only. Each entry links to the page that owns the topic, so
+ * this page never becomes a second explanation of the protocol.
+ */
+const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   {
     q: "Does BitGraph upload my file?",
-    a: "No. Your file is hashed on your own machine, by the MCP server, the browser or your own code, and the fused artifact is built there too. Only SHA-256 digests (32 bytes each) reach the enclave. The file bytes never leave your machine, and the original is never modified.",
+    a: "No. The file is hashed where it is, by your browser, the SDK, the MCP server or your own code, and only its SHA-256 digest reaches the enclave. The new fused file is built on your machine too. That is a property of each client; a client you did not write could send more, so read its source if it matters.",
+    href: "/docs/overview#boundary", label: "What crosses the boundary",
   },
   {
-    q: "What happens when I record a file?",
-    a: "The file is the origin. On your machine: the origin is hashed; the enclave allocates an unused slot before any artifact exists; a commitment to the signed slot record is derived; a new fused artifact is built from the origin under a registered placement; the fused artifact is hashed and its digest is committed into the same slot. The result is an ordinary `bitgraph/1` proof whose signed attribution names the placement and the origin digest under the profile identifier `bitgraph-fuse/1`. The origin is never modified and nothing is uploaded. The fused bytes are virtual: you only need to keep the origin, because the origin plus the proof rebuilds them byte for byte, and checking that reconstruction against the signed artifact digest is the evidence. The MCP servers and the two-call API hand the proof back to your own tools; file contents never travel, only digests, sizes, a file's first bytes for the placement choice, the slot record and the placement id.",
+    q: "What does a proof establish, exactly?",
+    a: "That these exact bytes were committed at this position in one sequence, that the position was allocated before their digest arrived, and that the position was placed after the Ethereum block its slot record names. Not truth, not authorship, not first creation, not an exact time.",
+    href: "/docs/what-bitgraph-is-not", label: "Limits",
   },
   {
-    q: "What does a BitGraph prove, exactly?",
-    a: "One narrow thing: these exact bytes occupy this position in one sequence, the position existed before the enclave received their hash, and the position sits after a named Ethereum block. Three neighbouring claims do not follow, and a reader tends to assume them. Truth: a recorded document can be wrong in exactly the form it was recorded. Authorship: the proof names the boundary that committed the hash, not the person who made the file. First creation: the same bytes may have existed elsewhere beforehand; what is fixed is the position they took here.",
-  },
-  {
-    q: "What is a floor?",
-    a: "A lower bound on when a set of bytes could have been finalized. Fusing gives bytes a floor of their own: the new file carries a commitment to its slot inside its bytes, so it cannot predate that slot, and it carries that floor with it wherever it goes, as an independent object. The slot's own floor comes from Ethereum. Every proof on the anchored chain sits on a slot allocated after an anchor, and the enclave refuses to sign one that is not, anchors themselves excepted. An anchor is a position whose bytes are the hash of a recent block, and a block hash does not exist before its block is produced. So the floor runs in one direction: fused file, then its slot, then the anchor before the slot, then a public Ethereum block. The block is where the floor enters the system, which is why anchors are recorded as they are and never fused: they already have one. None of it is something BitGraph asserts on its own: anyone can read the block's hash and time on an Ethereum explorer without trusting this service. Floors accumulate. When a later anchor lands, a checker gains a tighter bound on later positions; the earlier check stands beside it and is never replaced.",
-  },
-  {
-    q: "What does a fused artifact establish?",
-    a: "Two bounds on its bytes. They could not have been finalized before their slot was allocated, a lower bound tied to the anchored block before the slot, and they were committed no later than the commit position, an upper bound within the sequence. By reconstruction, the original existed no later than the commit. None of this says when the content was created, whether it is authentic, or whether what it describes happened. A recording of existing bytes establishes only that those exact bytes existed no later than the commit. Existing proofs and older recordings are not reinterpreted.",
-  },
-  {
-    q: "Where does the slot commitment go?",
-    a: "A registered placement says where. For formats whose decoders ignore trailing bytes (JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, and RIFF formats such as WebP) it is a 48-byte trailer (`trailer/1`). For everything else (PDF, ZIP-based documents, video, HEIC, text) it is a small tar container holding the unchanged file, original first (`container/2`; artifacts made under the older `container/1`, manifest first, stay readable). The proof names the placement. The Frame file `<name>.bitgraph-fuse.json` carries the placement, the origin digest, the artifact digest and the nested proof.",
-  },
-  {
-    q: "Why is the position allocated before the hash arrives?",
-    a: "Because that is what makes it evidence rather than a claim. If the position were assigned when the hash arrived, whoever ran the service could choose it. Instead the enclave hands out a slot from hardware entropy, signs it, and only then receives a hash to bind into it. The claim is precisely the enclave's own view: it had not received the hash when it signed the slot. It says nothing about what anyone else knew. Two consequences follow. An attempt consumes a position whether or not anyone likes the result, so a run cannot quietly discard nine tries and present the tenth as the only one. And a slot lives for at most two minutes before it expires, a limit set in the attested code, so a holder can delay a commit by at most that much, or choose among the slots it holds open, and the verifier can see the slot counter and the commit counter side by side.",
+    q: "Why allocate the position before the digest arrives?",
+    a: "Because a position assigned when the digest arrives could be chosen by whoever runs the service. A slot drawn from hardware entropy and signed before any digest is received cannot be manufactured afterwards for bytes already in hand, and cannot be occupied twice. The claim is the enclave's own: it had not received the digest when it signed the slot. It says nothing about what anyone else knew.",
+    href: "/docs/overview#transition", label: "One operation, two states",
   },
   {
     q: "Why not just trust a timestamp?",
-    a: "A timestamp is written by the same key that signs the record. If that key is ever compromised, or its holder is simply dishonest, backdating costs nothing and leaves no trace inside the record. A value signed by the party a check exists to catch is a claim, not evidence, however good the signature. Order in a sequence the signer does not control survives the compromise of that key. This is why every timestamp inside a proof is advisory, and why the only time BitGraph relies on comes from outside: the Ethereum block an anchor names, signed by nobody involved.",
+    a: "A timestamp is written by the same key that signs the record. If that key is compromised or its holder is dishonest, backdating costs nothing and leaves no trace. A value signed by the party a check exists to catch is a claim, not evidence. BitGraph's only time comes from outside: the Ethereum block an anchor names, signed by nobody involved.",
+    href: "/docs/overview#time", label: "Where time comes from",
   },
   {
-    q: "How does this relate to execution attestation records for AI agents?",
-    a: "They are complementary, and they answer different questions. An attestation record proves what happened inside its own boundary: which model ran, under which policy, on which measured hardware. What it structurally cannot give is order across parties, a position that predates its own artifact, or a check that needs neither the issuer nor the log operator present. BitGraph is a separate trust domain such a record can reference. The producer takes a slot before the run finishes, carries the slot commitment inside the signed record, and commits the record's digest into that slot. Any verifier who chooses to read the proof carried with the record gets the record's position and its floor; a verifier who does not is unaffected. The record binds the slot, and the slot binds the record, so pasting one record's commitment into another fails: the slot was consumed by a different digest.",
-  },
-  {
-    q: "Can an agent's run be recorded as a whole?",
-    a: "Yes. Each action leaves bytes: a call, a result, a file. Recording them together makes one set at one position, each file a member with its own row in the committed manifest. The record is by content, so nothing about who or what produced the bytes changes it, and no agent has to run inside an enclave to have its outputs placed in order.",
-  },
-  {
-    q: "What happens when I drop the original again later?",
-    a: "Dropping a file again makes a new recording: the site keeps no index of proofs, so whether a file already has one is known only to whoever holds its proof. A folder of proofs somebody sends you checks on its own: verified, failed, could not be checked, or not recorded, per file. A fused artifact carries its own commitment, so it is checked directly; its proof names the origin and accepts the original by reconstruction. Recordings are never ranked or read as versions.",
-  },
-  {
-    q: "Can I make or check a BitGraph without the app?",
-    a: "Yes. `@mikeargento/bitgraph` exposes `fuse()` and the `bitgraph-fuse` command (`fuse <file> --placement trailer/1|container/2`, `produce`, `check`). `@mikeargento/bitgraph-verify` exposes `verifyFuse`, which reports, among others, FUSED_DIRECT, FUSED_FROM_ORIGIN, RECORDED, INVALID_SLOT_COMMITMENT, RECONSTRUCTION_MISMATCH or NO_MATCH. `npx @mikeargento/bitgraph-audit` checks a whole bundle, anchors and attestation included, from a terminal. `@mikeargento/bitgraph-mcp` gives any MCP client the same making.",
-  },
-  {
-    q: "Can I verify a proof without an internet connection?",
-    a: "Yes. Verification is offline: the digest, the Ed25519 signature, the attestation chain to the AWS Nitro root, the slot binding and the floor in the signed body. You need the artifact bytes, the proof JSON, and a verifier implementation. For a fused artifact either copy will do: the origin plus the proof rebuilds the fused bytes, and the rebuilt bytes are checked against the signed digest. The floor can be checked offline too when the anchor travels with the proof, which a recording's folder and an export both provide. The export ships the block header, so the floor checks offline as well; confirming the same block on a public explorer is optional corroboration and needs nothing from this service.",
-  },
-  {
-    q: "What happens if the enclave restarts?",
-    a: "A new epoch begins. The enclave generates a fresh Ed25519 keypair from hardware entropy, derives a new `epochId`, and resets the monotonic counter to 1. The previous epoch's signing key is destroyed and exists nowhere outside the terminated enclave. The first proof of the new epoch has no `prevB64`. Restarting is also a containment action: any undetected compromise is quarantined to the bounded window of a single epoch. Epochs relate to each other only through Ethereum: the last anchor of one and the first anchor of the next name blocks, and the blocks are in order.",
-  },
-  {
-    q: "If the TEE were compromised, would all my old proofs be invalid?",
-    a: "No. Each epoch is a closed compartment with its own keypair. A compromise of the live epoch can only sign proofs under the live epoch's public key. It cannot retroactively forge proofs under any prior epoch's key, because that key was destroyed when its enclave terminated. Ethereum anchors bound it further: every slot allocated after an anchor carries that anchor as its floor, so a breach cannot place a proof before a block that had not yet been produced. A breach is bounded on one side by the epoch boundary and on the other by the most recent anchor that preceded it.",
+    q: "What is a floor, and is there a ceiling?",
+    a: "The floor is the Ethereum block named in the slot record: it was mined before the slot existed, so the position was placed after that block's time. The ceiling is the next anchor in the sequence: a place, not a clock reading. There is no wall-clock upper bound.",
+    href: "/docs/overview#time", label: "Where time comes from",
   },
   {
     q: "Is this a blockchain?",
-    a: "No. BitGraph has no distributed consensus, no global ledger, no tokens. It constrains a single execution boundary. Proof chaining (`prevB64`) is a local hash chain, not a distributed data structure. Ethereum is read, never written: an anchor commits the hash of a block into BitGraph's sequence, and no transaction, wallet or contract is involved.",
+    a: "No. There is no consensus, no token and no global ledger. One enclave constrains one sequence, and `prevB64` is a local hash chain. Ethereum is read, never written: an anchor commits the hash of a block into BitGraph's sequence, and no transaction, wallet or contract is involved.",
+    href: "/docs/what-bitgraph-is-not#neighbours", label: "Systems BitGraph is mistaken for",
   },
   {
-    q: "Does BitGraph prove who created the content?",
-    a: "No. A proof attests which execution boundary committed specific bytes, not who created them. A signed attribution is a note bound into the proof, not a verified identity.",
+    q: "What is a fused file?",
+    a: "A new file built around the original that carries a 32-byte commitment to the slot record. Its digest is what gets committed, so the new bytes could not have been finished before the slot was allocated. The original is never modified, and the original plus the proof rebuilds the new file byte for byte, so it need not be kept.",
+    href: "/docs/overview#fused", label: "Carrying the position inside the bytes",
   },
   {
-    q: "What if someone modifies the proof JSON?",
-    a: "The Ed25519 signature covers the canonical signed body. Any modification to signed fields (artifact, commit, signer identity, environment) invalidates the signature. Unsigned fields (timestamps, metadata) are advisory and should not be trusted for security decisions.",
+    q: "Can an AI agent use it?",
+    a: "Yes. Both MCP servers let an agent make proofs of files it names, and `bitgraph_open` with no files hands it a position and its commitment before a task starts, so the task's record can carry the commitment and be committed when it finishes. Only digests and slot records travel.",
+    href: "/docs/mcp", label: "MCP server",
   },
   {
-    q: "What is the measurement field?",
-    a: "For AWS Nitro Enclaves, it is the PCR0 value, a SHA-384 hash of the enclave image. It uniquely identifies the exact code running inside the boundary, and the image is built reproducibly, so two independent builds of the published source arrive at the same value. Verifiers should pin `allowedMeasurements` to known-good values. The player reports a proof signed under a measurement it does not carry as could not be checked, never as valid; a verifier that pins `allowedMeasurements` rejects it outright.",
+    q: "Can I verify a proof without an internet connection?",
+    a: "Yes. The digest, the Ed25519 signature, the attestation chain to the AWS Nitro root and the slot binding are all checked from the proof and the bytes. The floor is checked offline too when the anchor and its block-header witness travel with the proof, which an export includes.",
+    href: "/docs/verification", label: "Verification",
   },
   {
-    q: "How does BitGraph establish time?",
-    a: "BitGraph does not claim to prove absolute time. It proves causal order: every commit pre-allocates a slot inside the enclave before the artifact hash reaches it, and the monotonic counter establishes sequencing within an epoch. For an external time reference, the same enclave periodically commits the hash of a recent Ethereum block into the chain. A block hash does not exist before its block is produced, so everything chained after an anchor provably came after that block's public date, and the anchor's hash links fix the history behind it against rewrite. The bound runs in one direction only, no earlier than; BitGraph never claims a public no-later-than, because nothing is written to Ethereum. A fused artifact carries a commitment to its slot, so the lower bound reaches its bytes as well: they could not have been finalized before the slot, and the slot follows the anchored block before it.",
+    q: "What happens when the enclave restarts?",
+    a: "A new epoch begins: a fresh key, a counter at zero, and the old key destroyed. In production that happens every day at 23:59 UTC. Proofs from a closed epoch remain verifiable forever; nothing can be signed under its key again. Epochs relate to each other through the Ethereum blocks their anchors name.",
+    href: "/docs/overview#epochs", label: "Compromise and containment",
   },
   {
-    q: "Can the same file produce different proofs?",
-    a: "Yes. Each recording takes a fresh slot, whose nonce came from hardware entropy at allocation, advances the counter, and produces a new signature. The artifact digest will be the same (same file = same SHA-256), but the commit context differs. This is correct behavior. Each is a distinct commit event. Recording the same original again through the two-call API, or through an MCP server with `again=true`, makes a new fused artifact with a new slot commitment, so its bytes and digest differ from the first; both name the same origin, and neither outranks the other. The MCP servers and the browser make a new BitGraph when asked: BitGraph no longer indexes proofs, so whether a file already has one is known only to whoever holds its proof.",
+    q: "If the enclave were compromised, would my old proofs be worthless?",
+    a: "No. A compromise can sign only under the live epoch's key. Earlier epochs were signed by keys that no longer exist. The affected epoch is identified permanently by its identifier and can be quarantined; every other epoch is untouched. A forgery within the live epoch, by code running inside the enclave, is not detectable from the proofs.",
+    href: "/docs/trust-model#threats", label: "Trust model",
   },
   {
-    q: "What is `prevB64`?",
-    a: "The SHA-256 hash of the previous complete proof in the chain. It creates a linked sequence within an epoch. If any proof in the chain is modified, deleted, or reordered, the hash chain breaks. The first proof of an epoch has no `prevB64`.",
-  },
-  {
-    q: "How is this different from just signing a file?",
-    a: "A standard digital signature proves someone with the private key signed the bytes. BitGraph additionally provides: a measured execution boundary (PCR0), a monotonic counter (ordering), causal slot pre-allocation (the position was reserved before the enclave received the content's hash), proof chaining (sequence integrity), hardware attestation (boundary evidence), and signed attribution (a bound note; for a fused artifact, the placement and the origin digest). A fused artifact also carries a commitment to its slot inside the bytes, so they could not have been finalized before the slot existed. The key never leaves the enclave.",
-  },
-  {
-    q: "What is a causal slot?",
-    a: "A slot is a pre-allocated nonce and counter pair created inside the enclave before any artifact hash reaches it. This proves the enclave committed to a specific position in its sequence without having seen the artifact. The slot has its own Ed25519 signature and is cryptographically bound to the final proof via `slotHashB64`. Every proof includes its slot allocation record. A fused artifact also carries a commitment to that signed slot record inside its bytes, which ties the bytes to the slot before they were finished.",
-  },
-  {
-    q: "What is attribution?",
-    a: "Attribution is optional creator metadata (name, title, message) that is included in the Ed25519-signed body. Unlike metadata (which is unsigned and advisory), attribution is cryptographically bound. Tampering with any attribution field invalidates the proof signature. For a fused artifact the fields are fixed: `name` is the profile identifier `bitgraph-fuse/1`, `title` is the placement, and `message` is the origin digest.",
+    q: "Can the same file get two proofs?",
+    a: "Yes. Each commit takes a fresh slot and a new position. The digest is the same; the position, the counters and the signature differ. Neither proof outranks the other.",
   },
   {
     q: "Can I record many files at once?",
-    a: "Yes. Two or more files become one set: one slot, one position, every file a member listed by digest in the manifest, with an inclusion path of its own. What is committed is the root over those rows, so the whole set is one BitGraph and each member can be checked on its own. Membership and the floor are inseparable: a member cannot be added after the fact, because the root was committed with the rows it had.",
+    a: "Yes. Two or more files made together become one set under one slot: one position, every file a member with its own row and inclusion path. A member cannot be added afterwards, because the committed root was made with the rows it had.",
+    href: "/docs/proof-format#fused", label: "Proof format",
   },
   {
-    q: "What libraries does BitGraph use?",
-    a: "The core library uses `@noble/ed25519` for signatures and `@noble/hashes` for SHA-256. Both are audited, pure TypeScript, zero-dependency libraries. No Node.js native bindings.",
+    q: "What if someone edits the proof JSON?",
+    a: "The signature covers the canonical signed body, so any change to a signed field invalidates it. `metadata`, `timestamps` and `claims` are unsigned and advisory; a verifier must not rely on them.",
+    href: "/docs/proof-format", label: "Proof format",
+  },
+  {
+    q: "What is the measurement field?",
+    a: "For AWS Nitro it is PCR0, a hash of the enclave image. It identifies the exact code that produced the proof, and the image builds reproducibly, so two builds of the published source give the same value. Verifiers should pin it.",
+    href: "/docs/self-host-tee", label: "Self-host a TEE",
+  },
+  {
+    q: "Does the service keep my proof?",
+    a: "The service writes each proof to its ledger and indexes it by digest, as a convenience for lookups and proof pages. The proof returned to you is the record; keep it beside the file. A lookup that finds nothing is not evidence that bytes were never recorded.",
+    href: "/api-reference", label: "API reference",
+  },
+  {
+    q: "What does it cost, and what is licensed?",
+    a: "Verification is free and permissionless: the verifier, the audit tool and the player are MIT. Making proofs inside your own product or systems is licensed by agreement with Argento Computing Inc. Evaluation and ordinary individual use are free.",
+    href: "/terms", label: "Terms",
   },
 ];
 
 export default function FAQPage() {
   return (
-    <article className="prose-doc">
-      <h1 className="mb-6">FAQ</h1>
-      <p className="text-[color:var(--text)] mb-10">
-        Common questions about the BitGraph Protocol.
-      </p>
-
-      {/* Each question's h2 carries the site-wide rule above it (2026-09-16),
-          so the items draw no border of their own: with both, every question
-          had a double line (Mike: "looks like double dividers on the faq page"). */}
-      <div className="space-y-0">
-        {faqs.map((faq) => (
-          <div key={faq.q} className="pb-2">
-            <h2 className="text-lg font-semibold mb-3">{renderInline(faq.q)}</h2>
-            <p className="text-base text-[color:var(--text)] leading-relaxed">{renderInline(faq.a)}</p>
-          </div>
-        ))}
-      </div>
+    <article className="prose faq">
+      <h1>FAQ</h1>
+      <p className="lede">Short answers. Each one points at the page that owns the topic.</p>
+      {faqs.map((f) => (
+        <section key={f.q}>
+          <h2>{f.q}</h2>
+          <p>{renderInline(f.a)}</p>
+          {f.href && <p className="note">More: <Link href={f.href}>{f.label}</Link>.</p>}
+        </section>
+      ))}
     </article>
   );
 }

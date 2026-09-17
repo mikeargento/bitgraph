@@ -1,3 +1,4 @@
+import { DocsPageNav } from "@/components/docs-page-nav";
 import { Explorer } from "@/components/explorer";
 import { AnchorRecovery } from "@/components/anchor-recovery";
 import { ledgerFeed, type LedgerFeedBody } from "@/lib/ledger-feed";
@@ -88,7 +89,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
   const initial = await firstPage(day);
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
+    <div className="frame" style={{ padding: "56px 0 96px" }}>
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
         /* The nav line is one stratum and must never wrap: on phones the day
@@ -99,7 +100,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
           .bg-day-short { display: inline; }
         }
       `}</style>
-      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
+      <div style={{ animation: "fadeIn .3s ease-out" }}>
         <Explorer
           anchorsOnly
           day={day ?? undefined}
@@ -125,9 +126,9 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
                   bucket keeps only anchors; this is the system's wall clock,
                   shown so anyone can match a position's block against
                   Etherscan and take the day's anchors away as a file. */}
-              <div className="bg-page-title">
+              <h1 className="bg-page-title" style={{ margin: 0 }}>
                 Ethereum anchors
-              </div>
+              </h1>
               {/* No line under the live title: the rows say what they are
                   (Mike, 2026-09-09: "it doesnt need to say this"). A past day
                   keeps its date, which is the one thing the rows cannot say. */}
@@ -136,6 +137,11 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
                   {`${longLabel(day)} (UTC)`}
                 </div>
               )}
+              {/* How to read the rows. The title is rendered by the Explorer,
+                  so the one place between it and the rows is this slot. */}
+              <p className="lede" style={{ margin: "10px 0 0" }}>
+                Each row is an anchor: a position whose file is the hash of the Ethereum block it names, with the block linked to Etherscan and the time read from the block itself, in UTC. These are the floors every position that day rests on.
+              </p>
             </div>
           }
           // The day-flip stepper — back before forward, sitting together on
@@ -189,6 +195,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
             that was actually missing: one holder, one position, two anchors. */}
         <AnchorRecovery />
       </div>
+    <DocsPageNav current="/ledger" />
     </div>
   );
 }

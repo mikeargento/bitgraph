@@ -13,7 +13,7 @@
    component by design: no hooks, no imports from the client Explorer. ── */
 
 export default function Loading() {
-  const bar: React.CSSProperties = { borderRadius: 3 };
+  const bar: React.CSSProperties = { borderRadius: "var(--radius-card)" };
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--c-text)" }}>
       <style>{`
@@ -25,7 +25,7 @@ export default function Loading() {
         {/* Heading: the real title (it never varies), a shimmer where the
             live-vs-day subtitle will land. */}
         <div style={{ marginBottom: 12 }}>
-          <div className="bg-page-title">Ethereum anchors</div>
+          <div className="bg-page-title" style={{ margin: 0 }}>Ethereum anchors</div>
         </div>
 
         {/* The nav line: day stepper left, Calendar right. */}
@@ -44,9 +44,6 @@ export default function Loading() {
               <span className="rl-skel" style={{ ...bar, width: 34, height: 12, flexShrink: 0 }} />
               <span style={{ flex: 1 }} />
               <span className="rl-skel" style={{ ...bar, width: 84, height: 12, flexShrink: 0 }} />
-              <span style={{ display: "inline-flex", flexShrink: 0, color: "var(--faint)" }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="square" strokeLinejoin="miter"><path d="M9 6 L15 12 L9 18" /></svg>
-              </span>
             </div>
           ))}
         </div>

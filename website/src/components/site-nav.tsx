@@ -2,358 +2,164 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-sections";
 
-// Warm the ledger feed the moment the user signals intent to open it, so the page
-// paints filled-in instead of spinning. Fires on hover / focus / touch — only
-// when there's real intent, never on every page load — and is a no-op once a
-// fresh copy is in flight or cached. Next already prefetches the route CODE on
-// hover; this brings the DATA, the actual latency.
+/**
+ * The bar. Wordmark, the four documentation groups each as its own dropdown,
+ * and one filled button that opens the page where a BitGraph is made (Mike,
+ * 2026-09-18, with GitHub's green Code button beside the old panel's four
+ * headings: "the +New or 'make a bitgraph' button should be like this and the
+ * menu items should be these as each dropdown menus each containing their
+ * links").
+ *
+ * Below 900px four labels and a button do not fit, so the groups fold into one
+ * Menu button whose panel lists all four, and the green button's label shortens
+ * to New. It says Menu, not Docs (Mike, 2026-09-18): on a phone it holds
+ * everything, Use cases, Contact and GitHub included.
+ *
+ * Menus open under the cursor on a device that has one (Mike, 2026-09-18:
+ * "should you have to click menu items or should hover just work"), and on a
+ * click or Enter everywhere, which is what a touch screen and a keyboard use.
+ * The production bar was click-only because a hover-ONLY menu has no touch
+ * equivalent; hover added to click does not have that problem. A menu opened
+ * by hover closes a beat after the cursor leaves it, so a diagonal move to the
+ * panel does not drop it, and a click on its button never closes it under the
+ * cursor. Menus close on Escape, on a click outside, and on choosing a row; GitHub is the one row that leaves the site and says so; /deck carries
+ * no chrome; on the home route the wordmark forces a fresh load.
+ */
+type Group = { label: string; items: DocsSection[]; external?: boolean };
+const GROUPS: Group[] = [...DOCS_GROUPS, { label: "Reference", items: DOCS_TAIL, external: true }];
+
+function Chevron() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
 
 export function SiteNav() {
   const pathname = usePathname();
-  const [docsOpen, setDocsOpen] = useState(false);
-  const docsRef = useRef<HTMLDivElement>(null);
-  // The panel spans the bar rather than hanging off the button, so it is no
-  // longer inside docsRef and needs its own: a mousedown on the panel's own
-  // padding would otherwise read as a click outside and shut it.
-  const panelRef = useRef<HTMLDivElement>(null);
+  // A group's label while its dropdown is open, "all" for the folded panel, or null.
+  const [open, setOpen] = useState<string | null>(null);
+  const navRef = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | null>(null);
 
-  // Close on a click outside and on Escape. The menu hangs off a sticky bar, so
-  // it can otherwise sit open over content the reader has scrolled to.
+  // A real cursor, not a finger: the only case in which hover means anything.
+  const canHover = () => typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const cancelClose = () => { if (closeTimer.current !== null) { window.clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const hoverOpen = (label: string) => { if (!canHover()) return; cancelClose(); setOpen(label); };
+  const hoverClose = (label: string) => {
+    if (!canHover()) return;
+    cancelClose();
+    closeTimer.current = window.setTimeout(() => { setOpen((o) => (o === label ? null : o)); closeTimer.current = null; }, 160);
+  };
+  useEffect(() => cancelClose, []);
+
   useEffect(() => {
-    if (!docsOpen) return;
-    const away = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (docsRef.current?.contains(t) || panelRef.current?.contains(t)) return;
-      setDocsOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setDocsOpen(false); };
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!navRef.current?.contains(e.target as Node)) setOpen(null); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(null); };
     document.addEventListener("mousedown", away);
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
-  }, [docsOpen]);
+  }, [open]);
 
-  // One column heading. Shared, because Reference is built by hand rather than
-  // from DOCS_GROUPS, and the first thing that happened when these were two
-  // copies was that an underline went on three of the four.
-  //
-  // No rule of any kind on it now, and none anywhere inside the panel. Three
-  // placements were tried on 2026-08-09 and all three are gone: vertical
-  // between the columns (a rule has to pick a height, and a grid with ragged
-  // bottoms offers none), a cap above each heading (floats, unattached to
-  // anything, and breaks into two segments at two columns), and this underline
-  // (which did work, and was still one more element than the headings needed).
-  // Four near-black bold labels against 14px grey rows separate the columns on
-  // their own. The panel is type and the card's edge.
-  //
-  // Small, tracked-out, uppercase, 800, near-black. These shipped grey twice
-  // (600/var(--faint), then 700/var(--dim)) and read as faded rows both times: a label
-  // in a value between the rows' grey and the panel's white cannot be told from
-  // a row at a glance, whatever its weight. The value has to LEAD the items it
-  // heads. Size is what keeps it quiet, 11px against their 14px.
-  //
-  // aria-hidden because the enclosing role="group" already carries the name to
-  // assistive tech, and it would otherwise be announced twice.
-  const renderHeading = (label: string) => (
-    <div
-      aria-hidden="true"
-      style={{
-        padding: "0 10px 8px",
-        fontSize: 11, fontWeight: 800, letterSpacing: "0.12em",
-        textTransform: "uppercase", color: "var(--ink)",
-      }}
-    >
-      {label}
-    </div>
-  );
+  if (pathname === "/deck") return null;
 
-  // One row, whether it comes from a group or from the loose tail below them.
-  const renderItem = (s: DocsSection) => (
+  const row = (s: DocsSection) => (
     <Link
       key={s.href}
       href={s.href}
       role="menuitem"
       className="docs-menu-item"
       aria-current={pathname === s.href ? "page" : undefined}
-      onClick={() => setDocsOpen(false)}
-      style={{
-        display: "block", padding: "7px 10px", fontSize: 14,
-        fontWeight: pathname === s.href ? 600 : 400,
-        textDecoration: "none",
-      }}
+      onClick={() => setOpen(null)}
     >
       {s.label}
     </Link>
   );
-
-  // /deck is the door: an unlinked pitch page whose whole content is the
-  // sentence, Start here, and a name. It carries no chrome, and the site
-  // never links to it. (After the hooks above, per the rules of hooks.)
-  if (pathname === "/deck") return null;
+  const github = (
+    <a href={DOCS_REPO} target="_blank" rel="noopener" role="menuitem" className="docs-menu-item" onClick={() => setOpen(null)}>
+      GitHub <span aria-hidden="true" style={{ fontSize: 10 }}>&#8599;</span>
+      <span className="sr-only">(opens in a new tab)</span>
+    </a>
+  );
+  const holdsCurrent = (g: Group) => g.items.some((s) => s.href === pathname);
 
   return (
-    // The nav shares the page background on purpose. A white bar was tried on
-    // 2026-07-27 and reverted: it gave the page a defined top edge, but it also
-    // turned the site's one continuous surface into chrome plus content, which
-    // is the thing that makes this read as a document rather than an app. White
-    // is the cards' value too, so on the ledger and on proof pages the bar and the
-    // content were the same colour anyway. If it is ever revisited, var(--panel) is
-    // the middle option: distinct from the page without borrowing the cards'
-    // white. It IS a surface now (white, hairline), and the overscroll canvas
-    // is handled by the html background in globals.css.
-    <div id="site-nav" style={{
-      // A surface, since the bar spans the window (2026-08-16): white with a
-      // hairline under it, the way an app's bar sits over its page. The
-      // canvas above the page origin is painted white too (html background in
-      // globals.css) so a rubber-band scroll shows the bar's colour, not the
-      // page's; see the note that follows.
-      background: "var(--bar)",
-      position: "sticky", top: 0, zIndex: 50,
-      // One 56px row, wordmark and links centred in it. The 14px top padding
-      // that used to seat the wordmark lower belonged to an invisible bar; on
-      // a white surface it read as the row sitting low. (Mike, 2026-08-16.)
-    }}>
-      <div style={{
-        // The bar sits over the reading column: width 90%, max 800, centred,
-        // the measure every page uses (Mike, 2026-09-11). It spanned the
-        // window from 2026-08-16 so the wordmark would not jump between the
-        // reading pages and the camera pane that filled the window; the
-        // camera pane is gone, home is the overview, every page is the
-        // column, and on a wide monitor the full-bleed bar put the wordmark
-        // 600px from the words it belongs to. The 08-16 form is the one-line
-        // revert: width 100%, maxWidth none, padding 0 20px.
-        width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: 0, boxSizing: "border-box" as const, position: "relative",
-        // 56px: apple.com's 44 was the floor for the touch target; a surface
-        // bar wants a little more air around a 24px wordmark. Everything in
-        // the row is centred on its middle.
-        // 76px: the pill is 40px tall, and the app's own title bar breathes
-        // around its controls (Mike, 2026-09-11: "give header and footer
-        // proper space now that style changed").
-        height: 76, display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
+    <div id="site-nav" ref={navRef} style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
+      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", boxSizing: "border-box", position: "relative", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
         <Link
           href="/"
           onClick={(e) => {
-            // On the home route a same-route Link click won't reset the
-            // results/exporting state, so force a fresh load back to the drop view.
-            if (typeof window !== "undefined" && window.location.pathname === "/") {
-              e.preventDefault();
-              window.location.assign("/");
-            }
+            // A same-route click would not reset a results view; force a fresh load.
+            if (typeof window !== "undefined" && window.location.pathname === "/") { e.preventDefault(); window.location.assign("/"); }
           }}
-          style={{
-            // RESTYLE 2026-09-11: the app's title, "BitGraph" at 26px bold.
-            fontSize: 26, fontWeight: 700, color: "var(--ink)",
-            textDecoration: "none", letterSpacing: "-0.02em",
-          }}
+          style={{ fontSize: 19, fontWeight: 700, color: "var(--ink)", textDecoration: "none", letterSpacing: "-0.01em" }}
         >
           BitGraph
         </Link>
-        {/* Gap lives in CSS, not inline, so it can tighten on narrow phones.
-            A 12-character label ("Applications", before this settled on "Uses")
-            left only 7px between the wordmark and the first link at 320px. */}
+
         <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
-          {/* ❄️ NO MAKE LINK, AND NO /make ROUTE (Mike, 2026-09-08). Making
-              moves into the desktop app; the website is a spec and a software
-              download. It is not the only maker and never was — the published
-              MCP, the hosted /mcp and the API all record, which is what makes
-              removing this safe today rather than after the app ships. */}
-          {/* ❄️ THE CONNECTION LIGHT IS NOT IN THE HEADER (Mike, 2026-09-08:
-              "like how home is set up now but the connection indicator wont be
-              in header"). It sat here for an hour. The nav is the site's
-              navigation, and the site is becoming documentation plus a
-              verifier — a light about YOUR folder is not navigation, and on a
-              docs page it is chrome about a thing that page cannot do. It
-              lives with the gesture it belongs to instead, under the box on
-              home. See components/ledger-light.tsx. */}
-          {/* Ledger → Docs: the ledger, then the spec. The page of what you
-              point the camera at lived here for months under four names
-              (Uses → Why → Subjects → Applications → "Use cases", each a
-              deliberate call, the history is in git) and moved INTO the Docs
-              menu on 2026-08-05 as its second entry — Mike: "'Use cases'
-              should be moved to inside the docs." The 320px width battle
-              this slot kept fighting went with it.
-              Its ROUTE stays /subjects on purpose: /applications shipped as
-              a PERMANENT 308 to /uses on 2026-07-27, and /uses 308s onward,
-              so reviving either path as a real page risks a cached-redirect
-              loop for anyone holding the old redirect. */}
-          {/* ❄️ THE LEDGER IS OUT OF THE NAV (Mike, 2026-09-08): "ledger can be
-              invisible now since the eth anchors are on proof pages". It was
-              the way in to a browsable roll of every recording. There is no
-              such roll any more — the bucket keeps only anchors — and the
-              anchors that remain are already shown where they do their work,
-              on the record they bracket. A nav entry pointing at a surface
-              whose contents moved onto the proof page is a second, thinner
-              copy of it.
+          <nav className="nav-groups" aria-label="Documentation">
+            {GROUPS.map((g) => (
+              <div key={g.label} className="nav-group" onMouseEnter={() => hoverOpen(g.label)} onMouseLeave={() => hoverClose(g.label)}>
+                <button
+                  type="button"
+                  className="nav-btn"
+                  aria-haspopup="menu"
+                  aria-expanded={open === g.label}
+                  aria-current={holdsCurrent(g) ? "page" : undefined}
+                  // Under a cursor the menu is already open, so a click keeps it open rather than
+                  // toggling it shut; on touch and keyboard a click toggles.
+                  onClick={() => setOpen((o) => (canHover() ? g.label : o === g.label ? null : g.label))}
+                >
+                  {g.label}
+                  <Chevron />
+                </button>
+                {open === g.label && (
+                  <div role="menu" aria-label={g.label} className="nav-menu">
+                    {g.items.map(row)}
+                    {g.external && github}
+                  </div>
+                )}
+              </div>
+            ))}
+          </nav>
 
-              ⚠️ INVISIBLE, NOT DELETED. /ledger STAYS REACHABLE and must. It
-              is the target of PERMANENT 308s from /roll, /rolls and
-              /api/ledger/head's predecessors, and a cached permanent redirect
-              pointing at a 404 cannot be taken back — the same trap that keeps
-              "Use cases" on the /subjects route two comments above. Removing
-              the route is not a smaller version of this change; it is a
-              different and irreversible one. */}
-          {/* Docs opens the section list rather than navigating.
-              It used to be a plain link to /docs, and every docs page then
-              carried a full-width sticky bar of its own holding this menu. That
-              bar was a button the width of the reading column whose label
-              repeated the h1 eight pixels beneath it, on a site whose rule is
-              no buttons. The list belongs in the nav, which is sticky already,
-              so a reader deep in a long page can still jump sections.
+          <button
+            type="button"
+            className="nav-btn nav-docs"
+            aria-haspopup="menu"
+            aria-expanded={open === "all"}
+            onClick={() => setOpen((o) => (o === "all" ? null : "all"))}
+          >
+            Menu
+            <Chevron />
+          </button>
 
-              Click, not hover: hover menus have no touch equivalent, and this
-              has to work on a phone. Visually it stays a nav link, with only a
-              chevron to say it opens something. */}
-          <div ref={docsRef} style={{ display: "flex", alignItems: "center" }}>
-            <button
-              onClick={() => setDocsOpen(o => !o)}
-              aria-expanded={docsOpen}
-              aria-haspopup="menu"
-              // Current for any docs route, including one not in the list, and
-              // while the menu is open: an open menu is a place you are too.
-              aria-current={(pathname?.startsWith("/docs") || docsOpen) ? "page" : undefined}
-              // RESTYLE 2026-09-11: the app's pill. Outlined at rest, the
-              // light blue fill while the menu is open (the Recorder's
-              // "Calendar" state).
-              // RESTYLE 2026-09-11: the app's pill. Outlined at rest, the
-              // light blue fill while the menu is open (the Recorder's
-              // "Calendar" state). A plain blue link with an underline stood
-              // here for a minute; Mike: "go back i like yours better".
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 16px", margin: 0,
-                border: `1px solid ${docsOpen ? "var(--tint)" : "var(--line)"}`,
-                background: docsOpen ? "var(--tint)" : "var(--panel)", borderRadius: "var(--radius-pill)",
-                fontSize: 15, fontWeight: 500,
-                fontFamily: "inherit", letterSpacing: "inherit", cursor: "pointer",
-              }}
-            >
-              {/* "Docs". It read "Documentation" for one push on 2026-09-09
-                  and Mike took it back the same minute ("oh but just docs"). */}
-              Docs
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                style={{ transform: docsOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }}>
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-          </div>
+          <Link href="/docs/try" className="nav-cta" aria-label="Make a BitGraph" aria-current={pathname === "/docs/try" ? "page" : undefined}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M8 2.5v11M2.5 8h11" />
+            </svg>
+            <span className="bg-long">Make a BitGraph</span>
+            <span className="bg-short">New</span>
+          </Link>
         </div>
       </div>
-      {/* ── The section panel. It spans the bar rather than hanging off the
-          Docs link, which is what lets the fifteen places sit in columns
-          instead of one column fifteen long. As a narrow dropdown the grouped
-          list had become a scroll (Mike, 2026-08-09: "a long scroll now"), and
-          a menu you have to scroll to see is worse than the ungrouped list it
-          replaced: you can no longer take in the shape of the docs at a
-          glance, which is the whole point of grouping them.
 
-          It is the width of the CONTENT, not of the window. The white went
-          full-bleed first and was pulled back the same day: edge to edge it is
-          a mega menu landing on the page, which is the app-shaped thing this
-          site keeps refusing to be. At the 90%/800px measure it is a card in
-          the column, its edges under the wordmark and over the page's own,
-          which is how every other surface here behaves. Square corners, 1px
-          var(--line), per the cards.
-
-          Absolute against #site-nav, which is sticky and therefore already a
-          containing block; centred on it rather than hung off the Docs link,
-          so the edges land on the measure and not near it. ── */}
-      {docsOpen && (
-        <div
-          ref={panelRef}
-          role="menu"
-          aria-label="Docs sections"
-          style={{
-            // RESTYLE 2026-09-11: the app's menu, a rounded card with a
-            // shadow, the column's width, hung under the bar (the Recorder's
-            // "+ New" menu). It was a window-wide strip under the bar from
-            // 2026-08-16; the sections keep their four columns inside.
-            // The column's width, centred on the bar (Mike: "menu should drop
-            // down within the content width"). The panel is a sibling of the
-            // column div, so it centres itself on the same measure.
-            position: "absolute", top: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", width: "90%", maxWidth: "var(--frame)",
-            background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)",
-            boxShadow: "var(--shadow-menu)",
-            maxHeight: "calc(100dvh - 90px)", overflowY: "auto",
-            overscrollBehavior: "contain",
-            padding: "22px 24px 20px", boxSizing: "border-box",
-          }}
-        >
-          <div>
-            {/* Four cells. At >=880px the pairs dissolve (display: contents)
-                and the grid lays four flat columns, tops aligned, ordered by
-                each group's `order`. Below 880 each pair is its own stack, so
-                a heading always sits the same 28px under the group above it
-                in ITS column: the 2x2 grid rows used to align BUILD with
-                REFERENCE's row and leave a void under the short UNDERSTAND
-                (Mike, 2026-08-27: "shouldnt build be same distance"). */}
-            <div className="docs-panel-cols">
-              <div className="docs-panel-pair">
-                {[DOCS_GROUPS[0], DOCS_GROUPS[2]].map((g, i) => (
-                  <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group" style={{ order: i === 0 ? 1 : 3 }}>
-                    {renderHeading(g.label)}
-                    {g.items.map(renderItem)}
-                  </div>
-                ))}
+      {open === "all" && (
+        <div role="menu" aria-label="Menu" className="nav-panel">
+          <div className="docs-panel-cols">
+            {GROUPS.map((g) => (
+              <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group">
+                <div aria-hidden="true" className="nav-panel-title">{g.label}</div>
+                {g.items.map(row)}
+                {g.external && github}
               </div>
-              <div className="docs-panel-pair">
-                <div key={DOCS_GROUPS[1].label} role="group" aria-label={DOCS_GROUPS[1].label} className="docs-panel-group" style={{ order: 2 }}>
-                  {renderHeading(DOCS_GROUPS[1].label)}
-                  {DOCS_GROUPS[1].items.map(renderItem)}
-                </div>
-              {/* The fourth cell: FAQ and the repo, under REFERENCE.
-
-                  They ran as a row beneath the columns first, under a rule and
-                  then under air, and neither held: without the rule they read
-                  as "lost floating there" (Mike), and with it the rule was
-                  furniture doing what the grid does for free. Then the cell
-                  carried a blank where the other three carry a heading, which
-                  aligned the rows but left a hole for the reader to wonder at.
-
-                  "More" was the alternative and is the word you reach for when
-                  you have not decided what a group is. Reference is true of
-                  both without claiming they are a section of the docs: the FAQ
-                  is what you look an answer up in, and the repo is the
-                  reference implementation the proof format is derived from.
-                  It says nothing about the reading sequence, which is the one
-                  thing a label here could get wrong, since FAQ closes that
-                  sequence and the repo sits outside it. */}
-              <div role="group" aria-label="Reference" className="docs-panel-group" style={{ order: 4 }}>
-                {renderHeading("Reference")}
-                {DOCS_TAIL.map(renderItem)}
-                {/* The one row of sixteen that leaves the site, and the only one
-                    that opens a new tab. It behaved differently from its
-                    neighbours and looked identical to them, so it now carries a
-                    ↗. Not the → the action links use, which means go forward
-                    within the site; this one means the destination is
-                    elsewhere. It stays quiet: 10px, the row's own colour, no
-                    weight of its own.
-
-                    The glyph is decoration to a screen reader, which gets the
-                    same fact as words instead. */}
-                <a
-                  href={DOCS_REPO}
-                  target="_blank"
-                  rel="noopener"
-                  role="menuitem"
-                  className="docs-menu-item"
-                  onClick={() => setDocsOpen(false)}
-                  style={{
-                    display: "flex", alignItems: "baseline", gap: 5,
-                    padding: "7px 10px", fontSize: 14,
-                    fontWeight: 400, textDecoration: "none",
-                  }}
-                >
-                  GitHub
-                  <span aria-hidden="true" style={{ fontSize: 10, lineHeight: 1 }}>&#8599;</span>
-                  <span className="sr-only">(opens in a new tab)</span>
-                </a>
-              </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       )}

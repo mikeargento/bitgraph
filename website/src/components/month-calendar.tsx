@@ -89,8 +89,8 @@ export function MonthCalendar({ title, total, leading, days }: {
         {Array.from({ length: leading }, (_, i) => <div key={`b${i}`} style={cell} />)}
         {days.map((d) => {
           if (d.kind === "recorded" || d.kind === "today") {
-            // RESTYLE 2026-09-11: today is the app's filled blue rounded square.
-            const style = d.kind === "today" ? { ...openable, background: "var(--accent)", color: "var(--panel)", borderRadius: 8 } : openable;
+            // RESTYLE 2026-09-11: today is the app's filled blue square.
+            const style = d.kind === "today" ? { ...openable, background: "var(--accent)", color: "var(--panel)", borderRadius: "var(--radius-card)" } : openable;
             const inner = (
               <>
                 {d.n}

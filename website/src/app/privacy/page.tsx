@@ -9,10 +9,10 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "40px 0 40px" }}>
-      <article className="prose-doc">
+    <div className="frame" style={{ padding: "56px 0 96px" }}>
+      <article className="prose">
         <h1>Privacy Policy</h1>
-        <p style={{ color: "var(--dim)" }}>Effective date: August 27, 2026</p>
+        <p className="meta">Effective date: August 27, 2026</p>
 
         <h2>1. What we collect</h2>
         <ul>
@@ -32,7 +32,7 @@ export default function PrivacyPage() {
           and its name, to name the new file; neither is written into a
           proof. A SHA-256 fingerprint does not
           contain the file and cannot by itself be used to reconstruct
-          arbitrary file contents. 
+          arbitrary file contents.
         </p>
 
         <h2>3. How we use it</h2>

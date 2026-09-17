@@ -519,7 +519,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
         onSubmit={runSearch}
         style={{
           display: "flex", alignItems: "center", marginBottom: searchError ? 6 : 12,
-          background: "var(--panel)", border: `1px solid ${searchFocus ? "var(--accent)" : "var(--line)"}`, borderRadius: 0,
+          background: "var(--panel)", border: `1px solid ${searchFocus ? "var(--accent)" : "var(--line)"}`, borderRadius: "var(--radius-card)",
         }}
       >
         <input
@@ -529,7 +529,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
           onBlur={() => setSearchFocus(false)}
           placeholder="Search by hash"
           aria-label="Search by hash"
-          style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 14, color: "var(--ink)", background: "transparent", border: "none", borderRadius: 0, outline: "none" }}
+          style={{ flex: 1, minWidth: 0, padding: "10px 14px", fontSize: 14, color: "var(--ink)", background: "transparent", border: "none", borderRadius: "var(--radius-card)", outline: "none" }}
         />
         <button
           type="submit"
@@ -537,7 +537,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
           className="bg-arrow-link"
           style={{
             flexShrink: 0, padding: "10px 14px", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em",
-            color: "var(--accent)", background: "none", border: "none", borderRadius: 0, fontFamily: "inherit",
+            color: "var(--accent)", background: "none", border: "none", borderRadius: "var(--radius-card)", fontFamily: "inherit",
             cursor: searching || !query.trim() ? "default" : "pointer",
             opacity: searching || !query.trim() ? 0.45 : 1, whiteSpace: "nowrap",
           }}

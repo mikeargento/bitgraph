@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CopyCode } from "@/components/copy-code";
+import { Code } from "@/components/code";
 
 export const metadata: Metadata = {
   title: "BitGraph Folder is retired",
@@ -51,7 +52,7 @@ export default function FolderRetiredPage() {
       </p>
       <div className="code-block">
         <div className="code-block-header">Shell<CopyCode /></div>
-        <pre>{UNINSTALL}</pre>
+        <Code lang="bash">{UNINSTALL}</Code>
       </div>
       <p>
         The last line removes a symlink, not a folder. If <code>~/Desktop/BitGraph</code> is a real directory on your machine rather than a link, leave it alone.

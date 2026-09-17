@@ -1,5 +1,6 @@
 "use client";
 
+import { DropPrompt, Browse } from "@/components/drop-prompt";
 import { useState } from "react";
 import { FileDrop } from "@/components/file-drop";
 
@@ -124,12 +125,12 @@ export function AnchorRecovery() {
   }
 
   return (
-    <div style={{ marginTop: 34 }}>
-      <div className="bg-page-title" style={{ marginBottom: 6 }}>Get the anchors for a BitGraph</div>
-      <p style={{ fontSize: 15, lineHeight: 1.65, color: "var(--text)", margin: "0 0 14px", maxWidth: 640 }}>
-        Drop a <code>proof.json</code> and this finds the two Ethereum anchors that bracket its
-        position, to download and keep beside your files. The proof is read here; only its epoch
-        and counter are sent.
+    <div className="anchor-zone" style={{ marginTop: 34 }}>
+      <h2>Get the anchors for a BitGraph</h2>
+      <p className="lede" style={{ margin: "0 0 16px", maxWidth: 640 }}>
+        Drop a <code>proof.json</code> and this finds the two anchors that bracket its position:
+        the one before it, the floor, and the one after it, the ceiling. Download both and keep
+        them beside the file. The proof is read here; only its epoch and counter are sent.
       </p>
 
       <div className="bitgraph-camera">
@@ -138,7 +139,9 @@ export function AnchorRecovery() {
           accept="application/json,.json"
           disabled={busy}
           headline={busy ? "Reading the ledger…" : "Drop a proof.json"}
-          hint="Nothing about your file leaves this page"
+          prompt={busy
+            ? <DropPrompt>Reading the ledger…</DropPrompt>
+            : <DropPrompt quiet="Nothing about your file leaves this page.">Drag a proof.json here, or <Browse /></DropPrompt>}
         />
       </div>
 
@@ -160,7 +163,7 @@ export function AnchorRecovery() {
               }}
             >
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--ink)", marginBottom: 6 }}>
-                {f.side === "before" ? "The anchor below it" : "The anchor above it"}
+                {f.side === "before" ? "The anchor before it: the floor, a time" : "The anchor after it: the ceiling, a place in the sequence"}
               </div>
               {f.proof ? (
                 <>

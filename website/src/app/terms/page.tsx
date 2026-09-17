@@ -7,16 +7,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://bitgraph.ing/terms" },
 };
 
-/* Legal pages share the docs column but are not docs sections: they are not in
-   the docs nav and have no previous/next pair. Plain-language house style: no
-   legalese where a plain sentence works, no marketing, no em dashes. */
+/* Legal pages share the reading measure but are not docs sections: they are
+   not in the docs nav and have no previous/next pair. Plain-language house
+   style: no legalese where a plain sentence works, no marketing, no em dashes. */
 
 export default function TermsPage() {
   return (
-    <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "40px 0 40px" }}>
-      <article className="prose-doc">
+    <div className="frame" style={{ padding: "56px 0 96px" }}>
+      <article className="prose">
         <h1>Terms of Service</h1>
-        <p style={{ color: "var(--dim)" }}>Effective date: August 27, 2026</p>
+        <p className="meta">Effective date: August 27, 2026</p>
 
         <h2>1. Who we are</h2>
         <p>

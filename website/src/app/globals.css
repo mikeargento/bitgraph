@@ -1050,7 +1050,7 @@ a { color: var(--accent); }
 
 /* Square, everywhere, including what set a radius inline. The two spinners
    (a circle drawn with a border) keep theirs. */
-*, *::before, *::after { border-radius: 0 !important; }
+/* (2026-09-18) The rule that squared every corner stood here. Corners are 6px now, from the radius tokens; see GITHUB'S COMPONENT LANGUAGE at the end of this file. */
 .bg-spinner { border-radius: 50% !important; }
 .shadow, .shadow-card, .shadow-menu { box-shadow: none !important; }
 
@@ -1142,3 +1142,647 @@ hr:has(+ h2), .section-divider:has(+ h2) { display: none !important; }
 .try-zone .bitgraph-camera { display: flex !important; align-items: center !important; justify-content: center !important; }
 .try-zone .bitgraph-wait { position: static !important; transform: none !important; margin: 0 !important; animation: none !important; width: 100% !important; max-width: none !important; height: 100% !important; justify-content: center !important; }
 .try-zone .bitgraph-wait > div[style*="font-weight: 700"], .try-zone .bitgraph-wait > div[style*="font-weight:700"] { font-size: 16px !important; }
+
+/* ═══ 2026-09-17: THE REWRITE ON THE CURRENT DESIGN ═══════════════════════
+   Mike: "keep the website's current design, make the font a tad bigger, use
+   the new serif font for the content, but most importantly use the new
+   rewrites that make it easier to understand." Everything above this line is
+   the terminal register as it shipped on 2026-09-16 and is untouched. Below:
+   the running text moves to Freight Text Pro (Typekit kit svq0oqy, weights
+   400, 400 italic, 500), one notch larger than the register's 16px Acumin;
+   the classes the rewritten pages use (.prose, .lede, .facts, .doors, .terms,
+   .steps, .callout, .receipt, the figures, the contact form); the home page's
+   own column; the Try page's drop target as a band. Headings, the bar, tables,
+   code and every data view keep the register's Acumin and mono. */
+:root {
+  --font-serif: "source-serif-4-subhead", Georgia, "Times New Roman", serif;  /* Mike, 2026-09-17 evening: "try this for body"; Freight Text Pro before it */
+  --font-prose: var(--font-term);
+  --font-data: var(--font-term-mono);
+  /* 17px for Source Serif 4 Subhead (it was 18px for Freight Text Pro, whose
+     x-height is smaller). A tad above the register's 16px Acumin either way.
+     One token to tune. */
+  --serif-size: 1.0625rem;
+  --serif-lh: 1.65;
+}
+
+/* The reading column, as a class: the same 90% / frame every page wraps itself in. */
+.frame { width: 90%; max-width: var(--frame); margin: 0 auto; box-sizing: border-box; }
+.home { padding: 56px 0 96px; }
+.home-section { margin-top: 0; }
+
+/* Running text is the serif: paragraphs, list items, definitions, quotes,
+   captions, the opening paragraph, notes, and the one-line descriptions in
+   fact and door lists. Everything that labels, navigates or tabulates stays
+   in Acumin; digests, counters and code stay mono. One size for all of it
+   (Mike, 2026-09-17: "why is there 2 different size fonts?"). */
+.prose p, .prose li, .prose dd, .prose blockquote,
+.prose-doc p, .prose-doc li, .prose-doc dd, .prose-doc blockquote,
+.overview p, .overview li, .overview blockquote,
+.lede, .note, figcaption, .facts > li > span, .doors span, .receipt .prose-val, .callout p {
+  font-family: var(--font-serif); font-size: var(--serif-size); line-height: var(--serif-lh); color: var(--text);
+}
+/* Bold inside serif prose is Acumin bold, a size down: the kit carries the serif
+   at 400 only, so a heavier serif weight would render as regular (500) or be
+   synthesised (700). The sans lead-ins the fact and step lists already use
+   are the same treatment. */
+.prose strong, .prose-doc strong, .overview strong, .facts > li > span strong, .doors span strong, .callout p strong { font-family: var(--font-prose); font-weight: 700; font-size: 16px; color: var(--ink); }
+.prose em, .prose-doc em, .overview em { font-style: italic; }
+.lede { color: var(--text); margin: 0 0 1.25rem; text-wrap: pretty; }
+.note { color: var(--dim); }
+figcaption { color: var(--dim); margin-top: 12px; }
+h1, h2, h3 { text-wrap: balance; }
+.prose h1 { margin: 0 0 1.25rem; }
+.prose p, .prose-doc p, .overview p { margin: 0 0 1.25rem; }
+.prose ul, .prose ol { margin: 0 0 1.25rem; padding-left: 1.4rem; }
+.prose li { margin-bottom: 0.5rem; }
+.prose li::marker, .prose-doc li::marker { color: var(--dim); }
+.prose blockquote { margin: 1.5rem 0; padding: 0 0 0 1.125rem; border-left: 2px solid var(--line); color: var(--ink); }
+.prose hr { border: 0; border-top: 1px solid var(--line-2); margin: 2.5rem 0; }
+.prose img { max-width: 100%; height: auto; }
+/* Inline code inside serif prose: the register's chip, sized against the serif. */
+.prose p code, .prose li code, .prose dd code, .prose dt code, .lede code, .facts code, .callout code, td code { font-size: 14px; }
+
+/* Labels and small text stay Acumin. */
+.kicker { font-family: var(--font-prose); font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.meta { font-family: var(--font-prose); font-size: 14px; color: var(--dim); }
+.small { font-size: 14px; }
+.dim { color: var(--dim); }
+.ink { color: var(--ink); }
+.mono { font-family: var(--font-data); }
+.nowrap { white-space: nowrap; }
+.break { overflow-wrap: anywhere; }
+
+/* Definition lists: the term in Acumin bold, the definition in the serif under it. */
+.terms { margin: 0 0 1.25rem; }
+.terms dt { font-family: var(--font-prose); font-size: 16px; font-weight: 700; color: var(--ink); margin-top: 14px; }
+.terms dd { margin: 2px 0 0; }
+
+/* A labelled aside: a rule on the left, the label above. The rule's colour is the aside's meaning. */
+.callout { border-left: 2px solid var(--line); padding: 0 0 0 18px; margin: 1.5rem 0; }
+.callout > .kicker { display: block; margin-bottom: 4px; }
+.callout p { margin: 0 0 0.75rem; }
+.callout p:last-child { margin-bottom: 0; }
+.callout.is-limit { border-left-color: var(--warn); }
+.callout.is-ok { border-left-color: var(--ok); }
+.callout.is-err { border-left-color: var(--err); }
+
+/* Tables: Acumin, a hairline under each row, the register's uppercase heads. */
+.table-scroll { overflow-x: auto; margin: 1.5rem 0; -webkit-overflow-scrolling: touch; }
+.prose table { width: 100%; border-collapse: collapse; font-family: var(--font-prose); font-size: 15px; line-height: 1.5; }
+.prose th { text-align: left; padding: 8px 16px 8px 0; border-bottom: 1px solid var(--line); vertical-align: bottom; }
+.prose td { padding: 10px 16px 10px 0; border-bottom: 1px solid var(--line-2); color: var(--text); vertical-align: top; }
+.prose td:last-child, .prose th:last-child { padding-right: 0; }
+.prose td.k, .prose .table-k td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+@media (max-width: 600px) { .prose td.k, .prose .table-k td:first-child { white-space: normal; } }
+.prose table code { white-space: nowrap; }
+
+/* Code blocks: the register's, one step larger to sit against the serif. */
+.code-block { margin: 1.5rem 0; }
+.code-block pre { font-size: 13px; }
+
+/* The few controls: the form submit, a download, a file picker. */
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; line-height: 1.2; text-decoration: none; cursor: pointer; }
+.btn:hover { border-color: var(--ink); color: var(--ink); }
+.btn.is-primary { border-color: var(--accent); color: var(--accent); }
+.btn.is-primary:hover { background: var(--accent); color: var(--bg); }
+.btn:disabled { color: var(--faint); border-color: var(--line-2); cursor: default; background: transparent; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 1rem 0 1.25rem; }
+.actions > .bg-action-link { margin: 0 !important; }
+.field { display: block; margin-bottom: 18px; }
+.field > span { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.field input, .field textarea { width: 100%; box-sizing: border-box; padding: 11px 12px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); font: inherit; font-size: 16px; outline: none; }
+.field input:focus, .field textarea:focus { border-color: var(--accent); }
+.field textarea { resize: vertical; min-height: 140px; line-height: 1.5; }
+
+/* Steps: a numbered list whose lead-in is Acumin bold. */
+.steps { margin: 0 0 1.25rem; padding-left: 1.5rem; }
+.steps > li { margin-bottom: 8px; }
+.steps > li > strong { font-family: var(--font-prose); font-size: 16px; font-weight: 700; color: var(--ink); }
+
+/* Facts: a stack of labelled one-liners (what it proves, what it does not). */
+.facts { list-style: none; padding: 0; margin: 0 0 1.25rem; }
+.facts > li { margin-bottom: 8px; }
+.facts > li > b { font-family: var(--font-prose); font-size: 16px; font-weight: 700; color: var(--ink); }
+.facts > li > b::after { content: ". "; }
+
+/* Doors: places to go next, one line each. */
+.doors { list-style: none; padding: 0; margin: 0 0 1.25rem; }
+.doors > li { margin-bottom: 8px; }
+.doors a { font-family: var(--font-prose); font-size: 16px; font-weight: 600; }
+.doors span { color: var(--dim); }
+.doors a + span::before { content: " "; }
+
+/* The home page's example: a proof read as a receipt, plain rows. */
+.receipt { margin: 1.5rem 0; font-size: 15px; }
+.receipt-head { color: var(--dim); font-family: var(--font-data); font-size: 13px; padding-bottom: 6px; border-bottom: 1px solid var(--line-2); }
+.receipt-row { padding: 7px 0; border-bottom: 1px solid var(--line-2); }
+.receipt-row > b { font-family: var(--font-prose); font-size: 16px; font-weight: 700; color: var(--ink); }
+.receipt-row > b::after { content: ". "; }
+.receipt-row > span { font-family: var(--font-data); font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
+
+/* Figures: the sequence motif. Every figure is drawn twice, wide and narrow;
+   the classes take their colours from the tokens, so a figure never carries a
+   literal colour. Open = dashed warning yellow; consumed = ink; others = the
+   line grey; an anchor = accent blue; the anchor after = the ceiling purple. */
+figure { margin: 1.5rem 0; }
+figure svg { display: block; width: 100%; height: auto; }
+.fig-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.fig-wide { display: block; }
+.fig-narrow { display: none; }
+@media (max-width: 640px) { .fig-wide { display: none; } .fig-narrow { display: block; } }
+.fig svg text { font-family: var(--font-prose); }
+.fig svg .num, .fig svg .hash { font-family: var(--font-data); }
+.fig svg .lbl { font-size: 12px; fill: var(--dim); }
+.fig svg .lbl-ink { font-size: 12px; fill: var(--ink); font-weight: 600; }
+.fig svg .ttl { font-size: 11px; fill: var(--dim); font-weight: 700; letter-spacing: 0.1em; }
+.fig svg .num { font-size: 11px; fill: var(--dim); }
+.fig svg .num-ink { font-size: 11px; fill: var(--ink); }
+.fig svg .rule { stroke: var(--line); stroke-width: 1; }
+.fig svg .rule-2 { stroke: var(--line-2); stroke-width: 1; }
+.fig svg .tick { stroke: var(--line); stroke-width: 1; }
+.fig svg .pos-open { fill: none; stroke: var(--warn); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.fig svg .pos-held { fill: var(--warn-tint); stroke: var(--warn); stroke-width: 1.5; }
+.fig svg .pos-done { fill: var(--ink); stroke: var(--ink); stroke-width: 1; }
+.fig svg .pos-other { fill: var(--line); stroke: none; }
+.fig svg .pos-anchor { fill: var(--accent); stroke: none; }
+.fig svg .pos-ceil { fill: var(--ceil); stroke: none; }
+.fig svg .doc { fill: var(--panel); stroke: var(--ink); stroke-width: 1.25; }
+.fig svg .arrow { fill: none; stroke: var(--dim); stroke-width: 1; }
+.fig svg .arrow-b { fill: none; stroke: var(--accent); stroke-width: 1; }
+.fig svg .lane { fill: none; stroke: var(--line-2); stroke-width: 1; }
+.fig svg .lane-enc { fill: color-mix(in srgb, var(--accent) 8%, transparent); stroke: var(--accent); stroke-width: 1; }
+.fig svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+.fig svg .box-b { fill: var(--panel); stroke: var(--accent); stroke-width: 1; }
+.fig svg .chip { fill: var(--code-bg); stroke: none; }
+.fig svg .t-b { fill: var(--accent); }
+.fig svg .t-w { fill: var(--warn); }
+.fig svg .t-p { fill: var(--ceil); }
+.fig svg .t-g { fill: var(--ok); }
+.fig svg .t-c { fill: var(--code); }
+.fig svg * { vector-effect: non-scaling-stroke; }
+
+/* Status colours, for the data views. */
+.ok { color: var(--ok); }
+.warn { color: var(--warn); }
+.err { color: var(--err); }
+.ceil { color: var(--ceil); }
+
+/* The Try page's drop target: one short band across the column with two lines
+   of chrome text in it (Mike, 2026-09-17: "that box looks stupid", of the
+   300px square it was). It wears the component's own drawn dashes: grey at
+   rest, blue on hover and focus, tinted while a drag is over it. The rules
+   earlier in this file made it a centred flex box; these come later and win. */
+.try-zone { margin: 1.5rem 0; }
+.try-zone .bitgraph-wrap { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; min-height: 0 !important; }
+.try-zone .bitgraph-camera { width: 100% !important; max-width: none !important; height: auto !important; min-height: 0 !important; max-height: none !important; aspect-ratio: auto !important; margin: 0 !important; display: block !important; --fd-copy-gap: 0px; --fd-hint: var(--ink); --fd-subhint: var(--dim); --fd-hint-size: 16px; --fd-subhint-size: 14px; }
+.try-zone .bitgraph-camera > div { min-height: 128px; }
+.try-zone .fd-headline { display: none; }
+.try-zone .bitgraph-wait { position: static !important; transform: none !important; margin: 0 !important; animation: none !important; width: 100% !important; max-width: none !important; min-height: 128px !important; height: auto !important; justify-content: center !important; }
+
+/* Links: no underline at rest, underlined under the cursor (Mike, 2026-09-17:
+   "links should not be underlined unless hovered"). Overrides the register's
+   always-underlined rule above; the bar, menu rows and figure links already
+   carry none and keep none. */
+a, button.bg-action-link:not(.bg-download-link) { text-decoration: none !important; }
+a:hover, button.bg-action-link:not(.bg-download-link):hover { text-decoration: underline !important; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+#site-nav a:hover, .docs-menu-item:hover, .bg-download-link:hover, .xp-row:hover, .xp-row a:hover, figure a:hover, svg a:hover { text-decoration: none !important; }
+
+/* ═══ 2026-09-17: THE COLOUR PASS (Mike: "do a color pass and make the colors
+   your own choice"). The register above copied the Claude app's dark tokens;
+   these replace them. A cool graphite ground instead of the app's warm black,
+   so the site reads as an instrument rather than a chat pane; body text one
+   step below white so long serif reading does not glare, with headings and
+   bold on full ink; one azure for everything that is a link, an anchor or a
+   floor; amber for a position that is open and unspent; mint for verified;
+   rose for failure; lavender for the ceiling anchor; apricot for code. Every
+   colour clears 4.5:1 on the ground (most clear 7:1), and every surface,
+   figure and data view already reads these names, so nothing else changes. */
+:root {
+  --bg: #15181c;
+  --panel: #1c2025;
+  --panel-2: #23282e;
+  --code-bg: #262b31;
+  --line: #353b43;
+  --line-2: #2a3037;
+  --ink: #f3f4f6;
+  --text: #d6dae0;
+  --dim: #9da4ad;
+  --faint: #6e7681;
+  --accent: #5fb0ff;
+  --accent-2: #9dcfff;
+  --tint: rgba(95, 176, 255, 0.14);
+  --ok: #5cd08a;    --ok-tint: rgba(92, 208, 138, 0.14);
+  --warn: #f0b93a;  --warn-tint: rgba(240, 185, 58, 0.14);
+  --err: #ff6f86;   --err-tint: rgba(255, 111, 134, 0.14);
+  --ceil: #b598ff;  --ceil-tint: rgba(181, 152, 255, 0.14);
+  --code: #f0a070;
+}
+::selection { background: rgba(95, 176, 255, 0.35); }
+
+/* The rhythm (2026-09-17, Mike: "do a full check on spacing"), measured across
+   every page: text blocks 20px apart, list items 8px, and every object (a
+   figure, a code block, a table, the receipt, a callout, a definition list,
+   the drop band) 24px from what is around it; headings keep the register's
+   own distances. The last block in a column carries no margin, so every page
+   ends exactly 96px above the footer. */
+.prose > :last-child, .home-section:last-child > :last-child, .prose section:last-child > :last-child { margin-bottom: 0; }
+.prose li:last-child, .facts > li:last-child, .doors > li:last-child, .steps > li:last-child { margin-bottom: 0; }
+
+/* ═══ 2026-09-17: THE LADDER (Mike: "sizing and lines of different ideas and
+   sections need to be distinguished"). With a 17px serif body the register's
+   14px uppercase h2 sat below the text it headed and its 16px h3 matched it.
+   Four clear steps now: h1 32, h2 22, h3 17 in Acumin bold over the 17px
+   serif; the rule and the air above it belong to h2 alone, so a section break
+   reads as one and a sub-idea does not; paragraphs 24px apart; an object
+   (figure, code, table, receipt, callout, the drop band) 32px from the text
+   around it, so the eye can tell "next paragraph" from "next thing". */
+h1, .bg-page-title { font-size: 32px !important; line-height: 1.15 !important; letter-spacing: -0.02em !important; }
+h2 { font-size: 22px !important; line-height: 1.3 !important; letter-spacing: -0.01em !important; text-transform: none !important; margin: 64px 0 16px !important; padding-top: 24px !important; }
+h3 { font-size: 17px !important; line-height: 1.4 !important; margin: 36px 0 8px !important; }
+h2 + h3 { margin-top: 12px !important; }
+.lede + h2, .prose > p + h2:first-of-type { margin-top: 48px !important; }
+.prose p, .prose-doc p, .overview p, .lede { margin: 0 0 1.5rem; }
+.prose ul, .prose ol, .facts, .doors, .steps, .terms { margin-bottom: 1.5rem; }
+figure, .code-block, .table-scroll, .receipt, .callout, .try-zone { margin: 2rem 0; }
+.prose > :last-child, .home-section:last-child > :last-child, .prose section:last-child > :last-child { margin-bottom: 0; }
+@media (max-width: 600px) {
+  h1, .bg-page-title { font-size: 28px !important; }
+  h2 { font-size: 20px !important; margin-top: 56px !important; }
+}
+
+/* Secondary text is small and sans, not body-sized and grey (Mike, 2026-09-17,
+   of a figure caption: "that text is darker but not smaller"). One style for
+   every line that comments on the content rather than being it: figure
+   captions, notes, meta lines, the descriptions in door lists. */
+figcaption, .note, .prose .note, .prose-doc .note, .meta, .doors span { font-family: var(--font-prose); font-size: 14px; line-height: 1.55; color: var(--dim); }
+figcaption { margin-top: 12px; max-width: 60rem; }
+.note code, figcaption code { font-size: 13px; }
+
+/* ═══ 2026-09-17, night: THE FULL PASS (Mike: "keep the design but fix size and
+   hierarchy ... keep working until it's perfect"). Every text style on every
+   page was inventoried; each line below moves a straggler onto one of the
+   ladder's roles. The roles: h1 32 / h2 22 / h3 17 (Acumin bold, ink);
+   lead-ins 16 (Acumin bold, ink); body 17 (serif); tables 15 (Acumin);
+   secondary 14 (Acumin, dim); labels 12 (Acumin bold, uppercase, tracked,
+   dim); inline code 14 mono, 13 inside secondary text; code blocks 13 mono;
+   action links 16 medium, accent. */
+/* Labels: one style for table heads, kickers, code-block headers and the menu's group titles. */
+th, .prose th, .prose-doc th, .overview th { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.code-block-header { font-size: 12px; }
+.prose .kicker, p.kicker { font-family: var(--font-prose); font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); line-height: 1.4; margin: 0 0 8px; }
+/* A mono tag inside a sentence (the protocol page's [boundary]): label-sized, not body-sized. */
+.tag { font-family: var(--font-data); font-size: 13px; font-weight: 500; color: var(--dim); }
+/* Code inside secondary text sits a step under it. */
+.prose p.note code, .prose .note code, figcaption code { font-size: 13px; }
+/* Action links and the few buttons share one size and weight. */
+.doors a { font-weight: 500; }
+.btn { font-size: 16px; font-weight: 500; }
+.field .meta { color: var(--dim); }
+/* A results heading inside the Try page is a section title, not a second page title. */
+.try-zone .bg-page-title { font-size: 22px !important; line-height: 1.3 !important; }
+/* The ledger's drop box: its headline on the h3 step, its lines on the secondary step. */
+.bitgraph-camera { --fd-headline: 17px; --fd-weight: 700; --fd-hint-size: 14px; --fd-subhint-size: 14px; }
+/* The FAQ: a question is a sub-heading with air above it, not a ruled section. */
+.faq h2 { font-size: 19px !important; line-height: 1.35 !important; margin: 40px 0 8px !important; padding-top: 0 !important; border-top: 0 !important; }
+
+/* The ledger's drop target is the same short band as the Try page's: its
+   headline and one line, not a tall box around them. */
+.anchor-zone .bitgraph-camera { width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: auto; margin: 0; display: block; }
+.anchor-zone .bitgraph-camera > div { min-height: 128px; }
+
+/* ═══ 2026-09-18: GITHUB'S COMPONENT LANGUAGE (Mike, with screenshots of the
+   repository page: "we are SO close to what GitHub is that maybe you should
+   borrow ideas from it like the borders and boxes with slightly rounded
+   edges"). Borrowed: 6px corners on every box, control, code block and chip;
+   a hairline under the bar and over the footer; the section rule UNDER the
+   heading, as a README sets it; README tables (a full hairline grid, a bold
+   header row, every other row tinted); the muted bar on quotes and asides;
+   boxes with a header strip and rows. Kept: this site's palette, its type
+   ladder, its figures. Positions in the figures stay square, they are the
+   motif. */
+:root { --radius: 6px; --radius-card: 6px; --radius-row: 6px; --radius-pill: 6px; --shadow-menu: 0 8px 24px rgba(1, 4, 9, 0.55); }
+
+/* Chrome. */
+#site-nav { border-bottom: 1px solid var(--line-2); }
+footer { border-top: 1px solid var(--line-2); }
+.docs-menu-item { border-radius: 6px; }
+
+/* Section headings carry their rule underneath. */
+h2 { border-top: 0 !important; padding-top: 0 !important; padding-bottom: 8px !important; border-bottom: 1px solid var(--line) !important; margin: 48px 0 16px !important; }
+.lede + h2 { margin-top: 40px !important; }
+.faq h2 { border-bottom: 0 !important; padding-bottom: 0 !important; margin: 40px 0 8px !important; }
+@media (max-width: 600px) { h2 { margin-top: 40px !important; } }
+
+/* Inline code and code blocks. */
+code { border-radius: 6px; padding: 2px 6px; }
+pre code { padding: 0; border-radius: 0; }
+.code-block { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.code-block-header { background: var(--panel-2); border-bottom: 1px solid var(--line); }
+
+/* Tables. */
+.prose table { border-collapse: collapse; font-size: 15px; }
+.prose th, .prose td { border: 1px solid var(--line); padding: 8px 13px; }
+.prose td:last-child, .prose th:last-child { padding-right: 13px; }
+th, .prose th, .prose-doc th, .overview th { font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); background: var(--panel); vertical-align: bottom; }
+.prose tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 55%, transparent); }
+
+/* Quotes and asides. */
+.prose blockquote { border-left: 4px solid var(--line); color: var(--dim); padding: 0 16px; }
+.callout { border-left-width: 4px; padding-left: 16px; }
+.callout.is-limit > .kicker { color: var(--warn); }
+.callout.is-ok > .kicker { color: var(--ok); }
+.callout.is-err > .kicker { color: var(--err); }
+
+/* Boxes: a hairline border, a header strip, rows. */
+.receipt { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.receipt-head { background: var(--panel); padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.receipt-row { padding: 8px 16px; }
+.receipt-row:last-child { border-bottom: 0; }
+.bitgraph-file-card { border-radius: 6px; overflow: hidden; }
+
+/* Drop targets and controls. */
+.try-zone .bitgraph-camera > div, .anchor-zone .bitgraph-camera > div { border-radius: 6px; }
+.btn { border-radius: 6px; background: var(--panel-2); }
+.btn.is-primary { background: transparent; }
+.field input, .field textarea { border-radius: 6px; }
+
+/* Figures. */
+.fig svg .box, .fig svg .box-b, .fig svg .lane, .fig svg .lane-enc { rx: 6px; }
+.fig svg .chip { rx: 4px; }
+
+/* The shading, copied (Mike, 2026-09-18, of a README code block: "dont be afraid to
+   copy that shading either, one color is a touch lighter"). GitHub's dark ground and
+   the surface one step above it; boxes are told from the page by that step, so a code
+   block needs no border. Text, accent and state colours stay this site's own. */
+:root {
+  --bg: #0d1117;
+  --panel: #151b23;
+  --panel-2: #212830;
+  --code-bg: rgba(101, 108, 118, 0.2);
+  --line: #3d444d;
+  --line-2: #2f353d;
+}
+.code-block { border: 0; background: var(--panel); border-radius: 6px; }
+.code-block-header { background: transparent; border-bottom: 0; padding: 12px 16px 0; }
+.code-block pre { background: transparent; padding: 10px 16px 16px; }
+th, .prose th, .prose-doc th, .overview th { background: transparent; }
+.prose tbody tr:nth-child(even) { background: var(--panel); }
+
+/* The one destructive event in the figures, a key destroyed at the end of an epoch, wears the
+   destructive colour, as a delete control does (Mike, 2026-09-18: it "should be a more
+   distinctive color"). */
+.fig svg .t-r { fill: var(--err); font-weight: 700; }
+
+/* Syntax colouring inside code blocks (components/code.tsx; Mike, 2026-09-18: "do it").
+   Shiki's CSS-variables theme reads these, so the colours are tokens like every other
+   colour on the site. The values are GitHub's dark theme. An unquoted shell argument is
+   a "string" to the grammar and stays in the text colour, as it does there. */
+:root {
+  --syn-foreground: var(--text);
+  --syn-token-keyword: #ff7b72;
+  --syn-token-string-expression: #a5d6ff;
+  --syn-token-string: var(--text);
+  --syn-token-constant: #79c0ff;
+  --syn-token-function: #d2a8ff;
+  --syn-token-parameter: #ffa657;
+  --syn-token-comment: var(--dim);
+  --syn-token-punctuation: var(--text);
+  --syn-token-link: var(--accent);
+}
+.code-block pre[data-lang^="json"] { --syn-token-keyword: #7ee787; }
+.code-block pre[data-lang="yaml"] { --syn-token-keyword: #7ee787; --syn-token-string: #a5d6ff; }
+
+/* ═══ The bar (2026-09-18): four dropdowns and one filled button, as GitHub sets a
+   header. The button's green is GitHub's and is its own token: the site's green text
+   colour still means "verified" and nothing else. */
+:root { --btn-primary: #238636; --btn-primary-hover: #2ea043; --btn-primary-text: #ffffff; }
+.bg-nav-links { gap: 4px; }
+.nav-groups { display: flex; align-items: center; gap: 2px; }
+.nav-group { position: relative; }
+#site-nav .nav-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; font-size: 15px; font-weight: 500; letter-spacing: 0; cursor: pointer; }
+#site-nav .nav-btn:hover, #site-nav .nav-btn[aria-expanded="true"] { background: var(--panel-2); color: var(--ink); }
+#site-nav .nav-btn[aria-current="page"] { color: var(--ink); }
+#site-nav .nav-btn svg { transition: transform .15s; }
+#site-nav .nav-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.nav-menu { position: absolute; top: calc(100% + 8px); left: 0; min-width: 232px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-menu); z-index: 60; }
+.nav-menu .docs-menu-item, .nav-panel .docs-menu-item { display: block; padding: 7px 10px; font-size: 14px; color: var(--text); }
+.nav-menu .docs-menu-item:hover, .nav-panel .docs-menu-item:hover { background: var(--panel-2); color: var(--ink); }
+.nav-menu .docs-menu-item[aria-current="page"], .nav-panel .docs-menu-item[aria-current="page"] { background: var(--panel-2); color: var(--ink); font-weight: 600; }
+#site-nav .nav-docs { display: none; }
+#site-nav .nav-cta { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; margin-left: 8px; border-radius: 6px; background: var(--btn-primary); border: 1px solid rgba(240, 246, 252, 0.1); color: var(--btn-primary-text); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; }
+#site-nav .nav-cta:hover { background: var(--btn-primary-hover); }
+/* The folded panel, for narrow screens: all four groups under one Docs button. */
+.nav-panel { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 90%; max-width: var(--frame); box-sizing: border-box; padding: 18px 16px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-menu); max-height: calc(100dvh - 90px); overflow-y: auto; overscroll-behavior: contain; }
+.nav-panel-title { padding: 0 10px 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+@media (max-width: 900px) {
+  .nav-groups { display: none; }
+  #site-nav .nav-docs { display: inline-flex; }
+}
+/* Secondary text inside prose: the meta line was losing to the paragraph rule. */
+.prose .meta, .prose-doc .meta { font-family: var(--font-prose); font-size: 14px; line-height: 1.55; color: var(--dim); }
+
+/* The button's label is white in every state, the page it opens included: the bar's
+   rule that turns the current page's link blue was reaching it (Mike, 2026-09-18:
+   "it should just remain same color text cause blue is bad"). */
+#site-nav .bg-nav-links a.nav-cta, #site-nav .bg-nav-links a.nav-cta:hover, #site-nav .bg-nav-links a.nav-cta[aria-current="page"] { color: var(--btn-primary-text); }
+
+/* ═══ ONE DROP BOX (2026-09-18, Mike: "drop boxes should be more like a 16:9 ratio and make
+   sure ALL dropboxes across site match including on proof pages when something is missing or
+   the ethereum json lookup"). Four places take a drop: the Try page, the ledger's anchor
+   lookup, the proof page's find-this-file box, and the have-the-file box inside a results
+   card. All four are this: 16:9 across the full width of what holds them (Mike, same day:
+   "but i still want box full width"), a fine dashed edge on 6px
+   corners, a 17px bold line and 14px lines under it. The first two are the shared FileDrop
+   inside .bitgraph-camera (whose own stylesheet sets the geometry later in the DOM, hence
+   !important); the other two are hand-built and wear .dropbox. */
+.try-zone .bitgraph-camera, .anchor-zone .bitgraph-camera {
+  width: 100% !important; max-width: none !important; aspect-ratio: 16 / 9 !important; height: auto !important;
+  min-height: 0 !important; max-height: none !important; margin: 0 auto !important; display: block !important;
+  --fd-headline: 17px; --fd-weight: 700; --fd-copy-gap: 10px; --fd-hint: var(--text); --fd-subhint: var(--dim); --fd-hint-size: 14px; --fd-subhint-size: 14px;
+}
+.try-zone .bitgraph-camera > div, .anchor-zone .bitgraph-camera > div { height: 100%; min-height: 0; border-radius: 6px; }
+.try-zone .fd-headline { display: block; }
+.try-zone .bitgraph-wait { max-width: none !important; aspect-ratio: 16 / 9; min-height: 0 !important; margin: 0 auto !important; }
+.dropbox {
+  width: 100%; aspect-ratio: 16 / 9; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 24px clamp(20px, 5vw, 34px); text-align: center; cursor: pointer;
+  background: var(--panel); border: 1px dashed var(--faint); border-radius: 6px;
+  transition: background-color .15s, border-color .15s;
+}
+.dropbox-title { font-size: 17px; font-weight: 700; line-height: 1.35; color: var(--ink); text-wrap: balance; }
+.dropbox-line { font-size: 14px; line-height: 1.55; color: var(--text); margin-top: 10px; max-width: 460px; text-wrap: balance; }
+.dropbox-quiet { font-size: 14px; line-height: 1.55; color: var(--dim); margin-top: 4px; max-width: 460px; text-wrap: balance; }
+
+/* ═══ THE FACES (2026-09-18). Three voices, one job each.
+   SENTENCES are Source Serif 4: paragraphs, list items, table cells, captions, notes, the
+   lines inside a drop box. Self-hosted by next/font with its optical-size axis, real italics
+   and weights (Mike: "do the fonts exactly how you want. your choice").
+   HEADINGS AND INTERFACE are Acumin Pro, the site's face all along (--font-term, from the
+   Typekit kit): h1 to h3, the bar, buttons, lead-ins, labels, table heads, the lettering in
+   figures. Two others were tried on 2026-09-18 and withdrawn the same hour: Source Code Pro
+   (mono headings, my pick) and Avenir Next ("yea maybe avenir is better for headings"), then
+   Mike: "use acumin pro". A sans heading it is, and the one already in the kit and the
+   wordmark, so nothing depends on a visitor's system fonts.
+   DATA AND CODE are Source Code Pro: digests, counters, field names, code, tags.
+   Acumin is also the wordmark and the lettering inside the data views (proof page, ledger rows, results). */
+:root {
+  /* Plantin from the Typekit kit (Mike added it 2026-09-18 on my recommendation: the sturdy,
+     compact ancestor of Tiempos). Source Serif 4, self-hosted, stands behind it. */
+  --font-serif: "plantin", var(--font-source-serif), "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-data: var(--font-source-code), "Source Code Pro", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-term-mono: var(--font-data);
+  --font-head: var(--font-term);
+  --font-ui: var(--font-term);
+}
+
+/* Headings and interface. Sizes are the ladder's; only the face changes. */
+h1, h2, h3, .bg-page-title { font-family: var(--font-head); }
+#site-nav .nav-btn, #site-nav .nav-cta, .docs-menu-item, .nav-panel-title, footer, .bg-action-link, .btn,
+.kicker, .prose .kicker, p.kicker, th, .prose th,
+.terms dt, .facts > li > b, .steps > li > strong, .receipt-row > b, .doors a, .field > span,
+.prose strong, .prose-doc strong, .facts > li > span strong, .callout p strong,
+.dropbox-title, .fd-headline { font-family: var(--font-ui); }
+
+/* Data. */
+.tag, .code-block-header, .prose td.k, .prose .table-k td:first-child { font-family: var(--font-data); }
+.prose td.k, .prose .table-k td:first-child { font-size: 13.5px; font-weight: 600; letter-spacing: -0.01em; }
+
+/* Sentences. */
+.prose td { font-family: var(--font-serif); font-size: 16px; line-height: 1.5; }
+figcaption, .note, .prose .note, .prose-doc .note, .meta, .prose .meta, .prose-doc .meta, .doors span { font-family: var(--font-serif); font-size: 15px; line-height: 1.55; color: var(--dim); }
+.try-zone .bitgraph-camera, .anchor-zone .bitgraph-camera { font-family: var(--font-serif); --fd-hint-size: 15px; --fd-subhint-size: 15px; }
+.dropbox-line, .dropbox-quiet { font-family: var(--font-serif); font-size: 15px; }
+
+/* Figures are lettered in the interface face; numbers and hashes inside them stay mono. */
+figure, .fig svg text { font-family: var(--font-ui); }
+.fig svg .num, .fig svg .hash { font-family: var(--font-data); }
+figcaption { font-family: var(--font-serif); }
+
+/* Figures sit in a well: GitHub's inset colour, one step darker than the page, inside a
+   hairline with the site's corners. Code blocks are the lighter borderless boxes, so the
+   two kinds of object cannot be mistaken for each other. The caption is outside it. */
+:root { --inset: #010409; }
+.fig-well { background: var(--inset); border: 1px solid var(--line); border-radius: 6px; padding: 24px; }
+@media (max-width: 640px) { .fig-well { padding: 16px 12px; } }
+
+/* The caption lives inside the well, under the drawing and a hairline. */
+.fig-well figcaption { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-2); max-width: none; }
+
+/* The wordmark (Mike, 2026-09-18: "make bitgraph logo the size you think it should be").
+   22px: about one and a half times the 15px bar labels, so it leads the row the way a mark
+   does beside GitHub's controls without reaching the h1 (32) or crowding a 64px bar; its
+   cap height matches the 32px buttons' text box. It has no symbol beside it, so it carries
+   the brand alone and sits a step above the 19px it wore. Tightened, as bold Acumin wants.
+   20px on a phone, where it shares the row with Menu and the green button. */
+#site-nav a[href="/"] { font-size: 22px !important; letter-spacing: -0.02em !important; line-height: 1; }
+@media (max-width: 600px) { #site-nav a[href="/"] { font-size: 20px !important; } }
+
+/* Chips in figures are opaque, one step lighter than the page: the translucent code-chip
+   fill let lines show through them and doubled up wherever two chips touched. */
+.fig svg .chip { fill: var(--panel); }
+.fig svg .t-d { fill: var(--dim); }
+
+/* An open position: fitted round dots (set per square in fig.tsx), filled with the well's colour. */
+.fig svg .pos-open { fill: var(--inset); stroke: var(--warn); }
+
+/* State colours on GitHub's dark scale (2026-09-18, Mike of the figure's green: "something about
+   it seems off to me"). The pastel set was chosen for the old graphite ground; on GitHub's
+   ground, beside its green button, the mint read as a different green and the yellow as neon.
+   Success, attention, danger and done are GitHub's own values; links keep the site's azure,
+   which is within a shade of GitHub's. */
+:root {
+  --ok: #3fb950;    --ok-tint: rgba(63, 185, 80, 0.15);
+  --warn: #e3b341;  --warn-tint: rgba(227, 179, 65, 0.15);
+  --err: #f85149;   --err-tint: rgba(248, 81, 73, 0.15);
+  --ceil: #a371f7;  --ceil-tint: rgba(163, 113, 247, 0.15);
+}
+/* A spent slot is the open slot filled in; the commit that spent it is green. */
+.fig svg .pos-spent { fill: var(--warn); stroke: none; }
+.fig svg .pos-commit { fill: var(--ok); stroke: none; }
+
+/* The Make a BitGraph page opens with the box: no heading above it, so it sits at the
+   column's top edge and the words start a block below. */
+.prose > .sr-only + .try-zone { margin-top: 0; }
+
+/* An inline code chip is one thing and moves to the next line whole (Mike, 2026-09-18, of
+   `commitCounter(A) < slotCounter(B)` split at its space: "does a line wrap there that
+   shouldnt?"). From 601px up the column holds the longest ordinary chip (64 characters at
+   its narrowest); the few longer ones, a full measurement or a whole object, carry .break and
+   wrap as before. On a phone every chip may wrap, or package names would overflow. */
+@media (min-width: 601px) {
+  .prose code:not(.break), .prose-doc code:not(.break), .lede code:not(.break), .note code:not(.break), figcaption code:not(.break) { white-space: nowrap; }
+}
+
+/* ═══ Buttons (Mike, 2026-09-18, with GitHub's Pin / Watch / Fork / Star row beside the
+   previous and next links at the foot of a page: "all these types of buttons should have some
+   kind of button element to them like on github"). Every action that is not a sentence link
+   wears GitHub's secondary button: a surface one step up, a hairline, 6px corners, 32px tall,
+   14px medium in the ink colour, a lighter surface under the cursor. That is the action links
+   (previous and next, Calendar, the day stepper, Export, the row actions in a results card),
+   the reopen-the-box link and .btn. Links inside sentences and in the "where next" lists stay
+   links. The green button in the bar stays the only filled one. */
+.bg-action-link:not(.bg-download-link), .bg-arrow-link, .btn {
+  display: inline-flex !important; align-items: center; gap: 8px; box-sizing: border-box;
+  min-height: 32px; height: auto !important; padding: 5px 12px !important; margin: 0 8px 0 0 !important;
+  background: var(--panel-2) !important; border: 1px solid var(--line) !important; border-radius: 6px;
+  color: var(--ink) !important; font-family: var(--font-ui); font-size: 14px !important; font-weight: 500 !important;
+  line-height: 20px; letter-spacing: 0 !important; text-decoration: none !important; white-space: normal; cursor: pointer;
+  transition: background-color .12s, border-color .12s;
+}
+.bg-action-link:not(.bg-download-link):hover, .bg-arrow-link:hover, .btn:hover {
+  background: color-mix(in srgb, var(--panel-2) 80%, var(--ink) 8%) !important; border-color: var(--faint) !important;
+  color: var(--ink) !important; text-decoration: none !important;
+}
+.bg-action-link:not(.bg-download-link):disabled, .btn:disabled { color: var(--faint) !important; background: transparent !important; border-color: var(--line-2) !important; cursor: default; }
+.bg-action-link:focus-visible, .bg-arrow-link:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.is-primary { border-color: var(--line) !important; color: var(--ink) !important; background: var(--panel-2) !important; }
+/* Previous and next carry their arrows again; inside a button they say which way it goes. */
+.bg-page-nav { align-items: stretch; }
+.bg-page-nav > .bg-action-link { margin: 0 !important; }
+.bg-page-nav .bg-action-link .arrow { display: inline !important; color: var(--dim); }
+.actions > .bg-action-link, .actions > .btn { margin: 0 !important; }
+
+/* Inside every drop box: the two-sheets mark in the link blue, one sentence in ink with
+   "browse files" as link lettering, at most one quiet line (components/drop-prompt.tsx). */
+.drop-prompt { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 24px; text-align: left; font-family: var(--font-ui); }
+.drop-prompt svg { flex: none; color: var(--accent); }
+.drop-prompt-line { font-size: 17px; line-height: 1.4; color: var(--ink); text-wrap: balance; }
+.drop-prompt-quiet { font-size: 14px; line-height: 1.5; color: var(--dim); margin-top: 4px; max-width: 52ch; text-wrap: balance; }
+.drop-browse { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+@media (max-width: 600px) {
+  .drop-prompt { flex-direction: column; text-align: center; gap: 12px; padding: 16px; }
+  .drop-prompt-line { font-size: 16px; }
+}
+/* The Make a BitGraph page opens with the box, flush with the column's top. */
+.prose > .try-zone:first-child { margin-top: 0; }
+
+/* ONE TREATMENT FOR EVERY FIGURE (Mike, 2026-09-18, of the two-lane figure beside the home
+   page's: "these graphs should keep same colors or at least borrow ... page one graphic could
+   use the more subdued treatment"). The two-lane figure speaks in thin coloured outlines on
+   dark panels and coloured lettering, never in solid blocks of colour. The sequence figures now
+   do the same: a position that matters is a tinted square inside a 1.5px outline of its colour,
+   a label chip is outlined in its tone like the two-lane pills, and only the small grey
+   squares of other people's positions are filled. The tints are mixed with the well's colour
+   rather than made translucent, so the sequence line stops at a square and does not show
+   through it. */
+.fig svg .pos-spent  { fill: color-mix(in srgb, var(--warn) 16%, var(--inset)); stroke: var(--warn); stroke-width: 1.5; }
+.fig svg .pos-commit { fill: color-mix(in srgb, var(--ok) 16%, var(--inset)); stroke: var(--ok); stroke-width: 1.5; }
+.fig svg .pos-anchor { fill: color-mix(in srgb, var(--accent) 16%, var(--inset)); stroke: var(--accent); stroke-width: 1.5; }
+.fig svg .pos-ceil   { fill: color-mix(in srgb, var(--ceil) 16%, var(--inset)); stroke: var(--ceil); stroke-width: 1.5; }
+.fig svg .pos-done   { fill: var(--panel);     stroke: var(--ink);  stroke-width: 1.5; }
+.fig svg .pos-held   { fill: color-mix(in srgb, var(--warn) 16%, var(--inset)); stroke: var(--warn); stroke-width: 1.5; }
+.fig svg .chip   { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+.fig svg .chip-w { stroke: var(--warn); }
+.fig svg .chip-b { stroke: var(--accent); }
+.fig svg .chip-p { stroke: var(--ceil); }
+.fig svg .chip-g { stroke: var(--ok); }
+.fig svg .chip-c { stroke: var(--code); }
+
+/* Every figure's titles wear one colour, the two-lane figure's heading ink (Mike, 2026-09-18:
+   "1. UNUSED 2. CONSUMED should be same label color as other charts ive decided"). */
+.fig svg .ttl { fill: var(--head); }
+
+/* The 8px between a menu button and its panel belongs to the panel, so a cursor crossing it
+   has not left the menu. */
+.nav-menu::before { content: ""; position: absolute; left: 0; right: 0; top: -9px; height: 9px; }

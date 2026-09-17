@@ -25,6 +25,7 @@
  *     property of ITS strategy, not of the camera.
  */
 
+import { DropPrompt, Browse } from "@/components/drop-prompt";
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
@@ -190,6 +191,8 @@ export interface BitGraphCameraProps {
   dropHint?: string;
   /** The quiet line under that. Empty when a page states it in its own copy. */
   dropSubhint?: ReactNode;
+  /** The box's whole idle content, in place of the three lines (see FileDrop `prompt`). */
+  dropPrompt?: ReactNode;
   /* Only meaningful alongside `below`: it is the selector useCameraFit measures
      for the row under the frame. Optional since 2026-09-04, when home moved its
      explainer inside the frame and stopped rendering anything below it. */
@@ -289,7 +292,7 @@ function withSetManifest(proof: BitGraphProof, manifestBytes: Uint8Array): BitGr
 }
 
 
-export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, above, below, belowClassName, frameNote, acceptsPendingDrop, fitViewport = true, dropHeadline = "Make or check BitGraphs", dropHint = "Choose files, or drag in a whole folder.", dropSubhint = "Hashed in your browser, never uploaded." }: BitGraphCameraProps) {
+export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, above, below, belowClassName, frameNote, acceptsPendingDrop, fitViewport = true, dropHeadline = "Make or check BitGraphs", dropHint = "Choose files, or drag in a whole folder.", dropSubhint = "Hashed in your browser, never uploaded.", dropPrompt }: BitGraphCameraProps) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length ? "results" : "drop"));
   const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
@@ -2359,7 +2362,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      label "{Verb} {n} of {total}", one Unicode ellipsis, no stray percentages. ── */
   const waitSpinner: React.CSSProperties = { width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" };
   const waitLabel: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
-  const waitTrack: React.CSSProperties = { width: "min(260px, 72vw)", height: 2, borderRadius: 1, background: "var(--line)", overflow: "hidden" };
+  const waitTrack: React.CSSProperties = { width: "min(260px, 72vw)", height: 2, borderRadius: "var(--radius-card)", background: "var(--line)", overflow: "hidden" };
   const waitFill = (pct: number): React.CSSProperties => ({ width: `${pct}%`, height: "100%", background: "var(--accent)", transition: "width 0.15s" });
 
   return (
@@ -2503,7 +2506,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         @keyframes glow { 0%, 100% { box-shadow: none } 50% { box-shadow: none } }
         /* Freshly-created BitGraph row: slides up while a brand-tinted wash
            fades out, so the eye lands on the new #number. */
-        @keyframes proveReveal { 0% { opacity: 0; transform: translateY(12px); background: rgba(121,184,236,0.318) } 55% { background: rgba(121,184,236,0.318) } 100% { opacity: 1; transform: translateY(0); background: rgba(121,184,236,0) } }
+        @keyframes proveReveal { 0% { opacity: 0; transform: translateY(12px); background: var(--tint) } 55% { background: var(--tint) } 100% { opacity: 1; transform: translateY(0); background: transparent } }
         /* Success header: the badge pops and the check strokes itself in — the
            canonical "done" cue — while the count tallies up beside it. */
         @keyframes headerReveal { from { opacity: 0 } to { opacity: 1 } }
@@ -2574,6 +2577,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 // warning on a page whose whole claim is that nothing is
                 // uploaded. See the note in file-drop.tsx before cutting it.
                 headline={dropHeadline}
+                prompt={dropPrompt}
                 hint={dropHint}
                 // "Hashed in your browser, never uploaded." (Mike, 2026-08-26,
                 // replacing "Your file never leaves your device"): name the
@@ -2767,8 +2771,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   "3 positions · all anchored" is a finding: it is the folder
                   telling you it is finished. */}
               {anchorPlan && anchorPlan.positions > 0 && (
-                <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
-                  <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
+                  <div style={{ padding: "11px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                     <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
                       {anchorPlan.positions} position{anchorPlan.positions === 1 ? "" : "s"}
                       <span style={{ fontWeight: 400, color: "var(--dim)" }}>
@@ -2853,8 +2857,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   {checked.length === 0 && openLink}
                 </div>
               )}
-              <div style={{ background: "var(--panel)", border: "1px solid var(--line)" }}>
-                <div style={{ padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+              <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
+                <div style={{ padding: "11px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                   {/* Files and positions, both true at once: a set is one
                       position for many files, a file BitGraphed twice holds
                       two. Position is the ledger's own word, the one every
@@ -2897,7 +2901,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     commit is an API and MCP compatibility path, not a second
                     choice put in front of whoever dropped the files. */}
                 {unproven.length > 0 && (
-                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "0 16px" }}>
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "8px 16px" }}>
                     <button type="button" className="bg-action-link" onClick={proveRemaining}>
                       <span>{fuseByDefault ? "BitGraph" : "Record"} {unproven.length} file{unproven.length === 1 ? "" : "s"}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
@@ -2912,7 +2916,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     after a fresh recording: the files have to be dropped
                     again first. Still the one operation, at a later place. */}
                 {fuseByDefault && unproven.length === 0 && againRows.length > 0 && (
-                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "0 16px" }}>
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "8px 16px" }}>
                     <button type="button" className="bg-action-link" onClick={() => fuseRemaining(true)}>
                       <span>{againRows.length === 1 ? "BitGraph this file again" : `BitGraph these ${againRows.length} files again`}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
@@ -2944,7 +2948,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     >
                       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "var(--ink)" }}>{item.file.name}</span>
                       {counter != null && (
-                        <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: "var(--accent)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>#{Number(counter).toLocaleString()}</span>
+                        <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: "var(--accent)", fontFamily: "var(--font-mono)" }}>#{Number(counter).toLocaleString()}</span>
                       )}
                     </div>
                     {item.proof && (
@@ -3008,7 +3012,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                         <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "var(--ink)" }}>{item.file.name}</span>
                         <span style={{
                           flexShrink: 0, fontSize: 13, fontVariantNumeric: "tabular-nums",
-                          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                          fontFamily: "var(--font-mono)",
                           fontWeight: counter != null ? 700 : 400,
                           color: counter != null ? "var(--accent)" : item.status === "error" ? "var(--err)" : "var(--dim)",
                         }}>{right}</span>
@@ -3119,34 +3123,28 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
       /* captureDrop synchronously, same rule as the proof page's box: one
          await later and the folders in a mixed drop are silently invisible. */
       onDrop={(e) => { e.preventDefault(); setDragOver(false); void check(captureDrop(e.dataTransfer)); }}
-      style={{
-        marginTop: 8,
-        background: "var(--panel)",
-        border: `1.5px dashed ${mismatch ? "var(--err)" : dragOver ? "var(--accent)" : "var(--faint)"}`,
-        padding: "18px 16px",
-        textAlign: "center",
-        cursor: "pointer",
-        transition: "border-color .15s",
-      }}
+      /* The site's one drop box (globals.css, .dropbox); only its state colour is set here. */
+      className="dropbox"
+      style={{ marginTop: 8, borderColor: mismatch ? "var(--err)" : dragOver ? "var(--accent)" : "var(--faint)", backgroundColor: dragOver ? "var(--tint)" : "var(--panel)" }}
     >
       <input ref={inputRef} type="file" multiple style={{ display: "none" }} onClick={(e) => e.stopPropagation()} onChange={(e) => { const fs = Array.from(e.currentTarget.files || []); e.currentTarget.value = ""; if (fs.length) void check(fs); }} />
       {state === "checking" ? (
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--dim)" }}>
+        <div className="dropbox-title" style={{ color: "var(--dim)" }}>
           {progress.total > 1 ? `Checking ${progress.done} of ${progress.total}…` : "Checking…"}
         </div>
       ) : mismatch ? (
         <>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--err)" }}>
+          <div className="dropbox-title" style={{ color: "var(--err)" }}>
             {checkedCount > 1
               ? `None of the ${checkedCount.toLocaleString()} files match this proof`
               : "These bytes don’t match this proof"}
           </div>
-          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 5 }}>A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
+          <div className="dropbox-quiet">A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>Have the file? Check it matches this proof.</div>
-          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 5 }}>Drop files or a whole folder and the match is found by hash. In your browser; nothing is uploaded.</div>
+          <DropPrompt quiet="The match is found by hash, in your browser. Nothing is uploaded.">Have the file? Drag it or a folder here, or <Browse /></DropPrompt>
+          
         </>
       )}
     </div>
