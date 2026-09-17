@@ -1191,6 +1191,17 @@ hr:has(+ h2), .section-divider:has(+ h2) { display: none !important; }
 .prose em, .prose-doc em, .overview em { font-style: italic; }
 .lede { color: var(--text); margin: 0 0 1.25rem; text-wrap: pretty; }
 .note { color: var(--dim); }
+/* Home's one subheading, under the h1 and read as part of it (Mike,
+   2026-09-17, italic on his call). The interface face, because it belongs to the headline rather
+   than to the prose that follows; one step under the h1, and dim so the pair
+   reads as title then subtitle. Home is the only page that carries one. */
+.prose .home-sub {
+  font-family: var(--font-head); font-size: 22px; font-weight: 400; font-style: italic;
+  line-height: 1.35; letter-spacing: -0.01em; color: var(--dim); margin: 0 0 1.5rem;
+  text-wrap: balance;
+}
+.prose h1:has(+ .home-sub) { margin-bottom: 10px; }
+@media (max-width: 600px) { .prose .home-sub { font-size: 19px; } }
 figcaption { color: var(--dim); margin-top: 12px; }
 h1, h2, h3 { text-wrap: balance; }
 .prose h1 { margin: 0 0 1.25rem; }
@@ -1272,7 +1283,10 @@ h1, h2, h3 { text-wrap: balance; }
 .doors > li { margin-bottom: 8px; }
 .doors a { font-family: var(--font-prose); font-size: 16px; font-weight: 600; }
 .doors span { color: var(--dim); }
-.doors a + span::before { content: " "; }
+/* A fixed gap, not a space: the separator WAS one space, whose rendered width
+   depends on the label's last glyph, so the six rows sat 2.3px to 4.17px apart
+   and the tight ones read as a collision (measured 2026-09-17). */
+.doors a + span::before { content: ""; display: inline-block; width: 8px; }
 
 /* The home page's example: a proof read as a receipt, plain rows. */
 .receipt { margin: 1.5rem 0; font-size: 15px; }

@@ -18,6 +18,7 @@ export default function HomePage() {
   return (
     <div className="frame home prose">
       <h1>BitGraph gives bits a&nbsp;place.</h1>
+      <p className="home-sub">Create portable proof that is free to verify offline, forever.</p>
       <p className="lede">
         BitGraph allocates an unused position before it receives a file&rsquo;s SHA-256 fingerprint. It then binds the fingerprint to that position and marks it consumed. Unused first, consumed second: the place is fixed before the fingerprint is bound to it.
       </p>
