@@ -1206,7 +1206,18 @@ figcaption { color: var(--dim); margin-top: 12px; }
 h1, h2, h3 { text-wrap: balance; }
 .prose h1 { margin: 0 0 1.25rem; }
 .prose p, .prose-doc p, .overview p { margin: 0 0 1.25rem; }
+/* ⚠️ Tailwind's preflight sets `list-style: none` on every ol and ul, and this
+   rule restored the INDENT without restoring the marker, so every list in prose
+   was hanging at 21px with an empty gutter. Worst of all on .steps, an ordered
+   list of numbered procedures whose numbers never rendered. Markers are restored
+   here, dimmed so they mark structure without competing with the lead-ins
+   (Mike, 2026-09-17: "anywhere that happens on site do that"). .facts and
+   .doors carry their own treatment below and are excluded. */
 .prose ul, .prose ol { margin: 0 0 1.25rem; padding-left: 1.4rem; }
+.prose ul:not(.facts):not(.doors), .prose-doc ul:not(.facts):not(.doors),
+.overview ul:not(.facts):not(.doors) { list-style: disc; }
+.prose ol, .prose-doc ol, .overview ol { list-style: decimal; }
+.prose li::marker, .prose-doc li::marker, .overview li::marker { color: var(--faint); }
 .prose li { margin-bottom: 0.5rem; }
 .prose li::marker, .prose-doc li::marker { color: var(--dim); }
 .prose blockquote { margin: 1.5rem 0; padding: 0 0 0 1.125rem; border-left: 2px solid var(--line); color: var(--ink); }
@@ -1268,18 +1279,35 @@ h1, h2, h3 { text-wrap: balance; }
 .field textarea { resize: vertical; min-height: 140px; line-height: 1.5; }
 
 /* Steps: a numbered list whose lead-in is Acumin bold. */
-.steps { margin: 0 0 1.25rem; padding-left: 1.5rem; }
+.steps { list-style: decimal; margin: 0 0 1.25rem; padding-left: 1.5rem; }
 .steps > li { margin-bottom: 8px; }
 .steps > li > strong { font-family: var(--font-prose); font-size: 16px; font-weight: 700; color: var(--ink); }
 
 /* Facts: a stack of labelled one-liners (what it proves, what it does not). */
-.facts { list-style: none; padding: 0; margin: 0 0 1.25rem; }
+/* THE RULE FOR EVERY LIST ON THE SITE (settled 2026-09-17): a list whose items
+   open with their own typographic marker gets the HANG and no glyph; a list
+   whose items do not gets a glyph. Here the bold lead-in and its period are the
+   marker, so a disc would be a third marker for one item. What actually fixed
+   the "hard to discern" complaint was the hang: before it, a wrapped item's
+   second line sat at the same left edge as the next item's label and the block
+   read as a wall. Bulleted for an afternoon, then dropped, same as .doors. */
+.facts { list-style: none; margin: 0 0 1.25rem; }
+.prose .facts, .prose-doc .facts, .overview .facts { padding-left: 0; }
+.facts > li { padding-left: 22px; text-indent: -22px; }
 .facts > li { margin-bottom: 8px; }
 .facts > li > b { font-family: var(--font-prose); font-size: 16px; font-weight: 700; color: var(--ink); }
 .facts > li > b::after { content: ". "; }
 
 /* Doors: places to go next, one line each. */
-.doors { list-style: none; padding: 0; margin: 0 0 1.25rem; }
+/* A hanging indent rather than a bullet (Mike, 2026-09-17). These rows open on
+   a link, and colour marks the start of an item far better than a glyph, so the
+   only thing missing was the wrap: `.prose ul` was winning the padding here, so
+   every line sat indented 22px with no marker in the gutter, which read as a
+   list whose bullets had gone missing. Now the link hangs at the margin and only
+   the continuation lines indent under the text. */
+.doors { list-style: none; margin: 0 0 1.25rem; }
+.prose .doors, .prose-doc .doors, .overview .doors { padding-left: 0; }
+.doors > li { padding-left: 22px; text-indent: -22px; }
 .doors > li { margin-bottom: 8px; }
 .doors a { font-family: var(--font-prose); font-size: 16px; font-weight: 600; }
 .doors span { color: var(--dim); }

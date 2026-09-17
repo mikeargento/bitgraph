@@ -111,7 +111,7 @@ export default function HomePage() {
           <li><b>Authorship</b><span>The proof names the enclave that committed the fingerprint, not the person or program that made the file.</span></li>
           <li><b>First creation</b><span>The same bytes may have existed elsewhere earlier. The position bounds when they were placed here, not when they were made.</span></li>
           <li><b>Exact time</b><span>The floor is a time; the ceiling is a position. There is no wall-clock upper bound, and no field in a proof is a trusted timestamp.</span></li>
-          <li><b>A universal order</b><span>Positions are ordered within one BitGraph sequence. Two unrelated ledgers are related only through the Ethereum blocks their anchors name.</span></li>
+          <li><b>A universal order</b><span>Positions are ordered within one BitGraph sequence. Two unrelated sequences are related only through the Ethereum blocks their anchors name.</span></li>
         </ul>
         <p className="note">The full list, with the reasoning, is on the <Link href="/docs/what-bitgraph-is-not">limits</Link> page. The assumptions and failure modes are on the <Link href="/docs/trust-model">trust model</Link>.</p>
       </section>

@@ -45,10 +45,14 @@ export default function ContactPage() {
   return (
     <div className="frame prose" style={{ padding: "56px 0 96px" }}>
       <h1>Contact</h1>
+      {/* ONE column, the form's own width (Mike, 2026-09-17: the text went
+          "weird"). The sentences used to fill the 1040px frame while the fields
+          stopped at 560, so a paragraph ran twice the width of the inputs under
+          it and the page read as two pages. A form page's measure is its form. */}
+      <div style={{ maxWidth: 560 }}>
       <p className="lede">
         BitGraph is built and run by Michael Argento at Argento Computing Inc. Write with a question, an evaluation you want to run, or a licence you need. Email <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a> or use the form; both reach the same inbox.
       </p>
-      <div style={{ maxWidth: 560 }}>
         {status === "sent" ? (
           <div className="callout is-ok" role="status">
             <span className="kicker">Sent</span>
@@ -88,9 +92,6 @@ export default function ContactPage() {
           </form>
         )}
       </div>
-      <p className="note" style={{ marginTop: 32 }}>
-        Argento Computing Inc. is a Delaware corporation and BITGRAPH is its trademark. Nothing you write here is recorded on the ledger.
-      </p>
     </div>
   );
 }

@@ -430,6 +430,61 @@ async function indexSetMembers(s3: S3Client, bucket: string, proof: Record<strin
   console.log(`[s3] set index wrote=${written.written} failed=${written.failed}`);
 }
 
+/**
+ * set/2: index members from their evidence. Each evidence object is bound
+ * to the set (bindSetMember: strict parse, the set's count, leaf and path
+ * recomputing the committed root) before it earns its two keys, under the
+ * member's origin digest and its fused digest; the key's body is the set
+ * proof with the member's own evidence riding under metadata, so a lookup
+ * by either digest returns everything a reader needs to verify the member
+ * offline. Evidence that does not bind is counted and skipped, never
+ * written. The caller has already read the set proof from its own position.
+ *
+ * ⚠️ RESTORED 2026-09-17, on Mike's word, after being deleted on 2026-09-08
+ * (61263868) with the rest of the by-digest write world. A set/2 commits only
+ * the root of a Merkle tree, so the boundary and this server never see the
+ * member list: it exists in the browser that built the tree, which is why the
+ * evidence is pushed up here after the commit rather than derived. Without
+ * this, every multi-file drop's members were unfindable by hash, so dropping
+ * one file of a recorded set read as NEW and a lone new file auto-records
+ * (Mike: "if its already bitgraphed it should be a lookup"). indexSetMembers
+ * above still covers set/1, whose manifest travels inside the proof.
+ */
+export async function indexSetMemberEvidence(
+  proof: Record<string, unknown>,
+  bound: BoundSet,
+  evidence: unknown[],
+): Promise<{ written: number; failed: number; rejected: number }> {
+  // Writes off: nothing is written, and nothing was REJECTED either — the
+  // caller is told the truth about what happened, which is nothing.
+  if (!ledgerWritesOn()) return { written: 0, failed: 0, rejected: 0 };
+  const c = proof.commit as { epochId?: string; counter?: string } | undefined;
+  const artifact = (proof.artifact as { digestB64?: string } | undefined)?.digestB64;
+  if (!c?.epochId || !c?.counter || !artifact || bound.kind !== "set/2") return { written: 0, failed: 0, rejected: evidence.length };
+  const entries: Array<SetIndexEntry & { body: string }> = [];
+  let rejected = 0;
+  const seen = new Set<string>([artifact]);
+  for (const ev of evidence) {
+    const m = bindSetMember(bound, ev);
+    if (m === null) {
+      rejected++;
+      continue;
+    }
+    const withMember = { ...proof, metadata: { ...(isPlainObject(proof.metadata) ? proof.metadata : {}), [SET_MEMBER_KEY]: m.proof } };
+    const body = JSON.stringify(withMember, null, 2);
+    if (!seen.has(m.originDigestB64)) {
+      seen.add(m.originDigestB64);
+      entries.push({ digestB64: m.originDigestB64, kind: "fused-descendant", index: m.index, count: m.count, body });
+    }
+    if (!seen.has(m.fusedDigestB64)) {
+      seen.add(m.fusedDigestB64);
+      entries.push({ digestB64: m.fusedDigestB64, kind: "set-member", index: m.index, count: m.count, body });
+    }
+  }
+  const written = await writeMemberKeys(getClient(), getBucket(), entries, artifact, c.epochId, c.counter);
+  return { ...written, rejected };
+}
+
 /** One member key per entry: the position key under the member's digest, the body the entry names, the headers a reader needs. */
 async function writeMemberKeys(
   s3: S3Client,
