@@ -2607,7 +2607,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             (always while reading, and for large ledger checks). ── */}
         {step === "scanning" && (scanPhase === "walking" ? (
           <div className="bitgraph-wait">
-            <div role="status" aria-label="Reading your folder" style={waitSpinner} />
+            <div role="status" aria-label="Reading your folder" className="bg-spinner" style={waitSpinner} />
             {/* No bar: the size of a folder is not known until it has been
                 read, and a bar that cannot reach its end is worse than none.
                 The count alone is enough to show the work is moving. */}
@@ -2619,7 +2619,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           </div>
         ) : scanPhase === "reading" ? (
           <div className="bitgraph-wait">
-            <div role="status" aria-label="Reading files" style={waitSpinner} />
+            <div role="status" aria-label="Reading files" className="bg-spinner" style={waitSpinner} />
             <div style={waitLabel}>Reading {scanProgress.current} of {scanProgress.total}</div>
             <div style={waitTrack}>
               <div style={waitFill(scanProgress.total ? (scanProgress.current / scanProgress.total) * 100 : 0)} />
@@ -2627,7 +2627,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           </div>
         ) : (
           <div className="bitgraph-wait">
-            <div role="status" aria-label="Checking the ledger" style={waitSpinner} />
+            <div role="status" aria-label="Checking the ledger" className="bg-spinner" style={waitSpinner} />
             {/* Digest lookups are one round trip and only worth counting when
                 chunked; a folder check is per-export round trips, so its count
                 is live from the first export. */}
@@ -2658,7 +2658,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             as reading/checking. ── */}
         {step === "proving" && (
           <div className="bitgraph-wait">
-            <div role="status" aria-label="BitGraphing" style={waitSpinner} />
+            <div role="status" aria-label="BitGraphing" className="bg-spinner" style={waitSpinner} />
             {/* The strategy's own wait comes first when it has one: /actor's
                 "Waiting for you" while the touch prompt is up is not
                 BitGraphing yet, and saying so is what tells the visitor why
@@ -2716,7 +2716,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           const counted = exportProgress.total > 1;
           return (
             <div className="bitgraph-wait">
-              <div role="status" aria-label={word} style={waitSpinner} />
+              <div role="status" aria-label={word} className="bg-spinner" style={waitSpinner} />
               <div style={waitLabel}>
                 {counted ? `${word} ${exportProgress.current} of ${exportProgress.total}` : `${word}\u2026`}
               </div>

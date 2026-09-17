@@ -16,6 +16,13 @@ import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/l
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { loadLedger, heldFor } from "@/lib/local-ledger";
+
+/* How the remembered ledger learns a fused proof's origin, so a page addressed
+   by the original file's digest finds the proof that was built from it. The
+   same reader the camera hands loadLedger. */
+const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
+  try { return fusedMarkerOf(p)?.originDigestB64 ?? null; } catch { return null; }
+};
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkInline, isInlineProof } from "@/lib/fuse-client";
 import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64, bytesToHex } from "@mikeargento/bitgraph-verify";
@@ -490,7 +497,12 @@ export default function ProofPage() {
     // Instant first paint. A just-recorded BitGraph seeds from the committed
     // proof the drop flow handed over (no skeleton on create); otherwise a warmed
     // example/lookup seeds from the prefetch. Either way the fetch below reconciles.
-    const freshHit = freshRef.current ? takeFreshProof<Parameters<typeof applyData>[0]>(digestParam) : null;
+    // The proof a row handed over (fresh-proof.ts) is taken whenever it is
+    // there, not only behind ?fresh=1: a results row navigates without the
+    // flag, so the hand-off was never read and the page fell through to a
+    // retired lookup and "not found" (Mike, 2026-09-16: "you click one after
+    // its made and it doesnt work"). The flag now only means "play the flash".
+    const freshHit = takeFreshProof<Parameters<typeof applyData>[0]>(digestParam);
     const warmHit = freshHit ? null : takeWarm<Parameters<typeof applyData>[0]>(key);
     const seedData = freshHit ?? (warmHit && "data" in warmHit ? warmHit.data : null);
     const seeded = !!(seedData && applyData(seedData));
@@ -544,7 +556,9 @@ export default function ProofPage() {
          * perfectly good proof sat on "Loading BitGraph…" forever. The shape
          * of this line is load-bearing: it must fall through. */
         if (!cancelled && !applyData(data) && !seeded) {
-          const mine = heldFor(await loadLedger(), fromUrlSafeB64(digestParam));
+          // The remembered ledger, indexed by origin as well as by the committed
+          // digest: a fused proof's page is addressed by the ORIGIN's digest.
+          const mine = heldFor(await loadLedger(originOfProof), fromUrlSafeB64(digestParam));
           if (!cancelled && !(mine.length && applyData({ proofs: mine.map((pr) => ({ proof: pr })) }))) {
             setError("BitGraph not found");
           }
@@ -1698,7 +1712,7 @@ function FreshRecordingWait() {
           other wait state and the success checkmark use, so the spinner never
           jumps between the drop flow's "BitGraphing…" and this. */}
       <div style={{ position: "fixed", top: "44%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "max-content", maxWidth: "92vw", animation: "fpIn 0.45s ease-out" }}>
-        <div role="status" aria-label="BitGraphing" style={{ width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "fpSpin 0.8s linear infinite" }} />
+        <div role="status" aria-label="BitGraphing" className="bg-spinner" style={{ width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "fpSpin 0.8s linear infinite" }} />
         <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>BitGraphing&hellip;</div>
       </div>
     </Shell>
@@ -2404,7 +2418,7 @@ function PhotoCard({
              label), so a slow decode is a decode in progress and not a blank
              card. Tall enough to hold the slot's shape while it works. */
           <div role="status" aria-label="Preparing preview" style={{ minHeight: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
-            <div style={{ width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <div className="bg-spinner" style={{ width: 32, height: 32, border: "3px solid var(--line)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
             <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>Preparing preview…</div>
           </div>
         )}
