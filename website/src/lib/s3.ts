@@ -44,7 +44,12 @@ import { decodeChunkInto, setMembersPrefix, type SetMemberRef } from "@/lib/set-
  * The env var is the reverse switch: set LEDGER_WRITES=on to restore the old
  * behaviour instantly, without a deploy, from Vercel's env panel.
  */
-export const ledgerWritesOn = () => process.env.LEDGER_WRITES === "on";
+// 2026-09-16, Mike: "we have to let the proofs record to s3 so the website can
+// function properly". Writes are ON by default again (LEDGER_WRITES=off is the
+// switch now), and the enclave's parent carries LEDGER_WRITES=on in its unit.
+// The 2026-09-08 → 2026-09-16 gap was backfilled the same night (proofs/ had
+// every body; by-digest and the journal had none of them).
+export const ledgerWritesOn = () => process.env.LEDGER_WRITES !== "off";
 
 /**
  * What a MISS means once the per-proof writes have stopped.
