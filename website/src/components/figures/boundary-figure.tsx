@@ -84,7 +84,7 @@ export function BoundaryFigure() {
       <Others y={88} xs={[25, 55]} />
       <Pos cx={111} cy={88} kind="open" size={22} />
       <Others y={88} xs={[167, 197]} />
-      <Chip cx={111} cy={122} text="slot #4,201" tone="w" />
+      <Chip cx={111} cy={122} text="slot #4,201 · UNUSED" tone="w" />
       <T x={111} y={154} anchor="middle">a nonce: fresh random bits</T>
       <T x={111} y={170} anchor="middle">drawn on the spot.</T>
       <T x={111} y={198} anchor="middle" cls="lbl-ink">Nothing made before it</T>
@@ -117,7 +117,7 @@ export function BoundaryFigure() {
       <Others y={88} xs={[763, 793]} />
       <Pos cx={849} cy={88} kind="spent" size={22} />
       <Others y={88} xs={[905, 935]} />
-      <Chip cx={849} cy={122} text="slot #4,201" tone="w" />
+      <Chip cx={849} cy={122} text="slot #4,201 · CONSUMED" tone="w" />
       <Check x={751} y={158}>same bytes: nothing changed</Check>
       <Check x={751} y={182}>same slot: nothing moved</Check>
       <Check x={751} y={206}>checked offline, by anyone</Check>
@@ -134,27 +134,27 @@ export function BoundaryFigure() {
       <Others y={86} xs={[28, 60, 92, 124]} />
       <Pos cx={180} cy={86} kind="open" size={22} />
       <Others y={86} xs={[236, 268, 300, 332]} />
-      <Chip cx={180} cy={122} text="slot #4,201" tone="w" />
+      <Chip cx={180} cy={122} text="slot #4,201 · UNUSED" tone="w" />
       <T x={180} y={152} anchor="middle">a nonce: fresh random bits drawn on the spot.</T>
       <T x={180} y={176} anchor="middle" cls="lbl-ink">Nothing made before it can contain it.</T>
-      {/* Short arrows just right of centre (Mike: "just off center to the right a bit"), in the gap above the next step's title (Mike, 2026-09-18: "you can
+      {/* Short arrows, centred (Mike, 2026-09-18: "you can center these arrows", after trying them a little right of centre), in the gap above the next step's title (Mike, 2026-09-18: "you can
           just make normal arrows on the mobile robot graph now"; they ran down the right edge only while
           box 3 had a bracket leaving from there). */}
-      <Arrowed d="M 216 210 L 216 232" />
+      <Arrowed d="M 180 210 L 180 232" />
 
       <T x={0} y={248} cls="ttl">2. THE AI RUNS</T>
       <rect className="box" x={1} y={256} width={358} height={176} />
       <Robot cx={180} cy={322} />
       <T x={180} y={380} anchor="middle" cls="lbl-ink">an AI agent</T>
       <T x={180} y={396} anchor="middle">or model, at work</T>
-      <Arrowed d="M 216 438 L 216 460" />
+      <Arrowed d="M 180 438 L 180 460" />
 
       <T x={0} y={476} cls="ttl">3. THE AUDIT RECORDS</T>
       <rect className="box" x={1} y={484} width={358} height={176} />
       <Evidence x={67} y={508} name="signed record" says={["what the run claims, by its own clock"]} />
       <Evidence x={67} y={559} name="attested runtime" says={["what code ran, on what hardware"]} />
       <Evidence x={67} y={610} name="transparency log" says={["what was registered, in arrival order"]} />
-      <Arrowed d="M 216 666 L 216 688" />
+      <Arrowed d="M 180 666 L 180 688" />
 
       <T x={0} y={704} cls="ttl">4. THE BITGRAPH</T>
       <rect className="lane-enc" x={1} y={712} width={358} height={176} />
@@ -162,7 +162,7 @@ export function BoundaryFigure() {
       <Others y={752} xs={[28, 60, 92, 124]} />
       <Pos cx={180} cy={752} kind="spent" size={22} />
       <Others y={752} xs={[236, 268, 300, 332]} />
-      <Chip cx={180} cy={786} text="slot #4,201" tone="w" />
+      <Chip cx={180} cy={786} text="slot #4,201 · CONSUMED" tone="w" />
       <Check x={18} y={822}>same bytes: nothing changed</Check>
       <Check x={18} y={846}>same slot: nothing moved</Check>
       <Check x={18} y={870}>checked offline, by anyone</Check>
