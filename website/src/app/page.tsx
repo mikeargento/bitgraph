@@ -41,7 +41,7 @@ export default function HomePage() {
         A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent&rsquo;s account of its own run. It proves the record is exactly what was committed, gives it a position in a sequence its producer does not control, and ties that sequence to public time. It replaces nothing you already run. It adds the one thing your records cannot give themselves: a provable place outside your system.
       </p>
       <p>
-        The BitGraph is a small JSON file you keep alongside the record. Anyone holding both can verify them together, offline, without contacting anyone. It stands on its own for as long as it exists. The record never leaves your machine; only its fingerprint does.
+        The BitGraph is a small JSON file you keep alongside the record. Anyone holding both can verify them together, offline, without contacting anyone, forever. The record never leaves your machine; only its fingerprint does. Records get a BitGraph without being shared, and the BitGraph can be stored privately or out in the open: it holds the record&rsquo;s fingerprint, not its contents.
       </p>
 
       {/* The whole story in one picture, straight after the opening that describes it (Mike, 2026-09-18:
