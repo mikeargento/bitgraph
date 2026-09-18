@@ -82,7 +82,7 @@ export default function HomePage() {
         <h2 id="h-verifier">What a verifier gets</h2>
         <p>From the record and its BitGraph alone, offline:</p>
         <ul className="facts">
-          <li><b>Identity</b><span>The record in hand is exactly the one that was committed. Change one byte and it no longer matches.</span></li>
+          <li><b>Integrity</b><span>The record in hand is exactly the one that was committed. Change one byte and it no longer matches.</span></li>
           <li><b>Position</b><span>The commitment inside the record points to a slot that existed before the record was signed, and the BitGraph commits this record. A commitment copied from another record fails, because its BitGraph commits a different one.</span></li>
           <li><b>Floor</b><span>The slot names an Ethereum block that had already been mined when the slot was allocated. The record could not have been finished before that block.</span></li>
           <li><b>Origin of the BitGraph</b><span>The signature verifies, and a hardware attestation ties the signing key to a published, reproducible enclave image the verifier chooses to accept.</span></li>
