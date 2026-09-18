@@ -6,27 +6,25 @@ import { useEffect, useRef, useState } from "react";
 import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-sections";
 
 /**
- * The bar. Wordmark, the four documentation groups each as its own dropdown,
- * and one filled button that opens the page where a BitGraph is made (Mike,
- * 2026-09-17, with GitHub's green Code button beside the old panel's four
- * headings: "the +New or 'make a bitgraph' button should be like this and the
- * menu items should be these as each dropdown menus each containing their
- * links").
+ * The bar: the wordmark, one Menu button, and the filled button that opens the page
+ * where a BitGraph is made. The same at every width (Mike, 2026-09-18: "the menu should
+ * be consolidated into one button again called menu on desktop", "keeping the + make a
+ * bitgraph. basically the mobile version except different of course"). It replaced
+ * four dropdowns, one per documentation group, that the bar carried from 2026-09-17.
  *
- * Below 900px four labels and a button do not fit, so the groups fold into one
- * Menu button whose panel lists all four, and the green button's label shortens
- * to New. It says Menu, not Docs (Mike, 2026-09-17): on a phone it holds
- * everything, Use cases, Contact and GitHub included.
+ * Menu opens one panel with all four groups: four columns on a wide screen, two on a
+ * tablet, one list on a phone (the panel's grid rules in globals.css). The green
+ * button reads "Make a BitGraph" and shortens to "New" where it has to. It says Menu,
+ * not Docs: it holds everything, Use cases, Contact and GitHub included.
  *
- * Menus open under the cursor on a device that has one (Mike, 2026-09-17:
- * "should you have to click menu items or should hover just work"), and on a
- * click or Enter everywhere, which is what a touch screen and a keyboard use.
- * The production bar was click-only because a hover-ONLY menu has no touch
- * equivalent; hover added to click does not have that problem. A menu opened
- * by hover closes a beat after the cursor leaves it, so a diagonal move to the
- * panel does not drop it, and a click on its button never closes it under the
- * cursor. Menus close on Escape, on a click outside, and on choosing a row; GitHub is the one row that leaves the site and says so; /deck carries
- * no chrome; on the home route the wordmark forces a fresh load.
+ * The panel opens under the cursor on a device that has one (Mike, 2026-09-17: "should
+ * you have to click menu items or should hover just work"), and on a click or Enter
+ * everywhere, which is what a touch screen and a keyboard use. Opened by hover, it
+ * closes a beat after the cursor leaves both the button and the panel, so the move
+ * down to it does not drop it, and a click on the button never closes it under the
+ * cursor. It closes on Escape, on a click outside, and on choosing a row; GitHub is the
+ * one row that leaves the site and says so; /deck carries no chrome; on the home route
+ * the wordmark forces a fresh load.
  */
 type Group = { label: string; items: DocsSection[]; external?: boolean };
 const GROUPS: Group[] = [...DOCS_GROUPS, { label: "Reference", items: DOCS_TAIL, external: true }];
@@ -86,7 +84,6 @@ export function SiteNav() {
       <span className="sr-only">(opens in a new tab)</span>
     </a>
   );
-  const holdsCurrent = (g: Group) => g.items.some((s) => s.href === pathname);
 
   return (
     <div id="site-nav" ref={navRef} style={{ background: "var(--bar)", position: "sticky", top: 0, zIndex: 50 }}>
@@ -103,38 +100,16 @@ export function SiteNav() {
         </Link>
 
         <div className="bg-nav-links" style={{ display: "flex", alignItems: "center" }}>
-          <nav className="nav-groups" aria-label="Documentation">
-            {GROUPS.map((g) => (
-              <div key={g.label} className="nav-group" onMouseEnter={() => hoverOpen(g.label)} onMouseLeave={() => hoverClose(g.label)}>
-                <button
-                  type="button"
-                  className="nav-btn"
-                  aria-haspopup="menu"
-                  aria-expanded={open === g.label}
-                  aria-current={holdsCurrent(g) ? "page" : undefined}
-                  // Under a cursor the menu is already open, so a click keeps it open rather than
-                  // toggling it shut; on touch and keyboard a click toggles.
-                  onClick={() => setOpen((o) => (canHover() ? g.label : o === g.label ? null : g.label))}
-                >
-                  {g.label}
-                  <Chevron />
-                </button>
-                {open === g.label && (
-                  <div role="menu" aria-label={g.label} className="nav-menu">
-                    {g.items.map(row)}
-                    {g.external && github}
-                  </div>
-                )}
-              </div>
-            ))}
-          </nav>
-
           <button
             type="button"
             className="nav-btn nav-docs"
             aria-haspopup="menu"
             aria-expanded={open === "all"}
-            onClick={() => setOpen((o) => (o === "all" ? null : "all"))}
+            onMouseEnter={() => hoverOpen("all")}
+            onMouseLeave={() => hoverClose("all")}
+            // Under a cursor the panel is already open, so a click keeps it open rather than
+            // toggling it shut; on touch and keyboard a click toggles.
+            onClick={() => setOpen((o) => (canHover() ? "all" : o === "all" ? null : "all"))}
           >
             Menu
             <Chevron />
@@ -151,7 +126,7 @@ export function SiteNav() {
       </div>
 
       {open === "all" && (
-        <div role="menu" aria-label="Menu" className="nav-panel">
+        <div role="menu" aria-label="Menu" className="nav-panel" onMouseEnter={cancelClose} onMouseLeave={() => hoverClose("all")}>
           <div className="docs-panel-cols">
             {GROUPS.map((g) => (
               <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group">

@@ -1611,10 +1611,13 @@ th, .prose th, .prose-doc th, .overview th { background: transparent; }
 .nav-menu .docs-menu-item, .nav-panel .docs-menu-item { display: block; padding: 7px 10px; font-size: 14px; color: var(--text); }
 .nav-menu .docs-menu-item:hover, .nav-panel .docs-menu-item:hover { background: var(--panel-2); color: var(--ink); }
 .nav-menu .docs-menu-item[aria-current="page"], .nav-panel .docs-menu-item[aria-current="page"] { background: var(--panel-2); color: var(--ink); font-weight: 600; }
-#site-nav .nav-docs { display: none; }
+/* Menu shows at every width now; the four dropdowns it folded are gone (2026-09-18). */
+#site-nav .nav-docs { display: inline-flex; }
 #site-nav .nav-cta { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 14px; margin-left: 8px; border-radius: 6px; background: var(--btn-primary); border: 1px solid rgba(240, 246, 252, 0.1); color: var(--btn-primary-text); font-size: 14px; font-weight: 600; line-height: 1; white-space: nowrap; }
 #site-nav .nav-cta:hover { background: var(--btn-primary-hover); }
-/* The folded panel, for narrow screens: all four groups under one Docs button. */
+/* The panel under the one Menu button: all four groups, at every width. The strip above it
+   keeps the cursor inside the panel on the way down from the button. */
+.nav-panel::before { content: ""; position: absolute; left: 0; right: 0; top: -9px; height: 9px; }
 .nav-panel { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 90%; max-width: var(--frame); box-sizing: border-box; padding: 18px 16px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-menu); max-height: calc(100dvh - 90px); overflow-y: auto; overscroll-behavior: contain; }
 .nav-panel-title { padding: 0 10px 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
 @media (max-width: 900px) {
