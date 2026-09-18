@@ -10,7 +10,7 @@ import { Arrow, Chip, Doc, Fig, Others, OthersV, Pos, Svg, T } from "./fig";
 export function StateFigure() {
   const caption = (
     <>
-      Numbers are illustrative. Position 4,201 is allocated while it holds nothing. The commit that fills it is the next event in the sequence, 4,202, and it is the one step in which the fingerprint is bound, the position is consumed and the result is signed. The proof carries both numbers, and the slot&rsquo;s is always the smaller.
+      Numbers are illustrative. Position 4,201 is allocated while it holds nothing. The commit that fills it is the next event in the sequence, 4,202, and it is the one step in which the fingerprint is bound, the position is consumed and the result is signed. The BitGraph carries both numbers, and the slot&rsquo;s is always the smaller.
     </>
   );
 
@@ -38,7 +38,7 @@ export function StateFigure() {
       <Pos cx={836} cy={120} kind="commit" size={22} />
       <Others y={120} xs={[880, 922]} />
       <Doc x={773} y={30} />
-      <T x={816} y={48} cls="lbl-ink">the file</T>
+      <T x={816} y={48} cls="lbl-ink">the record</T>
       <T x={816} y={64} cls="lbl">stays with you</T>
       <Arrow d="M 790 76 L 790 104" />
       {/* The connector first and from the chip's edge, so it runs under the chip, never over its text. */}
@@ -65,7 +65,7 @@ export function StateFigure() {
       <line className="rule" x1={40} y1={312} x2={40} y2={556} />
       <OthersV x={40} ys={[338, 374]} />
       <Doc x={140} y={330} w={30} h={38} />
-      <T x={180} y={346} cls="lbl-ink">the file stays with you</T>
+      <T x={180} y={346} cls="lbl-ink">the record stays with you</T>
       <Arrow d="M 140 375 L 60 425" />
       <Chip cx={205} cy={392} text="SHA-256 fingerprint" />
       <Pos cx={40} cy={440} kind="spent" size={22} />

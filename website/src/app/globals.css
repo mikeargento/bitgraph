@@ -1983,3 +1983,29 @@ body { background: var(--bg); }
 .nav-menu .docs-menu-item[aria-current="page"]:hover, .nav-panel .docs-menu-item[aria-current="page"]:hover {
   background: var(--tone-blue-deep); color: var(--tone-blue-ink); font-weight: 600;
 }
+/* THE SLOT'S COLOUR, in one place (Mike, 2026-09-18). Yellow, the letter "w" in the figure
+   kit, meant one thing in every figure: the slot (the dotted unused square, the spent square,
+   the "slot #" chips, the fused figure's arrow and the commitment the slot writes into the
+   file, the overview's held position). "this should just use red", then: "or actually instead
+   of red, black could symbolize 'void'". BLACK: the slot is an empty place that exists before
+   anything fills it, and black carries no state, where red means failure and limits here (a
+   red slot beside a green commit read as fail, then pass). The squares are the ink; words on
+   a slot sit on Google's grey 300 (#DADCE0, 1.24:1 against the figure well, as the blue and
+   red chips measured; ink on it 12:1). To change the slot's colour, change these four. */
+:root {
+  --slot: var(--ink);          /* the squares, the dotted outline, the slot's arrow and bracket */
+  --slot-tone: #e8eaed;        /* a cell the slot writes: the fused figure's commitment */
+  --slot-tone-deep: #dadce0;   /* a "slot #" chip on the figure well */
+  --slot-ink: var(--ink);      /* the words on either */
+}
+.fig svg .pos-open { stroke: var(--slot); }
+.fig svg .pos-held, .fig svg .pos-spent { fill: var(--slot); stroke: none; }
+.fig svg .chip-w { fill: var(--slot-tone-deep); stroke: none; }
+.fig svg .t-w { fill: var(--slot-ink); }
+/* The receipt reads in Acumin (Mike, 2026-09-18: "should this part all be acumin instead of
+   monospace?"). Its rows are sentences with a value in them, and mono made them read as code.
+   Mono stays only where a reader compares character by character: the fingerprint row (all
+   data), the enforcement tier and the PCR0 value, at the size of inline code. The file-name
+   bar is a title, so it is Acumin too ("this as acumin would make it fit better"). */
+.receipt .prose-val .mono { font-size: 14px; }
+.receipt-head { font-family: var(--font-ui); font-size: 14px; }

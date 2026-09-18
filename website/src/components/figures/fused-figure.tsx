@@ -19,7 +19,8 @@ export function FusedFigure() {
      under the result. */
   const wide = (
     <Svg w={960} h={216} title="Across the top: the original file's bytes, plus a 32-byte commitment derived from slot 4,201's record, equals the new file, the original followed by the commitment. Below the new file, its SHA-256 fingerprint, which is committed under the same slot. Below the two inputs: built on your device.">
-      <rect className="box" x={0} y={50} width={300} height={54} />
+      {/* The outer boxes stay one unit inside the drawing: the SVG clips at its edges, which cut their outer strokes in half. */}
+      <rect className="box" x={1} y={50} width={299} height={54} />
       <T x={150} y={73} anchor="middle" cls="lbl-ink">original file</T>
       <T x={150} y={90} anchor="middle" cls="lbl" size={11}>unchanged, any age</T>
 
@@ -27,14 +28,14 @@ export function FusedFigure() {
 
       <Chip cx={480} cy={20} text="slot #4,201" tone="w" />
       <Arrow d="M 480 31 L 480 48" tone="w" />
-      <rect className="box" x={360} y={50} width={240} height={54} style={{ fill: "var(--tone-yellow)", stroke: "none" }} />
+      <rect className="box" x={360} y={50} width={240} height={54} style={{ fill: "var(--slot-tone)", stroke: "none" }} />
       <T x={480} y={73} anchor="middle" cls="lbl-ink">commitment</T>
       <T x={480} y={90} anchor="middle" cls="lbl" size={11}>32 bytes, from the slot record</T>
 
       <T x={630} y={84} anchor="middle" cls="lbl-ink" size={20}>=</T>
 
-      <rect className="box" x={660} y={50} width={300} height={54} />
-      <rect x={910} y={51} width={49} height={52} style={{ fill: "var(--tone-yellow)", stroke: "none" }} />
+      <rect className="box" x={660} y={50} width={299} height={54} />
+      <rect x={910} y={51} width={49} height={52} style={{ fill: "var(--slot-tone)", stroke: "none" }} />
       <line x1={910} y1={50} x2={910} y2={104} style={{ stroke: "var(--line)" }} />
       <T x={785} y={73} anchor="middle" cls="lbl-ink">the new file</T>
       <T x={785} y={90} anchor="middle" cls="lbl" size={11}>original, then the commitment</T>
@@ -57,12 +58,12 @@ export function FusedFigure() {
       <T x={180} y={39} anchor="middle" cls="lbl-ink">original file</T>
       <T x={180} y={56} anchor="middle" cls="lbl" size={11}>unchanged, any age</T>
       <T x={180} y={100} anchor="middle" cls="lbl-ink" size={20}>+</T>
-      <rect className="box" x={20} y={116} width={320} height={54} style={{ fill: "var(--tone-yellow)", stroke: "none" }} />
+      <rect className="box" x={20} y={116} width={320} height={54} style={{ fill: "var(--slot-tone)", stroke: "none" }} />
       <T x={180} y={139} anchor="middle" cls="lbl-ink">commitment to slot #4,201</T>
       <T x={180} y={156} anchor="middle" cls="lbl" size={11}>32 bytes, derived here from the slot record</T>
       <T x={180} y={200} anchor="middle" cls="lbl-ink" size={20}>=</T>
       <rect className="box" x={20} y={216} width={320} height={54} />
-      <rect x={290} y={217} width={49} height={52} style={{ fill: "var(--tone-yellow)", stroke: "none" }} />
+      <rect x={290} y={217} width={49} height={52} style={{ fill: "var(--slot-tone)", stroke: "none" }} />
       <line x1={290} y1={216} x2={290} y2={270} style={{ stroke: "var(--line)" }} />
       <T x={155} y={239} anchor="middle" cls="lbl-ink">the new file</T>
       <T x={155} y={256} anchor="middle" cls="lbl" size={11}>original, then the commitment</T>

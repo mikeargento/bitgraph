@@ -28,7 +28,8 @@ export function EpochFigure() {
         const step = (last - first) / 7;
         return (
           <g key={String(day)}>
-            <rect className="box" x={x} y={30} width={BOX_W} height={110} />
+            {/* The first box starts one unit in: the SVG clips at x=0, which cut its left stroke in half. */}
+            <rect className="box" x={x || 1} y={30} width={x ? BOX_W : BOX_W - 1} height={110} />
             <T x={x + 14} y={52} cls="lbl-ink" size={12}>Epoch: {day} (UTC)</T>
             <T x={x + 14} y={68} cls="lbl" size={11}>{key} · counter restarts at 0</T>
             <line className="rule" x1={x + 14} y1={104} x2={x + BOX_W - 14} y2={104} />

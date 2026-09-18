@@ -42,10 +42,10 @@
  */
 
 /* Colours mean what they mean everywhere else on the site (2026-09-16):
-   blue is the enclave and the position, yellow is a position held and not yet
-   spent, green is the proof. Square corners, like the rest of the site. */
+   blue is the enclave and the position, the slot colour (--slot, black since 2026-09-18) is a
+   position held and not yet spent, green is the proof. Square corners, like the rest of the site. */
 const C = {
-  held: "var(--warn)",
+  held: "var(--slot)",
   proof: "var(--ok)",   /* green, the commit colour the home figure uses. It was the inline-code coral until 2026-09-18, when coral became the heading colour and code went neutral. */
   ink: "var(--ink)",
   body: "var(--text)",
@@ -64,7 +64,7 @@ const C = {
 const TONE: Record<string, { fill: string; deep: string; ink: string }> = {
   [C.brand]: { fill: "var(--tone-blue)", deep: "var(--tone-blue-deep)", ink: "var(--tone-blue-ink)" },
   [C.proof]: { fill: "var(--tone-green)", deep: "var(--tone-green-deep)", ink: "var(--tone-green-ink)" },
-  [C.held]: { fill: "var(--tone-yellow)", deep: "var(--tone-yellow-deep)", ink: "var(--tone-yellow-ink)" },
+  [C.held]: { fill: "var(--slot-tone)", deep: "var(--slot-tone-deep)", ink: "var(--slot-ink)" },
 };
 const MONO = "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace";
 

@@ -95,6 +95,7 @@ import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { ScrollToTop } from "@/components/scroll-to-top";
 import { NoOrphans } from "@/components/no-orphans";
+import { FigMarkers } from "@/components/figures/fig";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -128,6 +129,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           at the bottom instead of floating over background. Long pages are
           unaffected: main is already taller than the slack. */}
       <body style={{ fontFamily: "var(--font-sans)", margin: 0, minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
+        {/* Figure arrowheads, once per page, before any figure (see FigMarkers in components/figures/fig.tsx). */}
+        <FigMarkers />
         <ScrollToTop />
         {/* No one-word last lines in prose (Mike, 2026-09-17: '"it" gets orphaned'). */}
         <NoOrphans />

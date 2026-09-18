@@ -36,9 +36,17 @@ export function Fig({ wide, narrow, caption, label }: { wide: ReactNode; narrow:
   );
 }
 
-export function Svg({ w, h, top = 0, children, title }: { w: number; h: number; top?: number; children: ReactNode; title: string }) {
+/**
+ * The arrowheads, defined ONCE for the whole site and rendered at the top of every page by the root
+ * layout. They used to live inside each Svg, so every figure's wide and narrow drawing defined the same
+ * ids; a url(#m-dim) resolves to the FIRST element with that id in the document, which was always a
+ * desktop drawing, and on a phone that drawing is display:none. A marker inside a display:none subtree
+ * renders nothing, so every phone arrow on the site lost its head (Mike, 2026-09-18: "but you didnt
+ * include arrow"). This SVG is zero-sized but never display:none, so its markers always render.
+ */
+export function FigMarkers() {
   return (
-    <svg viewBox={`0 ${top} ${w} ${h - top}`} role="img" aria-label={title} style={{ fontFamily: "inherit" }}>
+    <svg width="0" height="0" aria-hidden="true" focusable="false" style={{ position: "absolute" }}>
       <defs>
         <marker id="m-dim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--dim)" />
@@ -47,12 +55,19 @@ export function Svg({ w, h, top = 0, children, title }: { w: number; h: number; 
           <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--accent)" />
         </marker>
         <marker id="m-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--warn)" />
+          <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--slot)" />
         </marker>
         <marker id="m-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 1 L 9 5 L 0 9 z" fill="var(--ceil)" />
         </marker>
       </defs>
+    </svg>
+  );
+}
+
+export function Svg({ w, h, top = 0, children, title }: { w: number; h: number; top?: number; children: ReactNode; title: string }) {
+  return (
+    <svg viewBox={`0 ${top} ${w} ${h - top}`} role="img" aria-label={title} style={{ fontFamily: "inherit" }}>
       {children}
     </svg>
   );
@@ -122,13 +137,13 @@ export function Chip({ cx, cy, text, tone, w, parts }: { cx: number; cy: number;
 
 export function Arrow({ d, tone = "dim" }: { d: string; tone?: "dim" | "b" | "w" | "p" }) {
   const cls = tone === "b" ? "arrow-b" : "arrow";
-  const stroke = tone === "w" ? "var(--warn)" : tone === "p" ? "var(--ceil)" : undefined;
+  const stroke = tone === "w" ? "var(--slot)" : tone === "p" ? "var(--ceil)" : undefined; /* "w" is the slot; its colour lives in --slot */
   return <path className={cls} d={d} markerEnd={`url(#m-${tone})`} style={stroke ? { stroke } : undefined} />;
 }
 
 /** A square bracket under a span of the sequence, with a label. */
 export function Span({ x1, x2, y, label, tone, above = false }: { x1: number; x2: number; y: number; label: string; tone: "b" | "p" | "w"; above?: boolean }) {
-  const stroke = tone === "b" ? "var(--accent)" : tone === "p" ? "var(--ceil)" : "var(--warn)";
+  const stroke = tone === "b" ? "var(--accent)" : tone === "p" ? "var(--ceil)" : "var(--slot)";
   const t = above ? -1 : 1;
   return (
     <g>
@@ -140,7 +155,7 @@ export function Span({ x1, x2, y, label, tone, above = false }: { x1: number; x2
 
 /** The vertical form of Span: a bracket to the right of a vertical span. */
 export function SpanV({ y1, y2, x, label, tone, labelY }: { y1: number; y2: number; x: number; label: string; tone: "b" | "p" | "w"; labelY?: number }) {
-  const stroke = tone === "b" ? "var(--accent)" : tone === "p" ? "var(--ceil)" : "var(--warn)";
+  const stroke = tone === "b" ? "var(--accent)" : tone === "p" ? "var(--ceil)" : "var(--slot)";
   return (
     <g>
       <path d={`M${x - 6} ${y1} H${x} V${y2} H${x - 6}`} fill="none" stroke={stroke} strokeWidth={1} />
