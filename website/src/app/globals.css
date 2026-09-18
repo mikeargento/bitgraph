@@ -1839,3 +1839,147 @@ figcaption { font-family: var(--font-serif); }
 @media (max-width: 600px) {
   .bg-results-head { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
 }
+
+/* ── ONE FACE, ALL WHITE (Mike, 2026-09-18: "all white was better. All Acumin, all white").
+   Acumin for every heading and every sentence; headings in the text colour, set apart by
+   weight and size alone, which is GitHub's own system. Inline code goes neutral too (ink on
+   its grey chip): the mono face and the chip mark it, not a hue. Tried and dropped the same
+   hour: Plantin headings, coral headings, and coral Plantin headings (two signals for one
+   job, and small serif headings went soft on the dark ground). */
+.prose-doc code, .overview code, code { color: var(--ink); }
+.prose p, .prose li, .prose dd, .prose blockquote,
+.prose-doc p, .prose-doc li, .prose-doc dd, .prose-doc blockquote,
+.overview p, .overview li, .overview blockquote,
+.lede, .note, figcaption, .facts > li > span, .doors span, .receipt .prose-val, .callout p,
+.prose td, .meta, .prose .meta, .prose-doc .meta, .prose .note, .prose-doc .note,
+.try-zone .bitgraph-camera, .anchor-zone .bitgraph-camera, .dropbox-line, .dropbox-quiet { font-family: var(--font-ui); }
+/* Bold inside a sentence ran a size down only because the serif had no bold of its own.
+   The sentence is Acumin now, so its bold is the same size as the words around it. */
+.prose strong, .prose-doc strong, .overview strong, .facts > li > span strong, .doors span strong,
+.callout p strong, .steps > li > strong { font-size: inherit; }
+
+/* ── GOOGLE'S PALETTE (Mike, 2026-09-18: "just use the google color pallette", with
+   screenshots of about.google, Gmail, Calendar and Images). COLOUR ONLY: a reference
+   screenshot is style, not structure (the standing rule from the 09-09 Calendar grab), so
+   no Google layout, pills or radii came with it. The values are the Recorder's own
+   (recorder/mac/.../Google.swift), which is Google's neutral system: white ground, #1f1f1f
+   ink, #5f6368 secondary, #dadce0 hairlines, #f8f9fa and #f1f3f4 surfaces. So the site and
+   the app finally share one palette.
+   The one departure from Google is the blue, and it is the app's: BitGraph's #0065A4
+   rather than Google's #1a73e8, which measured 4.0 to 4.3:1 on Google's own grey surfaces
+   (under 4.5). The brand blue clears 5.6:1 on every surface. The primary button is that
+   blue, as Google's primary actions are blue; green means success here, as it does there.
+   Contrast on white (on #f8f9fa): ink 16.5 (15.6), text 10.5 (9.9), dim 6.0 (5.7), links
+   6.2 (5.9), green 5.0 (4.8), amber 5.1 (4.9), red 6.5 (6.2), grape 7.0 (6.7); faint 3.7 is
+   for markers and disabled controls only.
+   Replaced, the same morning: a manila palette (built and swept, then this). Before that,
+   the dark GitHub palette of 2026-09-17. */
+:root {
+  --bg: #ffffff;
+  --panel: #f8f9fa;
+  --panel-2: #f1f3f4;
+  --code-bg: #f1f3f4;
+  --inset: #f0f4f9;
+  --line: #dadce0;
+  --line-2: #e8eaed;
+  --ink: #1f1f1f;
+  --text: #3c4043;
+  --dim: #5f6368;
+  --faint: #80868b;
+  --accent: #0065a4;
+  --accent-2: #004b7a;
+  --tint: rgba(0, 101, 164, 0.13);
+  --ok: #188038;    --ok-tint: rgba(24, 128, 56, 0.12);
+  --warn: #9a5400;  --warn-tint: rgba(154, 84, 0, 0.12);
+  --err: #b3261e;   --err-tint: rgba(179, 38, 30, 0.10);
+  --ceil: #8e24aa;  --ceil-tint: rgba(142, 36, 170, 0.12);
+  --code: #a4502a;
+  --btn-primary: #0065a4; --btn-primary-hover: #004b7a; --btn-primary-text: #ffffff;
+  --syn-token-keyword: #b3261e;
+  --syn-token-string-expression: #0b57d0;
+  --syn-token-constant: #0065a4;
+  --syn-token-function: #8e24aa;
+  --syn-token-parameter: #9a5400;
+}
+body { background: var(--bg); }
+::selection { background: rgba(0, 101, 164, 0.18); }
+.code-block pre[data-lang^="json"], .code-block pre[data-lang="yaml"] { --syn-token-keyword: #188038; --syn-token-string: #0b57d0; }
+/* Google's colours, the way Google uses them (Mike, 2026-09-18: "the reds and greens are
+   more subdued than google"). Two sets, never mixed up:
+   - SHAPES take Google's vivid brand colours: green #34A853, red #EA4335, yellow #FBBC04,
+     blue #4285F4, and Google's purple for the ceiling. Solid fills, as Google's own chips
+     and events are. This reverses the 2026-09-17 figure rule ("tinted squares, no solid
+     colour blocks"), which was set for the dark ground.
+   - WORDS keep Google's text tones, because vivid green and yellow are hard to read as
+     text on white (#FBBC04 is 1.6:1): red text is Google's #D93025, amber text Google's
+     #B06000, green text Google's #188038.
+   Yellow shapes carry Google's orange edge (#E37400) so the square still reads at 3:1. */
+:root {
+  --g-blue: #4285f4; --g-red: #ea4335; --g-yellow: #fbbc04; --g-yellow-edge: #e37400;
+  --g-green: #34a853; --g-purple: #a142f4;
+  --err: #d93025; --warn: #b06000;
+  --ok-tint: rgba(52, 168, 83, 0.14); --warn-tint: rgba(251, 188, 4, 0.22);
+  --err-tint: rgba(234, 67, 53, 0.12); --tint: rgba(66, 133, 244, 0.12);
+}
+.fig svg .pos-open { stroke: var(--g-yellow-edge); }
+.fig svg .pos-held, .fig svg .pos-spent { fill: var(--g-yellow); stroke: var(--g-yellow-edge); stroke-width: 1.5; }
+.fig svg .pos-commit { fill: var(--g-green); stroke: none; }
+.fig svg .pos-anchor { fill: var(--g-blue); stroke: none; }
+.fig svg .pos-ceil { fill: var(--g-purple); stroke: none; }
+.fig svg .chip-w { stroke: var(--g-yellow-edge); }
+.fig svg .chip-g { stroke: var(--g-green); }
+.fig svg .chip-b { stroke: var(--g-blue); }
+.fig svg .chip-p { stroke: var(--g-purple); }
+.fig svg .arrow-b, .fig svg .box-b { stroke: var(--g-blue); }
+.fig svg .lane-enc { stroke: var(--g-blue); fill: color-mix(in srgb, var(--g-blue) 6%, transparent); }
+/* The limits boxes ("The limit of this claim", "Read this first") in Google red (Mike,
+   2026-09-18: "these corals should be google red"). Their amber read as coral on white.
+   ⚠️ This gives red a second meaning beside failure, on purpose: a limit is the thing a
+   reader must not miss. The text tone (#D93025), not the brand red, so the kicker reads. */
+.callout.is-limit { border-left-color: var(--err); }
+.callout.is-limit > .kicker { color: var(--err); }
+/* Code on white (Mike, 2026-09-18: "contrast enough?"). Measured: every token cleared 4.5:1
+   on the block's #f8f9fa, the lowest being the JSON keys in Google green at 4.8:1, thin for
+   13px monospace; they take Google's darker green #137333 (5.7:1). And the block against the
+   white page measured 1.05:1, so the box all but vanished: a hairline gives it an edge. */
+.code-block { border: 1px solid var(--line-2); }
+.code-block pre[data-lang^="json"], .code-block pre[data-lang="yaml"] { --syn-token-keyword: #137333; }
+/* Google's tonal containers, for filled figure cells (the overview figure, 2026-09-18): a
+   light shade for cells, a deeper one for chips that sit on the pale figure well, and the
+   dark tone for the words on them. */
+:root {
+  --tone-blue: #e8f0fe;   --tone-blue-deep: #d3e3fd;   --tone-blue-ink: #0b57d0;
+  --tone-green: #e6f4ea;  --tone-green-deep: #c4eed0;  --tone-green-ink: #137333;
+  --tone-yellow: #fef7e0; --tone-yellow-deep: #feefc3; --tone-yellow-ink: #b06000;
+}
+/* ONE SCHEME FOR EVERY FIGURE (Mike, 2026-09-18: "do all graphics use same color scheme").
+   They did not: the overview's opening diagram had just gone to filled tonal cells while the
+   four figures drawn with the shared kit (components/figures: state, anchor, epoch, fused)
+   still outlined their chips. The rule, now for all five:
+   - MARKS (a position square, no words): solid vivid Google colour.
+   - CELLS AND CHIPS THAT CARRY WORDS: a tonal fill of their colour, no outline, words in the
+     colour's dark ink. Chips sit on the pale well, so they take the deeper shade.
+   - DATA (neutral): white with a grey outline.
+   Measured on the deep fills: blue 4.9:1, green 4.7, purple 5.6; Google's amber text
+   (#B06000) was 4.06 on deep yellow, so the yellow ink is #8A4F00 (5.7). */
+:root {
+  --tone-yellow-ink: #8a4f00;
+  --tone-purple: #f3e8fd; --tone-purple-deep: #e9d7fc; --tone-purple-ink: #7627bb;
+}
+.fig svg .chip-b { fill: var(--tone-blue-deep); stroke: none; }
+.fig svg .chip-g { fill: var(--tone-green-deep); stroke: none; }
+.fig svg .chip-w { fill: var(--tone-yellow-deep); stroke: none; }
+.fig svg .chip-p { fill: var(--tone-purple-deep); stroke: none; }
+.fig svg .box-b { fill: var(--tone-blue); stroke: none; }
+.fig svg .t-b { fill: var(--tone-blue-ink); }
+.fig svg .t-g { fill: var(--tone-green-ink); }
+.fig svg .t-w { fill: var(--tone-yellow-ink); }
+.fig svg .t-p { fill: var(--tone-purple-ink); }
+/* The current page in a menu is Google's selected state, not its hover (Mike, 2026-09-18:
+   "hovering and selected are same color"). Both were the grey #f1f3f4. Now: hover stays
+   grey; the page you are on is the tonal blue with blue words, as Gmail marks the open
+   folder, and it keeps that colour under the cursor. */
+.nav-menu .docs-menu-item[aria-current="page"], .nav-panel .docs-menu-item[aria-current="page"],
+.nav-menu .docs-menu-item[aria-current="page"]:hover, .nav-panel .docs-menu-item[aria-current="page"]:hover {
+  background: var(--tone-blue-deep); color: var(--tone-blue-ink); font-weight: 600;
+}

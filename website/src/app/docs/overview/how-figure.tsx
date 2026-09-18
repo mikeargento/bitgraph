@@ -46,13 +46,25 @@
    spent, green is the proof. Square corners, like the rest of the site. */
 const C = {
   held: "var(--warn)",
-  proof: "var(--code)",   /* the coral, like inline code (Mike, 2026-09-16: "i think on diagram too"); green is verified only */
+  proof: "var(--ok)",   /* green, the commit colour the home figure uses. It was the inline-code coral until 2026-09-18, when coral became the heading colour and code went neutral. */
   ink: "var(--ink)",
   body: "var(--text)",
   mut: "var(--dim)",
   line: "var(--line)",
   white: "var(--panel)",
   brand: "var(--accent)",
+};
+/* Filled cells, Google's tonal way (Mike, 2026-09-18: "would this graphic be better if the
+   strokes were just the full bg of the cells"). A coloured step of the protocol is a light
+   container of its colour with no outline; plain data passing through stays white and
+   outlined, so colour now means "a step" and white means "data". Chips take the DEEPER
+   shade: they sit on the figure's pale well, where the light shade measured about 1.05:1 and
+   its edge vanished. Text in each colour's dark tone, never white on a vivid fill, which
+   fails at these sizes (white on Google blue 3.6:1, on green 3.0:1). */
+const TONE: Record<string, { fill: string; deep: string; ink: string }> = {
+  [C.brand]: { fill: "var(--tone-blue)", deep: "var(--tone-blue-deep)", ink: "var(--tone-blue-ink)" },
+  [C.proof]: { fill: "var(--tone-green)", deep: "var(--tone-green-deep)", ink: "var(--tone-green-ink)" },
+  [C.held]: { fill: "var(--tone-yellow)", deep: "var(--tone-yellow-deep)", ink: "var(--tone-yellow-ink)" },
 };
 const MONO = "var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -76,8 +88,8 @@ function Box({ x, y, w, h, title, sub, stroke = C.line, sw = 1, titleFill = C.in
   const ty = y + h / 2 - blockH / 2 + titleSize;
   return (
     <g>
-      <rect vectorEffect="non-scaling-stroke" x={x} y={y} width={w} height={h} rx={6} fill={fill} stroke={stroke} strokeWidth={sw} />
-      <text x={cx} y={ty} textAnchor="middle" fontSize={titleSize} fontWeight={600} fill={titleFill}>{rich(title, titleSize)}</text>
+      <rect vectorEffect="non-scaling-stroke" x={x} y={y} width={w} height={h} rx={6} fill={TONE[stroke]?.fill ?? fill} stroke={TONE[stroke] ? "none" : stroke} strokeWidth={sw} />
+      <text x={cx} y={ty} textAnchor="middle" fontSize={titleSize} fontWeight={600} fill={TONE[titleFill]?.ink ?? titleFill}>{rich(title, titleSize)}</text>
       {subs.map((s, i) => (
         <text key={i} x={cx} y={ty + 13 + i * lineH} textAnchor="middle" fontSize={10} fill={C.mut}>{rich(s, 10)}</text>
       ))}
@@ -108,8 +120,8 @@ function Tag({ x, y, text, brand, held, proof, w: given }: { x: number; y: numbe
   const h = 22;
   return (
     <g>
-      <rect vectorEffect="non-scaling-stroke" x={x - w / 2} y={y - h / 2} width={w} height={h} rx={6} fill={C.white} stroke={tone ?? "var(--faint)"} strokeWidth={1} />
-      <text x={x} y={y + 3.5} textAnchor="middle" fontSize={9.5} fill={tone ?? C.mut} letterSpacing="0.04em">{rich(text, 9.5)}</text>
+      <rect vectorEffect="non-scaling-stroke" x={x - w / 2} y={y - h / 2} width={w} height={h} rx={6} fill={tone ? TONE[tone].deep : C.white} stroke={tone ? "none" : "var(--faint)"} strokeWidth={1} />
+      <text x={x} y={y + 3.5} textAnchor="middle" fontSize={9.5} fill={tone ? TONE[tone].ink : C.mut} letterSpacing="0.04em">{rich(text, 9.5)}</text>
     </g>
   );
 }

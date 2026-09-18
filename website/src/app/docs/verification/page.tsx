@@ -38,31 +38,31 @@ export default function VerificationPage() {
       </p>
       <ol className="steps">
         <li>
-          <strong>Structure</strong>
+          <strong>Structure.</strong>{" "}
           Every required field is present with the right type. <code>version</code> is <code>&quot;bitgraph/1&quot;</code>, <code>hashAlg</code> is <code>&quot;sha256&quot;</code>, <code>enforcement</code> is one of the known tiers, and every base64 field decodes.
         </li>
         <li>
-          <strong>Digest</strong>
+          <strong>Digest.</strong>{" "}
           SHA-256 of the bytes in hand, compared with <code>proof.artifact.digestB64</code> in constant time. A mismatch means the proof is not about these bytes.
         </li>
         <li>
-          <strong>Signed body</strong>
+          <strong>Signed body.</strong>{" "}
           The <code>SignedBody</code> is rebuilt from the proof&rsquo;s fields, including the attribution and the attestation format when present, canonicalized to sorted-key JSON and encoded as UTF-8. Those bytes are what the signature covers.
         </li>
         <li>
-          <strong>Signature</strong>
+          <strong>Signature.</strong>{" "}
           <code>publicKeyB64</code> must decode to 32 bytes and <code>signatureB64</code> to 64. The Ed25519 signature is checked against the canonical bytes. If it fails, the body was changed after signing or was never signed by this key.
         </li>
         <li>
-          <strong>Slot binding and floor</strong>
+          <strong>Slot binding and floor.</strong>{" "}
           When <code>slotAllocation</code> is present: the slot record&rsquo;s own Ed25519 signature over its canonical body; <code>commit.slotHashB64</code> equal to the SHA-256 of that body; <code>commit.nonceB64</code> equal to the slot&rsquo;s nonce; <code>slotCounter</code> smaller than <code>counter</code>, under the same key and the same epoch. Since enclave v8 the slot record also names the Ethereum anchor the enclave had authenticated at allocation (<code>commit.slotAnchor</code>): the proof&rsquo;s floor.
         </li>
         <li>
-          <strong>Attestation binding</strong>
+          <strong>Attestation binding.</strong>{" "}
           For <code>measured-tee</code> proofs, the AWS Nitro attestation in <code>environment.attestation</code> is a COSE_Sign1 document signed with ES384. Its certificate chain is walked from the enclave leaf to the pinned AWS Nitro Enclaves root, each certificate signed by its parent. <code>PCR0</code> inside the document must equal <code>environment.measurement</code>. Then the binding to this exact proof: the document&rsquo;s <code>user_data</code> must equal the SHA-256 of the canonical signed body, which equals <code>proofHash</code> on an ordinary proof and diverges from it on an actor or policy proof. The <code>public_key</code> field is null on purpose; the binding runs through <code>user_data</code>. Because the signed body names <code>signer.publicKeyB64</code>, this ties the genuine enclave to this proof and to the key that signed it. The chain travels inside the proof and validates offline; only certificate revocation status needs the network and is outside these checks. The full chain check runs in the audit tool and in this site&rsquo;s own verifier; <code>verify</code> in the npm package confirms the attestation is present and its format is signed into the body, and leaves the certificate chain to them.
         </li>
         <li>
-          <strong>Policy</strong>
+          <strong>Policy.</strong>{" "}
           If a <code>VerificationPolicy</code> is supplied, its constraints are enforced: enforcement tier, allowed measurements, allowed public keys, attestation requirements, counter range, time range, epoch requirements.
         </li>
       </ol>

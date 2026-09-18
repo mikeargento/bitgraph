@@ -50,9 +50,9 @@ const inter = Inter({
   preload: false,
 });
 
-/* The tab strip and the phone's chrome take the page colour (2026-09-16,
-   the terminal register). */
-export const viewport: Viewport = { themeColor: "#0d1117" };
+/* The tab strip and the phone's chrome take the page colour: white, Google's ground,
+   since 2026-09-18 (dark before that). Keep it equal to --bg. */
+export const viewport: Viewport = { themeColor: "#ffffff" };
 
 export const metadata: Metadata = {
   title: {

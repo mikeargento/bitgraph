@@ -3,70 +3,124 @@ import Link from "next/link";
 import { StateFigure } from "@/components/figures/state-figure";
 
 /**
- * Home orients three readers: the newcomer, the engineer and the sceptic.
- * One column, one rhythm: a heading, prose, a figure where a picture says it
- * better, a plain list where the items are parallel. The full explanation
- * lives at /docs/overview; this page does not repeat it.
+ * Home, written for AI audit (Mike, 2026-09-18: "rewrite the entire homepage
+ * section by section heading by heading with AI audit"). The reader is someone
+ * who already runs, or is building, a system that proves what an AI ran: signed
+ * trust records, attested runtimes, transparency logs, evaluation harnesses.
+ * BitGraph is placed BESIDE that system, never against it: it adds one fact such
+ * a system cannot give its own records, a position outside its own trust domain.
+ *
+ * h1 (Mike, 2026-09-18): "Conduct verifiable AI audits." It replaced "BitGraph gives
+ * bits a place.", which read as a slogan once the page was about AI audit.
+ *
+ * ⚠️ Claim discipline, from the review that shaped this (the TRACE thread):
+ * - No named standard is said to support this. A public proposal is the limit,
+ *   and even that is kept off this page.
+ * - It does not replace witnesses or transparency logs. Say so.
+ * - Floor in time, ceiling in position (canon §3.6). Never "proves when".
+ * - Missing evidence is not a contradiction: three results, not two, named as
+ *   /docs/verification names them (valid, invalid, unverifiable).
+ * - The copied-commitment case fails only because the proof must also commit
+ *   THIS record; that clause is the reason the pattern is sound, so it is stated.
+ * - A slot waits two minutes for its commit (SLOT_TTL_MS in the enclave).
  */
 export const metadata: Metadata = {
   title: "BitGraph",
   description:
-    "A BitGraph is a verifiable receipt for anything digital: check that content matches exactly what was recorded, and see where it sits in a sequence of records. The receipt is a small file you keep, and it verifies offline.",
+    "BitGraph gives an AI audit record a position its producer could not choose: a portable receipt that commits the exact record, sits after a public Ethereum block, and verifies offline. It works beside the audit system you already run.",
 };
 
 export default function HomePage() {
   return (
     <div className="frame home prose">
-      <h1>BitGraph gives bits a&nbsp;place.</h1>
-      <p className="home-sub">Create portable proof that is free to verify offline, forever.</p>
+      <h1>Conduct verifiable AI&nbsp;audits.</h1>
+      <p className="home-sub">Create portable proof of exactly what an AI system recorded, and where it&nbsp;stood.</p>
       <p className="lede">
-        A BitGraph is a verifiable receipt for anything digital. It lets you check that the content matches exactly what was recorded, and see where it sits in a sequence of records. Public time references connect that sequence to <span style={{ whiteSpace: "nowrap" }}>real-world</span> time. It works with documents, photos, logs and AI outputs.
+        A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent&rsquo;s account of its own run. It proves the record is exactly what was committed, gives it a position in a sequence its producer does not control, and ties that sequence to public time. It works beside the audit system you already run. It does not replace it.
       </p>
       <p>
-        The receipt is a small JSON file you keep beside the record. Anyone holding both can check them together, offline, without contacting BitGraph. The record itself never leaves your machine; only its fingerprint does.
+        The receipt is a small JSON file you keep alongside the original file. Anyone holding both can verify them together, offline, without contacting anyone. The receipt stands on its own for as long as it exists. The original never leaves your machine; only its fingerprint does.
       </p>
 
-      <section className="home-section" aria-labelledby="h-why">
-        <h2 id="h-why">Why that is useful</h2>
+      <section className="home-section" aria-labelledby="h-gap">
+        <h2 id="h-gap">The gap in proof of what ran</h2>
         <p>
-          An AI agent, a build pipeline or a trading system writes its own log, and the log can be rewritten by the same party whose conduct it describes. Whatever the log says about its own time and order is that party&rsquo;s claim. A BitGraph position is issued by a boundary the writer does not control, before the record&rsquo;s fingerprint exists, and it cannot be moved afterwards. An agent connected to BitGraph over MCP can take a position before it starts a task, put the position&rsquo;s commitment into its own record, and commit the record when it finishes.
+          Systems that prove what an AI ran are good at what happens inside their own boundary. A signed record says what the run claims. An attested runtime says what code ran. A transparency log says what was registered, and in what order it arrived.
         </p>
         <p>
-          The same holds for any record someone may dispute later: a decision, an evaluation result, a delivery note, a contract draft. The question that arrives later is which version existed when, and in what order. A proof made at the time answers the order question from the file and the proof alone, years later, with no service to consult and no clock to argue about. It says nothing about whether the record was right.
+          What none of them can give their own record is a position outside that boundary. The time inside a record is signed by the same key that would sign a backdated one. A log kept by the system under review can be regenerated in full before anyone looks. A freshness window can tell you a record looks too old; it cannot tell you whether the record&rsquo;s claimed time agrees with anything outside it, and a small enough backdate passes any window.
         </p>
-        <h3>One example, read as a receipt</h3>
         <p>
-          A team keeps a record of each automated loan decision. The record is written by the system that made the decision. Before the system finishes the record it takes a BitGraph position; when the record is final it commits the fingerprint. Illustrative values below, in the shape of a real proof.
+          BitGraph adds that one fact. The position is issued by a separate measured boundary, before the record&rsquo;s fingerprint reaches it, and it cannot be moved afterwards. It is a second ordering signal from a different trust domain, not a replacement for the first.
         </p>
-        <div className="receipt" aria-label="An illustrative proof, read as a receipt">
-          <div className="receipt-head">decision-4471.json · illustrative · bitgraph/1</div>
+      </section>
+
+      <section className="home-section" aria-labelledby="h-fit">
+        <h2 id="h-fit">How it fits into an audit record</h2>
+        <p>The commitment goes inside the record before the record is signed, so the finished record depends on a position that existed before it.</p>
+        <ol className="steps">
+          <li><strong>Take a position.</strong> The system asks BitGraph for a slot and receives the slot&rsquo;s commitment.</li>
+          <li><strong>Put the commitment in the record.</strong> It is written into the record like any other field, before signing.</li>
+          <li><strong>Sign the record.</strong> Only now does the record&rsquo;s final fingerprint exist.</li>
+          <li><strong>Commit the fingerprint to the same slot.</strong> Within two minutes, the slot is consumed and the receipt binds the two.</li>
+        </ol>
+        <p>
+          The signed record now contains a commitment to a position that existed before the record&rsquo;s own fingerprint, and that position is committed by this exact record. The record could not have been finished before the slot, and it cannot be moved to another place afterwards. An agent connected over MCP does this for its own task records.
+        </p>
+      </section>
+
+      <section className="home-section" aria-labelledby="h-verifier">
+        <h2 id="h-verifier">What a verifier gets</h2>
+        <p>From the record and the receipt alone, offline:</p>
+        <ul className="facts">
+          <li><b>Identity</b><span>The record in hand is exactly the one that was committed. Change one byte and it no longer matches.</span></li>
+          <li><b>Position</b><span>The commitment inside the record points to a slot that existed before the record was signed, and the receipt commits this record. A commitment copied from another record fails, because its receipt commits a different one.</span></li>
+          <li><b>Floor</b><span>The slot names an Ethereum block that had already been mined when the slot was allocated. The record could not have been finished before that block.</span></li>
+          <li><b>Origin of the receipt</b><span>The signature verifies, and a hardware attestation ties the signing key to a published, reproducible enclave image the verifier chooses to accept.</span></li>
+        </ul>
+        <h3>Three answers, not two</h3>
+        <p>
+          A record that carries a commitment has one of three results, in the verifier&rsquo;s own words. <em>Valid</em> when the receipt checks out and commits this record. <em>Invalid</em> when a receipt is present and contradicts the record. <em>Unverifiable</em> when there is no receipt to check. Missing evidence is never read as tampering, and tampering is never read as missing evidence.
+        </p>
+        <p className="note">
+          Verification runs in an open verifier, <code>@mikeargento/bitgraph-verify</code>, with no network call. The <Link href="/docs/verification">verification page</Link> lists every check and what each result means.
+        </p>
+      </section>
+
+      <section className="home-section" aria-labelledby="h-receipt">
+        <h2 id="h-receipt">One run, read as a receipt</h2>
+        <p>
+          An agent writes a trust record for each task it runs. Before it signs the record it takes a BitGraph position and writes the commitment into the record; once the record is signed, it commits the fingerprint. Illustrative values below, in the shape of a real receipt.
+        </p>
+        <div className="receipt" aria-label="An illustrative receipt for one agent run">
+          <div className="receipt-head">run-7731.trust-record.json · illustrative · bitgraph/1</div>
           <div className="receipt-row"><b>Fingerprint</b><span>sha256 jYl9NHJP0VcRVh6OMEIU5VAGva6cu5kdrnPrlNr/RnU=</span></div>
-          <div className="receipt-row"><b>Slot</b><span>#4,201, allocated unused, signed by the enclave</span></div>
+          <div className="receipt-row"><b>Slot</b><span>#4,201, allocated unused, signed by the enclave; its commitment is inside the record</span></div>
           <div className="receipt-row"><b>Commit</b><span>#4,202 in the epoch of 15 September 2026 (one UTC day), linked to the position before it</span></div>
           <div className="receipt-row"><b>Floor</b><span>Ethereum block 25,984,342, mined 17:25:47 UTC, signed into the slot record</span></div>
           <div className="receipt-row"><b>Ceiling</b><span>anchor #4,210, the next anchor in the sequence</span></div>
           <div className="receipt-row"><b>Enclave</b><span>measured-tee, PCR0 eccfc1c7…05c72b (published, reproducible)</span></div>
-          <div className="receipt-row"><b>Shows</b><span className="prose-val">These exact bytes were committed at position 4,202 of that day&rsquo;s sequence, after 17:25:47 UTC on 15 September 2026 (block 25,984,342) and before anchor 4,210, by an enclave running the published image.</span></div>
-          <div className="receipt-row"><b>Does not show</b><span className="prose-val">That the decision was correct, who wrote the record, that no earlier draft existed elsewhere, or the exact minute of the commit.</span></div>
+          <div className="receipt-row"><b>Shows</b><span className="prose-val">This exact signed record contains a commitment to position 4,201 and was committed at position 4,202, after 17:25:47 UTC on 15 September 2026 (block 25,984,342) and before anchor 4,210, by an enclave running the published image.</span></div>
+          <div className="receipt-row"><b>Does not show</b><span className="prose-val">That the agent did what the record says, that its output was correct, which model ran, or the exact minute of the run.</span></div>
         </div>
         <p className="note">
-          More cases, each with the existing record, the verification problem, and what the proof adds, on the <Link href="/subjects">use cases</Link> page.
+          More cases, each with the existing record, the verification problem, and what the receipt adds, on the <Link href="/subjects">use cases</Link> page.
         </p>
       </section>
 
       <section className="home-section" aria-labelledby="h-first">
-        <h2 id="h-first">What happens first, and what happens afterward</h2>
+        <h2 id="h-first">Underneath: one position, used once</h2>
         <p>
-          BitGraph allocates an unused position before it receives a file&rsquo;s SHA-256 fingerprint. It then binds the fingerprint to that position and marks it consumed. Unused first, consumed second: the place is fixed before the fingerprint is bound to it.
+          BitGraph allocates an unused position before it receives a record&rsquo;s SHA-256 fingerprint. It then binds the fingerprint to that position and marks it consumed. Unused first, consumed second: the place is fixed before the fingerprint is bound to it.
         </p>
         <StateFigure />
         <h3>Five things, five words</h3>
         <p>
-          Every claim on this site is made with these, and each has one name here: what stays on your machine, what crosses to the enclave, what exists there before it arrives, the step that binds the two, and what you keep afterward. Keep them apart and the rest of the site reads easily.
+          Every claim on this site is made with these, and each has one name here: what stays on your machine, what crosses to the enclave, what exists there before it arrives, the step that binds the two, and what you keep afterward.
         </p>
         <dl className="terms">
           <dt>The file</dt>
-          <dd>Any bytes: a document, a photo, a log, a decision record an agent wrote. BitGraph never receives it.</dd>
+          <dd>Any bytes: a trust record, a log, an evaluation result, a model output. BitGraph never receives it.</dd>
           <dt>The fingerprint</dt>
           <dd>The file&rsquo;s SHA-256 digest, 32 bytes. The only thing about the file that is sent. Change one byte and the fingerprint changes.</dd>
           <dt>The position</dt>
@@ -74,27 +128,13 @@ export default function HomePage() {
           <dt>The commit</dt>
           <dd>The single step that binds the fingerprint to the slot, consumes the slot, and signs the result. A slot can be consumed once, and never reused.</dd>
           <dt>The proof</dt>
-          <dd>The signed record of that commit, returned to whoever asked. It carries the slot record, both counters, the signature, a hardware attestation and the floor.</dd>
+          <dd>The receipt: the signed result of that commit, returned to whoever asked. It carries the slot record, both counters, the signature, a hardware attestation and the floor.</dd>
         </dl>
         <p>
-          A database can also mark a row <em>unused</em> and then <em>consumed</em>. What makes this evidence rather than bookkeeping is who enforces it and what they leave behind. The allocation and the commit both run inside a measured AWS Nitro enclave whose code identity (a hash of the enclave image, called PCR0) is public and reproducible. The slot record is signed at allocation, so it provably contains no fingerprint. The commit signature covers a hash of that slot record, so the slot cannot be swapped afterwards. And every proof carries a hardware attestation that ties the signing key to that enclave image. A verifier does not take the words <em>unused</em> and <em>consumed</em> on trust; it checks the signatures, the binding and the attestation itself.
+          A database can also mark a row <em>unused</em> and then <em>consumed</em>. What makes this evidence rather than bookkeeping is who enforces it and what they leave behind. The allocation and the commit both run inside a measured AWS Nitro enclave whose code identity (a hash of the enclave image, called PCR0) is public and reproducible. The slot record is signed at allocation, so it provably contains no fingerprint. The commit signature covers a hash of that slot record, so the slot cannot be swapped afterwards. And every receipt carries a hardware attestation that ties the signing key to that enclave image.
         </p>
-      </section>
-
-      <section className="home-section" aria-labelledby="h-check">
-        <h2 id="h-check">What the proof lets someone else check</h2>
-        <p>From the proof and the file alone, offline:</p>
-        <ul className="facts">
-          <li><b>Identity</b><span>The file in hand has exactly the fingerprint the proof names.</span></li>
-          <li><b>Order</b><span>The slot was allocated before the commit that consumed it, and the proof links to the position before it.</span></li>
-          <li><b>Origin of the proof</b><span>The signature verifies, and the attestation chains to the AWS Nitro root for an enclave image the verifier chooses to accept.</span></li>
-          <li><b>Floor</b><span>The proof names an Ethereum block that had already been mined when the slot was allocated. The position was placed after that block&rsquo;s time.</span></li>
-        </ul>
         <p>
           At a cadence the operator sets, as often as once per Ethereum block, the same enclave makes a BitGraph of the hash of a recent block. Those positions are called anchors. A block hash cannot be known before its block is mined, so an anchor, and everything the sequence placed after it, came after that block. Nothing is written to Ethereum; it is read, as a public clock that no party to a dispute controls. The anchor after a position is its ceiling in the sequence: a place, not a time.
-        </p>
-        <p className="note">
-          Verification runs in an open verifier, <code>@mikeargento/bitgraph-verify</code>, with no network call. The <Link href="/docs/verification">verification page</Link> lists every check and what each result means.
         </p>
       </section>
 
@@ -102,10 +142,11 @@ export default function HomePage() {
         <h2 id="h-limits">What it leaves unproven</h2>
         <ul className="facts">
           <li><b>Truth</b><span>A record can be wrong in exactly the form it was committed.</span></li>
-          <li><b>Authorship</b><span>The proof names the enclave that committed the fingerprint, not the person or program that made the file.</span></li>
-          <li><b>First creation</b><span>The same bytes may have existed elsewhere earlier. The position bounds when they were placed here, not when they were made.</span></li>
-          <li><b>Exact time</b><span>The floor is a time; the ceiling is a position. There is no wall-clock upper bound, and no field in a proof is a trusted timestamp.</span></li>
-          <li><b>A universal order</b><span>Positions are ordered within one BitGraph sequence. Two unrelated sequences are related only through the Ethereum blocks their anchors name.</span></li>
+          <li><b>Behaviour</b><span>It does not show that the model or agent did what the record says. That stays with whatever attests the run.</span></li>
+          <li><b>Authorship</b><span>The receipt names the enclave that committed the fingerprint, not the system or person that wrote the record.</span></li>
+          <li><b>Completeness</b><span>A record that was never made leaves no trace, and an unused slot can be abandoned. BitGraph shows the order of what was committed, not that everything was.</span></li>
+          <li><b>Exact time</b><span>The floor is a time; the ceiling is a position. There is no wall-clock upper bound, and no field in a receipt is a trusted timestamp.</span></li>
+          <li><b>A replacement for witnesses</b><span>It adds an ordering signal from a separate trust domain. It does not replace transparency logs, witnesses or the attestation of the run itself.</span></li>
         </ul>
         <p className="note">The full list, with the reasoning, is on the <Link href="/docs/what-bitgraph-is-not">limits</Link> page. The assumptions and failure modes are on the <Link href="/docs/trust-model">trust model</Link>.</p>
       </section>
@@ -113,10 +154,11 @@ export default function HomePage() {
       <section className="home-section" aria-labelledby="h-next">
         <h2 id="h-next">Where to go next</h2>
         <ul className="doors">
-          <li><Link href="/docs/try">Make a BitGraph</Link><span>Drop any file in your browser. Only its fingerprint leaves your machine, and the proof comes back to you.</span></li>
-          <li><Link href="/docs/overview">How it works</Link><span>The full explanation: the state transition, fused files, anchors and time, epochs.</span></li>
-          <li><Link href="/docs/integration">Integration guide</Link><span>What to send, what comes back, what to store. SDK, CLI and two HTTP calls.</span></li>
-          <li><Link href="/docs/mcp">MCP server</Link><span>Connect an agent with one URL and let it make proofs of its own files.</span></li>
+          <li><Link href="/docs/integration">Integration guide</Link><span>Put a commitment in a record, sign it, commit its fingerprint. SDK, CLI and two HTTP calls.</span></li>
+          <li><Link href="/docs/mcp">MCP server</Link><span>Connect an agent with one URL. It takes a position before a task and commits its record after.</span></li>
+          <li><Link href="/docs/verification">Verification</Link><span>Every check a verifier runs, and what each result means.</span></li>
+          <li><Link href="/docs/try">Make a BitGraph</Link><span>Drop any file in your browser. Only its fingerprint leaves your machine, and the receipt comes back to you.</span></li>
+          <li><Link href="/subjects">Use cases</Link><span>Agent records, evaluations, regulated decisions, and records that cross organisations.</span></li>
           <li><Link href="/docs/trust-model">Trust model</Link><span>What is assumed, what is enforced, what is detected, and what is not.</span></li>
           <li><Link href="/contact">Contact</Link><span>Michael Argento built BitGraph. Licensing, evaluation and questions go here.</span></li>
         </ul>
