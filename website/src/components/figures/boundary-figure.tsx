@@ -118,9 +118,9 @@ export function BoundaryFigure() {
       <Pos cx={849} cy={88} kind="spent" size={22} />
       <Others y={88} xs={[905, 935]} />
       <Chip cx={849} cy={122} text="slot #4,201 · CONSUMED" tone="w" />
-      <Check x={751} y={158}>same bytes: nothing changed</Check>
-      <Check x={751} y={182}>same slot: nothing moved</Check>
-      <Check x={751} y={206}>checked offline, by anyone</Check>
+      <Check x={758} y={158}>same bytes: nothing changed</Check>
+      <Check x={758} y={182}>same slot: nothing moved</Check>
+      <Check x={758} y={206}>checked offline, by anyone</Check>
     </Svg>
   );
 
@@ -163,9 +163,9 @@ export function BoundaryFigure() {
       <Pos cx={180} cy={752} kind="spent" size={22} />
       <Others y={752} xs={[236, 268, 300, 332]} />
       <Chip cx={180} cy={786} text="slot #4,201 · CONSUMED" tone="w" />
-      <Check x={18} y={822}>same bytes: nothing changed</Check>
-      <Check x={18} y={846}>same slot: nothing moved</Check>
-      <Check x={18} y={870}>checked offline, by anyone</Check>
+      <Check x={89} y={822}>same bytes: nothing changed</Check>
+      <Check x={89} y={846}>same slot: nothing moved</Check>
+      <Check x={89} y={870}>checked offline, by anyone</Check>
     </Svg>
   );
 
