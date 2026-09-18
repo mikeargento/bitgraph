@@ -25,15 +25,6 @@ export default function HomePage() {
       <p>
         The receipt is a small JSON file you keep beside the record. Anyone holding both can check them together, offline, without contacting BitGraph. The record itself never leaves your machine; only its fingerprint does.
       </p>
-      {/* The two ways in, as the secondary buttons every action on the site
-          wears (2026-09-17). They were a sentence of inline links, which read
-          as prose rather than as the page's actions, and gave these two
-          destinations different names than the doors at the foot of the page.
-          The words are the agreed ones: "Make a BitGraph", never "Try it". */}
-      <div className="actions">
-        <Link href="/docs/try" className="bg-action-link">Make a BitGraph</Link>
-        <Link href="/docs/overview" className="bg-action-link">How it works</Link>
-      </div>
 
       <section className="home-section" aria-labelledby="h-why">
         <h2 id="h-why">Why that is useful</h2>
