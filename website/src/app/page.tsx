@@ -36,9 +36,9 @@ export default function HomePage() {
   return (
     <div className="frame home prose">
       <h1>Conduct AI audits that <span style={{ whiteSpace: "nowrap" }}>self-verify</span> offline,&nbsp;forever.</h1>
-      <p className="home-sub">Create portable proof of exactly what an AI audit recorded, and where it&nbsp;stood.</p>
+      <p className="home-sub">Create portable proof of exactly what your existing system recorded, and where it&nbsp;stood.</p>
       <p className="lede">
-        A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent&rsquo;s account of its own run. It proves the record is exactly what was committed, gives it a position in a sequence its producer does not control, and ties that sequence to public time. It works beside the audit system you already run. It does not replace it.
+        A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent&rsquo;s account of its own run. It proves the record is exactly what was committed, gives it a position in a sequence its producer does not control, and ties that sequence to public time. It replaces nothing you already run.
       </p>
       <p>
         The BitGraph is a small JSON file you keep alongside the record. Anyone holding both can verify them together, offline, without contacting anyone. It stands on its own for as long as it exists. The record never leaves your machine; only its fingerprint does.
