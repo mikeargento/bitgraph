@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="frame home prose">
-      <h1>Conduct verifiable AI&nbsp;audits.</h1>
+      <h1>Conduct AI audits that <span style={{ whiteSpace: "nowrap" }}>self-verify</span> offline,&nbsp;forever.</h1>
       <p className="home-sub">Create portable proof of exactly what an AI system recorded, and where it&nbsp;stood.</p>
       <p className="lede">
         A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent&rsquo;s account of its own run. It proves the record is exactly what was committed, gives it a position in a sequence its producer does not control, and ties that sequence to public time. It works beside the audit system you already run. It does not replace it.
