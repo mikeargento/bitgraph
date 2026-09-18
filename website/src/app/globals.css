@@ -1770,7 +1770,7 @@ figcaption { font-family: var(--font-serif); }
   min-height: 32px; height: auto !important; padding: 5px 12px !important; margin: 0 8px 0 0 !important;
   background: var(--panel-2) !important; border: 1px solid var(--line) !important; border-radius: 6px;
   color: var(--ink) !important; font-family: var(--font-ui); font-size: 14px !important; font-weight: 500 !important;
-  line-height: 20px; letter-spacing: 0 !important; text-decoration: none !important; white-space: normal; cursor: pointer;
+  line-height: 20px; letter-spacing: 0 !important; text-decoration: none !important; white-space: nowrap; cursor: pointer;
   transition: background-color .12s, border-color .12s;
 }
 .bg-action-link:not(.bg-download-link):hover, .bg-arrow-link:hover, .btn:hover {
@@ -1829,3 +1829,13 @@ figcaption { font-family: var(--font-serif); }
 /* The 8px between a menu button and its panel belongs to the panel, so a cursor crossing it
    has not left the menu. */
 .nav-menu::before { content: ""; position: absolute; left: 0; right: 0; top: -9px; height: 9px; }
+
+/* The results card's head on a phone (Mike, 2026-09-17: "this is jacked on
+   mobile"). The count and the export button shared one row, so at 375px both
+   wrapped to two lines side by side. The count takes the full width and the
+   button drops under it. !important because the row's layout is inline.
+   Button labels never wrap (the rule above): a two-line button reads as two
+   buttons. */
+@media (max-width: 600px) {
+  .bg-results-head { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
+}

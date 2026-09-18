@@ -2955,7 +2955,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 </div>
               )}
               <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
-                <div style={{ padding: "11px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                <div className="bg-results-head" style={{ padding: "11px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                   {/* Files and positions, both true at once: a set is one
                       position for many files, a file BitGraphed twice holds
                       two. Position is the ledger's own word, the one every
