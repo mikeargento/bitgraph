@@ -1284,31 +1284,28 @@ h1, h2, h3 { text-wrap: balance; }
 .steps > li > strong { font-family: var(--font-prose); font-size: 16px; font-weight: 700; color: var(--ink); }
 
 /* Facts: a stack of labelled one-liners (what it proves, what it does not). */
-/* THE RULE FOR EVERY LIST ON THE SITE (settled 2026-09-17): a list whose items
-   open with their own typographic marker gets the HANG and no glyph; a list
-   whose items do not gets a glyph. Here the bold lead-in and its period are the
-   marker, so a disc would be a third marker for one item. What actually fixed
-   the "hard to discern" complaint was the hang: before it, a wrapped item's
-   second line sat at the same left edge as the next item's label and the block
-   read as a wall. Bulleted for an afternoon, then dropped, same as .doors. */
+/* A label list reads like the term lists: the label on its own line, the
+   sentence under it (Mike, 2026-09-17). Tried and dropped the same afternoon:
+   a disc before each bold label (three markers for one item: glyph, bold,
+   period), and a hanging indent with no glyph, which left each wrapped line
+   indented under nothing and reading as a misaligned fragment ("i dont like how
+   this looks ... anywhere you did that use a different solution"). Stacked,
+   every item starts at the margin with its label and nothing can wrap into the
+   next one's place. Same shape as .terms on the same pages. */
 .facts { list-style: none; margin: 0 0 1.25rem; }
 .prose .facts, .prose-doc .facts, .overview .facts { padding-left: 0; }
-.facts > li { padding-left: 22px; text-indent: -22px; }
-.facts > li { margin-bottom: 8px; }
+.facts > li { margin-bottom: 14px; }
+.facts > li > b { display: block; margin-bottom: 2px; }
 .facts > li > b { font-family: var(--font-prose); font-size: 16px; font-weight: 700; color: var(--ink); }
-.facts > li > b::after { content: ". "; }
 
 /* Doors: places to go next, one line each. */
-/* A hanging indent rather than a bullet (Mike, 2026-09-17). These rows open on
-   a link, and colour marks the start of an item far better than a glyph, so the
-   only thing missing was the wrap: `.prose ul` was winning the padding here, so
-   every line sat indented 22px with no marker in the gutter, which read as a
-   list whose bullets had gone missing. Now the link hangs at the margin and only
-   the continuation lines indent under the text. */
+/* Flush, no indent and no glyph: each row opens on a blue link, and colour
+   marks the start of an item better than any marker, so a wrapped line can sit
+   at the margin without being mistaken for the next row. The hanging indent
+   this replaced lasted one afternoon (Mike, 2026-09-17). */
 .doors { list-style: none; margin: 0 0 1.25rem; }
 .prose .doors, .prose-doc .doors, .overview .doors { padding-left: 0; }
-.doors > li { padding-left: 22px; text-indent: -22px; }
-.doors > li { margin-bottom: 8px; }
+.doors > li { margin-bottom: 10px; }
 .doors a { font-family: var(--font-prose); font-size: 16px; font-weight: 600; }
 .doors span { color: var(--dim); }
 /* A fixed gap, not a space: the separator WAS one space, whose rendered width

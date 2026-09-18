@@ -11,7 +11,7 @@ import { StateFigure } from "@/components/figures/state-figure";
 export const metadata: Metadata = {
   title: "BitGraph",
   description:
-    "BitGraph allocates an unused position before it receives a file's SHA-256 fingerprint, then binds the fingerprint to that position and consumes it. The proof is a file you keep. It verifies offline.",
+    "A BitGraph is a verifiable receipt for anything digital: check that content matches exactly what was recorded, and see where it sits in a sequence of records. The receipt is a small file you keep, and it verifies offline.",
 };
 
 export default function HomePage() {
@@ -20,10 +20,10 @@ export default function HomePage() {
       <h1>BitGraph gives bits a&nbsp;place.</h1>
       <p className="home-sub">Create portable proof that is free to verify offline, forever.</p>
       <p className="lede">
-        BitGraph allocates an unused position before it receives a file&rsquo;s SHA-256 fingerprint. It then binds the fingerprint to that position and marks it consumed. Unused first, consumed second: the place is fixed before the fingerprint is bound to it.
+        A BitGraph is a verifiable receipt for anything digital. It lets you check that the content matches exactly what was recorded, and see where it sits in a sequence of records. Public time references connect that sequence to <span style={{ whiteSpace: "nowrap" }}>real-world</span> time. It works with documents, photos, logs and AI outputs.
       </p>
       <p>
-        The result is a proof: a small JSON file you keep beside the record. Anyone holding the record and the proof can check them together, offline, without contacting BitGraph. The record itself never leaves your machine; only its fingerprint does.
+        The receipt is a small JSON file you keep beside the record. Anyone holding both can check them together, offline, without contacting BitGraph. The record itself never leaves your machine; only its fingerprint does.
       </p>
       {/* The two ways in, as the secondary buttons every action on the site
           wears (2026-09-17). They were a sentence of inline links, which read
@@ -35,8 +35,39 @@ export default function HomePage() {
         <Link href="/docs/overview" className="bg-action-link">How it works</Link>
       </div>
 
+      <section className="home-section" aria-labelledby="h-why">
+        <h2 id="h-why">Why that is useful</h2>
+        <p>
+          An AI agent, a build pipeline or a trading system writes its own log, and the log can be rewritten by the same party whose conduct it describes. Whatever the log says about its own time and order is that party&rsquo;s claim. A BitGraph position is issued by a boundary the writer does not control, before the record&rsquo;s fingerprint exists, and it cannot be moved afterwards. An agent connected to BitGraph over MCP can take a position before it starts a task, put the position&rsquo;s commitment into its own record, and commit the record when it finishes.
+        </p>
+        <p>
+          The same holds for any record someone may dispute later: a decision, an evaluation result, a delivery note, a contract draft. The question that arrives later is which version existed when, and in what order. A proof made at the time answers the order question from the file and the proof alone, years later, with no service to consult and no clock to argue about. It says nothing about whether the record was right.
+        </p>
+        <h3>One example, read as a receipt</h3>
+        <p>
+          A team keeps a record of each automated loan decision. The record is written by the system that made the decision. Before the system finishes the record it takes a BitGraph position; when the record is final it commits the fingerprint. Illustrative values below, in the shape of a real proof.
+        </p>
+        <div className="receipt" aria-label="An illustrative proof, read as a receipt">
+          <div className="receipt-head">decision-4471.json · illustrative · bitgraph/1</div>
+          <div className="receipt-row"><b>Fingerprint</b><span>sha256 jYl9NHJP0VcRVh6OMEIU5VAGva6cu5kdrnPrlNr/RnU=</span></div>
+          <div className="receipt-row"><b>Slot</b><span>#4,201, allocated unused, signed by the enclave</span></div>
+          <div className="receipt-row"><b>Commit</b><span>#4,202 in the epoch of 15 September 2026 (one UTC day), linked to the position before it</span></div>
+          <div className="receipt-row"><b>Floor</b><span>Ethereum block 25,984,342, mined 17:25:47 UTC, signed into the slot record</span></div>
+          <div className="receipt-row"><b>Ceiling</b><span>anchor #4,210, the next anchor in the sequence</span></div>
+          <div className="receipt-row"><b>Enclave</b><span>measured-tee, PCR0 eccfc1c7…05c72b (published, reproducible)</span></div>
+          <div className="receipt-row"><b>Shows</b><span className="prose-val">These exact bytes were committed at position 4,202 of that day&rsquo;s sequence, after 17:25:47 UTC on 15 September 2026 (block 25,984,342) and before anchor 4,210, by an enclave running the published image.</span></div>
+          <div className="receipt-row"><b>Does not show</b><span className="prose-val">That the decision was correct, who wrote the record, that no earlier draft existed elsewhere, or the exact minute of the commit.</span></div>
+        </div>
+        <p className="note">
+          More cases, each with the existing record, the verification problem, and what the proof adds, on the <Link href="/subjects">use cases</Link> page.
+        </p>
+      </section>
+
       <section className="home-section" aria-labelledby="h-first">
         <h2 id="h-first">What happens first, and what happens afterward</h2>
+        <p>
+          BitGraph allocates an unused position before it receives a file&rsquo;s SHA-256 fingerprint. It then binds the fingerprint to that position and marks it consumed. Unused first, consumed second: the place is fixed before the fingerprint is bound to it.
+        </p>
         <StateFigure />
         <h3>Five things, five words</h3>
         <p>
@@ -73,34 +104,6 @@ export default function HomePage() {
         </p>
         <p className="note">
           Verification runs in an open verifier, <code>@mikeargento/bitgraph-verify</code>, with no network call. The <Link href="/docs/verification">verification page</Link> lists every check and what each result means.
-        </p>
-      </section>
-
-      <section className="home-section" aria-labelledby="h-why">
-        <h2 id="h-why">Why that is useful</h2>
-        <p>
-          An AI agent, a build pipeline or a trading system writes its own log, and the log can be rewritten by the same party whose conduct it describes. Whatever the log says about its own time and order is that party&rsquo;s claim. A BitGraph position is issued by a boundary the writer does not control, before the record&rsquo;s fingerprint exists, and it cannot be moved afterwards. An agent connected to BitGraph over MCP can take a position before it starts a task, put the position&rsquo;s commitment into its own record, and commit the record when it finishes.
-        </p>
-        <p>
-          The same holds for any record someone may dispute later: a decision, an evaluation result, a delivery note, a contract draft. The question that arrives later is which version existed when, and in what order. A proof made at the time answers the order question from the file and the proof alone, years later, with no service to consult and no clock to argue about. It says nothing about whether the record was right.
-        </p>
-        <h3>One example, read as a receipt</h3>
-        <p>
-          A team keeps a record of each automated loan decision. The record is written by the system that made the decision. Before the system finishes the record it takes a BitGraph position; when the record is final it commits the fingerprint. Illustrative values below, in the shape of a real proof.
-        </p>
-        <div className="receipt" aria-label="An illustrative proof, read as a receipt">
-          <div className="receipt-head">decision-4471.json · illustrative · bitgraph/1</div>
-          <div className="receipt-row"><b>Fingerprint</b><span>sha256 jYl9NHJP0VcRVh6OMEIU5VAGva6cu5kdrnPrlNr/RnU=</span></div>
-          <div className="receipt-row"><b>Slot</b><span>#4,201, allocated unused, signed by the enclave</span></div>
-          <div className="receipt-row"><b>Commit</b><span>#4,202 in the epoch of 15 September 2026 (one UTC day), linked to the position before it</span></div>
-          <div className="receipt-row"><b>Floor</b><span>Ethereum block 25,984,342, mined 17:25:47 UTC, signed into the slot record</span></div>
-          <div className="receipt-row"><b>Ceiling</b><span>anchor #4,210, the next anchor in the sequence</span></div>
-          <div className="receipt-row"><b>Enclave</b><span>measured-tee, PCR0 eccfc1c7…05c72b (published, reproducible)</span></div>
-          <div className="receipt-row"><b>Shows</b><span className="prose-val">These exact bytes were committed at position 4,202 of that day&rsquo;s sequence, after 17:25:47 UTC on 15 September 2026 (block 25,984,342) and before anchor 4,210, by an enclave running the published image.</span></div>
-          <div className="receipt-row"><b>Does not show</b><span className="prose-val">That the decision was correct, who wrote the record, that no earlier draft existed elsewhere, or the exact minute of the commit.</span></div>
-        </div>
-        <p className="note">
-          More cases, each with the existing record, the verification problem, and what the proof adds, on the <Link href="/subjects">use cases</Link> page.
         </p>
       </section>
 
