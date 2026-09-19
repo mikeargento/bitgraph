@@ -40,8 +40,12 @@ export default function HomePage() {
       {/* The WHY, before the WHAT (2026-09-18 brief: "we want the WHY to land earlier"). The limit lives in
           "Before anyone weighs the record": judging the content stays with the people deciding. */}
       <p className="lede">
-        To keep innovating quickly, decisions about AI, from shipping a model to halting an agent, have to rest on records. If the audited party or its auditor can still edit those records without detection, you are trusting them. Before anyone weighs the record, it has to be checkable outside either system: the exact bytes committed, in a place neither controls. <strong>The most trusted auditors will be the ones whose records don&rsquo;t have to be trusted.</strong>
+        To keep innovating quickly, decisions about AI, from shipping a model to halting an agent, have to rest on records. If the audited party or its auditor can still edit those records without detection, you are trusting them. Before anyone weighs the record, it has to be checkable outside either system: the exact bytes committed, in a place neither controls.
       </p>
+      {/* The WHY's close, on its own line (Mike, 2026-09-18: "should that line be alone?"): it gets a beat of its
+          own and hinges into what a BitGraph is. Bold on his word; equal space above and below keeps it from
+          reading as a heading. */}
+      <p className="lede"><strong>The most trusted auditors will be the ones whose records don&rsquo;t have to be trusted.</strong></p>
       <p>
         A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent&rsquo;s account of its own run. It proves the record is exactly what was committed, gives it a position in a sequence its producer does not control, and ties that sequence to public time. It replaces nothing you already run. It adds the one thing your records cannot give themselves: a provable place outside your system.
       </p>
