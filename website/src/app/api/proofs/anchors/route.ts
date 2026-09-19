@@ -50,7 +50,7 @@ const NOTE: Record<BoundState, string> = {
   pending: "No anchor follows this position yet. Its epoch is still open, so one is still coming: ask again later and this side completes.",
   closed: "This position's epoch closed with no anchor after it. No upper bound exists in this epoch, and none ever will.",
   none: "No anchor precedes this position in its epoch: it sits at or before the epoch's first anchor. A lower bound cannot arrive later.",
-  "unknown-epoch": "The ledger holds no anchors for this position's epoch, so nothing can be said about this side.",
+  "unknown-epoch": "BitGraph's copy holds no anchors for this position's epoch, so nothing can be said about this side.",
 };
 
 const bound = (state: BoundState) => ({ state, note: NOTE[state] });
@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
     // Including LedgerUnavailableError, which is the point of the strict flag.
     console.error("GET /api/proofs/anchors error:", e instanceof LedgerUnavailableError ? e.message : e);
     return NextResponse.json(
-      { error: "the ledger could not be read", code: "ledger-unavailable" },
+      { error: "BitGraph's copy could not be read", code: "ledger-unavailable" },
       { status: 503 },
     );
   }

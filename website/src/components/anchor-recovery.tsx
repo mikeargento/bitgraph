@@ -96,7 +96,7 @@ export function AnchorRecovery() {
           continue;
         }
         if (!res.ok) {
-          out.push({ side, note: `The ledger answered ${res.status}. That is not a statement about whether an anchor exists.`, state: "unavailable" });
+          out.push({ side, note: `BitGraph answered ${res.status}. That is not a statement about whether an anchor exists.`, state: "unavailable" });
           continue;
         }
         const body = await res.json() as {
@@ -105,7 +105,7 @@ export function AnchorRecovery() {
         };
         const anchor = body.anchors?.[0];
         if (!anchor) {
-          out.push({ side, note: body.bound?.note ?? "The ledger returned no anchor for this side.", state: body.bound?.state });
+          out.push({ side, note: body.bound?.note ?? "BitGraph returned no anchor for this side.", state: body.bound?.state });
           continue;
         }
         const commit = anchor.commit as { counter?: string; anchor?: { blockNumber?: number } } | undefined;
@@ -138,9 +138,9 @@ export function AnchorRecovery() {
           onFile={(f: File) => { void onFile(f); }}
           accept="application/json,.json"
           disabled={busy}
-          headline={busy ? "Reading the ledger…" : "Drop a proof.json"}
+          headline={busy ? "Looking up anchors…" : "Drop a proof.json"}
           prompt={busy
-            ? <DropPrompt>Reading the ledger…</DropPrompt>
+            ? <DropPrompt>Looking up anchors…</DropPrompt>
             : <DropPrompt quiet="Nothing about your file leaves this page.">Drag a proof.json here, or <Browse /></DropPrompt>}
         />
       </div>

@@ -26,7 +26,7 @@ export default function SelfHostTEEPage() {
       <div className="callout is-limit">
         <span className="kicker">A separate sequence</span>
         <p>
-          A self-hosted enclave is a separate ledger. Its proofs are signed and attested, but they carry no Ethereum floor unless you run an anchor service of your own on a chain of your own. The <code>bitgraph:main</code> chain and its anchors belong to bitgraph.ing.
+          A self-hosted enclave is a separate sequence. Its proofs are signed and attested, but they carry no Ethereum floor unless you run an anchor service of your own on a chain of your own. The <code>bitgraph:main</code> chain and its anchors belong to bitgraph.ing.
         </p>
       </div>
 

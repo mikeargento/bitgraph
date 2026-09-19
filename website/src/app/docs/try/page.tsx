@@ -28,7 +28,7 @@ export default function TryPage() {
 
       <h1>Make or check a BitGraph</h1>
       <p className="lede">
-        Drop files in the box and this page makes a real BitGraph of them: a position on the public sequence, floored by an Ethereum block, with the proof returned to you. Nothing here is a simulation. The position is permanent, so choose files you are happy to have fingerprints of on a public ledger.
+        Drop files in the box and this page makes a real BitGraph of them: a position on the public sequence, floored by an Ethereum block, with the proof returned to you. Nothing here is a simulation. The position is permanent, and BitGraph keeps a public copy of each proof that cannot be deleted for ten years, so choose files whose fingerprints you are happy to have in public.
       </p>
 
       <dl className="terms">

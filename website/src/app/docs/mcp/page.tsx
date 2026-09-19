@@ -126,7 +126,7 @@ export default function McpPage() {
             <tr>
               <td>bitgraph_open</td>
               <td>Per file: its name, exact byte size, fingerprint (SHA-256 digest), and its first 16 bytes (up to 64), which decide the placement. Or no files at all: the task form below.</td>
-              <td>Per file: a <code>fuse_token</code>, the placement, the recipe (bytes to append after the original, or a prefix and suffix around it), the slot counter and epoch, and the names for the new file and its Frame. Files opened together share one slot. A file the ledger already indexes comes back &ldquo;on record&rdquo; and is not opened unless <code>again</code> is true.</td>
+              <td>Per file: a <code>fuse_token</code>, the placement, the recipe (bytes to append after the original, or a prefix and suffix around it), the slot counter and epoch, and the names for the new file and its Frame. Files opened together share one slot. A file BitGraph&rsquo;s copy already indexes comes back &ldquo;on record&rdquo; and is not opened unless <code>again</code> is true.</td>
               <td>Allocates a slot: a position, held 120 seconds.</td>
             </tr>
             <tr>
@@ -160,7 +160,7 @@ export default function McpPage() {
         Nothing else travels: only digests, sizes, a file&rsquo;s first bytes, slot records and recipe bytes, to either server. File contents never do, and originals are never modified.
       </p>
       <p>
-        The ledger indexes the proofs the service makes by digest, so a check finds what was made through it. A miss is not a finding: the bytes may hold a BitGraph their holder keeps, so the agent is told to ask for that proof before making another.
+        BitGraph keeps a copy of each proof the service makes, indexed by digest, so a check finds what was made through it. A miss is not a finding: the bytes may hold a BitGraph their holder keeps, so the agent is told to ask for that proof before making another.
       </p>
 
       <h2 id="how">How the hosted endpoint makes a BitGraph</h2>

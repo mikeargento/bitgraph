@@ -65,9 +65,7 @@ export default function PrivacyPage() {
           Ordinary service data (email, billing, support messages, and logs)
           is kept only as long as the purposes above need it. Ethereum
           anchors are retained indefinitely: they are the public floor every
-          later position is measured against. A proof made since 8 September
-          2026 is held by you, not by us. Fingerprints written to the ledger
-          before that date are under a ten-year retention lock.
+          later position is measured against. BitGraph also keeps a public copy of each proof it makes, which holds a fingerprint of the file but never its contents, so the site can list proofs and look them up. Copies already kept are under a ten-year retention lock.
         </p>
 
         <h2>6. Your rights</h2>
@@ -77,10 +75,7 @@ export default function PrivacyPage() {
           Send requests to{" "}
           <a href="mailto:mike@bitgraph.ing">mike@bitgraph.ing</a> and we will
           handle them as applicable law requires. These requests can reach
-          ordinary service data. A proof made since 8 September 2026 is held by
-          you, not by us, so there is nothing of it here to delete. A
-          fingerprint written to the ledger before that date is under a
-          ten-year retention lock and cannot be removed.
+          ordinary service data. Copies of proofs, and the fingerprints in them, are under a ten-year retention lock and cannot be removed, including by us.
         </p>
 
         <h2>7. Children</h2>

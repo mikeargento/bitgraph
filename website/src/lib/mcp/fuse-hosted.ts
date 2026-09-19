@@ -906,7 +906,7 @@ export function renderCommitMarkdown(outcomes: readonly CommitOutcome[], sets: r
   const setNote = sets.length === 1 ? ` as one set at #${sets[0]?.counter ?? "?"} (set of ${sets[0]?.count ?? "?"})` : sets.length > 1 ? ` in ${sets.length} sets` : "";
   lines.push(failed.length > 0 ? `${fused.length} fused${setNote}, ${failed.length} NOT fused.` : `${fused.length} fused${setNote}.`);
   for (const s of sets) {
-    const rec = s.recovered ? " (recovered from the ledger)" : "";
+    const rec = s.recovered ? " (recovered from BitGraph's copy)" : "";
     lines.push(`- set · slot #${s.slot_counter} → #${s.counter ?? "?"} · set of ${s.count}${rec}\n  ${s.proof_url}`);
   }
   for (const o of outcomes) {
@@ -917,10 +917,10 @@ export function renderCommitMarkdown(outcomes: readonly CommitOutcome[], sets: r
         lines.push(`  ${o.positions.length} positions for these bytes: ${all}`);
       }
     } else if (o.outcome === "fused" && o.placement === "base64url") {
-      const rec = o.recovered ? " (recovered from the ledger)" : "";
+      const rec = o.recovered ? " (recovered from BitGraph's copy)" : "";
       lines.push(`- sealed · slot #${o.slot_counter ?? "?"} → #${o.counter ?? "?"} · the task (commitment carried inline)${rec}\n  ${o.proof_url}`);
     } else if (o.outcome === "fused") {
-      const rec = o.recovered ? " (recovered from the ledger)" : "";
+      const rec = o.recovered ? " (recovered from BitGraph's copy)" : "";
       lines.push(`- fused · slot #${o.slot_counter ?? "?"} → #${o.counter ?? "?"} · ${o.name} → ${o.fused_name}${rec}\n  ${o.proof_url}`);
       if (o.positions.length > 1) {
         const all = o.positions.map((p) => `#${p.counter ?? "?"}`).join(" · ");

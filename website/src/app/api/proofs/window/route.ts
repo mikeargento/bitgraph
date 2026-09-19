@@ -51,6 +51,6 @@ export async function GET(req: NextRequest) {
     // "nothing is there" are opposite claims, and only one of them says your
     // BitGraph is unanchored.
     console.error("GET /api/proofs/window error:", e instanceof LedgerUnavailableError ? e.message : e);
-    return NextResponse.json({ error: "the ledger could not be read", code: "ledger-unavailable" }, { status: 503 });
+    return NextResponse.json({ error: "BitGraph's copy could not be read", code: "ledger-unavailable" }, { status: 503 });
   }
 }

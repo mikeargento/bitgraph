@@ -37,7 +37,7 @@ export default function TrustModelPage() {
           <ul>
             <li>The EC2 host the enclave runs on. It is a transport.</li>
             <li>The network, this website, and the anchor service.</li>
-            <li>The S3 ledger. It is a convenience copy under a compliance lock, not the evidence.</li>
+            <li>BitGraph&rsquo;s copy of proofs and anchors. It is a convenience under a compliance lock, not the evidence.</li>
             <li>The client that hashes the file, including this site&rsquo;s own page. A client can hash whatever it likes.</li>
             <li>The operator, Argento Computing Inc.</li>
           </ul>
@@ -86,7 +86,7 @@ export default function TrustModelPage() {
         <dt>Attestation</dt>
         <dd>The Nitro document&rsquo;s user data equals SHA-256 of this proof&rsquo;s signed body, and the document chains to the AWS Nitro Root CA G1. Assumes the reader parses and validates it; the core verifier deliberately leaves that to the audit package.</dd>
         <dt>Deployment</dt>
-        <dd>Proofs from the public service carry <code>enforcement: &quot;measured-tee&quot;</code> and the published PCR0. The ledger is under a ten-year compliance lock, so the operator cannot delete records. That is an operational fact about this deployment, not a protocol guarantee.</dd>
+        <dd>Proofs from the public service carry <code>enforcement: &quot;measured-tee&quot;</code> and the published PCR0. BitGraph&rsquo;s copy is under a ten-year compliance lock, so the operator cannot delete what it holds. That is an operational fact about this deployment, not a protocol guarantee.</dd>
       </dl>
 
       <h2 id="threats">Threats</h2>
@@ -113,7 +113,7 @@ export default function TrustModelPage() {
         <li><strong>A malicious client.</strong> It hashes whatever it wants; BitGraph positions that digest faithfully.</li>
         <li><strong>A compromised build pipeline.</strong> Mitigated only by the reproducible build. If that lapses, PCR0 means &ldquo;some image AWS measured&rdquo;.</li>
         <li><strong>Measurement drift.</strong> A legitimate rebuild changes PCR0. Verifiers pinning the old value reject valid proofs; there is no automated allowlist distribution, so a reader obtains the current measurement out of band.</li>
-        <li><strong>A malicious operator.</strong> Can refuse service, decline to anchor, or lose the ledger. Cannot forge or, given the compliance lock, delete records.</li>
+        <li><strong>A malicious operator.</strong> Can refuse service, decline to anchor, or lose its copy. Cannot forge or, given the compliance lock, delete what the copy holds.</li>
         <li><strong>Anchor censorship or outage.</strong> Ordering within an epoch survives; temporal bounds degrade to one-sided or absent. Across epochs, anchors are the only common reference, so a sustained outage leaves a new epoch unrelatable to the old one by public evidence.</li>
         <li><strong>Collusion among independent boundaries.</strong> Two enclaves are two sequences with no global order. The protocol does not arbitrate between them.</li>
         <li><strong>Omission.</strong> A record that was never made leaves no trace. Counter gaps are expected, so a gap never shows an omission; only an external expectation of what should be there can.</li>
@@ -128,7 +128,7 @@ export default function TrustModelPage() {
         <li><strong>Correlation.</strong> Recording many files from one workflow leaves an adjacency pattern in the counters, even though contents do not.</li>
         <li><strong>Operator visibility.</strong> The host sees source addresses and digests.</li>
         <li><strong>Attribution is permanent.</strong> The signed attribution field, and any metadata a client attaches, cannot be removed later. Put nothing private there.</li>
-        <li><strong>No deletion.</strong> The ledger&rsquo;s lock applies to everyone, including the operator.</li>
+        <li><strong>No deletion.</strong> The lock on BitGraph&rsquo;s copy applies to everyone, including the operator.</li>
       </ul>
 
       <h2 id="verifier">What a verifier is responsible for</h2>

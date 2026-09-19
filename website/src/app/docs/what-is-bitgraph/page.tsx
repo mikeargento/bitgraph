@@ -101,7 +101,7 @@ export default function ProtocolPage() {
         <li>Ethereum as the anchored chain, and the anchor cadence.</li>
         <li>AWS Nitro as the boundary. Another attested environment could serve; the schema names no platform.</li>
         <li>The daily restart at 23:59 UTC, which makes an epoch one calendar day.</li>
-        <li>The S3 ledger under a ten-year compliance lock, which keeps proofs and anchors. A strong operational property, and a deployment property rather than a protocol guarantee.</li>
+        <li>BitGraph&rsquo;s public copy of proofs and anchors, under a ten-year compliance lock. A strong operational property, and a deployment property rather than a protocol guarantee.</li>
       </ul>
 
       <h2 id="tiers">Enforcement tiers</h2>

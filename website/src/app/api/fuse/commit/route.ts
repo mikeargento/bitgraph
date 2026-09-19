@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       anchorBefore = await getAnchorBeforeCounter(parseInt(slot.counter, 10), slot.epochId);
     } catch (err) {
       if (err instanceof LedgerUnavailableError) {
-        return NextResponse.json({ error: "The ledger could not be read; try again", code: "ledger-unavailable" }, { status: 503 });
+        return NextResponse.json({ error: "BitGraph's copy could not be read; try again", code: "ledger-unavailable" }, { status: 503 });
       }
       throw err;
     }

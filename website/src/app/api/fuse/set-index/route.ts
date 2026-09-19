@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     console.log(`[api/fuse/set-index] members=${members.length} written=${result.written} failed=${result.failed} rejected=${result.rejected}`);
     return NextResponse.json({ count: bound.count, ...result });
   } catch (e) {
-    if (e instanceof LedgerUnavailableError) return NextResponse.json({ error: "the ledger could not be read", code: "ledger-unavailable" }, { status: 503 });
+    if (e instanceof LedgerUnavailableError) return NextResponse.json({ error: "BitGraph's copy could not be read", code: "ledger-unavailable" }, { status: 503 });
     console.error("[api/fuse/set-index] failed:", e instanceof Error ? e.message : String(e));
     return NextResponse.json({ error: "indexing failed" }, { status: 500 });
   }

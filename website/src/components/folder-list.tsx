@@ -172,7 +172,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
           </span>
         ) : (
           <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-            {okCount} of {checked.length} {okCount === 1 ? "matches" : "match"} the ledger
+            {okCount} of {checked.length} {okCount === 1 ? "matches" : "match"} BitGraph&rsquo;s copy
           </span>
         )}
         <span style={{ display: "flex", gap: 14, whiteSpace: "nowrap" }}>

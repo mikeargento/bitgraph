@@ -555,7 +555,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {loading && (
           <>
-            <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Reading the ledger…</span>
+            <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Loading the sequence…</span>
             {/* A skeleton of ledger rows — same row chrome (# left, tag, date
                 right, Open chevron) as the real stream, so it lands in place
                 with no jump when the entries arrive. */}
@@ -572,7 +572,7 @@ export function Explorer({ title, day, aside, subnav, initial, anchorsOnly = fal
             ))}
           </>
         )}
-        {error && !loading && <div style={{ padding: 40, textAlign: "center", color: "var(--faint)", fontSize: 14 }}>Ledger unavailable right now.</div>}
+        {error && !loading && <div style={{ padding: 40, textAlign: "center", color: "var(--faint)", fontSize: 14 }}>This list is unavailable right now.</div>}
 
         {!loading && !error && visible.map((e) => {
           const isAnchor = e.type === "anchor";

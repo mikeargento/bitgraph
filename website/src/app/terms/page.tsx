@@ -99,13 +99,10 @@ export default function TermsPage() {
         <p>
           We store
           anchors and the positions they cover. A proof is returned to you and
-          is yours to keep; BitGraph does not keep an index of proofs by
-          fingerprint. We never
+          is yours to keep; BitGraph also keeps a public copy of each proof, indexed by fingerprint, as a convenience for the site. We never
           receive file contents, so we cannot store them. Anchors are retained
           indefinitely: they form an append-only history that later positions,
-          including other people&apos;s, depend on. Fingerprints written to the
-          ledger before 8 September 2026 remain under a ten-year retention
-          lock and cannot be removed.
+          including other people&apos;s, depend on. Copies of proofs remain under a ten-year retention lock and cannot be removed.
         </p>
 
         <h2>8. Intellectual property</h2>

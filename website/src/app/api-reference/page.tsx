@@ -7,7 +7,7 @@ import { Code, guessLang } from "@/components/code";
 export const metadata: Metadata = {
   title: "API reference",
   description:
-    "Every BitGraph endpoint: making a BitGraph on bitgraph.ing, the enclave host, reading the ledger, verifying, the types and the errors.",
+    "Every BitGraph endpoint: making a BitGraph on bitgraph.ing, the enclave host, looking up proofs and anchors, verifying, the types and the errors.",
 };
 
 const PCR0 = "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b";
@@ -63,13 +63,13 @@ export default function APIReferencePage() {
         <h2 id="hosts">Hosts and conventions</h2>
         <dl className="terms">
           <dt>https://bitgraph.ing</dt>
-          <dd>The site. Everything under <code>/api/</code>. Making a BitGraph goes through here: these routes sit behind the anchor-first gate, so every position they issue carries a floor, and they write the proof to the ledger.</dd>
+          <dd>The site. Everything under <code>/api/</code>. Making a BitGraph goes through here: these routes sit behind the anchor-first gate, so every position they issue carries a floor, and BitGraph keeps a copy of each proof.</dd>
           <dt>https://nitro.occproof.com</dt>
           <dd>The enclave host: the EC2 parent in front of the AWS Nitro enclave. The site&rsquo;s routes proxy to it. Commit here directly and the proof is not indexed by the site.</dd>
           <dt>Authentication</dt>
           <dd>None on the public endpoints. The enclave host accepts an optional <code>Authorization: Bearer &lt;key&gt;</code> and requires one only when the server is configured with API keys; the site forwards the header when present.</dd>
           <dt>Digests</dt>
-          <dd>A file&rsquo;s fingerprint (SHA-256 digest), 32 bytes. Standard base64 inside proofs and request bodies; URL-safe base64 without padding in ledger paths and query strings. <code>/api/verify</code> accepts hex as well.</dd>
+          <dd>A file&rsquo;s fingerprint (SHA-256 digest), 32 bytes. Standard base64 inside proofs and request bodies; URL-safe base64 without padding in lookup paths and query strings. <code>/api/verify</code> accepts hex as well.</dd>
           <dt>Counters and epochs</dt>
           <dd>Counters are decimal strings. An epoch id is hex SHA-256 inside a proof and URL-safe base64 in query strings. Block times are ISO 8601, read from the block header.</dd>
           <dt>Body limit</dt>
@@ -153,7 +153,7 @@ export default function APIReferencePage() {
 }`}
           />
           <ul>
-            <li>An ordinary <code>bitgraph/1</code> proof: <code>slotAllocation</code> is the held slot, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position. Keep the response: the proof returned here is the record. The service also writes it to the ledger and indexes it by digest, so a response lost in transit can be read back by the fused file&rsquo;s digest and matched on <code>commit.slotHashB64</code>; but store what comes back.</li>
+            <li>An ordinary <code>bitgraph/1</code> proof: <code>slotAllocation</code> is the held slot, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position. Keep the response: the proof returned here is the evidence. The service also keeps a copy and indexes it by digest, so a response lost in transit can be read back by the fused file&rsquo;s digest and matched on <code>commit.slotHashB64</code>; but store what comes back.</li>
             <li>Validation, all <code>400</code>: the body must be a JSON object; <code>slot</code> must be the record the allocate route returned; <code>slotId</code> must equal <code>slot.nonceB64</code>; <code>digests</code> carries exactly one entry with <code>hashAlg: "sha256"</code>; <code>attribution.name</code> must be <code>bitgraph-fuse/1</code>; <code>title</code> is printable ASCII, 1 to 64 characters; <code>message</code>, when present, is printable ASCII up to 128 characters.</li>
             <li>Sets: with title <code>set/1</code> or <code>set/2</code>, <code>metadata["bitgraph-fuse/1"]</code> carries the manifest or the Merkle root document, and it is verified before the slot is spent: exact shape, size cap, strict canonical round trip, the named slot&rsquo;s commitment, and the hash to the committed digest. <code>metadata</code> on any other title is refused. The returned proof carries the verified manifest whether or not the enclave echoed it; a different manifest from the enclave is refused with <code>502 manifest-mismatch</code>.</li>
             <li>An anchor must precede the slot in its epoch, or the fused floor is undefined: <code>409 no-anchor-before-slot</code>. That condition cannot heal for a given slot, so the failure is final: allocate again.</li>
@@ -391,7 +391,7 @@ const proofs = await resp.json();
           <Block label="Response 200" code={`{ "ok": true }`} />
         </Endpoint>
 
-        <h2 id="ledger">Reading the ledger on bitgraph.ing</h2>
+        <h2 id="ledger">Looking up proofs and anchors on bitgraph.ing</h2>
         <p>
           The service keeps a copy of each proof it makes and indexes it by digest, and it keeps every anchor by counter. These routes read that copy. Two rules hold on all of them: a read that fails is a <code>503</code>, never an empty answer, because &ldquo;we could not look&rdquo; and &ldquo;nothing is there&rdquo; are opposite claims; and a lookup that finds nothing is not evidence that bytes were never recorded. Proofs made between 8 and 16 September 2026, when the per-proof writes were off, were backfilled afterwards; the holder&rsquo;s copy is the record in every case.
         </p>
@@ -400,7 +400,7 @@ const proofs = await resp.json();
           method="GET"
           path="/api/proofs/digest/{digest}"
           id="get-api-proofs-digest"
-          summary="Every position the ledger holds for a digest, by position, never ranked, with the two anchors that bracket the selected one. The path digest is URL-safe base64 without padding."
+          summary="Every position BitGraph's copy holds for a digest, by position, never ranked, with the two anchors that bracket the selected one. The path digest is URL-safe base64 without padding."
         >
           <Block
             label="Query"
@@ -443,7 +443,7 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
             <li>When the digest is a fused file&rsquo;s own, or a set member&rsquo;s, <code>positions</code> is the history of the original it was built from, so dropping the original and dropping the new file land on the same list.</li>
             <li><code>anchorBefore</code> is the floor. <code>anchorAfter</code> is the next anchor in the order: the ceiling, a position, not a clock reading.</li>
             <li>A miss is <code>{`{ "proofs": [] }`}</code>. When the service is running with indexing off (<code>LEDGER_WRITES=off</code>) the miss also carries <code>"discovery": "retired"</code> and a note; in either form it is not a finding about the bytes.</li>
-            <li><code>503 {`{ "error": "ledger unavailable" }`}</code>: the ledger could not be read. Not an answer.</li>
+            <li><code>503 {`{ "error": "ledger unavailable" }`}</code>: BitGraph&rsquo;s copy could not be read. Not an answer.</li>
           </ul>
         </Endpoint>
 
@@ -517,7 +517,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
                 <tr><td>pending</td><td>The live epoch has anchors, but none past this counter yet. Temporary: ask again later and it resolves.</td></tr>
                 <tr><td>closed</td><td>A past epoch, with anchors, none of them past this counter. Permanent: no ceiling exists in this epoch and none ever will.</td></tr>
                 <tr><td>none</td><td>Before side only: no anchor precedes this position in its epoch; it sits at or before the epoch&rsquo;s first anchor. Permanent: a floor cannot arrive later.</td></tr>
-                <tr><td>unknown-epoch</td><td>The ledger holds no anchors for that epoch, so nothing can be said about this side.</td></tr>
+                <tr><td>unknown-epoch</td><td>BitGraph&rsquo;s copy holds no anchors for that epoch, so nothing can be said about this side.</td></tr>
                 <tr><td>undetermined</td><td>No anchor bounds this side, and the enclave could not be reached to say whether the epoch is still open. Ask again rather than reading it as final.</td></tr>
               </tbody>
             </table>
@@ -525,7 +525,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
           <ul>
             <li><code>400</code> when <code>counter</code> or <code>epoch</code> is missing, or the counter is not a non-negative integer.</li>
             <li><code>503 ledger-unavailable</code> when the read failed, including a floor search that ran out before reaching the epoch&rsquo;s start.</li>
-            <li>Each anchor entry is the anchor&rsquo;s own proof with two fields added by the ledger: <code>proofHash</code> and <code>ethereum</code>. Its block time, when present, is in <code>metadata.anchor.blockTimeISO</code>.</li>
+            <li>Each anchor entry is the anchor&rsquo;s own proof with two fields added when BitGraph stores it: <code>proofHash</code> and <code>ethereum</code>. Its block time, when present, is in <code>metadata.anchor.blockTimeISO</code>.</li>
           </ul>
         </Endpoint>
 
@@ -579,7 +579,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
           method="GET"
           path="/api/ledger/head"
           id="get-api-ledger-head"
-          summary="The ledger's heartbeat: the current epoch and its highest counter. Cheap enough to poll."
+          summary="The heartbeat of BitGraph's copy: the current epoch and its highest counter. Cheap enough to poll."
         >
           <Block label="Response 200" code={`{ "epoch": "<url-safe>", "head": 4210 }`} />
           <ul>
@@ -603,7 +603,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
   "allowedMeasurements": ["${PCR0}"],   // optional: accepted PCR0 values
   "requireSlot": true,                    // default true
   "requireEpochId": true                  // default true
-}                                         // proof, digest, or both; without proof, the ledger's proof for the digest is checked`}
+}                                         // proof, digest, or both; without proof, BitGraph's copy of the proof for the digest is checked`}
           />
           <Block
             label="Response 200"
@@ -613,7 +613,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
   "reason": null,
   "artifactBinding": "checked",       // "checked" | "not-checked" | "mismatch"
   "checkedAgainst": "supplied proof", // "supplied proof" | "ledger"
-  "onRecord": true,                   // the ledger holds a recording of these bytes
+  "onRecord": true,                   // BitGraph's copy holds a recording of these bytes
   "totalPositions": 1,
   "artifactHash": "<base64>",
   "artifactHashUrlSafe": "<url-safe>",
@@ -634,7 +634,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
             code={`{
   "verified": false,
   "status": "not on record",
-  "reason": "These bytes have never been recorded in the BitGraph ledger, so there is no proof to verify.",
+  "reason": "BitGraph's copy holds no proof of these bytes, so there is no proof here to verify. A proof its holder keeps can still be checked by supplying it.",
   "fusedDescendants": 0,              // fused files naming these bytes as their original; they bound the bytes from above only
   "artifactBinding": "not-checked",
   "checkedAgainst": "ledger",
@@ -648,9 +648,9 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
           />
           <ul>
             <li>Read <code>artifactBinding</code>, not only <code>verified</code>. <code>checked</code>: the digest you sent matches the one inside the proof. <code>not-checked</code>: the proof is sound but nothing tied it to a file. <code>mismatch</code>: the proof is genuine and is for different bytes; <code>verified</code> is then false.</li>
-            <li>With <code>proof</code> supplied, <code>checkedAgainst</code> is <code>supplied proof</code> and the verdict is about the object itself; <code>onRecord</code> says separately whether the ledger holds those bytes. With only a <code>digest</code>, the earliest recording of the bytes is verified; a fused descendant never stands in for a recording.</li>
+            <li>With <code>proof</code> supplied, <code>checkedAgainst</code> is <code>supplied proof</code> and the verdict is about the object itself; <code>onRecord</code> says separately whether BitGraph&rsquo;s copy holds those bytes. With only a <code>digest</code>, the earliest recording of the bytes is verified; a fused descendant never stands in for a recording.</li>
             <li>Time is deliberately absent from the response. A proof carries no clock reading; its bounds are the two anchors, at <code>anchorWindow</code>.</li>
-            <li><code>400</code>: neither proof nor digest, a malformed digest, or a malformed policy. <code>503 {`{ "error": "ledger unavailable" }`}</code>: the ledger could not be read, which is not a verdict about the file; retry. This applies even when a proof was supplied, because the record check is part of the answer.</li>
+            <li><code>400</code>: neither proof nor digest, a malformed digest, or a malformed policy. <code>503 {`{ "error": "ledger unavailable" }`}</code>: BitGraph&rsquo;s copy could not be read, which is not a verdict about the file; retry. This applies even when a proof was supplied, because the record check is part of the answer.</li>
           </ul>
         </Endpoint>
 
@@ -801,8 +801,8 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
               <tr><td className="k">502</td><td>The enclave returned a different set manifest (fuse commit)</td><td><code>{`{ "error": "...", "code": "manifest-mismatch" }`}</code></td></tr>
               <tr><td className="k">502</td><td>The enclave host&rsquo;s allocation answer is not a slot record (fuse allocate)</td><td><code>{`{ "error": "Unexpected allocation response from the boundary" }`}</code></td></tr>
               <tr><td className="k">503</td><td>Enclave restarting, not yet anchored, or unreachable; retry</td><td><code>{`{ "error": "...", "code": "tee-restarting" }`}</code></td></tr>
-              <tr><td className="k">503</td><td>The ledger could not be read; not an answer about the bytes; retry</td><td><code>{`{ "error": "...", "code": "ledger-unavailable" }`}</code> or <code>{`{ "error": "ledger unavailable" }`}</code></td></tr>
-              <tr><td className="k">503</td><td>The ledger head cannot name the current epoch yet</td><td><code>{`{ "error": "rotating" }`}</code></td></tr>
+              <tr><td className="k">503</td><td>BitGraph&rsquo;s copy could not be read; not an answer about the bytes; retry</td><td><code>{`{ "error": "...", "code": "ledger-unavailable" }`}</code> or <code>{`{ "error": "ledger unavailable" }`}</code></td></tr>
+              <tr><td className="k">503</td><td>BitGraph&rsquo;s copy cannot name the current epoch yet</td><td><code>{`{ "error": "rotating" }`}</code></td></tr>
             </tbody>
           </table>
         </div>

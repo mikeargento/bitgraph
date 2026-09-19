@@ -30,7 +30,7 @@ const KNOWN: BoundState[] = ["anchored", "pending", "closed", "none", "unknown-e
 
 const UNAVAILABLE = (why: string): BoundReport => ({
   state: "unavailable",
-  note: `This side was not fetched: ${why}. That is a gap in what we asked, not a fact about the ledger — the anchor may well exist. Ask again.`,
+  note: `This side was not fetched: ${why}. That is a gap in what we asked, not a finding: the anchor may well exist. Ask again.`,
 });
 
 /**
@@ -54,7 +54,7 @@ async function askSide(
     return { report: UNAVAILABLE(`the request did not complete (${(e as Error).message})`), anchor: null };
   }
   if (!resp.ok) {
-    return { report: UNAVAILABLE(resp.status === 503 ? "the ledger could not be read" : `the ledger answered ${resp.status}`), anchor: null };
+    return { report: UNAVAILABLE(resp.status === 503 ? "BitGraph's copy could not be read" : `BitGraph answered ${resp.status}`), anchor: null };
   }
   let data: { anchors?: Array<Record<string, unknown>>; bound?: BoundAnswer };
   try {
@@ -69,7 +69,7 @@ async function askSide(
   if (!state || !KNOWN.includes(state as BoundState)) {
     // An empty list with no `bound` is exactly the four-meanings-at-once
     // answer this endpoint used to give. Refuse to interpret it.
-    return { report: UNAVAILABLE("the ledger gave no reason for the absence"), anchor: null };
+    return { report: UNAVAILABLE("BitGraph gave no reason for the absence"), anchor: null };
   }
   return {
     report: { state: state as BoundState, note: data.bound?.note ?? "" },

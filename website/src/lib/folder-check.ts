@@ -554,7 +554,7 @@ export interface ExportCheckResult {
  * match" tally, or a bad afternoon on the network reads as hundreds of
  * forgeries. Exported so the row and the summary agree on which is which.
  */
-export const LEDGER_UNREACHABLE = "could not reach the ledger";
+export const LEDGER_UNREACHABLE = "could not reach BitGraph's copy";
 
 /** True when the row has no verdict because the ledger could not be read. */
 export const isUnchecked = (r: { ok: boolean | null; failure: string | null }) =>
@@ -980,7 +980,7 @@ export function startFolderCheck(
         proofHashB64(claimed.proof),
       ]);
       if (localHash !== ledgerHash || w.proof.signer.signatureB64 !== claimed.proof.signer.signatureB64) {
-        w.failure = "proof differs from the ledger's copy";
+        w.failure = "proof differs from BitGraph's copy";
         return;
       }
 

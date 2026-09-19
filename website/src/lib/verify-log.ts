@@ -115,7 +115,7 @@ export async function verifyLog(entries: ProofLogEntry[]): Promise<LogVerificati
         } else if (isTee) {
           // TEE maintains a global chain across all clients — entries in a single
           // client's log won't chain to each other; they chain to the TEE's global ledger.
-          checks.push({ label: "Chain link", status: "pass", detail: "TEE global chain (prevB64 references enclave ledger, not local log)" });
+          checks.push({ label: "Chain link", status: "pass", detail: "TEE global chain (prevB64 references the enclave's sequence, not a local log)" });
         } else {
           checks.push({ label: "Chain link", status: "fail", detail: "prevB64 does not match hash of previous proof" });
         }

@@ -536,7 +536,7 @@ export default function ProofPage() {
           // the skeleton up forever.
           if (!seeded && !cancelled) {
             setError(resp.status >= 500
-              ? "The ledger could not be read just now. That is not a finding about this BitGraph. Try again in a moment, or check the proof offline."
+              ? "The lookup failed just now. That is not a finding about this BitGraph. Try again in a moment, or check the proof offline."
               : "BitGraph not found");
             setLoading(false);
           }
@@ -663,7 +663,7 @@ export default function ProofPage() {
           </>
         ) : (
           <>
-            <div style={{ fontSize: 16, color: "var(--err)", marginBottom: 12 }}>{error || <>Could not read the ledger</>}</div>
+            <div style={{ fontSize: 16, color: "var(--err)", marginBottom: 12 }}>{error || <>The lookup failed</>}</div>
             <a href="/" style={{ fontSize: 14, color: "var(--c-accent)" }}>BitGraph</a>
           </>
         )}
@@ -1049,8 +1049,8 @@ export default function ProofPage() {
       const readSide = async (resp: Response, name: string, witnessName: string): Promise<BoundReport> => {
         if (!resp.ok) {
           return { state: "unavailable", note: resp.status === 503
-            ? "The ledger could not be read when this package was built. That is a gap in what was asked, not a fact about the ledger."
-            : `The ledger answered ${resp.status} when this package was built, so this side was never learned.` };
+            ? "BitGraph's copy could not be read when this package was built. That is a gap in what was asked, not a finding about what it holds."
+            : `BitGraph answered ${resp.status} when this package was built, so this side was never learned.` };
         }
         const data = await resp.json();
         if (Array.isArray(data.anchors) && data.anchors.length > 0) {
@@ -1062,7 +1062,7 @@ export default function ProofPage() {
         }
         const b = data.bound as { state?: string; note?: string } | undefined;
         if (!b?.state) {
-          return { state: "unavailable", note: "The ledger returned no anchor and gave no reason, so nothing can be concluded from this absence." };
+          return { state: "unavailable", note: "BitGraph returned no anchor and gave no reason, so nothing can be concluded from this absence." };
         }
         return { state: b.state as BoundReport["state"], note: b.note ?? "" };
       };

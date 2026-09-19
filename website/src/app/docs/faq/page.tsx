@@ -88,7 +88,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "Does the service keep my proof?",
-    a: "The service writes each proof to its ledger and indexes it by digest, as a convenience for lookups and proof pages. The proof returned to you is the record; keep it beside the file. A lookup that finds nothing is not evidence that bytes were never recorded.",
+    a: "Yes, as a convenience: BitGraph keeps a public copy of each proof, indexed by digest, for lookups and proof pages. The copy is not part of the protocol and could stop at any time. The proof returned to you is the evidence; keep it beside the file. A lookup that finds nothing is not evidence that bytes were never recorded.",
     href: "/api-reference", label: "API reference",
   },
   {

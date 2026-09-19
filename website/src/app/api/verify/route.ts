@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
             status: "not on record",
             reason: entries.length > 0
               ? `These bytes have not been recorded themselves. ${entries.length === 1 ? "One fused artifact names" : `${entries.length} fused artifacts name`} them as origin, which bounds them from above only; there is no proof of these bytes to verify.`
-              : "These bytes have never been recorded in the BitGraph ledger, so there is no proof to verify.",
+              : "BitGraph's copy holds no proof of these bytes, so there is no proof here to verify. A proof its holder keeps can still be checked by supplying it.",
             fusedDescendants: entries.length,
             artifactBinding: "not-checked",
             checkedAgainst,
@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
     if (e instanceof LedgerUnavailableError) {
       console.error("POST /api/verify ledger unavailable:", e.message);
       return NextResponse.json(
-        { error: "ledger unavailable", detail: "The ledger could not be read. This is not a verdict about the file; try again." },
+        { error: "ledger unavailable", detail: "BitGraph's copy could not be read. This is not a verdict about the file; try again." },
         { status: 503 },
       );
     }

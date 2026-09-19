@@ -47,7 +47,7 @@ export default function Loading() {
             </div>
           ))}
         </div>
-        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Opening the ledger…</span>
+        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Opening Ethereum anchors…</span>
       </div>
     </div>
   );

@@ -60,7 +60,7 @@ export default function FolderRetiredPage() {
 
       <h2>Your recordings are unaffected</h2>
       <p>
-        Nothing about retiring the tool touches what it recorded. Positions on the ledger are permanent and public, and each export is self-contained: <code>proof.json</code>, the file itself, and the Ethereum anchor that gives its position a floor. They verify with no network, no account, and no BitGraph software running anywhere.
+        Nothing about retiring the tool touches what it recorded. Each export is self-contained: <code>proof.json</code>, the file itself, and the Ethereum anchor that gives its position a floor. They verify with no network, no account, and no BitGraph software running anywhere.
       </p>
       {/* ⚠️ THIS LIST LOST TWO OF ITS THREE ENTRIES ON 2026-09-08 and both
           losses point the same way (Mike: "no verifying or making will happen

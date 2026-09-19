@@ -644,7 +644,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       set.members = chunks.filter((_, i) => !landed[i]).flat();
       if (stopped) {
         setIndexProgress(null);
-        setRecordMessage(`The set is on the ledger, but ${total - done} of its ${total} files are not yet findable by hash. Indexing stopped; retry below.`);
+        setRecordMessage(`The set is made, but ${total - done} of its ${total} files are not yet findable by hash. Indexing stopped; retry below.`);
         return;
       }
     }
@@ -2101,8 +2101,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // by counter AND epoch. Say that rather than write four silent gaps.
         addText(`${anchorDir}${ANCHOR_STATUS_FILE}`, JSON.stringify(anchorStatusDoc(
           { epochId: "", counter: afterCounter },
-          { state: "unavailable", note: "This proof names no epoch, so its anchors cannot be looked up: the ledger's anchor index is keyed by counter within an epoch." },
-          { state: "unavailable", note: "This proof names no epoch, so its anchors cannot be looked up: the ledger's anchor index is keyed by counter within an epoch." },
+          { state: "unavailable", note: "This proof names no epoch, so its anchors cannot be looked up: BitGraph's anchor index is keyed by counter within an epoch." },
+          { state: "unavailable", note: "This proof names no epoch, so its anchors cannot be looked up: BitGraph's anchor index is keyed by counter within an epoch." },
         ), null, 2));
         anchorOutcomes.push({ upper: "unavailable", lower: "unavailable" });
         return;
@@ -2117,8 +2117,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           const resp = await fetch(url);
           if (!resp.ok) {
             return { state: "unavailable", note: resp.status === 503
-              ? "The ledger could not be read when this package was built. That is a gap in what was asked, not a fact about the ledger."
-              : `The ledger answered ${resp.status} when this package was built, so this side was never learned.` };
+              ? "BitGraph's copy could not be read when this package was built. That is a gap in what was asked, not a finding about what it holds."
+              : `BitGraph answered ${resp.status} when this package was built, so this side was never learned.` };
           }
           const data = await resp.json();
           if (data.anchors?.length > 0) {
@@ -2128,7 +2128,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           }
           const b = data.bound as { state?: string; note?: string } | undefined;
           if (!b?.state) {
-            return { state: "unavailable", note: "The ledger returned no anchor and gave no reason, so nothing can be concluded from this absence." };
+            return { state: "unavailable", note: "BitGraph returned no anchor and gave no reason, so nothing can be concluded from this absence." };
           }
           return { state: b.state as BoundReport["state"], note: b.note ?? "" };
         } catch (e) {
@@ -2366,7 +2366,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       said.push(`${pending === 1 ? "This BitGraph has" : `${pending} of these BitGraphs have`} no Ethereum anchor after ${pending === 1 ? "it" : "them"} yet — one lands within seconds. Nothing is lost and nothing expires: drop this folder back in whenever you like and the package completes.`);
     }
     if (unknown > 0) {
-      said.push(`${unknown} position${unknown === 1 ? "'s anchors" : "s' anchors"} could not be read from the ledger. That is our gap, not a fact about your files — drop the folder back in to try again.`);
+      said.push(`${unknown} position${unknown === 1 ? "'s anchors" : "s' anchors"} could not be looked up. That is our gap, not a fact about your files. Drop the folder back in to try again.`);
     }
     setPackageNote(said.length ? said.join(" ") : null);
     setStep("results");
@@ -2422,7 +2422,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         parts.push(`${summary.closed} position${summary.closed === 1 ? "'s" : "s'"} epoch closed with no anchor after ${summary.closed === 1 ? "it" : "them"}, so no upper bound exists. The lower bound stands.`);
       }
       if (summary.unavailable > 0) {
-        parts.push(`${summary.unavailable} position${summary.unavailable === 1 ? "" : "s"} could not be read from the ledger. That is our gap, not a finding about the folder — try again.`);
+        parts.push(`${summary.unavailable} position${summary.unavailable === 1 ? "" : "s"} could not be looked up. That is our gap, not a finding about the folder. Try again.`);
       }
       if (!parts.length) parts.push("Nothing to fetch: this folder is already complete.");
       setAnchorNote(parts.join(" "));
@@ -2728,7 +2728,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           </div>
         ) : (
           <div className="bitgraph-wait">
-            <div role="status" aria-label="Checking the ledger" className="bg-spinner" style={waitSpinner} />
+            <div role="status" aria-label="Looking up" className="bg-spinner" style={waitSpinner} />
             {/* Digest lookups are one round trip and only worth counting when
                 chunked; a folder check is per-export round trips, so its count
                 is live from the first export. */}
