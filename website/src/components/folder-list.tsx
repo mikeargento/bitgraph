@@ -36,7 +36,7 @@ export const fmtRowWhen = (ms?: number | null) =>
  * is on screen. 48px thumb + 10px padding top and bottom + 1px border each
  * side = 70, and the column's gap is 10.
  */
-const CHECKED_ROW_H = 34;
+const CHECKED_ROW_H = 44;
 
 export function CheckedList({ checked, onOpen, heading = "BitGraphs in this folder", aside }: {
   checked: ExportCheckResult[];
@@ -165,7 +165,12 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
             : `${checked.length.toLocaleString()} recording${checked.length === 1 ? "" : "s"} from your folder, newest first.`}
         </div>
       )}
-      <div style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 10 }}>
+      {/* One card: the summary is its header and the rows are its body (Mike, 2026-09-19, of a found BitGraph:
+          "its hard to make out that proof bar"). The row used to float under a separate box with nothing
+          around it. No tick on a matching row: a match is bytes, BitGraph's copy and anchors agreeing, not a
+          signature check, and green means verified. */}
+      <div style={{ border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden", background: "var(--bg)" }}>
+      <div style={{ background: "var(--panel)", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottom: shelf ? "none" : "1px solid var(--line)" }}>
         {pending > 0 ? (
           <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
             Checking {checked.length - pending} of {checked.length}&hellip;
@@ -189,7 +194,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
         </span>
       </div>
       {groups.length > 1 && !shelf && (
-        <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "14px 0 4px" }}>
+        <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "10px 16px", borderBottom: shelf ? "none" : "1px solid var(--line-2)" }}>
           <span style={{ display: "flex", gap: 20 }}>
             {older && (
               <button type="button" style={stepLink} onClick={() => setDay(older.key)}>
@@ -214,15 +219,8 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
           </span>
         </nav>
       )}
-      {shelf && (
-        <CheckedShelf
-          groups={groups}
-          onPick={(key) => { setDay(key); setShelf(false); }}
-          onLive={() => { setDay(null); setShelf(false); }}
-        />
-      )}
       {!shelf && (
-        <div ref={listRef} style={{ marginTop: 10 }}>
+        <div ref={listRef}>
           {/* The list keeps its true height from a spacer above and below, so
               the scrollbar behaves as if every row were mounted. */}
           <div style={{ height: rowFirst * CHECKED_ROW_H }} />
@@ -251,7 +249,7 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
                     cursor: clickable ? "pointer" : "default",
                   }}
                 >
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, color: "var(--ink)" }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15, color: "var(--ink)" }}>
                     {r.fileName ?? r.dirName}
                   </span>
                   {/* Only a row with something WRONG says anything here. "matches
@@ -267,17 +265,26 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
                     }}>{verdict}</span>
                   )}
                   <span style={{
-                    flexShrink: 0, fontSize: 13, fontVariantNumeric: "tabular-nums",
+                    flexShrink: 0, fontSize: 14, fontVariantNumeric: "tabular-nums",
                     fontFamily: "var(--font-mono)",
                     fontWeight: r.counter != null ? 700 : 400,
                     color: r.ok === false && !isUnchecked(r) ? "var(--err)" : r.counter != null ? "var(--accent)" : "var(--dim)",
                   }}>{right}</span>
+                  {clickable && <span aria-hidden style={{ flexShrink: 0, color: "var(--faint)", fontSize: 20, lineHeight: 1 }}>&rsaquo;</span>}
                 </div>
               );
             })}
           </div>
           <div style={{ height: Math.max(0, (flat.length - rowLast) * CHECKED_ROW_H) }} />
         </div>
+      )}
+      </div>
+      {shelf && (
+        <CheckedShelf
+          groups={groups}
+          onPick={(key) => { setDay(key); setShelf(false); }}
+          onLive={() => { setDay(null); setShelf(false); }}
+        />
       )}
     </div>
   );
