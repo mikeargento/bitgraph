@@ -38,9 +38,9 @@ export default function HomePage() {
       <h1>Make your AI audit records <span style={{ whiteSpace: "nowrap" }}>self-verify</span> offline,&nbsp;forever.</h1>
       <p className="home-sub">Create portable proof of exactly what your existing system recorded, and where it&nbsp;stood.</p>
       {/* The WHY, before the WHAT (2026-09-18 brief: "we want the WHY to land earlier"). The limit lives in
-          "Before they weigh what a record says": judging the content stays with the people deciding. */}
+          "Before anyone weighs the record": judging the content stays with the people deciding. */}
       <p className="lede">
-        For us to continue innovating quickly, decisions about AI, from shipping a model to halting an agent, have to rest on its records. Records the audited party or its auditor can still edit depend on trust. Before anyone weighs them, they must be checkable outside either party&rsquo;s systems: the exact bytes committed, in a place neither controls, and trustless once verified. <strong>The most trusted auditors will be the ones whose records don&rsquo;t have to be trusted.</strong>
+        To keep innovating quickly, decisions about AI, from shipping a model to halting an agent, have to rest on records. If the audited party or its auditor can still edit those records without detection, you are trusting them. Before anyone weighs the record, it has to be checkable outside either system: the exact bytes committed, in a place neither controls. <strong>The most trusted auditors will be the ones whose records don&rsquo;t have to be trusted.</strong>
       </p>
       <p>
         A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent&rsquo;s account of its own run. It proves the record is exactly what was committed, gives it a position in a sequence its producer does not control, and ties that sequence to public time. It replaces nothing you already run. It adds the one thing your records cannot give themselves: a provable place outside your system.
