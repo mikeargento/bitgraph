@@ -135,8 +135,14 @@ export default function UseCasesPage() {
         <h2 id="before">Before adopting it in a regulated setting</h2>
         <div className="callout is-limit">
           <span className="kicker">Read this first</span>
-          <p>Every recorded digest, position and anchor is public and permanent; the ledger&rsquo;s compliance lock prevents deletion by anyone, including the operator. A digest reveals nothing about a record unless someone already holds the exact bytes, but for low-entropy records, such as a short form from a known template, a holder of a candidate can confirm whether it was recorded. The record itself never leaves your systems.</p>
-          <p>The public ledger is a convenience, not the evidence: whoever holds the exact bytes can use it to find the proof again, and the verifier never consults it. The evidence is the proof itself, a small JSON file that comes back to you. Keep it beside the file or in any database, public or private. Anyone holding the file and the proof can check them together, offline, without contacting BitGraph. The <Link href="/docs/trust-model#privacy">trust model</Link> lists the exposures in full.</p>
+          {/* Mike, 2026-09-18: "there is no ledger" in the protocol; the site keeps copies "just to make the site work better"
+              and "could stop anytime" (canon: the S3 store is a replaceable deployment choice, not a protocol component;
+              LEDGER_WRITES has been off once, 09-08 to 09-16). The two exposures stay because they are true of the copy
+              (canon 8.5 and 15): what is already kept is Object-Locked for ten years, and a guessable record can be
+              confirmed while the site answers lookups. "Fingerprint, never its contents", not "only X, Y, Z": optional
+              fields such as a submitter's note can ride along. */}
+          <p>A proof holds a record&rsquo;s fingerprint, never its contents, and the protocol has no ledger. BitGraph currently keeps a copy of each proof so this site can look it up by fingerprint. The copy is a convenience for the site, separate from the protocol, and could stop at any time without affecting any proof. It carries two exposures. Copies already kept cannot be deleted for ten years, by anyone, including BitGraph. And while the site can look proofs up, anyone who can guess a record&rsquo;s exact bytes can confirm it was recorded; that matters for low-entropy records, such as a short form from a known template. The record itself never leaves your systems.</p>
+          <p>The evidence is the proof itself, a small JSON file that comes back to you. Keep it beside the record or in any database, public or private. Anyone holding the record and the proof can check them together, offline, without contacting BitGraph; the verifier never consults the copy. The <Link href="/docs/trust-model#privacy">trust model</Link> lists the exposures in full.</p>
         </div>
 
         <h2 id="next">Where next</h2>
