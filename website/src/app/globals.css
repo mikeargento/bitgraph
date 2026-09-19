@@ -2016,3 +2016,9 @@ body { background: var(--bg); }
    bar is a title, so it is Acumin too ("this as acumin would make it fit better"). */
 .receipt .prose-val .mono { font-size: 14px; }
 .receipt-head { font-family: var(--font-ui); font-size: 14px; }
+
+/* The drop card's one making action is primary, the same blue as the nav's Make a BitGraph (Mike, 2026-09-19:
+   "that make a bitgraph button should be blue"). Last in the file so it outranks the grey .bg-action-link rules
+   of equal weight. */
+.bg-action-link.is-make { background: var(--btn-primary) !important; border-color: var(--btn-primary) !important; color: var(--btn-primary-text) !important; text-decoration: none !important; }
+.bg-action-link.is-make:hover:not(:disabled) { background: var(--btn-primary-hover) !important; border-color: var(--btn-primary-hover) !important; color: var(--btn-primary-text) !important; }

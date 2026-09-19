@@ -3006,7 +3006,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     choice put in front of whoever dropped the files. */}
                 {unproven.length > 0 && (
                   <div style={{ borderTop: "1px solid var(--line-2)", padding: "8px 16px" }}>
-                    <button type="button" className="bg-action-link" onClick={proveRemaining}>
+                    <button type="button" className="bg-action-link is-make" onClick={proveRemaining}>
                       <span>{fuseByDefault ? "BitGraph" : "Record"} {unproven.length} file{unproven.length === 1 ? "" : "s"}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
@@ -3021,7 +3021,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     again first. Still the one operation, at a later place. */}
                 {fuseByDefault && unproven.length === 0 && againRows.length > 0 && (
                   <div style={{ borderTop: "1px solid var(--line-2)", padding: "8px 16px" }}>
-                    <button type="button" className="bg-action-link" onClick={() => fuseRemaining(true)}>
+                    <button type="button" className="bg-action-link is-make" onClick={() => fuseRemaining(true)}>
                       <span>{againRows.length === 1 ? "BitGraph this file again" : `BitGraph these ${againRows.length} files again`}</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </button>
