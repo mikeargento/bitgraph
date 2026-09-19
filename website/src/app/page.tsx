@@ -172,6 +172,11 @@ export default function HomePage() {
       <section className="home-section" aria-labelledby="h-next">
         <h2 id="h-next">Where to go next</h2>
         <ul className="doors">
+          {/* Restored first (Mike, 2026-09-18: "shouldnt this have a link to the how it works? Learn more?"): home is the
+              summary of Understand, and this is its full version. It was the one home link to /docs/overview kept on
+              09-17 when the top buttons came out; the AI-audit rewrite (12fcba6c) dropped it by accident. The label is
+              the menu's, not "Learn more", so the row names where it goes like every other row. */}
+          <li><Link href="/docs/overview">How it works</Link><span>The full explanation: the slot, fused records, anchors and time, epochs.</span></li>
           <li><Link href="/docs/integration">Integration guide</Link><span>Put a commitment in a record, sign it, commit its fingerprint. SDK, CLI and two HTTP calls.</span></li>
           <li><Link href="/docs/mcp">MCP server</Link><span>Connect an agent with one URL. It takes a position before a task and commits its record after.</span></li>
           <li><Link href="/docs/verification">Verification</Link><span>Every check a verifier runs, and what each result means.</span></li>
