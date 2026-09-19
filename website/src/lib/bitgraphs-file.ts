@@ -105,11 +105,12 @@ export function bitgraphsFileName(source: string | null, at: Date = new Date()):
    * `bitgraphs (1).json`, and neither says what is in it or when it was made.
    * Mike hit this within minutes of the feature existing. A timestamp is not a
    * good name, but it is a name: it cannot collide, it sorts, and it tells you
-   * something true. Local time, because it is read by the person who made it.
+   * something true. UTC, like every time on the site (Mike, 2026-09-19: "it should be UTC throughout"), and
+   * the Z says so, so nobody reads it as local.
    */
   const two = (n: number) => String(n).padStart(2, "0");
-  const stamp = `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}` +
-    `-${two(at.getHours())}${two(at.getMinutes())}`;
+  const stamp = `${at.getUTCFullYear()}-${two(at.getUTCMonth() + 1)}-${two(at.getUTCDate())}` +
+    `-${two(at.getUTCHours())}${two(at.getUTCMinutes())}Z`;
   return `bitgraphs-${stamp}.json`;
 }
 

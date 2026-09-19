@@ -57,11 +57,11 @@ test("the name carries the folder, and says nothing it does not know", () => {
      to the bare "bitgraphs.json" and lean on the browser's de-duplication,
      which produced "bitgraphs (1).json" and told the reader nothing about what
      was in it or when. A timestamp is not a good name; it is a name. */
-  const at = new Date(2026, 8, 8, 17, 46);
-  assert.equal(bitgraphsFileName(null, at), "bitgraphs-2026-09-08-1746.json");
-  assert.equal(bitgraphsFileName("  ", at), "bitgraphs-2026-09-08-1746.json");
+  const at = new Date(Date.UTC(2026, 8, 8, 17, 46));
+  assert.equal(bitgraphsFileName(null, at), "bitgraphs-2026-09-08-1746Z.json");
+  assert.equal(bitgraphsFileName("  ", at), "bitgraphs-2026-09-08-1746Z.json");
   // Two loose drops a minute apart cannot collide.
-  assert.notEqual(bitgraphsFileName(null, at), bitgraphsFileName(null, new Date(2026, 8, 8, 17, 47)));
+  assert.notEqual(bitgraphsFileName(null, at), bitgraphsFileName(null, new Date(Date.UTC(2026, 8, 8, 17, 47))));
   // Path separators and control characters cannot escape the filename.
   assert.equal(bitgraphsFileName("a/b:c*d"), "a b c d-bitgraphs.json");
 });

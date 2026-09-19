@@ -753,6 +753,9 @@ export default function ProofPage() {
   // beneath it drop their date when they fall on that day (Mike, 2026-09-17).
   const longDate = (d: Date) => d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
   const sameUtcDay = (a: Date, b: Date) => a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+  // The date beside a UTC time is the UTC date (Mike, 2026-09-19: "it should be UTC throughout"). A local date
+  // here could print "3:05 AM UTC on 9/18" for the 19th.
+  const utcDate = (d: Date) => d.toLocaleDateString("en-US", { timeZone: "UTC" });
   let leadNode: React.ReactNode = null;
   // The actual time/date values are emphasized in brand blue (the connector
   // words stay default gray), so the receipt's key temporal fact reads as the
@@ -768,7 +771,7 @@ export default function ProofPage() {
     if (bt) {
       const d = new Date(bt);
       const timeStr = timeTz(d);
-      const dateStr = d.toLocaleDateString();
+      const dateStr = utcDate(d);
       recordedLine = `${blockPart} at ${timeStr} on ${dateStr}`;
       recordedNode = (
         <>
@@ -802,7 +805,7 @@ export default function ProofPage() {
     leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
   } else if (!isEth && lowerTime) {
     const t1 = new Date(lowerTime);
-    recordedLine = `after ${timeTz(t1)} on ${t1.toLocaleDateString()}`;
+    recordedLine = `after ${timeTz(t1)} on ${utcDate(t1)}`;
     recordedDate = longDate(t1);
     if (ethWait) {
       // The window is still open: show it as "between X and <waiting>". When the
@@ -815,7 +818,7 @@ export default function ProofPage() {
       );
       leadNode = recordedNode;
     } else {
-      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{t1.toLocaleDateString()}</span></Em></>;
+      recordedNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em> on <Em><span style={{ whiteSpace: "nowrap" }}>{utcDate(t1)}</span></Em></>;
       leadNode = <>after <Em><span style={{ whiteSpace: "nowrap" }}>{timeTz(t1)}</span></Em></>;
     }
   }
@@ -899,8 +902,8 @@ export default function ProofPage() {
   let intervalBeganNode: React.ReactNode = intervalBegan;
   if (originalPos?.lowerTime && originalPos?.upperTime) {
     const b1 = new Date(originalPos.lowerTime), b2 = new Date(originalPos.upperTime);
-    intervalBeganNode = b1.toDateString() === b2.toDateString()
-      ? <>between <Em>{timeTz(b1)}</Em> and <Em>{timeTz(b2)}</Em> on <Em>{b2.toLocaleDateString()}</Em></>
+    intervalBeganNode = sameUtcDay(b1, b2)
+      ? <>between <Em>{timeTz(b1)}</Em> and <Em>{timeTz(b2)}</Em> on <Em>{utcDate(b2)}</Em></>
       : <>between <Em>{stampTz(b1)}</Em> and <Em>{stampTz(b2)}</Em></>;
   }
 
@@ -1452,7 +1455,7 @@ export default function ProofPage() {
                 const num = pos.counter != null ? Number(pos.counter).toLocaleString() : "?";
                 const t1 = pos.lowerTime ? new Date(pos.lowerTime) : null;
                 const t2 = pos.upperTime ? new Date(pos.upperTime) : null;
-                const sameDay = !!(t1 && t2 && t1.toDateString() === t2.toDateString());
+                const sameDay = !!(t1 && t2 && sameUtcDay(t1, t2));
                 let rowDate: string | null = null;
                 if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
                 else if (t2) rowDate = longDate(t2);

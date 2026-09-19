@@ -13,7 +13,7 @@ import { useWindowedRows } from "@/components/windowed-rows";
 // Compact recorded time for a result row, e.g. "Jul 17, 9:22 PM" — the same
 // format the ledger's rows use, so the two lists read as one system.
 export const fmtRowWhen = (ms?: number | null) =>
-  ms ? new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  ms ? new Date(ms).toLocaleString("en-US", { timeZone: "UTC", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " UTC" : "";
 
 /* ── The folder's Ledger — the viewer a dropped BitGraph folder loads into.
    The Folder generates no browsing pages of its own (1.9.0); this is where a
@@ -57,20 +57,21 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
   }), [checked]);
 
   // Day groups along the causal walk: unsealed under today, ts-less sealed
-  // rows inherit the open group. Local days, never UTC epochs.
+  // rows inherit the open group. UTC days, the same days /ledger uses (Mike, 2026-09-19: "yes make it UTC",
+  // under the 09-15 ruling, UTC everywhere): a row's time and the day it sits under must agree.
   const groups = useMemo(() => {
     const out: Array<{ key: string; label: string; short: string; rows: ExportCheckResult[] }> = [];
     let openKey: string | null = null;
     for (const r of ordered) {
       const when = !r.block ? new Date() : r.ts ? new Date(r.ts * 1000) : null;
       if (when !== null) {
-        const key = `${when.getFullYear()}-${when.getMonth()}-${when.getDate()}`;
+        const key = `${when.getUTCFullYear()}-${when.getUTCMonth()}-${when.getUTCDate()}`;
         if (key !== openKey) {
           openKey = key;
           out.push({
             key,
-            label: when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
-            short: when.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }),
+            label: when.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }),
+            short: when.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }),
             rows: [],
           });
         }
@@ -78,9 +79,9 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
       if (!out.length) {
         const now = new Date();
         out.push({
-          key: `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`,
-          label: now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
-          short: now.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }),
+          key: `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}`,
+          label: now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }),
+          short: now.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }),
           rows: [],
         });
       }
@@ -298,26 +299,26 @@ function CheckedShelf({ groups, onPick, onLive }: {
   /* The drawing is components/month-calendar.tsx, shared with /days. This
      shelf knows something /days does not: how many recordings each day
      holds (the rows are in hand), so each recorded day carries its count and
-     the month line says the total. Local dates throughout, matching the day
+     the month line says the total. UTC dates throughout, matching the day
      groups above, which are keyed the same way. */
   const now = new Date();
-  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  const todayKey = `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}`;
   const recorded = new Map(groups.map((g) => [g.key, g]));
   const oldest = groups.length
     ? groups[groups.length - 1].key.split("-").map((x) => parseInt(x, 10))
-    : [now.getFullYear(), now.getMonth()];
+    : [now.getUTCFullYear(), now.getUTCMonth()];
   const months: Array<{ label: string; y: number; m: number }> = [];
-  for (let y = now.getFullYear(), m = now.getMonth();
+  for (let y = now.getUTCFullYear(), m = now.getUTCMonth();
        y > oldest[0] || (y === oldest[0] && m >= oldest[1]);
        m === 0 ? (y--, m = 11) : m--) {
-    months.push({ label: new Date(y, m, 1).toLocaleDateString(undefined, { year: "numeric", month: "long" }), y, m });
+    months.push({ label: new Date(Date.UTC(y, m, 1)).toLocaleDateString(undefined, { year: "numeric", month: "long", timeZone: "UTC" }), y, m });
   }
   return (
     <div style={{ marginTop: 18 }}>
       <MonthShelf>
         {months.map(({ label, y, m }) => {
-          const daysIn = new Date(y, m + 1, 0).getDate();
-          const lead = new Date(y, m, 1).getDay();
+          const daysIn = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+          const lead = new Date(Date.UTC(y, m, 1)).getUTCDay();
           let recordings = 0;
           let daysWith = 0;
           const days: CalendarDay[] = Array.from({ length: daysIn }, (_, i) => {
@@ -329,7 +330,7 @@ function CheckedShelf({ groups, onPick, onLive }: {
               return { n: d, kind: "today", count: g?.rows.length, onPick: onLive, ariaLabel: "Today" };
             }
             if (g) return { n: d, kind: "recorded", count: g.rows.length, onPick: () => onPick(key) };
-            const isFuture = new Date(y, m, d).getTime() > now.getTime();
+            const isFuture = Date.UTC(y, m, d) > now.getTime();
             return { n: d, kind: isFuture ? "future" : "idle" };
           });
           const total = recordings
