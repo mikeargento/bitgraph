@@ -35,9 +35,14 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="frame home prose">
-      <h1>Conduct AI audits that <span style={{ whiteSpace: "nowrap" }}>self-verify</span> offline,&nbsp;forever.</h1>
+      <h1>Make your AI audit records <span style={{ whiteSpace: "nowrap" }}>self-verify</span> offline,&nbsp;forever.</h1>
       <p className="home-sub">Create portable proof of exactly what your existing system recorded, and where it&nbsp;stood.</p>
+      {/* The WHY, before the WHAT (2026-09-18 brief: "we want the WHY to land earlier"). The limit lives in
+          "Before they weigh what a record says": judging the content stays with the people deciding. */}
       <p className="lede">
+        For us to continue innovating quickly, decisions about AI, from shipping a model to halting an agent, have to rest on its records. Records the audited party or its auditor can still edit depend on trust. Before anyone weighs them, they must be checkable outside either party&rsquo;s systems: the exact bytes committed, in a place neither controls, and trustless once verified. <strong>The most trusted auditors will be the ones whose records don&rsquo;t have to be trusted.</strong>
+      </p>
+      <p>
         A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent&rsquo;s account of its own run. It proves the record is exactly what was committed, gives it a position in a sequence its producer does not control, and ties that sequence to public time. It replaces nothing you already run. It adds the one thing your records cannot give themselves: a provable place outside your system.
       </p>
       <p>
@@ -151,7 +156,7 @@ export default function HomePage() {
         <h2 id="h-limits">What it leaves unproven</h2>
         <ul className="facts">
           <li><b>Truth</b><span>A record can be wrong in exactly the form it was committed.</span></li>
-          <li><b>Behaviour</b><span>It does not show that the model or agent did what the record says. That stays with whatever attests the run.</span></li>
+          <li><b>Behavior</b><span>It does not show that the model or agent did what the record says. That stays with whatever attests the run.</span></li>
           <li><b>Authorship</b><span>The BitGraph names the enclave that committed the fingerprint, not the system or person that wrote the record.</span></li>
           <li><b>Completeness</b><span>A record that was never made leaves no trace, and an unused slot can be abandoned. BitGraph shows the order of what was committed, not that everything was.</span></li>
           <li><b>Exact time</b><span>The floor is a time; the ceiling is a position. There is no wall-clock upper bound, and no field in a BitGraph is a trusted timestamp.</span></li>
@@ -167,7 +172,7 @@ export default function HomePage() {
           <li><Link href="/docs/mcp">MCP server</Link><span>Connect an agent with one URL. It takes a position before a task and commits its record after.</span></li>
           <li><Link href="/docs/verification">Verification</Link><span>Every check a verifier runs, and what each result means.</span></li>
           <li><Link href="/docs/try">Make a BitGraph</Link><span>Drop any file in your browser. Only its fingerprint leaves your machine, and the BitGraph comes back to you.</span></li>
-          <li><Link href="/subjects">Use cases</Link><span>Agent records, evaluations, regulated decisions, and records that cross organisations.</span></li>
+          <li><Link href="/subjects">Use cases</Link><span>Agent records, evaluations, regulated decisions, and records that cross organizations.</span></li>
           <li><Link href="/docs/trust-model">Trust model</Link><span>What is assumed, what is enforced, what is detected, and what is not.</span></li>
           <li><Link href="/contact">Contact</Link><span>Michael Argento built BitGraph. Licensing, evaluation and questions go here.</span></li>
         </ul>
