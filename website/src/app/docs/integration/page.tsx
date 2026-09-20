@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CopyCode } from "@/components/copy-code";
 import { Code } from "@/components/code";
+import { BoundaryFigure } from "@/components/figures/boundary-figure";
 
 export const metadata: Metadata = {
   title: "Integration guide",
@@ -65,6 +66,23 @@ export default function IntegrationPage() {
       <p>
         The commitment is a function of a record that did not exist until the slot was allocated, so the fused bytes could not have been finished before that moment, and the anchor signed into the slot record puts a public time under them. That bound reaches the fused bytes. It does not reach the original: the original can be any age, and the proof says only that it existed no later than the commit.
       </p>
+
+      <h3>A record you produce yourself</h3>
+      <div>
+        <p>
+          The four steps above wrap a file that already exists. A format you write yourself, such as an AI system&rsquo;s audit record, carries the commitment in a field of its own instead, and the order changes: the commitment goes inside the record before the record is signed, so the finished record depends on a position that existed before it.
+        </p>
+        <ol className="steps">
+          <li><strong>Take a position.</strong> The system asks BitGraph for a slot and receives the slot&rsquo;s commitment.</li>
+          <li><strong>Put the commitment in the record.</strong> It is written into the record like any other field, before signing.</li>
+          <li><strong>Sign the record.</strong> Only now does the record&rsquo;s final fingerprint exist.</li>
+          <li><strong>Commit the fingerprint to the same slot.</strong> Within the 120-second window the slot is consumed and the proof binds the two.</li>
+        </ol>
+        <p>
+          The signed record now contains a commitment to a position that existed before the record&rsquo;s own fingerprint, and that position is committed by this exact record. The record could not have been finished before the slot, and it cannot be moved to another place afterwards. An agent connected over <a href="/docs/mcp">MCP</a> does this for its own task records.
+        </p>
+        <BoundaryFigure />
+      </div>
 
       <h3>What comes back</h3>
       <ul className="facts">

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { StateFigure } from "@/components/figures/state-figure";
 
 export const metadata: Metadata = {
   title: "The protocol",
@@ -19,6 +20,26 @@ export default function ProtocolPage() {
       <p className="lede">
         BitGraph is a protocol with one operation: a measured trusted execution environment allocates an unpredictable, single-use slot, signs it while it holds no digest, and later binds a SHA-256 digest to that slot, consuming it and emitting a portable signed proof linked to its predecessor. The same operation applied to an Ethereum block hash produces an anchor. This page states that precisely, for readers who want the definitions rather than the story.
       </p>
+
+      <h2 id="plain">Five things, five words</h2>
+      <div>
+        <p>
+          Every claim on this site is made with these, and each has one name here: what stays on your machine, what crosses to the enclave, what exists there before it arrives, the step that binds the two, and what you keep afterward.
+        </p>
+        <dl className="terms">
+          <dt>The record</dt>
+          <dd>Any file: a trust record, a log, an evaluation result, a model output. BitGraph never receives it.</dd>
+          <dt>The fingerprint</dt>
+          <dd>The record&rsquo;s SHA-256 digest, 32 bytes. The only thing about the record that is sent. Change one byte and the fingerprint changes.</dd>
+          <dt>The position</dt>
+          <dd>A place in a signed sequence, allocated by the enclave before it has received any fingerprint. The protocol calls an allocated position a <em>slot</em>.</dd>
+          <dt>The commit</dt>
+          <dd>The single step that binds the fingerprint to the slot, consumes the slot, and signs the result. A slot can be consumed once, and never reused.</dd>
+          <dt>The BitGraph</dt>
+          <dd>Also called the proof: the signed result of that commit, returned to whoever asked. It carries the signed slot, both counters, the signature, a hardware attestation and the floor.</dd>
+        </dl>
+        <StateFigure />
+      </div>
 
       <h2 id="terms">Terms</h2>
       <div className="table-scroll">

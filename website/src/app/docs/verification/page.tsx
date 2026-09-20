@@ -32,6 +32,18 @@ export default function VerificationPage() {
         <li><b>A trust policy</b><span>The list of PCR0 measurements you accept. The published one is <code className="break">{PCR0}</code> (enclave-v8), reproducible from source. A proof from any other image should fail your check, whatever else it passes.</span></li>
       </ul>
 
+      <h2 id="gets">What a verifier gets</h2>
+      <div>
+        <p>From the record and its proof alone, offline:</p>
+        <ul className="facts">
+          <li><b>Integrity</b><span>The record in hand is exactly the one that was committed. Change one byte and it no longer matches.</span></li>
+          <li><b>Position</b><span>The commitment inside the record points to a slot that existed before the record was signed, and the proof commits this record. A commitment copied from another record fails, because its proof commits a different one.</span></li>
+          <li><b>Floor</b><span>The slot names an Ethereum block that had already been mined when the slot was allocated. The record could not have been finished before that block.</span></li>
+          <li><b>Origin of the proof</b><span>The signature verifies, and a hardware attestation ties the signing key to a published, reproducible enclave image the verifier chooses to accept.</span></li>
+        </ul>
+        <p>Those are the conclusions. The checks that produce them, in the order the verifier runs them, are below.</p>
+      </div>
+
       <h2 id="checks">What is checked, in order</h2>
       <p>
         Input: the proof, the file bytes, and an optional policy. The checks stop at the first failure and name it.

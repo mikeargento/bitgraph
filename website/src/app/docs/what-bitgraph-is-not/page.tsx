@@ -27,6 +27,7 @@ export default function LimitsPage() {
         <li><b>Ownership</b><span>Nothing in the protocol touches rights. Holding a proof of some bytes says nothing about being entitled to them.</span></li>
         <li><b>First creation</b><span>The same bytes may have existed elsewhere before, and an old file can be committed today. What is fixed is the position the bytes took here. A fused file carries a bound on its own bytes, not on the original it was built from.</span></li>
         <li><b>An exact time</b><span>The floor is a time: the block named in the slot record was mined before the slot existed. The ceiling is a position: the next anchor in the sequence. There is no wall-clock upper bound, and no field in a proof is a trusted timestamp.</span></li>
+        <li><b>Completeness</b><span>A record that was never made leaves no trace, and an allocated position can be abandoned unused. What is shown is the order of what was committed, never that everything was.</span></li>
         <li><b>A universal order</b><span>Order is total within one epoch of one sequence. Two unrelated sequences, or two epochs of the same one, are related only through the Ethereum blocks their anchors name, at the resolution of the anchor cadence.</span></li>
         <li><b>That an action occurred</b><span>A record of a delivery, a signing or a decision is placed; whether the thing it describes happened is for whatever produced the record.</span></li>
         <li><b>Physical capture</b><span>The enclave receives a digest. It has no sensor path, so it cannot say a photograph was taken by a camera, or when.</span></li>
@@ -41,6 +42,9 @@ export default function LimitsPage() {
       </p>
 
       <h2 id="neighbours">Systems BitGraph is mistaken for</h2>
+      <p>
+        Each of these is good at what happens inside its own boundary, and each labels a record with something that refers back to its issuer: the time on the record, its place in a log the issuer keeps, the tags attached to it. A label can be changed, removed or moved to another record, and nothing shows it. What none of them gives its own record is a position issued outside that boundary.
+      </p>
       <div className="table-scroll">
         <table>
           <thead><tr><th>System</th><th>What it establishes</th><th>How BitGraph differs</th></tr></thead>
@@ -53,6 +57,7 @@ export default function LimitsPage() {
             <tr><td className="k">A watermark</td><td>A mark hidden in the content.</td><td>BitGraph hides nothing. A fused file&rsquo;s commitment is documented, placed in a registered spot, and the original is never modified.</td></tr>
             <tr><td className="k">DRM</td><td>Control over copying.</td><td>BitGraph prevents nothing. Every copy of the bytes carries the same position, and no copy is the special one.</td></tr>
             <tr><td className="k">A blockchain</td><td>Global consensus over shared transactions.</td><td>No consensus, no tokens, no global order. One boundary constrains one sequence; Ethereum is read as a clock, never written to.</td></tr>
+            <tr><td className="k">A freshness window</td><td>A record was seen recently enough to fall inside an accepted window.</td><td>It can say a record looks too old. It cannot say whether the record&rsquo;s claimed time agrees with anything outside it, and a small enough backdate passes any window.</td></tr>
             <tr><td className="k">Hardware attestation alone</td><td>Specific code ran inside specific hardware.</td><td>Attestation is evidence BitGraph carries, per proof. The protocol is the commit path the attestation fits into.</td></tr>
           </tbody>
         </table>
