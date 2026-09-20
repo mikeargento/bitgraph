@@ -38,7 +38,7 @@ export default function TermsPage() {
         <p>
           Only fingerprints are recorded. Files are fingerprinted on your
           machine, and file contents are never transmitted to BitGraph, so
-          BitGraph cannot see, store, or reconstruct them. BitGraph Recorder or your own tooling can assemble a portable verification bundle (your
+          BitGraph cannot see, store, or reconstruct them. The site's export, or your own tooling, can assemble a portable verification bundle (your
           local copy of the file, its proof, and the anchors) that anyone
           can verify offline with open-source tooling, with no account and
           nothing to look up.
@@ -83,7 +83,7 @@ export default function TermsPage() {
 
         <h2>6. Fees</h2>
         <p>
-          Recording with BitGraph Recorder, evaluation, ordinary individual use,
+          Recording on bitgraph.ing, evaluation, ordinary individual use,
           and verification of proofs are free. Recording inside your own
           product, service, or internal systems is licensed by separate
           agreement. That includes production API use, bulk or systematic

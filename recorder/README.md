@@ -1,5 +1,7 @@
 # BitGraph Recorder
 
+> **Retired, 2026-09-20.** The app is no longer offered and there will be no further versions. A copy already installed keeps running, and everything it recorded is unaffected: every BitGraph still verifies offline. See [bitgraph.ing/docs/recorder](https://bitgraph.ing/docs/recorder). The update feed at `bitgraph.ing/recorder/latest.json` stays, pinned at the last version, so installed copies find nothing newer rather than breaking.
+
 A macOS app. Drop files on the box and each drop becomes a **recording**: one
 self-contained folder holding the files, the proof, and the Ethereum anchors.
 
