@@ -70,6 +70,10 @@ export default function OverviewPage() {
         </p>
       </div>
 
+      <p>
+        Every workflow uses the same rules. An audit record and a photograph pass through the same measured enclave, with no customer-specific build. Workflow context is bound into the signed proof alongside the file&rsquo;s digest: a policy digest, a key identifying the actor, an attribution. The enclave seals that context without reading it, so it never changes how a position is issued or bound. A verifier can pin the published measurement and confirm that proofs from different workflows came from the same expected implementation.
+      </p>
+
       <h2 id="fused">3. Carrying the position inside the bytes</h2>
       <p>
         For a file that already exists, the new bytes wrap it: the commitment is added after the last byte for formats whose decoders ignore trailing data, such as JPEG and PNG, and for everything else the file goes first into a small container that holds the commitment. The original is never modified, and the new file need not be kept: the original plus the proof rebuilds it byte for byte, and checking that reconstruction against the committed digest is the evidence.
