@@ -35,8 +35,8 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="frame home prose">
-      <h1>The sequencer for AI audit&nbsp;records.</h1>
-      <p className="home-sub">BitGraph allocates each record&rsquo;s position outside the system under review, before the record&rsquo;s fingerprint exists. The proof verifies offline,&nbsp;forever.</p>
+      <h1>Make your AI audit records <span style={{ whiteSpace: "nowrap" }}>self-verify</span> offline,&nbsp;forever.</h1>
+      <p className="home-sub">Create portable proof of exactly what your existing system recorded, and where it&nbsp;stood.</p>
       {/* The WHY, before the WHAT (2026-09-18 brief: "we want the WHY to land earlier"). The limit lives in
           "Before anyone weighs the record": judging the content stays with the people deciding. */}
       <p className="lede">
