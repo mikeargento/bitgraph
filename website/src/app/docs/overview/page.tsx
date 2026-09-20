@@ -64,7 +64,7 @@ export default function OverviewPage() {
         The enclave is a measured environment. Its image is identified by a hash, PCR0, that AWS computes at boot and that anyone can reproduce from the published source. The enclave&rsquo;s signing key is generated inside it and never leaves. Every proof carries an attestation document, signed by the Nitro hardware, whose user data is the hash of that proof&rsquo;s signed body. A verifier who pins the published PCR0 is therefore checking not only that some key signed the proof but that the key belonged to that specific code.
       </p>
       <div className="callout is-limit">
-        <span className="kicker">What the producer can still choose</span>
+        <span className="kicker">What the producer can and cannot choose</span>
         <p>
           A position stays open for up to 120 seconds, and a caller can hold several at once, choose which file fills which, or leave one unused. What a caller does not choose is the order of the positions: the enclave issues them one after another on a single counter, each proof naming the one before it, and a position left unused is lost rather than returned. The choice is which file takes a position, never where that position sits in the sequence.
         </p>
