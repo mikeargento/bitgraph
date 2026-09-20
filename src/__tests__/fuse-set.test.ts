@@ -1020,8 +1020,10 @@ describe("invariants and wiring", () => {
     assert.ok(!src.includes("export function bindSetManifest"), "bindSetManifest is module-private");
   });
 
-  test("48. test:core lists this file", () => {
+  test("48. test:core discovers every suite, this file included", () => {
     const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8")) as { scripts: Record<string, string> };
-    assert.ok(pkg.scripts["test:core"]!.split(" ").includes("dist/__tests__/fuse-set.test.js"));
+    // test:core discovers every suite by glob now, so the guard is the pattern
+    // rather than a hand-kept list that silently skipped files (2026-09-20).
+    assert.match(pkg.scripts["test:core"]!, /node --test "dist\/__tests__\/\*\*\/\*\.test\.js"/);
   });
 });

@@ -236,7 +236,10 @@ export async function verifyProofSignature(proof: BitGraphProof): Promise<ProofV
     checks.push({ label: "Chain position", status: "info", detail: `Proof #${proof.commit.counter}` });
   }
   if (proof.commit.prevB64) {
-    checks.push({ label: "Causal link", status: "pass", detail: `Links to previous proof` });
+    // Present, not checked: the predecessor proof is not in hand here, so this
+    // says the proof names one. (Audit finding, 2026-09-20: a field being there
+    // is not a check that passed.)
+    checks.push({ label: "Causal link", status: "info", detail: `Names the previous proof` });
   }
 
   // 6. Enforcement tier
@@ -253,8 +256,11 @@ export async function verifyProofSignature(proof: BitGraphProof): Promise<ProofV
   if (proof.environment.attestation) {
     checks.push({
       label: "Attestation",
-      status: "pass",
-      detail: `${proof.environment.attestation.format} report present (${proof.environment.measurement.slice(0, 16)}...)`,
+      status: "info",
+      // This helper checks the Ed25519 signature and nothing else. Binding the
+      // report to this signed body, and the Nitro certificate chain, belong to
+      // the verifier and the audit package.
+      detail: `${proof.environment.attestation.format} report present (${proof.environment.measurement.slice(0, 16)}...), not authenticated here`,
     });
   }
 
@@ -262,8 +268,9 @@ export async function verifyProofSignature(proof: BitGraphProof): Promise<ProofV
   if (proof.timestamps?.artifact) {
     checks.push({
       label: "Timestamp",
-      status: "pass",
-      detail: `RFC 3161 via ${proof.timestamps.artifact.authority} at ${proof.timestamps.artifact.time}`,
+      status: "info",
+      // Unsigned and advisory, never evidence.
+      detail: `RFC 3161 via ${proof.timestamps.artifact.authority} at ${proof.timestamps.artifact.time}, advisory only`,
     });
   }
 
@@ -271,8 +278,8 @@ export async function verifyProofSignature(proof: BitGraphProof): Promise<ProofV
   if (proof.slotAllocation) {
     checks.push({
       label: "Slot allocation",
-      status: "pass",
-      detail: `Slot #${proof.slotAllocation.counter} allocated and signed`,
+      status: "info",
+      detail: `Slot #${proof.slotAllocation.counter} present; its signature is checked by the verifier`,
     });
   }
 

@@ -10,18 +10,27 @@ import { Constructor } from "../constructor.js";
 import { canonicalize } from "../index.js";
 import { hashPolicy, createPolicyBinding } from "../policy.js";
 import { sha256 } from "@noble/hashes/sha256";
+import { getPublicKeyAsync, signAsync } from "@noble/ed25519";
+import type { HostCapabilities } from "../host.js";
 
-// Inline stub host for test isolation — dynamic import avoids tsc dist conflicts
-async function createTestHost(statePath: string) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = await import("bitgraph-stub" as string) as any;
-  const StubHost = mod.StubHost ?? mod.default?.StubHost;
-  return StubHost.createPersistent({
-    statePath,
-    measurement: "test",
-    enableTime: true,
-    enableCounter: true,
-  });
+/* The StubHost this test used was deleted with the mock enclave, and
+   @bitgraph/stub is an empty placeholder now, so the import failed and the
+   suite was quietly left out of `npm test`. The capabilities are small, so
+   the host lives here: a real Ed25519 key, a monotonic counter and a clock.
+   Found by an outside audit of the repository, 2026-09-20. */
+async function createTestHost(_statePath: string): Promise<HostCapabilities> {
+  const privateKey = crypto.getRandomValues(new Uint8Array(32));
+  const publicKeyBytes = await getPublicKeyAsync(privateKey);
+  let counter = 0;
+  return {
+    enforcementTier: "stub" as const,
+    getMeasurement: async () => "test",
+    getFreshNonce: async () => crypto.getRandomValues(new Uint8Array(16)),
+    sign: async (data: Uint8Array) => signAsync(data, privateKey),
+    getPublicKey: async () => publicKeyBytes,
+    nextCounter: async () => String(++counter),
+    secureTime: async () => Date.now(),
+  };
 }
 
 const TEST_POLICY = `# Policy: Test Policy
@@ -61,7 +70,7 @@ describe("Policy Enforcement Pipeline", () => {
     const stub = await createTestHost(join(testDir, "state.json"));
 
     const constructor = await Constructor.initialize({
-      host: stub.host,
+      host: stub,
       policy: { requireCounter: true, requireTime: true },
     });
 
@@ -92,7 +101,7 @@ describe("Policy Enforcement Pipeline", () => {
     const stub = await createTestHost(join(testDir, "state.json"));
 
     const constructor = await Constructor.initialize({
-      host: stub.host,
+      host: stub,
       policy: { requireCounter: true, requireTime: true },
     });
 
@@ -129,7 +138,7 @@ describe("Policy Enforcement Pipeline", () => {
     const stub = await createTestHost(join(testDir, "state.json"));
 
     const constructor = await Constructor.initialize({
-      host: stub.host,
+      host: stub,
       policy: { requireCounter: true, requireTime: true },
     });
 
@@ -188,7 +197,7 @@ describe("Policy Enforcement Pipeline", () => {
     const stub = await createTestHost(join(testDir, "state.json"));
 
     const constructor = await Constructor.initialize({
-      host: stub.host,
+      host: stub,
       policy: { requireCounter: true, requireTime: true },
     });
 

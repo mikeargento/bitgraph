@@ -10,6 +10,7 @@
 import { describe, test, before, after } from "node:test";
 import * as assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
@@ -44,7 +45,12 @@ function sha256B64(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("base64");
 }
 
-describe("HTTP commit service integration", () => {
+/* The mock server is built by server/commit-service, which the root build does
+   not touch. Say so and skip, rather than failing a suite that was never run:
+   `npm run test:integration` builds it first. */
+describe("HTTP commit service integration", {
+  skip: existsSync(MOCK_SERVER_PATH) ? false : "server/commit-service is not built (npm run test:integration builds it)",
+}, () => {
   let server: ChildProcess;
 
   before(async () => {

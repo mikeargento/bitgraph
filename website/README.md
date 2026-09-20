@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# bitgraph.ing
 
-## Getting Started
+The BitGraph website: the browser drop that makes a BitGraph, the proof pages, the Ethereum anchors page, the docs, and the hosted MCP endpoint at `/mcp`.
 
-First, run the development server:
+Next.js (App Router) on Vercel. It builds from this directory.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000
+npm run build   # production build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Tests, from this directory:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run test:fuse      # fuse, sets, placements, scan hashing, anchors, local ledger
+npm run test:mcp       # the hosted MCP server
+npm run test:ledger    # the day/archive feed
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## What is where
 
-## Learn More
+| Path | What it is |
+|---|---|
+| `src/app` | Routes. `page.tsx` is the home page, `proof/[digest]` a proof, `ledger` the Ethereum anchors, `docs/*` the documentation, `mcp` the hosted MCP endpoint. |
+| `src/app/api` | The site's own API: `fuse/*` opens and commits positions, `proofs/*` and `verify` read and check, `explorer` and `ledger` feed the anchors page. |
+| `src/components` | The drop and its results (`bitgraph-camera.tsx`), the folder check, the anchors explorer, the figures. |
+| `src/lib` | Client and server helpers: fuse plumbing, the S3 reader, the hosted MCP, formatting. |
+| `src/app/globals.css` | Every token and rule. Colours are tokens; the type ladder is enforced at the end of the file. |
 
-To learn more about Next.js, take a look at the following resources:
+## What it talks to
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The enclave signs through the commit service; Ethereum anchors come from the anchor service; proofs and anchors are read from BitGraph's copy in S3. None of it is needed to verify a BitGraph you hold: verification runs offline from the record and its proof, through [`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The protocol, the trust model and the proof format are explained at [bitgraph.ing/docs](https://bitgraph.ing/docs), and the repository as a whole is described in the [root README](../README.md).
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Copyright 2024-2026 Argento Computing Inc. All rights reserved. Patent Pending. Source-available, not open-source: see [LICENSE](../LICENSE).
