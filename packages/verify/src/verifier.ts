@@ -133,9 +133,11 @@ export async function verify(opts: {
   proof: BitGraphProof;
   bytes: Uint8Array;
   trustAnchors?: VerificationPolicy;
+  /** Single-successor history for this run. Omitted: the module-level one. */
+  context?: VerificationContext;
 }): Promise<VerifyResult> {
-  const { proof, bytes, trustAnchors } = opts;
-  const reason = await runChecks(proof, bytes, trustAnchors);
+  const { proof, bytes, trustAnchors, context } = opts;
+  const reason = await runChecks(proof, bytes, trustAnchors, context ?? defaultContext);
   return reason === null ? { valid: true } : fail(reason);
 }
 
@@ -179,9 +181,11 @@ export async function verify(opts: {
 export async function verifyProofIntegrity(opts: {
   proof: BitGraphProof;
   trustAnchors?: VerificationPolicy;
+  /** Single-successor history for this run. Omitted: the module-level one. */
+  context?: VerificationContext;
 }): Promise<ProofIntegrityResult> {
-  const { proof, trustAnchors } = opts;
-  const reason = await runChecks(proof, undefined, trustAnchors);
+  const { proof, trustAnchors, context } = opts;
+  const reason = await runChecks(proof, undefined, trustAnchors, context ?? defaultContext);
   return reason === null
     ? { valid: true, artifactBinding: "not-checked" }
     : { valid: false, artifactBinding: "not-checked", reason };
@@ -205,7 +209,8 @@ export async function verifyProofIntegrity(opts: {
 async function runChecks(
   proof: BitGraphProof,
   bytes: Uint8Array | undefined,
-  trustAnchors: VerificationPolicy | undefined
+  trustAnchors: VerificationPolicy | undefined,
+  context: VerificationContext
 ): Promise<string | null> {
   // ------------------------------------------------------------------
   // 1. Structural validation
@@ -330,11 +335,13 @@ async function runChecks(
   // ------------------------------------------------------------------
   // 4d. Epoch link verification (cross-epoch lineage)
   // ------------------------------------------------------------------
+  let pendingConsumption: { key: string; toEpochId: string } | null = null;
   if (proof.commit.epochLink !== undefined) {
-    const epochLinkError = verifyEpochLink(proof);
-    if (epochLinkError !== null) {
-      return epochLinkError;
+    const { error, pending } = checkEpochLink(proof, context);
+    if (error !== null) {
+      return error;
     }
+    pendingConsumption = pending;
   }
 
   // ------------------------------------------------------------------
@@ -345,6 +352,14 @@ async function runChecks(
     if (policyError !== null) {
       return policyError;
     }
+  }
+
+  // ------------------------------------------------------------------
+  // 6. Accepted. Only now does this proof consume its predecessor: a
+  //    rejected proof must leave the accepted history untouched.
+  // ------------------------------------------------------------------
+  if (pendingConsumption !== null) {
+    context.consumedPredecessors.set(pendingConsumption.key, pendingConsumption.toEpochId);
   }
 
   return null;
@@ -1010,12 +1025,27 @@ async function verifySlotAllocation(proof: BitGraphProof): Promise<string | null
  * If a DIFFERENT successor epoch attempts to consume the same predecessor,
  * the verifier detects a fork and rejects.
  *
- * This is an in-memory registry scoped to the verifier's lifecycle.
- * For persistent fork detection across processes, callers should maintain
- * an external store and pass consumed predecessors via the
- * `consumedPredecessors` option.
+ * This is an in-memory registry. Pass a context of your own to keep one
+ * verification run's history out of another's; callers that pass none share
+ * the module-level default, which resetEpochLinkState() clears.
+ *
+ * ⚠️ Only a proof that passed EVERY check, policy included, records its
+ * consumption. A rejected proof that could still write here would make a
+ * later honest proof fail as a fork, which is verification depending on what
+ * the process happened to check before. Found by an outside audit of the
+ * repository, 2026-09-20.
  */
-const consumedPredecessors = new Map<string, string>(); // successorKey → toEpochId
+export interface VerificationContext {
+  /** successorKey → the epochId that consumed it. */
+  readonly consumedPredecessors: Map<string, string>;
+}
+
+/** A fresh single-successor history, isolated from every other context. */
+export function createVerificationContext(): VerificationContext {
+  return { consumedPredecessors: new Map<string, string>() };
+}
+
+const defaultContext: VerificationContext = createVerificationContext();
 
 /**
  * Compute the unique key for a consumed predecessor.
@@ -1036,12 +1066,16 @@ function computeSuccessorKey(link: NonNullable<BitGraphProof["commit"]["epochLin
  *   3. Successor binding: toPublicKeyB64 === proof's signer key
  *   4. Single-successor: no other epoch has consumed this predecessor
  *
+ * Records nothing. On success it returns the consumption the caller should
+ * record once every later check has passed too (`pending`), or null when this
+ * predecessor was already consumed by the same successor.
+ *
  * Note: Validating the predecessor proof's signature requires the predecessor
  * proof itself, which is not embedded in the current proof. The enclave
  * performs this validation at init time. The verifier checks structural
  * consistency and fork detection.
  */
-function verifyEpochLink(proof: BitGraphProof): string | null {
+function validateEpochLinkShape(proof: BitGraphProof): string | null {
   const link = proof.commit.epochLink!;
 
   // 1. Structural validation
@@ -1092,26 +1126,43 @@ function verifyEpochLink(proof: BitGraphProof): string | null {
     return "epochLink.prevPublicKeyB64 equals toPublicKeyB64 — epochs must have different keys";
   }
 
+  return null;
+}
+
+/**
+ * The single-successor half: reads the context, never writes it. The caller
+ * records `pending` only once every later check has passed as well.
+ */
+function checkEpochLink(
+  proof: BitGraphProof,
+  context: VerificationContext,
+): { error: string | null; pending: { key: string; toEpochId: string } | null } {
+  const shapeError = validateEpochLinkShape(proof);
+  if (shapeError !== null) {
+    return { error: shapeError, pending: null };
+  }
+  const link = proof.commit.epochLink!;
+
   // 6. Single-successor invariant: detect forks
   const successorKey = computeSuccessorKey(link);
-  const existingSuccessor = consumedPredecessors.get(successorKey);
+  const existingSuccessor = context.consumedPredecessors.get(successorKey);
 
   if (existingSuccessor !== undefined) {
     if (existingSuccessor !== link.toEpochId) {
-      return (
-        `FORK DETECTED: predecessor (epoch=${link.prevEpochId.slice(0, 12)}..., counter=${link.prevCounter}) ` +
-        `already consumed by epoch ${existingSuccessor.slice(0, 12)}..., ` +
-        `but this proof claims consumption by epoch ${link.toEpochId.slice(0, 12)}... — ` +
-        `single-successor invariant violated`
-      );
+      return {
+        error:
+          `FORK DETECTED: predecessor (epoch=${link.prevEpochId.slice(0, 12)}..., counter=${link.prevCounter}) ` +
+          `already consumed by epoch ${existingSuccessor.slice(0, 12)}..., ` +
+          `but this proof claims consumption by epoch ${link.toEpochId.slice(0, 12)}... — ` +
+          `single-successor invariant violated`,
+        pending: null,
+      };
     }
     // Same successor — idempotent (re-verifying same proof)
-  } else {
-    // Record this consumption
-    consumedPredecessors.set(successorKey, link.toEpochId);
+    return { error: null, pending: null };
   }
 
-  return null;
+  return { error: null, pending: { key: successorKey, toEpochId: link.toEpochId } };
 }
 
 /**
@@ -1119,7 +1170,7 @@ function verifyEpochLink(proof: BitGraphProof): string | null {
  * Use this when starting a fresh verification context.
  */
 export function resetEpochLinkState(): void {
-  consumedPredecessors.clear();
+  defaultContext.consumedPredecessors.clear();
 }
 
 // ---------------------------------------------------------------------------

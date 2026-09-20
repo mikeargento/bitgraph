@@ -32,8 +32,8 @@ export type {
   AgencyEnvelope,
 } from "./types.js";
 
-export { verify, verifyProofIntegrity, resetEpochLinkState } from "./verifier.js";
-export type { VerifyResult, ProofIntegrityResult } from "./verifier.js";
+export { verify, verifyProofIntegrity, resetEpochLinkState, createVerificationContext } from "./verifier.js";
+export type { VerifyResult, ProofIntegrityResult, VerificationContext } from "./verifier.js";
 
 export { computeProofHash, computeChainHash, buildSignedBody, computeSignedBodyHash } from "./proof-hash.js";
 

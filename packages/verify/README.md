@@ -8,12 +8,26 @@ Verification of BitGraph proofs is permissionless by design. This package is MIT
 import { verify } from "@mikeargento/bitgraph-verify";
 
 const result = await verify({ proof, bytes });
-if (result.ok) {
-  // signature, slot binding, attestation, and chain link all checked
+if (result.valid) {
+  // structure, canonical Ed25519 signature, slot binding, the attestation's
+  // binding to this signed body, and the digest match are all checked
+} else {
+  console.error(result.reason);
 }
 ```
 
 Verification runs entirely locally: the artifact bytes and the proof JSON are the only inputs. No network access, no account, no contact with BitGraph.
+
+What a `valid: true` does **not** assert: the attestation report is checked for binding to this exact signed body, not authenticated against the hardware vendor's PKI (that belongs in an adapter package, and `@mikeargento/bitgraph-audit` does it for a bundle); and `commit.prevB64` is checked as a field, never against the predecessor proof, which this call does not have.
+
+Verification is a function of its inputs. The single-successor (fork) history is the one piece of state it keeps, and only a proof that passed every check records anything in it. Pass a context of your own to keep one run's history separate:
+
+```ts
+import { verify, createVerificationContext } from "@mikeargento/bitgraph-verify";
+
+const context = createVerificationContext();
+await verify({ proof, bytes, context });
+```
 
 The proof schema (`bitgraph/1`), canonical serialization, and proofHash computation live here as well, so independent implementations can be checked against this one.
 

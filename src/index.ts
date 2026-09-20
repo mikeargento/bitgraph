@@ -26,7 +26,8 @@ export type {
   WebAuthnAuthorization,
   AgencyEnvelope,
 } from "@mikeargento/bitgraph-verify";
-export { verify, resetEpochLinkState } from "@mikeargento/bitgraph-verify";
+export { verify, resetEpochLinkState, createVerificationContext } from "@mikeargento/bitgraph-verify";
+export type { VerificationContext } from "@mikeargento/bitgraph-verify";
 export type { VerifyResult } from "@mikeargento/bitgraph-verify";
 export { computeProofHash } from "@mikeargento/bitgraph-verify";
 export { canonicalize, canonicalizeToString, constantTimeEqual } from "@mikeargento/bitgraph-verify";

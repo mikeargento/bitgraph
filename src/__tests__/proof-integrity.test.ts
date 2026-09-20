@@ -17,6 +17,7 @@ import {
   verify,
   verifyProofIntegrity,
   resetEpochLinkState,
+  createVerificationContext,
   canonicalize,
 } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof, ProofIntegrityResult } from "@mikeargento/bitgraph-verify";
@@ -386,6 +387,40 @@ describe("verifyProofIntegrity: epochLink", () => {
     const result = await verifyProofIntegrity({ proof: linkFx.proof });
     assert.equal(result.valid, false);
     assert.match(result.reason ?? "", /different keys/);
+  });
+
+  /* A rejected proof must not change what the verifier accepts afterwards.
+     Before 2026-09-20 the single-successor map was written during the epoch
+     link check, which runs BEFORE the policy check, so a proof refused for an
+     untrusted measurement still claimed its predecessor and the next honest
+     proof was reported as a fork. Verification is a function of its inputs. */
+  test("a proof rejected by policy does not consume its predecessor", async () => {
+    const rejected = await makeEpochLinkFixture({ toEpochId: "epoch-successor-a" });
+    const honest = await makeEpochLinkFixture({ toEpochId: "epoch-successor-b" });
+
+    const r1 = await verifyProofIntegrity({
+      proof: rejected.proof,
+      trustAnchors: { allowedMeasurements: ["some-other-measurement"] },
+    });
+    assert.equal(r1.valid, false);
+
+    const r2 = await verifyProofIntegrity({ proof: honest.proof });
+    assert.equal(r2.valid, true, r2.valid ? "" : r2.reason);
+  });
+
+  test("an explicit context keeps one verification's history out of another's", async () => {
+    const a = await makeEpochLinkFixture({ toEpochId: "epoch-successor-a" });
+    const b = await makeEpochLinkFixture({ toEpochId: "epoch-successor-b" });
+    const one = createVerificationContext();
+    const two = createVerificationContext();
+
+    assert.equal((await verifyProofIntegrity({ proof: a.proof, context: one })).valid, true);
+    assert.equal((await verifyProofIntegrity({ proof: b.proof, context: two })).valid, true);
+
+    // The same context still catches the fork.
+    const forked = await verifyProofIntegrity({ proof: b.proof, context: one });
+    assert.equal(forked.valid, false);
+    assert.match(forked.reason ?? "", /FORK DETECTED/);
   });
 
   test("detects a fork: same predecessor consumed by two successor epochs", async () => {

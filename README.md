@@ -10,11 +10,52 @@ BitGraphs are not labels or metadata added after the fact. They are new computat
 
 Provenance can be enforced or it can be claimed. Most systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.
 
-BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact's hash reaches it. The artifact's hash arrives later and is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
+BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact's hash reaches it. The producer writes that slot's commitment into the bytes it then hashes, so those bytes could not have been finished earlier, and that hash is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
 
 > This exact digital state was committed through this measured process, in this order, under these constraints.
 
 The first thing built on it is AI audit. A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent's account of its own run. It replaces nothing you already run. It adds the one thing your records cannot give themselves: a provable place outside your system. The protocol is the same for any bytes.
+
+## Quickstart
+
+Make one in your browser at [bitgraph.ing/docs/try](https://bitgraph.ing/docs/try). The file never leaves your machine; only its fingerprint does. From an agent, connect the [MCP server](https://bitgraph.ing/docs/mcp) with one URL. To put a commitment inside a record your own system writes, follow the [integration guide](https://bitgraph.ing/docs/integration).
+
+Verify a proof in code, with the MIT verifier:
+
+```bash
+npm install @mikeargento/bitgraph-verify
+```
+
+```ts
+import { verify, verifyFuse } from "@mikeargento/bitgraph-verify";
+
+const result = await verify({ proof, bytes });
+if (result.valid) {
+  // structure, Ed25519 signature, slot binding and the digest match all checked
+} else {
+  console.error(result.reason);
+}
+```
+
+`verify()` answers whether the proof is sound and whether these exact bytes are the ones it committed. Whether those bytes *carry* the slot's commitment is a separate question, and `verifyFuse()` in the same package is what answers it: that check is the one showing the bytes could not have been finished before the position existed. A fused file, or a record with its own commitment field, wants both.
+
+See [bitgraph.ing/docs](https://bitgraph.ing/docs) for the full proof format, verification checklist, attestation handling, and self-host instructions.
+
+## What is in this repository
+
+| Path | What it is |
+|---|---|
+| [`packages/verify`](packages/verify) | `@mikeargento/bitgraph-verify`, MIT. The canonical verifier: the `bitgraph/1` schema, canonical serialization, proof and chain hashes, and the fuse checks. Every other component checks proofs through this one. |
+| [`packages/audit`](packages/audit) | `@mikeargento/bitgraph-audit`, MIT. Offline audit of a whole bundle: ingest, tiered verification, causal reconstruction, anomaly codes, CLI. |
+| [`src`](src) | `@mikeargento/bitgraph`. The SDK that makes a BitGraph: placements, sets, and the builders that write a commitment into new bytes. |
+| [`packages/mcp`](packages/mcp) | `@mikeargento/bitgraph-mcp`. The MCP server an agent connects to. |
+| [`packages/player`](packages/player) | `@mikeargento/bitgraph-player`. Deterministic evaluation of causal rules over verified evidence. |
+| [`server/commit-service`](server/commit-service) | The enclave that allocates and commits, its parent host, and the reproducible build whose published measurement is in [`PINS.md`](server/commit-service/reproducible-build/PINS.md). |
+| [`website`](website) | [bitgraph.ing](https://bitgraph.ing), including the browser drop and the hosted MCP endpoint. |
+
+Trust assumptions, and what each one buys, are in [The trust model](#the-trust-model) below and at [bitgraph.ing/docs/trust-model](https://bitgraph.ing/docs/trust-model).
+
+---
 
 ## The primitive
 
@@ -139,36 +180,13 @@ BitGraph does not restore originality. It makes it unnecessary. The artifact's h
 
 ## The simplest version
 
-A measured TEE creates a random unused slot before the artifact hash arrives. The hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, fixing the history behind it and giving everything after it a public date it provably followed.
+A measured TEE creates a random unused slot. The producer writes the slot's commitment into the bytes, whether that is a new file around an original or a record with a field of its own, and hashes the finished bytes. That hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, fixing the history behind it and giving everything after it a public date it provably followed.
 
 The result is a protocol that does not say "someone signed this."
 
 **It proves: these exact bits occupy this position.**
 
 ---
-
-## Quickstart
-
-Make one in your browser at [bitgraph.ing/docs/try](https://bitgraph.ing/docs/try). The file never leaves your machine; only its fingerprint does. From an agent, connect the [MCP server](https://bitgraph.ing/docs/mcp) with one URL. To put a commitment inside a record your own system writes, follow the [integration guide](https://bitgraph.ing/docs/integration).
-
-Verify a proof in code, with the MIT verifier:
-
-```bash
-npm install @mikeargento/bitgraph-verify
-```
-
-```ts
-import { verify } from "@mikeargento/bitgraph-verify";
-
-const result = await verify({ proof, bytes });
-if (result.valid) {
-  // structure, Ed25519 signature, slot binding and the digest match all checked
-} else {
-  console.error(result.reason);
-}
-```
-
-See [bitgraph.ing/docs](https://bitgraph.ing/docs) for the full proof format, verification checklist, attestation handling, and self-host instructions.
 
 ## Verification and audit packages
 
