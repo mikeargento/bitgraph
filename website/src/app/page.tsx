@@ -35,8 +35,8 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="frame home prose">
-      <h1>Make your AI audit records <span style={{ whiteSpace: "nowrap" }}>self-verify</span> offline,&nbsp;forever.</h1>
-      <p className="home-sub">Create portable proof of exactly what your existing system recorded, and where it&nbsp;stood.</p>
+      <h1>The sequencer for AI audit&nbsp;records.</h1>
+      <p className="home-sub">BitGraph allocates each record&rsquo;s position outside the system under review, before the record&rsquo;s fingerprint exists. The proof verifies offline,&nbsp;forever.</p>
       {/* The WHY, before the WHAT (2026-09-18 brief: "we want the WHY to land earlier"). The limit lives in
           "Before anyone weighs the record": judging the content stays with the people deciding. */}
       <p className="lede">
@@ -53,16 +53,9 @@ export default function HomePage() {
         The BitGraph is a small JSON file you keep alongside the record. Anyone holding both can verify them together, offline, without contacting anyone, forever. The record never leaves your machine; only its fingerprint does. Records get a BitGraph without being shared, and the BitGraph can be stored privately or out in the open: it holds the record&rsquo;s fingerprint, not its contents.
       </p>
 
-      {/* The figure gets a heading of its own (Mike, 2026-09-20), so the picture belongs to a section
-          instead of floating between the opening and the argument. The claim is deliberately the narrow
-          one the mechanism supports: the bytes match what was committed. It says nothing about whether
-          the record was true when it was written, which is the capture-time limit. */}
-      <section className="home-section" aria-labelledby="h-fig">
-        <h2 id="h-fig">AI audit records that prove they have not changed.</h2>
-        {/* The whole story in one picture, straight after the opening that describes it (Mike, 2026-09-18:
-            "should it be ABOVE the heading"); the section below then argues it without interruption. */}
-        <BoundaryFigure />
-      </section>
+      {/* The whole story in one picture, straight after the opening that describes it (Mike, 2026-09-18:
+          "should it be ABOVE the heading"); the section below then argues it without interruption. */}
+      <BoundaryFigure />
 
       <section className="home-section" aria-labelledby="h-gap">
         <h2 id="h-gap">What an AI audit cannot prove about itself without a&nbsp;BitGraph</h2>
