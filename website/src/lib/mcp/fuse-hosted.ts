@@ -883,7 +883,7 @@ export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
       lines.push(`- opened · slot #${o.slot_counter ?? "?"} · ${o.name} · ${o.placement} → ${o.fused_name}${prior}`);
     } else if (o.outcome === "on record") {
       const note = o.total_positions > 1 ? ` (${o.total_positions} positions)` : "";
-      lines.push(`- on record (indexed before 2026-09-08) · ${o.name}${note}\n  ${o.proof_url}`);
+      lines.push(`- on record · ${o.name}${note}\n  ${o.proof_url}`);
     } else {
       lines.push(`- not opened · ${o.name} · ${o.error ?? "unknown error"}`);
     }
@@ -894,7 +894,7 @@ export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
     lines.push("", "Each opened file's fuse_token and recipe are in the JSON (response_format=json returns them in full).");
   }
   if (onRecord.length > 0) {
-    lines.push("", "Files BitGraph still indexes were not opened. BitGraph does not index new proofs, so a file may already have a BitGraph its holder keeps. To open regardless, call bitgraph_open with again=true.");
+    lines.push("", "Files already on record were not opened. A file can also hold a BitGraph its holder keeps, which no lookup here can see. To open regardless, call bitgraph_open with again=true.");
   }
   return lines.join("\n");
 }
@@ -933,7 +933,7 @@ export function renderCommitMarkdown(outcomes: readonly CommitOutcome[], sets: r
   if (fused.some((o) => o.positions.length > 1)) {
     lines.push(
       "",
-      "A file may occupy any number of positions. The list above holds the position just made and any BitGraph still indexes; positions held elsewhere are in their holder's proofs."
+      "A file may occupy any number of positions. The list above holds the position just made and any that BitGraph's copy holds; positions held elsewhere are in their holder's proofs."
     );
   }
   if (sets.length > 0) {

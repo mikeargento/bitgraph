@@ -107,16 +107,16 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
   } else {
     parts.push(`${fmt(fused.length)} fused`);
   }
-  parts.push(`${fmt(onRecord.length)} already on record (indexed before 2026-09-08)`);
+  parts.push(`${fmt(onRecord.length)} already on record`);
   if (notFused.length > 0) parts.push(`${fmt(notFused.length)} NOT fused`);
   lines.push(`${parts.join(", ")}.`);
   if (set !== null && fused.length > 0) {
     lines.push(`- #${set.counter ?? "?"} · set of ${fmt(set.count)} · ${set.proof_url}`);
     if (set.index !== null && set.index.pending > 0) {
-      lines.push(`  The set is made. The evidence for ${fmt(set.index.pending)} of its ${fmt(set.count)} members has not reached BitGraph yet and is sent again at the start of the next bitgraph_record call. BitGraph does not index new proofs by hash; the set proof beside the originals is the record.`);
+      lines.push(`  The set is made. The evidence for ${fmt(set.index.pending)} of its ${fmt(set.count)} members has not reached BitGraph yet and is sent again at the start of the next bitgraph_record call. The set proof beside the originals is the record either way.`);
     }
     if (!set.manifest_echoed) {
-      lines.push(`  The boundary did not echo the committed artifact; the ledger's copy of this proof carries no member list. Keep the set's proof page.`);
+      lines.push(`  The boundary did not echo the committed artifact; BitGraph's copy of this proof carries no member list. Keep the set's proof page.`);
     }
   }
   const group = (rows: readonly RecordOutcome[], render: (o: RecordOutcome) => string, more: (n: number) => string) => {
@@ -156,7 +156,7 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
   }
   if (onRecord.length > 0) {
     lines.push(
-      "\nFiles BitGraph still indexes (recorded before 2026-09-08) were left alone. BitGraph does not index new proofs, so a file may already have a BitGraph in its holder's folder. To make a new one regardless, call bitgraph_record with again=true."
+      "\nFiles already on record were left alone. A file can also hold a BitGraph in its holder's folder, which no lookup here can see. To make a new one regardless, call bitgraph_record with again=true."
     );
   }
   if (omitted > 0) {

@@ -82,7 +82,7 @@ export const dynamic = "force-dynamic";
 // One commit chunk of TEE work (~1s/digest) must finish inside this window.
 export const maxDuration = 60;
 
-const SERVER_VERSION = "0.3.0";
+const SERVER_VERSION = "0.3.1";
 
 // Check is a cheap S3 lookup; the batch endpoint's cap.
 const MAX_CHECK = 500;
@@ -163,7 +163,7 @@ const handler = createMcpHandler(
           "The boundary allocates an unused slot before any new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/2, a tar that carries the original untouched and first, for everything else). " +
           `Then build each new file exactly as its recipe says, SHA-256 it, and call bitgraph_commit ONCE with every fuse_token and digest, within ${SLOT_TTL_SECONDS} seconds of opening. ` +
           "File contents never travel: only digests, sizes, the first bytes and the recipe. Never alter the original. Only make BitGraphs of files the user asked for, and never generate content just to record it: recordings are permanent. " +
-          "Files BitGraph still indexes (recorded before 2026-09-08) are not opened unless again=true; they come back as 'on record'. BitGraph no longer indexes new proofs, so a file may already have a BitGraph its holder keeps; ask before making another. " +
+          "Files already on record are not opened unless again=true; they come back as 'on record'. A file can also hold a BitGraph its holder keeps, which no lookup sees; ask before making another. " +
           `Up to ${MAX_OPEN_FILES} files per call; folders of any size are the stdio package's job (npx @mikeargento/bitgraph-mcp), on the machine that holds them.`,
         inputSchema: z.object({
           files: z
@@ -185,7 +185,7 @@ const handler = createMcpHandler(
           again: z
             .boolean()
             .default(false)
-            .describe("false (default): files BitGraph still indexes (recorded before 2026-09-08) are not opened. true: open a slot regardless. BitGraph does not index new proofs; the holder's own BitGraphs are the record."),
+            .describe("false (default): files already on record are not opened. true: open a slot regardless. BitGraph's copy is a convenience for lookups; a BitGraph its holder keeps is just as good."),
           response_format: responseFormatSchema,
         }),
         annotations: {
@@ -334,7 +334,7 @@ const handler = createMcpHandler(
           "For a set, the canonical manifest of the members' digests is built here and committed under the shared slot with the set marker (profile bitgraph-fuse/1, placement set/1); the returned proof is verified against it before any file is called fused, and comes back once as sets[].proof with every member's row. Save it beside the originals. " +
           "For a single file, the digest is committed under its own slot with the signed marker (placement, origin digest) and this returns the proof and the Frame; save the Frame next to the original as frame_name. " +
           "New files are virtual: keep the originals unchanged and the proof, and any reader can rebuild a new file and check it. Keep the set proof beside the originals; BitGraph does not index it. " +
-          "Returns, per file, the position just made, plus any earlier position BitGraph still indexes (recorded before 2026-09-08). Positions held elsewhere are in their holder's proofs. " +
+          "Returns, per file, the position just made, plus any earlier position BitGraph's copy holds. Positions held elsewhere are in their holder's proofs. " +
           "A 'not fused' outcome says why and what to do (usually: commit again in a few seconds, or open again). Nothing is labelled fused unless the proof came back under the named slot and verified.",
         inputSchema: z.object({
           entries: z
@@ -547,7 +547,7 @@ const handler = createMcpHandler(
       {
         title: "Check for BitGraphs",
         description:
-          "Check whether BitGraph still indexes a proof for these SHA-256 digests (recordings made before 2026-09-08, and anchors), without recording anything. A miss is not a finding: BitGraph no longer indexes new proofs, which live with whoever holds them. " +
+          "Check whether BitGraph's copy holds a proof for these SHA-256 digests (recordings and anchors), without recording anything. A miss is not a finding: a proof may live only with its holder. " +
           DIGEST_HINT + ". " +
           "Returns, per digest: on_record (the bytes are on record, as an exact recording, as the original a new file was made from, or as a member of a set), every indexed position by counter with a set member's row. " +
           "Read-only. A miss does not mean the file has no BitGraph: ask whoever holds the file for its proof before making a new one with bitgraph_open then bitgraph_commit.",
@@ -610,7 +610,7 @@ const handler = createMcpHandler(
       {
         title: "Get a BitGraph proof",
         description:
-          "Fetch an indexed BitGraph proof (recorded before 2026-09-08, or an anchor) and its context: its position, every indexed position the same bytes occupy, and its floor " +
+          "Fetch a BitGraph proof from BitGraph's copy (a recording or an anchor) and its context: its position, every position the copy holds for the same bytes, and its floor " +
           "('placed no earlier than block X'). Look up by digest (base64, either form) or by BitGraph number (e.g. '4523' or '#4,523', current epoch). " +
           "Exactly one of digest or number is required. Read-only. " +
           "markdown returns a summary; json returns the full proof object with positions and its floor.",
@@ -675,7 +675,7 @@ const handler = createMcpHandler(
           const detail = await getProofDetail(urlSafeDigest, selCounter, selEpoch);
           if (detail.proofs.length === 0) {
             return fail(
-              `Not indexed: BitGraph holds no proof for digest ${urlSafeDigest}. That is not a finding: BitGraph no longer indexes new proofs. Ask whoever holds the file for its BitGraph before making one with bitgraph_open then bitgraph_commit.`
+              `Not found: BitGraph's copy holds no proof for digest ${urlSafeDigest}. That is not a finding: a proof may live only with its holder. Ask whoever holds the file for its BitGraph before making one with bitgraph_open then bitgraph_commit.`
             );
           }
 

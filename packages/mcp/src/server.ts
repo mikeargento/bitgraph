@@ -52,7 +52,7 @@ import { expandPaths, fusedDigestFor, scanFile, type ScannedFile } from "./scan.
 import { SLOT_TTL_SECONDS, TASK_INSTRUCTIONS, beginTask, decodeTaskToken, sealTask, writeProofBeside } from "./task.js";
 import type { BitGraphProof } from "./types.js";
 
-export const SERVER_VERSION = "0.5.1";
+export const SERVER_VERSION = "0.5.2";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */
@@ -332,7 +332,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     },
     {
       instructions:
-        "BitGraph gives a file's bytes a causal position in a public ledger bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: a single file is fused on its own; two or more become one set under one slot, one position, every file's new fused bytes listed by digest in the committed artifact. " +
+        "BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: a single file is fused on its own; two or more become one set under one slot, one position, every file's new fused bytes listed by digest in the committed artifact. " +
         "Files are read on this machine and never uploaded or modified; the new bytes are virtual and never written. Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. bitgraph_check and bitgraph_get_proof are read-only. " +
         "To do work INSIDE a BitGraph, call bitgraph_open BEFORE starting: it returns a position and its commitment; put the commitment string into the task, seal the task with bitgraph_commit within 120 seconds, then record the outputs with bitgraph_record. The task then could not have existed before the position's floor block, and the outputs sit after it.",
     }
@@ -343,11 +343,11 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     {
       title: "Make a BitGraph",
       description:
-        "Make a BitGraph of files or folders. Everything in one call becomes ONE BitGraph, the way a drop on the site works: a single file is fused on its own slot; two or more files become a set under a single slot in the BitGraph ledger (bitgraph.ing), one position for all of them. " +
+        "Make a BitGraph of files or folders. Everything in one call becomes ONE BitGraph, the way a drop on the site works: a single file is fused on its own slot; two or more files become a set under a single slot on BitGraph (bitgraph.ing), one position for all of them. " +
         "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused slot is allocated before any new file exists; every file's new fused bytes (the original plus a registered placement carrying the slot's commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; and for a set the canonical list of those digests (above 2,000 files, a Merkle root over it) is committed under the same slot. " +
         "Files are never modified and never uploaded: only digests, the committed artifact and slot records leave the machine. " +
         "Give file paths, directory paths, or both (absolute paths preferred): a directory is every regular file under it, recursively, with hidden entries and symbolic links left out. " +
-        "Files BitGraph still indexes (recorded before 2026-09-08) are NOT made again by default; they come back as 'on record' with their earliest position. BitGraph does not index new proofs, so a file may already have a BitGraph its holder keeps. Pass again=true to make a new BitGraph regardless. " +
+        "Files already on record are NOT made again by default; they come back as 'on record' with their earliest position. A file can also hold a BitGraph its holder keeps, which no lookup sees. Pass again=true to make a new BitGraph regardless. " +
         "Positions are permanent and the proof comes back to you to keep, so only BitGraph files the user asked to, and never generate content just to record it. " +
         "Returns one outcome per file: 'fused' (for a set, its row, one of N, and the set's position and proof page; for a single file, its own position and Frame), 'on record', or 'not fused' (with the reason). Keep the proof beside the files; BitGraph does not index it. " +
         "Use bitgraph_check instead when the user only wants to know whether files are on record.",
@@ -361,7 +361,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           .boolean()
           .default(false)
           .describe(
-            "false (default): files BitGraph still indexes are returned as-is, nothing made. true: put every file in the set regardless. Outcomes are per unique file content: two paths with identical bytes are one member."
+            "false (default): files already on record are returned as-is, nothing made. true: put every file in the set regardless. Outcomes are per unique file content: two paths with identical bytes are one member."
           ),
         response_format: responseFormatSchema,
       },
@@ -413,7 +413,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const unique = [...byDigest.keys()];
 
         // 4. What is on record already.
-        report(0, 1, "checking the ledger");
+        report(0, 1, "checking BitGraph's copy");
         const checked = await batchCheck(config, unique.map(toUrlSafeB64));
         const existing = new Map<string, Array<{ proof: BitGraphProof }>>();
         for (const d of unique) {
@@ -687,7 +687,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     {
       title: "Check for BitGraphs",
       description:
-        "Check whether files or digests are on record in the BitGraph ledger, without recording anything. " +
+        "Check whether files or digests are on record in BitGraph's copy, without recording anything. " +
         `Accepts file paths and directory paths (every regular file under them, up to ${MAX_CHECK_FILES} in all; hashed locally, only digests are sent) and/or raw SHA-256 digests in standard or URL-safe base64. ` +
         "Returns, per item: on_record (the bytes are on record, as an exact recording, as the original a new file was made from, or as a member of a set), every position by counter, and the proof page URL. " +
         "Read-only. Use bitgraph_record to BitGraph files that turn out not to be on record.",

@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "license": "SEE LICENSE IN LICENSE",
   "description": "Portable proof that these exact bytes filled a position that existed before them.",
   "keywords": [
@@ -30,7 +30,8 @@
     "README.md",
     "LICENSE",
     "NOTICE",
-    "!src/__tests__/fuse-fixtures"
+    "!dist/__tests__",
+    "!src/__tests__"
   ],
   "scripts": {
     "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run build --workspace=packages/player && npm run build --workspace=packages/mcp && rm -rf dist && tsc",

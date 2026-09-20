@@ -99,7 +99,7 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[]): string
 
 export function renderCheckMarkdown(outcomes: readonly CheckOutcome[]): string {
   const found = outcomes.filter((o) => o.on_record).length;
-  const lines: string[] = [`${found} of ${outcomes.length} indexed by BitGraph. A miss is not a finding: BitGraph no longer indexes new proofs.`];
+  const lines: string[] = [`${found} of ${outcomes.length} found in BitGraph's copy. A miss is not a finding: a proof may live only with its holder.`];
   for (const o of outcomes) {
     if (o.on_record) {
       const first = o.positions[0];
@@ -172,7 +172,7 @@ export function renderProofMarkdown(
     });
   }
   lines.push("");
-  lines.push(`Proof page (indexed proofs only; a proof made since 2026-09-08 is returned in json and kept by its holder): ${proofUrl(baseUrl, digest, counter ?? undefined, proof.commit?.epochId)}`);
+  lines.push(`Proof page (what BitGraph's copy holds; the proof itself is returned in json and kept by its holder): ${proofUrl(baseUrl, digest, counter ?? undefined, proof.commit?.epochId)}`);
   return lines.join("\n");
 }
 
