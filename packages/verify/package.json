@@ -2,6 +2,16 @@
   "name": "@mikeargento/bitgraph-verify",
   "version": "1.12.0",
   "description": "Offline verification of BitGraph proofs. Permissionless by design.",
+  "keywords": [
+    "bitgraph",
+    "verification",
+    "offline",
+    "proof",
+    "ed25519",
+    "attestation",
+    "ai-audit",
+    "tamper-evident"
+  ],
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

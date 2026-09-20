@@ -1,8 +1,20 @@
 {
   "name": "@mikeargento/bitgraph",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "license": "SEE LICENSE IN LICENSE",
-  "description": "Portable cryptographic proof of construction for digital artifacts.",
+  "description": "Portable proof that these exact bytes filled a position that existed before them.",
+  "keywords": [
+    "bitgraph",
+    "ai-audit",
+    "audit-trail",
+    "proof",
+    "tamper-evident",
+    "causal-order",
+    "tee",
+    "nitro-enclave",
+    "ethereum",
+    "sdk"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -2,6 +2,14 @@
   "name": "@mikeargento/bitgraph-player",
   "version": "0.14.0",
   "description": "Deterministic evaluation of causal rules over BitGraph proof bundles: a pure function from (rule, verified evidence) to a reproducible verdict.",
+  "keywords": [
+    "bitgraph",
+    "rules",
+    "deterministic",
+    "evidence",
+    "ai-audit",
+    "verification"
+  ],
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,7 +28,7 @@
     "dist-web",
     "src",
     "SPEC.md",
-        "README.md",
+    "README.md",
     "LICENSE"
   ],
   "scripts": {
