@@ -66,7 +66,7 @@ export default function OverviewPage() {
       <div className="callout is-limit">
         <span className="kicker">What the producer can still choose</span>
         <p>
-          A position stays open for up to 120 seconds, and a caller can hold several at once, choose which file fills which, or leave one unused. The enclave signs only that it issued the position before the digest arrived, then bound the two.
+          A position stays open for up to 120 seconds, and a caller can hold several at once, choose which file fills which, or leave one unused. What a caller does not choose is the order of the positions: the enclave issues them one after another on a single counter, each proof naming the one before it, and a position left unused is lost rather than returned. The choice is which file takes a position, never where that position sits in the sequence.
         </p>
       </div>
 
