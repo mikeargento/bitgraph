@@ -14,15 +14,19 @@ BitGraph enforces it instead. A measured trusted execution environment creates a
 
 > This exact digital state was committed through this measured process, in this order, under these constraints.
 
+The first thing built on it is AI audit. A BitGraph is a verifiable receipt for an AI audit record: a trust record, a log, an evaluation result, an agent's account of its own run. It replaces nothing you already run. It adds the one thing your records cannot give themselves: a provable place outside your system. The protocol is the same for any bytes.
+
 ## The primitive
 
-Nonce first. Hash second. Atomic binding third.
+Nonce first. Its commitment into the bytes. Hash second. Atomic binding third.
 
 The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave's key, with an identity that could not feasibly have been predicted. The slot exists as a cryptographic object before it has seen any artifact hash.
 
-The artifact hash arrives. The TEE binds the hash into the slot, signs the binding, and advances its internal order. The slot becomes consumed.
+The producer derives a commitment to that position and combines it with the file to produce new bytes: the original with the commitment at a registered placement, or a field of a format it writes itself, such as an audit record. The commitment is a function of a record that did not exist until the slot was allocated, so nothing made before the slot can contain it. Every BitGraph made on bitgraph.ing, in the SDK and in the MCP server is made this way.
 
-> UNUSED slot exists first. Artifact hash enters later. TEE binds the hash to the slot. Slot becomes CONSUMED. Proof travels with the artifact.
+The hash of those new bytes arrives. The TEE binds it into the slot, signs the binding, and advances its internal order. The slot becomes consumed.
+
+> UNUSED slot exists first. Its commitment goes into new bytes. Their hash enters later. TEE binds the hash to the slot. Slot becomes CONSUMED. Proof travels with the artifact.
 
 The atomicity is the whole guarantee, and it constrains the record rather than the artifact. The artifact itself can be produced anywhere, by any process, using any tools. What matters is that when the hash arrives, the slot is already there waiting.
 
@@ -34,7 +38,7 @@ If a nonce, timestamp, or credential is added after the hash is already witnesse
 
 That leaves a forgery window. A malicious actor can prepare old hashes, replay prior material, backfill records, or attach fresh randomness to something never produced through the claimed path. The label looks valid. Nothing had to be true before it was attached.
 
-BitGraph narrows that window by requiring the slot to exist first. It does not stop an old file being committed today: the hash occupies a slot allocated today, and the position claims nothing about when the bytes were made. What it stops is a position being invented after the fact, or occupied twice. The slot is not evidence added afterward. It is the condition the artifact must satisfy.
+BitGraph narrows that window by requiring the slot to exist first, and by putting its commitment inside the bytes that fill it: the position was open before the new bytes were final, so they could not have been finished before it. It does not stop an old file being committed today: the original inside those bytes can be any age, and the position claims nothing about when it was made. What it stops is a position being invented after the fact, or occupied twice. The slot is not evidence added afterward. It is the condition the artifact must satisfy.
 
 ## What a BitGraph proof contains
 
@@ -53,6 +57,7 @@ A BitGraph proof is a portable proof object, a JSON document, that travels with 
 | TEE measurement | Shows what code and environment produced the proof |
 | Attestation | Shows the proof came from measured hardware |
 | Public anchor | Tethers BitGraph logical time to a public reference |
+| Fuse marker | Signed: the placement the commitment was written at, and the digest of the original |
 
 Taken together: this hash was committed into this causal slot, by this measured environment, at this position in logical order, under this signing identity.
 
@@ -82,7 +87,7 @@ Forgery requires more than key theft. Every proof carries a hardware attestation
 
 Damage control is precise. Every proof names its epoch permanently, so a suspect window is identified exactly: rotate the epoch, publish the affected epochId as quarantined, and every other epoch is untouched. Verifiers that pin measurements and track epochs account for the gap.
 
-The production deployment makes rotation routine rather than exceptional: the boundary restarts every day at 23:59 UTC, destroying the epoch key and starting a fresh one, so a normally operating epoch runs about a day. An unexpected restart ends one early and a failed rotation extends one; either way the boundary is recorded in the proofs themselves. A breach that depends on staying resident inside the enclave cannot outlive its epoch without freshly re-compromising a new one. The schedule is deliberately public: rotation times are visible on the ledger regardless, and the protection comes from the key dying, not from anyone guessing when.
+The production deployment makes rotation routine rather than exceptional: the boundary restarts every day at 23:59 UTC, destroying the epoch key and starting a fresh one, so a normally operating epoch runs about a day. An unexpected restart ends one early and a failed rotation extends one; either way the boundary is recorded in the proofs themselves. A breach that depends on staying resident inside the enclave cannot outlive its epoch without freshly re-compromising a new one. The schedule is deliberately public: rotation times are visible in BitGraph's public copy regardless, and the protection comes from the key dying, not from anyone guessing when.
 
 ## The trust model
 
@@ -103,9 +108,9 @@ BitGraph does not ask for blind trust in any single component. It has real depen
 
 BitGraph works on any digital state that can be hashed. The same primitive applies whether the artifact is a photograph, a contract, a model output, a dataset, or a software release.
 
-**Media.** Photos, videos, audio, edited files, generative outputs. The question shifts from "is this real?" to "what position does this exact digital state occupy?"
+**AI audit records.** A trust record, a log, an evaluation result, an agent's account of its own run. The record carries its position's commitment before it is signed, so a reviewer checks the record and its BitGraph together, offline, without trusting the system that wrote the record or the auditor that keeps it. The record never leaves the machine that made it; only its fingerprint does, and the model does not have to run inside an enclave.
 
-**AI outputs.** Model results bound to a causal position, and optionally to a key that authorized the recording, without requiring the model to run inside an enclave.
+**Media.** Photos, videos, audio, edited files, generative outputs. The question shifts from "is this real?" to "what position does this exact digital state occupy?"
 
 **Software supply chain.** Build artifacts, releases, model weights, and deployment packages bound to a position in a measured sequence.
 
@@ -144,7 +149,7 @@ The result is a protocol that does not say "someone signed this."
 
 ## Quickstart
 
-Make one with [BitGraph Recorder for Mac](https://bitgraph.ing/docs/recorder). Files are read on your machine and never uploaded.
+Make one in your browser at [bitgraph.ing/docs/try](https://bitgraph.ing/docs/try). The file never leaves your machine; only its fingerprint does. From an agent, connect the [MCP server](https://bitgraph.ing/docs/mcp) with one URL. To put a commitment inside a record your own system writes, follow the [integration guide](https://bitgraph.ing/docs/integration).
 
 Verify a proof in code, with the MIT verifier:
 
