@@ -45,10 +45,13 @@ witness is missing). Absence is never a verdict. The report ends with what
 no offline check can establish, stated rather than implied. `--json`
 prints the `bitgraph-check/1` report; exit codes match evaluation.
 
-The same check runs in a browser: `verify.html`, built from this package,
-ships as `dist-web/verify.html` and is served at
-https://bitgraph.ing/verify.html. Open it and choose or drop an export,
-offline, and it renders the same report from the same code.
+The same check runs in a browser: `verify.html`, built from this package
+to `dist-web/verify.html`. Open it and choose or drop an export, offline,
+and it renders the same report from the same code. bitgraph.ing stopped
+serving a copy on 8 September 2026: loading a checker from the party
+being checked is not an offline check. A copy you already have still
+works and always will, since it carries its own code and makes no
+network request.
 
 ## Start a rule
 

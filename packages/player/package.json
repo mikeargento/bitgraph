@@ -36,7 +36,7 @@
     "prepack": "tsc && npm run build:web",
     "typecheck": "tsc --noEmit",
     "test": "tsc && node --test dist/__tests__/*.test.js",
-    "build:web": "node scripts/build-verify-html.mjs --out ../../website/public/verify.html",
+    "build:web": "node scripts/build-verify-html.mjs",
     "typecheck:web": "tsc -p web/tsconfig.json"
   },
   "engines": {
