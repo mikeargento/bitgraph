@@ -2022,4 +2022,3 @@ body { background: var(--bg); }
    of equal weight. */
 .bg-action-link.is-make { background: var(--btn-primary) !important; border-color: var(--btn-primary) !important; color: var(--btn-primary-text) !important; text-decoration: none !important; }
 .bg-action-link.is-make:hover:not(:disabled) { background: var(--btn-primary-hover) !important; border-color: var(--btn-primary-hover) !important; color: var(--btn-primary-text) !important; }
-
