@@ -53,9 +53,16 @@ export default function HomePage() {
         The BitGraph is a small JSON file you keep alongside the record. Anyone holding both can verify them together, offline, without contacting anyone, forever. The record never leaves your machine; only its fingerprint does. Records get a BitGraph without being shared, and the BitGraph can be stored privately or out in the open: it holds the record&rsquo;s fingerprint, not its contents.
       </p>
 
-      {/* The whole story in one picture, straight after the opening that describes it (Mike, 2026-09-18:
-          "should it be ABOVE the heading"); the section below then argues it without interruption. */}
-      <BoundaryFigure />
+      {/* The figure gets a heading of its own (Mike, 2026-09-20), so the picture belongs to a section
+          instead of floating between the opening and the argument. The claim is deliberately the narrow
+          one the mechanism supports: the bytes match what was committed. It says nothing about whether
+          the record was true when it was written, which is the capture-time limit. */}
+      <section className="home-section" aria-labelledby="h-fig">
+        <h2 id="h-fig">AI audit records that prove they have not changed.</h2>
+        {/* The whole story in one picture, straight after the opening that describes it (Mike, 2026-09-18:
+            "should it be ABOVE the heading"); the section below then argues it without interruption. */}
+        <BoundaryFigure />
+      </section>
 
       <section className="home-section" aria-labelledby="h-gap">
         <h2 id="h-gap">What an AI audit cannot prove about itself without a&nbsp;BitGraph</h2>
