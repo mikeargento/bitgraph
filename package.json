@@ -36,7 +36,7 @@
   "scripts": {
     "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run build --workspace=packages/player && npm run build --workspace=packages/mcp && rm -rf dist && tsc",
     "typecheck": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run typecheck --workspace=packages/mcp && tsc --noEmit",
-    "test:core": "npm run build && node --test \"dist/__tests__/**/*.test.js\"",
+    "test:core": "npm run build && node --test dist/__tests__/*.test.js",
     "test": "npm run test:core && npm run test:packages",
     "prepack": "npm run build",
     "test:packages": "npm test --workspace=packages/mcp --workspace=packages/player --workspace=packages/titles",

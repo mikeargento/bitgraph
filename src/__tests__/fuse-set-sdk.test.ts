@@ -594,7 +594,8 @@ describe("wiring", () => {
     const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8")) as { scripts: Record<string, string> };
     // test:core discovers every suite by glob now, so the guard is the pattern
     // rather than a hand-kept list that silently skipped files (2026-09-20).
-    assert.match(pkg.scripts["test:core"]!, /node --test "dist\/__tests__\/\*\*\/\*\.test\.js"/);
+    // Unquoted on purpose: the shell expands it, because Node 20 (CI) cannot.
+    assert.match(pkg.scripts["test:core"]!, /node --test dist\/__tests__\/\*\.test\.js/);
     const index = readFileSync(fileURLToPath(new URL("../../src/index.ts", import.meta.url)), "utf8");
     assert.match(index, /export \{[^}]*\bfuseSet\b[^}]*\} from "\.\/fuse\.js"/);
     assert.match(index, /export \{[^}]*\bMAX_SET_MEMBERS\b[^}]*\} from "\.\/fuse\.js"/);
