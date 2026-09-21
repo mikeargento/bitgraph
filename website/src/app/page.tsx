@@ -46,7 +46,7 @@ export default function HomePage() {
           lesson last. So: the demand is the headline, the maxim is the close. Nothing here
           explains the protocol; the docs do that. */}
       <h1>
-        Prove this AI log wasn&rsquo;t rewritten after the&nbsp;incident.
+        Prove this AI log couldn&rsquo;t have been&nbsp;backdated.
         {/* Same weight as the demand, because it is the answer to it, not a comment on it.
             One h1 element holding both keeps a single page title in the outline. */}
         <span style={{ display: "block", marginTop: "0.55em" }}>BitGraph does&nbsp;that.</span>

@@ -985,6 +985,15 @@ export default function ProofPage() {
         files[cachedFile.name] = bytes;
         const r = await rebuildSetMember(packProof, bytes, cachedFile.name, setBound?.bytes ?? null);
         if (r.fusedBytes) files[`new-file/${cachedFile.name}`] = r.fusedBytes;
+      } else if (isInlineProof(packProof)) {
+        // An inline record carries its commitment in its own bytes: there is no
+        // container and no separate original, so the file is both halves at once.
+        // It goes at the root, not under new-file/, which would imply an original
+        // that never existed and leaves the artifact where bitgraph-audit does not
+        // look for it. Verified 2026-09-21: before this branch the export held only
+        // new-file/<name> and no original, because unpackNewFile had nothing to
+        // unpack.
+        files[cachedFile.name] = bytes;
       } else if (attr?.name === "bitgraph-fuse/1" && cachedRole === "new") {
         const u = await unpackNewFile(packProof, bytes, cachedFile.name);
         const name = u.originalName ?? cachedFile.name;
