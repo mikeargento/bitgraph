@@ -2052,12 +2052,15 @@ body { background: var(--bg); }
    under a poster; a little over 2x keeps it a sentence the headline is talking
    to. It stays well clear of the headline, so the hierarchy is not in doubt. */
 .home .lede {
-  /* One line on desktop, ending near where the headline ends. At 24px it ran
-     869px against the headline's 1010, so it scales to 28 to reach the same
-     edge. No max-width: the frame is the only thing that should wrap it, which
-     is what makes it fall to two lines on a phone and stay one line above. */
+  /* Two sentences, one per line, each well inside the headline's width on
+     desktop (629 and 391 against 878). The break is explicit rather than left
+     to the frame: the single-line version only cleared 1040px by two or three
+     pixels, so a wider font render would have wrapped it anyway and stranded
+     the last word. Below about 800px the first sentence cannot hold one line
+     at 17px, so balance splits it evenly instead of leaving a stub. */
   font-size: clamp(17px, 2.1vw, 24px) !important;
   line-height: 1.45 !important;
+  text-wrap: balance;
 }
 
 /* The home page's two actions are the only interactive thing on it, sitting under

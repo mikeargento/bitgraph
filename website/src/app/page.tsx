@@ -53,7 +53,8 @@ export default function HomePage() {
       </h1>
 
       <p className="lede" style={{ fontStyle: "italic" }}>
-        The most trusted AI systems will be the ones whose records don&rsquo;t have to be&nbsp;trusted.
+        The only proof that carries its own time floor and time&nbsp;ceiling.
+        <span style={{ display: "block" }}>Portable and verifiable offline,&nbsp;forever.</span>
       </p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
