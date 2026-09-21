@@ -59,7 +59,7 @@ export default function HomePage() {
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
       <div className="actions" style={{ marginBottom: 0 }}>
         <Link className="bg-action-link is-make" href="/docs/try">Make a BitGraph</Link>
-        <Link className="bg-action-link" href="/proof/YVf5bpwcpBg4SsTh6XXBqBoYpYS68s1Tjog1u_cvRQ4">See a real one</Link>
+        <Link className="bg-action-link" href="/proof/YVf5bpwcpBg4SsTh6XXBqBoYpYS68s1Tjog1u_cvRQ4">See a real proof</Link>
       </div>
 
     </div>
