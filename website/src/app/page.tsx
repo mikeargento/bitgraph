@@ -49,7 +49,7 @@ export default function HomePage() {
         Prove this AI log couldn&rsquo;t have been&nbsp;backdated.
         {/* Same weight as the demand, because it is the answer to it, not a comment on it.
             One h1 element holding both keeps a single page title in the outline. */}
-        <span style={{ display: "block", marginTop: "0.55em" }}>BitGraph does&nbsp;that.</span>
+        <span style={{ display: "block", marginTop: "0.28em" }}>BitGraph does&nbsp;that.</span>
       </h1>
 
       <p className="lede" style={{ fontStyle: "italic" }}>

@@ -2043,7 +2043,7 @@ body { background: var(--bg); }
    display sizes need less leading than body headings, and the two beats sit
    closer as one block. */
 .home h1 {
-  font-size: clamp(36px, 8vw, 92px) !important;
+  font-size: clamp(36px, 8vw, 80px) !important;
   line-height: 1.05 !important;
   letter-spacing: -0.025em !important;
 }
@@ -2056,6 +2056,25 @@ body { background: var(--bg); }
      869px against the headline's 1010, so it scales to 28 to reach the same
      edge. No max-width: the frame is the only thing that should wrap it, which
      is what makes it fall to two lines on a phone and stay one line above. */
-  font-size: clamp(17px, 2.4vw, 28px) !important;
+  font-size: clamp(17px, 2.1vw, 24px) !important;
   line-height: 1.45 !important;
+}
+
+/* The home page's two actions are the only interactive thing on it, sitting under
+   an 80px headline, so the site's 32px toolbar control reads as an afterthought
+   there. Scoped to .home: everywhere else the dense control is right, because it
+   sits beside prose rather than under a hero. Shape stays at the 6px the rest of
+   the components use; a pill would be a third language on top of GitHub's
+   structure and Google's palette. */
+.home .actions .bg-action-link {
+  font-size: 16px !important;
+  padding: 12px 22px !important;
+  border-radius: 8px !important;
+}
+/* On a phone the 22px sides put the pair at 316px inside a 338px frame, 7px of
+   slack at 360, so they read as spanning the screen. The height stays: 46px is
+   the touch target and shrinking it would be worse to use than it looks. Only
+   the sides come in. */
+@media (max-width: 720px) {
+  .home .actions .bg-action-link { padding: 12px 14px !important; }
 }
