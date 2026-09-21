@@ -2052,12 +2052,12 @@ body { background: var(--bg); }
    under a poster; a little over 2x keeps it a sentence the headline is talking
    to. It stays well clear of the headline, so the hierarchy is not in doubt. */
 .home .lede {
-  /* Two sentences, one per line, each well inside the headline's width on
-     desktop (629 and 391 against 878). The break is explicit rather than left
-     to the frame: the single-line version only cleared 1040px by two or three
-     pixels, so a wider font render would have wrapped it anyway and stranded
-     the last word. Below about 800px the first sentence cannot hold one line
-     at 17px, so balance splits it evenly instead of leaving a stub. */
+  /* One line on desktop, ending just short of the headline: 869 against 878 at
+     24px, and about 15% clear of the frame through the middle widths, so it
+     does not depend on a particular font render the way a longer line would.
+     Lines that had to be shrunk or split to fit here were all differentiators,
+     which is not this slot's job (see the note in page.tsx). Below about 700px
+     it wraps, and balance evens the two lines rather than leaving a stub. */
   font-size: clamp(17px, 2.1vw, 24px) !important;
   line-height: 1.45 !important;
   text-wrap: balance;
