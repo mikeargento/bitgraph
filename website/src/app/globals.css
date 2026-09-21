@@ -2081,3 +2081,33 @@ body { background: var(--bg); }
 @media (max-width: 720px) {
   .home .actions .bg-action-link { padding: 12px 14px !important; }
 }
+
+/* Verdict table: the answer column is tinted by its answer. The zebra stripe comes
+   off this one table, because two row signals at once is noise and the tint is the
+   better of the two. The tints are the palette's own tokens, 10 to 12% over white,
+   so body text keeps its contrast, and the coloured word stays in the cell: the
+   tint is a second reading of the verdict, never the only one. */
+.prose .verdict-table {
+  /* Its own tokens, not --ok-tint and friends: those are the FIGURE tints from the
+     Google block, mixed from the bright figure hues (the yellow is 22%) to fill shapes,
+     and --err is overridden there to #d93025, which is 4.77 on plain white before any
+     tint goes under it. Reusing them here put all three verdict words under 4.5. These
+     are mixed from the darker text hues at 9 to 10%, with the word darkened to match. */
+  --v-ok: #0d652d;  --v-ok-bg: rgba(24, 128, 56, 0.10);
+  /* The yellow is mixed from the FIGURE yellow, not from its own text hue: at 10%
+     the dark amber composited to #f5eee6, a warm neutral sitting ΔE 4.6 from the red
+     tint, which is the threshold where two colours stop being told apart. Yellow also
+     carries further per unit alpha than red or green, so the alpha is lower, not
+     higher: 9% here reads as present as the other two (ΔE from white 8.9, against 7.6
+     and 7.4) while sitting ΔE 9.4 from the red. */
+  --v-warn: #8a4b00; --v-warn-bg: rgba(251, 188, 4, 0.09);
+  --v-err: #a50e0e; --v-err-bg: rgba(179, 38, 30, 0.09);
+}
+.prose .verdict-table tbody tr:nth-child(even) { background: transparent; }
+.prose .verdict-table td.v-yes { background: var(--v-ok-bg); }
+.prose .verdict-table td.v-part { background: var(--v-warn-bg); }
+.prose .verdict-table td.v-no { background: var(--v-err-bg); }
+.prose .verdict-table td.v-yes .v-word { color: var(--v-ok); }
+.prose .verdict-table td.v-part .v-word { color: var(--v-warn); }
+.prose .verdict-table td.v-no .v-word { color: var(--v-err); }
+.prose .verdict-table td.v-yes, .prose .verdict-table td.v-part, .prose .verdict-table td.v-no { padding-left: 16px; }

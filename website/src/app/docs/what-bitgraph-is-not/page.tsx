@@ -42,14 +42,14 @@ export default function LimitsPage() {
           Five things someone can do to a record, and whether the BitGraph proof shows it. Two of the five it shows, one it shows only in part, and two it cannot see at all.
         </p>
         <div className="table-scroll">
-          <table>
+          <table className="verdict-table">
             <thead><tr><th>What is done to the record</th><th>Does the BitGraph proof show it?</th></tr></thead>
             <tbody>
-              <tr><td className="k">A false record is written, then committed</td><td><b style={{ color: "var(--err)" }}>No.</b> A false record is committed exactly like a true one. Nothing in a proof inspects content.</td></tr>
-              <tr><td className="k">The record is changed after it was committed</td><td><b style={{ color: "var(--ok)" }}>Yes.</b> The bytes no longer hash to the committed fingerprint, so the check fails for anyone holding the record and the proof.</td></tr>
-              <tr><td className="k">The record is claimed to be older than it is</td><td><b style={{ color: "var(--ok)" }}>Yes.</b> The slot names an Ethereum block that had already been mined, so the position cannot be moved earlier than that block.</td></tr>
-              <tr><td className="k">The record is destroyed after it was committed</td><td><b style={{ color: "var(--warn)" }}>In part.</b> The position stays in the sequence, so its absence is visible. What the record said is gone.</td></tr>
-              <tr><td className="k">The record is never written at all</td><td><b style={{ color: "var(--err)" }}>No.</b> Nothing that was never committed leaves a trace.</td></tr>
+              <tr><td className="k">A false record is written, then committed</td><td className="v-no"><b className="v-word">No.</b> A false record is committed exactly like a true one. Nothing in a proof inspects content.</td></tr>
+              <tr><td className="k">The record is changed after it was committed</td><td className="v-yes"><b className="v-word">Yes.</b> The bytes no longer hash to the committed fingerprint, so the check fails for anyone holding the record and the proof.</td></tr>
+              <tr><td className="k">The record is claimed to be older than it is</td><td className="v-yes"><b className="v-word">Yes.</b> The slot names an Ethereum block that had already been mined, so the position cannot be moved earlier than that block.</td></tr>
+              <tr><td className="k">The record is destroyed after it was committed</td><td className="v-part"><b className="v-word">In part.</b> The position stays in the sequence, so its absence is visible. What the record said is gone.</td></tr>
+              <tr><td className="k">The record is never written at all</td><td className="v-no"><b className="v-word">No.</b> Nothing that was never committed leaves a trace.</td></tr>
             </tbody>
           </table>
         </div>
@@ -74,6 +74,7 @@ export default function LimitsPage() {
             <tr><td className="k">A digital signature</td><td>A key holder endorsed these bytes.</td><td>The signer chooses when to sign and can sign anything at any time. BitGraph&rsquo;s position exists before the digest is received and cannot be occupied twice.</td></tr>
             <tr><td className="k">A timestamp authority</td><td>A trusted party saw this digest at its stated time.</td><td>One-sided, and a trusted third party in the verification path. BitGraph&rsquo;s floor comes from a public block nobody signs; its verification contacts no one.</td></tr>
             <tr><td className="k">Blockchain notarisation</td><td>This digest existed no later than block N.</td><td>Any bytes from any source can be committed after the fact. BitGraph gives a floor as well, from the anchor signed into the slot, and writes nothing to a blockchain.</td></tr>
+            <tr><td className="k">A beacon and blockchain sandwich</td><td>A portable proof holding a public randomness value and a blockchain anchor: the proof was assembled after that value was published, and the record existed by that block.</td><td>The closest neighbour, and the bounds sit differently. Its lower bound covers the assembly of the proof rather than the record, because nothing is issued to the holder before they submit, so the record itself can carry nothing. BitGraph allocates the position first, signs it, and returns it before the digest arrives.</td></tr>
             <tr><td className="k">A transparency log</td><td>An append-only, publicly audited record of entries, with inclusion and consistency proofs.</td><td>Stronger against equivocation than BitGraph&rsquo;s per-verifier fork check; weaker on the position side, because entries are submitted after they exist.</td></tr>
             <tr><td className="k">Content credentials (C2PA)</td><td>A signed manifest of claims about origin and edits, attached to the file.</td><td>A packaging and disclosure layer that can be stripped in transit. BitGraph is external to the file, survives stripping, and carries no identity of its own. Complementary, not competing.</td></tr>
             <tr><td className="k">A watermark</td><td>A mark hidden in the content.</td><td>BitGraph hides nothing. A fused file&rsquo;s commitment is documented, placed in a registered spot, and the original is never modified.</td></tr>

@@ -24,6 +24,18 @@ export default function OverviewPage() {
         A BitGraph proves a simple order: a position came first, then your file filled it. What fills it is your file plus a commitment to the position, and nothing made before the position can contain that commitment. Your original file stays unchanged. This page explains the operation, what crosses the enclave boundary, how the commitment is carried, where time comes from, and how epochs contain a compromise.
       </p>
 
+      {/* The contrast, before the mechanism: a visitor arriving from the home page has to
+          know this is not the three things they already know about (Mike, 2026-09-21).
+          Two bold leads, negative then positive, long beat then short, which is the same
+          shape as the headline they just clicked through. "Earlier" rather than "before the
+          file arrives": the file never arrives, only its digest, and section 2 says so. */}
+      <p>
+        <strong>BitGraph is not a signature, a timestamp, or a hash written to a blockchain.</strong> All three of those begin with your file. They take bytes that already exist and attach something to them, so any of them can be applied to a record written an hour ago, or written after the incident it describes, and still carry today&rsquo;s date.
+      </p>
+      <p>
+        <strong>BitGraph begins earlier.</strong> A position is allocated and signed first, then your record is built to carry a commitment to that position. Bytes carrying that commitment could not have been finished before the position existed, and the position itself sits after an Ethereum block that had already been mined.
+      </p>
+
       <h2 id="transition">1. One operation, two states</h2>
       <p>
         BitGraph does one thing. It allocates a position in a signed sequence inside a trusted execution environment, which in production is an AWS Nitro enclave. Your device derives a commitment to that position and combines it with your file to produce new bytes. The enclave then binds the SHA-256 fingerprint of those bytes to the position and consumes it.
@@ -47,7 +59,7 @@ export default function OverviewPage() {
 
       <h3>Why the order matters</h3>
       <p>
-        Signatures, timestamps and blockchain commitments all work on a file that already exists, so any of them can be applied to a file made an hour earlier. The commitment reverses that: it makes the finished bytes depend on the slot. Because the slot contains fresh randomness drawn at allocation, bytes carrying its commitment could not have been finished before it existed. Committing their digest then binds that exact version to the same slot.
+        The commitment reverses the usual order: it makes the finished bytes depend on the slot. Because the slot contains fresh randomness drawn at allocation, bytes carrying its commitment could not have been finished before it existed. Committing their digest then binds that exact version to the same slot.
       </p>
       <p>
         That bound applies to the new bytes. The original inside them can be any age: making a BitGraph today does not establish when its content was created.
