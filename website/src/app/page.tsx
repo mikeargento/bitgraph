@@ -58,8 +58,11 @@ export default function HomePage() {
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
       <div className="actions" style={{ marginBottom: 0 }}>
-        <Link className="bg-action-link is-make" href="/docs/try">Make a BitGraph</Link>
-        <Link className="bg-action-link" href="/proof/YVf5bpwcpBg4SsTh6XXBqBoYpYS68s1Tjog1u_cvRQ4">See a real proof</Link>
+        {/* The evidence is the primary action, not the make: the nav already carries a blue
+            "Make a BitGraph" permanently, so spending the page's one primary slot on it would
+            ask twice. After "BitGraph does that" the next thought is show me, not explain it. */}
+        <Link className="bg-action-link is-make" href="/proof/YVf5bpwcpBg4SsTh6XXBqBoYpYS68s1Tjog1u_cvRQ4">See a real proof</Link>
+        <Link className="bg-action-link" href="/docs/overview">How it works</Link>
       </div>
 
     </div>

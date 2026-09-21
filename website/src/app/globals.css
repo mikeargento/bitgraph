@@ -2043,7 +2043,7 @@ body { background: var(--bg); }
    display sizes need less leading than body headings, and the two beats sit
    closer as one block. */
 .home h1 {
-  font-size: clamp(36px, 5vw, 72px) !important;
+  font-size: clamp(36px, 8vw, 92px) !important;
   line-height: 1.05 !important;
   letter-spacing: -0.025em !important;
 }
@@ -2052,11 +2052,10 @@ body { background: var(--bg); }
    under a poster; a little over 2x keeps it a sentence the headline is talking
    to. It stays well clear of the headline, so the hierarchy is not in doubt. */
 .home .lede {
-  font-size: clamp(17px, 1.9vw, 24px) !important;
-  line-height: 1.5 !important;
-  /* Held to two lines on desktop. On one line it ran 84 characters and 869px,
-     past a readable measure and wider than the headline above it, so it cut
-     across the block instead of sitting inside it. In em, so it scales with the
-     clamp above and changes nothing on a phone, where it already wraps. */
-  max-width: 21em;
+  /* One line on desktop, ending near where the headline ends. At 24px it ran
+     869px against the headline's 1010, so it scales to 28 to reach the same
+     edge. No max-width: the frame is the only thing that should wrap it, which
+     is what makes it fall to two lines on a phone and stay one line above. */
+  font-size: clamp(17px, 2.4vw, 28px) !important;
+  line-height: 1.45 !important;
 }
