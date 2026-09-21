@@ -109,6 +109,11 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
+  // The home page's "see a real one": a text file that explains itself, carrying the
+  // commitment of the position it was committed at on line 4. Served so the preview
+  // shows without the reader having to find the file first.
+  "YVf5bpwcpBg4SsTh6XXBqBoYpYS68s1Tjog1u_cvRQ4":
+    { path: "/example/bitgraph-demonstration.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
 };
 
 export default function ProofPage() {
@@ -2547,7 +2552,7 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
   return (
     <div style={{ background: "var(--panel)" }}>
       {kind === "text" && excerpt && (
-        <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: 12.5, lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
+        <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: 12.5, lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 560, overflow: "hidden" }}>
           {excerpt.text}{excerpt.truncated ? "\n…" : ""}
         </pre>
       )}
@@ -2561,7 +2566,7 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
           <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--dim)", marginBottom: 8 }}>
             Text from this document
           </div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 320, overflow: "hidden" }}>
+          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 560, overflow: "hidden" }}>
             {docx.split("\n").slice(0, 24).join("\n").slice(0, 3000)}
             {docx.length > 3000 || docx.split("\n").length > 24 ? "\n…" : ""}
           </div>

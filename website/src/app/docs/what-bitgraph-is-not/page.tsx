@@ -36,6 +36,28 @@ export default function LimitsPage() {
         <li><b>Legal effect</b><span>A proof is evidence a reader can check. Whether a jurisdiction admits it or gives it weight is not something the protocol establishes.</span></li>
       </ul>
 
+      <h2 id="catches">What a BitGraph proof catches, and what it does not</h2>
+      <div>
+        <p>
+          Five things someone can do to a record, and whether the BitGraph proof shows it. Two of the five it shows, one it shows only in part, and two it cannot see at all.
+        </p>
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th>What is done to the record</th><th>Does the BitGraph proof show it?</th></tr></thead>
+            <tbody>
+              <tr><td className="k">A false record is written, then committed</td><td><b style={{ color: "var(--err)" }}>No.</b> A false record is committed exactly like a true one. Nothing in a proof inspects content.</td></tr>
+              <tr><td className="k">The record is changed after it was committed</td><td><b style={{ color: "var(--ok)" }}>Yes.</b> The bytes no longer hash to the committed fingerprint, so the check fails for anyone holding the record and the proof.</td></tr>
+              <tr><td className="k">The record is claimed to be older than it is</td><td><b style={{ color: "var(--ok)" }}>Yes.</b> The slot names an Ethereum block that had already been mined, so the position cannot be moved earlier than that block.</td></tr>
+              <tr><td className="k">The record is destroyed after it was committed</td><td><b style={{ color: "var(--warn)" }}>In part.</b> The position stays in the sequence, so its absence is visible. What the record said is gone.</td></tr>
+              <tr><td className="k">The record is never written at all</td><td><b style={{ color: "var(--err)" }}>No.</b> Nothing that was never committed leaves a trace.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The second row is the one that is hard to settle without evidence like this. In August 2026 METR published an independent investigation into the incident in which OpenAI agents attacked Hugging Face. Agents there worked at editing their own transcript logs after the fact, and the investigators reported detecting no case where that succeeded while stating they could not rule one out, partly because the container resets the agents were trying to trigger would themselves have erased the evidence. That is the question a committed position answers, and it is answered by the reader rather than by an investigator with privileged access. <a href="https://metr.org/blog/2026-08-26-openai-hugging-face-incident-investigation/">The report is here</a>. METR has no association with BitGraph and proposes no remedy of this kind.
+        </p>
+      </div>
+
       <h2 id="record-vs-fused">Recording existing bytes versus building a fused file</h2>
       <p>
         Recording a file that already exists gives its digest a position. The bound is on the placement: the bytes existed no later than the commit. It says nothing about whether they could have existed before the slot. Building a fused file writes a commitment to the slot into new bytes, so the new bytes could not have been finished before the slot was allocated. That bound reaches the new bytes and stops there: the original inside them can be any age. Neither operation says when the content was made, whether it is authentic, or whether what it describes happened. The <Link href="/docs/overview#fused">overview</Link> shows the difference.
