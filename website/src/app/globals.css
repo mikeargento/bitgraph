@@ -2030,7 +2030,12 @@ body { background: var(--bg); }
    Scoped to .home so no other h1 on the site moves, and after the ladder's own
    !important so it wins.
 
-   Fluid rather than two fixed steps: 5vw lands at 34px on a 375px phone, 52px
+   Fluid rather than two fixed steps: the floor is 36px on a phone, set by the
+   answer beat: "BitGraph does that." has to hold one line, and at 38 it measures
+   326px against the ~323px a 360px Android leaves, so it wraps there. 36 keeps
+   14px of headroom at 360 and still reads far larger than the ladder's 28.
+   5vw through
+   the middle,
    at the 1040px frame, and is capped at 72px. The cap was 58px, which made the
    headline wrap at ~810px inside a 1040px frame and left the block sitting off
    centre in a wide window (Mike, 2026-09-21: "should something be on right
@@ -2038,7 +2043,7 @@ body { background: var(--bg); }
    display sizes need less leading than body headings, and the two beats sit
    closer as one block. */
 .home h1 {
-  font-size: clamp(34px, 5vw, 72px) !important;
+  font-size: clamp(36px, 5vw, 72px) !important;
   line-height: 1.05 !important;
   letter-spacing: -0.025em !important;
 }
