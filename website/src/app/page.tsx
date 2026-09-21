@@ -52,7 +52,7 @@ export default function HomePage() {
         <span style={{ display: "block", marginTop: "0.55em" }}>BitGraph does&nbsp;that.</span>
       </h1>
 
-      <p className="lede">
+      <p className="lede" style={{ fontStyle: "italic" }}>
         The most trusted AI systems will be the ones whose records don&rsquo;t have to be&nbsp;trusted.
       </p>
 
