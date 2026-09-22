@@ -41,19 +41,24 @@ export default function HomePage() {
         justifyContent: "center",
       }}
     >
-      {/* The scene, in the order the scene runs (Mike, 2026-09-20). Brad does not open with
-          "supply and demand", he asks for a signature, watches the reach fail, and says the
-          lesson last. So: the demand is the headline, the maxim is the close. Nothing here
-          explains the protocol; the docs do that. */}
+      {/* The claim, then the difference (Mike, 2026-09-22). The 2026-09-20 scene (the demand as
+          the headline, the maxim as the close) gave way to a headline that names BitGraph and a
+          line that answers "we already have that". Nothing here explains the protocol; the docs
+          do that. */}
       <h1>
-        Prove this AI log couldn&rsquo;t have been&nbsp;backdated.
-        {/* Same weight as the demand, because it is the answer to it, not a comment on it.
-            One h1 element holding both keeps a single page title in the outline. */}
-        <span style={{ display: "block", marginTop: "0.28em" }}>BitGraph does&nbsp;that.</span>
+        {/* "Impossible" stays (Mike, 2026-09-22): the absolute passes the mechanism test, since a
+            record cannot be placed before its floor block. On desktop line two is "impossible to
+            backdate."; the break is real only from 768px up, and phones wrap freely. */}
+        BitGraph makes AI logs<br className="home-br" /> impossible to&nbsp;backdate.
       </h1>
 
+      {/* What it is not, and the one difference that matters (Mike, 2026-09-22): everything the
+          reader already runs is applied after the fact, and a BitGraph's position comes first. It
+          replaced the maxim, "The most trusted AI systems will be the ones whose records don't
+          have to be trusted." */}
       <p className="lede" style={{ fontStyle: "italic" }}>
-        The most trusted AI systems will be the ones whose records don&rsquo;t have to be&nbsp;trusted.
+        Signatures, timestamps, append-only logs, write-once storage, notarizations, and blockchain
+        hashes all come after the fact. <strong>BitGraph begins&nbsp;earlier.</strong>
       </p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}

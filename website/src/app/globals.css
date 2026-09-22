@@ -2034,14 +2034,18 @@ body { background: var(--bg); }
    answer beat: "BitGraph does that." has to hold one line, and at 38 it measures
    326px against the ~323px a 360px Android leaves, so it wraps there. 36 keeps
    14px of headroom at 360 and still reads far larger than the ladder's 28.
-   5vw through
-   the middle,
-   at the 1040px frame, and is capped at 72px. The cap was 58px, which made the
+   8vw through
+   the middle, and is capped at 80px. For "BitGraph creates AI logs / that can't
+   be backdated." (2026-09-22) the desktop lines are 859px and 850px at 80px, so
+   8vw keeps the longer about 3% inside the 90% frame down to 768px, where the
+   break turns on. The cap was 58px, which made the
    headline wrap at ~810px inside a 1040px frame and left the block sitting off
    centre in a wide window (Mike, 2026-09-21: "should something be on right
    side?"). Growing fills the frame instead of filling the space with content. Line-height tightens to 1.05 because
    display sizes need less leading than body headings, and the two beats sit
    closer as one block. */
+.home .home-br { display: none; }
+@media (min-width: 768px) { .home .home-br { display: inline; } }
 .home h1 {
   font-size: clamp(36px, 8vw, 80px) !important;
   line-height: 1.05 !important;
@@ -2052,12 +2056,10 @@ body { background: var(--bg); }
    under a poster; a little over 2x keeps it a sentence the headline is talking
    to. It stays well clear of the headline, so the hierarchy is not in doubt. */
 .home .lede {
-  /* One line on desktop, ending just short of the headline: 869 against 878 at
-     24px, and about 15% clear of the frame through the middle widths, so it
-     does not depend on a particular font render the way a longer line would.
-     Lines that had to be shrunk or split to fit here were all differentiators,
-     which is not this slot's job (see the note in page.tsx). Below about 700px
-     it wraps, and balance evens the two lines rather than leaving a stub. */
+  /* 2026-09-22: the slot holds "Signatures, timestamps ... BitGraph begins
+     earlier." at the maxim's own size and italic (Mike). It is too long for one
+     line in the 1040 frame at 24px, so balance splits it into two even lines on
+     desktop rather than a full line and a stub. */
   font-size: clamp(17px, 2.1vw, 24px) !important;
   line-height: 1.45 !important;
   text-wrap: balance;
