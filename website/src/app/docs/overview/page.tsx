@@ -33,7 +33,10 @@ export default function OverviewPage() {
         <strong>BitGraph is not a signature, a timestamp, an append-only log, write-once storage, a notarization, or a hash written to a blockchain.</strong> All of them begin with your file. They take bytes that already exist and attach something to them, so any of them can be applied to a record written an hour ago, or written after the incident it describes, and still carry today&rsquo;s date.
       </p>
       <p>
-        <strong>BitGraph begins earlier.</strong> A position is allocated and signed first, then your record is built to carry a commitment to that position. Bytes carrying that commitment could not have been finished before the position existed, and the position itself sits after an Ethereum block that had already been mined.
+        <strong>BitGraph begins earlier.</strong> It starts with a random number that can be used only once, drawn and signed inside the enclave. That number takes a position in a signed sequence, and then your record is built to carry a commitment to it. Bytes carrying that commitment could not have been finished before the position existed, and the position itself sits after an Ethereum block that had already been mined.
+      </p>
+      <p>
+        <strong>Every BitGraph starts from a random number that never existed before.</strong> Seed a computation with it, and the computation could not have started earlier.
       </p>
 
       <h2 id="transition">1. One operation, two states</h2>
@@ -41,7 +44,7 @@ export default function OverviewPage() {
         BitGraph does one thing. It allocates a position in a signed sequence inside a trusted execution environment, which in production is an AWS Nitro enclave. Your device derives a commitment to that position and combines it with your file to produce new bytes. The enclave then binds the SHA-256 fingerprint of those bytes to the position and consumes it.
       </p>
       <p>
-        The protocol calls the fingerprint the <em>digest</em> and the allocated position a <em>slot</em>. Allocation comes first and the commit comes later; between them, your device builds the bytes that connect the two. Every BitGraph made on this site, in the SDK and in the MCP server is made this way.
+        The protocol calls the random number a <em>nonce</em> (number used once), the fingerprint the <em>digest</em> and the allocated position a <em>slot</em>. Allocation comes first and the commit comes later; between them, your device builds the bytes that connect the two. Every BitGraph made on this site, in the SDK and in the MCP server is made this way.
       </p>
       <HowFigure />
       <p>
