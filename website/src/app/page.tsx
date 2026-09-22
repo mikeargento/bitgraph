@@ -47,9 +47,9 @@ export default function HomePage() {
           do that. */}
       <h1>
         {/* "Impossible" stays (Mike, 2026-09-22): the absolute passes the mechanism test, since a
-            record cannot be placed before its floor block. On desktop line two is "impossible to
-            backdate."; the break is real only from 768px up, and phones wrap freely. */}
-        BitGraph makes AI logs<br className="home-br" /> impossible to&nbsp;backdate.
+            record cannot be placed before its floor block. Two lines at every width, broken after
+            "AI logs"; globals.css sizes it to hold. */}
+        BitGraph makes AI logs<br /> impossible to&nbsp;backdate.
       </h1>
 
       {/* What it is not, and the one difference that matters (Mike, 2026-09-22): everything the

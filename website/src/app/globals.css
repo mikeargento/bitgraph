@@ -2030,24 +2030,18 @@ body { background: var(--bg); }
    Scoped to .home so no other h1 on the site moves, and after the ladder's own
    !important so it wins.
 
-   Fluid rather than two fixed steps: the floor is 36px on a phone, set by the
-   answer beat: "BitGraph does that." has to hold one line, and at 38 it measures
-   326px against the ~323px a 360px Android leaves, so it wraps there. 36 keeps
-   14px of headroom at 360 and still reads far larger than the ladder's 28.
-   8vw through
-   the middle, and is capped at 80px. For "BitGraph creates AI logs / that can't
-   be backdated." (2026-09-22) the desktop lines are 859px and 850px at 80px, so
-   8vw keeps the longer about 3% inside the 90% frame down to 768px, where the
-   break turns on. The cap was 58px, which made the
-   headline wrap at ~810px inside a 1040px frame and left the block sitting off
-   centre in a wide window (Mike, 2026-09-21: "should something be on right
-   side?"). Growing fills the frame instead of filling the space with content. Line-height tightens to 1.05 because
+   Two lines at every width (Mike, 2026-09-22): "BitGraph makes AI logs /
+   impossible to backdate.", broken after "AI logs" everywhere and sized to hold.
+   The longer line is 837px at 80px (10.46px per px of type), and the column is
+   90% of the window, so 8vw keeps it about 7% inside the column at any width.
+   Capped at 80px, which it reaches at 1000px; the floor is 24px so even a 320px
+   phone keeps two lines (25.6px there, 268px against 288). The cap was 58px
+   once, which left the block off centre in a wide window (Mike, 2026-09-21:
+   "should something be on right side?"). Line-height tightens to 1.05 because
    display sizes need less leading than body headings, and the two beats sit
    closer as one block. */
-.home .home-br { display: none; }
-@media (min-width: 768px) { .home .home-br { display: inline; } }
 .home h1 {
-  font-size: clamp(36px, 8vw, 80px) !important;
+  font-size: clamp(24px, 8vw, 80px) !important;
   line-height: 1.05 !important;
   letter-spacing: -0.025em !important;
 }
