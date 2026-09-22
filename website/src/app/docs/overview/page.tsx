@@ -30,7 +30,7 @@ export default function OverviewPage() {
           shape as the headline they just clicked through. "Earlier" rather than "before the
           file arrives": the file never arrives, only its digest, and section 2 says so. */}
       <p>
-        <strong>BitGraph is not a signature, a timestamp, or a hash written to a blockchain.</strong> All three of those begin with your file. They take bytes that already exist and attach something to them, so any of them can be applied to a record written an hour ago, or written after the incident it describes, and still carry today&rsquo;s date.
+        <strong>BitGraph is not a signature, a timestamp, an append-only log, write-once storage, a notarization, or a hash written to a blockchain.</strong> All of them begin with your file. They take bytes that already exist and attach something to them, so any of them can be applied to a record written an hour ago, or written after the incident it describes, and still carry today&rsquo;s date.
       </p>
       <p>
         <strong>BitGraph begins earlier.</strong> A position is allocated and signed first, then your record is built to carry a commitment to that position. Bytes carrying that commitment could not have been finished before the position existed, and the position itself sits after an Ethereum block that had already been mined.
