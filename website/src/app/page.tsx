@@ -58,7 +58,7 @@ export default function HomePage() {
           have to be trusted." */}
       <p className="lede" style={{ fontStyle: "italic" }}>
         Signatures, timestamps, append-only logs, write-once storage, notarizations, and blockchain
-        hashes all come after the fact. <strong>BitGraph begins&nbsp;earlier.</strong>
+        hashes all come after the record. <strong>BitGraph begins&nbsp;earlier.</strong>
       </p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
