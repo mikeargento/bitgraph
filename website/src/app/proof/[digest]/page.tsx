@@ -109,9 +109,12 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
-  // The home page's "see a real one": a text file that explains itself, carrying the
-  // commitment of the position it was committed at on line 4. Served so the preview
-  // shows without the reader having to find the file first.
+  // The home page's "See a real proof": a text file that explains itself, carrying the
+  // commitment of the position it was committed at on line 4, and the almanac line
+  // (2026-09-22). Served so the preview shows without the reader having to find the file.
+  "YYJh9nWOYBQUNvVmzy0kXvYTrAqLgmL9veqLHP7x-WU":
+    { path: "/example/bitgraph-demonstration-2.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
+  // The previous home example (2026-09-20), without the almanac line; kept so old links still show it.
   "YVf5bpwcpBg4SsTh6XXBqBoYpYS68s1Tjog1u_cvRQ4":
     { path: "/example/bitgraph-demonstration.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
 };

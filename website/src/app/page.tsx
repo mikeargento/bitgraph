@@ -66,7 +66,7 @@ export default function HomePage() {
         {/* The evidence is the primary action, not the make: the nav already carries a blue
             "Make a BitGraph" permanently, so spending the page's one primary slot on it would
             ask twice. After "BitGraph does that" the next thought is show me, not explain it. */}
-        <Link className="bg-action-link is-make" href="/proof/YVf5bpwcpBg4SsTh6XXBqBoYpYS68s1Tjog1u_cvRQ4">See a real proof</Link>
+        <Link className="bg-action-link is-make" href="/proof/YYJh9nWOYBQUNvVmzy0kXvYTrAqLgmL9veqLHP7x-WU">See a real proof</Link>
         <Link className="bg-action-link" href="/docs/overview">How it works</Link>
       </div>
 
