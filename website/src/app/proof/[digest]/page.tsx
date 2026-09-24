@@ -1347,43 +1347,6 @@ export default function ProofPage() {
               {whenRow && (
                 <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)" }}>
                   {whenRow}
-                  {/* The downloads bar: one full-width row under the when, a hairline
-                      between them, every button the same width, wrapping to a grid on
-                      a phone (Mike, 2026-09-24: the tall right-hand stack "looks
-                      messy"). Notes land under the row, full width, never inside it. */}
-                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "10px 16px 12px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                      <span className="kicker">Downloads</span>
-                      <div style={{ flex: 1, minWidth: 260, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
-                        {cachedFile && !isSet && cachedRole !== "original" && attr?.name === "bitgraph-fuse/1" && !isInlineProof(proof) ? (
-                          <button onClick={downloadOriginal} disabled={originBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
-                            <span>{originBusy ? "Recovering\u2026" : "Original file"}</span>
-                          </button>
-                        ) : null}
-                        {cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor ? (
-                          <button onClick={downloadCarrier} disabled={carrierBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
-                            <span>{carrierBusy ? "Assembling\u2026" : "BitGraphed file"}</span>
-                          </button>
-                        ) : null}
-                        {!isEth ? (
-                          <button onClick={downloadAnchors} disabled={anchorsBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
-                            <span>{anchorsBusy ? "Fetching\u2026" : "Ethereum anchors"}</span>
-                          </button>
-                        ) : null}
-                        <button onClick={exportZip} disabled={exporting} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
-                          <span>{exporting ? "Exporting\u2026" : "Package (.zip)"}</span>
-                        </button>
-                      </div>
-                    </div>
-                    {(carrierMsg || anchorsMsg || originMsg || !cachedFile) && (
-                      <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 6, display: "grid", gap: 2 }}>
-                        {originMsg && <div>{originMsg}</div>}
-                        {carrierMsg && <div>{carrierMsg}</div>}
-                        {anchorsMsg && <div>{anchorsMsg}</div>}
-                        {!cachedFile && <div>BitGraph only: the original file is not on this device</div>}
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
@@ -1413,6 +1376,41 @@ export default function ProofPage() {
             {/* A set proof's artifact is the manifest, so its hash is the Set
                 hash. A member (the file in hand, or the row the URL digest
                 names) adds its own two, read from the BOUND manifest. */}
+            <CollapsibleCard title="Downloads">
+              {/* The card body has no side padding of its own (.proof-fields pads
+                  vertically only), so this section carries the 16px itself, and the
+                  buttons get real height: a download is a tap target, not a chip. */}
+              <div style={{ padding: "8px 16px 14px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+                  {cachedFile && !isSet && cachedRole !== "original" && attr?.name === "bitgraph-fuse/1" && !isInlineProof(proof) ? (
+                    <button onClick={downloadOriginal} disabled={originBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
+                      <span>{originBusy ? "Recovering\u2026" : "Original file"}</span>
+                    </button>
+                  ) : null}
+                  {cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor ? (
+                    <button onClick={downloadCarrier} disabled={carrierBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
+                      <span>{carrierBusy ? "Assembling\u2026" : "BitGraphed file"}</span>
+                    </button>
+                  ) : null}
+                  {!isEth ? (
+                    <button onClick={downloadAnchors} disabled={anchorsBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
+                      <span>{anchorsBusy ? "Fetching\u2026" : "Ethereum anchors"}</span>
+                    </button>
+                  ) : null}
+                  <button onClick={exportZip} disabled={exporting} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
+                    <span>{exporting ? "Exporting\u2026" : "Package (.zip)"}</span>
+                  </button>
+                </div>
+                {(carrierMsg || anchorsMsg || originMsg || !cachedFile) && (
+                  <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 8, display: "grid", gap: 2 }}>
+                    {originMsg && <div>{originMsg}</div>}
+                    {carrierMsg && <div>{carrierMsg}</div>}
+                    {anchorsMsg && <div>{anchorsMsg}</div>}
+                    {!cachedFile && <div>BitGraph only: the original file is not on this device</div>}
+                  </div>
+                )}
+              </div>
+            </CollapsibleCard>
             <CollapsibleCard title="Hashes">
               <Field label="Commitment" value={carriedBy} />
               {inlineCommitment && <Field label="Slot commitment" value={inlineCommitment} mono />}
