@@ -43,6 +43,7 @@ import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, find
 import { CheckedList, fmtRowWhen } from "@/components/folder-list";
 import { useWindowedRows } from "@/components/windowed-rows";
 import { takePendingDrop } from "@/lib/pending-drop";
+import { deCarrierFiles, completeDroppedCarrier } from "@/lib/carrier-site";
 import { setFreshProof } from "@/lib/fresh-proof";
 import { Zip, ZipPassThrough, unzipSync } from "fflate";
 import {
@@ -298,6 +299,34 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
   // Verdicts for a dropped folder of BitGraph exports (the skeptic's drop):
   // one entry per export directory found in the drop, in walk order.
+  /* Files that arrived as carriers (proof inside): stripped here so the CHECK runs
+     on the committed bytes, which are what hold a position. The envelope's own hash
+     is recorded nowhere, so hashing the outer file would answer "never recorded"
+     about bytes that are. One line above the results says what happened. */
+  const [carrierDrops, setCarrierDrops] = useState<(import("@/lib/carrier-site").DeCarrierNote & { note?: string })[]>([]);
+  const [carrierFetching, setCarrierFetching] = useState<string | null>(null);
+  /* One click on an incomplete carrier: fetch the anchor that followed, verify
+     it, stamp it into the block, hand the same file back completed. Nothing is
+     stamped unverified, and "none has landed yet" is an answer, not a spinner. */
+  async function fetchClosingAnchor(name: string, outer: Uint8Array) {
+    if (carrierFetching) return;
+    setCarrierFetching(name);
+    try {
+      const r = await completeDroppedCarrier(outer);
+      if (r.status === "completed" || r.status === "already-complete") {
+        const url = URL.createObjectURL(new Blob([r.bytes.slice() as Uint8Array<ArrayBuffer>], { type: "application/octet-stream" }));
+        const el = document.createElement("a"); el.href = url; el.download = name; el.click();
+        URL.revokeObjectURL(url);
+        setCarrierDrops((d) => d.map((c) => (c.name === name ? { name, ceiling: "present", note: "Completed and saved. The old copy can be replaced." } : c)));
+      } else {
+        setCarrierDrops((d) => d.map((c) => (c.name === name ? { ...c, note: r.note } : c)));
+      }
+    } catch (e) {
+      setCarrierDrops((d) => d.map((c) => (c.name === name ? { ...c, note: e instanceof Error ? e.message : String(e) } : c)));
+    } finally {
+      setCarrierFetching(null);
+    }
+  }
   const [checked, setChecked] = useState<ExportCheckResult[]>(() => cachedChecked.get(id) ?? []);
   // True while checkExports is doing its per-export ledger work, so the
   // checking wait shows a live count even for small folders (each export is
@@ -704,7 +733,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // in drop order. Shared by the plain-file flow (handleFiles, which adds the
   // solo routing and auto-record) and the folder-check flow, whose stray
   // files ride the same scan with none of the routing.
-  async function scanFiles(files: File[]): Promise<FileItem[]> {
+  async function scanFiles(files: File[], carrierProofs?: Map<File, BitGraphProof> | null): Promise<FileItem[]> {
     setScanPhase("reading");
     setScanProgress({ current: 0, total: files.length });
 
@@ -740,6 +769,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           // reaches the hasher. The size gate stays: reading a multi-MB photo
           // as TEXT allocates a UTF-16 copy and crashed iOS Safari after ~15.
           let proofJson: BitGraphProof | null = null;
+          /* A file that arrived as a carrier travels with its own proof: the
+             row is decided by the pair it carries, the same way a dropped
+             proof.json is, and no lookup or mint can apply to it. The strip
+             already confirmed the bytes hash to the carried proof's digest. */
+          const carried = carrierProofs?.get(f) ?? null;
+          if (carried) {
+            const result = await verifyProofSignature(carried).catch(() => ({ valid: false }));
+            scanned[i] = { f, digest: carried.artifact.digestB64, proofJson: carried, valid: result.valid, scan: null };
+            hashed++;
+            continue;
+          }
           try {
             const couldBeProof =
               f.size <= 1_000_000 &&
@@ -979,6 +1019,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     setChecked([]);
     setAnchorPlan(null);
     setAnchorNote(null);
+    setCarrierDrops([]);
 
     /* ⚠️ THE PRODUCT COULD NOT READ ITS OWN EXPORT.
      *
@@ -998,6 +1039,18 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      * folder of raws is gigabytes. Past the cap the zip is left alone and
      * treated as an ordinary file, which is the old behaviour and honest —
      * never a frozen tab. */
+
+    /* Carriers announce themselves in their last bytes: strip by structure and
+       check the committed bytes inside (lib/carrier-site). The line above the
+       results says what happened; the outer envelope's hash is checked nowhere. */
+    let carrierProofs: Map<File, BitGraphProof> | null = null;
+    {
+      const dc = await deCarrierFiles(files);
+      files = dc.files;
+      if (dc.notes.length) setCarrierDrops(dc.notes);
+      if (dc.proofs.size) carrierProofs = dc.proofs as unknown as Map<File, BitGraphProof>;
+    }
+
     const zips = files.filter((f) => f.name.toLowerCase().endsWith(".zip"));
     if (zips.length) {
       const UNZIP_CAP = 256 * 1024 * 1024;
@@ -1040,7 +1093,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const rest = await connectFrom(files);
     if (rest.length === 0) { setStep("drop"); setBoxOpen(true); return; }
     files = rest;
-    const results = await scanFiles(files);
+    const results = await scanFiles(files, carrierProofs);
 
     // One file in, one page out. A single artifact drop always lands on its
     // proof page, with no button in between: the drop IS the shutter.
@@ -2914,6 +2967,32 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   column's 24px gap applies below the card, not under the title. */}
               {items.length > 0 && (<>
               <div>
+              {carrierDrops.length > 0 && (
+                <div className="bg-carrier-note" style={{ fontSize: 13.5, color: "var(--dim)", margin: "0 0 8px" }}>
+                  {carrierDrops.map((c) => (
+                    <div key={c.name} style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                      <span>
+                        {c.ceiling === "corrupt"
+                          ? `${c.name}: its proof block is unreadable (corrupted, not judged), so the whole file was checked as bytes.`
+                          : c.innerMatches === false
+                            ? `${c.name}: the bytes inside do not match the proof it carries, so they were checked as plain bytes.`
+                            : `${c.name} carries its proof inside.${c.ceiling === "present" && !c.note ? " Its time window is complete." : ""}${c.note ? ` ${c.note}` : ""}`}
+                      </span>
+                      {c.ceiling === "unfetched" && c.innerMatches !== false && c.outer && (
+                        <button
+                          type="button"
+                          className="bg-action-link"
+                          style={{ margin: 0, padding: "2px 10px", fontSize: 13 }}
+                          disabled={carrierFetching !== null}
+                          onClick={() => void fetchClosingAnchor(c.name, c.outer!)}
+                        >
+                          {carrierFetching === c.name ? "Fetching\u2026" : "Fetch the closing anchor"}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* The one title size every page header uses. 20px, not 10:
                   the proof page's identical title sits in a 10px-gap grid AND
                   carries a 10px margin, so it clears its card by 20. Here the

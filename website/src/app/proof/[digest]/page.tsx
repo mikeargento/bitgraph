@@ -26,6 +26,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkInline, isInlineProof } from "@/lib/fuse-client";
+import { buildCarrierForProof, deCarrierFiles } from "@/lib/carrier-site";
 import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64, bytesToHex } from "@mikeargento/bitgraph-verify";
 
 /** Carry encodings this page knows; anything else in the title is a placement. */
@@ -206,6 +207,9 @@ export default function ProofPage() {
   // Export fetches the two ETH anchors and their block-header witnesses before
   // zipping, so it is a real wait, not an instant download. The link reports it.
   const [exporting, setExporting] = useState(false);
+  // The carrier download: the file with its proof inside (lib/carrier-site).
+  const [carrierBusy, setCarrierBusy] = useState(false);
+  const [carrierMsg, setCarrierMsg] = useState<string | null>(null);
 
   /* The /folder browser's preview fallback lived here 2026-08-06 to
      2026-08-07 (a cached ~512px stand-in for remembered recordings) and was
@@ -1138,6 +1142,40 @@ export default function ProofPage() {
     finally { setExporting(false); }
   }
 
+  /* One file out: the committed bytes with the proof, the floor anchor and its
+     block header inside, and the closing anchor too once it exists. The bytes
+     handed to the builder are the COMMITTED ones (the new file), rebuilt from
+     the original when that is what the page holds; the builder re-hashes them
+     against the proof before anything is assembled, and never stamps an
+     unverified anchor. Sets wait (offline member verification is thinner). */
+  async function downloadCarrier() {
+    if (carrierBusy || !proof || !cachedFile) return;
+    setCarrierBusy(true);
+    setCarrierMsg(null);
+    try {
+      const bytes = new Uint8Array(cachedFile.data);
+      let committed = bytes;
+      let label = cachedFile.name;
+      if (!isInlineProof(proof) && attr?.name === "bitgraph-fuse/1" && cachedRole !== "new") {
+        const r = await rebuildFromOrigin(proof, bytes, cachedFile.name);
+        if (!r.fusedBytes) throw new Error("the new file could not be rebuilt from this original");
+        committed = new Uint8Array(r.fusedBytes);
+        label = cachedFile.name;
+      }
+      const built = await buildCarrierForProof(committed, proof, label);
+      const url = URL.createObjectURL(new Blob([built.bytes as unknown as BlobPart], { type: "application/octet-stream" }));
+      const el = document.createElement("a"); el.href = url; el.download = built.fileName; el.click();
+      URL.revokeObjectURL(url);
+      setCarrierMsg(built.ceiling === "present"
+        ? "Time window inside: complete. It verifies offline with nothing else."
+        : `Floor inside; the closing anchor is not, yet: ${built.ceilingNote ?? "none has landed."} Drop the file back here later and it completes.`);
+    } catch (e) {
+      setCarrierMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCarrierBusy(false);
+    }
+  }
+
   return (
     <Shell>
       <style>{`
@@ -1254,6 +1292,16 @@ export default function ProofPage() {
                     <button onClick={exportZip} disabled={exporting} className="bg-action-link" style={{ margin: 0 }}>
                       <span>{exporting ? "Exporting…" : "Export BitGraph package (.zip)"}</span>
                     </button>
+                    {cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor ? (
+                      <div>
+                        <button onClick={downloadCarrier} disabled={carrierBusy} className="bg-action-link" style={{ margin: "8px 0 0" }}>
+                          <span>{carrierBusy ? "Assembling\u2026" : "Download the file with its proof inside"}</span>
+                        </button>
+                        {carrierMsg && (
+                          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{carrierMsg}</div>
+                        )}
+                      </div>
+                    ) : null}
                     {!cachedFile && (
                       <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4 }}>
                         BitGraph only: the original file is not on this device
@@ -1980,6 +2028,11 @@ function BringYourFile({
       // same ones straight afterwards, and hashing a folder twice was most of
       // what made this look hung.
       const seen = new Map<string, File>();
+      /* A dropped carrier is its committed bytes plus the proof block: strip
+         first, or the outer hash matches nothing (lib/carrier-site). Folder
+         drags walk too many files to pre-read and are left as they are. */
+      if (Array.isArray(source)) source = (await deCarrierFiles(source)).files;
+      else if (source.entries === null) source = (await deCarrierFiles(source.files)).files;
       const { match, checked } = Array.isArray(source)
         ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }), seen)
         : await findMatchInDrop(
