@@ -18,8 +18,10 @@
  */
 
 import { readFileSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, basename } from "node:path";
+import { parseCarrier, verifyCarrier } from "@mikeargento/bitgraph-verify";
 import type { VerificationPolicy } from "@mikeargento/bitgraph-verify";
 import { auditToolVersion, computeExitFlags, runAudit } from "./audit.js";
 import { buildJsonReport } from "./report-json.js";
@@ -57,7 +59,11 @@ function helpText(): string {
     "",
     USAGE_LINE,
     "",
-    "The bundle may be a directory, a .tar archive, or a .tar.gz/.tgz",
+    "The bundle may be a directory, a .tar archive, a .tar.gz/.tgz,",
+    "or a single bitgraph-carrier/1 file (a file with its proof inside):",
+    "a carrier is unpacked and audited as the bundle it carries, and its",
+    "own verdict (TRUE / FALSE / UNDETERMINED, with the time window) is",
+    "printed first.",
     "archive. The audit runs entirely offline: no RPC, no HTTP, no DNS.",
     "",
     "Options:",
@@ -236,10 +242,59 @@ async function main(): Promise<number> {
     throw err;
   }
 
+  /* A single carrier file: unpack it to a temp bundle (the committed bytes,
+     the proof, the floor anchor and witness, the ceiling pair when present)
+     and audit THAT, after printing the carrier's own offline verdict. The
+     temp dir is the audit's input, so the reports describe exactly what the
+     file carries; everything else about the run is unchanged. Detection is
+     from the last 8 bytes only, so no ordinary bundle path changes behaviour. */
+  let bundlePath = parsed.bundlePath;
+  let carrierFlags = 0;
+  try {
+    const info = await stat(parsed.bundlePath);
+    const lower = parsed.bundlePath.toLowerCase();
+    const isArchive = lower.endsWith(".tar") || lower.endsWith(".tar.gz") || lower.endsWith(".tgz");
+    if (info.isFile() && !isArchive && info.size >= 26) {
+      const bytes = new Uint8Array(readFileSync(parsed.bundlePath));
+      const parsedCarrier = parseCarrier(bytes);
+      if (parsedCarrier.kind !== "none") {
+        const verdict = await verifyCarrier(bytes);
+        const b = verdict.bounds;
+        const lines = [
+          `carrier: ${verdict.verdict}${verdict.carrier === "corrupt" ? " (block unreadable: corrupted, not judged)" : ""}`,
+          b ? `  not before: block ${b.notBefore.blockNumber}${b.notBefore.timestamp !== null ? ` (${new Date(b.notBefore.timestamp * 1000).toISOString()})` : ""}` : null,
+          b ? `  not after:  ${b.notAfter === null ? "NOT FETCHED (the closing anchor is not inside this file)" : `block ${b.notAfter.blockNumber}${b.notAfter.timestamp !== null ? ` (${new Date(b.notAfter.timestamp * 1000).toISOString()})` : ""}`}` : null,
+          ...verdict.reasons.map((r) => `  - ${r}`),
+        ].filter((l): l is string => l !== null);
+        process.stdout.write(lines.join("\n") + "\n");
+        if (verdict.verdict === "FALSE") carrierFlags |= 1;
+        if (verdict.carrier === "corrupt") carrierFlags |= 2;
+        if (parsedCarrier.kind === "carrier") {
+          const dir = await mkdtemp(join(tmpdir(), "bitgraph-carrier-"));
+          const name = basename(parsed.bundlePath).replace(/\.bitgraph(\.[^.]+)$/i, "$1").replace(/\.bitgraph$/i, "") || "artifact";
+          await writeFile(join(dir, name), parsedCarrier.inner);
+          await writeFile(join(dir, "proof.json"), JSON.stringify(parsedCarrier.payload.proof, null, 2));
+          const anchors = join(dir, "ethereum-anchors");
+          await mkdir(anchors);
+          await writeFile(join(anchors, "anchor-floor.json"), JSON.stringify(parsedCarrier.payload.floor.anchor, null, 2));
+          await writeFile(join(anchors, "anchor-floor.witness.json"), JSON.stringify({ version: "bitgraph-anchor-witness/1", ...parsedCarrier.payload.floor.witness }, null, 2));
+          if (parsedCarrier.payload.ceiling.status === "present") {
+            await writeFile(join(anchors, "anchor-ceiling.json"), JSON.stringify(parsedCarrier.payload.ceiling.anchor, null, 2));
+            await writeFile(join(anchors, "anchor-ceiling.witness.json"), JSON.stringify({ version: "bitgraph-anchor-witness/1", ...parsedCarrier.payload.ceiling.witness }, null, 2));
+          }
+          bundlePath = dir;
+        }
+      }
+    }
+  } catch (err) {
+    // Detection must never take down an ordinary audit: fall through whole.
+    process.stderr.write(`bitgraph-audit: carrier detection skipped: ${err instanceof Error ? err.message : String(err)}\n`);
+  }
+
   let result;
   try {
     result = await runAudit(
-      parsed.bundlePath,
+      bundlePath,
       trustAnchors !== undefined ? { trustAnchors } : undefined
     );
   } catch (err) {
@@ -264,6 +319,10 @@ async function main(): Promise<number> {
   }
 
   const flags = computeExitFlags(result);
+  // A carrier target folds its own verdict into the same two bits.
+  if (carrierFlags & 1) { flags.verificationFailures = true; }
+  if (carrierFlags & 2) { flags.chainAnomaliesOrDivergences = true; }
+  flags.code = flags.code | carrierFlags;
   process.stdout.write(
     `bitgraph-audit ${auditToolVersion()}: wrote ${written.join(", ")}\n` +
       `exit ${flags.code}: ${exitMeaning(flags)}\n`
