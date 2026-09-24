@@ -1175,8 +1175,9 @@ export default function ProofPage() {
       const url = URL.createObjectURL(new Blob([built.bytes as unknown as BlobPart], { type: "application/octet-stream" }));
       const el = document.createElement("a"); el.href = url; el.download = built.fileName; el.click();
       URL.revokeObjectURL(url);
+      // Success is silent (the download is the feedback); only a missing side speaks.
       setCarrierMsg(built.ceiling === "present"
-        ? "Time window inside: complete. It verifies offline with nothing else."
+        ? null
         : `Floor inside; the closing anchor is not, yet: ${built.ceilingNote ?? "none has landed."} Drop the file back here later and it completes.`);
     } catch (e) {
       setCarrierMsg(e instanceof Error ? e.message : String(e));
@@ -1206,7 +1207,7 @@ export default function ProofPage() {
       if (pair.floor) saveJson("anchor-before.json", pair.floor);
       if (pair.ceiling) { await new Promise((r) => setTimeout(r, 300)); saveJson("anchor-after.json", pair.ceiling); }
       setAnchorsMsg(pair.ceiling
-        ? "Both anchors saved: the floor and the anchor that followed."
+        ? null
         : `The floor anchor saved. ${pair.note ?? "No anchor follows this position yet."}`);
     } catch (e) {
       setAnchorsMsg(e instanceof Error ? e.message : String(e));
@@ -1228,7 +1229,7 @@ export default function ProofPage() {
       const url = URL.createObjectURL(new Blob([u.originalBytes as unknown as BlobPart]));
       const el = document.createElement("a"); el.href = url; el.download = u.originalName; el.click();
       URL.revokeObjectURL(url);
-      setOriginMsg("The original, byte-exact: it hashes to the origin digest the proof signs.");
+      setOriginMsg(null);
     } catch (e) {
       setOriginMsg(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1344,58 +1345,44 @@ export default function ProofPage() {
                   as the Recorder puts its actions under its verdict (Mike,
                   2026-09-16: "this button should share that box and say .zip"). */}
               {whenRow && (
-                <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)" }}>
                   {whenRow}
-                  {/* The export rides on the right (Mike, 2026-09-16); on a phone
-                      it wraps under the when, see .bg-when-box in globals.css. */}
-                  <div className="bg-when-actions" style={{ padding: "14px 16px", marginLeft: "auto", textAlign: "right" }}>
-                    {/* One equal-width stack (Mike, 2026-09-24: "same length buttons"):
-                        an inline grid shrinks to the widest label and stretches the
-                        rest to match, and the kicker names what the column is. */}
-                    <div style={{ display: "inline-grid", gap: 8, justifyItems: "stretch", textAlign: "left" }}>
-                    <span className="kicker" style={{ textAlign: "right" }}>Downloads</span>
-                    {/* Shown whenever the page might be holding the new file (a restored view
-                        has no role); the unwrap itself is the gate, and refuses anything that
-                        does not verify as the fused artifact. */}
-                    {cachedFile && !isSet && cachedRole !== "original" && attr?.name === "bitgraph-fuse/1" && !isInlineProof(proof) ? (
-                      <div>
-                        <button onClick={downloadOriginal} disabled={originBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
-                          <span>{originBusy ? "Recovering\u2026" : "Original file"}</span>
+                  {/* The downloads bar: one full-width row under the when, a hairline
+                      between them, every button the same width, wrapping to a grid on
+                      a phone (Mike, 2026-09-24: the tall right-hand stack "looks
+                      messy"). Notes land under the row, full width, never inside it. */}
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "10px 16px 12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                      <span className="kicker">Downloads</span>
+                      <div style={{ flex: 1, minWidth: 260, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+                        {cachedFile && !isSet && cachedRole !== "original" && attr?.name === "bitgraph-fuse/1" && !isInlineProof(proof) ? (
+                          <button onClick={downloadOriginal} disabled={originBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
+                            <span>{originBusy ? "Recovering\u2026" : "Original file"}</span>
+                          </button>
+                        ) : null}
+                        {cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor ? (
+                          <button onClick={downloadCarrier} disabled={carrierBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
+                            <span>{carrierBusy ? "Assembling\u2026" : "BitGraphed file"}</span>
+                          </button>
+                        ) : null}
+                        {!isEth ? (
+                          <button onClick={downloadAnchors} disabled={anchorsBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
+                            <span>{anchorsBusy ? "Fetching\u2026" : "Ethereum anchors"}</span>
+                          </button>
+                        ) : null}
+                        <button onClick={exportZip} disabled={exporting} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
+                          <span>{exporting ? "Exporting\u2026" : "Package (.zip)"}</span>
                         </button>
-                        {originMsg && (
-                          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{originMsg}</div>
-                        )}
                       </div>
-                    ) : null}
-                    {cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor ? (
-                      <div>
-                        <button onClick={downloadCarrier} disabled={carrierBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
-                          <span>{carrierBusy ? "Assembling\u2026" : "BitGraphed file"}</span>
-                        </button>
-                        {carrierMsg && (
-                          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{carrierMsg}</div>
-                        )}
-                      </div>
-                    ) : null}
-                    {!isEth ? (
-                      <div>
-                        <button onClick={downloadAnchors} disabled={anchorsBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
-                          <span>{anchorsBusy ? "Fetching\u2026" : "Ethereum anchors"}</span>
-                        </button>
-                        {anchorsMsg && (
-                          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{anchorsMsg}</div>
-                        )}
-                      </div>
-                    ) : null}
-                    <button onClick={exportZip} disabled={exporting} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
-                      <span>{exporting ? "Exporting…" : "Package (.zip)"}</span>
-                    </button>
-                    {!cachedFile && (
-                      <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4 }}>
-                        BitGraph only: the original file is not on this device
+                    </div>
+                    {(carrierMsg || anchorsMsg || originMsg || !cachedFile) && (
+                      <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 6, display: "grid", gap: 2 }}>
+                        {originMsg && <div>{originMsg}</div>}
+                        {carrierMsg && <div>{carrierMsg}</div>}
+                        {anchorsMsg && <div>{anchorsMsg}</div>}
+                        {!cachedFile && <div>BitGraph only: the original file is not on this device</div>}
                       </div>
                     )}
-                    </div>
                   </div>
                 </div>
               )}

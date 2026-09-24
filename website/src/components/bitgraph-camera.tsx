@@ -317,7 +317,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         const url = URL.createObjectURL(new Blob([r.bytes.slice() as Uint8Array<ArrayBuffer>], { type: "application/octet-stream" }));
         const el = document.createElement("a"); el.href = url; el.download = name; el.click();
         URL.revokeObjectURL(url);
-        setCarrierDrops((d) => d.map((c) => (c.name === name ? { name, ceiling: "present", note: "Completed and saved. The old copy can be replaced." } : c)));
+        setCarrierDrops((d) => d.map((c) => (c.name === name ? { name, ceiling: "present" } : c)));
       } else {
         setCarrierDrops((d) => d.map((c) => (c.name === name ? { ...c, note: r.note } : c)));
       }
