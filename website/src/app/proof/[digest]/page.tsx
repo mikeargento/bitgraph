@@ -1349,13 +1349,28 @@ export default function ProofPage() {
                   {/* The export rides on the right (Mike, 2026-09-16); on a phone
                       it wraps under the when, see .bg-when-box in globals.css. */}
                   <div className="bg-when-actions" style={{ padding: "14px 16px", marginLeft: "auto", textAlign: "right" }}>
-                    <button onClick={exportZip} disabled={exporting} className="bg-action-link" style={{ margin: 0 }}>
-                      <span>{exporting ? "Exporting…" : "Export BitGraph package (.zip)"}</span>
-                    </button>
+                    {/* One equal-width stack (Mike, 2026-09-24: "same length buttons"):
+                        an inline grid shrinks to the widest label and stretches the
+                        rest to match, and the kicker names what the column is. */}
+                    <div style={{ display: "inline-grid", gap: 8, justifyItems: "stretch", textAlign: "left" }}>
+                    <span className="kicker" style={{ textAlign: "right" }}>Downloads</span>
+                    {/* Shown whenever the page might be holding the new file (a restored view
+                        has no role); the unwrap itself is the gate, and refuses anything that
+                        does not verify as the fused artifact. */}
+                    {cachedFile && !isSet && cachedRole !== "original" && attr?.name === "bitgraph-fuse/1" && !isInlineProof(proof) ? (
+                      <div>
+                        <button onClick={downloadOriginal} disabled={originBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
+                          <span>{originBusy ? "Recovering\u2026" : "Original file"}</span>
+                        </button>
+                        {originMsg && (
+                          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{originMsg}</div>
+                        )}
+                      </div>
+                    ) : null}
                     {cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor ? (
                       <div>
-                        <button onClick={downloadCarrier} disabled={carrierBusy} className="bg-action-link" style={{ margin: "8px 0 0" }}>
-                          <span>{carrierBusy ? "Assembling\u2026" : "Download the file with its proof inside"}</span>
+                        <button onClick={downloadCarrier} disabled={carrierBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
+                          <span>{carrierBusy ? "Assembling\u2026" : "BitGraphed file"}</span>
                         </button>
                         {carrierMsg && (
                           <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{carrierMsg}</div>
@@ -1364,32 +1379,23 @@ export default function ProofPage() {
                     ) : null}
                     {!isEth ? (
                       <div>
-                        <button onClick={downloadAnchors} disabled={anchorsBusy} className="bg-action-link" style={{ margin: "8px 0 0" }}>
-                          <span>{anchorsBusy ? "Fetching\u2026" : "Download the anchor pair"}</span>
+                        <button onClick={downloadAnchors} disabled={anchorsBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
+                          <span>{anchorsBusy ? "Fetching\u2026" : "Ethereum anchors"}</span>
                         </button>
                         {anchorsMsg && (
                           <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{anchorsMsg}</div>
                         )}
                       </div>
                     ) : null}
-                    {/* Shown whenever the page might be holding the new file (a restored view
-                        has no role); the unwrap itself is the gate, and refuses anything that
-                        does not verify as the fused artifact. */}
-                    {cachedFile && !isSet && cachedRole !== "original" && attr?.name === "bitgraph-fuse/1" && !isInlineProof(proof) ? (
-                      <div>
-                        <button onClick={downloadOriginal} disabled={originBusy} className="bg-action-link" style={{ margin: "8px 0 0" }}>
-                          <span>{originBusy ? "Recovering\u2026" : "Download the original"}</span>
-                        </button>
-                        {originMsg && (
-                          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{originMsg}</div>
-                        )}
-                      </div>
-                    ) : null}
+                    <button onClick={exportZip} disabled={exporting} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center" }}>
+                      <span>{exporting ? "Exporting…" : "Package (.zip)"}</span>
+                    </button>
                     {!cachedFile && (
                       <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4 }}>
                         BitGraph only: the original file is not on this device
                       </div>
                     )}
+                    </div>
                   </div>
                 </div>
               )}
