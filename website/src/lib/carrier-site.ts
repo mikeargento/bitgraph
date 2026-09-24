@@ -210,6 +210,31 @@ export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: 
   return { bytes: buildCarrier(committedBytes, payloadBase), fileName: carrierFileName(fileName), ceiling: "unfetched", bounds: carrierBounds(payloadBase), ceilingNote };
 }
 
+/**
+ * The anchor pair for a proof, as the ledger serves them: full anchor proofs,
+ * each carrying its own block header in metadata, so one JSON file per anchor
+ * is self-contained evidence. The floor is the signed slotAnchor's anchor when
+ * the proof carries one (v7+), else the anchor before the commit; the closing
+ * anchor is the first after the commit, and "none yet" is an answer.
+ */
+export async function fetchAnchorPair(proofIn: { version: string; commit: unknown }): Promise<{
+  floor: Record<string, unknown> | null;
+  ceiling: Record<string, unknown> | null;
+  note: string | null;
+}> {
+  const c = commitOf(proofIn as unknown as CarrierProof);
+  if (c === null) throw new Error("the proof is missing its commit fields");
+  const floorAt = c.slotAnchor !== null ? (c.slotCounter ?? c.counter) : c.counter;
+  const [beforeSide, afterSide] = await Promise.all([
+    fetchAnchorSide(floorAt, c.epochId, "before"),
+    fetchAnchorSide(c.counter, c.epochId, "after"),
+  ]);
+  const floor = beforeSide.anchors?.[0] ?? null;
+  const ceiling = afterSide.bound?.state === "anchored" ? (afterSide.anchors?.[0] ?? null) : null;
+  const note = ceiling === null ? (afterSide.bound?.note ?? "No anchor follows this position yet.") : null;
+  return { floor, ceiling, note };
+}
+
 export interface CompletionResult {
   /** "completed" | "already-complete" | "pending" | "failed" */
   status: "completed" | "already-complete" | "pending" | "failed";

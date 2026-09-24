@@ -26,7 +26,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkInline, isInlineProof } from "@/lib/fuse-client";
-import { buildCarrierForProof, deCarrierFiles } from "@/lib/carrier-site";
+import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair } from "@/lib/carrier-site";
 import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64, bytesToHex } from "@mikeargento/bitgraph-verify";
 
 /** Carry encodings this page knows; anything else in the title is a placement. */
@@ -210,6 +210,11 @@ export default function ProofPage() {
   // The carrier download: the file with its proof inside (lib/carrier-site).
   const [carrierBusy, setCarrierBusy] = useState(false);
   const [carrierMsg, setCarrierMsg] = useState<string | null>(null);
+  // The two piece-downloads beside the package: the anchor pair, and the original.
+  const [anchorsBusy, setAnchorsBusy] = useState(false);
+  const [anchorsMsg, setAnchorsMsg] = useState<string | null>(null);
+  const [originBusy, setOriginBusy] = useState(false);
+  const [originMsg, setOriginMsg] = useState<string | null>(null);
 
   /* The /folder browser's preview fallback lived here 2026-08-06 to
      2026-08-07 (a cached ~512px stand-in for remembered recordings) and was
@@ -1180,6 +1185,57 @@ export default function ProofPage() {
     }
   }
 
+  /** One object, one file, no zip. A tick apart so the browser takes both. */
+  function saveJson(name: string, obj: unknown) {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
+    const el = document.createElement("a"); el.href = url; el.download = name; el.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /* The anchor pair, as the ledger serves them: two self-contained proof JSONs
+     (each carries its block header in metadata). The floor is the signed
+     slotAnchor's anchor when the proof has one; the closing anchor is the
+     first after the commit, and its absence is stated, never padded. */
+  async function downloadAnchors() {
+    if (anchorsBusy || !proof) return;
+    setAnchorsBusy(true);
+    setAnchorsMsg(null);
+    try {
+      const pair = await fetchAnchorPair(proof);
+      if (!pair.floor && !pair.ceiling) throw new Error("no anchors could be read for this position");
+      if (pair.floor) saveJson("anchor-before.json", pair.floor);
+      if (pair.ceiling) { await new Promise((r) => setTimeout(r, 300)); saveJson("anchor-after.json", pair.ceiling); }
+      setAnchorsMsg(pair.ceiling
+        ? "Both anchors saved: the floor and the anchor that followed."
+        : `The floor anchor saved. ${pair.note ?? "No anchor follows this position yet."}`);
+    } catch (e) {
+      setAnchorsMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAnchorsBusy(false);
+    }
+  }
+
+  /* The original back out of the new file, byte-exact, only ever offered when
+     the page holds a new file and the recovery hashes to the origin digest
+     the proof signs (unpackNewFile refuses otherwise). No zip around it. */
+  async function downloadOriginal() {
+    if (originBusy || !proof || !cachedFile) return;
+    setOriginBusy(true);
+    setOriginMsg(null);
+    try {
+      const u = await unpackNewFile(proof, new Uint8Array(cachedFile.data), cachedFile.name);
+      if (!u.originalBytes || !u.originalName) throw new Error("the original could not be recovered from this file");
+      const url = URL.createObjectURL(new Blob([u.originalBytes as unknown as BlobPart]));
+      const el = document.createElement("a"); el.href = url; el.download = u.originalName; el.click();
+      URL.revokeObjectURL(url);
+      setOriginMsg("The original, byte-exact: it hashes to the origin digest the proof signs.");
+    } catch (e) {
+      setOriginMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setOriginBusy(false);
+    }
+  }
+
   return (
     <Shell>
       <style>{`
@@ -1303,6 +1359,29 @@ export default function ProofPage() {
                         </button>
                         {carrierMsg && (
                           <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{carrierMsg}</div>
+                        )}
+                      </div>
+                    ) : null}
+                    {!isEth ? (
+                      <div>
+                        <button onClick={downloadAnchors} disabled={anchorsBusy} className="bg-action-link" style={{ margin: "8px 0 0" }}>
+                          <span>{anchorsBusy ? "Fetching\u2026" : "Download the anchor pair"}</span>
+                        </button>
+                        {anchorsMsg && (
+                          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{anchorsMsg}</div>
+                        )}
+                      </div>
+                    ) : null}
+                    {/* Shown whenever the page might be holding the new file (a restored view
+                        has no role); the unwrap itself is the gate, and refuses anything that
+                        does not verify as the fused artifact. */}
+                    {cachedFile && !isSet && cachedRole !== "original" && attr?.name === "bitgraph-fuse/1" && !isInlineProof(proof) ? (
+                      <div>
+                        <button onClick={downloadOriginal} disabled={originBusy} className="bg-action-link" style={{ margin: "8px 0 0" }}>
+                          <span>{originBusy ? "Recovering\u2026" : "Download the original"}</span>
+                        </button>
+                        {originMsg && (
+                          <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 4, maxWidth: 360 }}>{originMsg}</div>
                         )}
                       </div>
                     ) : null}
