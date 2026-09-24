@@ -39,7 +39,7 @@
     "test:core": "npm run build && node --test dist/__tests__/*.test.js",
     "test": "npm run test:core && npm run test:packages",
     "prepack": "npm run build",
-    "test:packages": "npm test --workspace=packages/mcp --workspace=packages/player --workspace=packages/titles",
+    "test:packages": "npm test --workspace=packages/verify --workspace=packages/mcp --workspace=packages/player --workspace=packages/titles",
     "test:integration": "npm run build --prefix server/commit-service && npm run test:core"
   },
   "dependencies": {

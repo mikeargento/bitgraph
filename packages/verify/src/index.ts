@@ -87,3 +87,18 @@ export { merkleLeafHash, merkleNodeHash, merkleRoot, merklePath, merkleRootFromP
 // MADE with the commitment inside it, so look for it). verifyFuse handles both;
 // these were briefly two profiles, which was one idea wearing two names.
 export { ENCODING_BASE64URL, isCarryEncoding, findCommitment, inlineAttribution } from "./fuse.js";
+
+/* bitgraph-carrier/1: the file that carries its own proof (2026-09-24). */
+export {
+  CARRIER_MAGIC, CARRIER_OVERHEAD, MAX_CARRIER_PAYLOAD, CARRIER_VERSION,
+  encodeCarrierBlock, buildCarrier, parseCarrier, completeCarrier,
+  anchorIdentity, checkFloorBinding, checkCeilingBinding, anchorMessageBytes,
+  decodeRlpTop, verifyWitnessHeader, carrierBounds, innerDigestMatches,
+  sameDigest, b64ToBytes, bytesToB64,
+} from "./carrier.js";
+export type {
+  CarrierWitness, CarrierProof, CarrierFloor, CarrierCeiling, CarrierPayload,
+  CarrierParse, WitnessCheck, CarrierBounds,
+} from "./carrier.js";
+export { verifyCarrier } from "./carrier-verify.js";
+export type { CarrierVerifyResult } from "./carrier-verify.js";

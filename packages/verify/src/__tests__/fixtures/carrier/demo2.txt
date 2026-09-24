@@ -1,0 +1,14 @@
+A BitGraph demonstration.
+
+position commitment
+eUfdWvbS-9DcEUlmigCAm2jaXcmqlVqEwtMMm71MQC8
+
+That line could not have been written here before the position it names existed.
+
+The proof beside this file says these bytes were committed at that position, after an Ethereum block already mined.
+
+It does not say this is true, or who wrote it.
+
+BitGraph doesn't stop anyone from lying between 1955 and 1985. It stops anyone from going back to 1955 with the almanac.
+
+npx @mikeargento/bitgraph-audit .
