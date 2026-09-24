@@ -242,6 +242,8 @@ interface FileItem {
   // The `file` in hand is then the JSON, not the thing the proof is about, so we
   // offer an inline check to confirm the visitor holds the matching artifact.
   fromProofJson?: boolean;
+  /** The row arrived as a carrier: its proof came from inside the file, and the bytes are in hand. */
+  fromCarrier?: boolean;
   matchedFile?: File | null;
   /** Per proof in `proofs`: a recording of these exact bytes, or a fused artifact that names them as origin. */
   kinds?: Array<"recorded" | "fused">;
@@ -744,7 +746,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // finish its fused digest later without reading the file again. The
     // couldBeProof gate stays: reading a multi-MB photo as TEXT allocates a
     // UTF-16 copy and crashed iOS Safari after ~15 files.
-    type Scanned = { f: File; digest: string; proofJson: BitGraphProof | null; valid: boolean | null; scan: FileItem["scan"] | null };
+    type Scanned = { f: File; digest: string; proofJson: BitGraphProof | null; valid: boolean | null; scan: FileItem["scan"] | null; fromCarrier?: boolean };
     const scanned: Scanned[] = new Array(files.length);
     const pool = scanPool();
     const scanStart = performance.now();
@@ -776,7 +778,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           const carried = carrierProofs?.get(f) ?? null;
           if (carried) {
             const result = await verifyProofSignature(carried).catch(() => ({ valid: false }));
-            scanned[i] = { f, digest: carried.artifact.digestB64, proofJson: carried, valid: result.valid, scan: null };
+            scanned[i] = { f, digest: carried.artifact.digestB64, proofJson: carried, valid: result.valid, scan: null, fromCarrier: true };
             hashed++;
             continue;
           }
@@ -891,7 +893,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const results: FileItem[] = scanned.map((s) => {
       const { f, digest, proofJson, valid } = s;
       if (proofJson) {
-        return { file: f, digestB64: digest, proof: proofJson, proofs: [proofJson], valid, status: "found" as const, fromProofJson: true };
+        return { file: f, digestB64: digest, proof: proofJson, proofs: [proofJson], valid, status: "found" as const, fromProofJson: true, fromCarrier: s.fromCarrier === true };
       }
       const rec = digest ? lookup[toUrlSafeB64(digest)] : undefined;
       // "On record" means bitgraph/1 only — the same filter the Folder applies
@@ -1144,7 +1146,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       }
       router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
     };
-    if (solo && !solo.fromProofJson) {
+    /* A carrier rides the proof.json path (its proof came from inside the
+       file), but unlike a bare proof it arrives WITH its bytes, so the 09-08
+       solo ruling applies: one file in, one page out. The bytes travel to the
+       page, so the hub's downloads, the original included, work on arrival. */
+    if (solo && (!solo.fromProofJson || solo.fromCarrier)) {
       /* A lone file already on record OPENS ITS PROOF (Mike, 2026-09-08:
          "dropping a single file should simply just pull up its coorasponding
          proof").
