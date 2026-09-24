@@ -1162,7 +1162,11 @@ export default function ProofPage() {
         committed = new Uint8Array(r.fusedBytes);
         label = cachedFile.name;
       }
-      const built = await buildCarrierForProof(committed, proof, label);
+      // A fresh recording's closing anchor is usually seconds away: wait a
+      // short, capped moment for it so the file leaves complete and never
+      // needs a second step. Permanent answers and the idle cadence fall
+      // through to floor-only immediately or at the cap, stated in the note.
+      const built = await buildCarrierForProof(committed, proof, label, { waitForCeilingMs: 15000 });
       const url = URL.createObjectURL(new Blob([built.bytes as unknown as BlobPart], { type: "application/octet-stream" }));
       const el = document.createElement("a"); el.href = url; el.download = built.fileName; el.click();
       URL.revokeObjectURL(url);

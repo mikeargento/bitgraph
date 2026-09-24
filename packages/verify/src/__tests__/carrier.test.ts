@@ -54,6 +54,22 @@ test("plain bytes are not a carrier; that is 'none', not a verdict", () => {
   assert.equal(parseCarrier(demo2).kind, "none");
 });
 
+test("an empty or tiny file is 'none', never an error", () => {
+  assert.equal(parseCarrier(new Uint8Array(0)).kind, "none");
+  assert.equal(parseCarrier(new Uint8Array(25)).kind, "none");
+});
+
+test("bytes that merely END with the magic are 'corrupt', and readers leave them as plain bytes", () => {
+  // A ~2^-64 coincidence, pinned so the behaviour is documented: the trailing
+  // magic is there, but the lengths and leading magic cannot agree, so the
+  // parse reports an unreadable block rather than inventing a carrier. Site
+  // and CLI both fall through to treating the file as ordinary bytes.
+  const coincidence = new Uint8Array(200);
+  coincidence.fill(7);
+  coincidence.set([0x42, 0x47, 0x50, 0x52, 0x4f, 0x4f, 0x46, 0x01], 192);
+  assert.equal(parseCarrier(coincidence).kind, "corrupt");
+});
+
 test("the block-header witnesses verify by keccak and carry the block time", () => {
   for (const w of [floor1.witness, floor2.witness, ceil2.witness]) {
     const r = verifyWitnessHeader(w);

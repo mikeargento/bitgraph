@@ -67,6 +67,23 @@ async function vetAnchor(anchor: Record<string, unknown>, witness: CarrierWitnes
   if (!w.ok) throw new Error(`${what} witness: ${w.error}`);
 }
 
+/**
+ * A short, capped wait for the anchor that follows, only while the ledger says
+ * "pending" (the live epoch, none landed yet): most of the time the next
+ * anchor is seconds away, and a file that leaves complete never needs a second
+ * step. "closed" and "none" are permanent answers and are never waited on, and
+ * the cap keeps the idle cadence (anchors up to an hour apart) from hanging
+ * anyone: past it, the file leaves floor-only with the honest note, as before.
+ */
+async function fetchAfterWithWait(counter: string, epochId: string, waitMs: number): Promise<AnchorSideAnswer> {
+  const deadline = Date.now() + waitMs;
+  for (;;) {
+    const after = await fetchAnchorSide(counter, epochId, "after");
+    if (after.bound?.state !== "pending" || Date.now() >= deadline) return after;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+}
+
 export interface BuiltCarrier {
   bytes: Uint8Array;
   fileName: string;
@@ -144,7 +161,7 @@ export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; no
  * `unfetched` in so many words otherwise. Throws with a sentence on any
  * failed read: a carrier is never built on a guess.
  */
-export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: { version: string; commit: unknown }, fileName: string): Promise<BuiltCarrier> {
+export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: { version: string; commit: unknown }, fileName: string, opts: { waitForCeilingMs?: number } = {}): Promise<BuiltCarrier> {
   const proof = proofIn as unknown as BitGraphProof;
   const c = commitOf(proof as unknown as CarrierProof);
   if (c === null) throw new Error("the proof is missing its commit fields");
@@ -171,7 +188,7 @@ export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: 
   // The ceiling, if one has landed. "pending" and "could not fetch" stay distinct sentences.
   let ceilingNote: string | null = null;
   try {
-    const after = await fetchAnchorSide(c.counter, c.epochId, "after");
+    const after = await fetchAfterWithWait(c.counter, c.epochId, opts.waitForCeilingMs ?? 0);
     const anchor = after.anchors?.[0];
     if (after.bound?.state === "anchored" && anchor) {
       const id = (anchor as { commit?: { anchor?: { blockNumber?: number; blockHash?: string } } }).commit?.anchor;
@@ -202,7 +219,7 @@ export interface CompletionResult {
 }
 
 /** Fetch and stamp the closing anchor into a dropped carrier. Never overwrites, never invents. */
-export async function completeDroppedCarrier(bytes: Uint8Array): Promise<CompletionResult> {
+export async function completeDroppedCarrier(bytes: Uint8Array, opts: { waitForCeilingMs?: number } = {}): Promise<CompletionResult> {
   const p: CarrierParse = parseCarrier(bytes);
   if (p.kind !== "carrier") {
     return { status: "failed", bytes, note: p.kind === "none" ? "This file carries no proof block." : `The proof block is unreadable: ${p.reason}`, bounds: null };
@@ -212,7 +229,7 @@ export async function completeDroppedCarrier(bytes: Uint8Array): Promise<Complet
   }
   const c = commitOf(p.payload.proof);
   if (c === null) return { status: "failed", bytes, note: "The carried proof is missing its commit fields.", bounds: null };
-  const after = await fetchAnchorSide(c.counter, c.epochId, "after");
+  const after = await fetchAfterWithWait(c.counter, c.epochId, opts.waitForCeilingMs ?? 0);
   const anchor = after.anchors?.[0];
   if (after.bound?.state !== "anchored" || !anchor) {
     return { status: "pending", bytes, note: after.bound?.note ?? "No anchor follows this position yet.", bounds: carrierBounds(p.payload) };

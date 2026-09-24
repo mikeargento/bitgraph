@@ -312,7 +312,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     if (carrierFetching) return;
     setCarrierFetching(name);
     try {
-      const r = await completeDroppedCarrier(outer);
+      const r = await completeDroppedCarrier(outer, { waitForCeilingMs: 15000 });
       if (r.status === "completed" || r.status === "already-complete") {
         const url = URL.createObjectURL(new Blob([r.bytes.slice() as Uint8Array<ArrayBuffer>], { type: "application/octet-stream" }));
         const el = document.createElement("a"); el.href = url; el.download = name; el.click();
