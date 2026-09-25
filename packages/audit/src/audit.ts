@@ -37,7 +37,7 @@ import type { AuditOptions, AuditResult, ExitFlags, IngestResult } from "./types
  * this equals package.json's version, so the constant cannot drift silently
  * across releases.
  */
-export const AUDIT_VERSION = "0.6.2";
+export const AUDIT_VERSION = "0.6.3";
 
 /** The audit package's own version. */
 export function auditToolVersion(): string {

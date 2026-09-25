@@ -1619,7 +1619,7 @@ th, .prose th, .prose-doc th, .overview th { background: transparent; }
    keeps the cursor inside the panel on the way down from the button. */
 .nav-panel::before { content: ""; position: absolute; left: 0; right: 0; top: -9px; height: 9px; }
 .nav-panel { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 90%; max-width: var(--frame); box-sizing: border-box; padding: 18px 16px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-menu); max-height: calc(100dvh - 90px); overflow-y: auto; overscroll-behavior: contain; }
-.nav-panel-title { padding: 0 10px 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim); }
+.nav-panel-title { padding: 0 10px 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); }
 @media (max-width: 900px) {
   .nav-groups { display: none; }
   #site-nav .nav-docs { display: inline-flex; }

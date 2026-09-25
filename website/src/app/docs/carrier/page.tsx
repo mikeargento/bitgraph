@@ -34,7 +34,7 @@ export default function CarrierPage() {
         The floor is always inside: the anchor the enclave signed into the slot, matched by identity, with the block header beside it so <em>placed no earlier than this block</em> is checked by recomputing the header&rsquo;s hash locally. The ceiling cannot be inside at the moment the file is made, because the anchor that follows the commit has not landed yet. So the block states one of exactly two things:
       </p>
       <ul>
-        <li><strong>Closing anchor inside.</strong> The window is complete: no earlier than the floor block, committed before the closing anchor.</li>
+        <li><strong>Closing anchor inside.</strong> The window is complete: no earlier than the floor block, committed before the closing anchor. Each proof inside also carries the enclave platform&apos;s signed clock, so the file states the instant it was committed and proves the window around it.</li>
         <li><strong>Closing anchor not fetched.</strong> Stated in those words. The floor stands on its own; nothing about the ceiling is implied, invented or downgraded.</li>
       </ul>
       <p>

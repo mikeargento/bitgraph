@@ -24,6 +24,7 @@ import { join, basename } from "node:path";
 import { parseCarrier, verifyCarrier } from "@mikeargento/bitgraph-verify";
 import type { VerificationPolicy } from "@mikeargento/bitgraph-verify";
 import { auditToolVersion, computeExitFlags, runAudit } from "./audit.js";
+import { attestationTimestampMs } from "./attestation.js";
 import { buildJsonReport } from "./report-json.js";
 import { buildMarkdownReport } from "./report-md.js";
 import type { ExitFlags } from "./types.js";
@@ -265,9 +266,18 @@ async function main(): Promise<number> {
         // later block, never that block's mine time, because an anchor is
         // built after the block it carries. Canon: floor in time, ceiling in
         // position; a block's clock never reads as an upper bound.
+        // The committed instant per the enclave platform's signed clock (the
+        // proof's own attestation timestamp): a labeled point estimate that
+        // the trust-nobody bracket beneath it bounds. RE-RULING 2026-09-25.
+        const attestedMs = verdict.payload
+          ? attestationTimestampMs(
+              ((verdict.payload.proof as { environment?: { attestation?: { reportB64?: string } } }).environment?.attestation?.reportB64) ?? ""
+            )
+          : null;
         const lines = [
           `carrier: ${verdict.verdict}${verdict.carrier === "corrupt" ? " (block unreadable: corrupted, not judged)" : ""}`,
           b ? `  no earlier than: block ${b.notBefore.blockNumber}${b.notBefore.timestamp !== null ? ` (mined ${new Date(b.notBefore.timestamp * 1000).toISOString()})` : ""}` : null,
+          attestedMs !== null ? `  committed:       ${new Date(attestedMs).toISOString()} per the enclave platform's signed clock` : null,
           b ? `  committed before: ${b.notAfter === null ? "NOT FETCHED (the closing anchor is not inside this file)" : `the anchoring of block ${b.notAfter.blockNumber}${b.notAfter.timestamp !== null ? ` (that block mined ${new Date(b.notAfter.timestamp * 1000).toISOString()})` : ""}`}` : null,
           ...verdict.reasons.map((r) => `  - ${r}`),
         ].filter((l): l is string => l !== null);

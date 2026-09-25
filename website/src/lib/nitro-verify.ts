@@ -550,3 +550,26 @@ function extractPcrs(attDoc: Record<string, unknown>): Record<number, string> {
   }
   return pcrs;
 }
+
+/**
+ * The attestation document's own signed clock, decoded without verifying:
+ * the receipt's lead line shows it as the committed instant, labeled with
+ * its root, and the Hardware Enclave card below runs the full verification
+ * on demand (RE-RULING 2026-09-25: the attested instant leads, the Ethereum
+ * bracket confirms it). Returns milliseconds, or null when the document is
+ * absent or unreadable; never throws.
+ */
+export function attestationTimestampMs(reportB64: string): number | null {
+  try {
+    const cose = decodeCbor(b64ToBytes(reportB64), 0).value;
+    if (!Array.isArray(cose) || cose.length < 4) return null;
+    const payload = cose[2];
+    if (!(payload instanceof Uint8Array)) return null;
+    const doc = decodeCbor(payload, 0).value;
+    if (doc === null || typeof doc !== "object" || Array.isArray(doc)) return null;
+    const ts = (doc as Record<string, unknown>)["timestamp"];
+    return typeof ts === "number" && Number.isFinite(ts) && ts > 0 ? ts : null;
+  } catch {
+    return null;
+  }
+}

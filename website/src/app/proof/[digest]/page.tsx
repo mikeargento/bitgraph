@@ -10,7 +10,7 @@ import { hashBytes, proofHashB64, type BitGraphProof } from "@/lib/bitgraph";
 import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop } from "@/lib/folder-check";
 import { zipSync, strToU8 } from "fflate";
 import { anchorStatusDoc, isSettled, ANCHOR_STATUS_FILE, type BoundReport } from "@/lib/anchor-export";
-import { verifyNitroAttestation, type NitroVerifyResult } from "@/lib/nitro-verify";
+import { verifyNitroAttestation, attestationTimestampMs, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
@@ -752,6 +752,17 @@ export default function ProofPage() {
   // (upper bound) — see the naming note on the BitGraphed After/Before cards.
   const lowerTime = causalWindow?.anchorBefore?.blockTime;
   const upperTime = causalWindow?.anchorAfter?.blockTime;
+  const upperCounter = causalWindow?.anchorAfter?.counter ?? null;
+  // The committed instant per the enclave platform's signed clock: the Nitro
+  // attestation document's own timestamp, decoded here for display and fully
+  // verified on demand in the Hardware Enclave card. RE-RULING 2026-09-25:
+  // the attested instant LEADS the receipt, the Ethereum bracket beneath
+  // confirms it, and the number always wears its root. The bracket's ceiling
+  // stays positional (before the anchor), never a block's mine time.
+  // Computed plainly (no hook): this section sits below the page's early
+  // returns, and the decode is a few kilobytes of CBOR.
+  const attestedRep = proof?.environment?.attestation?.reportB64;
+  const attestedMs = typeof attestedRep === "string" && attestedRep.length > 0 ? attestationTimestampMs(attestedRep) : null;
   let recordedLine: string | null = null;
   // Optional pre-formatted node so the Ethereum-anchor line breaks cleanly
   // between the block and its time (one line on desktop, time drops to line 2
@@ -851,6 +862,14 @@ export default function ProofPage() {
   const winLine = (children: React.ReactNode) => (
     <div style={{ fontFamily: mono, fontSize: 12, lineHeight: 1.6, color: "var(--dim)" }}>{children}</div>
   );
+  // RE-RULING 2026-09-25 (Mike: "just say what time it commits according to
+  // the TEE... the eth proofs confirm the time", then "Recorded ... we dont
+  // need eth info there"): the lead is the recorded instant alone, bare by
+  // the ruled lead exception, because the card stack directly beneath it
+  // supplies the root and both bounds (Hardware Enclave, floor, ceiling).
+  const committedLine = attestedMs !== null
+    ? winLine(<span style={{ whiteSpace: "nowrap" }}>{conn("Recorded ")}{val(timeTz(new Date(attestedMs)))}</span>)
+    : null;
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
     // The block number lives in the "BitGraphed Ethereum Block" card below, so
     // the receipt carries only the block's date (left, via recordedDate) and its
@@ -859,16 +878,24 @@ export default function ProofPage() {
     leadStack = winLine(val(timeTz(d)));
   } else if (!isEth && lowerTime) {
     if (upperTime) {
-      // "after <time>, before <time>": both are block mint times (Mike's
-      // ruling, see the verdict above).
+      // RE-RULED 2026-09-25 (supersedes the 09-16/17 "after <time>, before
+      // <time>" verdict): the committed instant leads on its own line, the
+      // floor stays a block's mint time, and the ceiling is stated in
+      // POSITION ("before anchor #K"), never as the later block's mint time,
+      // because an anchor is built after the block it carries. The ceiling
+      // block's own time still shows on its card below, beside its link.
       const s1 = new Date(lowerTime);
       const s2 = new Date(upperTime);
-      leadStack = winLine(
+      // The lead is the recorded instant alone (Mike, 09-25: "we dont need
+      // eth info there"); the floor and ceiling keep their own cards below.
+      // When the attestation is unreadable, the bracket line stands in, with
+      // the ceiling stated in position.
+      leadStack = committedLine ?? winLine(
         <>
-          {/* Two unbreakable clauses: on a phone the line breaks between
-              them, never inside one. */}
           <span style={{ whiteSpace: "nowrap" }}>{conn("after ")}{val(timeTz(s1))}{conn(",")}</span>{" "}
-          <span style={{ whiteSpace: "nowrap" }}>{conn("before ")}{val(sameUtcDay(s1, s2) ? timeTz(s2) : stampTz(s2))}</span>
+          {upperCounter !== null
+            ? <span style={{ whiteSpace: "nowrap" }}>{conn("before ")}{val(`anchor #${Number(upperCounter).toLocaleString("en-US")}`)}</span>
+            : <span style={{ whiteSpace: "nowrap" }}>{conn("before ")}{val(sameUtcDay(s1, s2) ? timeTz(s2) : stampTz(s2))}</span>}
         </>
       );
     } else if (ethWait) {
@@ -878,13 +905,13 @@ export default function ProofPage() {
       // rather than a full-width timestamp placeholder — short enough that date
       // + time stay on one line while waiting (no wrap). When the anchor lands
       // the close fills in; on mobile it then drops to its own line at seal.
-      leadStack = winLine(
+      leadStack = committedLine ?? winLine(
         <>
           {conn("after ")}{val(timeTz(s1))}
         </>
       );
     } else {
-      leadStack = winLine(<>{conn("after ")}{val(timeTz(new Date(lowerTime)))}</>);
+      leadStack = committedLine ?? winLine(<>{conn("after ")}{val(timeTz(new Date(lowerTime)))}</>);
     }
   }
 

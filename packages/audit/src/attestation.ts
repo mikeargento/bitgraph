@@ -889,3 +889,26 @@ function extractPcrs(attDoc: Record<string, unknown>): Record<number, string> {
   }
   return pcrs;
 }
+
+/**
+ * The attestation document's own signed clock, decoded without verifying.
+ * The CLI prints it as the committed instant, labeled with its root (the
+ * enclave platform, AWS-attested); validateNitroAttestationDocument remains
+ * the full judgment. Milliseconds, or null; never throws.
+ */
+export function attestationTimestampMs(reportB64: string): number | null {
+  try {
+    const bytes = b64ToBytes(reportB64);
+    if (bytes === null) return null;
+    const cose = decodeCbor(bytes, 0).value;
+    if (!Array.isArray(cose) || cose.length < 4) return null;
+    const payload = cose[2];
+    if (!(payload instanceof Uint8Array)) return null;
+    const doc = decodeCbor(payload, 0).value;
+    if (doc === null || typeof doc !== "object" || Array.isArray(doc)) return null;
+    const ts = (doc as Record<string, unknown>)["timestamp"];
+    return typeof ts === "number" && Number.isFinite(ts) && ts > 0 ? ts : null;
+  } catch {
+    return null;
+  }
+}
