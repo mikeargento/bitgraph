@@ -11,7 +11,7 @@ import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFi
 import { zipSync, strToU8 } from "fflate";
 import { anchorStatusDoc, isSettled, ANCHOR_STATUS_FILE, type BoundReport } from "@/lib/anchor-export";
 import { verifyNitroAttestation, attestationTimestampMs, type NitroVerifyResult } from "@/lib/nitro-verify";
-import { timeTz, stampTz } from "@/lib/format-time";
+import { timeTz, stampTz, longDateTz, dateTz, sameDayTz, useTimeZoneMode, TimeZoneToggle } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
@@ -145,6 +145,8 @@ export default function ProofPage() {
      emptiness is not a claim about these bytes. */
   const [retired, setRetired] = useState(false);
   const [cachedFile, setCachedFile] = useState<{ name: string; data: ArrayBuffer; c2pa?: C2PAReadResult | null; c2paChecked?: boolean } | null>(null);
+  // Re-render every printed time when the viewer flips the zone toggle.
+  useTimeZoneMode();
   // Which file the page holds for a fused proof: the original (accepted by
   // reconstruction) or the new file itself. Names the export action; an
   // ordinary recording has one file and needs no role.
@@ -777,13 +779,13 @@ export default function ProofPage() {
   // which wrapped on mobile), written long ("October 24, 2025") so there is no
   // M/D vs D/M ambiguity across locales.
   let recordedDate: string | null = null;
-  // UTC, like every time under it: the heading names the day, so the times
-  // beneath it drop their date when they fall on that day (Mike, 2026-09-17).
-  const longDate = (d: Date) => d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
-  const sameUtcDay = (a: Date, b: Date) => a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
-  // The date beside a UTC time is the UTC date (Mike, 2026-09-19: "it should be UTC throughout"). A local date
-  // here could print "3:05 AM UTC on 9/18" for the 19th.
-  const utcDate = (d: Date) => d.toLocaleDateString("en-US", { timeZone: "UTC" });
+  // The heading names the day IN THE DISPLAYED ZONE, so the times beneath it
+  // drop their date when they fall on that day (Mike, 2026-09-17), and a
+  // toggle to local can never print "3:05 AM EDT" under a UTC date. UTC stays
+  // the default (Mike, 2026-09-19: "it should be UTC throughout").
+  const longDate = (d: Date) => longDateTz(d);
+  const sameUtcDay = (a: Date, b: Date) => sameDayTz(a, b);
+  const utcDate = (d: Date) => dateTz(d);
   let leadNode: React.ReactNode = null;
   // The actual time/date values are emphasized in brand blue (the connector
   // words stay default gray), so the receipt's key temporal fact reads as the
@@ -926,8 +928,11 @@ export default function ProofPage() {
        counters elsewhere on the page. */
     <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 16px" }}>
       {recordedDate && (
-        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
-          {recordedDate}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+            {recordedDate}
+          </div>
+          <TimeZoneToggle style={{ fontFamily: mono, fontSize: 12 }} />
         </div>
       )}
       {whenNode}
