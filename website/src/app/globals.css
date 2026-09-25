@@ -2044,17 +2044,21 @@ body { background: var(--bg); }
   /* Re-solved 2026-09-25 for "BitGraph gives AI logs a position" (desk line
      one, Mike's break): measured 14.35x its font size in the shipped face
      with the -0.025em tracking (canvas measureText; the rule is re-solve,
-     never nudge). 90vw column: 90/14.35 = 6.27vw, set 6.2 for margin; 72px
-     cap keeps the line inside the 1040 frame (72 x 14.35 = 1033). */
-  font-size: clamp(20px, 6.2vw, 72px) !important;
+     never nudge). 90vw column: 90/14.35 = 6.27vw, set 6.2 for margin. Cap
+     66px (66 x 14.35 = 947, ~91% of the 1040 frame): 72px filled the frame
+     edge to edge and read a tad wide (Mike, 2026-09-25); 91% lines the
+     headline up with the subhead's own balanced width beneath it. */
+  font-size: clamp(20px, 6.2vw, 66px) !important;
   line-height: 1.05 !important;
   letter-spacing: -0.025em !important;
 }
 /* Responsive h1 breaks: phones take three lines and the bigger size that
    buys. The longest phone line ("a position that can't") measures ~9.6x, and
    9.3vw left it 17px from each edge at 375, which read tight (Mike,
-   2026-09-25: "fix tighness on mobile h1"): 9.0vw gives ~25px of air per
-   side, 27px floor for the 288px column. A desk keeps the two-line poster. */
+   2026-09-25: "fix tighness on mobile h1"), and 9.0vw still ran ~22px wider
+   than the subhead under it ("all out of balance"): 8.6vw puts the
+   headline's widest line within a few pixels of the subhead's (~322px at
+   390), 26px floor for the 288px column. A desk keeps the two-line poster. */
 .br-mob { display: inline; }
 .br-desk { display: none; }
 @media (min-width: 900px) {
@@ -2076,6 +2080,17 @@ body { background: var(--bg); }
   font-size: clamp(17px, 2.1vw, 24px) !important;
   line-height: 1.45 !important;
   text-wrap: balance;
+}
+/* On a phone the subhead sets smaller (4.2vw, about 16px at 390) so it
+   wraps in four near-even lines as wide as the headline (measured
+   300/346/300/307 against the headline's 343), after bigger balanced and
+   ragged settings all left short or uneven lines ("it looks bad", Mike,
+   2026-09-25). Both sizes are in vw, so the proportion holds on every
+   phone. The bold closer's phrase spans let go here so the wrap can place
+   its break; "the record." and the hyphenated words never split. */
+@media (max-width: 899px) {
+  .home .lede { font-size: clamp(14px, 4.2vw, 20px) !important; text-wrap: pretty; }
+  .home .lede strong span { white-space: normal !important; }
 }
 
 /* The home page's two actions are the only interactive thing on it, sitting under
