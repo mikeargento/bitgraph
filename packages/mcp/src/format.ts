@@ -11,9 +11,7 @@
  * carries, so a block's mine time is never an upper clock bound.
  */
 
-import { toUrlSafeB64 } from "./encoding.js";
-import { carrierLine, type CarrierWindowView } from "./carrier-io.js";
-import type { BitGraphProof, PositionView, ProofDetailResponse, SetMemberView } from "./types.js";
+import { toUrlSafeB64, carrierLine, type CarrierWindowView, type BitGraphProof, type PositionView, type ProofDetailResponse, type SetMemberView } from "@mikeargento/bitgraph-sdk";
 
 export const CHARACTER_LIMIT = 25_000;
 /** Rows per group a markdown summary lists before "and N more". */

@@ -14,7 +14,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "bitgraph-title": "./dist/cli.js"
+    "bitgraph-title": "dist/cli.js"
   },
   "exports": {
     ".": {

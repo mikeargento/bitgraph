@@ -3,9 +3,9 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
-import { toUrlSafeB64 } from "../encoding.js";
+import { toUrlSafeB64 } from "@mikeargento/bitgraph-sdk";
 import { capJson, proofUrl, renderProofMarkdown, renderRecordMarkdown } from "../format.js";
-import type { ProofDetailResponse } from "../types.js";
+import type { ProofDetailResponse } from "@mikeargento/bitgraph-sdk";
 
 const DIGEST = createHash("sha256").update("bitgraph").digest("base64");
 const EPOCH = createHash("sha256").update("epoch").digest("base64");

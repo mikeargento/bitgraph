@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-mcp",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "MCP server for BitGraph. Make a BitGraph of files or folders (one set, one position for all of it), check whether bytes are on record, and fetch proofs from any MCP client.",
   "keywords": [
     "bitgraph",
@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@mikeargento/bitgraph": "^1.8.0",
+    "@mikeargento/bitgraph-sdk": "^0.1.0",
     "@mikeargento/bitgraph-verify": "^1.13.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.25.0"

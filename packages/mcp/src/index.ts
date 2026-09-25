@@ -10,7 +10,7 @@
  */
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { configFromEnv } from "./api.js";
+import { configFromEnv } from "@mikeargento/bitgraph-sdk";
 import { buildServer, SERVER_VERSION } from "./server.js";
 
 async function main(): Promise<void> {

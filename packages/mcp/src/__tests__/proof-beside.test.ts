@@ -3,7 +3,7 @@ import * as assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeProofBeside } from "../task.js";
+import { writeProofBeside } from "@mikeargento/bitgraph-sdk";
 
 describe("the server writes the task proof beside the sealed file", () => {
   test("named after the file, whole, and never over an existing one", async () => {

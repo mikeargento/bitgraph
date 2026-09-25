@@ -19,24 +19,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { readFile } from "node:fs/promises";
-import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, fusedNamesFor, type FuseSetMember, type FuseSetProgress } from "@mikeargento/bitgraph";
+import { FuseError, MAX_SET_MEMBERS, type FuseSetProgress } from "@mikeargento/bitgraph";
 import {
-  ApiError,
-  batchCheck,
-  configFromEnv,
-  getProofDetail,
-  indexSetMembers,
-  search,
-  type ApiConfig,
-} from "./api.js";
-import {
-  fromUrlSafeB64,
-  looksLikeDigest,
-  mapConcurrent,
-  sha256FileB64,
-  toUrlSafeB64,
-} from "./encoding.js";
+  ApiError, batchCheck, configFromEnv, getProofDetail, indexSetMembers, search, type ApiConfig,
+  fromUrlSafeB64, looksLikeDigest, mapConcurrent, sha256FileB64, toUrlSafeB64,
+  expandPaths, scanFile, type ScannedFile,
+  type CarrierWindowView,
+  classifyPath, fuseFilePipeline, fuseSetPipeline, MAX_LOADED_BYTES,
+  type CarrierRow, type FuseFileFn, type FuseSetFn, type FusedSummary, type SetSummary,
+  SLOT_TTL_SECONDS, beginTask, decodeTaskToken, sealTask, writeProofBeside,
+  type BitGraphProof, type ProofDetailResponse,
+} from "@mikeargento/bitgraph-sdk";
 import {
   capJson,
   positionOf,
@@ -48,13 +41,11 @@ import {
   type RecordOutcome,
   type SetOutcome,
 } from "./format.js";
-import { expandPaths, fusedDigestFor, scanFile, sniffC2paBytes, type ScannedFile } from "./scan.js";
-import { readCarrierFile, sniffCarrierTail, type CarrierWindowView } from "./carrier-io.js";
-import { stat } from "node:fs/promises";
-import { SLOT_TTL_SECONDS, TASK_INSTRUCTIONS, beginTask, decodeTaskToken, sealTask, writeProofBeside } from "./task.js";
-import type { BitGraphProof, ProofDetailResponse } from "./types.js";
+import { TASK_INSTRUCTIONS } from "./instructions.js";
 
-export const SERVER_VERSION = "0.6.0";
+export type { FuseFileFn, FuseSetFn, FusedSummary, SetSummary } from "@mikeargento/bitgraph-sdk";
+
+export const SERVER_VERSION = "0.7.0";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */
@@ -64,7 +55,6 @@ export const MAX_MEMBERS = 100_000;
 /** Files one check may cover after directories expand. */
 const MAX_CHECK_FILES = 10_000;
 /** A file whose length changed while it was read is fused from its bytes instead; above this it is left out rather than held in memory. */
-const MAX_LOADED_BYTES = 256 * 1024 * 1024;
 /** A single file up to this size is fused on its own, in memory, with its Frame; a larger one is a set of one, never held. */
 const MAX_SOLO_BYTES = 256 * 1024 * 1024;
 /** Rows the structured result lists in full; every fused row shares the set's position. */
@@ -73,162 +63,11 @@ export const ROW_CAP = 500;
 export const SET_INDEX_CHUNK = 2500;
 
 /** What one set yields, in the shape the tool reports; tests inject a stand-in. */
-export interface SetSummary {
-  set: "set/1" | "set/2";
-  proof: BitGraphProof;
-  /** Standard base64: the committed artifact's digest. */
-  artifactDigestB64: string;
-  count: number;
-  manifestEchoed: boolean;
-  recovered: boolean;
-  /** In the order the files were given. */
-  members: Array<{
-    index: number;
-    /** The row's ordinal in the committed artifact. */
-    manifestIndex: number;
-    placement: string;
-    originDigestB64: string;
-    artifactDigestB64: string;
-    /** set/2 only: the member's evidence, for the site's index. */
-    memberProof?: unknown;
-  }>;
-}
-export type FuseSetFn = (
-  files: readonly ScannedFile[],
-  config: ApiConfig,
-  opts: { set: "set/1" | "set/2"; onProgress?: (p: FuseSetProgress) => void }
-) => Promise<SetSummary>;
-
-/** What fusing one file on its own yields. */
-export interface FusedSummary {
-  proof: BitGraphProof;
-  frame: unknown;
-  placement: string;
-  artifactDigestB64: string;
-  originDigestB64: string;
-}
-export type FuseFileFn = (file: ScannedFile, config: ApiConfig) => Promise<FusedSummary>;
-
 export interface ServerDeps {
   /** The set pipeline; tests inject a stand-in. Default: the core package's fuseSet() against the configured site. */
   fuseSet?: FuseSetFn;
   /** The single-file pipeline; tests inject a stand-in. Default: the core package's fuse() against the configured site. */
   fuseFile?: FuseFileFn;
-}
-
-/**
- * A single file, the way a single drop on the site goes: the bytes in hand,
- * the placement chosen from them, one slot, the fused bytes built in memory
- * and hashed, committed under that exact slot, verified against the bytes,
- * and a Frame returned. The fused bytes are not kept.
- */
-async function fuseFileDefault(file: ScannedFile, config: ApiConfig): Promise<FusedSummary> {
-  const bytes = new Uint8Array(await readFile(file.path));
-  const placement = file.placement;
-  const { fusedName } = fusedNamesFor(file.name, placement);
-  const r = await fuse(builderFor(placement, bytes), {
-    placement,
-    original: bytes,
-    fusedFile: fusedName,
-    keepFused: false,
-    transport: { baseUrl: config.baseUrl, ...(config.apiKey ? { apiKey: config.apiKey } : {}) },
-  });
-  return {
-    proof: r.proof as unknown as BitGraphProof,
-    frame: r.frame,
-    placement,
-    artifactDigestB64: r.artifactDigestB64,
-    originDigestB64: r.originDigestB64 ?? file.digestB64,
-  };
-}
-
-/**
- * The default pipeline, the one the site's drop runs: one slot for the set,
- * every member a hashed member whose fused digest is finished from the
- * scan's open hasher with its placement's suffix for that slot, the set's
- * manifest (or, for a set/2, its root document) committed under the same
- * slot, and the returned proof verified against the committed artifact with
- * every member bound to it by digest. A file whose length changed during the
- * scan is a loaded member: read again when it is its turn, checked against
- * the scan's digest, fused in memory, hashed and released.
- */
-async function fuseSetDefault(
-  files: readonly ScannedFile[],
-  config: ApiConfig,
-  opts: { set: "set/1" | "set/2"; onProgress?: (p: FuseSetProgress) => void }
-): Promise<SetSummary> {
-  const members: FuseSetMember[] = files.map((f) =>
-    f.state !== null
-      ? { originDigest: f.originDigest, placement: f.placement, name: f.name, fusedDigest: ({ commitment }) => fusedDigestFor(f, commitment) }
-      : { load: async () => new Uint8Array(await readFile(f.path)), originDigest: f.originDigest, placement: f.placement, name: f.name }
-  );
-  const r = await fuseSet(members, {
-    set: opts.set,
-    keepFused: false,
-    ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
-    transport: { baseUrl: config.baseUrl, ...(config.apiKey ? { apiKey: config.apiKey } : {}) },
-  });
-  return {
-    set: r.set,
-    proof: r.proof as unknown as BitGraphProof,
-    artifactDigestB64: r.artifactDigestB64,
-    count: r.members.length,
-    manifestEchoed: r.manifestEchoed,
-    recovered: r.recovered,
-    members: r.members.map((m) => ({
-      index: m.index,
-      manifestIndex: m.manifestIndex,
-      placement: m.placement,
-      originDigestB64: m.originDigestB64,
-      artifactDigestB64: m.artifactDigestB64,
-      ...(m.memberProof !== undefined ? { memberProof: m.memberProof } : {}),
-    })),
-  };
-}
-
-/**
- * A path is either plain bytes to scan or a BitGraphed file (bitgraph-carrier/1),
- * decided by one 8-byte tail read. A BitGraphed file is judged OFFLINE from the
- * proof it carries, its lookups use the digest of the committed bytes inside,
- * and it is never minted: the envelope is not the recorded thing, the bytes
- * inside are. That is the same structural guarantee the site's drop box gives.
- */
-interface CarrierRow {
-  kind: "carrier";
-  path: string;
-  status: "ok" | "corrupt" | "too-large";
-  /** Standard base64 SHA-256 of the committed bytes inside (status "ok"). */
-  innerDigestB64: string | null;
-  view: CarrierWindowView | null;
-  /** The carried bitgraph/1 proof, for offline answers when the ledger has no row. */
-  proof: unknown | null;
-  c2pa: boolean;
-  reason: string | null;
-}
-type ClassifiedPath = { kind: "plain"; file: ScannedFile } | CarrierRow;
-
-async function classifyPath(p: string): Promise<ClassifiedPath> {
-  const info = await stat(p);
-  if (info.isFile() && (await sniffCarrierTail(p, info.size))) {
-    if (info.size > MAX_LOADED_BYTES) {
-      return {
-        kind: "carrier", path: p, status: "too-large", innerDigestB64: null, view: null, proof: null, c2pa: false,
-        reason: `a BitGraphed file larger than this tool loads (${Math.round(MAX_LOADED_BYTES / (1024 * 1024))} MiB); judge it offline with: npx @mikeargento/bitgraph-audit "${p}"`,
-      };
-    }
-    const r = await readCarrierFile(p);
-    if (r.status === "corrupt" || r.innerDigestB64 === null) {
-      return {
-        kind: "carrier", path: p, status: "corrupt", innerDigestB64: null, view: null, proof: null, c2pa: false,
-        reason: `a carrier block was found at the end of the file but is unreadable: ${r.corruptReason ?? "unspecified"}. A corrupted block, not a forgery; nothing was minted for it.`,
-      };
-    }
-    return {
-      kind: "carrier", path: p, status: "ok", innerDigestB64: r.innerDigestB64, view: r.view,
-      proof: r.result?.payload?.proof ?? null, c2pa: r.inner !== null && sniffC2paBytes(r.inner), reason: null,
-    };
-  }
-  return { kind: "plain", file: await scanFile(p) };
 }
 
 /** Hash the given paths (bounded concurrency). Throws before any network call. */
@@ -370,8 +209,8 @@ async function flushIndex(config: ApiConfig, report: Report): Promise<{ written:
 }
 
 export function buildServer(deps: ServerDeps = {}): McpServer {
-  const fuseSetPipeline = deps.fuseSet ?? fuseSetDefault;
-  const fuseFilePipeline = deps.fuseFile ?? fuseFileDefault;
+  const runFuseSet = deps.fuseSet ?? fuseSetPipeline;
+  const runFuseFile = deps.fuseFile ?? fuseFilePipeline;
   const server = new McpServer(
     {
       name: "bitgraph-mcp-server",
@@ -501,14 +340,14 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           // One file, as a single drop on the site goes: its own slot, its own Frame.
           report(0, 1, "fusing");
           try {
-            solo = { ...(await fuseFilePipeline(one, config)), file: one };
+            solo = { ...(await runFuseFile(one, config)), file: one };
           } catch (err) {
             failure = setFailureText(err);
           }
         } else if (toMint.length > 0) {
           const kind: "set/1" | "set/2" = toMint.length > MAX_SET_MEMBERS ? "set/2" : "set/1";
           try {
-            made = await fuseSetPipeline(toMint, config, {
+            made = await runFuseSet(toMint, config, {
               set: kind,
               onProgress: (p) => report(p.done, p.total, `${PHASES[p.phase]} ${p.done} of ${p.total}`),
             });

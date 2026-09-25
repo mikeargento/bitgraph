@@ -18,7 +18,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { FuseError } from "@mikeargento/bitgraph";
 import { buildServer, pendingIndexCount, ROW_CAP, SET_INDEX_CHUNK, type FuseFileFn, type FuseSetFn } from "../server.js";
-import { toUrlSafeB64 } from "../encoding.js";
+import { toUrlSafeB64 } from "@mikeargento/bitgraph-sdk";
 
 interface Recorded {
   method: string;

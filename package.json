@@ -34,12 +34,12 @@
     "!src/__tests__"
   ],
   "scripts": {
-    "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run build --workspace=packages/player && npm run build --workspace=packages/mcp && rm -rf dist && tsc",
+    "build": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run build --workspace=packages/sdk && npm run build --workspace=packages/player && npm run build --workspace=packages/mcp && rm -rf dist && tsc",
     "typecheck": "npm run build --workspace=packages/verify && npm run build --workspace=packages/audit && npm run typecheck --workspace=packages/mcp && tsc --noEmit",
     "test:core": "npm run build && node --test dist/__tests__/*.test.js",
     "test": "npm run test:core && npm run test:packages",
     "prepack": "npm run build",
-    "test:packages": "npm test --workspace=packages/verify --workspace=packages/mcp --workspace=packages/player --workspace=packages/titles",
+    "test:packages": "npm test --workspace=packages/verify --workspace=packages/sdk --workspace=packages/mcp --workspace=packages/player --workspace=packages/titles",
     "test:integration": "npm run build --prefix server/commit-service && npm run test:core"
   },
   "dependencies": {
@@ -54,6 +54,7 @@
   },
   "workspaces": [
     "packages/verify",
+    "packages/sdk",
     "packages/audit",
     "packages/mcp",
     "packages/player",

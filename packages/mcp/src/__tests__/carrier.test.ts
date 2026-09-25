@@ -31,8 +31,8 @@ import {
   type CarrierWitness,
 } from "@mikeargento/bitgraph-verify";
 import { buildServer, type FuseFileFn, type FuseSetFn } from "../server.js";
-import { toUrlSafeB64 } from "../encoding.js";
-import { sniffC2paBytes, scanFile } from "../scan.js";
+import { toUrlSafeB64 } from "@mikeargento/bitgraph-sdk";
+import { sniffC2paBytes, scanFile } from "@mikeargento/bitgraph-sdk";
 
 const fixtures = fileURLToPath(new URL("../../../verify/src/__tests__/fixtures/carrier/", import.meta.url));
 const readJson = <T>(name: string): T => JSON.parse(readFileSync(join(fixtures, name), "utf-8")) as T;
