@@ -39,6 +39,50 @@ export interface ScannedFile {
    * then needs the bytes again.
    */
   state: Hash | null;
+  /** True when the bytes carry what looks like a C2PA manifest (Content Credentials). */
+  c2pa: boolean;
+}
+
+/**
+ * Content Credentials detection, structural and cheap: a C2PA manifest lives
+ * in a JUMBF box whose description ("jumd") is followed within a few bytes by
+ * the store label "c2pa", in every container (JPEG APP11, PNG caBX, ISO BMFF).
+ * Requiring the pair in order and near each other keeps a stray "c2pa" in
+ * prose from counting. Detection, not judgment: the proof page parses and
+ * displays the manifest itself.
+ */
+const JUMD = Buffer.from("jumd", "ascii");
+const C2PA_LABEL = Buffer.from("c2pa", "ascii");
+const C2PA_NEAR = 96;
+
+function windowHasC2pa(buf: Buffer): boolean {
+  for (let i = buf.indexOf(JUMD); i !== -1; i = buf.indexOf(JUMD, i + 1)) {
+    const from = i + JUMD.length;
+    const to = Math.min(buf.length, i + C2PA_NEAR);
+    if (buf.subarray(from, to).indexOf(C2PA_LABEL) !== -1) return true;
+  }
+  return false;
+}
+
+class C2paSniffer {
+  found = false;
+  /** The last C2PA_NEAR + 4 bytes of the previous chunk, so a pair split across chunks is seen whole. */
+  private carry: Buffer = Buffer.alloc(0);
+  update(chunk: Buffer): void {
+    if (this.found) return;
+    const buf = this.carry.length > 0 ? Buffer.concat([this.carry, chunk]) : chunk;
+    if (windowHasC2pa(buf)) {
+      this.found = true;
+      return;
+    }
+    const keep = Math.min(buf.length, C2PA_NEAR + JUMD.length);
+    this.carry = Buffer.from(buf.subarray(buf.length - keep));
+  }
+}
+
+/** One-shot form for bytes already in memory (a carrier's committed bytes). */
+export function sniffC2paBytes(bytes: Uint8Array): boolean {
+  return windowHasC2pa(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
 }
 
 /** Bytes the placement decision reads: every magic number sits in the first 16. */
@@ -61,9 +105,11 @@ export async function scanFile(path: string): Promise<ScannedFile> {
     const prefix = getPlacement(p)?.scanPrefix?.(size) ?? null;
     if (prefix !== null && prefix.length > 0) run.fused = createHash("sha256").update(prefix);
   };
+  const sniffer = new C2paSniffer();
   const feed = (chunk: Buffer) => {
     origin.update(chunk);
     if (run.fused !== null) run.fused.update(chunk);
+    sniffer.update(chunk);
   };
   for await (const raw of createReadStream(path)) {
     const chunk = raw as Buffer;
@@ -96,6 +142,7 @@ export async function scanFile(path: string): Promise<ScannedFile> {
     originDigest: Uint8Array.from(digest),
     placement,
     state,
+    c2pa: sniffer.found,
   };
 }
 

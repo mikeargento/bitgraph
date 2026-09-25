@@ -253,7 +253,7 @@ test("record makes ONE set of the fresh files and leaves on-record ones alone", 
   const batchBody = batch.body as { digests: string[] };
   assert.ok(batchBody.digests.every((d) => !d.includes("+") && !d.includes("=")), "check uses url-safe digests");
   const structured = result.structuredContent as RecordStructured;
-  assert.deepEqual(structured.summary, { files: 3, directories: 0, fused: 2, on_record: 1, not_fused: 0 });
+  assert.deepEqual(structured.summary, { files: 3, directories: 0, fused: 2, on_record: 1, carried: 0, not_fused: 0 });
   assert.ok(structured.set, "the set is reported");
   assert.equal(structured.set?.count, 2);
   assert.ok(structured.set?.proof_url.includes("/proof/") && structured.set?.proof_url.includes("counter="), "the set's proof page is pinned to its position");
@@ -311,7 +311,7 @@ test("a directory is its regular files, hidden entries and links left out", asyn
   assert.ok(!result.isError, JSON.stringify(result.content));
   assert.deepEqual(setCalls[0]?.names, ["a1.txt", "a2.txt"]);
   const structured = result.structuredContent as RecordStructured;
-  assert.deepEqual(structured.summary, { files: 2, directories: 1, fused: 2, on_record: 0, not_fused: 0 });
+  assert.deepEqual(structured.summary, { files: 2, directories: 1, fused: 2, on_record: 0, carried: 0, not_fused: 0 });
   assert.equal(structured.set?.count, 2);
 });
 
@@ -414,7 +414,7 @@ test("a set failure labels every attempted file 'not fused', never 'on record'",
     const structured = result.structuredContent as RecordStructured;
     assert.equal(structured.set, null);
     assert.ok(structured.results.every((r) => r.outcome === "not fused" && r.proof_url === null));
-    assert.deepEqual(structured.summary, { files: 2, directories: 0, fused: 0, on_record: 0, not_fused: 2 });
+    assert.deepEqual(structured.summary, { files: 2, directories: 0, fused: 0, on_record: 0, carried: 0, not_fused: 2 });
   } finally {
     fuseMode = "ok";
   }
@@ -485,7 +485,8 @@ test("get_proof by number resolves through search and renders the window", async
   assert.ok(!result.isError, JSON.stringify(result.content));
   const text = textOf(result);
   assert.ok(text.includes("# BitGraph #10"));
-  assert.ok(text.includes("BitGraphed between 2026-07-01T00:00:00.000Z"));
+  assert.ok(text.includes("BitGraphed after 2026-07-01T00:00:00.000Z"));
+  assert.ok(text.includes("before the anchoring of block 2"), "the ceiling is stated in position, never as the block's mine time");
   assert.ok(text.includes("Causal positions (2)"));
   assert.ok(text.includes("/proof/"), "includes the proof page url");
 });

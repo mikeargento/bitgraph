@@ -4,11 +4,15 @@
  * @mikeargento/bitgraph-mcp: output shaping.
  *
  * Markdown for human-facing summaries, JSON for complete structured data.
- * Time statements come from the Ethereum anchor bracket ("BitGraphed between
- * X and Y"), never from advisory clock fields.
+ * Time statements come from the Ethereum anchor bracket, never from advisory
+ * clock fields, and they keep the canon's units: the floor is temporal
+ * ("after T", cryptographic), the ceiling is POSITIONAL ("before the
+ * anchoring of block M"), because an anchor is built after the block it
+ * carries, so a block's mine time is never an upper clock bound.
  */
 
 import { toUrlSafeB64 } from "./encoding.js";
+import { carrierLine, type CarrierWindowView } from "./carrier-io.js";
 import type { BitGraphProof, PositionView, ProofDetailResponse, SetMemberView } from "./types.js";
 
 export const CHARACTER_LIMIT = 25_000;
@@ -38,13 +42,19 @@ export function proofUrl(
  * committed artifact. "on record": the bytes already had a recording or a
  * fused artifact naming them as origin, and nothing was made. "not fused":
  * the attempt failed or the file was left out; never claim "on record" for
- * bytes that have no proof.
+ * bytes that have no proof. "carried": the file is a BitGraphed file, its
+ * proof travels inside it; the committed bytes it holds were judged offline
+ * and NOTHING was minted, because the envelope is never the recorded thing.
  */
 export interface RecordOutcome {
   path: string;
-  /** The file's own digest (URL-safe): the origin of its fused bytes. */
+  /** The file's own digest (URL-safe): the origin of its fused bytes. For a "carried" row, the COMMITTED bytes' digest. */
   digest: string;
-  outcome: "fused" | "on record" | "not fused";
+  outcome: "fused" | "on record" | "not fused" | "carried";
+  /** A BitGraphed file's offline judgment: the carried proof's verdict and window. */
+  carrier?: CarrierWindowView;
+  /** True when the bytes carry Content Credentials (a C2PA manifest); the proof page displays them. */
+  c2pa?: boolean;
   /** The member's fused digest (URL-safe), present on a "fused" outcome. */
   artifact_digest: string | null;
   placement: string | null;
@@ -78,10 +88,17 @@ export interface SetOutcome {
 
 export interface CheckOutcome {
   input: string;
-  digest: string; // URL-safe
+  /** URL-safe. For a BitGraphed file, the digest of the COMMITTED bytes inside, never the envelope's. */
+  digest: string;
   on_record: boolean;
   positions: Array<{ counter: string | null; epoch: string | null; member?: SetMemberView }>;
   proof_url: string | null;
+  /** Present when the input is a BitGraphed file: the carried proof's offline judgment. */
+  carrier?: CarrierWindowView;
+  /** True when the bytes carry Content Credentials (a C2PA manifest). */
+  c2pa?: boolean;
+  /** A stated condition (an unreadable carrier block, an oversized file), never a verdict. */
+  note?: string;
 }
 
 export function positionOf(proof: BitGraphProof): { counter: string | null; epoch: string | null } {
@@ -96,9 +113,14 @@ function memberNote(m: SetMemberView | undefined): string {
   return m ? ` (member ${fmt(m.index + 1)} of ${fmt(m.count)})` : "";
 }
 
+/** The C2PA note a row earns, or an empty string. */
+const c2paNote = (o: { c2pa?: boolean }): string =>
+  o.c2pa === true ? `\n  Content Credentials (C2PA) detected in the file; the proof page displays them.` : "";
+
 export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: SetOutcome | null = null, omitted = 0): string {
   const fused = outcomes.filter((o) => o.outcome === "fused");
   const onRecord = outcomes.filter((o) => o.outcome === "on record");
+  const carried = outcomes.filter((o) => o.outcome === "carried");
   const notFused = outcomes.filter((o) => o.outcome === "not fused");
   const lines: string[] = [];
   const parts: string[] = [];
@@ -108,6 +130,7 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
     parts.push(`${fmt(fused.length)} fused`);
   }
   parts.push(`${fmt(onRecord.length)} already on record`);
+  if (carried.length > 0) parts.push(`${fmt(carried.length)} BitGraphed file${carried.length === 1 ? "" : "s"} (proof inside, nothing minted)`);
   if (notFused.length > 0) parts.push(`${fmt(notFused.length)} NOT fused`);
   lines.push(`${parts.join(", ")}.`);
   if (set !== null && fused.length > 0) {
@@ -133,16 +156,25 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
     (o) => {
       const note = o.total_positions > 1 ? ` (${fmt(o.total_positions)} positions, earliest shown)` : "";
       const row = o.member !== null && o.member_count !== null ? ` (member ${fmt(o.member)} of ${fmt(o.member_count)})` : "";
-      return `- on record · #${o.counter ?? "?"}${row} · ${o.path}${note}\n  ${o.proof_url}`;
+      const carrier = o.carrier ? `\n  ${carrierLine(o.carrier)}` : "";
+      return `- on record · #${o.counter ?? "?"}${row} · ${o.path}${note}${carrier}${c2paNote(o)}\n  ${o.proof_url}`;
     },
     (n) => `and ${fmt(n)} more already on record`
+  );
+  group(
+    carried,
+    (o) => {
+      const where = o.proof_url !== null ? `\n  ${o.proof_url}` : "\n  Not in this ledger; the proof travels in the file itself.";
+      return `- BitGraphed file · ${o.path}\n  ${o.carrier ? carrierLine(o.carrier) : "carried proof"} · nothing minted: the envelope is never the recorded thing, the bytes inside are${c2paNote(o)}${where}`;
+    },
+    (n) => `and ${fmt(n)} more BitGraphed files`
   );
   group(
     fused,
     (o) =>
       o.member === null
-        ? `- fused · #${o.counter ?? "?"} · ${o.path} (${o.placement ?? "?"})\n  ${o.proof_url}`
-        : `- fused · ${o.path} (${fmt(o.member)} of ${fmt(o.member_count ?? 0)}, ${o.placement ?? "?"})`,
+        ? `- fused · #${o.counter ?? "?"} · ${o.path} (${o.placement ?? "?"})${c2paNote(o)}\n  ${o.proof_url}`
+        : `- fused · ${o.path} (${fmt(o.member)} of ${fmt(o.member_count ?? 0)}, ${o.placement ?? "?"})${c2paNote(o)}`,
     (n) => `and ${fmt(n)} more files in the same set`
   );
   if (set !== null && fused.length > 0) {
@@ -169,12 +201,17 @@ export function renderCheckMarkdown(outcomes: readonly CheckOutcome[]): string {
   const found = outcomes.filter((o) => o.on_record).length;
   const lines: string[] = [`${fmt(found)} of ${fmt(outcomes.length)} on record.`];
   for (const o of outcomes.slice(0, MARKDOWN_ROWS)) {
+    const carrier = o.carrier ? `\n  BitGraphed file: ${carrierLine(o.carrier)} (judged offline from the proof inside)` : "";
     if (o.on_record) {
       const first = o.positions[0];
       const extra = o.positions.length > 1 ? ` and ${fmt(o.positions.length - 1)} more position(s)` : "";
-      lines.push(`- on record · #${first?.counter ?? "?"}${memberNote(first?.member)}${extra} · ${o.input}\n  ${o.proof_url}`);
+      lines.push(`- on record · #${first?.counter ?? "?"}${memberNote(first?.member)}${extra} · ${o.input}${carrier}${c2paNote(o)}\n  ${o.proof_url}`);
+    } else if (o.carrier) {
+      lines.push(`- not in this ledger · ${o.input}${carrier}${c2paNote(o)}`);
+    } else if (o.note !== undefined) {
+      lines.push(`- not judged · ${o.input}\n  ${o.note}`);
     } else {
-      lines.push(`- not on record · ${o.input}`);
+      lines.push(`- not on record · ${o.input}${c2paNote(o)}`);
     }
   }
   if (outcomes.length > MARKDOWN_ROWS) lines.push(`- and ${fmt(outcomes.length - MARKDOWN_ROWS)} more; the structured result lists every one`);
@@ -189,9 +226,9 @@ function renderWindow(detail: ProofDetailResponse): string | null {
   const lowerBlock = w.anchorBefore?.blockNumber ?? null;
   const upperBlock = w.anchorAfter?.blockNumber ?? null;
   if (lower && upper) {
-    return `BitGraphed between ${lower} (Ethereum block ${lowerBlock ?? "?"}) and ${upper} (block ${upperBlock ?? "?"}).`;
+    return `BitGraphed after ${lower} (Ethereum block ${lowerBlock ?? "?"}), and before the anchoring of block ${upperBlock ?? "?"} (that block mined ${upper}).`;
   }
-  if (upper) return `BitGraphed before ${upper} (Ethereum block ${upperBlock ?? "?"}).`;
+  if (upper) return `BitGraphed before the anchoring of Ethereum block ${upperBlock ?? "?"} (that block mined ${upper}).`;
   if (lower) return `BitGraphed after ${lower} (Ethereum block ${lowerBlock ?? "?"}).`;
   return null;
 }
@@ -236,7 +273,7 @@ export function renderProofMarkdown(
     positions.forEach((p, i) => {
       const label = i === 0 ? " · original" : "";
       const bracket =
-        p.lowerTime && p.upperTime ? ` · between ${p.lowerTime} and ${p.upperTime}` : "";
+        p.lowerTime && p.upperTime ? ` · after ${p.lowerTime}, before the closing anchor (its block mined ${p.upperTime})` : "";
       lines.push(`- #${p.counter ?? "?"}${label}${p.member ? ` · set of ${fmt(p.member.count)}` : ""}${bracket}`);
     });
   }

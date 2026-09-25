@@ -260,10 +260,15 @@ async function main(): Promise<number> {
       if (parsedCarrier.kind !== "none") {
         const verdict = await verifyCarrier(bytes);
         const b = verdict.bounds;
+        // The floor is temporal (after the block's own time, cryptographically).
+        // The ceiling is POSITIONAL: the commit precedes the ANCHORING of the
+        // later block, never that block's mine time, because an anchor is
+        // built after the block it carries. Canon: floor in time, ceiling in
+        // position; a block's clock never reads as an upper bound.
         const lines = [
           `carrier: ${verdict.verdict}${verdict.carrier === "corrupt" ? " (block unreadable: corrupted, not judged)" : ""}`,
-          b ? `  not before: block ${b.notBefore.blockNumber}${b.notBefore.timestamp !== null ? ` (${new Date(b.notBefore.timestamp * 1000).toISOString()})` : ""}` : null,
-          b ? `  not after:  ${b.notAfter === null ? "NOT FETCHED (the closing anchor is not inside this file)" : `block ${b.notAfter.blockNumber}${b.notAfter.timestamp !== null ? ` (${new Date(b.notAfter.timestamp * 1000).toISOString()})` : ""}`}` : null,
+          b ? `  no earlier than: block ${b.notBefore.blockNumber}${b.notBefore.timestamp !== null ? ` (mined ${new Date(b.notBefore.timestamp * 1000).toISOString()})` : ""}` : null,
+          b ? `  committed before: ${b.notAfter === null ? "NOT FETCHED (the closing anchor is not inside this file)" : `the anchoring of block ${b.notAfter.blockNumber}${b.notAfter.timestamp !== null ? ` (that block mined ${new Date(b.notAfter.timestamp * 1000).toISOString()})` : ""}`}` : null,
           ...verdict.reasons.map((r) => `  - ${r}`),
         ].filter((l): l is string => l !== null);
         process.stdout.write(lines.join("\n") + "\n");

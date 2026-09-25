@@ -62,7 +62,7 @@ test("record markdown names the set once and its members by row", () => {
   assert.ok(waiting.includes("The set proof beside the originals is the record either way."), waiting);
 });
 
-test("proof markdown states the window as between lower and upper", () => {
+test("proof markdown states the floor in time and the ceiling in position", () => {
   const detail: ProofDetailResponse = {
     proofs: [{ proof: { artifact: { digestB64: DIGEST }, commit: { counter: "42", epochId: EPOCH } } }],
     positions: [{ counter: "42", epoch: toUrlSafeB64(EPOCH), lowerTime: null, upperTime: null }],
@@ -73,7 +73,7 @@ test("proof markdown states the window as between lower and upper", () => {
   };
   const md = renderProofMarkdown(detail, "https://bitgraph.ing");
   assert.ok(
-    md.includes("BitGraphed between 2026-07-01T00:00:00.000Z (Ethereum block 100) and 2026-07-01T00:00:12.000Z (block 101)"),
+    md.includes("BitGraphed after 2026-07-01T00:00:00.000Z (Ethereum block 100), and before the anchoring of block 101 (that block mined 2026-07-01T00:00:12.000Z)."),
     md
   );
   assert.ok(md.includes("# BitGraph #42"));

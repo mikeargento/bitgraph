@@ -48,11 +48,13 @@ import {
   type RecordOutcome,
   type SetOutcome,
 } from "./format.js";
-import { expandPaths, fusedDigestFor, scanFile, type ScannedFile } from "./scan.js";
+import { expandPaths, fusedDigestFor, scanFile, sniffC2paBytes, type ScannedFile } from "./scan.js";
+import { readCarrierFile, sniffCarrierTail, type CarrierWindowView } from "./carrier-io.js";
+import { stat } from "node:fs/promises";
 import { SLOT_TTL_SECONDS, TASK_INSTRUCTIONS, beginTask, decodeTaskToken, sealTask, writeProofBeside } from "./task.js";
-import type { BitGraphProof } from "./types.js";
+import type { BitGraphProof, ProofDetailResponse } from "./types.js";
 
-export const SERVER_VERSION = "0.5.2";
+export const SERVER_VERSION = "0.6.0";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */
@@ -182,6 +184,51 @@ async function fuseSetDefault(
       ...(m.memberProof !== undefined ? { memberProof: m.memberProof } : {}),
     })),
   };
+}
+
+/**
+ * A path is either plain bytes to scan or a BitGraphed file (bitgraph-carrier/1),
+ * decided by one 8-byte tail read. A BitGraphed file is judged OFFLINE from the
+ * proof it carries, its lookups use the digest of the committed bytes inside,
+ * and it is never minted: the envelope is not the recorded thing, the bytes
+ * inside are. That is the same structural guarantee the site's drop box gives.
+ */
+interface CarrierRow {
+  kind: "carrier";
+  path: string;
+  status: "ok" | "corrupt" | "too-large";
+  /** Standard base64 SHA-256 of the committed bytes inside (status "ok"). */
+  innerDigestB64: string | null;
+  view: CarrierWindowView | null;
+  /** The carried bitgraph/1 proof, for offline answers when the ledger has no row. */
+  proof: unknown | null;
+  c2pa: boolean;
+  reason: string | null;
+}
+type ClassifiedPath = { kind: "plain"; file: ScannedFile } | CarrierRow;
+
+async function classifyPath(p: string): Promise<ClassifiedPath> {
+  const info = await stat(p);
+  if (info.isFile() && (await sniffCarrierTail(p, info.size))) {
+    if (info.size > MAX_LOADED_BYTES) {
+      return {
+        kind: "carrier", path: p, status: "too-large", innerDigestB64: null, view: null, proof: null, c2pa: false,
+        reason: `a BitGraphed file larger than this tool loads (${Math.round(MAX_LOADED_BYTES / (1024 * 1024))} MiB); judge it offline with: npx @mikeargento/bitgraph-audit "${p}"`,
+      };
+    }
+    const r = await readCarrierFile(p);
+    if (r.status === "corrupt" || r.innerDigestB64 === null) {
+      return {
+        kind: "carrier", path: p, status: "corrupt", innerDigestB64: null, view: null, proof: null, c2pa: false,
+        reason: `a carrier block was found at the end of the file but is unreadable: ${r.corruptReason ?? "unspecified"}. A corrupted block, not a forgery; nothing was minted for it.`,
+      };
+    }
+    return {
+      kind: "carrier", path: p, status: "ok", innerDigestB64: r.innerDigestB64, view: r.view,
+      proof: r.result?.payload?.proof ?? null, c2pa: r.inner !== null && sniffC2paBytes(r.inner), reason: null,
+    };
+  }
+  return { kind: "plain", file: await scanFile(p) };
 }
 
 /** Hash the given paths (bounded concurrency). Throws before any network call. */
@@ -334,6 +381,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
       instructions:
         "BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: a single file is fused on its own; two or more become one set under one slot, one position, every file's new fused bytes listed by digest in the committed artifact. " +
         "Files are read on this machine and never uploaded or modified; the new bytes are virtual and never written. Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. bitgraph_check and bitgraph_get_proof are read-only. " +
+        "A BitGraphed file (one that carries its own proof, bitgraph-carrier/1) is recognized by its structure: bitgraph_check judges it offline from the proof inside and states the window, and bitgraph_record never re-mints it, because the envelope is not the recorded thing, the bytes inside are. " +
         "To do work INSIDE a BitGraph, call bitgraph_open BEFORE starting: it returns a position and its commitment; put the commitment string into the task, seal the task with bitgraph_commit within 120 seconds, then record the outputs with bitgraph_record. The task then could not have existed before the position's floor block, and the outputs sit after it.",
     }
   );
@@ -348,6 +396,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         "Files are never modified and never uploaded: only digests, the committed artifact and slot records leave the machine. " +
         "Give file paths, directory paths, or both (absolute paths preferred): a directory is every regular file under it, recursively, with hidden entries and symbolic links left out. " +
         "Files already on record are NOT made again by default; they come back as 'on record' with their earliest position. A file can also hold a BitGraph its holder keeps, which no lookup sees. Pass again=true to make a new BitGraph regardless. " +
+        "A BitGraphed file (bitgraph-carrier/1, a file that carries its own proof) is never minted, with or without again: its carried proof is judged offline and reported, because the envelope is not the recorded thing, the bytes inside are. " +
         "Positions are permanent and the proof comes back to you to keep, so only BitGraph files the user asked to, and never generate content just to record it. " +
         "Returns one outcome per file: 'fused' (for a set, its row, one of N, and the set's position and proof page; for a single file, its own position and Frame), 'on record', or 'not fused' (with the reason). Keep the proof beside the files; BitGraph does not index it. " +
         "Use bitgraph_check instead when the user only wants to know whether files are on record.",
@@ -393,15 +442,18 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           }
         }
 
-        // 2. The scan: one pass per file.
+        // 2. The scan: one pass per file. A BitGraphed file is set aside here,
+        //    judged from the proof it carries, and never enters the mint below.
         let scanned = 0;
         report(0, files.length, `hashing ${files.length} files`);
-        const scans = await mapConcurrent(files, SCAN_CONCURRENCY, async (p) => {
-          const s = await scanFile(p);
+        const classified = await mapConcurrent(files, SCAN_CONCURRENCY, async (p) => {
+          const c = await classifyPath(p);
           scanned += 1;
           report(scanned, files.length, `hashed ${scanned} of ${files.length}`);
-          return s;
+          return c;
         });
+        const scans = classified.filter((c): c is { kind: "plain"; file: ScannedFile } => c.kind === "plain").map((c) => c.file);
+        const carriers = classified.filter((c): c is CarrierRow => c.kind === "carrier");
 
         // 3. Unique by content; the first path names the member, every path is reported.
         const byDigest = new Map<string, { file: ScannedFile; paths: string[] }>();
@@ -412,13 +464,21 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         }
         const unique = [...byDigest.keys()];
 
-        // 4. What is on record already.
+        // 4. What is on record already. A BitGraphed file is looked up by the
+        //    digest of its committed bytes, never by the envelope's.
         report(0, 1, "checking BitGraph's copy");
-        const checked = await batchCheck(config, unique.map(toUrlSafeB64));
+        const carrierInner = [...new Set(carriers.filter((c) => c.innerDigestB64 !== null).map((c) => c.innerDigestB64 as string))];
+        const lookups = [...new Set([...unique, ...carrierInner])];
+        const checked = lookups.length > 0 ? await batchCheck(config, lookups.map(toUrlSafeB64)) : { results: {} as Record<string, { proofs: Array<{ proof: BitGraphProof }> }> };
         const existing = new Map<string, Array<{ proof: BitGraphProof }>>();
         for (const d of unique) {
           const entry = checked.results[toUrlSafeB64(d)];
           if (entry && entry.proofs.length > 0) existing.set(d, entry.proofs);
+        }
+        const carrierLedger = new Map<string, Array<{ proof: BitGraphProof }>>();
+        for (const d of carrierInner) {
+          const entry = checked.results[toUrlSafeB64(d)];
+          if (entry && entry.proofs.length > 0) carrierLedger.set(d, entry.proofs);
         }
 
         // 5. The set: every fresh file (every file, with again), one call.
@@ -494,7 +554,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           const m = memberOf.get(digest);
           const prior = existing.get(digest);
           for (const path of entry.paths) {
-            const base = { path, digest: toUrlSafeB64(digest) };
+            const base = { path, digest: toUrlSafeB64(digest), ...(entry.file.c2pa ? { c2pa: true as const } : {}) };
             if (solo !== null && solo.file.digestB64 === digest) {
               const { counter, epoch } = positionOf(solo.proof);
               outcomes.push({
@@ -555,8 +615,36 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             }
           }
         }
+        // 7b. BitGraphed files: judged from the proof inside, never minted.
+        for (const c of carriers) {
+          if (c.status !== "ok" || c.innerDigestB64 === null) {
+            outcomes.push({
+              path: c.path, digest: "", outcome: "not fused", artifact_digest: null, placement: null,
+              counter: null, epoch: null, member: null, member_count: null, total_positions: 0, proof_url: null,
+              error: c.reason ?? "unreadable BitGraphed file",
+            });
+            continue;
+          }
+          const inner = c.innerDigestB64;
+          const rows = carrierLedger.get(inner);
+          const extras = { ...(c.view ? { carrier: c.view } : {}), ...(c.c2pa ? { c2pa: true as const } : {}) };
+          if (rows !== undefined && rows.length > 0) {
+            const first = rows[0] as { proof: BitGraphProof; member?: { index: number; count: number } };
+            const { counter, epoch } = positionOf(first.proof);
+            outcomes.push({
+              path: c.path, digest: toUrlSafeB64(inner), outcome: "on record", artifact_digest: null, placement: null,
+              counter, epoch, member: first.member ? first.member.index + 1 : null, member_count: first.member ? first.member.count : null,
+              total_positions: rows.length, proof_url: proofUrl(config.baseUrl, inner), ...extras,
+            });
+          } else {
+            outcomes.push({
+              path: c.path, digest: toUrlSafeB64(inner), outcome: "carried", artifact_digest: null, placement: null,
+              counter: null, epoch: null, member: null, member_count: null, total_positions: 0, proof_url: null, ...extras,
+            });
+          }
+        }
         // Rows that need reading come first, so a cap drops fused rows, which all share one position.
-        const order = { "not fused": 0, "on record": 1, fused: 2 } as const;
+        const order = { "not fused": 0, "on record": 1, carried: 2, fused: 3 } as const;
         outcomes.sort((a, b) => order[a.outcome] - order[b.outcome]);
         const listed = outcomes.slice(0, ROW_CAP);
         const omitted = outcomes.length - listed.length;
@@ -565,6 +653,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           directories: expanded.directories,
           fused: outcomes.filter((o) => o.outcome === "fused").length,
           on_record: outcomes.filter((o) => o.outcome === "on record").length,
+          carried: outcomes.filter((o) => o.outcome === "carried").length,
           not_fused: outcomes.filter((o) => o.outcome === "not fused").length,
         };
         const structured = {
@@ -690,6 +779,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         "Check whether files or digests are on record in BitGraph's copy, without recording anything. " +
         `Accepts file paths and directory paths (every regular file under them, up to ${MAX_CHECK_FILES} in all; hashed locally, only digests are sent) and/or raw SHA-256 digests in standard or URL-safe base64. ` +
         "Returns, per item: on_record (the bytes are on record, as an exact recording, as the original a new file was made from, or as a member of a set), every position by counter, and the proof page URL. " +
+        "A BitGraphed file (bitgraph-carrier/1) is recognized by structure: the proof it carries is verified OFFLINE here (signatures, floor identity, block-header witnesses) and its verdict and window are reported, and the lookup uses the committed bytes inside, never the envelope. " +
         "Read-only. Use bitgraph_record to BitGraph files that turn out not to be on record.",
       inputSchema: {
         paths: z
@@ -714,11 +804,20 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     async ({ paths, digests, response_format }) => {
       const config = configFromEnv();
       try {
-        const inputs: Array<{ label: string; standardDigest: string }> = [];
+        const inputs: Array<{ label: string; standardDigest: string; carrier?: CarrierWindowView; c2pa?: boolean; note?: string }> = [];
         if (paths && paths.length > 0) {
           const { files } = await expandPaths(paths, MAX_CHECK_FILES);
-          const hashed = await hashPaths(files);
-          hashed.forEach((d, i) => inputs.push({ label: files[i] as string, standardDigest: d }));
+          const classified = await mapConcurrent(files, SCAN_CONCURRENCY, classifyPath);
+          classified.forEach((c, i) => {
+            const label = files[i] as string;
+            if (c.kind === "plain") {
+              inputs.push({ label, standardDigest: c.file.digestB64, ...(c.file.c2pa ? { c2pa: true } : {}) });
+            } else if (c.status === "ok" && c.innerDigestB64 !== null) {
+              inputs.push({ label, standardDigest: c.innerDigestB64, ...(c.view ? { carrier: c.view } : {}), ...(c.c2pa ? { c2pa: true } : {}) });
+            } else {
+              inputs.push({ label, standardDigest: "", note: c.reason ?? "unreadable BitGraphed file" });
+            }
+          });
         }
         for (const d of digests ?? []) {
           const trimmed = d.trim();
@@ -736,23 +835,24 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           return fail(`Error: ${inputs.length} items; check at most ${MAX_CHECK_FILES} at a time.`);
         }
 
-        const checked = await batchCheck(
-          config,
-          inputs.map((i) => toUrlSafeB64(i.standardDigest))
-        );
+        const lookable = [...new Set(inputs.filter((i) => i.standardDigest !== "").map((i) => toUrlSafeB64(i.standardDigest)))];
+        const checked = lookable.length > 0 ? await batchCheck(config, lookable) : { results: {} };
 
         const outcomes: CheckOutcome[] = inputs.map((input) => {
-          const entry = checked.results[toUrlSafeB64(input.standardDigest)];
+          const entry = input.standardDigest === "" ? undefined : checked.results[toUrlSafeB64(input.standardDigest)];
           const proofs = entry?.proofs ?? [];
           const positions = proofs.map((p) => ({ ...positionOf(p.proof), ...(p.member ? { member: p.member } : {}) }));
           return {
             input: input.label,
-            digest: toUrlSafeB64(input.standardDigest),
+            digest: input.standardDigest === "" ? "" : toUrlSafeB64(input.standardDigest),
             // A fused descendant that names these bytes as origin is not a recording of them.
             // The original and the new file made from it find the same proof.
             on_record: proofs.length > 0,
             positions,
             proof_url: proofs.length > 0 ? proofUrl(config.baseUrl, input.standardDigest) : null,
+            ...(input.carrier ? { carrier: input.carrier } : {}),
+            ...(input.c2pa ? { c2pa: true } : {}),
+            ...(input.note !== undefined ? { note: input.note } : {}),
           };
         });
 
@@ -778,7 +878,8 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
       title: "Get a BitGraph proof",
       description:
         "Fetch a BitGraph proof and its context: causal position, every position the same bytes occupy, the row a set member holds (one of N), and the two-sided Ethereum anchor window " +
-        "('BitGraphed between X and Y'). Look up by digest (base64, either form), by BitGraph number (e.g. '4523' or '#4,523', current epoch), or by file path (hashed locally). " +
+        "(after the floor block's time; before the ANCHORING of the later block, a position bound, never that block's mine time). Look up by digest (base64, either form), by BitGraph number (e.g. '4523' or '#4,523', current epoch), or by file path (hashed locally). " +
+        "A path to a BitGraphed file (bitgraph-carrier/1) looks up the committed bytes inside it, and when the ledger has no row the proof the file carries answers offline. " +
         "Exactly one of digest, number, or path is required. Read-only. " +
         "markdown returns a summary; json returns the full proof object with positions and anchor window.",
       inputSchema: {
@@ -822,6 +923,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
 
         let urlSafeDigest: string;
         let selCounter = counter;
+        let carrierRow: CarrierRow | null = null;
         if (number !== undefined) {
           const result = await search(config, number);
           if (!result.found || result.digest === undefined) {
@@ -832,8 +934,16 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           urlSafeDigest = result.digest;
           if (selCounter === undefined && result.counter != null) selCounter = result.counter;
         } else if (path !== undefined) {
-          const hashed = await hashPaths([path]);
-          urlSafeDigest = toUrlSafeB64(hashed[0] as string);
+          const c = await classifyPath(path);
+          if (c.kind === "carrier") {
+            if (c.status !== "ok" || c.innerDigestB64 === null) {
+              return fail(`Error: ${c.reason ?? "unreadable BitGraphed file"}`);
+            }
+            carrierRow = c;
+            urlSafeDigest = toUrlSafeB64(c.innerDigestB64);
+          } else {
+            urlSafeDigest = toUrlSafeB64(c.file.digestB64);
+          }
         } else {
           const trimmed = (digest as string).trim();
           if (!looksLikeDigest(trimmed)) {
@@ -848,16 +958,41 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const selEpoch = epoch !== undefined ? toUrlSafeB64(fromUrlSafeB64(epoch)) : undefined;
         const detail = await getProofDetail(config, urlSafeDigest, selCounter, selEpoch);
         if (detail.proofs.length === 0) {
+          if (carrierRow !== null && carrierRow.view !== null && carrierRow.proof !== null) {
+            // The ledger has no row, and the file answers for itself.
+            const v = carrierRow.view;
+            const synth: ProofDetailResponse = {
+              proofs: [{ proof: carrierRow.proof as BitGraphProof }],
+              positions: [],
+              causalWindow: {
+                anchorBefore: v.not_before
+                  ? { blockNumber: v.not_before.block, blockHash: v.not_before.hash, etherscanUrl: `https://etherscan.io/block/${v.not_before.block}`, blockTime: v.not_before.time }
+                  : null,
+                anchorAfter: v.not_after
+                  ? { blockNumber: v.not_after.block, blockHash: v.not_after.hash, etherscanUrl: `https://etherscan.io/block/${v.not_after.block}`, blockTime: v.not_after.time }
+                  : null,
+              },
+            };
+            const offlineNote = `Judged offline from the proof this BitGraphed file carries: carried proof ${v.verdict}${v.not_after === null ? ", closing anchor NOT FETCHED" : ""}. Not found in this ledger.`;
+            const structured = { ...synth, carrier: v } as unknown as Record<string, unknown>;
+            if (response_format === "json") return ok(capJson(structured).text, structured);
+            return ok(`${renderProofMarkdown(synth, config.baseUrl)}\n\n${offlineNote}`, structured);
+          }
           return fail(
             `Not on record: no proof exists for digest ${urlSafeDigest}. Use bitgraph_record to make a BitGraph of the file.`
           );
         }
 
         if (response_format === "json") {
-          const capped = capJson(detail);
-          return ok(capped.text, detail as unknown as Record<string, unknown>);
+          const withCarrier = carrierRow?.view ? ({ ...detail, carrier: carrierRow.view } as unknown) : detail;
+          const capped = capJson(withCarrier);
+          return ok(capped.text, withCarrier as Record<string, unknown>);
         }
-        return ok(renderProofMarkdown(detail, config.baseUrl), detail as unknown as Record<string, unknown>);
+        const md = renderProofMarkdown(detail, config.baseUrl);
+        const carrierNote = carrierRow?.view
+          ? `\n\nThis file carries its own proof (carried proof ${carrierRow.view.verdict}, judged offline).`
+          : "";
+        return ok(`${md}${carrierNote}`, detail as unknown as Record<string, unknown>);
       } catch (err) {
         return fail(errorText(err));
       }
