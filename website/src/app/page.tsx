@@ -51,8 +51,14 @@ export default function HomePage() {
             globals.css is re-solved for line one. Replaced "BitGraph makes AI logs
             impossible to backdate." (2026-09-22 to 09-25) in the position-commitment
             refocus; the backdating claim lives on in the docs. */}
-        <span style={{ whiteSpace: "nowrap" }}>BitGraph gives AI records a&nbsp;position</span><br />
-        that can&rsquo;t be chosen&nbsp;afterward.
+        {/* Two lines on desk (break after "position"), three on phones (Mike,
+            2026-09-25: "can this be 3 lines and bigger on mobile?"): the same
+            words, responsive breaks, and globals.css sizes each layout from
+            its own longest line. */}
+        <span style={{ whiteSpace: "nowrap" }}>BitGraph gives AI&nbsp;logs</span> <br className="br-mob" />
+        <span style={{ whiteSpace: "nowrap" }}>a&nbsp;position</span><br className="br-desk" />{" "}
+        <span style={{ whiteSpace: "nowrap" }}>that can&rsquo;t</span> <br className="br-mob" />
+        <span style={{ whiteSpace: "nowrap" }}>be chosen&nbsp;afterward.</span>
       </h1>
 
       {/* What it is not, and the one difference that matters (Mike, 2026-09-22): everything the
