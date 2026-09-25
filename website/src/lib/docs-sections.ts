@@ -37,7 +37,7 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/integration", label: "Integration guide" },
       { href: "/api-reference", label: "API reference" },
       { href: "/docs/proof-format", label: "Proof format" },
-      { href: "/docs/carrier", label: "The file with its proof inside" },
+      { href: "/docs/carrier", label: "The BitGraphed file" },
       { href: "/docs/mcp", label: "MCP server" },
       { href: "/docs/player", label: "Player" },
       { href: "/docs/self-host-tee", label: "Self-host a TEE" },
