@@ -2,19 +2,42 @@
   "name": "@mikeargento/bitgraph-sdk",
   "version": "0.1.0",
   "description": "The BitGraph SDK: record files (one file fused solo, many as one set under one position), check and fetch proofs, open a position before the work exists and seal the task under it, verify proofs and BitGraphed files fully offline. One engine, three sockets: this library for TypeScript, the bitgraph CLI (every command speaks --json) for any language that can spawn a process, and bitgraph serve for a localhost API any runtime can call. Files are read locally and never uploaded; only digests, committed artifacts and slot records leave the machine.",
-  "keywords": ["bitgraph", "sdk", "provenance", "proof", "ai-audit", "causal-order"],
+  "keywords": [
+    "bitgraph",
+    "sdk",
+    "provenance",
+    "proof",
+    "ai-audit",
+    "causal-order"
+  ],
   "license": "MIT",
   "homepage": "https://bitgraph.ing",
-  "repository": { "type": "git", "url": "git+https://github.com/mikeargento/bitgraph.git", "directory": "packages/sdk" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikeargento/bitgraph.git",
+    "directory": "packages/sdk"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": { "bitgraph": "dist/cli.js" },
-  "exports": { ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" } },
-  "files": ["dist", "src", "README.md", "LICENSE"],
+  "bin": {
+    "bitgraph": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
-    "prepack": "tsc",
+    "prepack": "rm -rf dist && tsc",
     "typecheck": "tsc --noEmit",
     "test": "tsc && node --test dist/__tests__/*.test.js"
   },

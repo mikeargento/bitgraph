@@ -37,7 +37,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "prepack": "tsc",
+    "prepack": "rm -rf dist && tsc",
     "typecheck": "tsc --noEmit",
     "test": "tsc && node --test dist/__tests__/*.test.js"
   },

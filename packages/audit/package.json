@@ -32,7 +32,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "prepack": "tsc",
+    "prepack": "rm -rf dist && tsc",
     "typecheck": "tsc --noEmit",
     "bench": "node scripts/bench-audit.mjs"
   },
