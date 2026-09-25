@@ -41,35 +41,17 @@ export default function HomePage() {
         justifyContent: "center",
       }}
     >
-      {/* The claim, then the difference (Mike, 2026-09-22). The 2026-09-20 scene (the demand as
-          the headline, the maxim as the close) gave way to a headline that names BitGraph and a
-          line that answers "we already have that". Nothing here explains the protocol; the docs
-          do that. */}
-      <h1>
-        {/* The absolute passes the mechanism test (canon 3.3: no operation manufactures a
-            slot retroactively). Two lines at every width, broken after "position";
-            globals.css is re-solved for line one. Replaced "BitGraph makes AI logs
-            impossible to backdate." (2026-09-22 to 09-25) in the position-commitment
-            refocus; the backdating claim lives on in the docs. */}
-        {/* Two lines on desk (break after "position"), three on phones (Mike,
-            2026-09-25: "can this be 3 lines and bigger on mobile?"): the same
-            words, responsive breaks, and globals.css sizes each layout from
-            its own longest line. */}
-        <span style={{ whiteSpace: "nowrap" }}>BitGraph gives AI&nbsp;logs</span> <br className="br-mob" />
-        <span style={{ whiteSpace: "nowrap" }}>a&nbsp;position</span><br className="br-desk" />{" "}
-        <span style={{ whiteSpace: "nowrap" }}>that can&rsquo;t</span> <br className="br-mob" />
-        <span style={{ whiteSpace: "nowrap" }}>be chosen&nbsp;afterward.</span>
-      </h1>
 
-      {/* What it is not, and the one difference that matters (Mike, 2026-09-22): everything the
-          reader already runs is applied after the fact, and a BitGraph's position comes first. It
-          replaced the maxim, "The most trusted AI systems will be the ones whose records don't
-          have to be trusted." */}
-      <p className="lede" style={{ fontStyle: "italic" }}>
-        Signatures, timestamps, append‑only logs, write‑once storage, blockchain hashes, and
-        notarizations all come&nbsp;after the&nbsp;record. BitGraph begins the proof before the
-        record&nbsp;exists.
-      </p>
+      <h1>
+        {/* Position commitment is the focus (Mike, 2026-09-25, after the TRACE spec).
+            "Creates" is the mechanism exactly: the boundary creates the position before
+            the record exists (canon 3.3), and nothing manufactures one retroactively.
+            Two near-equal lines at every width; globals.css sizes them. It stands alone,
+            no subhead (Mike: "if you read it, you want it, IF you need it"): the sentence
+            is the filter. Earlier today: "BitGraph makes AI logs impossible to backdate." */}
+        <span style={{ whiteSpace: "nowrap" }}>BitGraph creates a position</span><br />
+        <span style={{ whiteSpace: "nowrap" }}>for records before they&nbsp;exist.</span>
+      </h1>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
       <div className="actions" style={{ marginBottom: 0 }}>

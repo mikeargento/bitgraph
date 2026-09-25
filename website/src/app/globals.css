@@ -2048,7 +2048,12 @@ body { background: var(--bg); }
      66px (66 x 14.35 = 947, ~91% of the 1040 frame): 72px filled the frame
      edge to edge and read a tad wide (Mike, 2026-09-25); 91% lines the
      headline up with the subhead's own balanced width beneath it. */
-  font-size: clamp(20px, 6.2vw, 66px) !important;
+  /* 2026-09-25, "BitGraph creates a position / for records before they
+     exist.", two lines at every width (line one 12.05x, line two 12.6x): so
+     90/12.6 = 7.0vw and a 74px cap (74 x 12.6 = 932, the width ruled that
+     morning); the phone rule below uses the same 7.0vw so it breaks the
+     same way, with a 22px floor for a 320 phone (22 x 12.6 = 277). */
+  font-size: clamp(20px, 7.0vw, 74px) !important;
   line-height: 1.05 !important;
   letter-spacing: -0.025em !important;
 }
@@ -2066,7 +2071,7 @@ body { background: var(--bg); }
   .br-desk { display: inline; }
 }
 @media (max-width: 899px) {
-  .home h1 { font-size: clamp(27px, 9.0vw, 72px) !important; }
+  .home h1 { font-size: clamp(22px, 7.0vw, 72px) !important; }
 }
 /* The line under it scales with the headline rather than sitting at the body
    size. At 58px over 17px the step is 3.4x and the italic reads as a caption
@@ -2077,11 +2082,14 @@ body { background: var(--bg); }
      earlier." at the maxim's own size and italic (Mike). It is too long for one
      line in the 1040 frame at 24px, so balance splits it into two even lines on
      desktop rather than a full line and a stub. */
-  font-size: clamp(17px, 2.1vw, 24px) !important;
-  line-height: 1.45 !important;
-  text-wrap: balance;
+  font-size: 1rem !important;
+  line-height: 1.6 !important;
+  text-wrap: pretty;
 }
-/* On a phone the subhead sets smaller (4.2vw, about 16px at 390) so it
+/* 2026-09-25, later: the sub is plain body text at the site's normal size
+   (Mike: "make it normal size text and one line on desk"); at 1rem the whole
+   sentence is about 860px, one line inside the 1040 frame on a desktop.
+   Superseded note follows. On a phone the subhead sets smaller (4.2vw, about 16px at 390) so it
    wraps in four near-even lines as wide as the headline (measured
    300/346/300/307 against the headline's 343), after bigger balanced and
    ragged settings all left short or uneven lines ("it looks bad", Mike,
@@ -2090,8 +2098,9 @@ body { background: var(--bg); }
    sentence was bold until 2026-09-25 and is now the same italic as the
    rest (Mike: "unbold the last line"). */
 @media (max-width: 899px) {
-  .home .lede { font-size: clamp(14px, 4.2vw, 20px) !important; text-wrap: pretty; }
+  .home .lede { text-wrap: pretty; }
 }
+
 
 /* The home page's two actions are the only interactive thing on it, sitting under
    an 80px headline, so the site's 32px toolbar control reads as an afterthought
