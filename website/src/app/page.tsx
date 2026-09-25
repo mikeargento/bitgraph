@@ -66,12 +66,9 @@ export default function HomePage() {
           replaced the maxim, "The most trusted AI systems will be the ones whose records don't
           have to be trusted." */}
       <p className="lede" style={{ fontStyle: "italic" }}>
-        Signatures, timestamps, append‑only logs, write‑once storage, notarizations, and blockchain
-        hashes all come&nbsp;after the&nbsp;record.{" "}
-        <strong>
-          <span style={{ whiteSpace: "nowrap" }}>BitGraph begins the proof</span>{" "}
-          <span style={{ whiteSpace: "nowrap" }}>before the record exists.</span>
-        </strong>
+        Signatures, timestamps, append‑only logs, write‑once storage, blockchain hashes, and
+        notarizations all come&nbsp;after the&nbsp;record. BitGraph begins the proof before the
+        record&nbsp;exists.
       </p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}

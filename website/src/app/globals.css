@@ -2086,11 +2086,11 @@ body { background: var(--bg); }
    300/346/300/307 against the headline's 343), after bigger balanced and
    ragged settings all left short or uneven lines ("it looks bad", Mike,
    2026-09-25). Both sizes are in vw, so the proportion holds on every
-   phone. The bold closer's phrase spans let go here so the wrap can place
-   its break; "the record." and the hyphenated words never split. */
+   phone. "the record." and the hyphenated words never split. The closing
+   sentence was bold until 2026-09-25 and is now the same italic as the
+   rest (Mike: "unbold the last line"). */
 @media (max-width: 899px) {
   .home .lede { font-size: clamp(14px, 4.2vw, 20px) !important; text-wrap: pretty; }
-  .home .lede strong span { white-space: normal !important; }
 }
 
 /* The home page's two actions are the only interactive thing on it, sitting under
