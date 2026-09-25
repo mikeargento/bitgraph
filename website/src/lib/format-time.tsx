@@ -116,26 +116,30 @@ function localZoneName(): string {
 }
 
 /**
- * The zone word as the control: reads "UTC" and flips every displayed time to
- * the viewer's zone (relabeled), click again for UTC. Plain text, one weight,
- * no box; the dotted underline is the only hint it acts.
+ * The Etherscan pattern (Mike, 2026-09-25: "same type ux"): the time VALUE is
+ * the control. Click the stamp and every displayed time flips between UTC and
+ * the viewer's zone, relabeled; the chevron and tooltip say it acts. Used for
+ * the receipt's lead instant; everything else follows through the store.
  */
-export function TimeZoneToggle({ style }: { style?: React.CSSProperties }) {
+export function TimeChip({ date, style }: { date: Date; style?: React.CSSProperties }) {
   const current = useTimeZoneMode();
   const local = localZoneName();
   return (
     <button
       type="button"
       onClick={() => setTimeZoneMode(current === "utc" ? "local" : "utc")}
-      title={current === "utc" ? `Show times in your zone (${local})` : "Show times in UTC"}
+      title={current === "utc" ? `Click to show local time (${local})` : "Click to show UTC"}
       style={{
         background: "none", border: 0, padding: 0, margin: 0, font: "inherit",
-        color: "var(--dim)", cursor: "pointer",
-        textDecoration: "underline dotted", textUnderlineOffset: 3,
+        color: "var(--ink)", whiteSpace: "nowrap", cursor: "pointer",
+        display: "inline-flex", alignItems: "center", gap: 4,
         ...style,
       }}
     >
-      {current === "utc" ? "UTC" : local}
+      {timeTz(date)}
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: "var(--dim)" }}>
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
     </button>
   );
 }

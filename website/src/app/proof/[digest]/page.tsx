@@ -11,7 +11,7 @@ import { findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFi
 import { zipSync, strToU8 } from "fflate";
 import { anchorStatusDoc, isSettled, ANCHOR_STATUS_FILE, type BoundReport } from "@/lib/anchor-export";
 import { verifyNitroAttestation, attestationTimestampMs, type NitroVerifyResult } from "@/lib/nitro-verify";
-import { timeTz, stampTz, longDateTz, dateTz, sameDayTz, useTimeZoneMode, TimeZoneToggle } from "@/lib/format-time";
+import { timeTz, stampTz, longDateTz, dateTz, sameDayTz, useTimeZoneMode, TimeChip } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
 import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
@@ -870,7 +870,7 @@ export default function ProofPage() {
   // the ruled lead exception, because the card stack directly beneath it
   // supplies the root and both bounds (Hardware Enclave, floor, ceiling).
   const committedLine = attestedMs !== null
-    ? winLine(<span style={{ whiteSpace: "nowrap" }}>{conn("Recorded ")}{val(timeTz(new Date(attestedMs)))}</span>)
+    ? winLine(<span style={{ whiteSpace: "nowrap" }}>{conn("Recorded ")}<TimeChip date={new Date(attestedMs)} /></span>)
     : null;
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
     // The block number lives in the "BitGraphed Ethereum Block" card below, so
@@ -928,11 +928,8 @@ export default function ProofPage() {
        counters elsewhere on the page. */
     <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 16px" }}>
       {recordedDate && (
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
-            {recordedDate}
-          </div>
-          <TimeZoneToggle style={{ fontFamily: mono, fontSize: 12 }} />
+        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+          {recordedDate}
         </div>
       )}
       {whenNode}
