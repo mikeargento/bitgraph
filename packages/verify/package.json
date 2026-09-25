@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph-verify",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "Offline verification of BitGraph proofs. Permissionless by design.",
   "keywords": [
     "bitgraph",
