@@ -2041,7 +2041,13 @@ body { background: var(--bg); }
    display sizes need less leading than body headings, and the two beats sit
    closer as one block. */
 .home h1 {
-  font-size: clamp(24px, 8vw, 80px) !important;
+  /* Re-solved 2026-09-25 for "BitGraph gives AI records a position" (line one,
+     Mike's break): measured 15.88x its font size in the shipped face with the
+     -0.025em tracking (canvas measureText; the rule is re-solve, never nudge).
+     90vw column: 90/15.88 = 5.67vw, set 5.6 for margin; 65px cap keeps the
+     line inside the 1040 frame (65 x 15.88 = 1032); 18px floor holds two
+     lines on a 320 phone (18 x 15.88 = 286 against 288). */
+  font-size: clamp(18px, 5.6vw, 65px) !important;
   line-height: 1.05 !important;
   letter-spacing: -0.025em !important;
 }

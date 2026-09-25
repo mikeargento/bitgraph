@@ -46,10 +46,13 @@ export default function HomePage() {
           line that answers "we already have that". Nothing here explains the protocol; the docs
           do that. */}
       <h1>
-        {/* "Impossible" stays (Mike, 2026-09-22): the absolute passes the mechanism test, since a
-            record cannot be placed before its floor block. Two lines at every width, broken after
-            "AI logs"; globals.css sizes it to hold. */}
-        BitGraph makes AI logs<br /> impossible to&nbsp;backdate.
+        {/* The absolute passes the mechanism test (canon 3.3: no operation manufactures a
+            slot retroactively). Two lines at every width, broken after "position";
+            globals.css is re-solved for line one. Replaced "BitGraph makes AI logs
+            impossible to backdate." (2026-09-22 to 09-25) in the position-commitment
+            refocus; the backdating claim lives on in the docs. */}
+        <span style={{ whiteSpace: "nowrap" }}>BitGraph gives AI records a&nbsp;position</span><br />
+        that can&rsquo;t be chosen&nbsp;afterward.
       </h1>
 
       {/* What it is not, and the one difference that matters (Mike, 2026-09-22): everything the
