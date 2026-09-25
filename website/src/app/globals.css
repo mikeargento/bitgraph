@@ -2051,9 +2051,10 @@ body { background: var(--bg); }
   letter-spacing: -0.025em !important;
 }
 /* Responsive h1 breaks: phones take three lines and the bigger size that
-   buys (longest phone line "a position that can't" measures ~9.6x, so
-   90/9.6 = 9.3vw with a 29px floor for the 288px column); a desk keeps the
-   two-line poster above. */
+   buys. The longest phone line ("a position that can't") measures ~9.6x, and
+   9.3vw left it 17px from each edge at 375, which read tight (Mike,
+   2026-09-25: "fix tighness on mobile h1"): 9.0vw gives ~25px of air per
+   side, 27px floor for the 288px column. A desk keeps the two-line poster. */
 .br-mob { display: inline; }
 .br-desk { display: none; }
 @media (min-width: 900px) {
@@ -2061,7 +2062,7 @@ body { background: var(--bg); }
   .br-desk { display: inline; }
 }
 @media (max-width: 899px) {
-  .home h1 { font-size: clamp(29px, 9.3vw, 72px) !important; }
+  .home h1 { font-size: clamp(27px, 9.0vw, 72px) !important; }
 }
 /* The line under it scales with the headline rather than sitting at the body
    size. At 58px over 17px the step is 3.4x and the italic reads as a caption
