@@ -117,13 +117,23 @@ function localZoneName(): string {
 
 /**
  * The Etherscan pattern (Mike, 2026-09-25: "same type ux"): the time VALUE is
- * the control. Click the stamp and every displayed time flips between UTC and
+ * the control, with the site's own chevron and a tooltip. A bordered pill was
+ * tried and dropped (2026-09-26). Click the stamp and every displayed time flips between UTC and
  * the viewer's zone, relabeled; the chevron and tooltip say it acts. Used for
  * the receipt's lead instant; everything else follows through the store.
  */
-export function TimeChip({ date, style }: { date: Date; style?: React.CSSProperties }) {
+export function TimeChip({ date, withDate, style }: { date: Date; withDate?: boolean; style?: React.CSSProperties }) {
   const current = useTimeZoneMode();
   const local = localZoneName();
+  const label = withDate ? (
+    <span>
+      {longDateTz(date)}
+      {" \u00b7 "}
+      {timeTz(date)}
+    </span>
+  ) : (
+    timeTz(date)
+  );
   return (
     <button
       type="button"
@@ -136,7 +146,7 @@ export function TimeChip({ date, style }: { date: Date; style?: React.CSSPropert
         ...style,
       }}
     >
-      {timeTz(date)}
+      {label}
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: "var(--dim)" }}>
         <polyline points="6 9 12 15 18 9" />
       </svg>

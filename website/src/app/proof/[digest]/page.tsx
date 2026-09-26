@@ -110,7 +110,7 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
-  // The home page's "See a real proof": a text file that explains itself, carrying the
+  // The home page's "See a real BitGraph": a text file that explains itself, carrying the
   // commitment of the position it was committed at on line 4, and the almanac line
   // (2026-09-22). Served so the preview shows without the reader having to find the file.
   "YYJh9nWOYBQUNvVmzy0kXvYTrAqLgmL9veqLHP7x-WU":
@@ -869,8 +869,25 @@ export default function ProofPage() {
   // need eth info there"): the lead is the recorded instant alone, bare by
   // the ruled lead exception, because the card stack directly beneath it
   // supplies the root and both bounds (Hardware Enclave, floor, ceiling).
+  // The card's heading names the position (Mike, 2026-09-26: "show WHAT bitgraph"): the
+  // commit counter, the BitGraph's own number, not the slot just before it. The epoch ID
+  // stays in the Positions card: an epoch is one UTC day, which the date line already gives.
+  const commitCounter = typeof commit?.counter === "string" && /^\d+$/.test(commit.counter) ? Number(commit.counter) : null;
+  // The position's other coordinate, one line down (Mike, 2026-09-26: "the other coordinate is
+  // epoch id ... next line down, its like a teacher too"): a counter means nothing without its
+  // epoch, so the head shows both. The full ID where it fits, cut with an ellipsis by the
+  // column's width where it does not (a phone); the tooltip always holds all of it.
+  const epochFull = typeof commit?.epochId === "string" ? commit.epochId.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null;
+  // The date and the time share one line under "BitGraphed" (Mike, 2026-09-26: "let date
+  // and time share second line", "remove recorded"): the heading carries the verb.
   const committedLine = attestedMs !== null
-    ? winLine(<span style={{ whiteSpace: "nowrap" }}>{conn("Recorded ")}<TimeChip date={new Date(attestedMs)} /></span>)
+    ? (
+      // Normal text, not mono (Mike, 2026-09-26): a date written in words is read, not
+      // compared character by character; the epoch ID beneath stays mono.
+      <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink)" }}>
+        <TimeChip date={new Date(attestedMs)} withDate />
+      </div>
+    )
     : null;
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
     // The block number lives in the "BitGraphed Ethereum Block" card below, so
@@ -927,12 +944,29 @@ export default function ProofPage() {
        value beneath it in the monospace/data font, matching the hashes and
        counters elsewhere on the page. */
     <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 16px" }}>
-      {recordedDate && (
+      {recordedDate && (!isEth && !isInterval ? (
+        // One bold line, the name "BitGraph #n", then two quiet detail lines (Mike,
+        // 2026-09-26): the date and time in normal text, "epoch" as a grey label and its ID
+        // in mono, the one string a reader copies or compares character by character.
+        <div style={{ fontSize: 14, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+          <strong style={{ fontWeight: 700 }}>
+            BitGraph{commitCounter !== null ? ` #${commitCounter.toLocaleString("en-US")}` : ""}
+          </strong>
+          {committedLine ? "" : <> &middot; <strong style={{ fontWeight: 700 }}>{recordedDate}</strong></>}
+        </div>
+      ) : (
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
           {recordedDate}
         </div>
-      )}
+      ))}
       {whenNode}
+      {!isEth && !isInterval && epochFull && (
+        <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--dim)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={epochFull}>
+          {/* The label in normal text like the lines above; the ID in mono, because
+              base64 mixes I, l, 1, O and 0 and a sans makes them indistinguishable. */}
+          epoch <span style={{ fontFamily: mono, fontSize: 12, color: "var(--ink)" }}>{epochFull}</span>
+        </div>
+      )}
     </div>
   ) : null;
 
@@ -1365,10 +1399,10 @@ export default function ProofPage() {
               bring-your-file dropzone), then the file hash. */}
           {!isEth && !isInterval && (
             <>
-            {/* The one title size every page header uses. */}
-            <div className="bg-page-title" style={{ marginBottom: 10 }}>
-              BitGraph Record
-            </div>
+            {/* No visible page title (Mike, 2026-09-26): the card's date line says
+                "BitGraphed <date>" and carries it. The heading stays for screen
+                readers and search. */}
+            <h1 className="sr-only">BitGraph Record</h1>
             <CollapsibleCard title="BitGraph Record" plain>
               {/* The "when" and the export share one box at the top of the card,
                   as the Recorder puts its actions under its verdict (Mike,
