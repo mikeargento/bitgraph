@@ -21,7 +21,7 @@ export default function OverviewPage() {
     <article className="prose">
       <h1>How it works</h1>
       <p className="lede">
-        A BitGraph proves a simple order: a position came first, then your file filled it. What fills it is your file plus a commitment to the position, and nothing made before the position can contain that commitment. Your original file stays unchanged. This page explains the operation, what crosses the enclave boundary, how the commitment is carried, where time comes from, and how epochs contain a compromise.
+        The position is fixed first, and the record is bound to it afterward. What fills it is your file plus a commitment to the position, and nothing made before the position can contain that commitment. Your original file stays unchanged. This page explains the operation, what crosses the enclave boundary, how the commitment is carried, where time comes from, and how epochs contain a compromise.
       </p>
 
       {/* The contrast, before the mechanism: a visitor arriving from the home page has to
