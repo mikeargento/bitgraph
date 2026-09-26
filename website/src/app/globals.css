@@ -2048,14 +2048,18 @@ body { background: var(--bg); }
      66px (66 x 14.35 = 947, ~91% of the 1040 frame): 72px filled the frame
      edge to edge and read a tad wide (Mike, 2026-09-25); 91% lines the
      headline up with the subhead's own balanced width beneath it. */
-  /* 2026-09-25, "BitGraph creates a position / for records before they
-     exist.", two lines at every width (line one 12.05x, line two 12.6x): so
-     90/12.6 = 7.0vw and a 74px cap (74 x 12.6 = 932, the width ruled that
-     morning); the phone rule below uses the same 7.0vw so it breaks the
-     same way, with a 22px floor for a 320 phone (22 x 12.6 = 277). */
-  font-size: clamp(20px, 7.0vw, 74px) !important;
+  /* 2026-09-26, "Position commitment / for digital records.": the longer
+     line measures 9.46x, so 9.2vw capped at 88px (the poster size, 88 x 9.46
+     = 832px on a desk) and the phone rule below keeps it about 340px of the
+     350px column at 390, with a 28px floor for a 320 phone (28 x 9.46 = 265). */
+  font-size: clamp(30px, 9.2vw, 88px) !important;
   line-height: 1.05 !important;
   letter-spacing: -0.025em !important;
+  /* The gap under the headline scales with it: about a third of its size
+     (30px under the 88px poster), never tighter than 20px on a phone. A fixed
+     19px glued the paragraph to an 88px headline (Mike, 2026-09-26: "is this
+     spacing your best attempt?"). */
+  margin-bottom: max(20px, 0.34em) !important;
 }
 /* Responsive h1 breaks: phones take three lines and the bigger size that
    buys. The longest phone line ("a position that can't") measures ~9.6x, and
@@ -2071,7 +2075,7 @@ body { background: var(--bg); }
   .br-desk { display: inline; }
 }
 @media (max-width: 899px) {
-  .home h1 { font-size: clamp(22px, 7.0vw, 72px) !important; }
+  .home h1 { font-size: clamp(28px, 9.2vw, 72px) !important; }
 }
 /* The line under it scales with the headline rather than sitting at the body
    size. At 58px over 17px the step is 3.4x and the italic reads as a caption
@@ -2101,6 +2105,15 @@ body { background: var(--bg); }
   .home .lede { text-wrap: pretty; }
 }
 
+
+/* The why paragraph under the category headline (2026-09-26). At 24px it
+   balances into three even lines of about 834px, the headline's own 830px
+   width, so the hero reads as one block; 20px read as fine print under an
+   88px poster and left a short last line. 2.3vw keeps the pair in step on
+   smaller desktops (three lines of about 800px at 1000). Phones keep 1rem. */
+@media (min-width: 900px) {
+  .home .lede { font-size: clamp(18px, 2.3vw, 24px) !important; line-height: 1.5 !important; max-width: 36em; text-wrap: balance; }
+}
 
 /* The home page's two actions are the only interactive thing on it, sitting under
    an 80px headline, so the site's 32px toolbar control reads as an afterthought

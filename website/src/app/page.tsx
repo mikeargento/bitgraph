@@ -43,15 +43,26 @@ export default function HomePage() {
     >
 
       <h1>
-        {/* Position commitment is the focus (Mike, 2026-09-25, after the TRACE spec).
-            "Creates" is the mechanism exactly: the boundary creates the position before
-            the record exists (canon 3.3), and nothing manufactures one retroactively.
-            Two near-equal lines at every width; globals.css sizes them. It stands alone,
-            no subhead (Mike: "if you read it, you want it, IF you need it"): the sentence
-            is the filter. Earlier today: "BitGraph makes AI logs impossible to backdate." */}
-        <span style={{ whiteSpace: "nowrap" }}>BitGraph creates a position</span><br />
-        <span style={{ whiteSpace: "nowrap" }}>for records before they&nbsp;exist.</span>
+        {/* The category, named (Mike, 2026-09-26). A frontier model asked how to create a
+            position for records before they exist could not name one, and every scheme it
+            offered let the producer draw its own randomness, so the producer kept the option.
+            The page has to name the thing and say why giving up the option is the point.
+            "AI records", not "digital records": a category is named for its first market
+            (Certificate Transparency for TLS certificates), and everyone BitGraph is pitching
+            this month holds AI records; the mechanism stays universal in the docs. */}
+        <span style={{ whiteSpace: "nowrap" }}>Position commitment</span><br />
+        <span style={{ whiteSpace: "nowrap" }}>for AI&nbsp;records.</span>
       </h1>
+
+      {/* Why it matters, in Schelling's terms: a commitment is credible because it gives up
+          options. The term in game theory is "commitment" ("credible commitment", Schelling
+          1960); "position commitment" is BitGraph's application of it. Credibility attaches to
+          the POSITION, never the content (canon non-claims). */}
+      <p className="lede">
+        In game theory, a commitment is an irrevocable move that gives up future options.
+        BitGraph brings commitment to records: whoever or whatever produces a record can no
+        longer choose its position. That is what makes its position&nbsp;credible.
+      </p>
 
       {/* The last child keeps its own bottom margin, which pushes the centred block upward. */}
       <div className="actions" style={{ marginBottom: 0 }}>
