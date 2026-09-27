@@ -1829,11 +1829,14 @@ export default function ProofPage() {
           )}
 
           {/* 1. Slot — reserved first, before anything else */}
+          {/* "Position", not "slot", wherever a reader sees it (Mike, 2026-09-27): a slot IS a
+              reserved position. The schema keeps its signed names (slotAllocation, slotCounter,
+              slotHashB64); the page does not. */}
           {slot && (
-            <CollapsibleCard title="Reserved Slot">
-              <Field label="Slot Counter" value={`#${slot.counter}`} highlight />
+            <CollapsibleCard title="Reserved Position">
+              <Field label="Position" value={`#${slot.counter}`} highlight />
               {slot.nonceB64 ? <Field label="Nonce" value={String(slot.nonceB64)} mono /> : null}
-              {slot.signatureB64 ? <Field label="Slot Signature" value={String(slot.signatureB64)} mono /> : null}
+              {slot.signatureB64 ? <Field label="Signature" value={String(slot.signatureB64)} mono /> : null}
               {slot.epochId ? <Field label="Epoch ID" value={String(slot.epochId)} mono /> : null}
             </CollapsibleCard>
           )}
@@ -1871,8 +1874,8 @@ export default function ProofPage() {
             {!slot && commit.epochId && <Field label="Epoch ID" value={String(commit.epochId)} mono />}
             {commit.prevB64 && <Field label="Previous Hash" value={commit.prevB64} mono />}
             {!slot && commit.nonceB64 && <Field label="Nonce" value={commit.nonceB64} mono />}
-            {!slot && commit.slotCounter != null && <Field label="Slot Counter" value={`#${commit.slotCounter}`} />}
-            {commit.slotHashB64 && <Field label="Slot Hash" value={commit.slotHashB64} mono />}
+            {!slot && commit.slotCounter != null && <Field label="Reserved Position" value={`#${commit.slotCounter}`} />}
+            {commit.slotHashB64 && <Field label="Reserved Position Hash" value={commit.slotHashB64} mono />}
             {/* Enclave v7: the floor fixed at allocation (the chain's latest
                 Ethereum anchor when this slot was reserved), and, on anchor
                 proofs, the block this proof anchors. Both are signed. */}

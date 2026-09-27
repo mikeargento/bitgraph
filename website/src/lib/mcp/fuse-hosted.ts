@@ -343,7 +343,7 @@ async function allocateHosted(): Promise<SlotAllocation> {
   }
   const a = alloc.json as { slotId?: unknown; slot?: unknown; chainId?: unknown } | null;
   if (a === null || !isSlotRecord(a.slot) || a.slotId !== a.slot.nonceB64 || a.chainId !== FUSE_CHAIN) {
-    throw new HostedFuseError("allocate-failed", "the allocation response is not a slot record", alloc.status);
+    throw new HostedFuseError("allocate-failed", "the allocation response is not a position record", alloc.status);
   }
   return a.slot as unknown as SlotAllocation;
 }
@@ -558,7 +558,7 @@ export async function setManifestFor(entries: readonly SetEntry[]): Promise<SetM
   const members: SetMember[] = [];
   const seen = new Map<string, number>();
   for (const e of entries) {
-    if (e.state.slot.nonceB64 !== slot.nonceB64) throw new HostedFuseError("bad-input", "every member of a set commits under the same slot");
+    if (e.state.slot.nonceB64 !== slot.nonceB64) throw new HostedFuseError("bad-input", "every member of a set commits under the same position");
     const artifact = base64ToBytes(e.artifactDigestB64);
     if (artifact === null || artifact.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: artifact digest must be a base64 SHA-256`);
     const origin = base64ToBytes(e.state.origin.digestB64);
@@ -859,11 +859,11 @@ export function recipeJson(recipe: Recipe): NonNullable<OpenOutcome["recipe"]> {
 export const ASSEMBLY_INSTRUCTIONS =
   "Build each new file locally, exactly: kind 'append' means new_file = original + append; kind 'wrap' means new_file = prefix + original + suffix (all base64-decoded to bytes). " +
   "Never alter the original. Then SHA-256 the new file, base64 that, and call bitgraph_commit with the fuse_token and that digest. " +
-  `The slot expires ${SLOT_TTL_SECONDS} seconds after it is opened: commit inside that window, in the same session. A file need not be read twice: hash it with a copyable hasher before opening (Python's hashlib supports copy()), then finish a copy with the recipe's bytes.`;
+  `The position expires ${SLOT_TTL_SECONDS} seconds after it is opened: commit inside that window, in the same session. A file need not be read twice: hash it with a copyable hasher before opening (Python's hashlib supports copy()), then finish a copy with the recipe's bytes.`;
 
 export const SET_INSTRUCTIONS =
-  "The files opened together share ONE slot and are ONE BitGraph: commit every one of them in a single bitgraph_commit call, each with its own fuse_token and digest. " +
-  "Whatever that call carries becomes the set; a member left out cannot be added afterwards (the slot is consumed) and would need a new open.";
+  "The files opened together share ONE position and are ONE BitGraph: commit every one of them in a single bitgraph_commit call, each with its own fuse_token and digest. " +
+  "Whatever that call carries becomes the set; a member left out cannot be added afterwards (the position is consumed) and would need a new open.";
 
 export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
   const opened = outcomes.filter((o) => o.outcome === "opened");

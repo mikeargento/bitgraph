@@ -6,7 +6,7 @@ import { Code } from "@/components/code";
 export const metadata: Metadata = {
   title: "Proof format",
   description:
-    "Normative specification of the bitgraph/1 proof: the schema field by field, the signed body, the slot binding, the anchor floor, fused artifacts and their placements, and canonical serialization.",
+    "Normative specification of the bitgraph/1 proof: the schema field by field, the signed body, the position binding, the anchor floor, fused artifacts and their placements, and canonical serialization.",
 };
 
 /**
@@ -38,12 +38,12 @@ export default function ProofFormatPage() {
   "commit": {
     "nonceB64": "<base64>",          // REQUIRED - >=16 decoded bytes
     "counter":  "42",                // OPTIONAL - decimal string, monotonic
-    "slotCounter": "41",             // OPTIONAL - slot's counter (< commit counter)
-    "slotHashB64": "<base64>",       // OPTIONAL - SHA-256 of canonical slot body
+    "slotCounter": "41",             // OPTIONAL - the reserved position's counter (< commit counter)
+    "slotHashB64": "<base64>",       // OPTIONAL - SHA-256 of the canonical position record
     "time":     1700000000000,       // OPTIONAL - Unix ms
     "prevB64":  "<base64>",          // OPTIONAL - chain link, 32 bytes
     "epochId":  "<hex>",             // OPTIONAL - SHA-256 hex
-    "slotAnchor": {                  // OPTIONAL - the chain's latest Ethereum anchor when the slot was allocated (since enclave v7; v8 is current)
+    "slotAnchor": {                  // OPTIONAL - the chain's latest Ethereum anchor when the position was allocated (since enclave v7; v8 is current)
       "counter":     "17",           //   counter of that anchor proof on this chain
       "blockNumber": 25921179,
       "blockHash":   "0x<hex>"       //   32 bytes, lowercase
@@ -65,14 +65,14 @@ export default function ProofFormatPage() {
       "reportB64": "<base64>"        // REQUIRED when parent present
     }
   },
-  "slotAllocation": {                // OPTIONAL - causal slot record
+  "slotAllocation": {                // OPTIONAL - the position record
     "version":      "bitgraph/slot/1",
     "nonceB64":     "<base64>",      // same as commit.nonceB64
     "counter":      "41",            // same as commit.slotCounter
     "time":         1700000000000,
     "epochId":      "<hex>",
     "publicKeyB64": "<base64>",      // enclave Ed25519 key
-    "signatureB64": "<base64>"       // Ed25519 over canonical slot body
+    "signatureB64": "<base64>"       // Ed25519 over the canonical position record
   },
   "agency": { ... },                 // OPTIONAL - legacy; present on some older proofs
   "attribution": {                   // OPTIONAL - signed; creator metadata, or the fused marker (below)
@@ -93,14 +93,14 @@ export default function ProofFormatPage() {
             <tr><td>version</td><td>The schema, exactly <code>bitgraph/1</code>.</td><td>Signed</td></tr>
             <tr><td>artifact.hashAlg</td><td>The hash applied to the file&rsquo;s bytes; only <code>sha256</code> in v1.</td><td>Signed</td></tr>
             <tr><td>artifact.digestB64</td><td>The file&rsquo;s fingerprint (SHA-256 digest), 32 bytes, standard base64. Any change to the file changes it.</td><td>Signed</td></tr>
-            <tr><td>commit.nonceB64</td><td>The slot&rsquo;s nonce: at least 16 decoded bytes, 32 from the enclave&rsquo;s hardware random number generator.</td><td>Signed</td></tr>
+            <tr><td>commit.nonceB64</td><td>The position&rsquo;s nonce: at least 16 decoded bytes, 32 from the enclave&rsquo;s hardware random number generator.</td><td>Signed</td></tr>
             <tr><td>commit.counter</td><td>The commit&rsquo;s position in the epoch&rsquo;s sequence, a decimal string compared as a big integer.</td><td>Signed</td></tr>
-            <tr><td>commit.slotCounter</td><td>The consumed slot&rsquo;s position; always below <code>commit.counter</code>.</td><td>Signed</td></tr>
-            <tr><td>commit.slotHashB64</td><td>SHA-256 of the canonical slot body: binds the commit to that exact slot record.</td><td>Signed</td></tr>
+            <tr><td>commit.slotCounter</td><td>The reserved position, consumed by this commit; always below <code>commit.counter</code>.</td><td>Signed</td></tr>
+            <tr><td>commit.slotHashB64</td><td>SHA-256 of the canonical position record: binds the commit to that exact record.</td><td>Signed</td></tr>
             <tr><td>commit.time</td><td>Unix milliseconds from the enclave&rsquo;s clock. Not a trusted clock; order comes from the counters.</td><td>Signed, advisory value</td></tr>
             <tr><td>commit.prevB64</td><td>SHA-256 of the previous proof on the sequence: the link that makes the order checkable.</td><td>Signed</td></tr>
             <tr><td>commit.epochId</td><td>The enclave lifetime that signed this proof, hex SHA-256. Changes at every restart.</td><td>Signed</td></tr>
-            <tr><td>commit.slotAnchor</td><td>The floor: the chain&rsquo;s latest Ethereum anchor when the slot was allocated.</td><td>Signed</td></tr>
+            <tr><td>commit.slotAnchor</td><td>The floor: the chain&rsquo;s latest Ethereum anchor when the position was allocated.</td><td>Signed</td></tr>
             <tr><td>commit.anchor</td><td>On anchor proofs only: the block this proof anchors.</td><td>Signed</td></tr>
             <tr><td>signer.publicKeyB64</td><td>The enclave&rsquo;s Ed25519 key, 32 bytes.</td><td>Signed</td></tr>
             <tr><td>signer.signatureB64</td><td>Ed25519 signature over the canonical signed body, 64 bytes.</td><td>Self-authenticating</td></tr>
@@ -108,7 +108,7 @@ export default function ProofFormatPage() {
             <tr><td>environment.measurement</td><td>The enclave image&rsquo;s PCR0. A verifier pins it with an allowlist.</td><td>Signed</td></tr>
             <tr><td>environment.attestation.format</td><td>The attestation document format, <code>aws-nitro</code>.</td><td>Signed</td></tr>
             <tr><td>environment.attestation.reportB64</td><td>The hardware attestation, whose user data is the hash of this proof&rsquo;s signed body.</td><td>Self-authenticating (vendor-signed)</td></tr>
-            <tr><td>slotAllocation</td><td>The slot record, signed by the enclave before any digest was received; bound to the commit through <code>commit.slotHashB64</code>.</td><td>Self-authenticating</td></tr>
+            <tr><td>slotAllocation</td><td>The position record, signed by the enclave before any digest was received; bound to the commit through <code>commit.slotHashB64</code>.</td><td>Self-authenticating</td></tr>
             <tr><td>agency</td><td>Legacy actor envelope on some older proofs; its actor summary is signed, its authorization carries its own signature.</td><td>Legacy</td></tr>
             <tr><td>attribution</td><td>A claim the submitter made (name, title, message), or the fused marker below.</td><td>Signed</td></tr>
             <tr><td>timestamps</td><td>Optional RFC 3161 tokens. Never evidence of position.</td><td>Advisory</td></tr>
@@ -154,9 +154,9 @@ export default function ProofFormatPage() {
         </table>
       </div>
 
-      <h2 id="slot">The slot and its binding</h2>
+      <h2 id="slot">The position and its binding</h2>
       <p>
-        Every proof is bound to a slot allocated before it. The slot record is created and signed before the file&rsquo;s digest reaches the enclave, so the enclave committed to a nonce and a counter without having received the file&rsquo;s digest. A verifier checks four bindings between the record and the commit:
+        Every proof is bound to a position allocated before it. The position record is created and signed before the file&rsquo;s digest reaches the enclave, so the enclave committed to a nonce and a counter without having received the file&rsquo;s digest. A verifier checks four bindings between the record and the commit:
       </p>
       <div className="table-scroll">
         <table className="table-k">
@@ -170,12 +170,12 @@ export default function ProofFormatPage() {
         </table>
       </div>
       <p className="note">
-        The slot has its own Ed25519 signature, so the enclave created it. The commit signature includes <code>slotHashB64</code>, which binds the proof to that exact slot; a swapped slot record breaks the commit signature.
+        The position record has its own Ed25519 signature, so the enclave created it. The commit signature includes <code>slotHashB64</code>, which binds the proof to that exact record; a swapped position record breaks the commit signature.
       </p>
 
       <h3>Anchor floor</h3>
       <p>
-        Since enclave v7 (2026-09-06) the enclave writes the chain&rsquo;s latest Ethereum anchor into every slot it allocates, and signs it into the proof as <code>commit.slotAnchor</code>. The floor is signed into the slot record at allocation; whoever presents the proof cannot move it. A reader checks it offline from the Ethereum block header: the header&rsquo;s keccak must equal <code>slotAnchor.blockHash</code>, and the time in the block header is then a lower bound on the proof. Since enclave v8 (2026-09-07) the enclave refuses to sign a proof whose slot carries no anchor, so the field is absent only on proofs from older enclaves.
+        Since enclave v7 (2026-09-06) the enclave writes the chain&rsquo;s latest Ethereum anchor into every position it allocates, and signs it into the proof as <code>commit.slotAnchor</code>. The floor is signed into the position record at allocation; whoever presents the proof cannot move it. A reader checks it offline from the Ethereum block header: the header&rsquo;s keccak must equal <code>slotAnchor.blockHash</code>, and the time in the block header is then a lower bound on the proof. Since enclave v8 (2026-09-07) the enclave refuses to sign a proof whose position record carries no anchor, so the field is absent only on proofs from older enclaves.
       </p>
       <p>
         Anchor proofs themselves carry <code>commit.anchor</code>, holding the block number and hash the enclave signed. The enclave writes it only after verifying the anchor service&rsquo;s Ed25519 signature over the claim against a public key baked into the enclave image, and refuses the attribution name <code>Ethereum Anchor</code> without it. So a v7 or v8 proof whose attribution says anchor but lacks <code>commit.anchor</code> is not an anchor.
@@ -186,7 +186,7 @@ export default function ProofFormatPage() {
 
       <h2 id="fused">Fused artifacts</h2>
       <p>
-        A fused artifact is a file that carries a commitment to its slot record, written into the bytes before the file was finished. The proof is an ordinary <code>bitgraph/1</code> proof: <code>slotAllocation</code> is the slot the producer held, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position, and <code>artifact.digestB64</code> the digest of the fused bytes. The signed <code>attribution</code> is the marker:
+        A fused artifact is a file that carries its position commitment, written into the bytes before the file was finished. The proof is an ordinary <code>bitgraph/1</code> proof: <code>slotAllocation</code> is the position record the producer held, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position, and <code>artifact.digestB64</code> the digest of the fused bytes. The signed <code>attribution</code> is the marker:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>attribution (fused)</span><CopyCode /></div>
@@ -197,7 +197,7 @@ export default function ProofFormatPage() {
 }`}</Code>
       </div>
       <p>
-        The commitment is derived from the signed slot record. The raw nonce never enters the artifact:
+        The position commitment is derived from the signed position record. The raw nonce never enters the artifact:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>commitment</span><CopyCode /></div>
@@ -205,7 +205,7 @@ export default function ProofFormatPage() {
 commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  // nonce: 32 raw bytes`}</Code>
       </div>
       <p>
-        Two or more files made together are one set under one slot: the committed artifact is the set root, and each file is a member with its own row. Registered placements say, byte for byte, where the commitment sits:
+        Two or more files made together are one set under one position: the committed artifact is the set root, and each file is a member with its own row. Registered placements say, byte for byte, where the commitment sits:
       </p>
       <div className="table-scroll">
         <table className="table-k">
@@ -216,7 +216,7 @@ commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  
             <tr><td>container/2</td><td>the same archive with <code>bitgraph-fuse/original</code> first, then <code>bitgraph-fuse/manifest.json</code>, so the file is hashed once and the digest finished later</td><td>everything else</td></tr>
             <tr><td>produced/1</td><td>a canonical JSON payload naming the commitment and an optional origin digest</td><td>artifacts produced without a source file; SDK and CLI only</td></tr>
             <tr><td>set/1</td><td>a canonical JSON manifest listing every member&rsquo;s fused digest, origin digest and placement; the manifest is the committed artifact</td><td>older sets; readable, no longer made</td></tr>
-            <tr><td>set/2</td><td>a Merkle root document over the member rows; each member keeps its row, leaf index and inclusion path</td><td>two or more files made together: one slot, one position, each file a member</td></tr>
+            <tr><td>set/2</td><td>a Merkle root document over the member rows; each member keeps its row, leaf index and inclusion path</td><td>two or more files made together: one position, each file a member</td></tr>
           </tbody>
         </table>
       </div>
@@ -224,7 +224,7 @@ commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  
         The fused bytes are transient. The original plus the proof rebuilds them byte for byte with the declared placement, and verifying that reconstruction against the signed artifact digest is the evidence. A Frame file, <code>&lt;name&gt;.bitgraph-fuse.json</code>, carries the proof with an advisory manifest: <code className="break">{`{ type: "bitgraph-fuse/1", manifest: { placement, origin, artifact, fusedFile }, proof }`}</code>.
       </p>
       <p className="note">
-        What this bound reaches: the fused bytes could not have been finished before the slot was allocated. What it does not reach: the original, which can be any age; the proof says only that it existed no later than the commit.
+        What this bound reaches: the fused bytes could not have been finished before the position was allocated. What it does not reach: the original, which can be any age; the proof says only that it existed no later than the commit.
       </p>
 
       <h2 id="canonical">Canonical serialization</h2>

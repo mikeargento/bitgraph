@@ -78,20 +78,20 @@ export default function APIReferencePage() {
 
         <h2 id="make">Making a BitGraph on bitgraph.ing</h2>
         <p>
-          The recommended path is two calls: allocate a slot, then commit the digest of the fused file you built around that slot. Recording a digest of bytes that already exist is a compatibility operation, listed third.
+          The recommended path is two calls: reserve a position, then commit the digest of the fused file you built around it. The API calls a reserved position&rsquo;s signed record a slot (<code>slot</code>, <code>slotId</code>, <code>slotAllocation</code>). Recording a digest of bytes that already exist is a compatibility operation, listed third.
         </p>
 
         <Endpoint
           method="POST"
           path="/api/fuse/allocate"
           id="post-api-fuse-allocate"
-          summary="Allocate an unused slot before the fused file exists. No body. The enclave signs the slot record before it receives any digest; the producer writes a commitment derived from that record into the new file, then commits the file's digest under the same slot with POST /api/fuse/commit."
+          summary="Reserve an unused position before the fused file exists. No body. The enclave signs the position record (the slot) before it receives any digest; the producer writes a commitment derived from that record into the new file, then commits the file's digest under the same position with POST /api/fuse/commit."
         >
           <Block label="Request" code={`(no body)`} />
           <Block
             label="Response 200"
             code={`{
-  "slotId": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",   // the slot's nonce
+  "slotId": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",   // the position's nonce
   "slot": {
     "version": "bitgraph/slot/1",
     "nonceB64": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",
@@ -105,10 +105,10 @@ export default function APIReferencePage() {
 }`}
           />
           <ul>
-            <li>The <code>slotId</code> is the slot&rsquo;s nonce: a bearer ticket until the slot is consumed. Write only the derived commitment into the file, never the nonce, and do not log it. The commitment is SHA-256 over the domain string <code>bitgraph-fuse/1</code>, a zero byte, the SHA-256 of the canonical slot record, and the nonce.</li>
-            <li>The chain is bound at allocation and pinned to <code>bitgraph:main</code>, the anchored sequence. A slot that is never consumed expires after 120 seconds.</li>
-            <li>The route sits behind the anchor-first gate and a rotation guard: until the current epoch has an anchor, in the window before the daily restart, and when the enclave cannot be reached, it answers <code>503 tee-restarting</code>. Retry. The epoch that issued the slot must be the epoch the gate approved; a slot from a rotation inside that check is refused the same way and expires on its own.</li>
-            <li><code>429</code> with <code>Retry-After</code> when the per-address allocation budget is spent. <code>404 fuse-disabled</code> on a deployment that has not enabled the route. <code>502</code> if the enclave host&rsquo;s answer is not a slot record.</li>
+            <li>The <code>slotId</code> is the position&rsquo;s nonce: a bearer ticket until the position is consumed. Write only the derived commitment into the file, never the nonce, and do not log it. The commitment is SHA-256 over the domain string <code>bitgraph-fuse/1</code>, a zero byte, the SHA-256 of the canonical slot record, and the nonce.</li>
+            <li>The chain is bound at allocation and pinned to <code>bitgraph:main</code>, the anchored sequence. A position that is never consumed expires after 120 seconds.</li>
+            <li>The route sits behind the anchor-first gate and a rotation guard: until the current epoch has an anchor, in the window before the daily restart, and when the enclave cannot be reached, it answers <code>503 tee-restarting</code>. Retry. The epoch that issued the position must be the epoch the gate approved; a position from a rotation inside that check is refused the same way and expires on its own.</li>
+            <li><code>429</code> with <code>Retry-After</code> when the per-address allocation budget is spent. <code>404 fuse-disabled</code> on a deployment that has not enabled the route. <code>502</code> if the enclave host&rsquo;s answer is not a position record.</li>
           </ul>
         </Endpoint>
 
@@ -116,13 +116,13 @@ export default function APIReferencePage() {
           method="POST"
           path="/api/fuse/commit"
           id="post-api-fuse-commit"
-          summary="Commit the fused file's digest under the slot from /api/fuse/allocate. Exactly one digest. The signed attribution is the fused marker. The proof comes back whole, and the route refuses to return a proof minted under any other slot."
+          summary="Commit the fused file's digest under the position reserved by /api/fuse/allocate. Exactly one digest. The signed attribution is the fused marker. The proof comes back whole, and the route refuses to return a proof minted under any other position."
         >
           <Block
             label="Request"
             code={`{
   "slotId": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",   // must equal slot.nonceB64
-  "slot": { ... },                   // the slot record from /api/fuse/allocate, verbatim
+  "slot": { ... },                   // the position record from /api/fuse/allocate, verbatim
   "digests": [{
     "digestB64": "<SHA-256 of the fused bytes>",
     "hashAlg": "sha256"
@@ -147,17 +147,17 @@ export default function APIReferencePage() {
     "commit": { "nonceB64": "...", "counter": "278", "slotCounter": "277", "slotHashB64": "...", "epochId": "...",
                 "slotAnchor": { "counter": "270", "blockNumber": 25949300, "blockHash": "0x..." } },
     "attribution": { "name": "bitgraph-fuse/1", "title": "trailer/1", "message": "..." },
-    "slotAllocation": { ... },       // the held slot
+    "slotAllocation": { ... },       // the held position's record
     ...
   }
 }`}
           />
           <ul>
-            <li>An ordinary <code>bitgraph/1</code> proof: <code>slotAllocation</code> is the held slot, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position. Keep the response: the proof returned here is the evidence. The service also keeps a copy and indexes it by digest, so a response lost in transit can be read back by the fused file&rsquo;s digest and matched on <code>commit.slotHashB64</code>; but store what comes back.</li>
+            <li>An ordinary <code>bitgraph/1</code> proof: <code>slotAllocation</code> is the held position&rsquo;s record, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position. Keep the response: the proof returned here is the evidence. The service also keeps a copy and indexes it by digest, so a response lost in transit can be read back by the fused file&rsquo;s digest and matched on <code>commit.slotHashB64</code>; but store what comes back.</li>
             <li>Validation, all <code>400</code>: the body must be a JSON object; <code>slot</code> must be the record the allocate route returned; <code>slotId</code> must equal <code>slot.nonceB64</code>; <code>digests</code> carries exactly one entry with <code>hashAlg: "sha256"</code>; <code>attribution.name</code> must be <code>bitgraph-fuse/1</code>; <code>title</code> is printable ASCII, 1 to 64 characters; <code>message</code>, when present, is printable ASCII up to 128 characters.</li>
-            <li>Sets: with title <code>set/1</code> or <code>set/2</code>, <code>metadata["bitgraph-fuse/1"]</code> carries the manifest or the Merkle root document, and it is verified before the slot is spent: exact shape, size cap, strict canonical round trip, the named slot&rsquo;s commitment, and the hash to the committed digest. <code>metadata</code> on any other title is refused. The returned proof carries the verified manifest whether or not the enclave echoed it; a different manifest from the enclave is refused with <code>502 manifest-mismatch</code>.</li>
-            <li>An anchor must precede the slot in its epoch, or the fused floor is undefined: <code>409 no-anchor-before-slot</code>. That condition cannot heal for a given slot, so the failure is final: allocate again.</li>
-            <li><code>502 slot-mismatch</code>: the enclave returned a proof under a different slot; nothing is reported as success. <code>503 tee-restarting</code> or <code>503 ledger-unavailable</code>: retry. <code>429</code> carries <code>Retry-After</code>.</li>
+            <li>Sets: with title <code>set/1</code> or <code>set/2</code>, <code>metadata["bitgraph-fuse/1"]</code> carries the manifest or the Merkle root document, and it is verified before the position is spent: exact shape, size cap, strict canonical round trip, the named position&rsquo;s commitment, and the hash to the committed digest. <code>metadata</code> on any other title is refused. The returned proof carries the verified manifest whether or not the enclave echoed it; a different manifest from the enclave is refused with <code>502 manifest-mismatch</code>.</li>
+            <li>An anchor must precede the reserved position in its epoch, or the fused floor is undefined: <code>409 no-anchor-before-slot</code>. That condition cannot heal for a given position, so the failure is final: allocate again.</li>
+            <li><code>502 slot-mismatch</code>: the enclave returned a proof under a different position; nothing is reported as success. <code>503 tee-restarting</code> or <code>503 ledger-unavailable</code>: retry. <code>429</code> carries <code>Retry-After</code>.</li>
           </ul>
         </Endpoint>
 
@@ -193,7 +193,7 @@ export default function APIReferencePage() {
 ]                                    // one complete proof per digest, in order`}
           />
           <ul>
-            <li>For each digest the enclave allocates a slot and commits the digest under it in one request. The response is the enclave&rsquo;s, an array of proofs. An <code>Authorization</code> header is forwarded when present.</li>
+            <li>For each digest the enclave allocates a position and commits the digest under it in one request. The response is the enclave&rsquo;s, an array of proofs. An <code>Authorization</code> header is forwarded when present.</li>
             <li><code>503 tee-restarting</code> until the current epoch has an anchor, during the daily restart, or when the enclave host answers 502, 503 or 504. Nothing has been minted when this fires, so a retry cannot double-record. Any other enclave error is returned with its status and body. <code>500 {`{ "error": "Commit failed" }`}</code> otherwise.</li>
             <li>To make a BitGraph whose bytes carry their own floor, use the two calls above instead.</li>
           </ul>
@@ -208,7 +208,7 @@ export default function APIReferencePage() {
           method="POST"
           path="/commit"
           id="post-commit"
-          summary="Commit one or more digests. For each digest the enclave allocates a slot (nonce and counter) and commits the digest under it, or, with slotId, commits one digest under a slot held from /allocate-slot. Returns a complete proof per digest. Requires an API key if the server is configured with keys."
+          summary="Commit one or more digests. For each digest the enclave allocates a position (nonce and counter) and commits the digest under it, or, with slotId, commits one digest under a position held from /allocate-slot. Returns a complete proof per digest. Requires an API key if the server is configured with keys."
         >
           <Block
             label="Request"
@@ -216,7 +216,7 @@ export default function APIReferencePage() {
   "digests": [
     { "digestB64": "jYl9NHJP0VcRVh6OMEIU5VAGva6cu5kdrnPrlNr/RnU=", "hashAlg": "sha256" }
   ],
-  "slotId": "...",                   // optional: consume a held slot; then exactly one digest
+  "slotId": "...",                   // optional: consume a held position; then exactly one digest
   "chainId": "bitgraph:main",        // optional
   "attribution": { "name": "Jane Doe", "title": "Sunset at Malibu", "message": "Original RAW capture" },   // optional; signed
   "metadata": { "source": "my-app", "fileName": "document.pdf" }   // optional; not signed
@@ -238,7 +238,7 @@ export default function APIReferencePage() {
       "slotHashB64": "...",
       "time": 1741496392841,
       "epochId": "a1b2c3d4e5f6...",
-      "slotAnchor": {                    // the floor: the chain's latest anchor when the slot was allocated (enclave v8)
+      "slotAnchor": {                    // the floor: the chain's latest anchor when the position was allocated (enclave v8)
         "counter": "270",
         "blockNumber": 25949300,
         "blockHash": "0x..."
@@ -298,8 +298,8 @@ const proofs = await resp.json();
 // proofs[0] is a complete BitGraphProof`}
           />
           <ul>
-            <li>Consuming a held slot (<code>slotId</code>) is available only where the service enables it, and a held slot commits exactly one digest per request.</li>
-            <li>On enclave v8 the anchored chain <code>bitgraph:main</code> refuses to commit until an authenticated anchor has landed in the epoch, and every slot on it carries the latest anchor as its floor.</li>
+            <li>Consuming a held position (<code>slotId</code>) is available only where the service enables it, and a held position commits exactly one digest per request.</li>
+            <li>On enclave v8 the anchored chain <code>bitgraph:main</code> refuses to commit until an authenticated anchor has landed in the epoch, and every position record on it carries the latest anchor as its floor.</li>
             <li>A proof committed here directly is not indexed by the site. To have it indexed, commit through <code>/api/commit</code>.</li>
           </ul>
         </Endpoint>
@@ -308,7 +308,7 @@ const proofs = await resp.json();
           method="POST"
           path="/allocate-slot"
           id="post-allocate-slot"
-          summary="Allocate a slot before committing. The slot reserves a nonce and a counter position; the enclave signs the record before it receives any digest. Same key policy as /commit; metered per address in slots."
+          summary="Reserve a position before committing: a nonce and a counter, signed by the enclave before it receives any digest. Same key policy as /commit; metered per address in positions."
         >
           <Block label="Request (optional)" code={`{ "chainId": "bitgraph:main" }`} />
           <Block
@@ -328,8 +328,8 @@ const proofs = await resp.json();
 }`}
           />
           <ul>
-            <li><code>POST /commit</code> without <code>slotId</code> allocates internally; this route is for producers that build a fused file. A slot record carries no clock.</li>
-            <li>The <code>slotId</code> is the slot&rsquo;s nonce: a bearer ticket until it is consumed, so do not disclose it before the commit. A bare allocation holds one of the enclave&rsquo;s pending-slot entries for up to 120 seconds, then expires.</li>
+            <li><code>POST /commit</code> without <code>slotId</code> allocates internally; this route is for producers that build a fused file. A position record carries no clock.</li>
+            <li>The <code>slotId</code> is the slot&rsquo;s nonce: a bearer ticket until it is consumed, so do not disclose it before the commit. A bare allocation holds one of the enclave&rsquo;s pending positions for up to 120 seconds, then expires.</li>
             <li>The chain is bound at allocation and defaults to the anchored chain. <code>429</code> with <code>Retry-After</code> when the per-address allocation budget is spent.</li>
           </ul>
         </Endpoint>
@@ -669,8 +669,8 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
   commit: {
     nonceB64: string;
     counter?: string;          // decimal, monotonic
-    slotCounter?: string;      // slot's counter (< commit counter)
-    slotHashB64?: string;      // SHA-256 of canonical slot body
+    slotCounter?: string;      // the reserved position's counter (< commit counter)
+    slotHashB64?: string;      // SHA-256 of the canonical position record
     time?: number;             // Unix ms; advisory
     prevB64?: string;          // chain link
     epochId?: string;          // hex SHA-256
@@ -696,7 +696,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
       reportB64: string;
     };
   };
-  slotAllocation?: SlotRecord;       // the slot record, made before any digest was received
+  slotAllocation?: SlotRecord;       // the position record, made before any digest was received
   agency?: unknown;                  // legacy; present on some older proofs
   attribution?: {                    // signed; creator metadata, or the fused marker:
                                      //   name "bitgraph-fuse/1", title placement id, message origin digest
@@ -719,12 +719,12 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
           code={`interface SlotRecord {             // what /api/fuse/allocate and /allocate-slot return as "slot"
   version: "bitgraph/slot/1";
   nonceB64: string;                // 32 random bytes from the enclave; also the slotId
-  counter: string;                 // the slot's position, decimal
+  counter: string;                 // the reserved position, decimal
   time?: number;                   // advisory
   epochId: string;
   publicKeyB64: string;            // the enclave key that will sign the commit
   chainId?: string;                // "bitgraph:main" on the anchored sequence
-  signatureB64: string;            // Ed25519 over the canonical slot body
+  signatureB64: string;            // Ed25519 over the canonical position record
 }`}
         />
 
@@ -795,13 +795,13 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
               <tr><td className="k">401</td><td>Missing or invalid API key, on a host configured with keys</td><td><code>{`{ "error": "unauthorized" }`}</code></td></tr>
               <tr><td className="k">404</td><td>Fuse routes on a deployment that has not enabled them</td><td><code>{`{ "error": "...", "code": "fuse-disabled" }`}</code></td></tr>
               <tr><td className="k">404</td><td>No block header witness could be found or re-encoded to match</td><td><code>{`{ "error": "witness unavailable" }`}</code></td></tr>
-              <tr><td className="k">409</td><td>No anchor precedes the slot in its epoch (fuse commit); allocate again</td><td><code>{`{ "error": "...", "code": "no-anchor-before-slot" }`}</code></td></tr>
+              <tr><td className="k">409</td><td>No anchor precedes the reserved position in its epoch (fuse commit); allocate again</td><td><code>{`{ "error": "...", "code": "no-anchor-before-slot" }`}</code></td></tr>
               <tr><td className="k">413</td><td>Payload too large</td><td><code>{`{ "error": "Request body too large. Max 1 MB." }`}</code></td></tr>
               <tr><td className="k">429</td><td>Per-address allocation budget spent; <code>Retry-After</code> header set</td><td><code>{`{ "error": "..." }`}</code></td></tr>
               <tr><td className="k">500</td><td>Enclave or internal error</td><td><code>{`{ "error": "..." }`}</code></td></tr>
-              <tr><td className="k">502</td><td>The enclave committed under a different slot (fuse commit)</td><td><code>{`{ "error": "...", "code": "slot-mismatch" }`}</code></td></tr>
+              <tr><td className="k">502</td><td>The enclave committed under a different position (fuse commit)</td><td><code>{`{ "error": "...", "code": "slot-mismatch" }`}</code></td></tr>
               <tr><td className="k">502</td><td>The enclave returned a different set manifest (fuse commit)</td><td><code>{`{ "error": "...", "code": "manifest-mismatch" }`}</code></td></tr>
-              <tr><td className="k">502</td><td>The enclave host&rsquo;s allocation answer is not a slot record (fuse allocate)</td><td><code>{`{ "error": "Unexpected allocation response from the boundary" }`}</code></td></tr>
+              <tr><td className="k">502</td><td>The enclave host&rsquo;s allocation answer is not a position record (fuse allocate)</td><td><code>{`{ "error": "Unexpected allocation response from the boundary" }`}</code></td></tr>
               <tr><td className="k">503</td><td>Enclave restarting, not yet anchored, or unreachable; retry</td><td><code>{`{ "error": "...", "code": "tee-restarting" }`}</code></td></tr>
               <tr><td className="k">503</td><td>BitGraph&rsquo;s copy could not be read; not an answer about the bytes; retry</td><td><code>{`{ "error": "...", "code": "ledger-unavailable" }`}</code> or <code>{`{ "error": "ledger unavailable" }`}</code></td></tr>
               <tr><td className="k">503</td><td>BitGraph&rsquo;s copy cannot name the current epoch yet</td><td><code>{`{ "error": "rotating" }`}</code></td></tr>

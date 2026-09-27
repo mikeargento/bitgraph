@@ -260,12 +260,12 @@ curl -X POST http://localhost:8080/commit \\
   }"
 # Returns: signed BitGraph proof with TEE attestation (no floor: without an anchor service on this chain, commit.slotAnchor is absent)
 
-# Two-phase form, used by producers that build a fused artifact: allocate a
-# slot first, then commit into that exact slot. Needs FUSE_ENABLED=true in
+# Two-phase form, used by producers that build a fused artifact: reserve a
+# position first, then commit into that exact position. Needs FUSE_ENABLED=true in
 # the parent's environment. /allocate-slot takes the same key policy as
-# /commit and is metered in slots; a held slot commits exactly one digest
-# per request. The slotId is the slot's nonce: do not disclose it before
-# the commit. A slot that is never consumed expires after 120 seconds.
+# /commit and is metered in positions; a held position commits exactly one
+# digest per request. The slotId is the position's nonce: do not disclose it
+# before the commit. A position never consumed expires after 120 seconds.
 # On enclave v8 the chain bitgraph:main refuses to commit until an authenticated
 # anchor has landed, and only bitgraph.ing's anchor service can produce one, so
 # pass a chain of your own: -d '{"chainId":"your-chain"}'.
@@ -280,7 +280,7 @@ curl -X POST http://localhost:8080/commit \\
     \\"slotId\\": \\"<slotId from the previous call>\\",
     \\"digests\\": [{\\"digestB64\\": \\"$DIGEST\\", \\"hashAlg\\": \\"sha256\\"}]
   }"
-# Returns: the proof, committed under the slot you allocated`}</Code>
+# Returns: the proof, committed under the position you reserved`}</Code>
       </div>
 
       <h2 id="stands">Where a self-hosted enclave stands</h2>
@@ -321,7 +321,7 @@ curl -X POST http://localhost:8080/commit \\
           <thead><tr><th>File</th><th>Purpose</th></tr></thead>
           <tbody>
             <tr><td><code>server/commit-service/Dockerfile.enclave</code></td><td>Builds the enclave Docker image</td></tr>
-            <tr><td><code>server/commit-service/src/enclave/app.ts</code></td><td>Enclave application: proof signing, slot management</td></tr>
+            <tr><td><code>server/commit-service/src/enclave/app.ts</code></td><td>Enclave application: proof signing, position management</td></tr>
             <tr><td><code>server/commit-service/src/parent/server.ts</code></td><td>Parent HTTP API: commit, allocate-slot, key, health endpoints</td></tr>
             <tr><td><code>server/commit-service/src/parent/vsock-client.ts</code></td><td>TCP bridge client to enclave</td></tr>
             <tr><td><code>server/commit-service/deploy.sh</code></td><td>Automated deployment script</td></tr>
@@ -342,7 +342,7 @@ curl -X POST http://localhost:8080/commit \\
       </ol>
       <p>For each proof request:</p>
       <ol className="steps">
-        <li>Validates the slot exists (no slot, no proof). On the anchored chain it also requires the slot to carry a floor: the latest authenticated anchor, fixed at allocation</li>
+        <li>Validates the position exists (no position, no proof). On the anchored chain it also requires the position record to carry a floor: the latest authenticated anchor, fixed at allocation</li>
         <li>Increments the chain counter</li>
         <li>Builds the signed body: artifact, commit, measurement, and any attribution or policy</li>
         <li>Signs with Ed25519</li>

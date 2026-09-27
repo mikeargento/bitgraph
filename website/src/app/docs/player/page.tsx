@@ -145,7 +145,7 @@ export default function PlayerPage() {
         It deliberately leaves <code>requires.ordering</code> unset. The security floor belongs to the rule author. Player will not choose it.
       </p>
       <p>
-        To read an export without a rule, <code>check</code> prints a <code>bitgraph-check/1</code> report: a three-valued line per check for each recording, with its anchor floor. A recording marked fused adds a <code>fused</code> line (the commitment check, over the fused bytes or the original), a fused floor (the last anchored block before its slot) and a fused span (slot position to commit position).
+        To read an export without a rule, <code>check</code> prints a <code>bitgraph-check/1</code> report: a three-valued line per check for each recording, with its anchor floor. A recording marked fused adds a <code>fused</code> line (the commitment check, over the fused bytes or the original), a fused floor (the last anchored block before its position) and a fused span (reserved position to commit position).
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>

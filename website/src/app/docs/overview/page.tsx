@@ -44,25 +44,25 @@ export default function OverviewPage() {
         BitGraph does one thing. It allocates a position in a signed sequence inside a trusted execution environment, which in production is an AWS Nitro enclave. Your device derives a commitment to that position and combines it with your file to produce new bytes. The enclave then binds the SHA-256 fingerprint of those bytes to the position and consumes it.
       </p>
       <p>
-        The protocol calls the random number a <em>nonce</em> (number used once), the fingerprint the <em>digest</em> and the allocated position a <em>slot</em>. Allocation comes first and the commit comes later; between them, your device builds the bytes that connect the two. Every BitGraph made on this site, in the SDK and in the MCP server is made this way.
+        The protocol calls the random number a <em>nonce</em> (number used once) and the fingerprint the <em>digest</em>; the proof&rsquo;s fields name the allocated position a <em>slot</em> (<code>slotAllocation</code>, <code>slotCounter</code>). Allocation comes first and the commit comes later; between them, your device builds the bytes that connect the two. Every BitGraph made on this site, in the SDK and in the MCP server is made this way.
       </p>
       <HowFigure />
       <p>
-        <strong>Allocation.</strong> The enclave draws 32 bytes from its hardware random number generator, advances a counter, and signs a small record: the nonce, the counter, the epoch identifier, its own public key and the latest Ethereum anchor it has authenticated. This is the slot record. It has no field that could hold a digest and is signed before any digest reaches the enclave. The slot is kept in enclave memory as unused.
+        <strong>Allocation.</strong> The enclave draws 32 bytes from its hardware random number generator, advances a counter, and signs a small record: the nonce, the counter, the epoch identifier, its own public key and the latest Ethereum anchor it has authenticated. This is the position record. It has no field that could hold a digest and is signed before any digest reaches the enclave. The position is kept in enclave memory as unused.
       </p>
       <p>
-        <strong>The new bytes.</strong> From the signed slot record your device derives a 32-byte commitment, builds the new bytes with it, and hashes them. Section 3 covers where the commitment goes in different kinds of file.
+        <strong>The new bytes.</strong> From the signed position record your device derives a 32-byte position commitment, builds the new bytes with it, and hashes them. Section 3 covers where the commitment goes in different kinds of file.
       </p>
       <p>
-        <strong>Commit.</strong> The new bytes&rsquo; digest arrives together with the slot&rsquo;s identifier. In one atomic step the enclave deletes the slot from its table, binds the digest to it, records both counters and the hash of the slot record in a signed body, signs the body with its Ed25519 key, and obtains a hardware attestation over that exact body. There is no partial state: if any part fails, no proof exists and the slot is simply lost. A slot is consumed once and never reused. Storing BitGraph&rsquo;s public copy happens afterwards, outside that step.
+        <strong>Commit.</strong> The new bytes&rsquo; digest arrives together with the position&rsquo;s identifier. In one atomic step the enclave deletes the position from its table, binds the digest to it, records both counters and the hash of the position record in a signed body, signs the body with its Ed25519 key, and obtains a hardware attestation over that exact body. There is no partial state: if any part fails, no proof exists and the position is simply lost. A position is consumed once and never reused. Storing BitGraph&rsquo;s public copy happens afterwards, outside that step.
       </p>
       <p>
-        <strong>The proof.</strong> What comes back is a JSON document: the digest, the commit fields, the signature, the enclave&rsquo;s measurement and attestation, the slot record itself, and a signed marker naming the original&rsquo;s digest. It is returned to whoever asked and travels with the original. BitGraph also keeps a public copy, indexed by digest, for retrieval. Verification uses the proof you hold and does not require contacting the service.
+        <strong>The proof.</strong> What comes back is a JSON document: the digest, the commit fields, the signature, the enclave&rsquo;s measurement and attestation, the position record itself, and a signed marker naming the original&rsquo;s digest. It is returned to whoever asked and travels with the original. BitGraph also keeps a public copy, indexed by digest, for retrieval. Verification uses the proof you hold and does not require contacting the service.
       </p>
 
       <h3>Why the order matters</h3>
       <p>
-        The commitment reverses the usual order: it makes the finished bytes depend on the slot. Because the slot contains fresh randomness drawn at allocation, bytes carrying its commitment could not have been finished before it existed. Committing their digest then binds that exact version to the same slot.
+        The commitment reverses the usual order: it makes the finished bytes depend on the position. Because the position record contains fresh randomness drawn at allocation, bytes carrying its commitment could not have been finished before it existed. Committing their digest then binds that exact version to the same position.
       </p>
       <p>
         That bound applies to the new bytes. The original inside them can be any age: making a BitGraph today does not establish when its content was created.
@@ -73,7 +73,7 @@ export default function OverviewPage() {
 
       <h2 id="boundary">2. What crosses the boundary</h2>
       <p>
-        The file itself never crosses. On the public site, in the MCP server and in the SDK, the new bytes are built and hashed where the file is, and the commit request carries only their digest, the slot record and the signed marker with the original&rsquo;s digest. That is a property of each client rather than of the protocol: a client can send whatever it likes, and a verifier should read the client&rsquo;s source if it matters. The service sees the requester&rsquo;s address and those two digests, and publishes them with the position and the anchors. It never sees the file.
+        The file itself never crosses. On the public site, in the MCP server and in the SDK, the new bytes are built and hashed where the file is, and the commit request carries only their digest, the position record and the signed marker with the original&rsquo;s digest. That is a property of each client rather than of the protocol: a client can send whatever it likes, and a verifier should read the client&rsquo;s source if it matters. The service sees the requester&rsquo;s address and those two digests, and publishes them with the position and the anchors. It never sees the file.
       </p>
       <p>
         The enclave is a measured environment. Its image is identified by a hash, PCR0, that AWS computes at boot and that anyone can reproduce from the published source. The enclave&rsquo;s signing key is generated inside it and never leaves. Every proof carries an attestation document, signed by the Nitro hardware, whose user data is the hash of that proof&rsquo;s signed body. A verifier who pins the published PCR0 is therefore checking not only that some key signed the proof but that the key belonged to that specific code.
@@ -98,10 +98,10 @@ export default function OverviewPage() {
         A format you produce yourself, such as an AI system&rsquo;s audit record, can carry the commitment in a field of its own. Then there is nothing to rebuild: the record with its commitment is the file you keep.
       </p>
       <p>
-        Either way, the new bytes name the slot and the slot names the new bytes, and the anchor signed into the slot record puts a public time under them. The proof&rsquo;s signed attribution field carries the marker: the label <code>bitgraph-fuse/1</code>, the placement used and, for a wrapped file, the digest of the original.
+        Either way, the new bytes name the position and the position names the new bytes, and the anchor signed into the position record puts a public time under them. The proof&rsquo;s signed attribution field carries the marker: the label <code>bitgraph-fuse/1</code>, the placement used and, for a wrapped file, the digest of the original.
       </p>
       <p>
-        Two or more files made together become one set under one slot, with each file a member that keeps its own row and inclusion path. The <Link href="/docs/proof-format#fused">proof format</Link> page has the byte-level placements.
+        Two or more files made together become one set under one position, with each file a member that keeps its own row and inclusion path. The <Link href="/docs/proof-format#fused">proof format</Link> page has the byte-level placements.
       </p>
 
       <h2 id="time">4. Where time comes from</h2>
@@ -113,7 +113,7 @@ export default function OverviewPage() {
       </p>
       <AnchorFigure />
       <p>
-        <strong>The floor.</strong> Every slot record on the anchored sequence names the latest anchor at the moment of allocation (since enclave version 7), and since version 8 the enclave refuses to sign a proof whose slot carries none. The block that anchor names had been mined before the slot existed, so its time is a lower bound on the position that nobody involved chose. A verifier reads the block&rsquo;s time from its header, which an export ships as a witness, and can confirm the same block on any Ethereum explorer.
+        <strong>The floor.</strong> Every position record on the anchored sequence names the latest anchor at the moment of allocation (since enclave version 7), and since version 8 the enclave refuses to sign a proof whose position record carries none. The block that anchor names had been mined before the position existed, so its time is a lower bound on the position that nobody involved chose. A verifier reads the block&rsquo;s time from its header, which an export ships as a witness, and can confirm the same block on any Ethereum explorer.
       </p>
       <p>
         <strong>The ceiling.</strong> The next anchor the sequence took is the position&rsquo;s ceiling: the record was committed before that anchor took its place. That is a fact about order in the sequence and it does not convert to a clock reading. An anchor is made after the block it carries, so a record can sit after that block was mined and still before the anchor. No field in a proof is a trusted timestamp, and BitGraph makes no wall-clock upper-bound claim.
@@ -140,11 +140,11 @@ export default function OverviewPage() {
           <thead><tr><th>Field</th><th>What it establishes</th></tr></thead>
           <tbody>
             <tr><td>artifact.digestB64</td><td>The committed new bytes: your file plus the commitment. Any change to either changes the digest.</td></tr>
-            <tr><td>slotAllocation</td><td>The slot record: nonce, counter, epoch, key, signature. Made before any digest was received.</td></tr>
-            <tr><td>commit.slotCounter, commit.counter</td><td>The slot&rsquo;s position and the commit&rsquo;s. The first is always smaller.</td></tr>
-            <tr><td>commit.slotHashB64</td><td>Hash of the slot record, inside the signed body, so the slot cannot be swapped.</td></tr>
+            <tr><td>slotAllocation</td><td>The position record: nonce, counter, epoch, key, signature. Made before any digest was received.</td></tr>
+            <tr><td>commit.slotCounter, commit.counter</td><td>The reserved position and the commit&rsquo;s. The first is always smaller.</td></tr>
+            <tr><td>commit.slotHashB64</td><td>Hash of the position record, inside the signed body, so the position cannot be swapped.</td></tr>
             <tr><td>commit.prevB64</td><td>Hash of the previous proof on the sequence: the link that makes the order checkable.</td></tr>
-            <tr><td>commit.slotAnchor</td><td>The Ethereum block the floor rests on, signed into the slot record.</td></tr>
+            <tr><td>commit.slotAnchor</td><td>The Ethereum block the floor rests on, signed into the position record.</td></tr>
             <tr><td>signer, environment</td><td>The enclave&rsquo;s key and signature, its PCR0 measurement, and its hardware attestation over this body.</td></tr>
             <tr><td>attribution</td><td>Signed. The marker, the placement and, for a wrapped file, the original&rsquo;s digest.</td></tr>
             <tr><td>metadata, timestamps</td><td>Unsigned and advisory. Never evidence.</td></tr>

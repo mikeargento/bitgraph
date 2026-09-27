@@ -141,7 +141,7 @@ export function HowFigure() {
             stays put (Mike, 2026-09-11). */}
         <div className="fig-well">
         <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: 760 }} role="img" aria-label="Two lanes, your device over the enclave. In the enclave lane, position N is opened first from a hardware nonce while no digest exists, and its signed slot record goes down to your device. In the device lane, your file becomes new bytes that carry a commitment to N, built on your device. Their digest H goes back up to the enclave and is committed under N, signed and attested; N is consumed. The proof comes back down and leaves with the file. N was held, unspent, between opening and commit.">
+        <div style={{ minWidth: 760 }} role="img" aria-label="Two lanes, your device over the enclave. In the enclave lane, position N is opened first from a hardware nonce while no digest exists, and its signed position record goes down to your device. In the device lane, your file becomes new bytes that carry a commitment to N, built on your device. Their digest H goes back up to the enclave and is committed under N, signed and attested; N is consumed. The proof comes back down and leaves with the file. N was held, unspent, between opening and commit.">
           <svg viewBox="19 19 962 398" width="100%" style={{ display: "block", fontFamily: "inherit" }}>
             <defs>
               <marker id={`${id}-g`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -160,7 +160,7 @@ export function HowFigure() {
             <text x={44} y={270} fontSize={9} fontWeight={700} letterSpacing="0.09em" fill="var(--head)">ENCLAVE / TEE</text>
 
             {/* enclave lane: 1 opens N, 3 commits under it; between them N is held */}
-            <Box x={115} y={306} w={285} h={64} title="2. Open a position" sub={["from an empty request: nothing of the file", "a signed slot record: nonce, counter, epoch"]} stroke={C.brand} />
+            <Box x={115} y={306} w={285} h={64} title="2. Open a position" sub={["from an empty request: nothing of the file", "a signed record: nonce, counter, epoch"]} stroke={C.brand} />
             <path vectorEffect="non-scaling-stroke" d="M 400 338 L 600 338" fill="none" stroke={C.held} strokeWidth={1} strokeDasharray="3 4" />
             <Tag x={500} y={338} text="position held, unspent" held />
             <Box x={600} y={306} w={285} h={64} title="4. Commit under the position" sub={["the digest bound, signed and attested", "the position consumed, once, in one step"]} stroke={C.brand} />
@@ -168,7 +168,7 @@ export function HowFigure() {
             {/* device lane: the file becomes new bytes that carry N */}
             <Box x={115} y={86} w={120} h={64} title="Your file" sub={["any bytes"]} />
             <Arrow id={id} d="M 235 118 L 316 118" />
-            <Box x={320} y={86} w={360} h={64} title="3. New bytes" sub={["the file + a commitment derived here from the slot record", "built on your device, never uploaded"]} />
+            <Box x={320} y={86} w={360} h={64} title="3. New bytes" sub={["the file + the position commitment, derived here", "built on your device, never uploaded"]} />
 
             {/* first: the slot record goes down into the bytes */}
             {/* the empty request, a pill on its wire like the other two (Mike,
@@ -180,11 +180,11 @@ export function HowFigure() {
                 position and the proof that closes it are the two ends of one path. */}
             <Tag x={175} y={218} text="1. ask for a position" proof />
             <Arrow id={id} d="M 355 306 L 355 154" brand />
-            <Tag x={355} y={218} text="signed slot record" brand />
+            <Tag x={355} y={218} text="signed position record" brand />
 
             {/* then: the digest of the new bytes goes back up, under N */}
             <Arrow id={id} d="M 645 150 L 645 302" />
-            <Tag x={645} y={218} text="digest of the new bytes + the slot record" />
+            <Tag x={645} y={218} text="digest of the new bytes + the position record" />
 
             {/* the proof comes back down and leaves with the file */}
             <Arrow id={id} d="M 825 306 L 825 154" brand />

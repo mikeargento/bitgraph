@@ -70,21 +70,21 @@ const W = 220, TOP = 30, H = 204;
 export function BoundaryFigure() {
   const caption = (
     <>
-      Illustrative. BitGraph issues the slot first, and a record that carries its commitment was made after it. Within two minutes the records&rsquo; fingerprints fill the slot; anyone holding the records and the BitGraph can then check both, offline.
+      Illustrative. BitGraph issues the position first, and a record that carries its commitment was made after it. Within two minutes the records&rsquo; fingerprints fill the position; anyone holding the records and the BitGraph can then check both, offline.
     </>
   );
 
   const wide = (
-    <Svg w={960} h={244} title="Four boxes in order. One, BitGraph: a slot, empty, holding a nonce of fresh random bits; nothing made before it can contain it. Two: the AI runs. Three: the audit records, a signed record, an attested runtime and a transparency log, inside the system under review. Four: the BitGraph, the same slot now filled: the same bytes, nothing changed; the same slot, nothing moved; checked offline, by anyone.">
+    <Svg w={960} h={244} title="Four boxes in order. One, BitGraph: a position, empty, holding a nonce of fresh random bits; nothing made before it can contain it. Two: the AI runs. Three: the audit records, a signed record, an attested runtime and a transparency log, inside the system under review. Four: the BitGraph, the same slot now filled: the same bytes, nothing changed; the same slot, nothing moved; checked offline, by anyone.">
       {/* 1. BitGraph: a slot, first */}
-      <T x={0} y={16} cls="ttl">1. BITGRAPH: A SLOT</T>
+      <T x={0} y={16} cls="ttl">1. BITGRAPH: A POSITION</T>
       <rect className="lane-enc" x={1} y={TOP} width={W} height={H} />
       <T x={111} y={52} anchor="middle">a separate, measured enclave</T>
       <line className="rule" x1={13} y1={88} x2={209} y2={88} />
       <Others y={88} xs={[25, 55]} />
       <Pos cx={111} cy={88} kind="open" size={22} />
       <Others y={88} xs={[167, 197]} />
-      <Chip cx={111} cy={122} text="slot #4,201 · UNUSED" tone="w" />
+      <Chip cx={111} cy={122} text="position #4,201 · UNUSED" tone="w" />
       <T x={111} y={154} anchor="middle">a nonce: fresh random bits</T>
       <T x={111} y={170} anchor="middle">drawn on the spot.</T>
       <T x={111} y={198} anchor="middle" cls="lbl-ink">Nothing made before it</T>
@@ -117,24 +117,24 @@ export function BoundaryFigure() {
       <Others y={88} xs={[763, 793]} />
       <Pos cx={849} cy={88} kind="spent" size={22} />
       <Others y={88} xs={[905, 935]} />
-      <Chip cx={849} cy={122} text="slot #4,201 · CONSUMED" tone="w" />
+      <Chip cx={849} cy={122} text="position #4,201 · CONSUMED" tone="w" />
       <Check x={758} y={158}>same bytes: nothing changed</Check>
-      <Check x={758} y={182}>same slot: nothing moved</Check>
+      <Check x={758} y={182}>same position: nothing moved</Check>
       <Check x={758} y={206}>checked offline, by anyone</Check>
     </Svg>
   );
 
   /* Narrow: the four boxes stacked, full width and the same height, 176. */
   const narrow = (
-    <Svg w={360} h={896} title="Four boxes stacked in order. One, BitGraph: a slot, empty, holding a nonce of fresh random bits. Two: the AI runs. Three: the audit records, inside the system under review. Four: the BitGraph, the same slot filled: nothing changed, nothing moved, checked offline by anyone.">
-      <T x={0} y={16} cls="ttl">1. BITGRAPH: A SLOT</T>
+    <Svg w={360} h={896} title="Four boxes stacked in order. One, BitGraph: a position, empty, holding a nonce of fresh random bits. Two: the AI runs. Three: the audit records, inside the system under review. Four: the BitGraph, the same slot filled: nothing changed, nothing moved, checked offline by anyone.">
+      <T x={0} y={16} cls="ttl">1. BITGRAPH: A POSITION</T>
       <rect className="lane-enc" x={1} y={28} width={358} height={176} />
       <T x={16} y={48}>a separate, measured enclave</T>
       <line className="rule" x1={16} y1={86} x2={344} y2={86} />
       <Others y={86} xs={[28, 60, 92, 124]} />
       <Pos cx={180} cy={86} kind="open" size={22} />
       <Others y={86} xs={[236, 268, 300, 332]} />
-      <Chip cx={180} cy={122} text="slot #4,201 · UNUSED" tone="w" />
+      <Chip cx={180} cy={122} text="position #4,201 · UNUSED" tone="w" />
       <T x={180} y={152} anchor="middle">a nonce: fresh random bits drawn on the spot.</T>
       <T x={180} y={176} anchor="middle" cls="lbl-ink">Nothing made before it can contain it.</T>
       {/* Short arrows, centred (Mike, 2026-09-18: "you can center these arrows", after trying them a little right of centre), in the gap above the next step's title (Mike, 2026-09-18: "you can
@@ -162,12 +162,12 @@ export function BoundaryFigure() {
       <Others y={752} xs={[28, 60, 92, 124]} />
       <Pos cx={180} cy={752} kind="spent" size={22} />
       <Others y={752} xs={[236, 268, 300, 332]} />
-      <Chip cx={180} cy={786} text="slot #4,201 · CONSUMED" tone="w" />
+      <Chip cx={180} cy={786} text="position #4,201 · CONSUMED" tone="w" />
       <Check x={89} y={822}>same bytes: nothing changed</Check>
-      <Check x={89} y={846}>same slot: nothing moved</Check>
+      <Check x={89} y={846}>same position: nothing moved</Check>
       <Check x={89} y={870}>checked offline, by anyone</Check>
     </Svg>
   );
 
-  return <Fig wide={wide} narrow={narrow} caption={caption} label="A slot first, then the AI and its records inside the system under review, then the proof" />;
+  return <Fig wide={wide} narrow={narrow} caption={caption} label="A position first, then the AI and its records inside the system under review, then the proof" />;
 }

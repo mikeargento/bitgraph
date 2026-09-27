@@ -175,7 +175,7 @@ test("a subset commits as the set; the same bytes twice are one row; mixed slots
   const c = await commitHostedSet(entries);
   assert.equal(c.count, 2);
   const other = await openHostedSet(originals.slice(3).map((o) => fileInput(o.name, o.bytes)));
-  await assert.rejects(setManifestFor([entries[0]!, { state: other.members[0]!.state, artifactDigestB64: entries[0]!.artifactDigestB64 }]), /same slot/);
+  await assert.rejects(setManifestFor([entries[0]!, { state: other.members[0]!.state, artifactDigestB64: entries[0]!.artifactDigestB64 }]), /same position/);
 });
 
 test("groupCommitEntries: set tokens group by slot, single-file tokens stand alone", async () => {

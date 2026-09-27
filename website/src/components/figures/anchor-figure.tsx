@@ -9,7 +9,7 @@ import { Arrow, Chip, Fig, Others, OthersV, Pos, Span, SpanV, Svg, T } from "./f
 export function AnchorFigure() {
   const caption = (
     <>
-      Illustrative numbers. An anchor is made after the block it carries, so an anchor&rsquo;s position is later than its block&rsquo;s time. That is why the floor is exact (the block was mined before the slot was allocated, and the slot record says which block) and why the next anchor&rsquo;s block time is not an upper bound: the record can sit after that block was mined and still before the anchor took its position. The ceiling is the anchor&rsquo;s position, which is a fact about the sequence, not about the clock.
+      Illustrative numbers. An anchor is made after the block it carries, so an anchor&rsquo;s position is later than its block&rsquo;s time. That is why the floor is exact (the block was mined before the position was allocated, and the position record says which block) and why the next anchor&rsquo;s block time is not an upper bound: the record can sit after that block was mined and still before the anchor took its position. The ceiling is the anchor&rsquo;s position, which is a fact about the sequence, not about the clock.
     </>
   );
 
@@ -41,7 +41,7 @@ export function AnchorFigure() {
       <Pos cx={640} cy={y} kind="ceil" size={20} />
       <Pos cx={870} cy={y} kind="anchor" size={20} />
       <Chip cx={190} cy={y - 30} text="anchor #4,190" tone="b" />
-      <Chip cx={421} cy={y - 30} parts={[{ text: "slot #4,201", tone: "w" }, { text: " · ", tone: "d" }, { text: "commit #4,202", tone: "g" }]} />
+      <Chip cx={421} cy={y - 30} parts={[{ text: "position #4,201", tone: "w" }, { text: " · ", tone: "d" }, { text: "commit #4,202", tone: "g" }]} />
       <Chip cx={640} cy={y - 30} text="anchor #4,210" tone="p" />
       <Chip cx={870} cy={y - 30} text="anchor #4,230" tone="b" />
       <Span x1={190} x2={400} y={y + 26} label="floor: after 17:25:47 UTC" tone="b" />
@@ -69,7 +69,7 @@ export function AnchorFigure() {
       <Arrow d="M 228 124 L 170 124" tone="b" />
       <OthersV x={x} ys={[160, 190]} />
       <Pos cx={x} cy={232} kind="spent" size={20} />
-      <Chip cx={x + 68} cy={232} text="slot #4,201" tone="w" />
+      <Chip cx={x + 68} cy={232} text="position #4,201" tone="w" />
       <Pos cx={x} cy={268} kind="commit" size={20} />
       <Chip cx={x + 74} cy={268} text="commit #4,202" tone="g" />
       <OthersV x={x} ys={[304, 334]} />

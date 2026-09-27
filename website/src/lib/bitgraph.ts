@@ -277,9 +277,9 @@ export async function verifyProofSignature(proof: BitGraphProof): Promise<ProofV
   // 9. Slot allocation
   if (proof.slotAllocation) {
     checks.push({
-      label: "Slot allocation",
+      label: "Reserved position",
       status: "info",
-      detail: `Slot #${proof.slotAllocation.counter} present; its signature is checked by the verifier`,
+      detail: `Position #${proof.slotAllocation.counter} reserved; its signature is checked by the verifier`,
     });
   }
 

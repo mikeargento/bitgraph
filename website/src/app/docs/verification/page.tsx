@@ -26,7 +26,7 @@ export default function VerificationPage() {
         A proof establishes where a file&rsquo;s fingerprint (SHA-256 digest) was placed in a sequence. Checking it needs the evidence below, and one decision of yours: which enclave images you trust.
       </p>
       <ul className="facts">
-        <li><b>The proof</b><span>The <code>bitgraph/1</code> JSON the holder keeps. It carries the digest, the slot record, both counters, the signature, the enclave&rsquo;s measurement and its attestation.</span></li>
+        <li><b>The proof</b><span>The <code>bitgraph/1</code> JSON the holder keeps. It carries the digest, the position record, both counters, the signature, the enclave&rsquo;s measurement and its attestation.</span></li>
         <li><b>The file</b><span>The exact bytes. For a fused file, either the fused bytes or the original they were built from; the proof rebuilds one from the other.</span></li>
         <li><b>The anchors</b><span>For the floor: the anchor proofs that bracket the position and the Ethereum block header witnesses. An export includes them. Without them the floor is a block number in the proof, not a time.</span></li>
         <li><b>A trust policy</b><span>The list of PCR0 measurements you accept. The published one is <code className="break">{PCR0}</code> (enclave-v8), reproducible from source. A proof from any other image should fail your check, whatever else it passes.</span></li>
@@ -37,8 +37,8 @@ export default function VerificationPage() {
         <p>From the record and its proof alone, offline:</p>
         <ul className="facts">
           <li><b>Integrity</b><span>The record in hand is exactly the one that was committed. Change one byte and it no longer matches.</span></li>
-          <li><b>Position</b><span>The commitment inside the record points to a slot that existed before the record was signed, and the proof commits this record. A commitment copied from another record fails, because its proof commits a different one.</span></li>
-          <li><b>Floor</b><span>The slot names an Ethereum block that had already been mined when the slot was allocated. The record could not have been finished before that block.</span></li>
+          <li><b>Position</b><span>The commitment inside the record points to a position that existed before the record was signed, and the proof commits this record. A commitment copied from another record fails, because its proof commits a different one.</span></li>
+          <li><b>Floor</b><span>The position record names an Ethereum block that had already been mined when the position was allocated. The record could not have been finished before that block.</span></li>
           <li><b>Origin of the proof</b><span>The signature verifies, and a hardware attestation ties the signing key to a published, reproducible enclave image the verifier chooses to accept.</span></li>
         </ul>
         <p>Those are the conclusions. The checks that produce them, in the order the verifier runs them, are below.</p>
@@ -66,8 +66,8 @@ export default function VerificationPage() {
           <code>publicKeyB64</code> must decode to 32 bytes and <code>signatureB64</code> to 64. The Ed25519 signature is checked against the canonical bytes. If it fails, the body was changed after signing or was never signed by this key.
         </li>
         <li>
-          <strong>Slot binding and floor.</strong>{" "}
-          When <code>slotAllocation</code> is present: the slot record&rsquo;s own Ed25519 signature over its canonical body; <code>commit.slotHashB64</code> equal to the SHA-256 of that body; <code>commit.nonceB64</code> equal to the slot&rsquo;s nonce; <code>slotCounter</code> smaller than <code>counter</code>, under the same key and the same epoch. Since enclave v8 the slot record also names the Ethereum anchor the enclave had authenticated at allocation (<code>commit.slotAnchor</code>): the proof&rsquo;s floor.
+          <strong>Position binding and floor.</strong>{" "}
+          When <code>slotAllocation</code> is present: the position record&rsquo;s own Ed25519 signature over its canonical body; <code>commit.slotHashB64</code> equal to the SHA-256 of that body; <code>commit.nonceB64</code> equal to the position&rsquo;s nonce; <code>slotCounter</code> smaller than <code>counter</code>, under the same key and the same epoch. Since enclave v8 the position record also names the Ethereum anchor the enclave had authenticated at allocation (<code>commit.slotAnchor</code>): the proof&rsquo;s floor.
         </li>
         <li>
           <strong>Attestation binding.</strong>{" "}
@@ -87,15 +87,15 @@ export default function VerificationPage() {
         <code>verify</code> answers <code>{"{ valid: true }"}</code> or <code>{"{ valid: false, reason }"}</code>. Read a result as one of four outcomes.
       </p>
       <ul className="facts">
-        <li><b>Valid</b><span>Every check passed against the bytes in hand. These exact bytes were committed at the position the proof names, under the key and the enclave image the proof names. On a proof from enclave v8, the slot record, signed before any digest reached the enclave, names the anchor that is the position&rsquo;s floor.</span></li>
+        <li><b>Valid</b><span>Every check passed against the bytes in hand. These exact bytes were committed at the position the proof names, under the key and the enclave image the proof names. On a proof from enclave v8, the position record, signed before any digest reached the enclave, names the anchor that is the position&rsquo;s floor.</span></li>
         <li><b>Incomplete</b><span><code>verifyProofIntegrity</code> runs every check except the digest comparison and answers with <code>artifactBinding: &quot;not-checked&quot;</code>. The proof is sound, but nothing has said which file it belongs to. The audit tool reports this as <code>artifact-unavailable</code>; it is never reported as verified.</span></li>
-        <li><b>Invalid</b><span>One check failed, and <code>reason</code> names it: a digest that does not match the bytes, a signature that does not verify, a slot record that does not bind, a policy the proof does not meet. An invalid result says nothing about the bytes beyond this: this proof does not stand for them.</span></li>
+        <li><b>Invalid</b><span>One check failed, and <code>reason</code> names it: a digest that does not match the bytes, a signature that does not verify, a position record that does not bind, a policy the proof does not meet. An invalid result says nothing about the bytes beyond this: this proof does not stand for them.</span></li>
         <li><b className="break">Unverifiable</b><span>Evidence is missing, so no verdict is possible on that point. Without the bytes, identity is unchecked. Without the anchor proofs and their witnesses, the floor stays a block number and cannot be read as a time. Without a measurement you recognize, the proof may be internally sound and still come from an image you have no reason to trust; a policy with <code>allowedMeasurements</code> turns that into a failure.</span></li>
       </ul>
 
       <h3 id="fused">Fused files</h3>
       <p>
-        A fused file carries a commitment to its own slot record inside its bytes, written before the file was finished. Its proof is an ordinary <code>bitgraph/1</code> proof whose signed <code>attribution</code> names the placement and the origin, so the seven checks run unchanged. <code>verifyFuse({"{ proof, bytes, frame? }"})</code> in <code>@mikeargento/bitgraph-verify</code> then adds one comparison, chosen by what the bytes hash to. The commitment and the registered placements are defined in the <Link href="/docs/proof-format#fused">proof format</Link>.
+        A fused file carries its position commitment inside its bytes, written before the file was finished. Its proof is an ordinary <code>bitgraph/1</code> proof whose signed <code>attribution</code> names the placement and the origin, so the seven checks run unchanged. <code>verifyFuse({"{ proof, bytes, frame? }"})</code> in <code>@mikeargento/bitgraph-verify</code> then adds one comparison, chosen by what the bytes hash to. The commitment and the registered placements are defined in the <Link href="/docs/proof-format#fused">proof format</Link>.
       </p>
       <div className="table-scroll">
         <table>
@@ -110,7 +110,7 @@ export default function VerificationPage() {
             </tr>
             <tr>
               <td>the artifact digest, fused marker present</td>
-              <td>locate the commitment in the bytes with the declared placement; compare with the commitment recomputed from the proof&rsquo;s slot record</td>
+              <td>locate the commitment in the bytes with the declared placement; compare with the commitment recomputed from the proof&rsquo;s position record</td>
               <td><code>FUSED_DIRECT</code>; <code>INVALID_SLOT_COMMITMENT</code> on mismatch; <code>INVALID_ORIGIN_ATTRIBUTION</code> if an origin digest embedded in the bytes disagrees with the signed one</td>
             </tr>
             <tr>
@@ -126,7 +126,7 @@ export default function VerificationPage() {
           </tbody>
         </table>
       </div>
-      <p>The statements a verifier prints, verbatim, with N the slot position and M the commit position:</p>
+      <p>The statements a verifier prints, verbatim, with N the reserved position and M the commit position:</p>
       <ul>
         <li>&ldquo;These exact bytes existed no later than commit position M.&rdquo;</li>
         <li>&ldquo;The supplied original rebuilds the committed fused artifact byte for byte, so these exact original bytes existed no later than commit position M.&rdquo;</li>
@@ -139,7 +139,7 @@ export default function VerificationPage() {
 
       <h2 id="limits">What the checks cannot conclude</h2>
       <p>
-        A valid result is a statement about placement. It does not say the file is true, who made it, that these bytes did not exist somewhere earlier, or at what time the commit happened. The floor is a time: the block the proof names had been mined before the slot existed. The ceiling is a position: the next anchor in the sequence, which does not convert to a clock reading. No field in a proof is a trusted clock, and the verifier makes no upper bound claim in time.
+        A valid result is a statement about placement. It does not say the file is true, who made it, that these bytes did not exist somewhere earlier, or at what time the commit happened. The floor is a time: the block the proof names had been mined before the position existed. The ceiling is a position: the next anchor in the sequence, which does not convert to a clock reading. No field in a proof is a trusted clock, and the verifier makes no upper bound claim in time.
       </p>
       <div className="table-scroll">
         <table className="table-k">
@@ -169,7 +169,7 @@ export default function VerificationPage() {
             </tr>
             <tr>
               <td>Wall-clock floor of a fused file</td>
-              <td>The proof names its floor in the signed slot record (commit.slotAnchor). Turning that into a clock time needs the Ethereum block header, which the export package ships as a witness; the verifier does not fetch it.</td>
+              <td>The proof names its floor in the signed position record (commit.slotAnchor). Turning that into a clock time needs the Ethereum block header, which the export package ships as a witness; the verifier does not fetch it.</td>
             </tr>
           </tbody>
         </table>

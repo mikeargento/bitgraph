@@ -19,14 +19,14 @@ export default function PrivacyPage() {
           <li>Your email address and what you send us, when you contact us or have a commercial agreement with us.</li>
           <li>Billing details, when a paid agreement exists, handled by our payment processor. We do not store card numbers.</li>
           <li>Service logs: timestamps, request data, and IP addresses, used for security, rate limiting, abuse prevention, and diagnosing failures.</li>
-          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the slot and proof metadata the recording environment needs to sign a proof. These come back to you in the proof. BitGraph keeps the Ethereum anchors; proofs made since 8 September 2026 are not stored or indexed by us.</li>
+          <li>Protocol records: the SHA-256 fingerprint of each file, its size, and the position and proof metadata the recording environment needs to sign a proof. These come back to you in the proof. BitGraph keeps the Ethereum anchors; proofs made since 8 September 2026 are not stored or indexed by us.</li>
         </ul>
 
         <h2>2. What we do not collect</h2>
         <p>
           File contents are not part of recording. Files are fingerprinted on
           your machine, and what travels is the fingerprint,
-          the file&apos;s size, the slot record and the recipe bytes a proof
+          the file&apos;s size, the position record and the recipe bytes a proof
           needs. Software that builds the new file for you, such as the MCP
           server, also sends the file&apos;s first bytes, to choose a placement,
           and its name, to name the new file; neither is written into a

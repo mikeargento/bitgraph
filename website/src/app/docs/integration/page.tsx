@@ -31,7 +31,7 @@ export default function IntegrationPage() {
         <li><b>Runtime</b><span>Node 20 or later for the CLI and the SDK. The HTTP calls need only an HTTP client and a SHA-256 implementation.</span></li>
         <li><b>Packages</b><span><code>@mikeargento/bitgraph</code> 1.9.0 makes a BitGraph. <code>@mikeargento/bitgraph-verify</code> 1.11.0 checks one; it is MIT-licensed and makes no network call.</span></li>
         <li><b>Account</b><span>None. The public endpoint at <code>https://bitgraph.ing</code> needs no key. A self-hosted enclave may require a Bearer token; see the <Link href="/api-reference">API reference</Link>.</span></li>
-        <li><b>The file</b><span>Stays on your machine. What crosses the network is its fingerprint (SHA-256 digest) and the signed slot record. That is a property of each client on this page; the enclave never receives a file.</span></li>
+        <li><b>The file</b><span>Stays on your machine. What crosses the network is its fingerprint (SHA-256 digest) and the signed position record. That is a property of each client on this page; the enclave never receives a file.</span></li>
       </ul>
       <h3>Words used on this page</h3>
       <dl className="terms">
@@ -39,14 +39,14 @@ export default function IntegrationPage() {
         <dd>Any bytes.</dd>
         <dt>Digest</dt>
         <dd>The file&rsquo;s SHA-256, 32 bytes, standard base64 inside a proof.</dd>
-        <dt>Slot</dt>
-        <dd>A position the enclave allocates and signs before it receives any digest.</dd>
+        <dt>Position</dt>
+        <dd>A place in the enclave&rsquo;s sequence, allocated and signed before it receives any digest. The API calls its signed record a slot (<code>slot</code>, <code>slotId</code>).</dd>
         <dt>Commit</dt>
-        <dd>The single step that binds a digest to the slot and consumes it. Atomic: either a proof exists or nothing does.</dd>
+        <dd>The single step that binds a digest to the position and consumes it. Atomic: either a proof exists or nothing does.</dd>
         <dt>Proof</dt>
         <dd>The <code>bitgraph/1</code> JSON the holder keeps beside the file.</dd>
         <dt>Fused file</dt>
-        <dd>New bytes built around the original that carry a commitment to the slot.</dd>
+        <dd>New bytes built around the original that carry a position commitment.</dd>
         <dt>Anchor</dt>
         <dd>A position whose file is an Ethereum block hash. The anchor before a position is its floor, a time; the one after is its ceiling, a place in the sequence, not a clock reading.</dd>
         <dt>Epoch</dt>
@@ -58,13 +58,13 @@ export default function IntegrationPage() {
         Making a BitGraph is one operation with four steps, and the order is the point.
       </p>
       <ol className="steps">
-        <li><strong>Allocate a slot.</strong> The enclave allocates an unused position in its sequence and signs a slot record for it before it receives any digest. The record has no field that could hold one.</li>
-        <li><strong>Build the fused file.</strong> Derive a 32-byte commitment from the signed slot record and write it into a new file at a registered placement, beside the unchanged original. The original is never modified.</li>
+        <li><strong>Reserve a position.</strong> The enclave allocates an unused position in its sequence and signs a position record for it before it receives any digest. The record has no field that could hold one.</li>
+        <li><strong>Build the fused file.</strong> Derive the 32-byte position commitment from the signed position record and write it into a new file at a registered placement, beside the unchanged original. The original is never modified.</li>
         <li><strong>Hash the fused file.</strong> SHA-256 over the new bytes.</li>
-        <li><strong>Commit under the same slot.</strong> The enclave binds the digest to the slot and consumes it in one atomic step, signs the body, and attests it. If any part fails, no proof exists and the slot is lost.</li>
+        <li><strong>Commit under the same position.</strong> The enclave binds the digest to the position and consumes it in one atomic step, signs the body, and attests it. If any part fails, no proof exists and the position is lost.</li>
       </ol>
       <p>
-        The commitment is a function of a record that did not exist until the slot was allocated, so the fused bytes could not have been finished before that moment, and the anchor signed into the slot record puts a public time under them. That bound reaches the fused bytes. It does not reach the original: the original can be any age, and the proof says only that it existed no later than the commit.
+        The commitment is a function of a record that did not exist until the position was allocated, so the fused bytes could not have been finished before that moment, and the anchor signed into the position record puts a public time under them. That bound reaches the fused bytes. It does not reach the original: the original can be any age, and the proof says only that it existed no later than the commit.
       </p>
 
       <h3>A record you produce yourself</h3>
@@ -73,20 +73,20 @@ export default function IntegrationPage() {
           The four steps above wrap a file that already exists. A format you write yourself, such as an AI system&rsquo;s audit record, carries the commitment in a field of its own instead, and the order changes: the commitment goes inside the record before the record is signed, so the finished record depends on a position that existed before it.
         </p>
         <ol className="steps">
-          <li><strong>Take a position.</strong> The system asks BitGraph for a slot and receives the slot&rsquo;s commitment.</li>
+          <li><strong>Take a position.</strong> The system asks BitGraph for a position and receives its position commitment.</li>
           <li><strong>Put the commitment in the record.</strong> It is written into the record like any other field, before signing.</li>
           <li><strong>Sign the record.</strong> Only now does the record&rsquo;s final fingerprint exist.</li>
-          <li><strong>Commit the fingerprint to the same slot.</strong> Within the 120-second window the slot is consumed and the proof binds the two.</li>
+          <li><strong>Commit the fingerprint to the same position.</strong> Within the 120-second window the position is consumed and the proof binds the two.</li>
         </ol>
         <p>
-          The signed record now contains a commitment to a position that existed before the record&rsquo;s own fingerprint, and that position is committed by this exact record. The record could not have been finished before the slot, and it cannot be moved to another place afterwards. An agent connected over <a href="/docs/mcp">MCP</a> does this for its own task records.
+          The signed record now contains a commitment to a position that existed before the record&rsquo;s own fingerprint, and that position is committed by this exact record. The record could not have been finished before the position, and it cannot be moved to another place afterwards. An agent connected over <a href="/docs/mcp">MCP</a> does this for its own task records.
         </p>
         <BoundaryFigure />
       </div>
 
       <h3>What comes back</h3>
       <ul className="facts">
-        <li><b>The proof</b><span>An ordinary <code>bitgraph/1</code> proof of the fused bytes. <code>slotAllocation</code> is the slot you held, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position, and the signed <code>attribution</code> is the marker: name <code>bitgraph-fuse/1</code>, title the placement, message the original&rsquo;s digest.</span></li>
+        <li><b>The proof</b><span>An ordinary <code>bitgraph/1</code> proof of the fused bytes. <code>slotAllocation</code> is the position record you held, <code>commit.slotCounter</code> its counter, <code>commit.counter</code> the commit position, and the signed <code>attribution</code> is the marker: name <code>bitgraph-fuse/1</code>, title the placement, message the original&rsquo;s digest.</span></li>
         <li><b>The Frame</b><span>From the CLI and the SDK, a file named <code>&lt;name&gt;.bitgraph-fuse.json</code> holding <code>{`{ type: "bitgraph-fuse/1", manifest, proof }`}</code>. The manifest (placement, origin, artifact, fusedFile) is advisory; the proof inside it is the evidence.</span></li>
         <li><b>The new file</b><span>Virtual. The CLI writes it only with <code>--keep</code>; the original plus the proof rebuilds it byte for byte whenever it is needed.</span></li>
       </ul>
@@ -135,8 +135,8 @@ result.verification;   // verifyFuse over the fused bytes, run locally: FUSED_DI
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
-        <Code lang="bash">{`# 1. Allocate a slot. No body. The response carries the signed slot record;
-#    slotId is the slot's nonce, a bearer ticket until the slot is consumed.
+        <Code lang="bash">{`# 1. Reserve a position. No body. The response carries its signed record
+#    ("slot"); slotId is its nonce, a bearer ticket until it is consumed.
 curl -X POST https://bitgraph.ing/api/fuse/allocate
 # {
 #   "slotId": "gTME79qH3fXQ5qXX0JxX6T5oGhFRLLw2BIUoeQai9Z8=",
@@ -145,13 +145,13 @@ curl -X POST https://bitgraph.ing/api/fuse/allocate
 #   "chainId": "bitgraph:main"
 # }
 
-# 2. Build the fused file from the slot record, hash it, and commit that digest
-#    under the same slot within 120 seconds. Exactly one digest per commit.
+# 2. Build the fused file from that record, hash it, and commit that digest
+#    under the same position within 120 seconds. Exactly one digest per commit.
 curl -X POST https://bitgraph.ing/api/fuse/commit \\
   -H "Content-Type: application/json" \\
   -d '{
     "slotId": "<slot.nonceB64>",
-    "slot": <the slot record from step 1, verbatim>,
+    "slot": <the position record from step 1, verbatim>,
     "digests": [{ "digestB64": "<SHA-256 of the fused bytes, base64>", "hashAlg": "sha256" }],
     "chainId": "bitgraph:main",
     "attribution": {
@@ -160,10 +160,10 @@ curl -X POST https://bitgraph.ing/api/fuse/commit \\
       "message": "<SHA-256 of the original, base64>"
     }
   }'
-# { "proof": { ... } }   an ordinary bitgraph/1 proof, committed under the slot you allocated`}</Code>
+# { "proof": { ... } }   an ordinary bitgraph/1 proof, committed under the position you reserved`}</Code>
       </div>
       <p>
-        A fused commit that fails is reported as a failure; it is never downgraded to an ordinary recording, and the route refuses to return a proof minted under any slot other than the one you named. Every request, response, status code and error is in the <Link href="/api-reference">API reference</Link>.
+        A fused commit that fails is reported as a failure; it is never downgraded to an ordinary recording, and the route refuses to return a proof minted under any position other than the one you named. Every request, response, status code and error is in the <Link href="/api-reference">API reference</Link>.
       </p>
 
       <h3>What you send and what you get back</h3>
@@ -186,7 +186,7 @@ curl -X POST https://bitgraph.ing/api/fuse/commit \\
         The proof returned at commit time is the record. The service keeps a copy of each proof and indexes it by digest as a convenience, but that copy is not the evidence, and a lookup that finds nothing is not evidence that bytes were never recorded. Store what comes back.
       </p>
       <p>
-        Never write the raw <code>slotId</code> into a file or a log. It is the slot&rsquo;s nonce, and until the commit it is a bearer ticket; the file carries only the derived commitment. Store the last accepted <code>commit.counter</code> for each epoch you have seen, so a replayed proof from an earlier position is noticed.
+        Never write the raw <code>slotId</code> into a file or a log. It is the position&rsquo;s nonce, and until the commit it is a bearer ticket; the file carries only the derived commitment. Store the last accepted <code>commit.counter</code> for each epoch you have seen, so a replayed proof from an earlier position is noticed.
       </p>
 
       <h2 id="verify">How to verify</h2>
@@ -291,7 +291,7 @@ curl https://nitro.occproof.com/key
         </p>
       </div>
       <p>
-        Hash your file locally, then send only the digest to the BitGraph endpoint. The enclave allocates a slot and commits the digest under it in one request.
+        Hash your file locally, then send only the digest to the BitGraph endpoint. The enclave allocates a position and commits the digest under it in one request.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
@@ -336,7 +336,7 @@ const resp = await fetch("https://bitgraph.ing/api/commit", {
 const [proof] = await resp.json();
 // proof is a complete BitGraphProof JSON object
 console.log(proof.commit.counter);
-console.log(proof.slotAllocation);   // causal slot record
+console.log(proof.slotAllocation);   // the position record
 console.log(proof.attribution);      // signed creator metadata`}</Code>
       </div>
       <p>
@@ -345,7 +345,7 @@ console.log(proof.attribution);      // signed creator metadata`}</Code>
 
       <h3>Several at once</h3>
       <p>
-        Send multiple digests in one request. The enclave allocates a slot and commits each digest sequentially. Still the compatibility path: each digest names bytes that already exist.
+        Send multiple digests in one request. The enclave allocates a position and commits each digest sequentially. Still the compatibility path: each digest names bytes that already exist.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>TypeScript</span><CopyCode /></div>
@@ -390,13 +390,13 @@ const proofs = await resp.json();
 
       <h2 id="checklist">Checklist</h2>
       <ol className="steps">
-        <li><strong>Hash locally.</strong> The file never leaves your machine; only digests and the slot record are sent.</li>
+        <li><strong>Hash locally.</strong> The file never leaves your machine; only digests and the position record are sent.</li>
         <li><strong>Commit through bitgraph.ing.</strong> The site endpoints sit behind the anchor-first gate, so every position they issue carries a floor. Allocate, build, hash and commit within 120 seconds, and treat any failure as a failure: a fused commit is never downgraded to a plain recording.</li>
         <li><strong>Store the proof beside the original.</strong> Keep the original unchanged. The new file is virtual and rebuildable; the proof is portable and can also live in a separate system.</li>
         <li><strong>Never expose the slotId.</strong> Only the derived commitment goes into the file; the nonce goes nowhere.</li>
         <li><strong>Verify with a pinned policy.</strong> <code>allowedMeasurements</code> set to the published PCR0, <code>requireAttestation: true</code>. Read <code>artifactBinding</code>, not only <code>verified</code>. Verification is offline: the proof, the bytes and the public measurement are enough.</li>
         <li><strong>Track counters.</strong> Store the last accepted <code>commit.counter</code> per epoch to notice a replay.</li>
-        <li><strong>Handle the retryable answers.</strong> <code>503 tee-restarting</code> and <code>503 ledger-unavailable</code> mean try again. <code>409 no-anchor-before-slot</code> is final for that slot: allocate a new one.</li>
+        <li><strong>Handle the retryable answers.</strong> <code>503 tee-restarting</code> and <code>503 ledger-unavailable</code> mean try again. <code>409 no-anchor-before-slot</code> is final for that position: reserve a new one.</li>
       </ol>
 
       <h2 id="next">Where next</h2>

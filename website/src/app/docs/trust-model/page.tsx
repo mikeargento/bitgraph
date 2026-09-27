@@ -57,7 +57,7 @@ export default function TrustModelPage() {
             <tr><td className="k">Reproducible build</td><td>If the pinned build stops reproducing the published PCR0, the measurement means only &ldquo;some image AWS measured&rdquo;. The build pins every input and can be checked by anyone; a lapse is a defect to report.</td></tr>
             <tr><td className="k">Nonce freshness</td><td>A predictable or repeated nonce would let a position be precomputed or replayed within an epoch. The nonce is 32 bytes from the hardware generator.</td></tr>
             <tr><td className="k">Monotonic counter</td><td>If the counter repeated or moved backward within an epoch, positions inside it would be ambiguous. The counter is per chain, single-threaded, and in enclave memory.</td></tr>
-            <tr><td className="k">Slot before digest</td><td>If a slot could be minted after a digest was known, the position would be a label. The slot body has no field for a digest and is signed at allocation; the commit signature covers its hash.</td></tr>
+            <tr><td className="k">Position before digest</td><td>If a position record could be minted after a digest was known, the position would be a label. The position record has no field for a digest and is signed at allocation; the commit signature covers its hash.</td></tr>
             <tr><td className="k">Honest Ethereum block times</td><td>The floor is the time in a block header. If block times were wrong, the floor would be too. A reorganisation near an anchor orphans its block; the witness check then fails and that bound is lost rather than silently wrong.</td></tr>
             <tr><td className="k">A strict verifier policy</td><td>A verifier that accepts any measurement, or skips the attestation, has verified a signature by an unknown key. Everything below the cryptographic class depends on the reader pinning PCR0.</td></tr>
           </tbody>
@@ -70,11 +70,11 @@ export default function TrustModelPage() {
         <dt>Cryptographic</dt>
         <dd>The Ed25519 signature is valid over the canonical signed body under the proof&rsquo;s public key. Assumes the security of Ed25519 and SHA-256 and correct canonicalisation. Trusts nothing beyond the mathematics and the reconstruction logic.</dd>
         <dt>Causal ordering</dt>
-        <dd>A slot existed, signed and without a digest, before this digest was bound to it. Assumes the boundary is uncompromised and is the published image. Weakened to &ldquo;some key asserted this&rdquo; by any verifier that does not pin the measurement.</dd>
+        <dd>A position existed, signed and without a digest, before this digest was bound to it. Assumes the boundary is uncompromised and is the published image. Weakened to &ldquo;some key asserted this&rdquo; by any verifier that does not pin the measurement.</dd>
         <dt>Sequence</dt>
         <dd>This proof occupies a position linked to its predecessor by the previous-proof hash, within a named epoch. Assumes the reader holds the neighbouring proofs to check the links. Counters alone do not establish order across a gap.</dd>
         <dt>Integrity</dt>
-        <dd>Every field in the signed body is tamper-evident. <code>metadata</code>, <code>timestamps</code> and <code>claims</code> sit outside the signature and are advisory; the attestation, the agency envelope and the slot record are outside it but self-authenticating.</dd>
+        <dd>Every field in the signed body is tamper-evident. <code>metadata</code>, <code>timestamps</code> and <code>claims</code> sit outside the signature and are advisory; the attestation, the agency envelope and the position record are outside it but self-authenticating.</dd>
         <dt>Exact bits</dt>
         <dd>The proof is about one byte sequence. Any transformation that changes a byte produces a file the proof does not cover.</dd>
         <dt>Privacy</dt>
@@ -82,7 +82,7 @@ export default function TrustModelPage() {
         <dt>Portability</dt>
         <dd>Verification is offline and requires no BitGraph service. The one external reference is that the anchored block is canonical Ethereum, checkable against any node or explorer.</dd>
         <dt>Temporal</dt>
-        <dd>One direction. The position was placed after the block its slot record names was mined: a floor that needs no trust in the anchor service, because a block hash cannot precede its block. The position also preceded the next anchor in the chain: a ceiling in position, which does not convert to a wall-clock bound and is not claimed as one.</dd>
+        <dd>One direction. The position was placed after the block its position record names was mined: a floor that needs no trust in the anchor service, because a block hash cannot precede its block. The position also preceded the next anchor in the chain: a ceiling in position, which does not convert to a wall-clock bound and is not claimed as one.</dd>
         <dt>Attestation</dt>
         <dd>The Nitro document&rsquo;s user data equals SHA-256 of this proof&rsquo;s signed body, and the document chains to the AWS Nitro Root CA G1. Assumes the reader parses and validates it; the core verifier deliberately leaves that to the audit package.</dd>
         <dt>Deployment</dt>
@@ -92,9 +92,9 @@ export default function TrustModelPage() {
       <h2 id="threats">Threats</h2>
       <h3>Prevented: impossible without breaking an assumption above</h3>
       <ul>
-        <li><strong>Retroactive slot fabrication.</strong> No operation produces a slot signature over a body containing a digest.</li>
-        <li><strong>Double consumption.</strong> The slot is deleted synchronously on lookup; the event loop is single-threaded.</li>
-        <li><strong>Slot swapping.</strong> The slot record&rsquo;s hash is inside the signed body.</li>
+        <li><strong>Retroactive position fabrication.</strong> No operation produces a position signature over a body containing a digest.</li>
+        <li><strong>Double consumption.</strong> The position is deleted synchronously on lookup; the event loop is single-threaded.</li>
+        <li><strong>Position swapping.</strong> The position record&rsquo;s hash is inside the signed body.</li>
         <li><strong>Forgery under a closed epoch&rsquo;s key.</strong> Keys live only in enclave memory and are destroyed at restart.</li>
         <li><strong>Silent epoch continuation.</strong> Initialisation is fail-closed; a genesis must be explicit.</li>
         <li><strong>Tampering with signed fields in transit.</strong> Any edit breaks the signature.</li>

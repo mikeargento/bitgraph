@@ -2851,7 +2851,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     : provePhase.phase === "verify" ? `Verifying ${provePhase.done} of ${provePhase.total}`
                     : /* The three that cannot count say how long they have been
                          at it instead, once it is long enough to wonder. */
-                      `${provePhase.phase === "slot" ? "Holding a slot" : provePhase.phase === "tree" ? "Building the set" : "Committing the set"}…${phaseSeconds >= 3 ? ` ${phaseSeconds}s` : ""}`}
+                      `${provePhase.phase === "slot" ? "Holding a position" : provePhase.phase === "tree" ? "Building the set" : "Committing the set"}…${phaseSeconds >= 3 ? ` ${phaseSeconds}s` : ""}`}
                 </div>
                 <div style={waitTrack}>
                   <div style={waitFill(proveProgress.total ? Math.min(100, (provePhase.at / proveProgress.total) * 100) : 0)} />

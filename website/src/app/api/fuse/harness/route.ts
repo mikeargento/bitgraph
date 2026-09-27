@@ -10,7 +10,7 @@ const MAX_BYTES = 25 * 1024 * 1024;
 
 /** The bounded copy of spec 9.3, verbatim. */
 const COPY_ORIGINAL = ["Original recorded", "These exact original bytes existed no later than the commit."];
-const COPY_FUSED = ["Fused artifact created", "These bytes were assembled after their slot allocation and committed at this position."];
+const COPY_FUSED = ["Fused artifact created", "These bytes were assembled after their position was allocated, and committed under it."];
 
 /**
  * The internal harness (spec 9.2): one file in, Form A or B out, through the

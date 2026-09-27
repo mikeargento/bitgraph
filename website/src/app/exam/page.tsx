@@ -41,7 +41,7 @@ export default function ExamPage() {
         </p>
 
         <ul className="facts">
-          <li><b>Proves</b><span>the exact question instances were derived from a commitment that did not exist before the floor block, so they were not in any training set frozen before that block; the paper&rsquo;s digest spent that slot; the answer sheet names the paper and sits at a later position on the same chain.</span></li>
+          <li><b>Proves</b><span>the exact question instances were derived from a commitment that did not exist before the floor block, so they were not in any training set frozen before that block; the paper&rsquo;s digest spent that position; the answer sheet names the paper and sits at a later position on the same chain.</span></li>
           <li><b>Does not prove</b><span>that the template families are unfamiliar to the model; that the model worked alone, without tools, or quickly; when the answers were produced beyond their own floor. The answer sheet has a floor, not a ceiling.</span></li>
         </ul>
 
@@ -110,12 +110,12 @@ node verifier/exam.mjs selftest                          # DRBG vectors, determi
           </table>
         </div>
         <p>
-          The seven fixtures are what the verifier is for, and each was made from real positions rather than by editing signatures into shape: a paper edited and then genuinely committed under its own slot, one sitting&rsquo;s paper presented with another&rsquo;s proof, an answer sheet moved below the paper it answers, a folder whose <code>grade.json</code> claims 20/20 and is never read. One model refused four questions outright; the refusals are in the package as the API returned them, counted wrong, with a note in the verdict.
+          The seven fixtures are what the verifier is for, and each was made from real positions rather than by editing signatures into shape: a paper edited and then genuinely committed under its own position, one sitting&rsquo;s paper presented with another&rsquo;s proof, an answer sheet moved below the paper it answers, a folder whose <code>grade.json</code> claims 20/20 and is never read. One model refused four questions outright; the refusals are in the package as the API returned them, counted wrong, with a note in the verdict.
         </p>
 
         <h2 id="floor">Where the floor comes from</h2>
         <p>
-          A hash of a question set published today is a postmark: it proves the set existed no later than now, which is the wrong direction for contamination. What contamination needs is a floor: proof that the questions could not have existed <em>before</em> a public moment, so no corpus frozen before it can contain them. A slot is allocated on the BitGraph chain; the enclave signs into it the latest Ethereum block it has authenticated; the commitment is derived from that signed slot record; the questions are derived from the commitment and a public bank; the paper is committed under the same slot. <code>SPEC.md</code> is the whole derivation (the seed, the DRBG with test vectors, the draw order, the two positions), and re-deriving a paper from it without any of this code is an afternoon in Python.
+          A hash of a question set published today is a postmark: it proves the set existed no later than now, which is the wrong direction for contamination. What contamination needs is a floor: proof that the questions could not have existed <em>before</em> a public moment, so no corpus frozen before it can contain them. A position is allocated on the BitGraph chain; the enclave signs into it the latest Ethereum block it has authenticated; the commitment is derived from that signed position record; the questions are derived from the commitment and a public bank; the paper is committed under the same position. <code>SPEC.md</code> is the whole derivation (the seed, the DRBG with test vectors, the draw order, the two positions), and re-deriving a paper from it without any of this code is an afternoon in Python.
         </p>
 
         <p className="note">

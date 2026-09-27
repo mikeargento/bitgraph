@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     const slot = body.slot;
     if (!isSlotRecord(slot)) {
-      return NextResponse.json({ error: "body.slot must be the slot record returned by /api/fuse/allocate (chain bitgraph:main)" }, { status: 400 });
+      return NextResponse.json({ error: "body.slot must be the position record returned by /api/fuse/allocate (chain bitgraph:main)" }, { status: 400 });
     }
     if (body.slotId !== slot.nonceB64) {
       return NextResponse.json({ error: "body.slotId must equal body.slot.nonceB64" }, { status: 400 });
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     if (anchorBefore === null) {
       return NextResponse.json(
         {
-          error: "No anchor precedes this slot in its epoch, so a fused floor cannot be established for it. Allocate a new slot through /api/fuse/allocate.",
+          error: "No anchor precedes this position in its epoch, so a fused floor cannot be established for it. Reserve a new position through /api/fuse/allocate.",
           code: "no-anchor-before-slot",
         },
         { status: 409 },
@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
     if (!proof || minted?.nonceB64 !== slot.nonceB64 || commit?.nonceB64 !== slot.nonceB64) {
       // Never report success for a proof under any other slot.
       console.error("[api/fuse/commit] boundary returned a proof under a different slot");
-      return NextResponse.json({ error: "The boundary did not commit under the named slot", code: "slot-mismatch" }, { status: 502 });
+      return NextResponse.json({ error: "The boundary did not commit under the named position", code: "slot-mismatch" }, { status: 502 });
     }
 
     if (verifiedSet !== null) {

@@ -19,12 +19,12 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "What does a proof establish, exactly?",
-    a: "That these exact bytes were committed at this position in one sequence, that the position was allocated before their digest arrived, and that the position was placed after the Ethereum block its slot record names. Not truth, not authorship, not first creation, not an exact time.",
+    a: "That these exact bytes were committed at this position in one sequence, that the position was allocated before their digest arrived, and that the position was placed after the Ethereum block its position record names. Not truth, not authorship, not first creation, not an exact time.",
     href: "/docs/what-bitgraph-is-not", label: "Limits",
   },
   {
     q: "Why allocate the position before the digest arrives?",
-    a: "Because a position assigned when the digest arrives could be chosen by whoever runs the service. A slot drawn from hardware entropy and signed before any digest is received cannot be manufactured afterwards for bytes already in hand, and cannot be occupied twice. The claim is the enclave's own: it had not received the digest when it signed the slot. It says nothing about what anyone else knew.",
+    a: "Because a position assigned when the digest arrives could be chosen by whoever runs the service. A position reserved with a number drawn from hardware entropy and signed before any digest is received cannot be manufactured afterwards for bytes already in hand, and cannot be occupied twice. The claim is the enclave's own: it had not received the digest when it signed the position record. It says nothing about what anyone else knew.",
     href: "/docs/overview#transition", label: "One operation, two states",
   },
   {
@@ -34,7 +34,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "What is a floor, and is there a ceiling?",
-    a: "The floor is the Ethereum block named in the slot record: it was mined before the slot existed, so the position was placed after that block's time. The ceiling is the next anchor in the sequence: a place, not a clock reading. There is no wall-clock upper bound.",
+    a: "The floor is the Ethereum block named in the position record: it was mined before the position existed, so the position was placed after that block's time. The ceiling is the next anchor in the sequence: a place, not a clock reading. There is no wall-clock upper bound.",
     href: "/docs/overview#time", label: "Where time comes from",
   },
   {
@@ -44,17 +44,17 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "What is a fused file?",
-    a: "A new file built around the original that carries a 32-byte commitment to the slot record. Its digest is what gets committed, so the new bytes could not have been finished before the slot was allocated. The original is never modified, and the original plus the proof rebuilds the new file byte for byte, so it need not be kept.",
+    a: "A new file built around the original that carries a 32-byte position commitment. Its digest is what gets committed, so the new bytes could not have been finished before the position was allocated. The original is never modified, and the original plus the proof rebuilds the new file byte for byte, so it need not be kept.",
     href: "/docs/overview#fused", label: "Carrying the position inside the bytes",
   },
   {
     q: "Can an AI agent use it?",
-    a: "Yes. Both MCP servers let an agent make proofs of files it names, and `bitgraph_open` with no files hands it a position and its commitment before a task starts, so the task's record can carry the commitment and be committed when it finishes. Only digests and slot records travel.",
+    a: "Yes. Both MCP servers let an agent make proofs of files it names, and `bitgraph_open` with no files hands it a position and its commitment before a task starts, so the task's record can carry the commitment and be committed when it finishes. Only digests and position records travel.",
     href: "/docs/mcp", label: "MCP server",
   },
   {
     q: "Can I verify a proof without an internet connection?",
-    a: "Yes. The digest, the Ed25519 signature, the attestation chain to the AWS Nitro root and the slot binding are all checked from the proof and the bytes. The floor is checked offline too when the anchor and its block-header witness travel with the proof, which an export includes.",
+    a: "Yes. The digest, the Ed25519 signature, the attestation chain to the AWS Nitro root and the position binding are all checked from the proof and the bytes. The floor is checked offline too when the anchor and its block-header witness travel with the proof, which an export includes.",
     href: "/docs/verification", label: "Verification",
   },
   {
@@ -69,11 +69,11 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "Can the same file get two proofs?",
-    a: "Yes. Each commit takes a fresh slot and a new position. The digest is the same; the position, the counters and the signature differ. Neither proof outranks the other.",
+    a: "Yes. Each commit takes a fresh position. The digest is the same; the position, the counters and the signature differ. Neither proof outranks the other.",
   },
   {
     q: "Can I record many files at once?",
-    a: "Yes. Two or more files made together become one set under one slot: one position, every file a member with its own row and inclusion path. A member cannot be added afterwards, because the committed root was made with the rows it had.",
+    a: "Yes. Two or more files made together become one set at one position, every file a member with its own row and inclusion path. A member cannot be added afterwards, because the committed root was made with the rows it had.",
     href: "/docs/proof-format#fused", label: "Proof format",
   },
   {

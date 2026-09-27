@@ -104,12 +104,12 @@ export default function Harness() {
           <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "6px 16px", margin: 0, fontSize: 14 }}>
             <dt style={{ color: "var(--dim)" }}>Verification</dt><dd style={{ margin: 0, fontFamily: mono }}>{result.category}</dd>
             <dt style={{ color: "var(--dim)" }}>Placement</dt><dd style={{ margin: 0, fontFamily: mono }}>{result.placement}</dd>
-            <dt style={{ color: "var(--dim)" }}>Slot</dt><dd style={{ margin: 0, fontFamily: mono }}>{result.slotCounter ?? "?"}</dd>
+            <dt style={{ color: "var(--dim)" }}>Position</dt><dd style={{ margin: 0, fontFamily: mono }}>{result.slotCounter ?? "?"}</dd>
             <dt style={{ color: "var(--dim)" }}>Commit</dt><dd style={{ margin: 0, fontFamily: mono }}>{result.commitCounter ?? "?"}</dd>
             <dt style={{ color: "var(--dim)" }}>Epoch</dt><dd style={{ margin: 0, fontFamily: mono, wordBreak: "break-all" }}>{result.epochId ?? "?"}</dd>
             <dt style={{ color: "var(--dim)" }}>Fused digest</dt><dd style={{ margin: 0, fontFamily: mono, wordBreak: "break-all" }}>{result.artifactDigestB64}</dd>
             <dt style={{ color: "var(--dim)" }}>Origin digest</dt><dd style={{ margin: 0, fontFamily: mono, wordBreak: "break-all" }}>{result.originDigestB64 ?? "none"}</dd>
-            {result.recovered && (<><dt style={{ color: "var(--dim)" }}>Note</dt><dd style={{ margin: 0 }}>The commit response was lost; the proof was read back by digest and matched on the held slot.</dd></>)}
+            {result.recovered && (<><dt style={{ color: "var(--dim)" }}>Note</dt><dd style={{ margin: 0 }}>The commit response was lost; the proof was read back by digest and matched on the held position.</dd></>)}
           </dl>
           <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 14 }}>
             {frameHref && <a href={frameHref} download={result.frameName} style={{ color: "var(--accent)" }}>Frame: {result.frameName}</a>}

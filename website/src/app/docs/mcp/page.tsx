@@ -114,7 +114,7 @@ export default function McpPage() {
           That answer means the connection is live. Asking costs nothing and writes nothing.
         </li>
         <li>
-          <strong>A proof of a file you named comes back and is saved beside it.</strong> Name a file, ask for a BitGraph of it. The agent hashes it, opens a slot, builds the new file, commits, and saves the proof next to the original: <code>&lt;name&gt;.bitgraph-fuse.json</code> for a single file, one set proof beside the originals for several. The proof is saved whole and unedited, every field, including <code>environment.attestation.reportB64</code>: a proof missing <code>slotAllocation</code>, <code>environment</code> or the attestation cannot be verified.
+          <strong>A proof of a file you named comes back and is saved beside it.</strong> Name a file, ask for a BitGraph of it. The agent hashes it, opens a position, builds the new file, commits, and saves the proof next to the original: <code>&lt;name&gt;.bitgraph-fuse.json</code> for a single file, one set proof beside the originals for several. The proof is saved whole and unedited, every field, including <code>environment.attestation.reportB64</code>: a proof missing <code>slotAllocation</code>, <code>environment</code> or the attestation cannot be verified.
         </li>
       </ol>
 
@@ -126,14 +126,14 @@ export default function McpPage() {
             <tr>
               <td>bitgraph_open</td>
               <td>Per file: its name, exact byte size, fingerprint (SHA-256 digest), and its first 16 bytes (up to 64), which decide the placement. Or no files at all: the task form below.</td>
-              <td>Per file: a <code>fuse_token</code>, the placement, the recipe (bytes to append after the original, or a prefix and suffix around it), the slot counter and epoch, and the names for the new file and its Frame. Files opened together share one slot. A file BitGraph&rsquo;s copy already indexes comes back &ldquo;on record&rdquo; and is not opened unless <code>again</code> is true.</td>
-              <td>Allocates a slot: a position, held 120 seconds.</td>
+              <td>Per file: a <code>fuse_token</code>, the placement, the recipe (bytes to append after the original, or a prefix and suffix around it), the position&rsquo;s counter and epoch, and the names for the new file and its Frame. Files opened together share one position. A file BitGraph&rsquo;s copy already indexes comes back &ldquo;on record&rdquo; and is not opened unless <code>again</code> is true.</td>
+              <td>Allocates a position, held 120 seconds.</td>
             </tr>
             <tr>
               <td>bitgraph_commit</td>
               <td>Per entry: the <code>fuse_token</code> and the digest of the new file built from its recipe. For a task token, the digest of the task bytes, with <code>carry: "base64url"</code>.</td>
-              <td>One proof and Frame per single file; one set proof with every member&rsquo;s row for files opened together; and every position the original&rsquo;s bytes now hold. Nothing is labelled fused unless the proof came back under the named slot and verified.</td>
-              <td>Commits: binds the digest and consumes the slot.</td>
+              <td>One proof and Frame per single file; one set proof with every member&rsquo;s row for files opened together; and every position the original&rsquo;s bytes now hold. Nothing is labelled fused unless the proof came back under the named position and verified.</td>
+              <td>Commits: binds the digest and consumes the position.</td>
             </tr>
             <tr>
               <td>bitgraph_check</td>
@@ -149,7 +149,7 @@ export default function McpPage() {
             </tr>
             <tr>
               <td>bitgraph_record<br /><span className="dim">package only</span></td>
-              <td>File and folder paths. The package reads them on this machine; only digests, the committed artifact and slot records leave it.</td>
+              <td>File and folder paths. The package reads them on this machine; only digests, the committed artifact and position records leave it.</td>
               <td>One BitGraph of everything in the call, each file with its row; files already on record are returned as they are unless <code>again</code> is true.</td>
               <td>Allocates and commits in one call.</td>
             </tr>
@@ -157,7 +157,7 @@ export default function McpPage() {
         </table>
       </div>
       <p>
-        Nothing else travels: only digests, sizes, a file&rsquo;s first bytes, slot records and recipe bytes, to either server. File contents never do, and originals are never modified.
+        Nothing else travels: only digests, sizes, a file&rsquo;s first bytes, position records and recipe bytes, to either server. File contents never do, and originals are never modified.
       </p>
       <p>
         BitGraph keeps a copy of each proof the service makes, indexed by digest, so a check finds what was made through it. A miss is not a finding: the bytes may hold a BitGraph their holder keeps, so the agent is told to ask for that proof before making another.
@@ -165,10 +165,10 @@ export default function McpPage() {
 
       <h2 id="how">How the hosted endpoint makes a BitGraph</h2>
       <p>
-        The endpoint never receives a file. If an agent can hash a file it can build the virtual new file and hash that, so the two steps are all it takes: hash the originals, open a slot, build each new file exactly as its recipe says, hash it, commit them together. A batch is one position however many files it holds. Only digests, byte sizes, a file&rsquo;s first bytes, the signed slot record and the recipes cross the network. Agents with code execution, ChatGPT and Claude among them, do this on any files you give them.
+        The endpoint never receives a file. If an agent can hash a file it can build the virtual new file and hash that, so the two steps are all it takes: hash the originals, open a position, build each new file exactly as its recipe says, hash it, commit them together. A batch is one position however many files it holds. Only digests, byte sizes, a file&rsquo;s first bytes, the signed position record and the recipes cross the network. Agents with code execution, ChatGPT and Claude among them, do this on any files you give them.
       </p>
       <p>
-        For clients that run on your machine, the stdio package does the same in one call from plain file paths, and makes one BitGraph of everything in the call: a folder of any size becomes one set under one slot. Each file is read once for its digest; the new files are never written.
+        For clients that run on your machine, the stdio package does the same in one call from plain file paths, and makes one BitGraph of everything in the call: a folder of any size becomes one set under one position. Each file is read once for its digest; the new files are never written.
       </p>
 
       <h2 id="task">The task pattern</h2>
@@ -176,7 +176,7 @@ export default function McpPage() {
         An agent can take a position before it starts a task, so that the task&rsquo;s record could not have existed before that position&rsquo;s floor, and its outputs sit after it.
       </p>
       <ol className="steps">
-        <li><strong>Before the task, call <code>bitgraph_open</code> with no files.</strong> It returns a position (slot counter and epoch), the slot&rsquo;s commitment string, a <code>fuse_token</code>, and the floor block when it is known.</li>
+        <li><strong>Before the task, call <code>bitgraph_open</code> with no files.</strong> It returns a position (its counter and epoch), its position commitment string, a <code>fuse_token</code>, and the floor block when it is known.</li>
         <li><strong>Put the commitment into the task&rsquo;s record.</strong> Inside the output itself when its format can hold text (a comment, a field, a line that stays in the file), otherwise inside the task: the exact prompt or request.</li>
         <li><strong>Within 120 seconds, call <code>bitgraph_commit</code></strong> with the <code>fuse_token</code>, the digest of those exact bytes, and <code>carry: "base64url"</code>. The bytes are sealed under the position. Keep them unchanged: a verifier recomputes the commitment from the proof and looks for the string inside them.</li>
         <li><strong>When the outputs exist, record them.</strong> Open a second position with the files and commit them. The task is sealed before the output existed, and the output is recorded after.</li>
@@ -187,12 +187,12 @@ export default function McpPage() {
 
       <h2 id="notes">Notes</h2>
       <ul>
-        <li><strong>Files are never uploaded.</strong> Only digests, byte sizes, a file&rsquo;s first bytes, signed slot records and recipe bytes cross the network, to either server.</li>
-        <li><strong>Positions are permanent.</strong> A consumed slot is never reused, and the anchors that floor it stay published for ten years. The proof comes back to the agent, which keeps it. Agents are instructed to make BitGraphs only of files you asked for, and never to generate content just to record it.</li>
-        <li><strong>One way.</strong> A BitGraph is new bytes built from the original under a slot that existed first, so those bytes could not have been finished before the slot: that is what open and commit make, one file on its own or a batch as one set. Neither server offers digest-only recording; that compatibility operation stays on the HTTP API as <code>POST /api/commit</code>.</li>
-        <li><strong>One set per call.</strong> Everything opened together shares one slot and is committed in one call. A member left out cannot be added afterwards, because the slot is consumed; it needs a new open.</li>
+        <li><strong>Files are never uploaded.</strong> Only digests, byte sizes, a file&rsquo;s first bytes, signed position records and recipe bytes cross the network, to either server.</li>
+        <li><strong>Positions are permanent.</strong> A consumed position is never reused, and the anchors that floor it stay published for ten years. The proof comes back to the agent, which keeps it. Agents are instructed to make BitGraphs only of files you asked for, and never to generate content just to record it.</li>
+        <li><strong>One way.</strong> A BitGraph is new bytes built from the original under a position that existed first, so those bytes could not have been finished before the position: that is what open and commit make, one file on its own or a batch as one set. Neither server offers digest-only recording; that compatibility operation stays on the HTTP API as <code>POST /api/commit</code>.</li>
+        <li><strong>One set per call.</strong> Everything opened together shares one position and is committed in one call. A member left out cannot be added afterwards, because the position is consumed; it needs a new open.</li>
         <li><strong>One sequence.</strong> Whatever MCP makes takes its position in the same sequence as everything else, floored by the same anchors.</li>
-        <li><strong>Limits and errors.</strong> 40 files per open on the hosted endpoint, 500 digests per check, a 120-second slot, and a restart at 23:59 UTC every day that voids open slots. <code>no-anchor-before-slot</code> means nothing was committed and the slot is still held: commit again in about 15 seconds. <code>slot-unavailable</code> means the slot was consumed, expired or lost to a restart: open again and rebuild the new file from the new recipe.</li>
+        <li><strong>Limits and errors.</strong> 40 files per open on the hosted endpoint, 500 digests per check, a 120-second position, and a restart at 23:59 UTC every day that voids open positions. <code>no-anchor-before-slot</code> means nothing was committed and the position is still held: commit again in about 15 seconds. <code>slot-unavailable</code> means the position was consumed, expired or lost to a restart: open again and rebuild the new file from the new recipe.</li>
       </ul>
 
       <h2 id="next">Where next</h2>

@@ -123,11 +123,11 @@ function hostedErrorText(err: unknown): string {
   const retry = err.retryAfterSec !== null ? ` Retry after ${err.retryAfterSec} seconds.` : "";
   switch (err.code) {
     case "no-anchor-before-slot":
-      return `${err.message} Nothing was committed; the slot is still held. Call bitgraph_commit again with the same fuse_token and digest in about 15 seconds.`;
+      return `${err.message} Nothing was committed; the position is still held. Call bitgraph_commit again with the same fuse_token and digest in about 15 seconds.`;
     case "tee-restarting":
       return `${err.message} The boundary restarts once a day at 23:59 UTC; open the file again afterwards.${retry}`;
     case "slot-unavailable":
-      return `${err.message} The slot was consumed by an earlier commit, expired (${SLOT_TTL_SECONDS} seconds after open), or the boundary restarted. Call bitgraph_open again for this file (together with the others it should share a set with) and rebuild the new file from the new recipe.`;
+      return `${err.message} The position was consumed by an earlier commit, expired (${SLOT_TTL_SECONDS} seconds after open), or the boundary restarted. Call bitgraph_open again for this file (together with the others it should share a set with) and rebuild the new file from the new recipe.`;
     case "rotation-guard":
       return `${err.message}${retry}`;
     default:
@@ -157,10 +157,10 @@ const handler = createMcpHandler(
       {
         title: "Make a BitGraph: open",
         description:
-          "Step one of making a BitGraph, for a caller that holds the files: open a slot and get, per file, the recipe to build its new fused file locally. " +
-          "Everything opened in one call is ONE BitGraph: two or more files share a single slot and become one set, one position for all of them, each with its row; a single file is fused on its own. Open a batch together, never one file at a time. " +
+          "Step one of making a BitGraph, for a caller that holds the files: open a position and get, per file, the recipe to build its new fused file locally. " +
+          "Everything opened in one call is ONE BitGraph: two or more files share a single position and become one set, each with its row; a single file is fused on its own. Open a batch together, never one file at a time. " +
           "Send, per file, its name, exact byte size and SHA-256 digest (base64, either form), plus head_base64: the file's first 16 bytes (the whole file when shorter), which decides the placement. " +
-          "The boundary allocates an unused slot before any new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/2, a tar that carries the original untouched and first, for everything else). " +
+          "The boundary allocates an unused position before any new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/2, a tar that carries the original untouched and first, for everything else). " +
           `Then build each new file exactly as its recipe says, SHA-256 it, and call bitgraph_commit ONCE with every fuse_token and digest, within ${SLOT_TTL_SECONDS} seconds of opening. ` +
           "File contents never travel: only digests, sizes, the first bytes and the recipe. Never alter the original. Only make BitGraphs of files the user asked for, and never generate content just to record it: recordings are permanent. " +
           "Files already on record are not opened unless again=true; they come back as 'on record'. A file can also hold a BitGraph its holder keeps, which no lookup sees; ask before making another. " +
@@ -181,11 +181,11 @@ const handler = createMcpHandler(
             )
             .max(MAX_OPEN_FILES)
             .optional()
-            .describe("The files to open, with their digests. OMIT this (or send an empty list) to open a position BEFORE the work exists: you get the slot's commitment to put into the task, and seal the task under it with bitgraph_commit."),
+            .describe("The files to open, with their digests. OMIT this (or send an empty list) to open a position BEFORE the work exists: you get its position commitment to put into the task, and seal the task under it with bitgraph_commit."),
           again: z
             .boolean()
             .default(false)
-            .describe("false (default): files already on record are not opened. true: open a slot regardless. BitGraph's copy is a convenience for lookups; a BitGraph its holder keeps is just as good."),
+            .describe("false (default): files already on record are not opened. true: open a position regardless. BitGraph's copy is a convenience for lookups; a BitGraph its holder keeps is just as good."),
           response_format: responseFormatSchema,
         }),
         annotations: {
@@ -330,12 +330,12 @@ const handler = createMcpHandler(
         title: "Make a BitGraph: commit",
         description:
           "Step two of making a BitGraph: commit the new files built from bitgraph_open recipes. " +
-          "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. Send every file opened together in ONE call: they share a slot and become one set, one position for all of them, and the set is whatever this call carries. " +
-          "For a set, the canonical manifest of the members' digests is built here and committed under the shared slot with the set marker (profile bitgraph-fuse/1, placement set/1); the returned proof is verified against it before any file is called fused, and comes back once as sets[].proof with every member's row. Save it beside the originals. " +
-          "For a single file, the digest is committed under its own slot with the signed marker (placement, origin digest) and this returns the proof and the Frame; save the Frame next to the original as frame_name. " +
+          "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. Send every file opened together in ONE call: they share a position and become one set, and the set is whatever this call carries. " +
+          "For a set, the canonical manifest of the members' digests is built here and committed under the shared position with the set marker (profile bitgraph-fuse/1, placement set/1); the returned proof is verified against it before any file is called fused, and comes back once as sets[].proof with every member's row. Save it beside the originals. " +
+          "For a single file, the digest is committed under its own position with the signed marker (placement, origin digest) and this returns the proof and the Frame; save the Frame next to the original as frame_name. " +
           "New files are virtual: keep the originals unchanged and the proof, and any reader can rebuild a new file and check it. Keep the set proof beside the originals; BitGraph does not index it. " +
           "Returns, per file, the position just made, plus any earlier position BitGraph's copy holds. Positions held elsewhere are in their holder's proofs. " +
-          "A 'not fused' outcome says why and what to do (usually: commit again in a few seconds, or open again). Nothing is labelled fused unless the proof came back under the named slot and verified.",
+          "A 'not fused' outcome says why and what to do (usually: commit again in a few seconds, or open again). Nothing is labelled fused unless the proof came back under the named position and verified.",
         inputSchema: z.object({
           entries: z
             .array(
@@ -692,9 +692,9 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "bitgraph", version: SERVER_VERSION },
     instructions:
-      "BitGraph gives a file's bytes a position in an ordered sequence, with a floor from Ethereum anchors: the bytes were placed no earlier than their floor. Making a BitGraph is two steps: bitgraph_open (a slot at the boundary, and a recipe per file for its new fused file) then bitgraph_commit (the digest of each new file you built). " +
-      "Open every file of a batch in ONE call and commit them in ONE call: they share the slot and become one BitGraph, a set with one position, each file a member with its row. A single file is fused on its own. " +
-      "File contents never travel: only digests, sizes, a file's first bytes, slot records and recipe bytes. New files are virtual; the originals stay unchanged and the proof rebuilds them. " +
+      "BitGraph gives a file's bytes a position in an ordered sequence, with a floor from Ethereum anchors: the bytes were placed no earlier than their floor. Making a BitGraph is two steps: bitgraph_open (a position at the boundary, and a recipe per file for its new fused file) then bitgraph_commit (the digest of each new file you built). " +
+      "Open every file of a batch in ONE call and commit them in ONE call: they share one position and become one BitGraph, a set, each file a member with its row. A single file is fused on its own. " +
+      "File contents never travel: only digests, sizes, a file's first bytes, position records and recipe bytes. New files are virtual; the originals stay unchanged and the proof rebuilds them. " +
       "Positions are permanent, and the proof comes back to you to keep: only make BitGraphs of files the user asked for, and never generate content just to record it. " +
       "There is no digest-only recording here: a BitGraph is made with bitgraph_open then bitgraph_commit. bitgraph_check and bitgraph_get_proof are read-only. " +
       "To do work INSIDE a BitGraph, call bitgraph_open with no files BEFORE starting: it returns a position and its commitment; put the commitment into the task, seal the task with bitgraph_commit (carry base64url) within 120 seconds, then record the outputs afterwards. The task then could not have existed before the position's floor block, and the outputs sit after it.",

@@ -35,9 +35,9 @@ export default function TryPage() {
         <dt>Stays on your machine</dt>
         <dd>Your files. Each one is read and hashed in your browser and never uploaded. The new fused files are built in memory here too.</dd>
         <dt>Is sent</dt>
-        <dd>A request for a position (nothing about your files), then the SHA-256 digest of each new fused file together with the slot record. The service also sees your network address.</dd>
+        <dd>A request for a position (nothing about your files), then the SHA-256 digest of each new fused file together with the position record. The service also sees your network address.</dd>
         <dt>Comes back</dt>
-        <dd>A <code>bitgraph/1</code> proof: the slot record, both counters, the enclave&rsquo;s signature and attestation, the floor block, and the marker naming the placement and the original&rsquo;s digest.</dd>
+        <dd>A <code>bitgraph/1</code> proof: the position record, both counters, the enclave&rsquo;s signature and attestation, the floor block, and the marker naming the placement and the original&rsquo;s digest.</dd>
         <dt>Save</dt>
         <dd>The proof, beside the originals. The page that opens after a drop has an export that packages the proof, the files and the bracketing anchors as a zip. The service keeps a copy of the proof too, but the copy you hold is the record.</dd>
       </dl>
@@ -53,7 +53,7 @@ export default function TryPage() {
 
       <h2 id="check">Check a proof you were given</h2>
       <p>
-        Drop a <code>proof.json</code> into the same box, with the original file if you have it, and the checks run in your browser: the signature, the slot binding, the attestation, and whether the file matches. A check you would stake something on should run outside this website, because a page served by the party being checked is trusted exactly as far as that party is. Use the command-line audit tool on the export:
+        Drop a <code>proof.json</code> into the same box, with the original file if you have it, and the checks run in your browser: the signature, the position binding, the attestation, and whether the file matches. A check you would stake something on should run outside this website, because a page served by the party being checked is trusted exactly as far as that party is. Use the command-line audit tool on the export:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>

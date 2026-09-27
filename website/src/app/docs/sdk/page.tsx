@@ -17,7 +17,7 @@ export default function SdkPage() {
     <article className="prose">
       <h1>SDK</h1>
       <p className="lede">
-        One engine, three sockets. The same pipelines the drop box runs, packaged so software can plug in whatever it is written in: a TypeScript library, a CLI for any language that can spawn a process, and a localhost daemon for any runtime that can make an HTTP call. Files are read on your machine and never uploaded; only digests, the committed artifact and slot records leave it.
+        One engine, three sockets. The same pipelines the drop box runs, packaged so software can plug in whatever it is written in: a TypeScript library, a CLI for any language that can spawn a process, and a localhost daemon for any runtime that can make an HTTP call. Files are read on your machine and never uploaded; only digests, the committed artifact and position records leave it.
       </p>
 
       <h2 id="typescript">TypeScript</h2>
@@ -34,7 +34,7 @@ const r = await bg.record("run-042.log");
 console.log(r.files[0].proofUrl);`}</Code>
       </div>
       <p>
-        One file is fused on its own slot; a folder or many paths become one set under one position. Bytes already on record come back <code>&quot;on record&quot;</code> untouched, and a <Link href="/docs/carrier">BitGraphed file</Link> is judged offline from the proof it carries and never minted: the envelope is not the recorded thing, the bytes inside are.
+        One file is fused on its own position; a folder or many paths become one set under one position. Bytes already on record come back <code>&quot;on record&quot;</code> untouched, and a <Link href="/docs/carrier">BitGraphed file</Link> is judged offline from the proof it carries and never minted: the envelope is not the recorded thing, the bytes inside are.
       </p>
       <p>
         The verbs: <code>record</code>, <code>check</code>, <code>proof</code>, <code>open</code> and <code>seal</code>, <code>verify</code>, <code>bitgraphedFile</code>, <code>complete</code>. <code>verify</code> needs no network: a BitGraphed file argues for itself, and the window is stated in the protocol&rsquo;s units, no earlier than the floor block, committed before the anchoring of the later block.
@@ -42,7 +42,7 @@ console.log(r.files[0].proofUrl);`}</Code>
 
       <h2 id="position-first">The position before the work</h2>
       <p>
-        <code>open</code> holds a position while no work exists; put its commitment string inside the task, then <code>seal</code> the task within the slot&rsquo;s life. The commitment did not exist before the position did, so the task could not have either, and outputs recorded afterwards sit later. A task that does not carry the commitment is refused before the slot is spent.
+        <code>open</code> holds a position while no work exists; put its commitment string inside the task, then <code>seal</code> the task within the position&rsquo;s life. The commitment did not exist before the position did, so the task could not have either, and outputs recorded afterwards sit later. A task that does not carry the commitment is refused before the position is spent.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>position-first.ts</span><CopyCode /></div>
