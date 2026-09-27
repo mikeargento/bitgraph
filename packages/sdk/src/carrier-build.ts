@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import {
   verify, createVerificationContext,
   buildCarrier, parseCarrier, completeCarrier as completeCarrierBlock,
-  checkFloorBinding, checkCeilingBinding, anchorMessageBytes, verifyWitnessHeader,
+  checkFloorBinding, checkCeilingBinding, anchorMessageBytes, verifyWitnessHeader, anchorMarkOf,
   type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierCeiling,
 } from "@mikeargento/bitgraph-verify";
 import { ApiError, getProofDetail, type ApiConfig } from "./api.js";
@@ -47,8 +47,13 @@ async function vetAnchor(anchor: CarrierProof, witness: CarrierWitness, label: s
 }
 
 async function fetchWitness(config: ApiConfig, blockNumber: number, blockHash: string): Promise<CarrierWitness> {
-  const j = (await getJson(config, `/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`, 20_000)) as { witness?: CarrierWitness } | null;
-  const w = j?.witness;
+  // The site's route answers with the bitgraph-anchor-witness/1 object itself.
+  // 0.1.0 read it from a { witness } envelope that the route never sends, so
+  // every build against bitgraph.ing failed here; the envelope stays accepted.
+  const j = (await getJson(config, `/api/proofs/witness?block=${blockNumber}&hash=${encodeURIComponent(blockHash)}`, 20_000)) as
+    | (Partial<CarrierWitness> & { witness?: CarrierWitness })
+    | null;
+  const w = j?.witness ?? (typeof j?.headerRlpHex === "string" ? (j as CarrierWitness) : undefined);
   if (!w || typeof w !== "object") throw new ApiError(502, `no witness for block ${blockNumber}`);
   return w;
 }
@@ -63,9 +68,12 @@ async function fetchAnchorSide(
   const pending = j?.bound?.state === "pending";
   const anchor = j?.anchors?.[0];
   if (!anchor) return { found: null, pending };
+  // The block the anchor signed (its commit mark) names the witness to fetch;
+  // the unsigned metadata copy is only the fallback for an anchor without one.
+  const mark = anchorMarkOf(anchor);
   const a = anchor as { metadata?: { anchor?: { blockNumber?: number; blockHash?: string } } };
-  const blockNumber = a.metadata?.anchor?.blockNumber;
-  const blockHash = a.metadata?.anchor?.blockHash;
+  const blockNumber = mark?.blockNumber ?? a.metadata?.anchor?.blockNumber;
+  const blockHash = mark?.blockHash ?? a.metadata?.anchor?.blockHash;
   if (typeof blockNumber !== "number" || typeof blockHash !== "string") throw new ApiError(502, `the ${side} anchor names no block`);
   const witness = await fetchWitness(config, blockNumber, blockHash);
   return { found: { anchor, witness }, pending };
@@ -111,7 +119,12 @@ export async function buildBitGraphedFile(
   const epochId = commit?.epochId;
   if (typeof counter !== "string" || typeof epochId !== "string") throw new ApiError(502, "the proof carries no position to bracket");
 
-  const floor = (await fetchAnchorSide(config, counter, epochId, "before")).found;
+  // The floor is the anchor the enclave signed into the position record, so it is
+  // the anchor before the RESERVED position, never the one before the commit. For
+  // a position held while an anchor landed they differ, and 0.1.0 asked with the
+  // commit counter, fetched the later anchor, and checkFloorBinding refused it.
+  const floorAt = typeof commit?.slotCounter === "string" ? commit.slotCounter : counter;
+  const floor = (await fetchAnchorSide(config, floorAt, epochId, "before")).found;
   if (floor === null) throw new ApiError(502, "no floor anchor is available for this position");
   await vetAnchor(floor.anchor, floor.witness, "floor");
   const floorProblems = checkFloorBinding(proof as unknown as CarrierPayload["proof"], { status: "present", anchor: floor.anchor, witness: floor.witness });
