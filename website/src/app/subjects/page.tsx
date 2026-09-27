@@ -34,7 +34,7 @@ type Case = {
 const cases: Case[] = [
   {
     id: "agents",
-    title: "Records an AI agent writes about its own work",
+    title: "An AI agent's record of its own work",
     record: "The task record: what the agent was asked to do, the inputs it used, the tool calls it made, and what it produced. It is written by the agent's own harness and kept by the same party.",
     problem: "Whatever the record says about its own time and order is that party's claim. A log kept by the system under review can be regenerated in full before anyone looks at it, and a timestamp inside it is signed by the same key that would sign a forgery.",
     where: "Before the task starts, the agent asks BitGraph for a position and receives its position commitment. It writes that commitment into the task record and commits the record's digest under the same position. Outputs are recorded as they are produced, each at a later position. Both MCP servers implement this pattern; nothing about the task leaves the machine except digests.",
