@@ -283,6 +283,40 @@ export default function ProofPage() {
   // The anchor's OWN Ethereum block (number + timestamp), for the "Recorded"
   // line on Ethereum-anchor pages. Null for user proofs.
   const [anchorBlock, setAnchorBlock] = useState<{ blockNumber: number | null; blockTime: string | null; etherscanUrl: string | null } | null>(null);
+  // When each bracketing anchor was itself RECORDED, per the enclave platform's
+  // signed clock (Mike, 2026-09-27: "the anchors should bracket it. but as you
+  // can see this is after its bracket?"). The ceiling card used to show only the
+  // ceiling block's MINE time under "Before anchor #K", which reads as a clock
+  // ceiling and is not one: an anchor is recorded after the block it carries.
+  // On #1,012 the block was mined 9:44:59 PM, the file recorded 9:45:01, and
+  // the anchor recorded 9:45:06, so the file looked out of its bracket while
+  // sitting exactly inside it. Canon 3.6's "one error", on a card. Reading the
+  // anchor's own attested instant lets the ceiling card show the real bound.
+  // Cached digest-API reads, after first paint; a failed read just leaves the
+  // field off, since the positional title is already true without it.
+  const [anchorRecordedMs, setAnchorRecordedMs] = useState<{ before: number | null; after: number | null }>({ before: null, after: null });
+  useEffect(() => {
+    const w = causalWindow;
+    if (!w) return;
+    let cancelled = false;
+    const urlsafe = (b: string) => b.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const readOne = async (a: { counter: string; digestB64?: string | null } | null): Promise<number | null> => {
+      if (!a?.digestB64) return null;
+      try {
+        const r = await fetch(`/api/proofs/digest/${urlsafe(a.digestB64)}`);
+        if (!r.ok) return null;
+        const d = await r.json();
+        const list: Array<{ proof?: BitGraphProof }> = Array.isArray(d?.proofs) ? d.proofs : [];
+        const hit = list.find((x) => String(x.proof?.commit?.counter) === String(a.counter))?.proof ?? list[0]?.proof;
+        const rep = hit?.environment?.attestation?.reportB64;
+        return typeof rep === "string" && rep.length > 0 ? attestationTimestampMs(rep) : null;
+      } catch { return null; }
+    };
+    void Promise.all([readOne(w.anchorBefore), readOne(w.anchorAfter)]).then(([before, after]) => {
+      if (!cancelled) setAnchorRecordedMs({ before, after });
+    });
+    return () => { cancelled = true; };
+  }, [causalWindow?.anchorBefore?.digestB64, causalWindow?.anchorBefore?.counter, causalWindow?.anchorAfter?.digestB64, causalWindow?.anchorAfter?.counter]); // eslint-disable-line react-hooks/exhaustive-deps
   // Every causal position recorded for these bytes (the same bits can be
   // BitGraphed more than once), earliest first. ?counter=&epoch= in the URL
   // picks which one this page describes. lowerTime/upperTime are the ETH anchor
@@ -890,11 +924,16 @@ export default function ProofPage() {
     )
     : null;
   if (isEth && ethBlockNum && anchorBlock?.blockTime) {
-    // The block number lives in the "BitGraphed Ethereum Block" card below, so
-    // the receipt carries only the block's date (left, via recordedDate) and its
-    // single timestamp (right) — the same shape as a file-proof receipt.
+    // An anchor leads like every other proof (Mike, 2026-09-27: "match the new
+    // proof page format"): the attested instant, when the enclave recorded the
+    // block, per the 09-25 re-ruling. It used to lead with the block's own mine
+    // time, which is a different and earlier moment (an anchor is built after
+    // the block it carries: 2s after it on the anchor this was checked against,
+    // though canon 3.6 measured about 12s on 09-15); that time now sits in the
+    // identity row beside the block it belongs to. The block time stands in only when the
+    // attestation cannot be read.
     const d = new Date(anchorBlock.blockTime);
-    leadStack = winLine(val(timeTz(d)));
+    leadStack = committedLine ?? winLine(val(timeTz(d)));
   } else if (!isEth && lowerTime) {
     if (upperTime) {
       // RE-RULED 2026-09-25 (supersedes the 09-16/17 "after <time>, before
@@ -944,7 +983,7 @@ export default function ProofPage() {
        value beneath it in the monospace/data font, matching the hashes and
        counters elsewhere on the page. */
     <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 16px" }}>
-      {recordedDate && (!isEth && !isInterval ? (
+      {recordedDate && (!isInterval ? (
         // One bold line, the name "BitGraph #n", then two quiet detail lines (Mike,
         // 2026-09-26): the date and time in normal text, "epoch" as a grey label and its ID
         // in mono, the one string a reader copies or compares character by character.
@@ -960,7 +999,7 @@ export default function ProofPage() {
         </div>
       ))}
       {whenNode}
-      {!isEth && !isInterval && epochFull && (
+      {!isInterval && epochFull && (
         <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--dim)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={epochFull}>
           {/* The label in normal text like the lines above; the ID in mono, because
               base64 mixes I, l, 1, O and 0 and a sans makes them indistinguishable. */}
@@ -1549,54 +1588,88 @@ export default function ProofPage() {
               proofs, titled to match. */}
           {isEth && attr?.title && (
             <>
-            {/* The way back to the list this anchor was opened from (Mike,
-                2026-09-09: "no way back from the proof page"). A past UTC day
-                links to that day's page, where this row is; today links to the
-                live list. The docs' own back-link idiom, nothing new. */}
+            {/* An anchor page in the file-proof format (Mike, 2026-09-27: "fix
+                the ethereum anchors pages to match the new proof page format").
+                An anchor is a BitGraph whose recorded thing is an Ethereum block,
+                so it gets the same card: no visible page title (the card's first
+                line names the record), the same header, an identity row naming
+                what was recorded where a file shows its name, and downloads in
+                the same Downloads card. It used to carry a page title with
+                "Download JSON" beside it; that title is what the file pages
+                dropped on 2026-09-26.
+                The way back stays (Mike, 2026-09-09: "no way back from the proof
+                page"; 09-11: to the right, "all ethereum anchors"): a past UTC
+                day links to that day's page, where this row is; today links to
+                the live list. */}
+            <h1 className="sr-only">BitGraph Record</h1>
             {(() => {
               const bt = anchorBlock?.blockTime;
               const day = bt ? new Date(bt).toISOString().slice(0, 10) : null;
               const today = new Date().toISOString().slice(0, 10);
               const href = day && day < today ? `/ledger?day=${day}` : "/ledger";
               return (
-                // Title on the left, the pill to all anchors on the right, one
-                // row (Mike, 2026-09-11: "on same line … to the right and say
-                // all ethereum anchors"). Wraps under the title on a phone.
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px 16px", marginBottom: 10 }}>
-                  {/* The one title size every page header uses. */}
-                  <div className="bg-page-title" style={{ marginBottom: 0 }}>
-                    BitGraphed Ethereum Block
-                  </div>
-                  <span style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-                    {/* ⚠️ THE ANCHOR AS A FILE, WHICH IS THE REASON THE BULK
-                        EXPORT WAS CUT. A day's-anchors Export link stood on
-                        /ledger for one push on 2026-09-09 and Mike removed it
-                        the same evening, because "an anchor's proof page is
-                        the anchor as a file". It was not: it was the anchor as
-                        text you click to copy out of the Raw JSON card, which
-                        is fine for a digest and awkward for a 10 KB proof
-                        carrying an embedded Nitro attestation.
-
-                        The package export next door is a zip and is switched
-                        off here on purpose: an anchor has no original file, so
-                        that zip would hold one member and the wrapper would be
-                        the only thing it added. A proof is already one file.
-
-                        Named for the block, because that is what the reader is
-                        looking at and what they will match it against. */}
-                    <button onClick={downloadProof} className="bg-action-link" style={{ margin: 0 }}>
-                      <span>Download JSON</span>
-                      <span className="arrow" aria-hidden>&darr;</span>
-                    </button>
-                    <a href={href} className="bg-action-link" style={{ margin: 0 }}>All Ethereum anchors</a>
-                  </span>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+                  <a href={href} className="bg-action-link" style={{ margin: 0 }}>All Ethereum anchors</a>
                 </div>
               );
             })()}
-            <CollapsibleCard title="BitGraphed Ethereum Block" plain>
-              {whenRow && <div style={{ borderBottom: "1px solid var(--line)" }}>{whenRow}</div>}
-              <Field label="Block" value={ethBlockNum ? `#${Number(ethBlockNum).toLocaleString()}` : "#?"} highlight />
-              <Field label="Etherscan" value={attr.title} link />
+            <CollapsibleCard title="BitGraph Record" plain>
+              {whenRow && (
+                <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)" }}>
+                  {whenRow}
+                </div>
+              )}
+              {/* The identity row, in the file card's exact shape: what was
+                  recorded, a detail, and Open. For a file that is its name and
+                  size; for an anchor it is the block and the time it was mined,
+                  and Open goes to the block on Etherscan. The mine time lives
+                  here, beside the block it belongs to, not in the header: the
+                  header is when BitGraph recorded it, which is later. */}
+              {(() => {
+                const b = anchorBlock?.blockTime ? new Date(anchorBlock.blockTime) : null;
+                const a = attestedMs ? new Date(attestedMs) : null;
+                const mined = b ? ((a && sameUtcDay(b, a)) ? timeTz(b) : stampTz(b)) : null;
+                return (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px" }}>
+                    {/* Wraps rather than truncating, unlike a filename: a block
+                        row is always short, and the mine time is the one thing
+                        this page says nowhere else, so an ellipsis would hide it
+                        on a phone ("mine…"). Each half stays whole; the break
+                        falls between them. */}
+                    <span style={{ minWidth: 0, fontSize: 13, color: "var(--dim)" }}>
+                      <span style={{ fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap" }}>
+                        Ethereum block {ethBlockNum ? `#${Number(ethBlockNum).toLocaleString("en-US")}` : "#?"}
+                      </span>
+                      {mined ? <>{" "}<span style={{ whiteSpace: "nowrap" }}>{"· mined "}{mined}</span></> : null}
+                    </span>
+                    <a href={attr.title} target="_blank" rel="noopener" title="Open this block on Etherscan" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+                      Open
+                    </a>
+                  </div>
+                );
+              })()}
+            </CollapsibleCard>
+            {/* Downloads, as on a file proof. One button: an anchor has no
+                original file, so the package zip is deliberately absent (it
+                would hold one member, and a proof is already one file). Named
+                for what it is, since the card around it says download. */}
+            <CollapsibleCard title="Downloads">
+              <div style={{ padding: "8px 16px 14px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
+                  <button onClick={downloadProof} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
+                    <span>Proof (.json)</span>
+                  </button>
+                </div>
+              </div>
+            </CollapsibleCard>
+            {/* Hashes, where a file proof has them: first after Downloads. */}
+            <CollapsibleCard title="Hashes">
+              {attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
+              <Field
+                label={attr?.message ? `${formatHashAlg(proof.artifact.hashAlg)} of Block Hash` : `${formatHashAlg(proof.artifact.hashAlg)} Digest`}
+                value={proof.artifact.digestB64}
+                mono
+              />
             </CollapsibleCard>
             </>
           )}
@@ -1734,7 +1807,9 @@ export default function ProofPage() {
               whose artifact IS a block hash rather than a file. User-file proofs
               carry their File Hash inside the BitGraphed File card above, with
               the file it identifies, so there is no separate box here. */}
-          {(isEth || isInterval) && (
+          {/* Anchors show these in their own Hashes card, up with the record
+              (2026-09-27); only the legacy interval proof still uses this one. */}
+          {isInterval && (
             <CollapsibleCard title="Artifact Hash">
               {isEth && attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
               <Field
@@ -1816,7 +1891,10 @@ export default function ProofPage() {
                 <Field label="Block" value={`#${causalWindow.anchorBefore.blockNumber.toLocaleString()}`} highlight />
               )}
               {causalWindow.anchorBefore.blockTime && (
-                <Field label="Block Time" value={stampTz(new Date(causalWindow.anchorBefore.blockTime))} />
+                <Field label="Block mined" value={stampTz(new Date(causalWindow.anchorBefore.blockTime))} />
+              )}
+              {anchorRecordedMs.before !== null && (
+                <Field label="Anchor recorded" value={stampTz(new Date(anchorRecordedMs.before))} />
               )}
               {causalWindow.anchorBefore.etherscanUrl && (
                 <Field label="Etherscan" value={causalWindow.anchorBefore.etherscanUrl} link />
@@ -1840,11 +1918,17 @@ export default function ProofPage() {
               is the bracket, so it has no before/after window of its own. */}
           {!isEth && causalWindow?.anchorAfter ? (
             <CollapsibleCard title={`Before anchor #${Number(causalWindow.anchorAfter.counter).toLocaleString()}`}>
+              {/* The card answers its own title first: when the anchor was recorded,
+                  which is the ceiling. The block's mine time follows, labelled as the
+                  block's, because it is earlier than the anchor and is not a bound. */}
+              {anchorRecordedMs.after !== null && (
+                <Field label="Anchor recorded" value={stampTz(new Date(anchorRecordedMs.after))} highlight />
+              )}
               {causalWindow.anchorAfter.blockNumber !== null && (
-                <Field label="Block" value={`#${causalWindow.anchorAfter.blockNumber.toLocaleString()}`} highlight />
+                <Field label="Block" value={`#${causalWindow.anchorAfter.blockNumber.toLocaleString()}`} highlight={anchorRecordedMs.after === null} />
               )}
               {causalWindow.anchorAfter.blockTime && (
-                <Field label="Block Time" value={stampTz(new Date(causalWindow.anchorAfter.blockTime))} />
+                <Field label="Block mined" value={stampTz(new Date(causalWindow.anchorAfter.blockTime))} />
               )}
               {causalWindow.anchorAfter.etherscanUrl && (
                 <Field label="Etherscan" value={causalWindow.anchorAfter.etherscanUrl} link />
@@ -2599,6 +2683,25 @@ function PhotoCard({
         borderRadius: "var(--radius-card)",
       }}
     >
+      {/* Identity row — the same name · size · Open → that FileCard gives every
+          other file, and in the same place: ABOVE the preview (Mike, 2026-09-26:
+          "id rather all the proofs look the same"). The inline image is capped in
+          size, so Open shows it at full resolution in a new tab. Only when the
+          artifact bytes are in hand (a C2PA-thumbnail-only preview has no full
+          file to name or open). */}
+      {cachedFile && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderBottom: "1px solid var(--line-2)" }}>
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
+            <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
+            {" · "}{fmtBytes(cachedFile.data.byteLength)}
+          </span>
+          {openUrl && (
+            <a href={openUrl} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+              Open
+            </a>
+          )}
+        </div>
+      )}
       <div style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {imageSrc ? (
           /* eslint-disable-next-line @next/next/no-img-element */
@@ -2626,23 +2729,6 @@ function PhotoCard({
           </div>
         )}
       </div>
-      {/* Identity row — the same name · size · Open → that FileCard gives every
-          other file. The inline image is capped in size, so Open shows it at
-          full resolution in a new tab. Only when the artifact bytes are in hand
-          (a C2PA-thumbnail-only preview has no full file to name or open). */}
-      {cachedFile && (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: "1px solid var(--line-2)" }}>
-          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
-            <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
-            {" · "}{fmtBytes(cachedFile.data.byteLength)}
-          </span>
-          {openUrl && (
-            <a href={openUrl} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-              Open
-            </a>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -2650,9 +2736,9 @@ function PhotoCard({
 /* ── Non-image file display — the file is in hand but is not a picture, so
    show it the way the browser natively can: text gets an inline excerpt,
    PDFs an embedded view, audio/video their native players, and anything
-   else its identity. Every kind closes with the same name · size row; the
-   kinds a browser can render in a full tab (text, PDF) add an Open link
-   there. Bytes never leave the device — everything runs on object URLs. */
+   else its identity. Every kind opens with the same name · size row, as the
+   image card does; the kinds a browser can render in a full tab (text, PDF)
+   add an Open link there. Bytes never leave the device — everything runs on object URLs. */
 
 const TEXT_EXT = /\.(txt|md|markdown|json|csv|tsv|log|xml|ya?ml|toml|ini|html?|css|mjs|cjs|jsx?|tsx?|py|rb|go|rs|java|c|h|cpp|hpp|swift|kt|sh|zsh|bash|sql|env|cfg|conf|srt|vtt|tex)$/i;
 const VIDEO_EXT = /\.(mp4|m4v|webm|mov|ogv)$/i;
@@ -2750,11 +2836,47 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
      what it does is worse than no link. The file is already on this device;
      the reader can open it where it lives. */
   const openable = kind === "text" || kind === "pdf";
-  const hasPreviewAbove = kind === "text" || kind === "video" || kind === "audio" || (kind === "docx" && !!docx);
+  const hasPreview = kind === "text" || kind === "video" || kind === "audio" || (kind === "docx" && !!docx);
   return (
     <div style={{ background: "var(--panel)" }}>
+      {/* The identity row, and it HEADS the file rather than closing it (Mike,
+          2026-09-26: people may think the file's contents are part of the proof).
+          The proof's own header ends in "epoch <base64>", and a text file that
+          opens with a label over a long base64 line, as the home example does,
+          reads as one more proof field when nothing marks where the proof stops.
+          Naming the file first draws that line before the contents begin, which
+          is how GitHub heads a file view. For formats with no inline rendering it
+          is still the whole display: the file's name and size, held by the
+          receipt. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderBottom: hasPreview ? "1px solid var(--line-2)" : "none" }}>
+        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
+          <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
+          {" · "}{fmtBytes(cachedFile.data.byteLength)}
+        </span>
+        {openable && url && (
+          <a href={url} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+            Open
+          </a>
+        )}
+      </div>
+      {/* Font scales with the screen so a whole 43-character base64 value holds
+          one line on a phone (Mike, 2026-09-26: "the text wraps weird"). At a
+          fixed 12.5px a 375px screen fits 40 monospace characters, so a
+          position commitment broke at its own hyphen and read as two separate
+          values. 11px keeps 44 columns down to a 360px screen; 12.5px returns
+          by ~417px. The bytes can't be changed to help: the file has to
+          contain the exact value.
+          Height caps at 1200px, raised from 560 (same day): the home
+          demonstration file measured 894 to 961px tall on phones, so 560 cut
+          it off mid-way and hid its last lines, the ones saying what a proof
+          does NOT show. 1000 fitted, but with 39px spare at 412px (the font
+          grows faster than the line widens just below 12.5px), which a larger
+          system text size or a fallback font would eat. The 24-line and 3,000-character limits in the excerpt
+          above are what stop a huge file taking over the page, and they are
+          unchanged; this cap only has to clear a short file whose lines wrap
+          on a narrow screen. */}
       {kind === "text" && excerpt && (
-        <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: 12.5, lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 560, overflow: "hidden" }}>
+        <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: "clamp(11px, 3vw, 12.5px)", lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 1200, overflow: "hidden" }}>
           {excerpt.text}{excerpt.truncated ? "\n…" : ""}
         </pre>
       )}
@@ -2768,7 +2890,7 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
           <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--dim)", marginBottom: 8 }}>
             Text from this document
           </div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 560, overflow: "hidden" }}>
+          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 1200, overflow: "hidden" }}>
             {docx.split("\n").slice(0, 24).join("\n").slice(0, 3000)}
             {docx.length > 3000 || docx.split("\n").length > 24 ? "\n…" : ""}
           </div>
@@ -2786,20 +2908,6 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
           <audio src={url} controls style={{ display: "block", width: "100%" }} />
         </div>
       )}
-      {/* The identity row every kind closes with. For formats with no inline
-          rendering it is the whole display: the file's name and size, held by
-          the receipt — the hash below is the part that matters. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px", borderTop: hasPreviewAbove ? "1px solid var(--line-2)" : "none" }}>
-        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
-          <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
-          {" · "}{fmtBytes(cachedFile.data.byteLength)}
-        </span>
-        {openable && url && (
-          <a href={url} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-            Open
-          </a>
-        )}
-      </div>
     </div>
   );
 }
