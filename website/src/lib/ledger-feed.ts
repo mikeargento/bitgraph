@@ -3,6 +3,7 @@ import { anchorMarkOf, isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 import { dayIndexKey, pageKey, type DayIndex, type DayPage, type LedgerFilter } from "./ledger-archive";
 import { setCountOf } from "./fuse-set";
+import { recordedMsOf } from "./recorded-time";
 
 /* The ledger feed, shared by the API route and the server-rendered /day page.
 
@@ -14,8 +15,10 @@ import { setCountOf } from "./fuse-set";
    are unchanged.
 
    Read-only, CURRENT epoch. Returns aggregate, safe per-entry fields only
-   (counter, type, short hash, link digest, anchor block). Never returns
-   attestation, signatures, agency, or any operator/clock detail. See the
+   (counter, type, short hash, link digest, anchor block, recorded time). Never
+   returns attestation documents, signatures, agency, or any operator detail.
+   The one value read out of the attestation is its timestamp, the row's time,
+   which is in every proof and led with on every proof page. See the
    disclosure audit: the per-proof page already carries the rest; this surface
    deliberately exposes only the spine. */
 
@@ -87,8 +90,11 @@ type Entry = {
   // without opening its proof. Absent on archive rows and pre-v7 anchors.
   blockHash?: string;
   isNew?: true;
-  // Wall-clock write time (S3 LastModified, epoch ms) — the recording moment,
-  // shown on each day row. The precise ETH window lives on the proof page.
+  // The recorded time, epoch ms: the proof's own attestation timestamp, the
+  // TEE's signed clock, the same time its proof page leads with (Mike,
+  // 2026-09-27: "make it consistent"). It was S3 LastModified until then, the
+  // storage clock, which ran about a second behind. That stays only as the
+  // fallback for a proof whose attestation cannot be read.
   at?: number;
   // URL-safe epochId. Counters repeat across epochs, so day days (which can
   // span epochs) need it for row identity and to pin proof links to the exact
@@ -101,9 +107,10 @@ type Entry = {
 };
 
 // File rows arrive stamped "new!" while their ledger write is under this old;
-// the client drops the tag on its own 30s timer. Both this and the row's `at`
-// time come from S3 LastModified, already in the LIST responses (no extra
-// calls). Files only for "new!": anchors and intervals are the clock.
+// the client drops the tag on its own 30s timer. This age still comes from S3
+// LastModified, already in the LIST responses (no extra calls): "new" is about
+// the ledger's copy arriving. The row's shown time is the proof's own (see
+// `at`). Files only for "new!": anchors and intervals are the clock.
 const NEW_MS = 30_000;
 
 function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | null {
@@ -143,6 +150,7 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
   const epochId = String(commit.epochId || "");
   // Parse only, no hash: the label is a count, not a verdict.
   const setCount = setCountOf(p);
+  const at = recordedMsOf(p) ?? lastModifiedMs;
   return {
     counter,
     type: isAnchor ? "anchor" : isInterval ? "interval" : "proof",
@@ -152,7 +160,7 @@ function toEntry(p: Record<string, unknown>, lastModifiedMs?: number): Entry | n
     etherscanUrl,
     ...(blockHash !== null ? { blockHash } : {}),
     ...(isNew ? { isNew: true as const } : {}),
-    ...(lastModifiedMs ? { at: lastModifiedMs } : {}),
+    ...(at ? { at } : {}),
     ...(epochId ? { ep: toSafe(epochId) } : {}),
     ...(setCount !== null ? { set: setCount } : {}),
   };

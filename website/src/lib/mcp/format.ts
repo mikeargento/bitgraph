@@ -2,14 +2,19 @@
  * Remote MCP endpoint: output shaping.
  *
  * Markdown for human-facing summaries, JSON for complete structured data.
- * Time statements come from the Ethereum anchor bracket ("BitGraphed between
- * X and Y"), never from advisory clock fields.
+ * A BitGraph's time is its attestation timestamp, the enclave platform's
+ * signed clock, the same time its proof page leads with (RE-RULING
+ * 2026-09-25; one clock everywhere, Mike 2026-09-27). The Ethereum bracket
+ * confirms it: a floor block with its mine time, and a ceiling in POSITION,
+ * the next anchor, never a later block's mine time (CANON 3.6). Never from
+ * advisory clock fields.
  *
  * Ported from packages/mcp/src/format.ts; RecordOutcome is keyed by the
  * caller's digest string ("input") instead of a local file path.
  */
 
 import { toUrlSafeB64 } from "./encoding";
+import { recordedMsOf } from "@/lib/recorded-time";
 import type { BitGraphProof, PositionView, ProofDetailResponse, SetMemberView } from "./types";
 
 export const CHARACTER_LIMIT = 25_000;
@@ -115,15 +120,19 @@ export function renderCheckMarkdown(outcomes: readonly CheckOutcome[]): string {
 function renderWindow(detail: ProofDetailResponse): string | null {
   const w = detail.causalWindow;
   if (!w) return null;
-  const lower = w.anchorBefore?.blockTime ?? null; // earlier block: BitGraphed after it
-  const upper = w.anchorAfter?.blockTime ?? null; // later block: BitGraphed before it
+  // The floor is a block and its mine time, Ethereum's clock. The ceiling is
+  // the next anchor, stated as a position; the time given with it is when
+  // BitGraph recorded that anchor, the enclave's clock, as on the proof page.
+  // A later block's mine time is never offered as a bound.
+  const lower = w.anchorBefore?.blockTime ?? null;
   const lowerBlock = w.anchorBefore?.blockNumber ?? null;
-  const upperBlock = w.anchorAfter?.blockNumber ?? null;
-  if (lower && upper) {
-    return `Placed no earlier than ${lower} (Ethereum block ${lowerBlock ?? "?"}); an anchor followed at ${upper} (block ${upperBlock ?? "?"}), which is not an upper bound.`;
-  }
-  if (upper) return `An anchor followed at ${upper} (Ethereum block ${upperBlock ?? "?"}); no floor is known here, and a following anchor is not an upper bound.`;
-  if (lower) return `Placed no earlier than ${lower} (Ethereum block ${lowerBlock ?? "?"}).`;
+  const after = w.anchorAfter;
+  const ceiling = after?.counter
+    ? `before anchor #${after.counter}${typeof after.recordedMs === "number" ? `, which BitGraph recorded at ${new Date(after.recordedMs).toISOString()}` : ""}`
+    : null;
+  if (lower && ceiling) return `Placed after Ethereum block ${lowerBlock ?? "?"} (mined ${lower}), ${ceiling}.`;
+  if (ceiling) return `Placed ${ceiling}; no floor is known here.`;
+  if (lower) return `Placed after Ethereum block ${lowerBlock ?? "?"} (mined ${lower}); no anchor follows yet.`;
   return null;
 }
 
@@ -142,6 +151,8 @@ export function renderProofMarkdown(
   lines.push("");
   lines.push(`- Digest (SHA-256): ${toUrlSafeB64(digest)}`);
   if (epoch) lines.push(`- Position: counter ${counter ?? "?"} in epoch ${epoch.slice(0, 12)}…`);
+  const recorded = recordedMsOf(proof);
+  if (recorded !== null) lines.push(`- Recorded: ${new Date(recorded).toISOString()}, by the enclave platform's signed clock`);
   if (here?.member) {
     const role = here.member.role === "fused" ? "its new fused bytes" : "the original";
     lines.push(`- Set: member ${here.member.index + 1} of ${here.member.count}, as ${role}${here.placement ? ` (${here.placement})` : ""}`);
@@ -166,9 +177,10 @@ export function renderProofMarkdown(
     lines.push(`## Causal positions (${positions.length})`);
     positions.forEach((p, i) => {
       const label = i === 0 ? " · original" : "";
-      const bracket =
-        p.lowerTime ? ` · no earlier than ${p.lowerTime}` : "";
-      lines.push(`- #${p.counter ?? "?"}${label}${p.member ? ` · set of ${p.member.count}` : ""}${bracket}`);
+      const when = typeof p.recordedMs === "number"
+        ? ` · recorded ${new Date(p.recordedMs).toISOString()}`
+        : p.lowerTime ? ` · no earlier than ${p.lowerTime}` : "";
+      lines.push(`- #${p.counter ?? "?"}${label}${p.member ? ` · set of ${p.member.count}` : ""}${when}`);
     });
   }
   lines.push("");

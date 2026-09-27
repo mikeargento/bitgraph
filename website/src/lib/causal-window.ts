@@ -17,6 +17,7 @@
  * it had to be deleted; one copy, two callers.
  */
 import { getAnchorsAfterCounter, getAnchorBeforeCounter } from "@/lib/s3";
+import { recordedMsOf } from "@/lib/recorded-time";
 import { anchorMarkOf, isAnchorProof, ANCHOR_ATTRIBUTION_NAME } from "@mikeargento/bitgraph-verify";
 
 export type AnchorView = {
@@ -27,6 +28,12 @@ export type AnchorView = {
   etherscanUrl: string | null;
   blockTime: string | null;
   digestB64: string | null;
+  /** When BitGraph recorded this anchor: its attestation document's timestamp,
+   *  the TEE's signed clock. Every BitGraph's time on the site is read this
+   *  way (Mike, 2026-09-27: "make it consistent"); blockTime is Ethereum's
+   *  clock for the block, an earlier and different moment. Null when the
+   *  document is absent or unreadable. */
+  recordedMs: number | null;
 };
 
 // Build the display view for one anchor (a raw anchor proof object from S3).
@@ -93,6 +100,7 @@ export async function buildAnchorView(anchor: Record<string, unknown>): Promise<
     etherscanUrl: blockNumber ? `https://etherscan.io/block/${blockNumber}` : (anchorAttr?.title || null),
     blockTime,
     digestB64: anchorArtifact?.digestB64 || null,
+    recordedMs: recordedMsOf(anchorProof ?? anchor),
   };
 }
 

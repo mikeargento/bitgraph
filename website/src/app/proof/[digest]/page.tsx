@@ -110,10 +110,16 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   [EXAMPLE_PROOF.digest]: { path: "/example/chatgpt.png", name: "chatgpt.png", mime: "image/png" },
   // The previous front-door example; kept so old links still show the photo.
   [PRESTON_PROOF_DIGEST]: { path: "/example/preston.jpg", name: "preston.jpg", mime: "image/jpeg" },
-  // The home page's "See a real BitGraph": a text file that explains itself, carrying the
-  // commitment of the position it was committed at on line 4, and the almanac line
-  // (2026-09-22). Served so the preview shows without the reader having to find the file.
+  // The home page's "See a real BitGraph": a text file that explains itself for a reader
+  // who knows nothing about BitGraph (2026-09-27), in the TRACE doc's words: it carries
+  // its position commitment and the link to the anchor BitGraph recorded right after
+  // its position opened, so it names both of the things it came after. Served so the
+  // preview shows without the reader having to find the file.
   [HOME_EXAMPLE_DIGEST]:
+    { path: "/example/bitgraph-demonstration-3.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
+  // The home example of 2026-09-22 (the commitment on line 4, the almanac line); kept so
+  // old links still show it.
+  "YYJh9nWOYBQUNvVmzy0kXvYTrAqLgmL9veqLHP7x-WU":
     { path: "/example/bitgraph-demonstration-2.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
   // The previous home example (2026-09-20), without the almanac line; kept so old links still show it.
   "YVf5bpwcpBg4SsTh6XXBqBoYpYS68s1Tjog1u_cvRQ4":
@@ -136,8 +142,8 @@ export default function ProofPage() {
 
   const [proof, setProof] = useState<BitGraphProof | null>(null);
   const [causalWindow, setCausalWindow] = useState<{
-    anchorBefore: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null } | null;
-    anchorAfter: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null } | null;
+    anchorBefore: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null; recordedMs?: number | null } | null;
+    anchorAfter: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null; recordedMs?: number | null } | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -300,7 +306,11 @@ export default function ProofPage() {
     if (!w) return;
     let cancelled = false;
     const urlsafe = (b: string) => b.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    const readOne = async (a: { counter: string; digestB64?: string | null } | null): Promise<number | null> => {
+    const readOne = async (a: { counter: string; digestB64?: string | null; recordedMs?: number | null } | null): Promise<number | null> => {
+      // The window now carries each anchor's recorded time, read on the server
+      // from the anchor's own attestation. The fetch below is for a response
+      // cached before that field existed.
+      if (typeof a?.recordedMs === "number") return a.recordedMs;
       if (!a?.digestB64) return null;
       try {
         const r = await fetch(`/api/proofs/digest/${urlsafe(a.digestB64)}`);
@@ -316,12 +326,12 @@ export default function ProofPage() {
       if (!cancelled) setAnchorRecordedMs({ before, after });
     });
     return () => { cancelled = true; };
-  }, [causalWindow?.anchorBefore?.digestB64, causalWindow?.anchorBefore?.counter, causalWindow?.anchorAfter?.digestB64, causalWindow?.anchorAfter?.counter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [causalWindow?.anchorBefore?.digestB64, causalWindow?.anchorBefore?.counter, causalWindow?.anchorBefore?.recordedMs, causalWindow?.anchorAfter?.digestB64, causalWindow?.anchorAfter?.counter, causalWindow?.anchorAfter?.recordedMs]); // eslint-disable-line react-hooks/exhaustive-deps
   // Every causal position recorded for these bytes (the same bits can be
   // BitGraphed more than once), earliest first. ?counter=&epoch= in the URL
   // picks which one this page describes. lowerTime/upperTime are the ETH anchor
   // window bounds (block times) that bracket each recording.
-  const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; lowerTime: string | null; upperTime: string | null; kind?: "recorded" | "fused"; artifactDigest?: string | null; placement?: string | null }>>([]);
+  const [positions, setPositions] = useState<Array<{ counter: string | null; epoch: string | null; lowerTime: string | null; upperTime: string | null; recordedMs?: number | null; kind?: "recorded" | "fused"; artifactDigest?: string | null; placement?: string | null }>>([]);
 
   // A capture "flash" plays once when you land here straight off a fresh
   // recording (the drop flow / BitGraph Again append ?fresh=1). On mount the
@@ -978,6 +988,14 @@ export default function ProofPage() {
   // own small card on anchor/interval proofs (which have no file card). On a
   // phone the window wraps to its own right-aligned line.
   const whenNode = leadStack ?? (recordedDate ? leadNode : (recordedNode ?? recordedLine));
+  // Where an anchor's "All Ethereum anchors" goes: a past UTC day to that day's ledger
+  // page, where this anchor's row is; today to the live list.
+  const anchorsBackHref = isEth && attr?.title ? (() => {
+    const bt = anchorBlock?.blockTime;
+    const day = bt ? new Date(bt).toISOString().slice(0, 10) : null;
+    const today = new Date().toISOString().slice(0, 10);
+    return day && day < today ? `/ledger?day=${day}` : "/ledger";
+  })() : null;
   const whenRow = (recordedDate || whenNode) ? (
     /* Written like a card field: the date is the heading, the time window the
        value beneath it in the monospace/data font, matching the hashes and
@@ -1515,7 +1533,9 @@ export default function ProofPage() {
             </CollapsibleCard>
             <CollapsibleCard title="Hashes">
               <Field label="Commitment" value={carriedBy} />
-              {inlineCommitment && <Field label="Slot commitment" value={inlineCommitment} mono />}
+              {/* "Position commitment", not "Slot commitment" (Mike, 2026-09-27): the
+                  outward name, as the demonstration file and the TRACE doc call it. */}
+              {inlineCommitment && <Field label="Position commitment" value={inlineCommitment} mono />}
               {isSet ? (
                 <>
                   {viewingRow && <Field label="New file hash" value={viewingRow.fusedDigestB64} mono />}
@@ -1598,21 +1618,25 @@ export default function ProofPage() {
                 "Download JSON" beside it; that title is what the file pages
                 dropped on 2026-09-26.
                 The way back stays (Mike, 2026-09-09: "no way back from the proof
-                page"; 09-11: to the right, "all ethereum anchors"): a past UTC
-                day links to that day's page, where this row is; today links to
-                the live list. */}
+                page"; 09-11: to the right, "all ethereum anchors"), above the
+                card on the right. It is laid over the page's top margin rather
+                than given a row of its own: a row pushed the card 52px lower
+                than on every other proof, and the loading skeleton, which cannot
+                know the page is an anchor until the proof arrives, then jumped
+                (Mike, 2026-09-27: "skeleton of eth anchor bitgraphs is wrong").
+                Tried the same day on the card's first line, beside "BitGraph #n":
+                a 32px button crowded the heading ("kind of smooshed no?"). */}
             <h1 className="sr-only">BitGraph Record</h1>
-            {(() => {
-              const bt = anchorBlock?.blockTime;
-              const day = bt ? new Date(bt).toISOString().slice(0, 10) : null;
-              const today = new Date().toISOString().slice(0, 10);
-              const href = day && day < today ? `/ledger?day=${day}` : "/ledger";
-              return (
-                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-                  <a href={href} className="bg-action-link" style={{ margin: 0 }}>All Ethereum anchors</a>
-                </div>
-              );
-            })()}
+            {/* minWidth 0: this wrapper is the grid item now, and without it the epoch ID's
+                nowrap line widened the whole card past a phone's edge instead of truncating. */}
+            <div style={{ position: "relative", minWidth: 0 }}>
+            {anchorsBackHref && (
+              /* The frame's top padding is 56px: 12px, the 32px button, 12px, then the card.
+                 right: -8 cancels the 8px right margin every button carries. */
+              <div style={{ position: "absolute", right: -8, top: -44, display: "flex" }}>
+                <a href={anchorsBackHref} className="bg-action-link">All Ethereum anchors</a>
+              </div>
+            )}
             <CollapsibleCard title="BitGraph Record" plain>
               {whenRow && (
                 <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)" }}>
@@ -1649,6 +1673,7 @@ export default function ProofPage() {
                 );
               })()}
             </CollapsibleCard>
+            </div>
             {/* Downloads, as on a file proof. One button: an anchor has no
                 original file, so the package zip is deliberately absent (it
                 would hold one member, and a proof is already one file). Named
@@ -1731,8 +1756,15 @@ export default function ProofPage() {
                 const t1 = pos.lowerTime ? new Date(pos.lowerTime) : null;
                 const t2 = pos.upperTime ? new Date(pos.upperTime) : null;
                 const sameDay = !!(t1 && t2 && sameUtcDay(t1, t2));
+                // The row's time is the position's own recorded time, the TEE's
+                // signed clock, as the page it opens leads with (Mike, 2026-09-27:
+                // "make it consistent"). It used to be the floor block's mine
+                // time, a different clock and an earlier moment. The block-time
+                // lines stand in only when the attestation cannot be read.
+                const rec = typeof pos.recordedMs === "number" ? new Date(pos.recordedMs) : null;
                 let rowDate: string | null = null;
-                if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
+                if (rec) rowDate = longDate(rec);
+                else if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
                 else if (t2) rowDate = longDate(t2);
                 else if (t1) rowDate = longDate(t1);
                 /* A fused descendant is listed, never ranked, and links to its
@@ -1749,9 +1781,12 @@ export default function ProofPage() {
                   : recordedPositions.length === 1 ? "Placed" : isEarliest ? "Earliest placement" : "Placed again";
                 const rowDigest = isFusedRow && pos.artifactDigest ? pos.artifactDigest : digestParam;
                 const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
-                // The floor only: a position row carries no anchor counter,
-                // and the next anchor's block time is not an upper bound.
-                const timesNode = t1 ? <>{conn("after ")}{val(sameDay || !t2 ? timeTz(t1) : stampTz(t1))}</> : null;
+                // Without a recorded time, the floor only: a position row carries
+                // no anchor counter, and the next anchor's block time is not an
+                // upper bound.
+                const timesNode = rec
+                  ? val(timeTz(rec))
+                  : t1 ? <>{conn("after ")}{val(sameDay || !t2 ? timeTz(t1) : stampTz(t1))}</> : null;
                 return (
                   <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid var(--line)" }}>
                     <div className="causal-top">

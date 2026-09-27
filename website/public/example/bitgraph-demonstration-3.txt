@@ -1,0 +1,22 @@
+A BitGraph demonstration.
+
+This file came after two things.
+
+1. A position commitment
+Before this file was made, an unused position opened up in BitGraph's sequence. At that moment, BitGraph's hardware generated a new random number, too large to ever be guessed, and tied it to that position. From the two, BitGraph worked out a code called a position commitment. That code had never existed before, anywhere in the universe, and now it's part of this file:
+r7411BolJocb5zMRm2YvUUCLbz-TA04NK14sUijUlnw
+Then the file was committed to that position, and the position was consumed. It can never hold anything else.
+
+2. An Ethereum block
+Ethereum is a public blockchain kept by thousands of computers worldwide. A new block is added about every 12 seconds. Right after the position for this BitGraph opened, another BitGraph recorded the newest Ethereum block:
+https://bitgraph.ing/proof/mQXZ1sNLOt_6gWhWy_ufSZTtqb8YRBzL3vXvp5iMe3k
+
+So this file could not have been written before its position commitment existed, or before that Ethereum block existed. Change a single character and it no longer matches.
+
+This is a text file, but it could be any record written around its position commitment, for example an AI agent's log as the agent runs.
+
+It doesn't prove this file is true, or who wrote it.
+
+BitGraph doesn't stop anyone from lying between 1955 and 1985. It stops anyone from going back to 1955 with the Grays Sports Almanac.
+
+npx @mikeargento/bitgraph-audit .

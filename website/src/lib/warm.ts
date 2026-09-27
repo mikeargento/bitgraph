@@ -100,7 +100,7 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
  *  ?counter/?epoch, so the proof page computes proofFeedKey(digest, null, null).
  *  Warming any other shape stores a response nobody reads, which is exactly the
  *  failure LEDGER_FEED_KEY below was written to stop happening twice. */
-export const HOME_EXAMPLE_DIGEST = "YYJh9nWOYBQUNvVmzy0kXvYTrAqLgmL9veqLHP7x-WU";
+export const HOME_EXAMPLE_DIGEST = "pCAk_zQCEgu7EU4ErgfST3lmM7JwUojNCUBb8PH51nc";
 
 /** The ledger feed's initial (files-only, no-cursor) URL. This MUST stay byte-
  *  identical to Explorer's `feedUrl()` with its default state, because warm

@@ -43,17 +43,22 @@ const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } = a
   resolve(here, "../node_modules/@aws-sdk/client-s3/dist-cjs/index.js")
 );
 
-// Kept in step with src/lib/roll-archive.ts by assertion, so the builder and
+// Kept in step with src/lib/ledger-archive.ts by assertion, so the builder and
 // the reader can never disagree about names or page size.
+// ⚠️ That file was roll-archive.ts until the Roll became the Ledger (1bde6c95).
+// This line kept reading the old name, so from 2026-09-04 every nightly run
+// died here on ENOENT before building anything, and every day since was served
+// by the slow live derivation. Found 2026-09-27.
 const PAGE_ROWS = 100;
 const ARCHIVE_PREFIX = "roll/v1/day";
 {
-  const src = readFileSync(resolve(here, "../src/lib/roll-archive.ts"), "utf8");
+  const src = readFileSync(resolve(here, "../src/lib/ledger-archive.ts"), "utf8");
   const r = /PAGE_ROWS\s*=\s*(\d+)/.exec(src);
   const p = /ARCHIVE_PREFIX\s*=\s*"([^"]+)"/.exec(src);
-  if (!r || Number(r[1]) !== PAGE_ROWS) throw new Error(`page-size drift: roll-archive.ts says ${r?.[1]}`);
-  if (!p || p[1] !== ARCHIVE_PREFIX) throw new Error(`prefix drift: roll-archive.ts says ${p?.[1]}`);
+  if (!r || Number(r[1]) !== PAGE_ROWS) throw new Error(`page-size drift: ledger-archive.ts says ${r?.[1]}`);
+  if (!p || p[1] !== ARCHIVE_PREFIX) throw new Error(`prefix drift: ledger-archive.ts says ${p?.[1]}`);
 }
+const { decode: cborDecode } = await import("cbor-x");
 
 const BUCKET = (process.env.LEDGER_BUCKET || "occ-ledger-prod").trim();
 const s3 = new S3Client({ region: (process.env.LEDGER_REGION || "us-east-2").trim() });
@@ -100,6 +105,26 @@ async function getJson(key) {
   } catch { return null; }
 }
 
+/* A row's time is the proof's recorded instant: its attestation document's own
+   timestamp, the TEE's signed clock. It is what the site shows a BitGraph's time
+   by everywhere (Mike, 2026-09-27: "make it consistent"; src/lib/recorded-time.ts
+   is the site's reader, and this must agree with it to the millisecond). S3
+   LastModified, the storage clock, is only the fallback for a proof whose
+   attestation cannot be read. Decoded, not verified, as the site does. */
+function recordedMs(p) {
+  try {
+    const rep = p?.environment?.attestation?.reportB64;
+    if (typeof rep !== "string" || !rep) return null;
+    let cose = cborDecode(Buffer.from(rep, "base64"));
+    if (cose && !Array.isArray(cose) && Array.isArray(cose.value)) cose = cose.value; // COSE tag 18
+    if (!Array.isArray(cose) || cose.length < 4) return null;
+    const doc = cborDecode(cose[2]);
+    const ts = doc instanceof Map ? doc.get("timestamp") : doc?.timestamp;
+    const n = typeof ts === "bigint" ? Number(ts) : ts;
+    return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
+  } catch { return null; }
+}
+
 function rowFromProof(p, lm) {
   const c = parseInt(String(p?.commit?.counter ?? "0"), 10);
   if (!c) return null;
@@ -113,7 +138,8 @@ function rowFromProof(p, lm) {
     b = m ? parseInt(m[1], 10) : p?.metadata?.interval?.originalBlockNumber;
   }
   const ep = toSafe(p?.commit?.epochId || "");
-  return { c, t, d: toSafe(digestB64), h: toSafe(proofHash).slice(0, 10), ...(b != null ? { b } : {}), ...(lm ? { at: lm } : {}), ...(ep ? { ep } : {}) };
+  const at = recordedMs(p) ?? lm;
+  return { c, t, d: toSafe(digestB64), h: toSafe(proofHash).slice(0, 10), ...(b != null ? { b } : {}), ...(at ? { at } : {}), ...(ep ? { ep } : {}) };
 }
 
 /**

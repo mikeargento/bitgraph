@@ -426,6 +426,7 @@ GET /api/proofs/digest/<digest>?counter=301&epoch=<url-safe>   # select which po
       "epoch": "<url-safe>",
       "lowerTime": "...",
       "upperTime": "...",
+      "recordedMs": 1790484799140,    // when BitGraph recorded this position: its attestation timestamp
       "kind": "fused",
       "artifactDigest": "<url-safe>", // the fused file's own digest
       "placement": "trailer/1",
@@ -769,6 +770,7 @@ GET /api/proofs/anchors?counter=278&epoch=<url-safe>&before=1   # the one anchor
   etherscanUrl: string | null;
   blockTime: string | null;        // ISO 8601, from the block header
   digestB64: string | null;        // the anchor's artifact: SHA-256 of the block hash string
+  recordedMs: number | null;       // when BitGraph recorded the anchor: its attestation timestamp, epoch ms
 }`}
         />
 

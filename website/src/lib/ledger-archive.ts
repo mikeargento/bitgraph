@@ -61,7 +61,9 @@ export type LedgerRow = {
   h: string;
   /** Ethereum block, anchors and intervals only. */
   b?: number;
-  /** Write time, epoch ms. */
+  /** Recorded time, epoch ms: the proof's attestation timestamp, the TEE's
+   *  signed clock (2026-09-27). Pages built before then hold S3 LastModified,
+   *  about a second later, until rebuilt with --force. */
   at?: number;
   /** URL-safe epochId. A day can span epochs (a mid-day restart), and counters
    *  restart with each, so row identity needs it. */

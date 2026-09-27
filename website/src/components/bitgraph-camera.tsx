@@ -41,6 +41,7 @@ import type { CommitStrategy } from "@/lib/commit-strategy";
 import { toUrlSafeB64 } from "@/lib/explorer";
 import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
 import { CheckedList, fmtRowWhen } from "@/components/folder-list";
+import { recordedMsOf } from "@/lib/recorded-time";
 import { useWindowedRows } from "@/components/windowed-rows";
 import { takePendingDrop } from "@/lib/pending-drop";
 import { deCarrierFiles, completeDroppedCarrier } from "@/lib/carrier-site";
@@ -919,10 +920,11 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       const entries = (rec?.proofs || []).filter((x) => x.proof?.version === "bitgraph/1");
       const ordered = [...entries.filter((x) => x.kind !== "fused"), ...entries.filter((x) => x.kind === "fused")];
       if (ordered.length > 0) {
-        // The ledger write moment rides along per row so rows can show a
-        // compact "when", same as the ledger. Legacy/backfilled entries have
-        // none and just leave the slot blank.
-        const times = ordered.map((x) => x.writeTime ?? null);
+        // Each row shows a compact "when", same as the ledger: the proof's own
+        // recorded instant (its attestation timestamp), with the ledger write
+        // moment only for a proof whose attestation cannot be read. Legacy
+        // entries with neither just leave the slot blank.
+        const times = ordered.map((x) => recordedMsOf(x.proof) ?? x.writeTime ?? null);
         const kinds = ordered.map((x): "recorded" | "fused" => (x.kind === "fused" ? "fused" : "recorded"));
         // A position held as one member of a set says so, per row: the
         // ledger's member index names the row (ordinal and count, and whether
@@ -1399,15 +1401,23 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   }
 
   // A just-minted row had no "when" while every row around it did, which read
-  // as missing data. The reason is real: the times these rows show are the
-  // LEDGER's write moment, and a fresh proof came back from the boundary, not
-  // from a ledger read, so there was nothing to show. The commit route writes
-  // the by-digest entry before it answers, so one lookup right after recording
-  // fills the slot with the same fact the neighbouring rows carry. Deliberately
-  // NOT this browser's clock: the product does not assert time from an
+  // as missing data, because these rows showed the LEDGER's write moment and a
+  // fresh proof came back from the boundary, not from a ledger read. A row's
+  // time is now the proof's own recorded instant, its attestation timestamp,
+  // the time its proof page leads with (Mike, 2026-09-27: "make it
+  // consistent"), so a fresh proof carries its time in hand. Deliberately
+  // still NOT this browser's clock: the product does not assert time from an
   // untrusted source, and a row whose time came from the machine that made it
-  // would be a different claim wearing the same clothes.
+  // would be a different claim wearing the same clothes. The ledger lookup
+  // below is only for a proof whose attestation cannot be read.
   async function fillRecordedTimes(proofs: BitGraphProof[]) {
+    setItems((prev) => prev.map((it) => {
+      if (!it.digestB64) return it;
+      const rendered = it.proofs.length ? it.proofs : it.proof ? [it.proof] : [];
+      const times = rendered.map((p) => recordedMsOf(p));
+      return times.some((t) => t !== null) ? { ...it, times } : it;
+    }));
+    if (proofs.every((p) => !p || recordedMsOf(p) !== null)) return;
     try {
       const digests = [...new Set(proofs.filter(Boolean).map((p) => toUrlSafeB64(p.artifact.digestB64)))];
       if (!digests.length) return;
@@ -1432,6 +1442,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         const rendered = it.proofs.length ? it.proofs : it.proof ? [it.proof] : [];
         const own = results[toUrlSafeB64(it.digestB64)]?.proofs ?? [];
         const times = rendered.map((p) => {
+          const recorded = p ? recordedMsOf(p) : null;
+          if (recorded !== null) return recorded;
           const c = p?.commit?.counter;
           const under = p ? results[toUrlSafeB64(p.artifact.digestB64)]?.proofs ?? [] : [];
           const hit = [...own, ...under].find((e) => String(e.proof?.commit?.counter) === String(c));
@@ -1548,7 +1560,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         ...i,
         proof: recs[0].proof,
         proofs: recs.map((x) => x.proof),
-        times: recs.map((x) => x.writeTime ?? null),
+        times: recs.map((x) => recordedMsOf(x.proof) ?? x.writeTime ?? null),
         valid: true,
         status: "proved" as const,
       };

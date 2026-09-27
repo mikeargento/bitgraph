@@ -5,6 +5,7 @@ import { bindSet, isSetProof, memberOf } from "@/lib/fuse-set";
 import { getProofsByDigest, getAnchorsAfterCounter, getAnchorBeforeCounter, LedgerUnavailableError, DISCOVERY_RETIRED, ledgerWritesOn } from "@/lib/s3";
 import { fromUrlSafeB64, toUrlSafeB64 } from "@/lib/explorer";
 import { buildAnchorView, computeWindow } from "@/lib/causal-window";
+import { recordedMsOf } from "@/lib/recorded-time";
 
 export const dynamic = "force-dynamic";
 
@@ -123,6 +124,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ dige
         epoch: c?.epochId ? toUrlSafeB64(c.epochId) : null,
         lowerTime: w.anchorBefore?.blockTime ?? null,
         upperTime: w.anchorAfter?.blockTime ?? null,
+        // When BitGraph recorded this position, by the TEE's signed clock: the
+        // same time the proof page leads with, so a Positions row and the page
+        // it opens never disagree (Mike, 2026-09-27: "make it consistent").
+        recordedMs: recordedMsOf(e.proof),
         kind: e.kind,
         // For a fused descendant: the fused artifact's own digest (url-safe) and placement.
         artifactDigest: artifact ? toUrlSafeB64(artifact) : null,

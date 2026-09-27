@@ -51,6 +51,8 @@ export interface AnchorView {
   blockHash?: string | null;
   etherscanUrl?: string | null;
   blockTime?: string | null;
+  /** When BitGraph recorded the anchor: its attestation timestamp (ms). */
+  recordedMs?: number | null;
 }
 
 export interface PositionView {
@@ -58,6 +60,8 @@ export interface PositionView {
   epoch: string | null;
   lowerTime: string | null;
   upperTime: string | null;
+  /** When BitGraph recorded this position: its attestation timestamp (ms). */
+  recordedMs?: number | null;
   kind?: "recorded" | "fused";
   placement?: string | null;
   member?: SetMemberView;
@@ -67,7 +71,9 @@ export interface PositionView {
  * GET /api/proofs/digest/{digest} response.
  * causalWindow naming note: anchorBefore is the EARLIER Ethereum block (the
  * proof was BitGraphed after it, the lower time bound); anchorAfter is the
- * LATER block (the upper bound). Present time as "between lower and upper".
+ * next anchor in the order, a ceiling in POSITION, never a clock reading
+ * (CANON 3.6): its block's mine time is not an upper bound. The time a
+ * BitGraph is shown at is its own attestation timestamp.
  */
 export interface ProofDetailResponse {
   proofs: Array<{ proof: BitGraphProof }>;

@@ -7,6 +7,7 @@
 
 import { useMemo, useState } from "react";
 import { isUnchecked, type ExportCheckResult } from "@/lib/folder-check";
+import { recordedMsOf } from "@/lib/recorded-time";
 import { MonthCalendar, MonthShelf, type CalendarDay } from "@/components/month-calendar";
 import { useWindowedRows } from "@/components/windowed-rows";
 
@@ -63,7 +64,11 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
     const out: Array<{ key: string; label: string; short: string; rows: ExportCheckResult[] }> = [];
     let openKey: string | null = null;
     for (const r of ordered) {
-      const when = !r.block ? new Date() : r.ts ? new Date(r.ts * 1000) : null;
+      // The row's recorded day (its attestation timestamp, the time the row
+      // shows), falling back to the floor block's day, then to today for a row
+      // with neither.
+      const rec = recordedMsOf(r.proof);
+      const when = rec !== null ? new Date(rec) : !r.block ? new Date() : r.ts ? new Date(r.ts * 1000) : null;
       if (when !== null) {
         const key = `${when.getUTCFullYear()}-${when.getUTCMonth()}-${when.getUTCDate()}`;
         if (key !== openKey) {
@@ -231,7 +236,10 @@ export function CheckedList({ checked, onOpen, heading = "BitGraphs in this fold
               // Every row opens its proof now: the page is a viewer, so a row
               // the ledger never heard of still has somewhere to go.
               const clickable = !!r.digestUrlSafe;
-              const when = fmtRowWhen(r.ts ? r.ts * 1000 : r.writeTime);
+              // The proof's own recorded instant, as its proof page shows it
+              // (Mike, 2026-09-27: "make it consistent"); the floor block's
+              // mine time and the ledger write moment only when that is unreadable.
+              const when = fmtRowWhen(recordedMsOf(r.proof) ?? (r.ts ? r.ts * 1000 : r.writeTime));
               const verdict = r.ok === true ? "" : r.ok === false ? (r.failure ?? "") : "checking\u2026";
               const right = (r.counter != null ? `#${Number(r.counter).toLocaleString()}` : "\u2014")
                 + (when ? ` \u00b7 ${when}` : "");
