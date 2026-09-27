@@ -90,6 +90,18 @@ export function proofFeedKey(digestParam: string, counter?: string | null, epoch
   return `/api/proofs/digest/${digestParam}${s ? `?${s}` : ""}`;
 }
 
+/** The home page's "See a real BitGraph" target. Its own constant rather than
+ *  EXAMPLE_PROOF, which is the ChatGPT image used elsewhere: the home example is
+ *  a text file that explains itself. The digest lives here because it was
+ *  previously written out in both the home link and the proof page's
+ *  EXAMPLE_FILES, and the two are only useful when they agree.
+ *
+ *  The warm key must be the no-query form, because the home link carries no
+ *  ?counter/?epoch, so the proof page computes proofFeedKey(digest, null, null).
+ *  Warming any other shape stores a response nobody reads, which is exactly the
+ *  failure LEDGER_FEED_KEY below was written to stop happening twice. */
+export const HOME_EXAMPLE_DIGEST = "YYJh9nWOYBQUNvVmzy0kXvYTrAqLgmL9veqLHP7x-WU";
+
 /** The ledger feed's initial (files-only, no-cursor) URL. This MUST stay byte-
  *  identical to Explorer's `feedUrl()` with its default state, because warm
  *  slots are keyed by URL string: the ledger went files-default without this

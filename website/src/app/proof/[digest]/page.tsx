@@ -13,7 +13,7 @@ import { anchorStatusDoc, isSettled, ANCHOR_STATUS_FILE, type BoundReport } from
 import { verifyNitroAttestation, attestationTimestampMs, type NitroVerifyResult } from "@/lib/nitro-verify";
 import { timeTz, stampTz, longDateTz, dateTz, sameDayTz, useTimeZoneMode, TimeChip } from "@/lib/format-time";
 import type { C2PAReadResult } from "@/lib/c2pa-reader";
-import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST } from "@/lib/warm";
+import { takeWarm, proofFeedKey, EXAMPLE_PROOF, PRESTON_PROOF_DIGEST, HOME_EXAMPLE_DIGEST } from "@/lib/warm";
 import { useDashedEdges } from "@/lib/use-dashed-edges";
 import { takeFreshProof } from "@/lib/fresh-proof";
 import { loadLedger, heldFor } from "@/lib/local-ledger";
@@ -113,7 +113,7 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
   // The home page's "See a real BitGraph": a text file that explains itself, carrying the
   // commitment of the position it was committed at on line 4, and the almanac line
   // (2026-09-22). Served so the preview shows without the reader having to find the file.
-  "YYJh9nWOYBQUNvVmzy0kXvYTrAqLgmL9veqLHP7x-WU":
+  [HOME_EXAMPLE_DIGEST]:
     { path: "/example/bitgraph-demonstration-2.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
   // The previous home example (2026-09-20), without the almanac line; kept so old links still show it.
   "YVf5bpwcpBg4SsTh6XXBqBoYpYS68s1Tjog1u_cvRQ4":

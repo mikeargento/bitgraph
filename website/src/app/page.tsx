@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HOME_EXAMPLE_DIGEST } from "@/lib/warm";
+import { WarmExample } from "@/components/warm-example";
 
 /**
  * Home, written as the scene (Mike, 2026-09-20: "sell me this pen"). The order is
@@ -69,9 +71,13 @@ export default function HomePage() {
         {/* The evidence is the primary action, not the make: the nav already carries a blue
             "Make a BitGraph" permanently, so spending the page's one primary slot on it would
             ask twice. After "BitGraph does that" the next thought is show me, not explain it. */}
-        <Link className="bg-action-link is-make" href="/proof/YYJh9nWOYBQUNvVmzy0kXvYTrAqLgmL9veqLHP7x-WU">See a real BitGraph</Link>
+        <Link className="bg-action-link is-make" data-warm-example href={`/proof/${HOME_EXAMPLE_DIGEST}`}>See a real BitGraph</Link>
         <Link className="bg-action-link" href="/docs/overview">How it works</Link>
       </div>
+
+      {/* Renders nothing. Starts the example proof's fetch while the reader is still
+          here, so the click lands on a finished page instead of a skeleton. */}
+      <WarmExample />
 
     </div>
   );
