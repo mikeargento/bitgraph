@@ -155,9 +155,9 @@ function analyzeGaps(
     proofHashes: [],
     message:
       `${count} counter position${count === 1n ? "" : "s"} within the observed range [${min}, ${max}] ` +
-      `of this partition ${count === 1n ? "is" : "are"} neither a commit position nor a referenced slot position ` +
+      `of this partition ${count === 1n ? "is" : "are"} neither a commit position nor a referenced reserved position ` +
       `in the supplied bundle. Such ${count === 1n ? "a position" : "positions"} may mean a proof is absent ` +
-      `from the bundle, or a slot that was allocated but never committed (a routine, benign occurrence); ` +
+      `from the bundle, or a position that was reserved but never committed (a routine, benign occurrence); ` +
       `this offline audit cannot distinguish the two. It does not, by itself, establish that the authority ` +
       `failed to create or withheld any proof.`,
     details: detail as unknown as Record<string, unknown>,
@@ -200,8 +200,8 @@ async function analyzeCollisions(
         kind === "counter"
           ? `${parties.length} distinct valid proofs claim commit counter ${position} in one partition. ` +
             `The audit does not choose between them; all parties are preserved for adjudication.`
-          : `${parties.length} distinct valid proofs reference slot counter ${position} in one partition. ` +
-            `A slot position is consumed exactly once; all parties are preserved for adjudication.`,
+          : `${parties.length} distinct valid proofs reference reserved position ${position} in one partition. ` +
+            `A reserved position is consumed exactly once; all parties are preserved for adjudication.`,
       details: {
         position,
         validParties: parties.map((m) => m.proofHash),
@@ -220,8 +220,8 @@ async function analyzeCollisions(
             `signer, epoch, and chain partition. A commit counter position can be consumed only once, so at ` +
             `most one of these can belong to the authoritative sequence. The audit tool does not choose ` +
             `between them; every party and its predecessor relationship is preserved for adjudication.`
-          : `Two or more independently valid proof objects reference slot counter ${position} in the same ` +
-            `signer, epoch, and chain partition. A slot position is allocated once and consumed by one ` +
+          : `Two or more independently valid proof objects reference reserved position ${position} in the same ` +
+            `signer, epoch, and chain partition. A reserved position is allocated once and consumed by one ` +
             `commit, so at most one of these can belong to the authoritative sequence. The audit tool does ` +
             `not choose between them.`,
     });
@@ -296,9 +296,9 @@ async function analyzeCrossKindPositionReuse(
       partition: partition.key,
       proofHashes: [...involvedMap.keys()],
       message:
-        `Counter position ${position} is committed by one proof and reserved as a slot by a ` +
+        `Counter position ${position} is committed by one proof and reserved by a ` +
         `different proof in the same partition. A single causal position is consumed once, as a ` +
-        `slot or as a commit, never both across distinct proofs. The audit does not choose between ` +
+        `reservation or as a commit, never both across distinct proofs. The audit does not choose between ` +
         `them; all parties are preserved for adjudication.`,
       details: {
         position,
@@ -317,7 +317,7 @@ async function analyzeCrossKindPositionReuse(
       explanation:
         `Two or more independently valid proof objects allocate counter position ${position} in the ` +
         `same signer, epoch, and chain partition through different roles: at least one commits at it ` +
-        `and at least one reserves it as a slot. Each position in a chain is consumed exactly once, so ` +
+        `and at least one reserves it. Each position in a chain is consumed exactly once, so ` +
         `at most one of these allocations can belong to the authoritative sequence. This pattern only ` +
         `arises through enclave malfunction, replay, or compromise. The audit tool does not choose ` +
         `between them; every party is preserved for adjudication.`,
@@ -558,7 +558,7 @@ function analyzeSlotOrder(
       partition: partition.key,
       proofHashes: [m.proofHash],
       message:
-        "commit.slotCounter is not strictly less than commit.counter. The slot must be allocated " +
+        "commit.slotCounter is not strictly less than commit.counter. The position must be reserved " +
         "before the commit that consumes it, so this proof's declared positions contradict the " +
         "nonce-first construction order.",
       details: {

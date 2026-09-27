@@ -618,7 +618,7 @@ function checkPolicy(proof: BitGraphProof, policy: VerificationPolicy): string |
   // Slot allocation required (BitGraph causal ordering)
   if (policy.requireSlot === true) {
     if (proof.slotAllocation === undefined) {
-      return "policy requires slotAllocation (BitGraph causal slot) but proof has none";
+      return "policy requires slotAllocation (the reserved position's record) but proof has none";
     }
     // Slot verification itself is handled in step 4c (before policy checks),
     // so by this point the slot has already been validated if present.
@@ -971,7 +971,7 @@ async function verifySlotAllocation(proof: BitGraphProof): Promise<string | null
     return "commit.slotHashB64 is not valid base64";
   }
   if (!constantTimeEqual(computedSlotHash, proofSlotHash)) {
-    return "commit.slotHashB64 does not match SHA-256 of canonical slot body — slot binding broken";
+    return "commit.slotHashB64 does not match SHA-256 of the canonical position record: position binding broken";
   }
 
   // 5. Verify nonce binding: slot nonce === commit nonce
@@ -987,7 +987,7 @@ async function verifySlotAllocation(proof: BitGraphProof): Promise<string | null
     return "commit.slotCounter does not match slotAllocation.counter";
   }
   if (proof.commit.counter === undefined) {
-    return "commit.counter must be present for slot ordering verification";
+    return "commit.counter must be present for position ordering verification";
   }
   try {
     const slotCounter = BigInt(slot.counter);
@@ -996,7 +996,7 @@ async function verifySlotAllocation(proof: BitGraphProof): Promise<string | null
       return `slotAllocation.counter (${slot.counter}) must be less than commit.counter (${proof.commit.counter})`;
     }
   } catch {
-    return "could not parse slot or commit counter as integer";
+    return "could not parse the reserved or commit counter as an integer";
   }
 
   // 7. Verify same enclave: same public key

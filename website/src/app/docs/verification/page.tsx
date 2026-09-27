@@ -131,7 +131,7 @@ export default function VerificationPage() {
         <li>&ldquo;These exact bytes existed no later than commit position M.&rdquo;</li>
         <li>&ldquo;The supplied original rebuilds the committed fused artifact byte for byte, so these exact original bytes existed no later than commit position M.&rdquo;</li>
         <li>&ldquo;The fused bytes carry an origin digest that matches the signed marker; the original itself was not supplied and was not checked.&rdquo;</li>
-        <li>&ldquo;The exact fused bytes could not feasibly have been finalized before their signed slot allocation at position N, and were committed no later than position M.&rdquo;</li>
+        <li>&ldquo;The exact fused bytes could not feasibly have been finalized before position N was reserved and signed for them, and were committed no later than position M.&rdquo;</li>
       </ul>
       <p>
         Ordering follows from the counters. When two proofs are comparable (same key, epoch and chain), <code>commitCounter(A) &lt; slotCounter(B)</code> means B was assembled after A was committed. A fused failure is never reported as a valid recording, and <code>bitgraph/1</code> verification (<code>verify</code>, <code>verifyProofIntegrity</code>) is unchanged.

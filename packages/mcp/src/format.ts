@@ -177,11 +177,11 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
   );
   if (set !== null && fused.length > 0) {
     lines.push(
-      "\nOne BitGraph holds every file made here: one slot, one position, and the committed artifact lists each file's new fused bytes by digest. Those bytes were hashed on this machine and never written or uploaded; the file itself is unchanged, and the original plus the set proof rebuilds them. Keep the set proof beside the originals; BitGraph does not index it."
+      "\nOne BitGraph holds every file made here: one position, and the committed artifact lists each file's new fused bytes by digest. Those bytes were hashed on this machine and never written or uploaded; the file itself is unchanged, and the original plus the set proof rebuilds them. Keep the set proof beside the originals; BitGraph does not index it."
     );
   } else if (fused.length > 0) {
     lines.push(
-      "\nThe new fused file was built in memory from the file, hashed and committed under its own slot; the file itself is unchanged and was not uploaded. The original plus the proof rebuilds the new file; its Frame is in the structured result."
+      "\nThe new fused file was built in memory from the file, hashed and committed under its own position; the file itself is unchanged and was not uploaded. The original plus the proof rebuilds the new file; its Frame is in the structured result."
     );
   }
   if (onRecord.length > 0) {

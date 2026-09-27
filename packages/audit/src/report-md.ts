@@ -176,10 +176,10 @@ function executiveSummary(
   lines.push(
     "Proofs are grouped by the authority key, epoch, and chain they were " +
       "committed under; each group is called a partition. Every proof " +
-      "occupies two counter positions: one reserved in advance (the slot) " +
-      "and one at the moment of commit. Slot positions never produce " +
+      "occupies two counter positions: one reserved in advance " +
+      "and one at the moment of commit. Reserved positions never produce " +
       "stored proof files of their own, so a healthy chain shows only " +
-      "committed proofs, each referencing its own slot position from " +
+      "committed proofs, each referencing its own reserved position from " +
       "inside its signed content."
   );
   lines.push("");
@@ -412,10 +412,10 @@ function partitionSummarySentences(report: AuditJsonReport, partition: ReportPar
       const count = detail.count;
       const singular = count === "1";
       out.push(
-        `${withCommas(count)} counter ${singular ? "position is neither a commit position nor a referenced slot position" : "positions are neither commit positions nor referenced slot positions"} ` +
+        `${withCommas(count)} counter ${singular ? "position is neither a commit position nor a referenced reserved position" : "positions are neither commit positions nor referenced reserved positions"} ` +
           "in the supplied bundle. An unexplained interior position may " +
-          "mean a proof is absent from the bundle, or a slot that was " +
-          "allocated but never committed (a routine, benign occurrence); " +
+          "mean a proof is absent from the bundle, or a position that was " +
+          "reserved but never committed (a routine, benign occurrence); " +
           "this offline audit cannot tell the two apart. It does not, by " +
           "itself, prove that the BitGraph authority failed to create or " +
           "withheld any proof."
@@ -449,7 +449,7 @@ function divergenceSummarySentence(divergence: DivergenceRecord): string {
       );
     case "slot-collision":
       return (
-        `${head} ${n === 2 ? "both reference" : "all reference"} slot counter ` +
+        `${head} ${n === 2 ? "both reference" : "all reference"} reserved position ` +
         `${withCommas(divergence.contested["slotCounter"] ?? "?")} in the same epoch.` +
         tail
       );
@@ -457,7 +457,7 @@ function divergenceSummarySentence(divergence: DivergenceRecord): string {
       return (
         `${head} allocate one causal position ` +
         `${withCommas(divergence.contested["position"] ?? "?")} in the same epoch, at least one ` +
-        "committing it and at least one reserving it as a slot." +
+        "committing it and at least one reserving it." +
         tail
       );
     case "predecessor-reuse":
@@ -558,7 +558,7 @@ function perPartitionChains(
           proof?.verificationStatus ?? "unverified",
         ]);
       }
-      lines.push(...table(["Counter", "Slot", "Proof hash", "Predecessor", "Status"], rows));
+      lines.push(...table(["Counter", "Reserved", "Proof hash", "Predecessor", "Status"], rows));
       if (component.memberProofHashes.length > MAX_TABLE_ROWS) {
         lines.push("");
         lines.push(
@@ -675,7 +675,7 @@ function divergenceDetails(lines: string[], report: AuditJsonReport): void {
 
 function partyTable(parties: DivergenceRecord["parties"]): string[] {
   return table(
-    ["Proof hash", "Counter", "Slot", "Predecessor", "Status", "Sources"],
+    ["Proof hash", "Counter", "Reserved", "Predecessor", "Status", "Sources"],
     parties.map((party) => [
       inlineCode(party.proofHash),
       party.counter ?? "",
@@ -963,13 +963,13 @@ function codeMeaning(code: AnomalyCode): string {
     case "manifest-contents-hash-mismatch":
       return "The manifest's declared contents hash does not match the computed one. The manifest is advisory; the computed value governs.";
     case "unexplained-counter-positions":
-      return "Counter positions inside the observed range are neither commit positions nor referenced slot positions. Such a position may be a proof absent from the bundle, or a slot that was allocated but never committed (routine and benign); this offline audit cannot distinguish them, and it does not, by itself, prove the authority failed to create or withheld any proof.";
+      return "Counter positions inside the observed range are neither commit positions nor referenced reserved positions. Such a position may be a proof absent from the bundle, or a position that was reserved but never committed (routine and benign); this offline audit cannot distinguish them, and it does not, by itself, prove the authority failed to create or withheld any proof.";
     case "counter-collision":
       return "Two or more valid proofs claim the same commit counter. All are preserved; the audit tool does not choose between them.";
     case "slot-collision":
-      return "Two or more valid proofs reference the same slot counter. All are preserved; the audit tool does not choose between them.";
+      return "Two or more valid proofs reference the same reserved position. All are preserved; the audit tool does not choose between them.";
     case "cross-kind-position-reuse":
-      return "A commit counter in one proof equals a different valid proof's slot position in the same partition: one causal position allocated twice across kinds, which only enclave malfunction, replay, or compromise produces. All parties are preserved; the audit tool does not choose between them.";
+      return "A commit counter in one proof equals a different valid proof's reserved position in the same partition: one causal position allocated twice across kinds, which only enclave malfunction, replay, or compromise produces. All parties are preserved; the audit tool does not choose between them.";
     case "predecessor-reuse":
       return "Two or more valid proofs name the same predecessor: the chain forks at that point. All branches are preserved; the audit tool does not choose between them.";
     case "chain-break-missing":
@@ -981,7 +981,7 @@ function codeMeaning(code: AnomalyCode): string {
     case "multiple-genesis":
       return "More than one proof in the same partition starts a chain without naming a predecessor. A single such proof is the normal start of an epoch; several need adjudication.";
     case "slot-order-violation":
-      return "A proof's slot position is not strictly before its commit position, violating the slot-then-commit ordering.";
+      return "A proof's reserved position is not strictly before its commit position, violating the reserve-then-commit ordering.";
     case "epochlink-terminal-missing":
       return "An epoch's first proof links to a prior epoch that is observed, but the specific proof it names is absent from the bundle.";
     case "epochlink-dangling":

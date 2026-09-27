@@ -154,7 +154,7 @@ async function main(): Promise<void> {
       const { seal: _seal, ...wire } = slot;
       out(wire, () =>
         [
-          `position held · slot ${slot.slotCounter}${slot.floor ? ` · no earlier than block ${slot.floor.block}` : ""}`,
+          `position #${slot.slotCounter} held${slot.floor ? ` · no earlier than block ${slot.floor.block}` : ""}`,
           `commitment (put this INSIDE the task): ${slot.commitment}`,
           `seal within ${SLOT_TTL_SECONDS}s:`,
           `  bitgraph seal --token ${slot.token} <task-file>`,

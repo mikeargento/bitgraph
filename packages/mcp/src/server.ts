@@ -45,7 +45,7 @@ import { TASK_INSTRUCTIONS } from "./instructions.js";
 
 export type { FuseFileFn, FuseSetFn, FusedSummary, SetSummary } from "@mikeargento/bitgraph-sdk";
 
-export const SERVER_VERSION = "0.7.0";
+export const SERVER_VERSION = "0.7.1";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */
@@ -218,7 +218,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     },
     {
       instructions:
-        "BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: a single file is fused on its own; two or more become one set under one slot, one position, every file's new fused bytes listed by digest in the committed artifact. " +
+        "BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: a single file is fused on its own; two or more become one set under one position, every file's new fused bytes listed by digest in the committed artifact. " +
         "Files are read on this machine and never uploaded or modified; the new bytes are virtual and never written. Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. bitgraph_check and bitgraph_get_proof are read-only. " +
         "A BitGraphed file (one that carries its own proof, bitgraph-carrier/1) is recognized by its structure: bitgraph_check judges it offline from the proof inside and states the window, and bitgraph_record never re-mints it, because the envelope is not the recorded thing, the bytes inside are. " +
         "To do work INSIDE a BitGraph, call bitgraph_open BEFORE starting: it returns a position and its commitment; put the commitment string into the task, seal the task with bitgraph_commit within 120 seconds, then record the outputs with bitgraph_record. The task then could not have existed before the position's floor block, and the outputs sit after it.",
@@ -230,9 +230,9 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     {
       title: "Make a BitGraph",
       description:
-        "Make a BitGraph of files or folders. Everything in one call becomes ONE BitGraph, the way a drop on the site works: a single file is fused on its own slot; two or more files become a set under a single slot on BitGraph (bitgraph.ing), one position for all of them. " +
-        "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused slot is allocated before any new file exists; every file's new fused bytes (the original plus a registered placement carrying the slot's commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; and for a set the canonical list of those digests (above 2,000 files, a Merkle root over it) is committed under the same slot. " +
-        "Files are never modified and never uploaded: only digests, the committed artifact and slot records leave the machine. " +
+        "Make a BitGraph of files or folders. Everything in one call becomes ONE BitGraph, the way a drop on the site works: a single file is fused on its own position; two or more files become a set under a single position on BitGraph (bitgraph.ing). " +
+        "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused position is allocated before any new file exists; every file's new fused bytes (the original plus a registered placement carrying the position commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; and for a set the canonical list of those digests (above 2,000 files, a Merkle root over it) is committed under the same position. " +
+        "Files are never modified and never uploaded: only digests, the committed artifact and position records leave the machine. " +
         "Give file paths, directory paths, or both (absolute paths preferred): a directory is every regular file under it, recursively, with hidden entries and symbolic links left out. " +
         "Files already on record are NOT made again by default; they come back as 'on record' with their earliest position. A file can also hold a BitGraph its holder keeps, which no lookup sees. Pass again=true to make a new BitGraph regardless. " +
         "A BitGraphed file (bitgraph-carrier/1, a file that carries its own proof) is never minted, with or without again: its carried proof is judged offline and reported, because the envelope is not the recorded thing, the bytes inside are. " +
@@ -526,7 +526,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     {
       title: "Open a position before the work",
       description:
-        "Ask for a BitGraph position BEFORE starting a task, so the task can be done inside the BitGraph. Returns a fuse_token, the position, its floor block, and the slot's commitment as a string. " +
+        "Ask for a BitGraph position BEFORE starting a task, so the task can be done inside the BitGraph. Returns a fuse_token, the position, its floor block, and its position commitment as a string. " +
         "Put the commitment string into the task before running it (the prompt or request you send, a seed, a line in the document, text that must appear in the output), then call bitgraph_commit with the fuse_token and the task file's path within " + SLOT_TTL_SECONDS + " seconds. " +
         "What that gives a stranger: the task could not have existed before the floor block (the commitment did not exist before the position did), and the outputs, recorded afterwards with bitgraph_record, sit at later positions. " +
         "Nothing about the task is sent here; only its digest is, at commit. Positions are permanent: open one only when a task is about to run.",
@@ -559,7 +559,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
       title: "Seal the task under its position",
       description:
         "Step two of doing work inside a BitGraph: seal the task bytes that carry the commitment under the position bitgraph_open returned. Give the fuse_token and the path of the task file (the exact request, prompt or document that contains the commitment string), or its SHA-256 (base64) when the bytes are elsewhere. " +
-        "With a path, the file is read on this machine, the commitment string is looked for inside it BEFORE anything is sent (a task that does not carry it is refused and the slot stays held), and only the digest travels. " +
+        "With a path, the file is read on this machine, the commitment string is looked for inside it BEFORE anything is sent (a task that does not carry it is refused and the position stays held), and only the digest travels. " +
         "Returns the proof: keep it beside the task bytes. Then record the outputs with bitgraph_record. Must be called within " + SLOT_TTL_SECONDS + " seconds of bitgraph_open.",
       inputSchema: {
         fuse_token: z.string().min(1).max(8000).describe("The fuse_token bitgraph_open returned."),
@@ -597,7 +597,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const structured = { outcome: "sealed", slot_counter: state.slot.counter, counter, epoch: epoch ? toUrlSafeB64(epoch) : null, floor_block: floor, artifact_digest: toUrlSafeB64(sealed.artifactDigestB64), commitment_offsets: sealed.offsets, proof_path: proofPath, instructions: proofNote.trim(), proof: sealed.proof };
         if (response_format === "json") return ok(JSON.stringify(structured, null, 2), structured);
         return ok(
-          `Sealed the task at position ${counter ?? "?"} (slot ${state.slot.counter}).${floor !== null ? ` Not before block ${floor}.` : ""} ` +
+          `Sealed the task at position ${counter ?? "?"} (reserved at ${state.slot.counter}).${floor !== null ? ` Not before block ${floor}.` : ""} ` +
             (sealed.offsets !== null ? `The commitment string was found in the sealed bytes at offset ${sealed.offsets[0]}. ` : "The bytes were not read here; a verifier looks for the commitment string in them. ") +
             proofNote +
             "Record the outputs with bitgraph_record when they exist." +

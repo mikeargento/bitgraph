@@ -124,7 +124,7 @@ export async function sealTask(config: ApiConfig, state: TaskState, task: { path
   }
   const offsets = bytes === null ? null : findCommitment(bytes, commitment, ENCODING_BASE64URL);
   if (offsets !== null && offsets.length === 0) {
-    throw new ApiError(400, `the task bytes do not contain the commitment string ${toUrlSafeB64(bytesToBase64(commitment))}; put it in before sealing. Nothing was committed and the slot is still held.`);
+    throw new ApiError(400, `the task bytes do not contain the commitment string ${toUrlSafeB64(bytesToBase64(commitment))}; put it in before sealing. Nothing was committed and the position is still held.`);
   }
   const attribution = inlineAttribution();
   const r = await post(config, "/api/fuse/commit", { digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }], slotId: slot.nonceB64, slot, chainId: CHAIN, attribution }, 40_000);

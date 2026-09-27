@@ -289,7 +289,7 @@ function admit(bound: BoundSet, fusedBytes: Uint8Array, row: SetMember): Admitte
     return {
       category: "INVALID_SLOT_COMMITMENT",
       placement: placement.id,
-      reason: "listed in the committed set manifest, but the bytes carry a commitment to a different slot; membership without the floor is not a member verdict",
+      reason: "listed in the committed set manifest, but the bytes carry a commitment to a different position; membership without the floor is not a member verdict",
     };
   }
   const embedded = located.originDigest ?? (located.originalBytes !== undefined ? sha256(located.originalBytes) : undefined);
@@ -306,19 +306,19 @@ function admit(bound: BoundSet, fusedBytes: Uint8Array, row: SetMember): Admitte
 
 /** The stray's two-part reason: made after the slot, yet not in the committed set. */
 function strayReason(span: FuseSpan | null, memberCount: number): string {
-  const slot = span !== null ? `the slot allocated at position ${span.slotCounter}` : "its slot";
+  const slot = span !== null ? `position ${span.slotCounter}` : "its reserved position";
   const commit = span !== null ? `committed at position ${span.commitCounter}` : "at its commit";
-  return `these bytes carry the commitment of ${slot}, so they were made after that slot existed, but their digest is not among the ${memberCount} members listed in the set manifest ${commit}; the set proof does not cover them`;
+  return `these bytes carry the position commitment of ${slot}, so they were made after that position existed, but their digest is not among the ${memberCount} members listed in the set manifest ${commit}; the set proof does not cover them`;
 }
 
 /** set/2: the two-part reason when the floor holds but no evidence, or evidence for another member, is in hand. */
 function unprovenReason(span: FuseSpan | null, memberCount: number, otherMember: boolean): string {
-  const slot = span !== null ? `the slot allocated at position ${span.slotCounter}` : "its slot";
+  const slot = span !== null ? `position ${span.slotCounter}` : "its reserved position";
   const commit = span !== null ? `committed at position ${span.commitCounter}` : "at its commit";
   const shown = otherMember
     ? "the member evidence in hand describes a different member, so"
     : "no member evidence (row, index, path) is in hand, so";
-  return `these bytes carry the commitment of ${slot}, so they were made after that slot existed, but ${shown} their place among the ${memberCount} members of the set ${commit} is not shown; a set/2 proof covers a member only with its path`;
+  return `these bytes carry the position commitment of ${slot}, so they were made after that position existed, but ${shown} their place among the ${memberCount} members of the set ${commit} is not shown; a set/2 proof covers a member only with its path`;
 }
 
 export async function verifyFuseMember(opts: FuseMemberOptions): Promise<FuseMemberResult> {
@@ -536,7 +536,7 @@ export async function verifyFuseMember(opts: FuseMemberOptions): Promise<FuseMem
     return base(
       "RECONSTRUCTION_MISMATCH",
       { ...withSet, placement: candidates[0] ?? null, originDigestB64: fileDigestB64 },
-      `rebuilding ${candidates.join(" or ")} from this file and the proof's slot record does not reproduce the listed member digest`,
+      `rebuilding ${candidates.join(" or ")} from this file and the proof's position record does not reproduce the listed member digest`,
     );
   }
 
@@ -554,7 +554,7 @@ export async function verifyFuseMember(opts: FuseMemberOptions): Promise<FuseMem
       const other = bound.rows.length > 0;
       return base(other ? "INVALID_SET_PATH" : "SET_MEMBERSHIP_UNPROVEN", { ...withSet, placement: p.id, statements: [] }, unprovenReason(span, bound.count, other));
     }
-    return base("NO_MATCH", withSet, "these bytes carry a commitment to a different slot; the proof proves nothing about them");
+    return base("NO_MATCH", withSet, "these bytes carry a commitment to a different position; the proof proves nothing about them");
   }
-  return base("NO_MATCH", withSet, "this file is neither a listed member nor a listed original and carries no commitment to this slot; the proof proves nothing about it");
+  return base("NO_MATCH", withSet, "this file is neither a listed member nor a listed original and carries no commitment to this position; the proof proves nothing about it");
 }

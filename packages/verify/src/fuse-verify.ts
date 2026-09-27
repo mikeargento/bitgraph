@@ -126,7 +126,7 @@ export function spanOf(proof: BitGraphProof): FuseSpan | null {
 
 /** The floor sentence every fused verdict ends with: bounded below by the slot, above by the commit. */
 export function floorStatement(span: FuseSpan): string {
-  return `The exact fused bytes could not feasibly have been finalized before their signed slot allocation at position ${span.slotCounter}, and were committed no later than position ${span.commitCounter}.`;
+  return `The exact fused bytes could not feasibly have been finalized before position ${span.slotCounter} was reserved and signed for them, and were committed no later than position ${span.commitCounter}.`;
 }
 
 function statements(category: FuseCategory, span: FuseSpan | null, originMatched: boolean): string[] {
@@ -163,8 +163,8 @@ function statements(category: FuseCategory, span: FuseSpan | null, originMatched
 function inlineStatements(span: FuseSpan | null, offset: number): string[] {
   if (span === null) return [];
   return [
-    `The enclave signed the slot at position ${span.slotCounter} before this artifact's digest reached it.`,
-    `These exact bytes contain that slot's commitment, first at byte ${offset}, so they were assembled after the slot existed and were committed at position ${span.commitCounter}.`,
+    `The enclave reserved and signed position ${span.slotCounter} before this artifact's digest reached it.`,
+    `These exact bytes contain that position's commitment, first at byte ${offset}, so they were assembled after position ${span.slotCounter} existed and were committed at position ${span.commitCounter}.`,
   ];
 }
 
@@ -341,7 +341,7 @@ export async function verifyFuse(opts: FuseVerifyOptions): Promise<FuseVerifyRes
       "RECONSTRUCTION_MISMATCH",
       { ...common, slotCommitmentB64, placement: declared?.id ?? null },
       declared !== undefined
-        ? `rebuilding ${declared.id} from this file and the proof's slot record does not reproduce the committed artifact digest`
+        ? `rebuilding ${declared.id} from this file and the proof's position record does not reproduce the committed artifact digest`
         : "no registered byte-exact placement rebuilds the committed artifact digest from this file",
     );
   }
