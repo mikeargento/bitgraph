@@ -157,6 +157,9 @@ export default function ProofPage() {
   // reconstruction) or the new file itself. Names the export action; an
   // ordinary recording has one file and needs no role.
   const [cachedRole, setCachedRole] = useState<"original" | "new" | null>(null);
+  // The file cachedRole was worked out for. Until it is the file in hand the
+  // role is still being told, and the last file's role must not show for it.
+  const [roleOf, setRoleOf] = useState<object | null>(null);
   // A set proof (placement set/1) commits a manifest of N members under one
   // slot. Bound once the proof is in hand; null for everything else, and for
   // a set whose manifest is missing or does not hash to the signed digest.
@@ -178,7 +181,8 @@ export default function ProofPage() {
   const [resolvedMember, setResolvedMember] = useState<SetMemberRow | null>(null);
   useEffect(() => {
     const marker = (proof?.attribution as { name?: string; message?: string } | undefined);
-    if (!cachedFile || !proof || marker?.name !== "bitgraph-fuse/1") { setCachedRole(null); setHeldMember(null); return; }
+    const settle = (role: "original" | "new" | null) => { setCachedRole(role); setRoleOf(cachedFile); };
+    if (!cachedFile || !proof || marker?.name !== "bitgraph-fuse/1") { settle(null); setHeldMember(null); return; }
     let cancelled = false;
     if (isSetProof(proof)) {
       // A member's original is accepted by reconstruction, its new file
@@ -186,17 +190,45 @@ export default function ProofPage() {
       void unpackSetMember(proof, new Uint8Array(cachedFile.data), cachedFile.name).then((u) => {
         if (cancelled) return;
         const c = u.verification.category;
-        setCachedRole(c === "SET_MEMBER_FROM_ORIGIN" ? "original" : c === "SET_MEMBER_DIRECT" ? "new" : null);
+        settle(c === "SET_MEMBER_FROM_ORIGIN" ? "original" : c === "SET_MEMBER_DIRECT" ? "new" : null);
         setHeldMember(u.member);
-      }).catch(() => { if (!cancelled) { setCachedRole(null); setHeldMember(null); } });
+      }).catch(() => { if (!cancelled) { settle(null); setHeldMember(null); } });
       return () => { cancelled = true; };
     }
     void hashBytes(new Uint8Array(cachedFile.data)).then((h) => {
       if (cancelled) return;
-      setCachedRole(h === marker.message ? "original" : h === proof.artifact.digestB64 ? "new" : null);
-    }).catch(() => { if (!cancelled) setCachedRole(null); });
+      settle(h === marker.message ? "original" : h === proof.artifact.digestB64 ? "new" : null);
+    }).catch(() => { if (!cancelled) settle(null); });
     return () => { cancelled = true; };
   }, [cachedFile, proof]);
+  // The new file's readable content. A wrapper placement (container/2, every text
+  // file) puts the original inside a small tar, so previewing the new file's own
+  // bytes showed the wrapper's header, "bitgraph-fuse/original" and zero padding,
+  // instead of the text (Mike, 2026-09-28: "our sample proof shows more lines of
+  // text than when i load this one"). The original comes back out the way the
+  // "Original file" download takes it, and is previewed in the new file's place.
+  // Kept with the file it came from, so a stale result never shows for another,
+  // and kept when nothing came out (original: null), so the preview stops waiting.
+  const [heldOriginal, setHeldOriginal] = useState<{ of: object; original: { name: string; data: ArrayBuffer } | null } | null>(null);
+  useEffect(() => {
+    if (!cachedFile || !proof || cachedRole !== "new" || isInlineProof(proof)) return;
+    let live = true;
+    const bytes = new Uint8Array(cachedFile.data);
+    const unpacked = isSetProof(proof)
+      ? unpackSetMember(proof, bytes, cachedFile.name, setBound?.bytes ?? null)
+      : unpackNewFile(proof, bytes, cachedFile.name);
+    void unpacked.then((u) => {
+      if (!live) return;
+      setHeldOriginal({
+        of: cachedFile,
+        original: u.originalBytes ? { name: u.originalName ?? cachedFile.name, data: u.originalBytes.slice().buffer as ArrayBuffer } : null,
+      });
+    }).catch(() => {
+      // The preview falls back to the new file's own bytes.
+      if (live) setHeldOriginal({ of: cachedFile, original: null });
+    });
+    return () => { live = false; };
+  }, [cachedFile, proof, cachedRole, setBound]);
   // An inline marker declares that the commitment sits in the artifact's own
   // bytes. When the bytes are on this device the page checks that rather than
   // repeating it: category, the offset where it actually is, and the
@@ -505,7 +537,13 @@ export default function ProofPage() {
             // proof.json) is dropped so the bring-your-file box can show.
             if (!validated) {
               let matches = false;
-              try { matches = (await hashBytes(new Uint8Array(file.data))) === digestB64; } catch { matches = false; }
+              // The committed file itself is also good: a fused proof's page is
+              // addressed by the origin, so a new file dropped here hashes to the
+              // artifact digest, not the URL's, and was dropped on every reload.
+              try {
+                const h = await hashBytes(new Uint8Array(file.data));
+                matches = h === digestB64 || h === p?.artifact?.digestB64;
+              } catch { matches = false; }
               // A fused proof (profile bitgraph-fuse/1) is usually remembered
               // with the ORIGINAL, which never hashes to the artifact digest:
               // accept it when it rebuilds the committed fused bytes. A set
@@ -762,6 +800,20 @@ export default function ProofPage() {
   const carryId = attr?.name === "bitgraph-fuse/1" ? attr.title ?? null : null;
   const isInline = carryId !== null && ENCODING_IDS.includes(carryId);
   const placementId = isInline ? null : carryId;
+  // Which of a BitGraph's two files is in hand, said on the file's own line
+  // (2026-09-28): "original" or "new file". Only where there are two: a record
+  // with the commitment written inside it (the home demonstration) is one file.
+  const roleKnown = cachedFile !== null && roleOf === cachedFile;
+  const heldLabel = roleKnown && placementId !== null
+    ? (cachedRole === "original" ? "original" : cachedRole === "new" ? "new file" : null)
+    : null;
+  const unpackedHeld = heldOriginal !== null && heldOriginal.of === cachedFile ? heldOriginal : null;
+  const originalInHand = roleKnown && cachedRole === "new" ? unpackedHeld?.original ?? null : null;
+  // The preview waits while the page tells which file is in hand and, for a new
+  // file, takes the original out. Shown straight away, the new file's own bytes
+  // put the wrapper's header on screen for about 100 ms before the text replaced
+  // it (measured 2026-09-28), and again on every reload of the page.
+  const previewPending = cachedFile !== null && placementId !== null && (!roleKnown || (cachedRole === "new" && unpackedHeld === null));
   // The value to look for. From the check when the file is here; otherwise from
   // the proof's own slot record, which is where the check gets it too.
   const inlineCommitment = isInline ? inlineFound?.commitmentB64 ?? slotCommitmentOf(proof) : null;
@@ -1470,9 +1522,9 @@ export default function ProofPage() {
                 </div>
               )}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
-                <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} />
+                <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={heldLabel} />
               ) : cachedFile ? (
-                <FileCard cachedFile={cachedFile} />
+                <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
               ) : (
                 <div style={{ padding: 16 }}>
                   <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} />
@@ -2572,8 +2624,11 @@ function PhotoCard({
   c2pa,
   bare,
   previewKey,
+  label,
 }: {
   cachedFile: { name: string; data: ArrayBuffer } | null;
+  /** "original" or "new file", when the BitGraph has both. */
+  label?: string | null;
   c2pa?: C2PAReadResult | null;
   /** Skip the card chrome (used inside the BitGraphed File collapsible). */
   bare?: boolean;
@@ -2732,6 +2787,7 @@ function PhotoCard({
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
             <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
             {" · "}{fmtBytes(cachedFile.data.byteLength)}
+            {label ? <>{" · "}{label}</> : null}
           </span>
           {openUrl && (
             <a href={openUrl} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
@@ -2822,8 +2878,19 @@ function fileKind(name: string, data: ArrayBuffer): { kind: "pdf" | "video" | "a
   return { kind: "other", mime: "application/octet-stream" };
 }
 
-function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffer } }) {
-  const { kind, mime } = fileKind(cachedFile.name, cachedFile.data);
+function FileCard({ cachedFile, label, preview, pending }: {
+  cachedFile: { name: string; data: ArrayBuffer };
+  /** "original" or "new file", when the BitGraph has both. */
+  label?: string | null;
+  /** What to preview and Open instead of the held bytes: the original inside a
+   *  new file's wrapper, whose own bytes are the wrapper's header, not text. */
+  preview?: { name: string; data: ArrayBuffer } | null;
+  /** Not yet known what to preview: show the row, hold the contents and Open. */
+  pending?: boolean;
+}) {
+  // The file row names what is in hand; the preview and Open show what it reads as.
+  const shown = preview ?? cachedFile;
+  const { kind, mime } = fileKind(shown.name, shown.data);
   const [url, setUrl] = useState<string | null>(null);
 
   /* The .docx words, pulled out of the zip. In an effect and in state rather
@@ -2841,27 +2908,29 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
     // the kind is docx, so clearing a beat late is invisible.
     const t = setTimeout(() => {
       if (!live) return;
-      setDocx(kind === "docx" ? docxText(cachedFile.data) : null);
+      setDocx(kind === "docx" ? docxText(shown.data) : null);
     }, 0);
     return () => { live = false; clearTimeout(t); };
-  }, [cachedFile, kind]);
+  }, [shown, kind]);
 
   useEffect(() => {
     if (kind === "other") { setUrl(null); return; }
-    const u = URL.createObjectURL(new Blob([new Uint8Array(cachedFile.data)], { type: mime }));
+    const u = URL.createObjectURL(new Blob([new Uint8Array(shown.data)], { type: mime }));
     setUrl(u);
     return () => URL.revokeObjectURL(u);
-  }, [cachedFile, kind, mime]);
+  }, [shown, kind, mime]);
 
   // Text excerpt: enough lines to see what the document is, never the whole
   // thing — Open shows the full file in its own tab.
   let excerpt: { text: string; truncated: boolean } | null = null;
-  if (kind === "text") {
+  // Pending: one blank line keeps the text's place, so nothing below jumps.
+  if (kind === "text" && pending) excerpt = { text: "\u00a0", truncated: false };
+  else if (kind === "text") {
     try {
-      const raw = new TextDecoder("utf-8", { fatal: false }).decode(cachedFile.data.slice(0, 6000));
+      const raw = new TextDecoder("utf-8", { fatal: false }).decode(shown.data.slice(0, 6000));
       const lines = raw.split("\n");
       const text = lines.slice(0, 24).join("\n").slice(0, 3000);
-      excerpt = { text, truncated: lines.length > 24 || raw.length > text.length || cachedFile.data.byteLength > 6000 };
+      excerpt = { text, truncated: lines.length > 24 || raw.length > text.length || shown.data.byteLength > 6000 };
     } catch { excerpt = null; }
   }
 
@@ -2873,8 +2942,8 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
      link would say Open and perform a download, and a link that lies about
      what it does is worse than no link. The file is already on this device;
      the reader can open it where it lives. */
-  const openable = kind === "text" || kind === "pdf";
-  const hasPreview = kind === "text" || kind === "video" || kind === "audio" || (kind === "docx" && !!docx);
+  const openable = !pending && (kind === "text" || kind === "pdf");
+  const hasPreview = pending ? kind === "text" : kind === "text" || kind === "video" || kind === "audio" || (kind === "docx" && !!docx);
   return (
     <div style={{ background: "var(--panel)" }}>
       {/* The identity row, and it HEADS the file rather than closing it (Mike,
@@ -2890,6 +2959,7 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
         <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, color: "var(--dim)" }}>
           <span style={{ fontWeight: 600, color: "var(--ink)" }}>{cachedFile.name}</span>
           {" · "}{fmtBytes(cachedFile.data.byteLength)}
+          {label ? <>{" · "}{label}</> : null}
         </span>
         {openable && url && (
           <a href={url} target="_blank" rel="noopener" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
@@ -2923,7 +2993,7 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
           lines. On a page whose claim is "these exact bytes", an unlabelled
           approximation would read as the artifact itself. Saying what it is
           costs one quiet line and makes the preview honest. */}
-      {kind === "docx" && docx && (
+      {kind === "docx" && docx && !pending && (
         <div style={{ padding: "14px 16px 16px" }}>
           <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--dim)", marginBottom: 8 }}>
             Text from this document
@@ -2934,13 +3004,13 @@ function FileCard({ cachedFile }: { cachedFile: { name: string; data: ArrayBuffe
           </div>
         </div>
       )}
-      {kind === "video" && url && (
+      {kind === "video" && url && !pending && (
         <div style={{ padding: 20, display: "flex", justifyContent: "center" }}>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <video src={url} controls style={{ display: "block", maxWidth: "100%", maxHeight: "min(70vh, 640px)", borderRadius: "var(--radius-card)" }} />
         </div>
       )}
-      {kind === "audio" && url && (
+      {kind === "audio" && url && !pending && (
         <div style={{ padding: "20px 16px" }}>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <audio src={url} controls style={{ display: "block", width: "100%" }} />
