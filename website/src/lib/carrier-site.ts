@@ -121,17 +121,47 @@ export interface DeCarrierNote {
   innerMatches?: boolean;
 }
 
+/**
+ * No real carrier is smaller than this. Its block always holds the proof and
+ * the floor anchor's proof, each an attested bitgraph/1 proof of several KB
+ * (both carriers measured 2026-09-28 carry about 29 KB). A file under it
+ * cannot be one, so it is not opened at all.
+ *
+ * ⚠️ THIS IS WHAT A BIG DROP WAITED ON. Every file used to have its last 8
+ * bytes read, one file at a time, before hashing could start. Each read is a
+ * round trip through the browser's file layer however small, and 55,000
+ * small files took 8.6s of it, measured: the spinner that sat on "Reading
+ * your folder… 55,000 files" (Mike, 2026-09-28: "it just spins for a moment
+ * if its alot of files").
+ */
+const CARRIER_MIN_BYTES = 4096;
+/** Tail reads in flight, for the files big enough to check (a folder of photos). */
+const TAIL_READS_IN_FLIGHT = 32;
+
 export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; notes: DeCarrierNote[]; proofs: Map<File, CarrierProof> }> {
   const MAGIC = [0x42, 0x47, 0x50, 0x52, 0x4f, 0x4f, 0x46, 0x01];
   const out = files.slice();
   const notes: DeCarrierNote[] = [];
   const proofs = new Map<File, CarrierProof>();
-  for (let i = 0; i < out.length; i++) {
+  // Which files end in the magic, read in parallel. Only those are read whole.
+  const tagged: number[] = [];
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(TAIL_READS_IN_FLIGHT, out.length) }, async () => {
+    while (next < out.length) {
+      const i = next++;
+      const f = out[i];
+      if (f.size < CARRIER_MIN_BYTES) continue;
+      try {
+        const tail = new Uint8Array(await f.slice(f.size - 8).arrayBuffer());
+        if (MAGIC.every((b, j) => tail[j] === b)) tagged.push(i);
+      } catch { /* unreadable: the file goes through the normal path untouched */ }
+    }
+  }));
+  // The few that are carriers, in drop order, so the notes read in that order.
+  tagged.sort((a, b) => a - b);
+  for (const i of tagged) {
     const f = out[i];
-    if (f.size < 26) continue;
     try {
-      const tail = new Uint8Array(await f.slice(f.size - 8).arrayBuffer());
-      if (!MAGIC.every((b, j) => tail[j] === b)) continue;
       const whole = new Uint8Array(await f.arrayBuffer());
       const parsed = parseCarrier(whole);
       if (parsed.kind === "carrier") {
