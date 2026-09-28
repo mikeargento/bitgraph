@@ -533,16 +533,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      results. In the action-link voice, and the noun stays — Mike, 2026-08-19:
      "more BitGraphs", not "more".
 
-     ⚠️ IT SAYS VIEW, NOT MAKE (Mike, 2026-09-08). It read "Make or check more
-     BitGraphs", which mirrored the box's own headline. That mirroring is what
-     went wrong: the site is becoming a VIEWER — making moves to the desktop
-     app — and the verb on the one link above a list of BitGraphs you already
-     hold should not be the one that mints. Looking at more of what you have is
-     what this actually does. */
+     It says what it does: CHOOSE MORE FILES (Mike, 2026-09-28), the same verb
+     as the box's own "Choose files, or drag in a whole folder." It read "Make
+     or check more BitGraphs" until 2026-09-08, then "View more BitGraphs",
+     because making was moving to the desktop app and the link above a list of
+     BitGraphs should not be the verb that mints. The app was retired on 09-20
+     and making stayed here, and the link never viewed anything: it opens the
+     box for another drop. */
   const openLink = showingResults && !boxOpen ? (
     <button type="button" className="bg-arrow-link" onClick={() => setBoxOpen(true)}
       style={{ appearance: "none", border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--accent)", whiteSpace: "nowrap", flexShrink: 0 }}>
-      <span className="bg-long">View more BitGraphs</span><span className="bg-short">More</span> <span className="arrow" aria-hidden="true">&rarr;</span>
+      <span className="bg-long">Choose more files</span><span className="bg-short">Choose more</span>
     </button>
   ) : null;
 
