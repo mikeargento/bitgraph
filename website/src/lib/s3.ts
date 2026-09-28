@@ -12,7 +12,7 @@ import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, Hea
 import { journalDigests } from "./digest-index";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
 import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
-import { decodeChunkInto, setMembersPrefix, type SetMemberRef } from "@/lib/set-members";
+import { decodeChunkInto, memberListChunks, setMembersPrefix, type SetMemberRef } from "@/lib/set-members";
 
 
 /* ── PHASE 2: THE LEDGER KEEPS ONLY ANCHORS ────────────────────────────────
@@ -518,7 +518,42 @@ async function writeMemberKeys(
     Metadata: { "bg-kind": e.kind, "bg-set-digest": setDigest, "bg-set-member": `${e.index}/${e.count}` },
   })));
   const failed = results.filter((r) => r.status === "rejected").length;
+  await writeMemberList(s3, bucket, entries, setDigest, epochId, counter);
   return { written: results.length - failed, failed };
+}
+
+/**
+ * The set's member list, written beside its member keys from the same
+ * entries. The lookup reads a set's list once and answers every member of a
+ * dropped folder from it (/api/proofs/batch: "a set is one position"); with
+ * no list it reads each member's key on its own. Re-dropping the 55,000 file
+ * set made on 2026-09-27 was minutes of that: 1,000 members cost 14.3s and
+ * 11.8 MB (measured 2026-09-28, Mike: "still kind of hangs here" on
+ * "Checking 0 of 55000").
+ *
+ * ⚠️ NEVER WRITTEN BEFORE 2026-09-28. Lists arrived on 09-08 (40f6260e) with a
+ * backfill script, the same day the ledger writes stopped, and no write path
+ * ever called the writer; every set made since had none until it was
+ * backfilled (scripts/build-set-member-list.mjs).
+ *
+ * A list is an index and never a verdict: a member it does not name is looked
+ * up key by key as before, so a chunk that fails to write costs speed, not
+ * answers. Its digests are already journaled (writeMemberKeys above), so the
+ * digest index admits every one of them.
+ */
+async function writeMemberList(
+  s3: S3Client,
+  bucket: string,
+  entries: ReadonlyArray<SetIndexEntry>,
+  setDigest: string,
+  epochId: string,
+  counter: string,
+): Promise<void> {
+  if (entries.length === 0) return;
+  const chunks = memberListChunks({ setDigest, epochId, counter, count: entries[0].count }, entries);
+  const done = await runPool(chunks, 4, (c) => s3.send(new PutObjectCommand({ Bucket: bucket, Key: c.key, Body: c.body, ContentType: "application/json" })));
+  const failed = done.filter((d) => d.status === "rejected").length;
+  if (failed) console.error(`[set-members] ${epochId}/${counter}: ${failed} of ${chunks.length} list chunks failed to write; those members fall back to per-key lookups`);
 }
 
 export interface DigestProofEntry {

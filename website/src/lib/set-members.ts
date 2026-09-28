@@ -96,6 +96,33 @@ export function encodeChunk(
 }
 
 /**
+ * A set's member list as chunks to write, from the entries one index write
+ * just bound (set/1 from its manifest, set/2 from a slice of evidence).
+ *
+ * Each chunk is named by the lowest member index it holds and its length, so
+ * writes of different slices of one set never share a key and a retry of the
+ * same slice rewrites the same object. The reader decodes every chunk under
+ * the set's prefix, whatever it is called (readSetMemberList), and a digest
+ * listed twice keeps its first entry.
+ */
+export function memberListChunks(
+  meta: { setDigest: string; epochId: string; counter: string; count: number },
+  entries: ReadonlyArray<{ digestB64: string; kind: MemberKind; index: number }>,
+): Array<{ key: string; body: string }> {
+  const sorted = [...entries].sort((a, b) => a.index - b.index);
+  const out: Array<{ key: string; body: string }> = [];
+  for (let i = 0; i < sorted.length; i += SET_MEMBER_CHUNK) {
+    const part = sorted.slice(i, i + SET_MEMBER_CHUNK);
+    const from = part[0].index;
+    out.push({
+      key: `${setMembersPrefix(meta.epochId, meta.counter)}${String(from).padStart(6, "0")}-${part.length}.json`,
+      body: encodeChunk({ ...meta, writeTime: null }, part, from),
+    });
+  }
+  return out;
+}
+
+/**
  * Read one chunk into `into`, keyed by url-safe digest.
  *
  * Returns false for anything it does not fully understand — a bad version, a

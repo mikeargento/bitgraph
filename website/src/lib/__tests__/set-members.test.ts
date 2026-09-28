@@ -16,8 +16,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  SET_MEMBER_VERSION, encodeChunk, decodeChunkInto, liftSetProofs, attachSetProofs,
-  setMembersKey, setMembersPrefix, type SetMemberRef,
+  SET_MEMBER_VERSION, SET_MEMBER_CHUNK, encodeChunk, decodeChunkInto, liftSetProofs, attachSetProofs,
+  memberListChunks, setMembersKey, setMembersPrefix, type SetMemberRef,
 } from "../set-members.ts";
 
 const AT = { epochId: "P1IPCIeBd_gbBGJnbQVSDhKFeI7wVzTzWYbfvzZlqcs", counter: "1546" };
@@ -160,4 +160,33 @@ test("nonsense never throws", () => {
   assert.equal(liftSetProofs({ a: undefined }, {}), 0);
   assert.deepEqual(attachSetProofs({ a: undefined }, undefined), { attached: 0, unresolved: 0 });
   assert.deepEqual(attachSetProofs({ a: { proofs: [] } }, {}), { attached: 0, unresolved: 0 });
+});
+
+test("a written list reads back whole: every member, both sides, under its own set", () => {
+  const meta = { setDigest: "SET", epochId: "E+p/och=", counter: "9312", count: 3 };
+  const entries = [2, 0, 1].flatMap((i) => [
+    { digestB64: `origin+${i}/==`, kind: "fused-descendant" as const, index: i },
+    { digestB64: `fused${i}`, kind: "set-member" as const, index: i },
+  ]);
+  const chunks = memberListChunks(meta, entries);
+  assert.equal(chunks.length, 1);
+  assert.ok(chunks[0].key.startsWith(setMembersPrefix("E+p/och=", "9312")), "under the set's own prefix");
+  const into = new Map<string, SetMemberRef>();
+  for (const c of chunks) assert.equal(decodeChunkInto(c.body, { epochId: "E-p_och", counter: "9312" }, into), true);
+  assert.equal(into.size, 6);
+  assert.deepEqual(into.get("origin-1_"), { setDigest: "SET", epochId: "E-p_och", counter: "9312", kind: "fused-descendant", index: 1, count: 3, writeTime: null });
+  assert.equal(into.get("fused2")?.kind, "set-member");
+});
+
+test("two slices of one set never share a chunk key, and a slice past the chunk size splits", () => {
+  const meta = { setDigest: "S", epochId: "E", counter: "7", count: 10_000 };
+  const slice = (from: number, n: number) => Array.from({ length: n }, (_, k) => ({ digestB64: `d${from + k}`, kind: "set-member" as const, index: from + k }));
+  const a = memberListChunks(meta, slice(0, 2500)).map((c) => c.key);
+  const b = memberListChunks(meta, slice(2500, 2500)).map((c) => c.key);
+  assert.equal(new Set([...a, ...b]).size, a.length + b.length);
+  const big = memberListChunks(meta, slice(0, SET_MEMBER_CHUNK + 1));
+  assert.equal(big.length, 2);
+  const into = new Map<string, SetMemberRef>();
+  for (const c of big) decodeChunkInto(c.body, { epochId: "E", counter: "7" }, into);
+  assert.equal(into.size, SET_MEMBER_CHUNK + 1);
 });
