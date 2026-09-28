@@ -1048,7 +1048,31 @@ export default function ProofPage() {
     const today = new Date().toISOString().slice(0, 10);
     return day && day < today ? `/ledger?day=${day}` : "/ledger";
   })() : null;
-  const whenRow = (recordedDate || whenNode) ? (
+  // The record's name. It was the first line of the card head; since the card
+  // folds (Mike, 2026-09-28: "BitGraph #1,012 would be label and it is closed
+  // by default"), it is the card's label, and each page shows its own number.
+  const recordName = `BitGraph${commitCounter !== null ? ` #${commitCounter.toLocaleString("en-US")}` : ""}`;
+  /* The folded card's label: the name, then the epoch, cut to 8 characters.
+     The counter restarts with every epoch, so "#1,012" alone names one BitGraph
+     a day; the epoch is what tells them apart. Not the date (Mike, 2026-09-28:
+     time is "a consensus construct" and "should only be a part of the
+     recording"): a date changes with the reader's time zone, 9:45 PM EDT on the
+     24th is the 25th in UTC and in the epoch's own day, so it cannot be an
+     identity. Epoch and counter are the position's own address, the pair the
+     URL carries. Mono, as everywhere an epoch is shown: base64 mixes I, l, 1, O
+     and 0. The full ID stays inside the card. */
+  const recordLabel = (
+    <>
+      {recordName}
+      {epochFull && (
+        <span style={{ fontWeight: 400, letterSpacing: 0, color: "var(--dim)" }}>
+          {" · epoch "}
+          <span style={{ fontFamily: mono, fontSize: 12.5 }}>{epochFull.slice(0, 8)}</span>
+        </span>
+      )}
+    </>
+  );
+  const whenBlock = (named: boolean) => (recordedDate || whenNode) ? (
     /* Written like a card field: the date is the heading, the time window the
        value beneath it in the monospace/data font, matching the hashes and
        counters elsewhere on the page. */
@@ -1057,12 +1081,17 @@ export default function ProofPage() {
         // One bold line, the name "BitGraph #n", then two quiet detail lines (Mike,
         // 2026-09-26): the date and time in normal text, "epoch" as a grey label and its ID
         // in mono, the one string a reader copies or compares character by character.
-        <div style={{ fontSize: 14, color: "var(--ink)", letterSpacing: "-0.01em" }}>
-          <strong style={{ fontWeight: 700 }}>
-            BitGraph{commitCounter !== null ? ` #${commitCounter.toLocaleString("en-US")}` : ""}
-          </strong>
-          {committedLine ? "" : <> &middot; <strong style={{ fontWeight: 700 }}>{recordedDate}</strong></>}
-        </div>
+        // Inside the folding card the name is the label, so only the date stays here.
+        named ? (
+          <div style={{ fontSize: 14, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+            <strong style={{ fontWeight: 700 }}>{recordName}</strong>
+            {committedLine ? "" : <> &middot; <strong style={{ fontWeight: 700 }}>{recordedDate}</strong></>}
+          </div>
+        ) : committedLine ? null : (
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+            {recordedDate}
+          </div>
+        )
       ) : (
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
           {recordedDate}
@@ -1078,6 +1107,10 @@ export default function ProofPage() {
       )}
     </div>
   ) : null;
+  // Named: the standalone when-card (intervals, and an anchor with no block card).
+  const whenRow = whenBlock(true);
+  // Unnamed: inside the record card, whose label already names it.
+  const whenBody = whenBlock(false);
 
   // Interval window, derived from the causal positions the page already loads
   // (metadata.interval does not survive the TEE, so nothing here relies on it):
@@ -1512,13 +1545,18 @@ export default function ProofPage() {
                 "BitGraphed <date>" and carries it. The heading stays for screen
                 readers and search. */}
             <h1 className="sr-only">BitGraph Record</h1>
-            <CollapsibleCard title="BitGraph Record" plain>
+            {/* Folds like every card below it, closed by default, its label the
+                record's own name (Mike, 2026-09-28: "this whole field should be a
+                modal like these. BitGraph #1,012 would be label and it is closed by
+                default and opens the preview when clicked to open"). Inside: the
+                date, the epoch, then the file, or the drop box to find it. */}
+            <CollapsibleCard title={recordLabel}>
               {/* The "when" and the export share one box at the top of the card,
                   as the Recorder puts its actions under its verdict (Mike,
                   2026-09-16: "this button should share that box and say .zip"). */}
-              {whenRow && (
+              {whenBody && (
                 <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)" }}>
-                  {whenRow}
+                  {whenBody}
                 </div>
               )}
               {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
@@ -1689,10 +1727,12 @@ export default function ProofPage() {
                 <a href={anchorsBackHref} className="bg-action-link">All Ethereum anchors</a>
               </div>
             )}
-            <CollapsibleCard title="BitGraph Record" plain>
-              {whenRow && (
+            {/* Folds like the file proof's record card (2026-09-28): an anchor is a
+                BitGraph too, labelled with its own number. */}
+            <CollapsibleCard title={recordLabel}>
+              {whenBody && (
                 <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)" }}>
-                  {whenRow}
+                  {whenBody}
                 </div>
               )}
               {/* The identity row, in the file card's exact shape: what was
@@ -2117,10 +2157,10 @@ function FreshRecordingWait() {
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
 
-function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean; plain?: boolean }) {
-  // A plain card has no toggle and is always open — used for the primary
-  // "BitGraph Record" card, whose contents are the point of the page.
-  const [open, setOpen] = useState(!!defaultOpen || !!plain);
+function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
+  // Every card folds. The record card was the one always-open ("plain") card
+  // until 2026-09-28, when it became a card like the rest, closed by default.
+  const [open, setOpen] = useState(!!defaultOpen);
   const headerStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
     fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "var(--accent)",
@@ -2130,7 +2170,7 @@ function CollapsibleCard({ title, children, defaultOpen, plain }: { title: React
   };
   return (
     <div style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
-      {plain ? null : (
+      {(
         /* The header is a full-row toggle with the same hover + outlined-button
            affordance as the explorer rows: the row tints on hover and the
            chevron button inverts to solid blue, so a collapsed card reads as
