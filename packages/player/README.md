@@ -33,7 +33,7 @@ folders the BitGraph Folder writes). Exit codes: `0` TRUE, `1` FALSE,
 No rule needed. `check` reads an export (a folder or archive, or a
 proof.json beside the file it records) and says, offline, what the bundle
 establishes about each recording in it: that the file in hand hashes to
-the recorded digest, that the Ed25519 signature and slot binding verify,
+the recorded digest, that the Ed25519 signature and position binding verify,
 that the AWS Nitro attestation validates to the AWS root and binds this
 exact proof, that the attested PCR0 is a published BitGraph enclave
 measurement, and, from block headers in the bundle, which Ethereum blocks

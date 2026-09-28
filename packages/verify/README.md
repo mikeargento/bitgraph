@@ -11,7 +11,7 @@ import { verify } from "@mikeargento/bitgraph-verify";
 
 const result = await verify({ proof, bytes });
 if (result.valid) {
-  // structure, canonical Ed25519 signature, slot binding, the attestation's
+  // structure, canonical Ed25519 signature, position binding, the attestation's
   // binding to this signed body, and the digest match are all checked
 } else {
   console.error(result.reason);

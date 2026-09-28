@@ -6,11 +6,11 @@
 
 ---
 
-BitGraphs are not labels or metadata added after the fact. They are new computations created when your file's hash *fills* a pre-existing cryptographic slot, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state.
+BitGraphs are not labels or metadata added after the fact. They are new computations created when your file's hash *fills* a pre-existing, cryptographically reserved position, constraining the commitment so it cannot be retroactively constructed. This occurs entirely off-chain and produces a proof permanently bound to that exact digital state.
 
 Provenance can be enforced or it can be claimed. Most systems claim it: they bind a statement about the content to the content itself. That binding can be cryptographically strong, and it can be made at the moment of capture rather than afterward, so the weakness is not timing. The weakness is that a claim is something a trusted signer can attach to any artifact at all. The artifact does not have to satisfy any prior condition to receive one.
 
-BitGraph enforces it instead. A measured trusted execution environment creates an unpredictable cryptographic slot before the artifact's hash reaches it. The producer writes that slot's commitment into the bytes it then hashes, so those bytes could not have been finished earlier, and that hash is bound into the slot. The slot is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
+BitGraph enforces it instead. A measured trusted execution environment reserves an unpredictable position before the artifact's hash reaches it. The producer writes that position's commitment into the bytes it then hashes, so those bytes could not have been finished earlier, and that hash is bound to the position. The position is consumed and cannot be reused. What emerges is not a description of provenance but a proof of placement.
 
 > This exact digital state was committed through this measured process, in this order, under these constraints.
 
@@ -31,13 +31,13 @@ import { verify, verifyFuse } from "@mikeargento/bitgraph-verify";
 
 const result = await verify({ proof, bytes });
 if (result.valid) {
-  // structure, Ed25519 signature, slot binding and the digest match all checked
+  // structure, Ed25519 signature, position binding and the digest match all checked
 } else {
   console.error(result.reason);
 }
 ```
 
-`verify()` answers whether the proof is sound and whether these exact bytes are the ones it committed. Whether those bytes *carry* the slot's commitment is a separate question, and `verifyFuse()` in the same package is what answers it: that check is the one showing the bytes could not have been finished before the position existed. A fused file, or a record with its own commitment field, wants both.
+`verify()` answers whether the proof is sound and whether these exact bytes are the ones it committed. Whether those bytes *carry* the position commitment is a separate question, and `verifyFuse()` in the same package is what answers it: that check is the one showing the bytes could not have been finished before the position existed. A fused file, or a record with its own commitment field, wants both.
 
 See [bitgraph.ing/docs](https://bitgraph.ing/docs) for the full proof format, verification checklist, attestation handling, and self-host instructions.
 
@@ -61,15 +61,15 @@ Trust assumptions, and what each one buys, are in [The trust model](#the-trust-m
 
 Nonce first. Its commitment into the bytes. Hash second. Atomic binding third.
 
-The TEE generates hardware entropy inside the enclave. That entropy becomes a slot, signed with the enclave's key, with an identity that could not feasibly have been predicted. The slot exists as a cryptographic object before it has seen any artifact hash.
+The TEE generates hardware entropy inside the enclave. That entropy becomes a reserved position, signed with the enclave's key, with an identity that could not feasibly have been predicted. The position exists as a cryptographic object before it has seen any artifact hash.
 
-The producer derives a commitment to that position and combines it with the file to produce new bytes: the original with the commitment at a registered placement, or a field of a format it writes itself, such as an audit record. The commitment is a function of a record that did not exist until the slot was allocated, so nothing made before the slot can contain it. Every BitGraph made on bitgraph.ing, in the SDK and in the MCP server is made this way.
+The producer derives the position commitment from it and combines that with the file to produce new bytes: the original with the commitment at a registered placement, or a field of a format it writes itself, such as an audit record. The commitment is a function of a record that did not exist until the position was allocated, so nothing made before the position can contain it. Every BitGraph made on bitgraph.ing, in the SDK and in the MCP server is made this way.
 
-The hash of those new bytes arrives. The TEE binds it into the slot, signs the binding, and advances its internal order. The slot becomes consumed.
+The hash of those new bytes arrives. The TEE binds it to the position, signs the binding, and advances its internal order. The position becomes consumed.
 
-> UNUSED slot exists first. Its commitment goes into new bytes. Their hash enters later. TEE binds the hash to the slot. Slot becomes CONSUMED. Proof travels with the artifact.
+> UNUSED position exists first. Its commitment goes into new bytes. Their hash enters later. TEE binds the hash to the position. Position becomes CONSUMED. Proof travels with the artifact.
 
-The atomicity is the whole guarantee, and it constrains the record rather than the artifact. The artifact itself can be produced anywhere, by any process, using any tools. What matters is that when the hash arrives, the slot is already there waiting.
+The atomicity is the whole guarantee, and it constrains the record rather than the artifact. The artifact itself can be produced anywhere, by any process, using any tools. What matters is that when the hash arrives, the position is already there waiting.
 
 Most systems begin with the bits. BitGraph begins with the place. They say: "Here is a file hash. Now let's sign it." BitGraph says: "Here is a pre-existing position. Now this file hash has occupied it."
 
@@ -79,7 +79,7 @@ If a nonce, timestamp, or credential is added after the hash is already witnesse
 
 That leaves a forgery window. A malicious actor can prepare old hashes, replay prior material, backfill records, or attach fresh randomness to something never produced through the claimed path. The label looks valid. Nothing had to be true before it was attached.
 
-BitGraph narrows that window by requiring the slot to exist first, and by putting its commitment inside the bytes that fill it: the position was open before the new bytes were final, so they could not have been finished before it. It does not stop an old file being committed today: the original inside those bytes can be any age, and the position claims nothing about when it was made. What it stops is a position being invented after the fact, or occupied twice. The slot is not evidence added afterward. It is the condition the artifact must satisfy.
+BitGraph narrows that window by requiring the position to exist first, and by putting its commitment inside the bytes that fill it: the position was open before the new bytes were final, so they could not have been finished before it. It does not stop an old file being committed today: the original inside those bytes can be any age, and the position claims nothing about when it was made. What it stops is a position being invented after the fact, or occupied twice. The position is not evidence added afterward. It is the condition the artifact must satisfy.
 
 ## What a BitGraph proof contains
 
@@ -88,9 +88,9 @@ A BitGraph proof is a portable proof object, a JSON document, that travels with 
 | Component | Purpose |
 |---|---|
 | Artifact hash | Identifies the exact file or digital state |
-| Nonce | Hardware entropy giving the slot an identity that cannot feasibly be predicted |
-| Slot counter | Shows the slot was allocated before the commit |
-| Commit counter | Shows the artifact consumed the slot later |
+| Nonce | Hardware entropy giving the position an identity that cannot feasibly be predicted |
+| Reserved position | Shows the position was allocated before the commit |
+| Commit counter | Shows the artifact consumed the position later |
 | Epoch ID | Groups an ordered run of commitments |
 | Previous hash link | Connects proofs into a chain |
 | Signer public key | Identifies the proof-signing authority |
@@ -100,17 +100,17 @@ A BitGraph proof is a portable proof object, a JSON document, that travels with 
 | Public anchor | Tethers BitGraph logical time to a public reference |
 | Fuse marker | Signed: the placement the commitment was written at, and the digest of the original |
 
-Taken together: this hash was committed into this causal slot, by this measured environment, at this position in logical order, under this signing identity.
+Taken together: this hash was committed into this reserved position, by this measured environment, at this point in logical order, under this signing identity.
 
 ## Logical time
 
-Every proof has order. Every slot and commit has a position. The system can prove that this happened after that, that this slot existed before this hash was bound, that this proof came before the next, that this epoch has an internal cryptographic history.
+Every proof has order. Every reservation and commit has a position. The system can prove that this happened after that, that this position existed before this hash was bound, that this proof came before the next, that this epoch has an internal cryptographic history.
 
 BitGraph proves causal order. It does not assert a clock time.
 
 ## Establishing wall clock time
 
-BitGraph's internal ordering does not require Ethereum. The chain creates internal order through slot allocation, consumption, counters, signatures, and chained proof history. What that order lacks, on its own, is a clock. The enclave keeps no trusted one; any clock reading inside a proof is advisory.
+BitGraph's internal ordering does not require Ethereum. The chain creates internal order through position allocation, consumption, counters, signatures, and chained proof history. What that order lacks, on its own, is a clock. The enclave keeps no trusted one; any clock reading inside a proof is advisory.
 
 Ethereum is where the order meets the wall clock. An anchor is an ordinary proof on the same chain whose artifact is the hash of a recent Ethereum block. A block hash does not exist before its block is produced, so the anchor, and every proof chained after it, came after that block and its public date. Anchors recur throughout every epoch. This is the wall-clock statement every proof carries, and it runs in one direction: no earlier than. Nothing in the proof bounds the other side.
 
@@ -137,7 +137,7 @@ BitGraph does not ask for blind trust in any single component. It has real depen
 | Layer | What it contributes |
 |---|---|
 | TEE | Measured execution and protected key use |
-| Nonce-first slot | Causal precondition |
+| Nonce-first position | Causal precondition |
 | Atomic binding | Prevents post-hoc attachment |
 | Counters | Internal logical order |
 | Proof chain | Historical continuity |
@@ -165,8 +165,8 @@ BitGraph is often confused with adjacent systems. The differences are structural
 
 | System | Says | BitGraph says |
 |---|---|---|
-| Signatures | This key signed this data | This key was controlled by a measured environment that consumed an unused slot |
-| Timestamps | This hash existed by time T | This hash consumed a pre-existing slot at this position in causal order |
+| Signatures | This key signed this data | This key was controlled by a measured environment that consumed an unused position |
+| Timestamps | This hash existed by time T | This hash consumed a pre-existing position in causal order |
 | C2PA | Here are signed claims about this content | This exact digital state occupied this pre-existing position |
 | Blockchains | Public ordering of shared transactions | Ordering established inside a measured enclave, then anchored publicly |
 
@@ -180,7 +180,7 @@ BitGraph does not restore originality. It makes it unnecessary. The artifact's h
 
 ## The simplest version
 
-A measured TEE creates a random unused slot. The producer writes the slot's commitment into the bytes, whether that is a new file around an original or a record with a field of its own, and hashes the finished bytes. That hash arrives. The TEE binds it to the slot, consumes the slot, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, fixing the history behind it and giving everything after it a public date it provably followed.
+A measured TEE reserves a random unused position. The producer writes the position's commitment into the bytes, whether that is a new file around an original or a record with a field of its own, and hashes the finished bytes. That hash arrives. The TEE binds it to the position, consumes the position, signs the result, and links it into an ordered chain. Every restart begins a new epoch with a new key, so a compromised boundary is bounded, never retroactive. The same mechanism periodically commits an Ethereum block hash, fixing the history behind it and giving everything after it a public date it provably followed.
 
 The result is a protocol that does not say "someone signed this."
 
@@ -192,7 +192,7 @@ The result is a protocol that does not say "someone signed this."
 
 Two MIT-licensed packages in this repository make BitGraph evidence checkable without permission:
 
-**[`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)** verifies one proof. `verify()` checks a proof against the original artifact bytes: structure, canonical Ed25519 signature, slot binding, epoch link, and the digest match. `verifyProofIntegrity()` runs every check except the artifact binding for cases where the bytes are not available, and its result states explicitly that the binding was not checked.
+**[`@mikeargento/bitgraph-verify`](https://www.npmjs.com/package/@mikeargento/bitgraph-verify)** verifies one proof. `verify()` checks a proof against the original artifact bytes: structure, canonical Ed25519 signature, position binding, epoch link, and the digest match. `verifyProofIntegrity()` runs every check except the artifact binding for cases where the bytes are not available, and its result states explicitly that the binding was not checked.
 
 **`@mikeargento/bitgraph-audit`** audits a whole bundle of proofs, fully offline. It ingests a directory, `.tar`, or `.tar.gz`, verifies every proof through the canonical verifier, reconstructs causal order from the hash links and counters, classifies anomalies with stable machine-readable codes, and preserves divergence between valid proofs for the reader to adjudicate instead of choosing a winner. It ships a CLI (`bitgraph-audit <bundle>`) that writes machine-readable and human-readable reports. The bundle format is specified in [docs/BUNDLE-FORMAT.md](docs/BUNDLE-FORMAT.md); the recipient walkthrough is [docs/HOW-TO-AUDIT.md](docs/HOW-TO-AUDIT.md).
 

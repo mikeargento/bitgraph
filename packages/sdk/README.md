@@ -7,7 +7,7 @@ One engine, three sockets. BitGraph gives a file's bytes a causal position in a 
 - **Any runtime that can call localhost**: `npx bitgraph serve` (127.0.0.1 only)
 - Agents already have their socket: [`@mikeargento/bitgraph-mcp`](https://www.npmjs.com/package/@mikeargento/bitgraph-mcp), which runs this same engine.
 
-Files are read on this machine and never uploaded; only digests, the committed artifact and slot records leave it. **Recording is permanent**: record what was asked for, nothing more. Verification is free and fully offline.
+Files are read on this machine and never uploaded; only digests, the committed artifact and position records leave it. **Recording is permanent**: record what was asked for, nothing more. Verification is free and fully offline.
 
 ## Five lines, at write time
 
@@ -19,7 +19,7 @@ const r = await bg.record("run-042.log");
 console.log(r.files[0].proofUrl); // the record's public receipt
 ```
 
-One file is fused on its own slot. A folder, or many paths, becomes **one set under one position**:
+One file is fused on its own position. A folder, or many paths, becomes **one set under one position**:
 
 ```ts
 await bg.record(["logs/step-001.json", "logs/step-002.json", "logs/step-003.json"]);
