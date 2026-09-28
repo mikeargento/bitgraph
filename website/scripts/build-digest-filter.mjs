@@ -178,4 +178,7 @@ for (const d of digests) {
 }
 console.log(`self-check: ${checked} digests, none rejected`);
 
-await publish(filter, { builtAt: Date.now(), n: digests.size, capacity, m: params.m, k: params.k, cutoff });
+// fullBuiltAt: what the site checks before it trusts a base (lib/digest-index.ts).
+// Only a full build sets it, because only the listing sees keys whose writers
+// never journaled; compaction carries it forward unchanged.
+await publish(filter, { builtAt: Date.now(), n: digests.size, capacity, m: params.m, k: params.k, cutoff, fullBuiltAt: cutoff });

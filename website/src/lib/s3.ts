@@ -9,6 +9,7 @@
 import { Agent } from "node:https";
 import { isAnchorProof } from "@mikeargento/bitgraph-verify";
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { journalDigests } from "./digest-index";
 import { fusedOriginDigestOf } from "@/lib/fuse-core";
 import { SET_KEY, SET_MEMBER_KEY, bindSet, bindSetMember, isSetProof, setIndexEntries, stripSetManifest, type BoundSet, type SetIndexEntry } from "@/lib/fuse-set";
 import { decodeChunkInto, setMembersPrefix, type SetMemberRef } from "@/lib/set-members";
@@ -331,6 +332,15 @@ export async function storeProofByDigest(proof: Record<string, unknown>, priorLe
     // the reader orders it before same-second index writes: a proof that was
     // ever legacy-only necessarily predates every indexed one.
     const newPositionKey = positionKeyFor(proof);
+    // Journal FIRST, before any key below exists (the backfill included): the
+    // lookup's digest index rules a digest out unless it has heard of it, so a
+    // key it was never told about would read "not on record" (lib/digest-index).
+    // The EC2 parent journals the artifact for its own write, but the origin's
+    // key is written only here. Unjournaled from 09-16 to 09-28.
+    const originForIndex = fusedOriginDigestOf(proof);
+    await journalDigests(originForIndex !== null && originForIndex !== artifact.digestB64
+      ? [artifact.digestB64, originForIndex]
+      : [artifact.digestB64]);
     try {
       const existing = priorLegacy !== undefined ? priorLegacy : await getProofByDigest(artifact.digestB64);
       if (existing) {
@@ -496,6 +506,10 @@ async function writeMemberKeys(
 ): Promise<{ written: number; failed: number }> {
   const position = `${toSafe(epochId)}-${String(counter).padStart(12, "0")}`;
   const setDigest = toSafe(artifactDigestB64);
+  // Every member key is journaled before it is written, for the digest index
+  // (see storeProofByDigest). Both set paths come through here: set/1 from its
+  // manifest, set/2 from the evidence the browser posts after the commit.
+  await journalDigests(entries.map((e) => e.digestB64));
   const results = await runPool(entries, INDEX_POOL, (e) => s3.send(new PutObjectCommand({
     Bucket: bucket,
     Key: `by-digest/${toSafe(e.digestB64)}/${position}.json`,
