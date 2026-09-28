@@ -337,7 +337,7 @@ describe("verifyProofIntegrity: slot allocation", () => {
     tampered.slotAllocation = clone(slotB.proof).slotAllocation!;
     const result = await verifyProofIntegrity({ proof: tampered });
     assert.equal(result.valid, false);
-    assert.match(result.reason ?? "", /slotHashB64 does not match SHA-256 of canonical slot body/);
+    assert.match(result.reason ?? "", /slotHashB64 does not match SHA-256 of the canonical position record/);
   });
 
   test("fails when slotAllocation.counter is tampered (slot signature breaks)", async () => {

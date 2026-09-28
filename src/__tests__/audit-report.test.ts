@@ -200,7 +200,7 @@ describe("audit orchestrator and reports: standard mixed bundle", () => {
   it("markdown executive summary uses the brief's gap and divergence language", () => {
     assert.ok(markdown.includes("# BitGraph Audit Report"));
     // G2 gap language: two-position wording, honest absence claim.
-    assert.ok(markdown.includes("neither commit positions nor referenced slot positions"));
+    assert.ok(markdown.includes("neither commit positions nor referenced reserved positions"));
     assert.ok(markdown.includes("does not, by itself, prove"));
     // Divergence: no winner is ever chosen.
     assert.ok(markdown.includes("does not choose between them"));

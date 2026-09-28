@@ -260,7 +260,7 @@ describe("verifyFuseMember for a set/2 member", () => {
     const own = await verifyFuseMember({ proof: s.proof, bytes: s.fused[0]!.bytes });
     assert.equal(own.category, "SET_MEMBERSHIP_UNPROVEN");
     assert.deepEqual(own.statements, []);
-    assert.match(own.reason ?? "", /made after that slot existed/);
+    assert.match(own.reason ?? "", /made after that position existed/);
     assert.match(own.reason ?? "", /no member evidence/);
     assert.equal(own.set!.kind, "set/2");
     assert.equal(own.set!.member, null);

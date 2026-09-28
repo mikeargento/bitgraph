@@ -425,7 +425,7 @@ describe("verifyFuse on set proofs and every existing fixture", () => {
     assert.equal(r.marker?.source, "attribution");
     assert.equal(r.marker?.placement, "set/1");
     assert.equal(r.statements.length, 1);
-    assert.match(r.statements[0]!, /could not feasibly have been finalized before their signed slot allocation at position 10/);
+    assert.match(r.statements[0]!, /could not feasibly have been finalized before position 10 was reserved and signed for them/);
     assert.equal(r.span?.positions, "4");
     assert.equal(r.originDigestB64, null, "a set has no single origin");
   });
@@ -584,10 +584,10 @@ describe("verifyFuseMember: the 51st file", () => {
     assert.equal(r.set!.member, null);
     assert.equal(r.set!.memberCount, 3);
     assert.deepEqual(r.statements, []);
-    assert.match(r.reason!, /made after that slot existed/);
+    assert.match(r.reason!, /made after that position existed/);
     assert.match(r.reason!, /not among the 3 members/);
     assert.match(r.reason!, /committed at position 14/);
-    assert.match(r.reason!, /slot allocated at position 10/);
+    assert.match(r.reason!, /position commitment of position 10/);
     assert.match(r.reason!, /does not cover them/);
     assert.equal(r.proof.valid, true);
     assert.equal(r.originDigestB64, null);
@@ -597,13 +597,13 @@ describe("verifyFuseMember: the 51st file", () => {
     const asContainer = await member(A.proof, container.build({ original: unrelated, commitment: A.commitment }));
     assert.equal(asContainer.category, "SET_NOT_MEMBER", asContainer.reason ?? "");
     assert.equal(asContainer.placement, "container/1");
-    assert.match(asContainer.reason!, /made after that slot existed/);
+    assert.match(asContainer.reason!, /made after that position existed/);
     assert.match(asContainer.reason!, /not among the 3 members/);
     for (const payload of [buildFusePayload(A.commitment), buildFusePayload(A.commitment, sha256(unrelated))]) {
       const asProduced = await member(A.proof, payload);
       assert.equal(asProduced.category, "SET_NOT_MEMBER", asProduced.reason ?? "");
       assert.equal(asProduced.placement, "produced/1");
-      assert.match(asProduced.reason!, /made after that slot existed/);
+      assert.match(asProduced.reason!, /made after that position existed/);
       assert.match(asProduced.reason!, /not among the 3 members/);
       assert.deepEqual(asProduced.statements, []);
     }
@@ -628,11 +628,11 @@ describe("verifyFuseMember: foreign set and transplants", () => {
     assert.ok(!bytesEqual(bMember.bytes, aMember.bytes), "the two sets fuse the same original under different slots");
     const bUnderA = await member(A.proof, bMember.bytes);
     assert.equal(bUnderA.category, "NO_MATCH", bUnderA.reason ?? "");
-    assert.match(bUnderA.reason!, /different slot/);
+    assert.match(bUnderA.reason!, /different position/);
     assert.ok(bUnderA.set, "A's manifest was bound; the bytes are simply not A's");
     const aUnderB = await member(B.proof, aMember.bytes);
     assert.equal(aUnderB.category, "NO_MATCH");
-    assert.match(aUnderB.reason!, /different slot/);
+    assert.match(aUnderB.reason!, /different position/);
     const underA = await member(A.proof, original);
     assert.equal(underA.category, "SET_MEMBER_FROM_ORIGIN");
     assert.equal(underA.set!.memberCount, 3);
@@ -651,7 +651,7 @@ describe("verifyFuseMember: foreign set and transplants", () => {
     assert.equal(r.set!.member, null);
     assert.equal(r.set!.memberCount, 4);
     assert.match(r.reason!, /listed/);
-    assert.match(r.reason!, /different slot/);
+    assert.match(r.reason!, /different position/);
     assert.match(r.reason!, /membership without the floor is not a member verdict/);
     assert.equal(r.placement, "trailer/1");
     assert.deepEqual(r.statements, []);
@@ -954,7 +954,7 @@ describe("verifyFuseMember: the proof", () => {
     f[f.length - 1] = f[f.length - 1]! ^ 1; // a commitment byte
     const c = await member(A.proof, f);
     assert.equal(c.category, "NO_MATCH");
-    assert.match(c.reason!, /different slot/);
+    assert.match(c.reason!, /different position/);
     // A content bit flipped leaves the trailer intact: the bytes still carry c
     // and are listed nowhere, which is byte for byte the 51st-file shape. The
     // two-part verdict is mandatory there, so it cannot be NO_MATCH.
@@ -962,7 +962,7 @@ describe("verifyFuseMember: the proof", () => {
     content[3] = content[3]! ^ 1;
     const s = await member(A.proof, content);
     assert.equal(s.category, "SET_NOT_MEMBER");
-    assert.match(s.reason!, /made after that slot existed/);
+    assert.match(s.reason!, /made after that position existed/);
     assert.match(s.reason!, /not among the 3 members/);
   });
 });

@@ -134,7 +134,7 @@ describe("the canonical inline artifact (slot 2072, commit 2075)", () => {
     const r = await verifyFuse({ proof: liveProof, bytes: liveBytes });
     assert.equal(r.span?.slotCounter, "2072");
     assert.equal(r.span?.commitCounter, "2075");
-    assert.match(r.statements[0] ?? "", /slot at position 2072/);
+    assert.match(r.statements[0] ?? "", /reserved and signed position 2072/);
     assert.match(r.statements[1] ?? "", /committed at position 2075/);
   });
 

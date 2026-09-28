@@ -50,7 +50,7 @@ describe("path 3: the file is the committed bytes", () => {
       assert.ok(r.span);
       assert.ok(BigInt(r.span!.positions) >= 1n);
       assert.equal(r.span!.chainId, "bitgraph:main");
-      assert.match(r.statements.at(-1)!, /could not feasibly have been finalized before their signed slot allocation at position/);
+      assert.match(r.statements.at(-1)!, /could not feasibly have been finalized before position \d+ was reserved and signed for them/);
       assert.equal(r.policy.spanExceeded, false);
     });
   }

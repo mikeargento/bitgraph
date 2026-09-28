@@ -55,7 +55,7 @@ describe("fused recordings in check", () => {
     assert.equal(rec.fused!.floor, null);
     assert.match(rec.fused!.floorDetail, /floor undetermined: no anchor precedes this slot in its epoch/);
     assert.equal(rec.fused!.statements.length, 2);
-    assert.match(rec.fused!.statements[1]!, /at position \d+, and were committed no later than position \d+/);
+    assert.match(rec.fused!.statements[1]!, /position \d+ was reserved and signed for them, and were committed no later than position \d+/);
     assert.ok(rec.fused!.span && BigInt(rec.fused!.span.positions) >= 1n);
     // The harness attests with a fake document, so the attestation line is FALSE
     // here; that is the harness, not the fused check, and it is reported on its

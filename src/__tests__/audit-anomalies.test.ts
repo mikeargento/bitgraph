@@ -111,7 +111,7 @@ describe("anomalies: G2 gap logic", () => {
     assert.match(gap.message, /does not, by itself, establish/);
     // The message must NOT presume a proof exists: an uncommitted slot is a
     // routine, benign alternative the offline audit cannot rule out.
-    assert.match(gap.message, /allocated but never committed/);
+    assert.match(gap.message, /reserved but never committed/);
     assert.match(gap.message, /failed to create or withheld any proof/);
 
     const chainBreak = report.anomalies.find((a) => a.code === "chain-break-missing")!;
