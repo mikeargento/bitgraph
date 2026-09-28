@@ -35,7 +35,7 @@ export default function TryPage() {
         <dt>Stays on your machine</dt>
         <dd>Your files. Each one is read and hashed in your browser and never uploaded. The new fused files are built in memory here too.</dd>
         <dt>Is sent</dt>
-        <dd>A request for a position (nothing about your files), then the SHA-256 digest of each new fused file together with the position record. The service also sees your network address.</dd>
+        <dd>The SHA-256 digest of every file you drop, to look up which are already BitGraphed. To make a BitGraph: a request for a position (nothing about your files), then the SHA-256 digest of each new fused file together with the position record. The service also sees your network address.</dd>
         <dt>Comes back</dt>
         <dd>A <code>bitgraph/1</code> proof: the position record, both counters, the enclave&rsquo;s signature and attestation, the floor block, and the marker naming the placement and the original&rsquo;s digest.</dd>
         <dt>Save</dt>
@@ -45,9 +45,10 @@ export default function TryPage() {
       <h2 id="states">What you will see</h2>
       <ul className="facts">
         <li><b>Reading</b><span>The file is being hashed in your browser. Large files take a few seconds; nothing has been sent yet.</span></li>
-        <li><b>BitGraphing</b><span>A position has been allocated and the digest is being committed under it. This is the only step that talks to the service.</span></li>
+        <li><b>Checking</b><span>Each file&rsquo;s digest is being looked up, to find the ones already BitGraphed. Large folders take a while.</span></li>
+        <li><b>BitGraphing</b><span>A position has been allocated and the digest is being committed under it. This and the check are the only steps that talk to the service.</span></li>
         <li><b>Restarting</b><span>Around 23:59 UTC the enclave restarts for its daily key renewal and holds commits for about a minute. Your file is hashed and waiting; recording resumes on its own.</span></li>
-        <li><b>Done</b><span>A single file opens its proof page. Several files become one set at one position and are listed with a row each; open any row for its proof.</span></li>
+        <li><b>Done</b><span>A single file opens its proof page. Several files become one set at one position and are listed with a row each; open any row for its proof. A file already BitGraphed is found rather than made again, and opens the proof it already has.</span></li>
         <li><b>Not made</b><span>If the service cannot be reached or refuses (for example, no anchor has landed yet in a fresh epoch), the page says so and nothing was recorded. Try again in a minute. A file over 256 MB is recorded by its digest rather than fused in the browser.</span></li>
       </ul>
 
