@@ -140,12 +140,15 @@ say "$pkg  ($(du -h "$pkg" | cut -f1))"
 # macOS Installer. Version, URL and checksum come from THIS run, so the feed
 # cannot name a build that was not checked. ⚠️ The site commits and pushes it;
 # the release is not announced until that push. And the GitHub Release must
-# exist first, since the URL below is its permanent latest-asset address.
+# exist first, since the URL below is that release's own asset, pinned to its
+# tag. It was the repo's "latest" address until 2026-09-27; that one moves
+# whenever the repo publishes any other release, which would hand every older
+# Recorder a broken update.
 feed="$here/../../website/public/recorder/latest.json"
 cat > "$feed" <<JSON
 {
   "version": "$version",
-  "url": "https://github.com/mikeargento/bitgraph/releases/latest/download/BitGraph-Recorder.pkg",
+  "url": "https://github.com/mikeargento/bitgraph/releases/download/recorder-v$version/BitGraph-Recorder.pkg",
   "notes": "https://github.com/mikeargento/bitgraph/releases/tag/recorder-v$version",
   "sha256": "$sha",
   "minimumSystemVersion": "14.0",
