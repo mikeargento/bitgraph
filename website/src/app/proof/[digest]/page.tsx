@@ -1,7 +1,7 @@
 "use client";
 
 import { DropPrompt, Browse } from "@/components/drop-prompt";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId, useSyncExternalStore } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams } from "next/navigation";
@@ -1510,7 +1510,7 @@ export default function ProofPage() {
         </>
       )}
 
-      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
+      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "96px 0 96px", animation: "fadeIn .3s ease-out" }}>
 
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
 
@@ -1735,10 +1735,12 @@ export default function ProofPage() {
                 nowrap line widened the whole card past a phone's edge instead of truncating. */}
             <div style={{ position: "relative", minWidth: 0 }}>
             {anchorsBackHref && (
-              /* The frame's top padding is 56px: 12px, the 32px button, 12px, then the card.
+              /* The frame's top padding is 96px: 28px, the 44px button, 24px, then the card
+                 (Mike, 2026-09-29: "kind of small and jammed up there"). Every proof page
+                 carries the same 96px, so nothing moves when a page learns it is an anchor.
                  right: -8 cancels the 8px right margin every button carries. */
-              <div style={{ position: "absolute", right: -8, top: -44, display: "flex" }}>
-                <a href={anchorsBackHref} className="bg-action-link">All Ethereum anchors</a>
+              <div style={{ position: "absolute", right: -8, top: -68, display: "flex" }}>
+                <a href={anchorsBackHref} className="bg-action-link bg-proof-top">All Ethereum anchors</a>
               </div>
             )}
             {/* Folds like the file proof's record card (2026-09-28): an anchor is a
@@ -2171,10 +2173,58 @@ function FreshRecordingWait() {
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
 
+/* One card open at a time (Mike, 2026-09-29: "centers the open modal during
+   viewing. even if that means only one modal open at a time"). The open card's
+   id lives in this module, so every CollapsibleCard on the page shares it
+   without a provider. Opening one closes the other, then brings the opened
+   card into view: centred in the space under the nav when it fits, its header
+   just under the nav when it is taller than that (Raw JSON, Hashes), since a
+   centred tall card would hide its own header. */
+let openCardId: string | null = null;
+const openCardListeners = new Set<() => void>();
+function setOpenCard(id: string | null) {
+  openCardId = id;
+  for (const l of openCardListeners) l();
+}
+function subscribeOpenCard(l: () => void) {
+  openCardListeners.add(l);
+  return () => { openCardListeners.delete(l); };
+}
+
+function bringIntoView(el: HTMLElement) {
+  // Two frames: the card that just closed has to finish collapsing first,
+  // or the measurement is taken against the old layout.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const nav = document.getElementById("site-nav");
+    const top = nav ? nav.getBoundingClientRect().bottom : 0;
+    const r = el.getBoundingClientRect();
+    const room = window.innerHeight - top;
+    const margin = 16;
+    const y = r.height <= room - margin * 2
+      ? window.scrollY + r.top - top - (room - r.height) / 2
+      : window.scrollY + r.top - top - margin;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: Math.max(0, y), behavior: reduce ? "auto" : "smooth" });
+  }));
+}
+
 function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   // Every card folds. The record card was the one always-open ("plain") card
   // until 2026-09-28, when it became a card like the rest, closed by default.
-  const [open, setOpen] = useState(!!defaultOpen);
+  const id = useId();
+  const ref = useRef<HTMLDivElement>(null);
+  const openId = useSyncExternalStore(subscribeOpenCard, () => openCardId, () => null);
+  useEffect(() => {
+    if (defaultOpen && openCardId === null) setOpenCard(id);
+    // Leaving the page (or this card unmounting) must not leave a stale id behind.
+    return () => { if (openCardId === id) setOpenCard(null); };
+  }, [defaultOpen, id]);
+  const open = openId === id;
+  const setOpen = (fn: (o: boolean) => boolean) => {
+    const next = fn(open);
+    setOpenCard(next ? id : null);
+    if (next && ref.current) bringIntoView(ref.current);
+  };
   const headerStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
     fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "var(--accent)",
@@ -2183,7 +2233,7 @@ function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactN
     textAlign: "left", fontFamily: "inherit",
   };
   return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
+    <div ref={ref} style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", overflow: "hidden", scrollMarginTop: 16 }}>
       {(
         /* The header is a full-row toggle with the same hover + outlined-button
            affordance as the explorer rows: the row tints on hover and the
