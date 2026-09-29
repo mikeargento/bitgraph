@@ -1,7 +1,7 @@
 "use client";
 
 import { DropPrompt, Browse } from "@/components/drop-prompt";
-import { useState, useEffect, useRef, useId, useSyncExternalStore } from "react";
+import { useState, useEffect, useRef } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { docxText, isDocx } from "@/lib/docx-text";
 import { useParams } from "next/navigation";
@@ -2173,27 +2173,14 @@ function FreshRecordingWait() {
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
 
-/* One card open at a time (Mike, 2026-09-29: "centers the open modal during
-   viewing. even if that means only one modal open at a time"). The open card's
-   id lives in this module, so every CollapsibleCard on the page shares it
-   without a provider. Opening one closes the other, then brings the opened
-   card into view: centred in the space under the nav when it fits, its header
-   just under the nav when it is taller than that (Raw JSON, Hashes), since a
-   centred tall card would hide its own header. */
-let openCardId: string | null = null;
-const openCardListeners = new Set<() => void>();
-function setOpenCard(id: string | null) {
-  openCardId = id;
-  for (const l of openCardListeners) l();
-}
-function subscribeOpenCard(l: () => void) {
-  openCardListeners.add(l);
-  return () => { openCardListeners.delete(l); };
-}
-
+/* Opening a card brings it into view (Mike, 2026-09-29): centred in the space
+   under the nav when it fits, its header just under the nav when it is taller
+   than that (Raw JSON, Hashes), since a centred tall card would hide its own
+   header. Cards open independently: a one-at-a-time limit was tried the same
+   evening and dropped, so two cards can sit open side by side in a walkthrough. */
 function bringIntoView(el: HTMLElement) {
-  // Two frames: the card that just closed has to finish collapsing first,
-  // or the measurement is taken against the old layout.
+  // Two frames: the opened content has to lay out first, or the measurement
+  // is taken against the collapsed card.
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const nav = document.getElementById("site-nav");
     const top = nav ? nav.getBoundingClientRect().bottom : 0;
@@ -2211,18 +2198,11 @@ function bringIntoView(el: HTMLElement) {
 function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   // Every card folds. The record card was the one always-open ("plain") card
   // until 2026-09-28, when it became a card like the rest, closed by default.
-  const id = useId();
   const ref = useRef<HTMLDivElement>(null);
-  const openId = useSyncExternalStore(subscribeOpenCard, () => openCardId, () => null);
-  useEffect(() => {
-    if (defaultOpen && openCardId === null) setOpenCard(id);
-    // Leaving the page (or this card unmounting) must not leave a stale id behind.
-    return () => { if (openCardId === id) setOpenCard(null); };
-  }, [defaultOpen, id]);
-  const open = openId === id;
+  const [open, setOpenState] = useState(!!defaultOpen);
   const setOpen = (fn: (o: boolean) => boolean) => {
     const next = fn(open);
-    setOpenCard(next ? id : null);
+    setOpenState(next);
     if (next && ref.current) bringIntoView(ref.current);
   };
   const headerStyle: React.CSSProperties = {
