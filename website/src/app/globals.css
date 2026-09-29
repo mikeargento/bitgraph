@@ -2201,7 +2201,7 @@ body { background: var(--bg); }
 
 /* Width: every page, the bar and the footer already sit in one frame, 90% of the window;
    it now runs to 1600px instead of 1040. */
-.nav-panel { max-width: min(1100px, 90%) !important; }
+.nav-panel { width: 90% !important; max-width: var(--frame) !important; }
 /* Sentences, lists, tables, callouts and code hold the old 1040px measure; figures take the
    frame. */
 main :is(p, ul, ol, dl, blockquote, h1, h2, h3, h4, .lede, .callout, .facts, .doors, .steps, .receipt, table, .note, .meta, details, .code-block) { max-width: var(--measure); }
