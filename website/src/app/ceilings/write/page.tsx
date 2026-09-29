@@ -30,10 +30,14 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
   const time = new Date(w.blockTimestamp * 1000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
 
   return (
-    <div className="frame" style={{ padding: "56px 0 96px" }}>
-      <a href={`/ceilings?day=${day}`} className="bg-action-link" style={{ margin: "0 0 20px" }}>
-        <span className="arrow" aria-hidden>&larr;</span> Ceilings
-      </a>
+    <div className="frame" style={{ padding: "96px 0 96px" }}>
+      {/* The same corner and size as a proof page's "All floors" (96px top
+          margin: 28px, the 44px pill, 24px), so a write reads like a proof. */}
+      <div style={{ position: "relative" }}>
+        <div style={{ position: "absolute", right: -8, top: -68, display: "flex" }}>
+          <a href={`/ceilings?day=${day}`} className="bg-action-link bg-proof-top">All ceilings</a>
+        </div>
+      </div>
       <h1 className="bg-page-title" style={{ margin: 0 }}>Base block {fmt(w.blockNumber)}</h1>
       <p className="lede" style={{ margin: "10px 0 0" }}>
         {w.records === 1 ? "This record" : `These ${fmt(w.records)} records`} existed by {time}, the time of the Base block that includes this transaction.
