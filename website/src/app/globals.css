@@ -2363,3 +2363,8 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 .ext-arrow { display: inline-block; vertical-align: -1px; margin-left: 4px; transition: translate 0.2s ease; }
 a:hover > .ext-arrow { translate: 2px -2px; }
 @media (prefers-reduced-motion: reduce) { a:hover > .ext-arrow { translate: none; } }
+/* The longer live line (Mike, 2026-09-29, carte blanche): two even lines at the paragraph's
+   measure on a desk. */
+.home .home-live { max-width: 46em; text-wrap: pretty; }
+.home .home-live { max-width: 58em; }
+.home .home-live .home-live-dot { align-self: flex-start; margin-top: 7px; }

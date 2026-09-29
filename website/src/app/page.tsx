@@ -79,7 +79,7 @@ export default function HomePage() {
           leaves the site, so it opens in a new tab. Drop "Live now" when the postseason ends. */}
       <p className="home-live">
         <span className="home-live-dot" aria-hidden="true" />
-        <span><strong>Live now:</strong> AI baseball predictions, each positioned before the pitch.{" "}
+        <span><strong>Live now:</strong> an AI is predicting every at bat of the 2026 baseball postseason. Each prediction gets its BitGraph position before the first pitch, so anyone can check that none was changed after the result.{" "}
           <a href="https://live.bitgraph.ing" target="_blank" rel="noopener">
             BitGraph Postseason<svg className="ext-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg><span className="sr-only"> (opens in a new tab)</span>
           </a>
