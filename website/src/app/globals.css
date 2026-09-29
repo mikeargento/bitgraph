@@ -2436,3 +2436,17 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .proof-grid { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden; gap: 0 !important; }
 .proof-grid > div { box-shadow: none !important; border: 0 !important; border-radius: 0 !important; border-bottom: 1px solid var(--line-2) !important; }
 .proof-grid > div:last-child { border-bottom: 0 !important; }
+/* Proof one-card list, fixed for anchor proofs: their first section is wrapped with the
+   "All Ethereum anchors" link, which sits ABOVE the card (absolute, top -44px). So the card no
+   longer clips (overflow visible keeps that link), the nested first card is flattened into the
+   list, and the first and last rows carry the card's rounded corners themselves. */
+.proof-grid { overflow: visible !important; }
+.proof-grid > div > div[style*="--shadow-card"] { box-shadow: none !important; border: 0 !important; border-radius: 0 !important; }
+.proof-grid > div:first-of-type, .proof-grid > div:first-of-type > div[style*="--shadow-card"] { border-top-left-radius: 16px !important; border-top-right-radius: 16px !important; }
+.proof-grid > div:last-of-type { border-bottom-left-radius: 16px !important; border-bottom-right-radius: 16px !important; }
+/* The anchors page's loading placeholder takes the same card as the loaded list: one white card,
+   rows split by the soft rule, each led by the blue anchor mark, so it doesn't jump on load. */
+.rl-list { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden; gap: 0 !important; }
+.rl-list > div { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--line-2) !important; padding: 14px 20px !important; }
+.rl-list > div:last-child { border-bottom: 0 !important; }
+.rl-list > div::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--g-blue, #4285f4); opacity: 0.35; }
