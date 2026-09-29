@@ -2163,3 +2163,114 @@ body { background: var(--bg); }
 .prose .verdict-table td.v-part .v-word { color: var(--v-warn); }
 .prose .verdict-table td.v-no .v-word { color: var(--v-err); }
 .prose .verdict-table td.v-yes, .prose .verdict-table td.v-part, .prose .verdict-table td.v-no { padding-left: 16px; }
+
+/* ═══ THE POSTSEASON LOOK (Mike, 2026-09-29: "i really like the style of the postseason
+   site including the width etc. ... apply that to the main bitgraph site. i think it would
+   allow more breathing room for everything especially diagrams. i also like the colors and
+   the raised cells"). Copied from live.bitgraph.ing's site.css: a pale Google ground, white
+   cards raised on Google's elevation shadow with 16px corners, Google's blue, pill buttons,
+   a sticky white bar that lifts when the page scrolls, and a 1600px frame. Prose keeps the
+   1040px measure it has read at since 09-11, so lines don't run long; figures, code, the
+   drop box and the chrome use the full frame. One layer, last in the file: delete it to
+   revert. ═══ */
+:root {
+  --bg: #f6f8fc;            /* the page ground (main); the bars stay white (--bar) */
+  --bar: #ffffff;
+  --paper: #ffffff;         /* a raised card */
+  --panel: #ffffff;
+  --panel-2: #f1f3f4;       /* hover fill */
+  --code-bg: #f1f3f4;
+  --inset: #ffffff;
+  --line: #dadce0;
+  --line-2: #e8eaed;
+  --ink: #202124;
+  --text: #3c4043;
+  --dim: #5f6368;
+  --accent: #1967d2;        /* links: 5.3:1 on white, 5.0:1 on the ground */
+  --accent-2: #1557b0;
+  --tint: #e8f0fe;
+  --btn-primary: #1a73e8; --btn-primary-hover: #1765cc; --btn-primary-text: #ffffff;
+  --shadow-card: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  --shadow-lift: 0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+  --shadow-menu: 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px rgba(60, 64, 67, 0.3);
+  --radius: 16px; --radius-card: 16px; --radius-row: 12px; --radius-pill: 999px;
+  --frame: 1600px;
+  --measure: 1040px;
+}
+::selection { background: rgba(26, 115, 232, 0.2); }
+
+/* Width: every page, the bar and the footer already sit in one frame, 90% of the window;
+   it now runs to 1600px instead of 1040. */
+.nav-panel { max-width: min(1100px, 90%) !important; }
+/* Sentences, lists, tables, callouts and code hold the old 1040px measure; figures take the
+   frame. */
+main :is(p, ul, ol, dl, blockquote, h1, h2, h3, h4, .lede, .callout, .facts, .doors, .steps, .receipt, table, .note, .meta, details, .code-block) { max-width: var(--measure); }
+main :is(figure, .fig-well) :is(p, ul, ol, dl, table, figcaption, .note, .meta) { max-width: none; }
+
+/* The bar: white, a hairline under it, and Google's lift once the page moves (site-nav adds
+   .scrolled). The wordmark takes the blue, as the postseason's does. */
+#site-nav { background: var(--bar) !important; border-bottom: 1px solid var(--line) !important; transition: box-shadow 0.2s; }
+#site-nav.scrolled { box-shadow: 0 1px 3px rgba(60, 64, 67, 0.2), 0 2px 8px rgba(60, 64, 67, 0.12); border-bottom-color: transparent !important; }
+#site-nav a[href="/"] { color: var(--accent) !important; }
+#site-nav .nav-btn { border-radius: 999px; padding: 0 14px; height: 36px; }
+#site-nav .nav-cta { border-radius: 999px !important; background: var(--btn-primary) !important; border-color: var(--btn-primary) !important; color: #fff !important; padding: 0 18px !important; height: 36px !important; }
+#site-nav .nav-cta:hover { background: var(--btn-primary-hover) !important; box-shadow: var(--shadow-card); }
+.nav-panel, .nav-menu { background: var(--paper) !important; border: 0 !important; border-radius: 16px !important; box-shadow: var(--shadow-menu) !important; }
+.docs-menu-item { border-radius: 999px !important; }
+.nav-menu .docs-menu-item[aria-current="page"], .nav-panel .docs-menu-item[aria-current="page"],
+.nav-menu .docs-menu-item[aria-current="page"]:hover, .nav-panel .docs-menu-item[aria-current="page"]:hover { background: #e8f0fe; color: #1967d2; }
+footer { border-top: 1px solid var(--line); }
+
+/* Raised cells: every box that was a hairline becomes a white card on the shadow. */
+.code-block, .receipt, .fig-well, .bitgraph-file-card, .dropbox, .callout,
+.prose .table-wrap, .prose-doc .table-wrap {
+  background: var(--paper) !important; border: 0 !important; border-radius: 16px !important; box-shadow: var(--shadow-card) !important;
+}
+.code-block { overflow: hidden; }
+.code-block pre { background: transparent !important; }
+.code-block-header { background: #f8f9fa !important; border-bottom: 1px solid var(--line-2) !important; }
+.receipt-head { background: #f8f9fa !important; border-bottom: 1px solid var(--line-2) !important; }
+.fig-well { padding: 28px !important; }
+@media (max-width: 640px) { .fig-well { padding: 18px 14px !important; } }
+/* A callout is a card with its colour as a band on the left edge, as the postseason marks
+   right and wrong. */
+.callout { padding: 16px 20px 16px 22px !important; box-shadow: inset 4px 0 0 var(--line), var(--shadow-card) !important; }
+.callout.is-limit { box-shadow: inset 4px 0 0 var(--err), var(--shadow-card) !important; }
+.callout.is-ok { box-shadow: inset 4px 0 0 var(--ok), var(--shadow-card) !important; }
+.callout.is-err { box-shadow: inset 4px 0 0 var(--err), var(--shadow-card) !important; }
+/* Tables sit on a card: a white surface, rows split by the soft rule, header in the dim tone. */
+.prose table, .prose-doc table { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden; border-collapse: separate; border-spacing: 0; }
+.prose th, .prose td, .prose-doc th, .prose-doc td { border: 0 !important; border-bottom: 1px solid var(--line-2) !important; padding: 10px 14px !important; }
+.prose tr:last-child td, .prose-doc tr:last-child td { border-bottom: 0 !important; }
+.prose th, .prose-doc th { color: var(--dim); font-size: 13.5px; font-weight: 600; background: #f8f9fa; }
+.prose tbody tr:nth-child(even), .prose-doc tbody tr:nth-child(even) { background: transparent !important; }
+/* The drop box: a white card, its dashed target inside rounded to match. */
+.try-zone .bitgraph-camera > div, .anchor-zone .bitgraph-camera > div { border-radius: 16px !important; background: var(--paper); }
+
+/* Buttons: Google's pills. Primary is the blue fill; the rest are white with a hairline. */
+.btn, .bg-action-link { border-radius: 999px !important; }
+.bg-action-link:not(.is-make) { background: var(--paper) !important; border: 1px solid var(--line) !important; color: var(--accent) !important; }
+.bg-action-link:not(.is-make):hover:not(:disabled) { background: #e8f0fe !important; }
+.home .actions .bg-action-link { border-radius: 999px !important; }
+
+/* Inline code: the grey chip, rounded. */
+:not(pre) > code { background: var(--code-bg); border-radius: 6px; padding: 0.1em 0.35em; }
+/* The drop box keeps its old width: at 16:9 across the full frame it stood 730px tall. */
+.try-zone, .anchor-zone { max-width: var(--measure); }
+/* Code sits at the text's measure too: a one-line install command across 1300px read as an
+   empty bar. Figures alone take the full frame. */
+.code-block { max-width: var(--measure); }
+/* Fact lists and link lists are cells too: one white card, one row per entry, rows split by
+   the soft rule (the postseason's grouped cards). */
+main .facts, main .doors { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); padding: 4px 20px !important; }
+main .facts > li, main .doors > li { margin: 0 !important; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
+main .facts > li:last-child, main .doors > li:last-child { border-bottom: 0; }
+/* Term lists (dl.terms, the API reference's "Hosts and conventions" and kin) take the same card:
+   each term and its definition is one row. */
+main dl.terms { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); padding: 4px 20px !important; }
+main dl.terms > dt { padding-top: 12px; margin-top: 0 !important; }
+main dl.terms > dd { margin: 2px 0 0 !important; padding-bottom: 12px; border-bottom: 1px solid var(--line-2); }
+main dl.terms > dd:last-of-type { border-bottom: 0; }
+/* Section headings stand on size and space alone, as the postseason's do; the cards below
+   them do the separating the hairline did. */
+main h2 { border-bottom: 0 !important; padding-bottom: 0 !important; }

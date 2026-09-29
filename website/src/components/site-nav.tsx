@@ -55,6 +55,14 @@ export function SiteNav() {
   };
   useEffect(() => cancelClose, []);
 
+  // The bar lifts on Google's shadow once the page has scrolled (the postseason's bar).
+  useEffect(() => {
+    const lift = () => navRef.current?.classList.toggle("scrolled", window.scrollY > 4);
+    lift();
+    window.addEventListener("scroll", lift, { passive: true });
+    return () => window.removeEventListener("scroll", lift);
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => { if (!navRef.current?.contains(e.target as Node)) setOpen(null); };
