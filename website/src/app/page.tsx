@@ -81,7 +81,7 @@ export default function HomePage() {
         <span className="home-live-pill"><span className="home-live-dot" aria-hidden="true" />Live</span>
         <span>An AI is predicting every at bat of the 2026 baseball postseason. Each prediction gets its BitGraph position before the first pitch, so anyone can check that none was changed after the result.{" "}
           <a href="https://live.bitgraph.ing" target="_blank" rel="noopener">
-            BitGraph Postseason<svg className="ext-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg><span className="sr-only"> (opens in a new tab)</span>
+            BitGraph Postseason<svg className="ext-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" fill="currentColor" /></svg><span className="sr-only"> (opens in a new tab)</span>
           </a>
         </span>
       </p>
