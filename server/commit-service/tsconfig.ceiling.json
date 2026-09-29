@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/ceiling/**/*.ts", "src/parent/ceiling-queue.ts"],
+  "exclude": ["node_modules", "dist"]
+}

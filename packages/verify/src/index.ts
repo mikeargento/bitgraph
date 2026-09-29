@@ -102,3 +102,15 @@ export type {
 } from "./carrier.js";
 export { verifyCarrier } from "./carrier-verify.js";
 export type { CarrierVerifyResult } from "./carrier-verify.js";
+
+// Ceiling in time on Base (bitgraph-ceiling/1): a sidecar beside the proof, never inside it.
+export {
+  CEILING_VERSION, CEILING_MAGIC, CEILING_PAYLOAD_BYTES,
+  encodeCeilingPayload, decodeCeilingPayload, ceilingPayloadHash, ceilingLeaf, ceilingLabel,
+  verifyCeiling, checkCeilingOnline,
+} from "./ceiling.js";
+export type { CeilingSidecar, CeilingStatus, CeilingPayload, CeilingCheck, CeilingVerifyResult, CeilingVerifyOptions } from "./ceiling.js";
+export { rlpEncode, rlpDecode, decodeHeader, decodeEip1559, mptVerify, txTrieKey, keccak256,
+  hexToBytes as evmHexToBytes, bytesToHex as evmBytesToHex } from "./ceiling-evm.js";
+export { txTrieProof } from "./ceiling-trie.js";
+export type { RlpItem, DecodedHeader, DecodedTx } from "./ceiling-evm.js";

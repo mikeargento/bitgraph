@@ -31,6 +31,7 @@ import { VsockClient, type EnclaveClient, type AnchorClaimRequest } from "./vsoc
 import { requestTimestamp } from "./tsa-client.js";
 import { getClientIp, tryConsumeDigests, rateLimitConfig, allocationLimiter } from "./rate-limit.js";
 import { createAuthPolicy, describeAuthPolicy, type AuthPolicy } from "./auth.js";
+import { enqueueCeiling, ceilingQueueEnabled } from "./ceiling-queue.js";
 
 const PORT = Number(
   process.argv.find((a) => a.startsWith("--port="))?.split("=")[1]
@@ -52,6 +53,7 @@ const FUSE_ENABLED = process.env["FUSE_ENABLED"] === "true";
 /** The slotId returned by /allocate-slot is the slot's 32-byte nonce in standard base64. */
 const SLOT_ID_PATTERN = /^[A-Za-z0-9+/]{43}=$/;
 
+if (ceilingQueueEnabled()) console.log(`[parent] ceiling queue enabled: ${process.env["CEILING_QUEUE_PATH"]}`);
 if (LEDGER_BUCKET) {
   console.log(`[parent] S3 ledger enabled: ${LEDGER_BUCKET}`);
 } else {
@@ -455,6 +457,8 @@ async function handleCommit(req: IncomingMessage, res: ServerResponse): Promise<
 
   // Fire-and-forget: persist to immutable S3 ledger (includes by-digest index)
   void persistToLedger(proofs);
+  // Fire-and-forget: queue each record for its Base ceiling (no-op unless CEILING_QUEUE_PATH).
+  enqueueCeiling(proofs);
 
   sendJson(res, 200, proofs);
 }

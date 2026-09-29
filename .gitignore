@@ -37,3 +37,6 @@ recorder/mac/.build/
 recorder/mac/build/
 recorder/mac/preview/
 recorder/mac/release/
+
+# Ceiling writer bundle (built by npm run build:ceiling in server/commit-service)
+server/commit-service/dist-ceiling/
