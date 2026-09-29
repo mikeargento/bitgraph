@@ -2976,15 +2976,26 @@ function FileCard({ cachedFile, label, preview, pending }: {
 
   // Text excerpt: enough lines to see what the document is, never the whole
   // thing — Open shows the full file in its own tab.
-  let excerpt: { text: string; truncated: boolean } | null = null;
+  let excerpt: { text: string; truncated: boolean; formatted?: boolean } | null = null;
   // Pending: one blank line keeps the text's place, so nothing below jumps.
   if (kind === "text" && pending) excerpt = { text: "\u00a0", truncated: false };
   else if (kind === "text") {
     try {
-      const raw = new TextDecoder("utf-8", { fatal: false }).decode(shown.data.slice(0, 6000));
+      let raw = new TextDecoder("utf-8", { fatal: false }).decode(shown.data.slice(0, 6000));
+      let partial = shown.data.byteLength > 6000;
+      // A small .json file reads indented, since a sealed record is usually
+      // one compact line. Display only, and labelled below: the bytes are untouched.
+      let formatted = false;
+      if (/\.json$/i.test(shown.name) && shown.data.byteLength <= 200_000) {
+        try {
+          const pretty = JSON.stringify(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(shown.data)), null, 2);
+          if (pretty.split("\n").length > raw.split("\n").length) { raw = pretty; partial = false; formatted = true; }
+        } catch { /* not JSON after all: shown as it is */ }
+      }
+      const limit = formatted ? 60 : 24;
       const lines = raw.split("\n");
-      const text = lines.slice(0, 24).join("\n").slice(0, 3000);
-      excerpt = { text, truncated: lines.length > 24 || raw.length > text.length || shown.data.byteLength > 6000 };
+      const text = lines.slice(0, limit).join("\n").slice(0, formatted ? 6000 : 3000);
+      excerpt = { text, truncated: lines.length > limit || raw.length > text.length || partial, formatted };
     } catch { excerpt = null; }
   }
 
@@ -3041,6 +3052,9 @@ function FileCard({ cachedFile, label, preview, pending }: {
         <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: "clamp(11px, 3vw, 12.5px)", lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 1200, overflow: "hidden" }}>
           {excerpt.text}{excerpt.truncated ? "\n…" : ""}
         </pre>
+      )}
+      {kind === "text" && excerpt?.formatted && (
+        <div style={{ padding: "0 16px 14px", fontSize: 12.5, color: "var(--dim)" }}>Indented for reading. The file itself is compact JSON, exactly as recorded; Open shows it as it is.</div>
       )}
       {/* ⚠️ The label is not decoration. This is the document's TEXT, not the
           document: no fonts, no layout, no images, headings flattened to plain
