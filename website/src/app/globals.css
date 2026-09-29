@@ -2453,3 +2453,6 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 /* Home rhythm: the live block is a separate thing from the hero's own buttons, so it stands a
    little further off them (44px) than the buttons stand from the paragraph (about 32px). */
 @media (min-width: 900px) { .home .home-live { margin-top: 44px !important; } }
+/* Cap lowered (Mike, 2026-09-29: "still a bit large when browser width allows"): the headline
+   stops at 96px, a step above the pre-restyle 88px; the paragraph stays capped at 24px. */
+@media (min-width: 900px) { .home h1 { font-size: min(calc(min(90vw, 1600px) * 0.0846), 96px) !important; } }
