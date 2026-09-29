@@ -2,16 +2,19 @@ import { DocsPageNav } from "@/components/docs-page-nav";
 import { BASESCAN, CEILING_WRITER, writesForDay, type CeilingWrite } from "@/lib/ceilings";
 import { StatusChip } from "@/components/ceiling-status";
 
-/* ── Base ceilings: one row per Base transaction the ceiling writer sent.
+/* ── Ceilings (on Base): one row per Base transaction the ceiling writer sent.
    Each is a Merkle root over the records made since the one before, so the
    block's time is a moment every record under it already existed by. The
-   Ethereum anchors page is the floors; this is the ceilings in time.
+   Floors page (Ethereum anchors) is the floors; this is the ceilings in time.
+   Titled "Ceilings" beside "Floors" (Mike, 2026-09-29); the lede says Base, so
+   the pair never reads as one chain.
 
    Day pages like the anchors: today live, earlier days by ?day=, named by
    UTC date. Times are the Base block's own timestamp, in UTC, so each one
    matches its Basescan link exactly (the anchors page's standing rule). ── */
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Ceilings" };
 
 // The writer's first day. No day exists before it.
 const EARLIEST_DAY = "2026-09-29";
@@ -74,7 +77,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
           .cl-when { margin-left: auto; }
         }
       `}</style>
-      <h1 className="bg-page-title" style={{ margin: 0 }}>Base ceilings</h1>
+      <h1 className="bg-page-title" style={{ margin: 0 }}>Ceilings</h1>
       {day && <div style={{ fontSize: 14, color: "var(--dim)", marginTop: 2 }}>{`${longLabel(day)} (UTC)`}</div>}
       <p className="lede" style={{ margin: "10px 0 0" }}>
         Each row is one Base transaction carrying a Merkle root over the records made since the last one. Every record under it existed by the time of its block, read from the block itself, in UTC, with the block linked to Basescan.
@@ -101,7 +104,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
       {failed ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--faint)", fontSize: 14 }}>The ledger could not be read. Try again in a moment.</div>
       ) : writes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--faint)", fontSize: 14 }}>No Base ceilings on this day.</div>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--faint)", fontSize: 14 }}>No ceilings on this day.</div>
       ) : (
         <div className="cl-rows">
           {writes.map((w) => {

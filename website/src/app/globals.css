@@ -2477,3 +2477,6 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 /* The anchor proof's "All Ethereum anchors": a full 44px pill in the proof
    frame's 96px top margin (Mike, 2026-09-29: "kind of small and jammed up there"). */
 .bg-action-link.bg-proof-top { min-height: 44px; padding: 0 20px !important; font-size: 15px !important; display: inline-flex !important; align-items: center; margin: 0 8px 0 0 !important; }
+
+/* STAGING ONLY (2026-09-29 ceiling copy pass): added words in red for review. Remove before push. */
+.copy-new, .copy-new * { color: #d93025 !important; }

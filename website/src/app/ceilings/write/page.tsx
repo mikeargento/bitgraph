@@ -6,6 +6,7 @@ import { StatusChip } from "@/components/ceiling-status";
    under its root, each linking to its own proof page. ── */
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Ceiling write" };
 
 const fmt = (n: number | string) => Number(n).toLocaleString("en-US");
 const eth = (wei: string) => (Number(BigInt(wei)) / 1e18).toFixed(9).replace(/0+$/, "").replace(/\.$/, "");
@@ -31,7 +32,7 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
   return (
     <div className="frame" style={{ padding: "56px 0 96px" }}>
       <a href={`/ceilings?day=${day}`} className="bg-action-link" style={{ margin: "0 0 20px" }}>
-        <span className="arrow" aria-hidden>&larr;</span> Base ceilings
+        <span className="arrow" aria-hidden>&larr;</span> Ceilings
       </a>
       <h1 className="bg-page-title" style={{ margin: 0 }}>Base block {fmt(w.blockNumber)}</h1>
       <p className="lede" style={{ margin: "10px 0 0" }}>

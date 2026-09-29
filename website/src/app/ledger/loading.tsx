@@ -25,7 +25,7 @@ export default function Loading() {
         {/* Heading: the real title (it never varies), a shimmer where the
             live-vs-day subtitle will land. */}
         <div style={{ marginBottom: 12 }}>
-          <div className="bg-page-title" style={{ margin: 0 }}>Ethereum anchors</div>
+          <div className="bg-page-title" style={{ margin: 0 }}>Floors</div>
         </div>
 
         {/* The nav line: day stepper left, Calendar right. */}
@@ -47,7 +47,7 @@ export default function Loading() {
             </div>
           ))}
         </div>
-        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Opening Ethereum anchors…</span>
+        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }} role="status">Opening floors…</span>
       </div>
     </div>
   );

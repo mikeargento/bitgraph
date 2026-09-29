@@ -67,7 +67,8 @@ export default function ProtocolPage() {
             <tr><td>Attestation</td><td>A document signed by the Nitro hardware whose user data is SHA-256 of this proof&rsquo;s canonical signed body. Per proof, not per boot.</td></tr>
             <tr><td>Anchor</td><td>A proof on the same chain whose digest is derived from a recent Ethereum block hash, with the block number and hash signed into <code>commit.anchor</code>.</td></tr>
             <tr><td>Floor</td><td>The block named by the anchor that preceded a position&rsquo;s allocation, signed into the position record as <code>commit.slotAnchor</code>. A lower bound in time.</td></tr>
-            <tr><td>Ceiling</td><td>The next anchor in the chain after a commit. A bound in position; it does not convert to a clock reading.</td></tr>
+            <tr><td>Ceiling<span className="copy-new"> in position</span></td><td>The next anchor in the chain after a commit. A bound in position; it does not convert to a clock reading.</td></tr>
+            <tr className="copy-new"><td>Ceiling in time</td><td>The Base block that includes a Merkle root over the record&rsquo;s proof hash, written after the commit by a published writer. Carried beside the proof in a ceiling file, never inside it.</td></tr>
             <tr><td>Anchor witness</td><td>An Ethereum block header, re-encoded and self-checked, that lets a verifier read a block&rsquo;s time offline after confirming its keccak-256 equals the anchored hash.</td></tr>
             <tr><td>Verifier</td><td>Any party holding a proof, optionally the bytes, and a trust policy. Verification is offline and deterministic.</td></tr>
             <tr><td>Enforcement tier</td><td><code>stub</code>, <code>hw-key</code> or <code>measured-tee</code>. Signed, self-reported, and not self-authenticating.</td></tr>

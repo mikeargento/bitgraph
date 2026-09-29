@@ -29,17 +29,17 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "Why not just trust a timestamp?",
-    a: "A timestamp is written by the same key that signs the record. If that key is compromised or its holder is dishonest, backdating costs nothing and leaves no trace. A value signed by the party a check exists to catch is a claim, not evidence. BitGraph's only time comes from outside: the Ethereum block an anchor names, signed by nobody involved.",
+    a: "A timestamp is written by the same key that signs the record. If that key is compromised or its holder is dishonest, backdating costs nothing and leaves no trace. A value signed by the party a check exists to catch is a claim, not evidence. BitGraph's ⟦times come⟧ from outside: the Ethereum block an anchor names, signed by nobody involved⟦, and the Base block that includes the record's hash afterward⟧.",
     href: "/docs/overview#time", label: "Where time comes from",
   },
   {
     q: "What is a floor, and is there a ceiling?",
-    a: "The floor is the Ethereum block named in the position record: it was mined before the position existed, so the position was placed after that block's time. The ceiling is the next anchor in the sequence: a place, not a clock reading. There is no wall-clock upper bound.",
+    a: "The floor is the Ethereum block named in the position record: it was mined before the position existed, so the position was placed after that block's time. The ceiling⟦ in position⟧ is the next anchor in the sequence: a place, not a clock reading. ⟦The ceiling in time is the Base block that includes the record: a few seconds after each commit, BitGraph writes a Merkle root over new records to Base, and the record existed by that block's time. See Ceilings.⟧",
     href: "/docs/overview#time", label: "Where time comes from",
   },
   {
     q: "Is this a blockchain?",
-    a: "No. There is no consensus, no token and no global ledger. One enclave constrains one sequence, and `prevB64` is a local hash chain. Ethereum is read, never written: an anchor commits the hash of a block into BitGraph's sequence, and no transaction, wallet or contract is involved.",
+    a: "No. There is no consensus, no token and no global ledger. One enclave constrains one sequence, and `prevB64` is a local hash chain. Ethereum is read, never written: an anchor commits the hash of a block into BitGraph's sequence, and no transaction, wallet or contract is involved. ⟦The one thing BitGraph writes to a chain is its ceiling in time: one small Base transaction per batch of records, from a published address, carrying a Merkle root over their proof hashes. The order never depends on it.⟧",
     href: "/docs/what-bitgraph-is-not#neighbours", label: "Systems BitGraph is mistaken for",
   },
   {
@@ -54,7 +54,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "Can I verify a proof without an internet connection?",
-    a: "Yes. The digest, the Ed25519 signature, the attestation chain to the AWS Nitro root and the position binding are all checked from the proof and the bytes. The floor is checked offline too when the anchor and its block-header witness travel with the proof, which an export includes.",
+    a: "Yes. The digest, the Ed25519 signature, the attestation chain to the AWS Nitro root and the position binding are all checked from the proof and the bytes. The floor is checked offline too when the anchor and its block-header witness travel with the proof, which an export includes. ⟦The ceiling in time is checked offline from its ceiling file: the Merkle path, the signed Base transaction and the block header. Whether that header is Base's own takes one lookup against any Base node.⟧",
     href: "/docs/verification", label: "Verification",
   },
   {

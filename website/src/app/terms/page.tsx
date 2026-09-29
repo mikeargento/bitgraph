@@ -32,8 +32,10 @@ export default function TermsPage() {
           file&apos;s SHA-256 fingerprint to it in one indivisible step.
           Positions form a forward-only chain, and anchors periodically tie
           that chain to a public timeline by recording the hash of a recent
-          Ethereum block. Nothing is written to any blockchain, and the
-          ordering does not depend on one.
+          Ethereum block. <span className="copy-new">After a commit, a Merkle root over recent
+          records&apos; proof hashes is written to the Base network as a
+          ceiling in time; no file and no fingerprint is written.</span> The
+          ordering does not depend on <span className="copy-new">any blockchain</span>.
         </p>
         <p>
           Only fingerprints are recorded. Files are fingerprinted on your

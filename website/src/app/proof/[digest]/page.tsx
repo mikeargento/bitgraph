@@ -1757,7 +1757,7 @@ export default function ProofPage() {
                  carries the same 96px, so nothing moves when a page learns it is an anchor.
                  right: -8 cancels the 8px right margin every button carries. */
               <div style={{ position: "absolute", right: -8, top: -68, display: "flex" }}>
-                <a href={anchorsBackHref} className="bg-action-link bg-proof-top">All Ethereum anchors</a>
+                <a href={anchorsBackHref} className="bg-action-link bg-proof-top">All floors</a>
               </div>
             )}
             {/* Folds like the file proof's record card (2026-09-28): an anchor is a
@@ -2132,7 +2132,7 @@ export default function ProofPage() {
                   <Field label="Basescan" value={`https://basescan.org/tx/${baseCeiling.anchor.txHash}`} link />
                   <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)", display: "flex", gap: 20, flexWrap: "wrap" }}>
                     <a href={`/ceilings?day=${new Date(baseCeiling.anchor.blockTimestamp * 1000).toISOString().slice(0, 10)}`} className="bg-action-link">
-                      <span>All Base ceilings</span>
+                      <span>All ceilings</span>
                       <span className="arrow" aria-hidden>&rarr;</span>
                     </a>
                     <a href={`/api/ceilings/${((proof as BitGraphProof & { proofHash?: string }).proofHash ?? "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`} download className="bg-action-link">
