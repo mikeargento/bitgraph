@@ -2450,3 +2450,6 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .rl-list > div { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--line-2) !important; padding: 14px 20px !important; }
 .rl-list > div:last-child { border-bottom: 0 !important; }
 .rl-list > div::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--g-blue, #4285f4); opacity: 0.35; }
+/* Home rhythm: the live block is a separate thing from the hero's own buttons, so it stands a
+   little further off them (44px) than the buttons stand from the paragraph (about 32px). */
+@media (min-width: 900px) { .home .home-live { margin-top: 44px !important; } }
