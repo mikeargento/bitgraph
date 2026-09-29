@@ -126,6 +126,15 @@ const EXAMPLE_FILES: Record<string, { path: string; name: string; mime: string }
     { path: "/example/bitgraph-demonstration.txt", name: "bitgraph-demonstration.txt", mime: "text/plain" },
 };
 
+/* Records a BitGraph demonstration site hosts by digest. Fetched only when a link
+   asks with ?original=<key>, so an ordinary proof page still fetches nothing, and
+   shown only through the same hash guard as EXAMPLE_FILES: the host is trusted for
+   nothing. */
+const ORIGINAL_HOSTS: Record<string, string> = {
+  // BitGraph Postseason (2026-09-28): every call Jev made and its outcome, as sealed.
+  postseason: "https://live.bitgraph.ing/by-digest/",
+};
+
 export default function ProofPage() {
   const params = useParams();
   const digestParam = params.digest as string;
@@ -285,15 +294,20 @@ export default function ProofPage() {
        but only when arriving by client-side navigation, which is exactly how a
        reader arrives from the /subjects demo. A hard load ran once and worked,
        so it looked fine everywhere it was tested. */
-    if (!EXAMPLE_FILES[decodeURIComponent(digestParam)] || examplePulled.current) return;
+    const d = decodeURIComponent(digestParam);
+    const hostKey = new URLSearchParams(window.location.search).get("original");
+    const host = hostKey && Object.hasOwn(ORIGINAL_HOSTS, hostKey) ? ORIGINAL_HOSTS[hostKey] : null;
+    const example: { path: string; name: string; mime: string } | null = EXAMPLE_FILES[d]
+      ?? (host ? { path: host + d.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), name: "record.json", mime: "application/json" } : null);
+    if (!example || examplePulled.current) return;
     examplePulled.current = true;
     let cancelled = false;
     let settled = false;
     void (async () => {
       try {
-        const example = EXAMPLE_FILES[decodeURIComponent(digestParam)];
         const r = await fetch(example.path);
         if (!r.ok || cancelled) return;
+        const name = r.headers.get("X-Record-Name") ?? example.name;
         const data = await (await r.blob()).arrayBuffer();
         // Same guard the IDB path uses: only show bytes that hash to this proof.
         let digestB64 = decodeURIComponent(digestParam).replace(/-/g, "+").replace(/_/g, "/");
@@ -301,13 +315,13 @@ export default function ProofPage() {
         if ((await hashBytes(new Uint8Array(data))) !== digestB64) return;
         if (cancelled) return;
         settled = true;
-        setCachedFile({ name: example.name, data });
+        setCachedFile({ name, data });
         // Parse the embedded credentials too, or a shared link would show the
         // photo but not the Content Credentials card that is half its point.
         try {
           const { readC2PA } = await import("@/lib/c2pa-reader");
           const c2pa = await readC2PA(new Blob([new Uint8Array(data)], { type: example.mime }));
-          if (!cancelled) setCachedFile({ name: example.name, data, c2pa, c2paChecked: true });
+          if (!cancelled) setCachedFile({ name, data, c2pa, c2paChecked: true });
         } catch { /* the photo still shows without the card */ }
       } catch { /* falls back to the bring-your-file box */ }
     })();
