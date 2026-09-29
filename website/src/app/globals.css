@@ -2419,3 +2419,14 @@ main .xp-row .xp-counter { font-size: 15px !important; }
    so they read heavier than every other card (Mike, 2026-09-29: "the shadows on proof pages are
    stronger"). The shadow alone, as everywhere else. */
 .proof-grid > div { border-color: transparent !important; }
+/* The drop box's "BitGraph N files" button, with more body (Mike, 2026-09-29: "that button
+   needs more gerth"): 44px tall, 16px semibold, the same size as the bar's Make a BitGraph, and
+   a little more room in its strip. */
+.bg-action-link.is-make { min-height: 44px; padding: 0 24px !important; font-size: 16px !important; font-weight: 600 !important; display: inline-flex !important; align-items: center; }
+div:has(> .bg-action-link.is-make) { padding-top: 12px !important; padding-bottom: 12px !important; }
+.home .actions { padding: 0 !important; }
+/* "Choose more files" above the drop box results: the site's secondary pill (white, hairline,
+   blue semibold), not the old grey square. */
+button.bg-arrow-link { display: inline-flex !important; align-items: center; height: 40px; padding: 0 20px !important; background: var(--paper) !important; border: 1px solid var(--line) !important; border-radius: 999px !important; color: var(--accent) !important; font-size: 15px !important; font-weight: 600 !important; box-shadow: none !important; transition: background 0.15s, color 0.15s; }
+button.bg-arrow-link:hover { background: #e8f0fe !important; color: var(--ink) !important; }
+button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-height: 1 !important; }
