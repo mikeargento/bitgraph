@@ -2366,3 +2366,10 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 .home .home-live:hover .home-live-go { color: var(--ink); }
 @media (max-width: 600px) { .home .home-live { border-radius: 18px; align-items: flex-start; } .home .home-live .home-live-dot { margin-top: 6px; } }
 .home .home-live { align-self: flex-start; width: fit-content; }
+/* Final shape (Mike, 2026-09-29): the sentence is plain text; only "BitGraph Postseason" is a
+   button, a small white pill with a hairline beside it. Overrides the whole-pill rules above. */
+.home .home-live { display: flex !important; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 0 !important; background: none !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; color: var(--dim) !important; width: auto; }
+.home .home-live:hover { background: none !important; box-shadow: none !important; }
+.home .home-live .home-live-go { display: inline-flex; align-items: center; height: 34px; padding: 0 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; color: var(--accent) !important; font-weight: 600; font-size: 14px; white-space: nowrap; text-decoration: none !important; transition: background 0.15s, color 0.15s; }
+.home .home-live .home-live-go:hover { background: #e8f0fe; color: var(--ink) !important; }
+@media (max-width: 600px) { .home .home-live { align-items: flex-start; } .home .home-live .home-live-dot { margin-top: 7px; } }
