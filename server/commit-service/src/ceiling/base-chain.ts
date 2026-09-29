@@ -97,7 +97,10 @@ export class BaseChain implements Chain {
     const r = (await this.rpc("eth_getTransactionReceipt", [txHash])) as
       | { blockHash: string; gasUsed: string; effectiveGasPrice: string; l1Fee?: string; status: string }
       | null;
-    if (!r) return null;
+    // Base's RPC can answer with a Flashblocks preconfirmation: a receipt whose
+    // blockHash is all zeros, before the 2-second block exists. That is not an
+    // inclusion (the ceiling is the full block's timestamp), so it is "not yet".
+    if (!r || !r.blockHash || /^0x0*$/.test(r.blockHash)) return null;
     if (r.status !== "0x1") throw new Error(`transaction ${txHash} reverted`);
     const ev = await blockEvidence(this.rpc, r.blockHash, txHash);
     const l2 = BigInt(r.gasUsed) * BigInt(r.effectiveGasPrice);
