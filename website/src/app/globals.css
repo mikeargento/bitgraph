@@ -2456,3 +2456,20 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 /* Cap lowered (Mike, 2026-09-29: "still a bit large when browser width allows"): the headline
    stops at 96px, a step above the pre-restyle 88px; the paragraph stays capped at 24px. */
 @media (min-width: 900px) { .home h1 { font-size: min(calc(min(90vw, 1600px) * 0.0846), 96px) !important; } }
+
+/* Prev/next pills, one size (Mike, 2026-09-29): a one-cell grid holding the
+   visible arrow-and-name row, centred, over hidden rows for every section
+   name, so every pill is the width of the longest and the content sits in
+   the middle of it. Phones cannot fit two of those, so there the pair splits
+   the row in equal halves and a long name wraps; stretch keeps the heights equal. */
+.bg-page-nav > .bg-action-link.bg-pn { display: inline-grid !important; place-items: center; padding-left: 20px !important; padding-right: 20px !important; }
+.bg-pn > .bg-pn-row { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: 10px; }
+.bg-pn > .bg-pn-sizer { visibility: hidden; white-space: nowrap; }
+.bg-pn > .bg-pn-row > span { min-width: 0; }
+@media (max-width: 640px) {
+  .bg-pn > .bg-pn-sizer { display: none; }
+  .bg-page-nav > .bg-action-link.bg-pn { flex: 1 1 0; max-width: none; }
+  .bg-page-nav > span:empty { flex: 1 1 0; }
+  .bg-pn > .bg-pn-row { gap: 6px; text-wrap: balance; text-align: center; }
+  .bg-page-nav > .bg-action-link.bg-pn { padding: 10px 12px !important; font-size: 14.5px !important; }
+}

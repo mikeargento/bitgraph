@@ -37,6 +37,27 @@ function Arrow({ back = false }: { back?: boolean }) {
   );
 }
 
+/**
+ * One pill size for every page (Mike, 2026-09-29: "they should all be uniform
+ * in size and be the size of the largest needed size"). The pill is a
+ * one-cell grid: the visible arrow and name sit centred, and behind them, in
+ * the same cell, an invisible arrow-and-name row for EVERY section. The cell
+ * is as wide as the widest of those in whatever font rendered, so no width is
+ * hard-coded and a new section resizes every pill by itself. Phones drop the
+ * sizers and split the row in equal halves (globals.css).
+ */
+function Rows({ text, back }: { text: string; back?: boolean }) {
+  const row = (label: string) => (back ? <><Arrow back /><span>{label}</span></> : <><span>{label}</span><Arrow /></>);
+  return (
+    <>
+      <span className="bg-pn-row">{row(text)}</span>
+      {DOCS_SECTIONS.map((s) => (
+        <span key={s.href} className="bg-pn-row bg-pn-sizer" aria-hidden="true">{row(s.label)}</span>
+      ))}
+    </>
+  );
+}
+
 export function DocsPageNav({ current }: { current?: string } = {}) {
   const pathname = usePathname();
   const i = DOCS_SECTIONS.findIndex((s) => s.href === (current ?? pathname));
@@ -54,15 +75,15 @@ export function DocsPageNav({ current }: { current?: string } = {}) {
           lone Use cases link still sits on the right, where a forward link
           belongs. */}
       {prev ? (
-        <Link href={prev.href} className="bg-action-link back" rel="prev">
-          <Arrow back /> <span>{prev.label}</span>
+        <Link href={prev.href} className="bg-action-link back bg-pn" rel="prev">
+          <Rows text={prev.label} back />
         </Link>
       ) : (
         <span />
       )}
       {next && (
-        <Link href={next.href} className="bg-action-link" rel="next">
-          <span>{next.label}</span> <Arrow />
+        <Link href={next.href} className="bg-action-link bg-pn" rel="next">
+          <Rows text={next.label} />
         </Link>
       )}
     </nav>
