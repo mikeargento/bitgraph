@@ -28,6 +28,15 @@ import { DOCS_SECTIONS } from "@/lib/docs-sections";
    overview's pair; without it the trail was missing from the home page
    (Mike, 2026-09-09: "the links at bottom of overview page got lost when
    moved to homepage"). Every docs route still reads its own pathname. */
+/** Google's arrow (Material "arrow_forward"): a stem and an open head, drawn at 20px. */
+function Arrow({ back = false }: { back?: boolean }) {
+  return (
+    <svg className="arrow" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style={back ? { transform: "scaleX(-1)" } : undefined}>
+      <path d="M4 12h15M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function DocsPageNav({ current }: { current?: string } = {}) {
   const pathname = usePathname();
   const i = DOCS_SECTIONS.findIndex((s) => s.href === (current ?? pathname));
@@ -46,14 +55,14 @@ export function DocsPageNav({ current }: { current?: string } = {}) {
           belongs. */}
       {prev ? (
         <Link href={prev.href} className="bg-action-link back" rel="prev">
-          <span className="arrow">&larr;</span> {prev.label}
+          <Arrow back /> <span>{prev.label}</span>
         </Link>
       ) : (
         <span />
       )}
       {next && (
         <Link href={next.href} className="bg-action-link" rel="next">
-          {next.label} <span className="arrow">&rarr;</span>
+          <span>{next.label}</span> <Arrow />
         </Link>
       )}
     </nav>

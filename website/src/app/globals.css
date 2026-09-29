@@ -2281,9 +2281,13 @@ main .btn:not(.is-primary) { background: var(--paper) !important; border: 1px so
 main .btn:not(.is-primary):hover:not(:disabled) { background: #e8f0fe !important; }
 main .btn.is-primary { background: var(--btn-primary) !important; border: 1px solid var(--btn-primary) !important; color: #fff !important; }
 main .btn.is-primary:hover:not(:disabled) { background: var(--btn-primary-hover) !important; box-shadow: var(--shadow-card); }
-/* The arrows in the prev/next pills move the way they point when the pill is hovered or
-   focused: forward slides right, back slides left. */
-.bg-page-nav .bg-action-link .arrow { display: inline-block !important; transition: transform 0.2s ease, color 0.2s ease; }
-.bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { transform: translateX(5px); color: var(--accent); }
-.bg-page-nav .bg-action-link.back:hover .arrow, .bg-page-nav .bg-action-link.back:focus-visible .arrow { transform: translateX(-5px); }
-@media (prefers-reduced-motion: reduce) { .bg-page-nav .bg-action-link .arrow { transition: color 0.2s ease; } .bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { transform: none; } }
+/* The prev/next pills: taller, the label at 16px, and a drawn arrow (Material's arrow_forward)
+   that slides the way it points when the pill is hovered or focused. The back arrow is the
+   same drawing mirrored, so it slides by the wrapper, not the svg (which carries the flip). */
+.bg-page-nav .bg-action-link { display: inline-flex !important; align-items: center !important; gap: 10px !important; padding: 13px 22px !important; font-size: 16px !important; line-height: 1.3 !important; min-height: 50px; }
+.bg-page-nav .bg-action-link.back { padding-left: 18px !important; }
+.bg-page-nav .bg-action-link:not(.back) { padding-right: 18px !important; }
+.bg-page-nav .bg-action-link .arrow { display: block !important; flex: none; color: var(--dim); transition: translate 0.2s ease, color 0.2s ease; }
+.bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { translate: 5px 0; color: var(--accent); }
+.bg-page-nav .bg-action-link.back:hover .arrow, .bg-page-nav .bg-action-link.back:focus-visible .arrow { translate: -5px 0; }
+@media (prefers-reduced-motion: reduce) { .bg-page-nav .bg-action-link .arrow { transition: color 0.2s ease; } .bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { translate: none; } }
