@@ -2328,3 +2328,11 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 .code-copy.is-copied { background: #e6f4ea !important; color: #188038 !important; border-color: #ceead6 !important; }
 .code-copy:focus-visible { outline: 3px solid #1a73e8 !important; outline-offset: 2px; }
 .code-copy-label { line-height: 1; }
+/* Capped (Mike, 2026-09-29, at a 2000px window: "not tooooo big?"): the headline stops at 112px,
+   about two thirds of the full frame, and the paragraph at its old 24px. Below ~1500px windows
+   nothing changes. */
+@media (min-width: 900px) {
+  .home h1 { font-size: min(calc(min(90vw, 1600px) * 0.0846), 112px) !important; }
+  .home .lede { font-size: min(calc(min(90vw, 1600px) * 0.0205), 24px) !important; }
+  .home .actions .bg-action-link { font-size: 17px !important; padding: 14px 28px !important; }
+}
