@@ -75,15 +75,14 @@ export default function HomePage() {
         <Link className="bg-action-link" href="/docs/overview">How it works</Link>
       </div>
 
-      {/* The live demo, one quiet line (Mike, 2026-09-29): the headline's claim, happening. It
+      {/* The live demo as one pill button (Mike, 2026-09-29): the headline's claim, happening. It
           leaves the site, so it opens in a new tab. Drop "Live now" when the postseason ends. */}
-      <p className="home-live">
+      <a className="home-live" href="https://live.bitgraph.ing" target="_blank" rel="noopener">
         <span className="home-live-dot" aria-hidden="true" />
-        <span><strong>Live now:</strong> AI baseball predictions, each positioned before the pitch.</span>{" "}
-        <a href="https://live.bitgraph.ing" target="_blank" rel="noopener">
-          BitGraph Postseason<span aria-hidden="true">&nbsp;&#8599;</span><span className="sr-only"> (opens in a new tab)</span>
-        </a>
-      </p>
+        <span><strong>Live now:</strong> AI baseball predictions, each positioned before the pitch.</span>
+        <span className="home-live-go">BitGraph Postseason<span aria-hidden="true">&nbsp;&#8599;</span></span>
+        <span className="sr-only"> (opens in a new tab)</span>
+      </a>
 
       {/* Renders nothing. Starts the example proof's fetch while the reader is still
           here, so the click lands on a finished page instead of a skeleton. */}

@@ -2356,3 +2356,13 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 @keyframes home-live-pulse { 0% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.45); } 70% { box-shadow: 0 0 0 7px rgba(217, 48, 37, 0); } 100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); } }
 @media (prefers-reduced-motion: reduce) { .home-live-dot { animation: none; } }
 @media (min-width: 900px) { .home .home-live { max-width: none; } }
+/* The live line is one button: a white pill with a hairline, the pulsing dot, the sentence and
+   the destination in blue; the whole pill is the link. It wraps inside a softer-cornered pill on
+   a phone. */
+.home .home-live { display: inline-flex !important; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin: 28px 0 0 !important; padding: 11px 20px 11px 16px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; font-size: 15px !important; line-height: 1.4; color: var(--text) !important; text-decoration: none !important; max-width: 100%; transition: background 0.15s, box-shadow 0.15s; }
+.home .home-live:hover { background: #fff; box-shadow: var(--shadow-card); text-decoration: none !important; }
+.home .home-live .home-live-dot { margin-right: 0; }
+.home .home-live-go { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.home .home-live:hover .home-live-go { color: var(--ink); }
+@media (max-width: 600px) { .home .home-live { border-radius: 18px; align-items: flex-start; } .home .home-live .home-live-dot { margin-top: 6px; } }
+.home .home-live { align-self: flex-start; width: fit-content; }
