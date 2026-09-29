@@ -2373,3 +2373,9 @@ a:hover > .ext-arrow { translate: 2px -2px; }
    never breaks inside itself. */
 .home .home-live > span { text-wrap: balance; }
 .home .home-live a { white-space: nowrap; }
+/* The dot sits in the text (Mike, 2026-09-29: "shouldnt the light be nested with text"): it
+   starts the first line like a character, and wrapped lines return to the left edge under it.
+   The paragraph is a plain block again, balanced across its lines. */
+.home .home-live { display: block !important; text-wrap: balance; }
+.home .home-live > span { display: inline; text-wrap: inherit; }
+.home .home-live .home-live-dot { display: inline-block; vertical-align: 1px; margin: 0 8px 0 2px !important; align-self: auto; }
