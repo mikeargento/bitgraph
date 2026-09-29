@@ -2339,3 +2339,7 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 /* Inline code on the pale ground: a white chip with a hairline (the grey chip was #f1f3f4 on a
    #f6f8fc page and all but vanished). Inside a white card the hairline carries it. */
 :not(pre) > code { background: var(--paper) !important; border: 1px solid var(--line) !important; border-radius: 6px !important; padding: 0.05em 0.35em !important; color: var(--ink) !important; }
+/* The prev/next pills move as one: label and arrow both blue at rest, both ink on hover. */
+.bg-page-nav .bg-action-link, .bg-page-nav .bg-action-link .arrow { color: var(--accent) !important; }
+.bg-page-nav .bg-action-link:hover, .bg-page-nav .bg-action-link:hover .arrow,
+.bg-page-nav .bg-action-link:focus-visible, .bg-page-nav .bg-action-link:focus-visible .arrow { color: var(--ink) !important; }
