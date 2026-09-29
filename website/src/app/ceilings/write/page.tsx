@@ -23,7 +23,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export default async function CeilingWritePage({ searchParams }: { searchParams: Promise<{ day?: string; block?: string; tx?: string }> }) {
   const { day, tx } = await searchParams;
   if (!day || !tx) notFound();
-  const writes = await writesForDay(day).catch(() => []);
+  const writes = await writesForDay(day, { includeHidden: true }).catch(() => []);
   const w = writes.find((x) => x.txHash.toLowerCase() === tx.toLowerCase());
   if (!w) notFound();
   const mono = { fontFamily: "var(--mono, ui-monospace, monospace)", fontSize: 13 };
