@@ -2368,3 +2368,8 @@ a:hover > .ext-arrow { translate: 2px -2px; }
 .home .home-live { max-width: 46em; text-wrap: pretty; }
 .home .home-live { max-width: 58em; }
 .home .home-live .home-live-dot { align-self: flex-start; margin-top: 7px; }
+/* Balanced lines (Mike, 2026-09-29: "pretty the text so it doesnt wrap all weird"): the
+   sentence evens itself across its lines instead of one long line and a short one. The link
+   never breaks inside itself. */
+.home .home-live > span { text-wrap: balance; }
+.home .home-live a { white-space: nowrap; }
