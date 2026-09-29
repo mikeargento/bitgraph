@@ -2336,3 +2336,6 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
   .home .lede { font-size: min(calc(min(90vw, 1600px) * 0.0205), 24px) !important; }
   .home .actions .bg-action-link { font-size: 17px !important; padding: 14px 28px !important; }
 }
+/* Inline code on the pale ground: a white chip with a hairline (the grey chip was #f1f3f4 on a
+   #f6f8fc page and all but vanished). Inside a white card the hairline carries it. */
+:not(pre) > code { background: var(--paper) !important; border: 1px solid var(--line) !important; border-radius: 6px !important; padding: 0.05em 0.35em !important; color: var(--ink) !important; }
