@@ -86,9 +86,10 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
         Each row is one Base transaction carrying a Merkle root over the records made since the last one. Every record under it existed by the time of its block, read from the block itself, in UTC, with the block linked to Basescan.
       </p>
       <p style={{ margin: "12px 0 0", fontSize: 14, color: "var(--dim)" }}>
-        Written only by{" "}
-        <a className="cl-writer" href={`${BASESCAN}/address/${CEILING_WRITER}`} target="_blank" rel="noopener">{CEILING_WRITER}</a>
-        . Its full history on Basescan is the independent copy of this page.
+        Sent from BitGraph&rsquo;s ceiling address:{" "}
+        <a className="cl-writer" href={`${BASESCAN}/address/${CEILING_WRITER}`} target="_blank" rel="noopener">
+          {CEILING_WRITER} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
+        </a>
       </p>
 
       <div style={{ display: "flex", gap: 12, margin: "28px 0 20px" }}>
