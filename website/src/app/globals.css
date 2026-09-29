@@ -2274,3 +2274,10 @@ main dl.terms > dd:last-of-type { border-bottom: 0; }
 /* Section headings stand on size and space alone, as the postseason's do; the cards below
    them do the separating the hairline did. */
 main h2 { border-bottom: 0 !important; padding-bottom: 0 !important; }
+/* Form and page buttons (.btn): primary is the blue pill, the rest white pills with a hairline,
+   as the postseason's are. The contact form's Send message was reading as a grey chip. */
+main .btn { border-radius: 999px !important; padding: 10px 22px !important; font-weight: 600 !important; text-decoration: none !important; }
+main .btn:not(.is-primary) { background: var(--paper) !important; border: 1px solid var(--line) !important; color: var(--accent) !important; }
+main .btn:not(.is-primary):hover:not(:disabled) { background: #e8f0fe !important; }
+main .btn.is-primary { background: var(--btn-primary) !important; border: 1px solid var(--btn-primary) !important; color: #fff !important; }
+main .btn.is-primary:hover:not(:disabled) { background: var(--btn-primary-hover) !important; box-shadow: var(--shadow-card); }
