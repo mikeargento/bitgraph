@@ -2379,3 +2379,7 @@ a:hover > .ext-arrow { translate: 2px -2px; }
 .home .home-live { display: block !important; text-wrap: balance; }
 .home .home-live > span { display: inline; text-wrap: inherit; }
 .home .home-live .home-live-dot { display: inline-block; vertical-align: 1px; margin: 0 8px 0 2px !important; align-self: auto; }
+/* The LIVE pill, the postseason's own (Mike, 2026-09-29): Google's red on its red tint, the dot
+   pulsing inside it, set inline at the start of the line like a word. */
+.home .home-live .home-live-pill { display: inline-flex; align-items: center; gap: 6px; vertical-align: 1px; margin-right: 8px; padding: 2px 10px 2px 8px; border-radius: 999px; background: #fce8e6; color: #c5221f; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.5; }
+.home .home-live .home-live-pill .home-live-dot { margin: 0 !important; width: 7px; height: 7px; background: #c5221f; vertical-align: 0; }
