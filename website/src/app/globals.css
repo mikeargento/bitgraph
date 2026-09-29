@@ -2430,3 +2430,9 @@ div:has(> .bg-action-link.is-make) { padding-top: 12px !important; padding-botto
 button.bg-arrow-link { display: inline-flex !important; align-items: center; height: 40px; padding: 0 20px !important; background: var(--paper) !important; border: 1px solid var(--line) !important; border-radius: 999px !important; color: var(--accent) !important; font-size: 15px !important; font-weight: 600 !important; box-shadow: none !important; transition: background 0.15s, color 0.15s; }
 button.bg-arrow-link:hover { background: #e8f0fe !important; color: var(--ink) !important; }
 button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-height: 1 !important; }
+/* The proof page lists like the anchors (Mike, 2026-09-29: "maybe they should list like the eth
+   anchors"): one white card, each section a row split by the soft rule, instead of eleven
+   separate cards whose stacked shadows read heavy. An open section expands inside the card. */
+.proof-grid { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden; gap: 0 !important; }
+.proof-grid > div { box-shadow: none !important; border: 0 !important; border-radius: 0 !important; border-bottom: 1px solid var(--line-2) !important; }
+.proof-grid > div:last-child { border-bottom: 0 !important; }
