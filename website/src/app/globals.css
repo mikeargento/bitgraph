@@ -2348,28 +2348,14 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 .code-block-header { padding: 7px 8px 7px 16px !important; min-height: 44px; box-sizing: border-box; align-items: center !important; }
 .code-block-header { padding-right: 7px !important; }
 .code-block-header .code-copy { margin: 0 !important; }
-/* The live-demo line under the home buttons: small, dim, a red live dot that pulses gently. */
-.home .home-live { margin: 28px 0 0 !important; font-size: 15px !important; line-height: 1.5; color: var(--dim); max-width: 44em; }
+/* The live demo under the home buttons (Mike, 2026-09-29): one quiet line. A red dot that pulses
+   gently, "Live now:" in ink, the sentence in the dim tone, and the destination as a blue link
+   with an arrow that leaves the site. It stays secondary to the two buttons above it. */
+.home .home-live { display: flex; align-items: baseline; gap: 10px; margin: 28px 0 0 !important; font-size: 15px !important; line-height: 1.5; color: var(--dim); }
 .home .home-live strong { color: var(--ink); font-weight: 600; }
-.home .home-live a { font-weight: 600; white-space: nowrap; }
-.home-live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #d93025; margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.5); animation: home-live-pulse 2s ease-out infinite; }
+.home .home-live a { color: var(--accent); font-weight: 600; white-space: nowrap; text-decoration: none; }
+.home .home-live a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.home-live-dot { flex: none; align-self: center; width: 8px; height: 8px; border-radius: 50%; background: #d93025; animation: home-live-pulse 2s ease-out infinite; }
 @keyframes home-live-pulse { 0% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.45); } 70% { box-shadow: 0 0 0 7px rgba(217, 48, 37, 0); } 100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); } }
 @media (prefers-reduced-motion: reduce) { .home-live-dot { animation: none; } }
-@media (min-width: 900px) { .home .home-live { max-width: none; } }
-/* The live line is one button: a white pill with a hairline, the pulsing dot, the sentence and
-   the destination in blue; the whole pill is the link. It wraps inside a softer-cornered pill on
-   a phone. */
-.home .home-live { display: inline-flex !important; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin: 28px 0 0 !important; padding: 11px 20px 11px 16px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; font-size: 15px !important; line-height: 1.4; color: var(--text) !important; text-decoration: none !important; max-width: 100%; transition: background 0.15s, box-shadow 0.15s; }
-.home .home-live:hover { background: #fff; box-shadow: var(--shadow-card); text-decoration: none !important; }
-.home .home-live .home-live-dot { margin-right: 0; }
-.home .home-live-go { color: var(--accent); font-weight: 600; white-space: nowrap; }
-.home .home-live:hover .home-live-go { color: var(--ink); }
-@media (max-width: 600px) { .home .home-live { border-radius: 18px; align-items: flex-start; } .home .home-live .home-live-dot { margin-top: 6px; } }
-.home .home-live { align-self: flex-start; width: fit-content; }
-/* Final shape (Mike, 2026-09-29): the sentence is plain text; only "BitGraph Postseason" is a
-   button, a small white pill with a hairline beside it. Overrides the whole-pill rules above. */
-.home .home-live { display: flex !important; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 0 !important; background: none !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; color: var(--dim) !important; width: auto; }
-.home .home-live:hover { background: none !important; box-shadow: none !important; }
-.home .home-live .home-live-go { display: inline-flex; align-items: center; height: 34px; padding: 0 14px; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; color: var(--accent) !important; font-weight: 600; font-size: 14px; white-space: nowrap; text-decoration: none !important; transition: background 0.15s, color 0.15s; }
-.home .home-live .home-live-go:hover { background: #e8f0fe; color: var(--ink) !important; }
-@media (max-width: 600px) { .home .home-live { align-items: flex-start; } .home .home-live .home-live-dot { margin-top: 7px; } }
+@media (max-width: 600px) { .home-live-dot { align-self: flex-start; margin-top: 7px; } }
