@@ -10,8 +10,8 @@ import { useRef, useState } from "react";
  * cannot drift, and adding the control to a block is one self-closing tag with
  * nothing to keep in sync.
  *
- * Square corners and the two-sheet mark, like the rest of the site. Grey until
- * hover so a header full of these stays quiet.
+ * A white pill with the two-sheet mark and the word Copy, the site's button shape since the
+ * postseason look (2026-09-29). It turns green and says Copied for a moment after a click.
  */
 export function CopyCode() {
   const ref = useRef<HTMLButtonElement>(null);
@@ -21,30 +21,33 @@ export function CopyCode() {
     <button
       ref={ref}
       type="button"
-      className="code-copy"
+      className={copied ? "code-copy is-copied" : "code-copy"}
       aria-label={copied ? "Copied" : "Copy this snippet"}
       title={copied ? "Copied" : "Copy"}
       onClick={() => {
         const pre = ref.current?.closest(".code-block")?.querySelector("pre");
         if (!pre) return;
-        void navigator.clipboard.writeText(pre.textContent ?? "");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        // Say Copied only when the clipboard took it; a refused write (an unfocused window,
+        // a denied permission) leaves the button as it was instead of throwing.
+        navigator.clipboard.writeText(pre.textContent ?? "").then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }, () => {});
       }}
     >
-      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         {copied ? (
-          <path d="M2.5 8.5 L6 12 L13.5 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square" />
+          <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
         ) : (
           <>
-            {/* The front sheet is filled with the header's own background so it
-                occludes the back one. That overlap is what makes the mark read
-                as two sheets rather than as a grid. */}
-            <rect x="5.75" y="1.75" width="8.5" height="8.5" stroke="currentColor" strokeWidth="1.3" />
-            <rect x="1.75" y="5.75" width="8.5" height="8.5" fill="var(--panel)" stroke="currentColor" strokeWidth="1.3" />
+            {/* Two rounded sheets (Material's content_copy): the front one is filled with the
+                button's own white so it covers the back one. */}
+            <rect x="8.5" y="3" width="12.5" height="14" rx="3" stroke="currentColor" strokeWidth="2" />
+            <rect x="3" y="7.5" width="12.5" height="13.5" rx="3" fill="#fff" stroke="currentColor" strokeWidth="2" />
           </>
         )}
       </svg>
+      <span className="code-copy-label">{copied ? "Copied" : "Copy"}</span>
     </button>
   );
 }

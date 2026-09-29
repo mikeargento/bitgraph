@@ -2321,3 +2321,10 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 /* A long unbroken identifier in a sentence (environment.attestation.reportB64) may break
    anywhere on a phone rather than push the page sideways. */
 @media (max-width: 600px) { main :not(pre) > code { overflow-wrap: anywhere; } }
+/* Copy buttons in code headers: a white pill with a hairline, the rounded two-sheet mark and
+   the word Copy, in the interface face. Blue on hover, green with a check once copied. */
+.code-copy { display: inline-flex !important; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 10px !important; border: 1px solid var(--line) !important; border-radius: 999px !important; background: var(--paper) !important; color: var(--dim) !important; font: 600 13px var(--font-ui) !important; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.code-copy:hover { background: #e8f0fe !important; color: var(--accent) !important; border-color: #d2e3fc !important; }
+.code-copy.is-copied { background: #e6f4ea !important; color: #188038 !important; border-color: #ceead6 !important; }
+.code-copy:focus-visible { outline: 3px solid #1a73e8 !important; outline-offset: 2px; }
+.code-copy-label { line-height: 1; }
