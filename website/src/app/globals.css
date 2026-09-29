@@ -2399,3 +2399,6 @@ a:hover > .ext-arrow { translate: 2px -2px; }
 .home .home-live-title .home-live-pill { background: #e8f0fe; color: #1967d2; }
 .home .home-live-title .home-live-pill .home-live-dot { background: #1a73e8; animation-name: home-live-pulse-blue; }
 @keyframes home-live-pulse-blue { 0% { box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.45); } 70% { box-shadow: 0 0 0 7px rgba(26, 115, 232, 0); } 100% { box-shadow: 0 0 0 0 rgba(26, 115, 232, 0); } }
+/* A thumb-sized target on phones: 10px of invisible padding above and below makes the title link
+   44px tall without moving anything (the negative margin gives the space back). */
+@media (max-width: 600px) { .home .home-live-title { padding: 10px 0; margin: -10px 0; } }
