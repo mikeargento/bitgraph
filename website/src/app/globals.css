@@ -2348,3 +2348,11 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 .code-block-header { padding: 7px 8px 7px 16px !important; min-height: 44px; box-sizing: border-box; align-items: center !important; }
 .code-block-header { padding-right: 7px !important; }
 .code-block-header .code-copy { margin: 0 !important; }
+/* The live-demo line under the home buttons: small, dim, a red live dot that pulses gently. */
+.home .home-live { margin: 28px 0 0 !important; font-size: 15px !important; line-height: 1.5; color: var(--dim); max-width: 44em; }
+.home .home-live strong { color: var(--ink); font-weight: 600; }
+.home .home-live a { font-weight: 600; white-space: nowrap; }
+.home-live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #d93025; margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.5); animation: home-live-pulse 2s ease-out infinite; }
+@keyframes home-live-pulse { 0% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.45); } 70% { box-shadow: 0 0 0 7px rgba(217, 48, 37, 0); } 100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); } }
+@media (prefers-reduced-motion: reduce) { .home-live-dot { animation: none; } }
+@media (min-width: 900px) { .home .home-live { max-width: none; } }

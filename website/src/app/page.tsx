@@ -75,6 +75,16 @@ export default function HomePage() {
         <Link className="bg-action-link" href="/docs/overview">How it works</Link>
       </div>
 
+      {/* The live demo, one quiet line (Mike, 2026-09-29): the headline's claim, happening. It
+          leaves the site, so it opens in a new tab. Drop "Live now" when the postseason ends. */}
+      <p className="home-live">
+        <span className="home-live-dot" aria-hidden="true" />
+        <span><strong>Live now:</strong> an AI predicts every 2026 postseason at bat, and each prediction gets its position before the pitch.</span>{" "}
+        <a href="https://live.bitgraph.ing" target="_blank" rel="noopener">
+          BitGraph Postseason<span aria-hidden="true">&nbsp;&#8599;</span><span className="sr-only"> (opens in a new tab)</span>
+        </a>
+      </p>
+
       {/* Renders nothing. Starts the example proof's fetch while the reader is still
           here, so the click lands on a finished page instead of a skeleton. */}
       <WarmExample />
