@@ -70,6 +70,9 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
         .cl-dropped { background: #fce8e6; color: #c5221f; text-decoration: line-through; }
         .cl-writer { font-family: var(--mono, ui-monospace, monospace); font-size: 13px; }
         .cl-when-short { display: none; }
+        /* The position range is the first thing to go: it truncates to "#14,2…"
+           long before the row runs out of room, and the detail page has it whole. */
+        @media (max-width: 900px) { .cl-pos { visibility: hidden; } }
         @media (max-width: 640px) {
           .cl-records { min-width: 0; }
           .cl-pos, .cl-row .cl-status, .cl-when-long { display: none; }
