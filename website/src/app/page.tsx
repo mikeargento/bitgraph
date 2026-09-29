@@ -81,7 +81,7 @@ export default function HomePage() {
         <span className="home-live-dot" aria-hidden="true" />
         <span><strong>Live now:</strong> AI baseball predictions, each positioned before the pitch.{" "}
           <a href="https://live.bitgraph.ing" target="_blank" rel="noopener">
-            BitGraph Postseason<span aria-hidden="true">&nbsp;&#8599;</span><span className="sr-only"> (opens in a new tab)</span>
+            BitGraph Postseason<svg className="ext-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg><span className="sr-only"> (opens in a new tab)</span>
           </a>
         </span>
       </p>

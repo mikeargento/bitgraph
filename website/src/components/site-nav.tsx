@@ -88,7 +88,7 @@ export function SiteNav() {
   );
   const github = (
     <a href={DOCS_REPO} target="_blank" rel="noopener" role="menuitem" className="docs-menu-item" onClick={() => setOpen(null)}>
-      GitHub <span aria-hidden="true" style={{ fontSize: 10 }}>&#8599;</span>
+      GitHub <svg className="ext-arrow" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
       <span className="sr-only">(opens in a new tab)</span>
     </a>
   );

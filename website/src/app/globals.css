@@ -2359,3 +2359,7 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 @keyframes home-live-pulse { 0% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.45); } 70% { box-shadow: 0 0 0 7px rgba(217, 48, 37, 0); } 100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); } }
 @media (prefers-reduced-motion: reduce) { .home-live-dot { animation: none; } }
 @media (max-width: 600px) { .home-live-dot { align-self: flex-start; margin-top: 7px; } }
+/* The "leaves the site" arrow, drawn (Material's north_east), beside external links. */
+.ext-arrow { display: inline-block; vertical-align: -1px; margin-left: 4px; transition: translate 0.2s ease; }
+a:hover > .ext-arrow { translate: 2px -2px; }
+@media (prefers-reduced-motion: reduce) { a:hover > .ext-arrow { translate: none; } }
