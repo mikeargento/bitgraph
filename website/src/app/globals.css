@@ -2281,3 +2281,9 @@ main .btn:not(.is-primary) { background: var(--paper) !important; border: 1px so
 main .btn:not(.is-primary):hover:not(:disabled) { background: #e8f0fe !important; }
 main .btn.is-primary { background: var(--btn-primary) !important; border: 1px solid var(--btn-primary) !important; color: #fff !important; }
 main .btn.is-primary:hover:not(:disabled) { background: var(--btn-primary-hover) !important; box-shadow: var(--shadow-card); }
+/* The arrows in the prev/next pills move the way they point when the pill is hovered or
+   focused: forward slides right, back slides left. */
+.bg-page-nav .bg-action-link .arrow { display: inline-block !important; transition: transform 0.2s ease, color 0.2s ease; }
+.bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { transform: translateX(5px); color: var(--accent); }
+.bg-page-nav .bg-action-link.back:hover .arrow, .bg-page-nav .bg-action-link.back:focus-visible .arrow { transform: translateX(-5px); }
+@media (prefers-reduced-motion: reduce) { .bg-page-nav .bg-action-link .arrow { transition: color 0.2s ease; } .bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { transform: none; } }
