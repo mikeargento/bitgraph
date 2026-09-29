@@ -38,7 +38,7 @@ export function ProofSkeleton() {
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px" }}>
         {/* No page title above the cards (2026-09-26): the record card's label names
             the record, so the skeleton opens straight on the rows. */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }} aria-hidden>
+        <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }} aria-hidden>
           {titleWidths.map((w, i) => (
             <div key={i} style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)" }}>
               {/* Same header geometry as CollapsibleCard: 14px 16px, title left,
