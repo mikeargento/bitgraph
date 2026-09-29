@@ -2393,3 +2393,9 @@ a:hover > .ext-arrow { translate: 2px -2px; }
 .home .home-live-title .home-live-pill { margin: 0 !important; }
 .home .home-live-title .ext-arrow { margin-left: -4px; }
 .home .home-live-text { margin: 6px 0 0 !important; font-size: 15px !important; line-height: 1.5; color: var(--dim); text-wrap: balance; max-width: none !important; }
+/* LIVE in the site's blue, not red (Mike, 2026-09-29: "maybe its just the red bothering me"):
+   red means failure and limits on this site, so a red badge read as an alert. Google's tonal
+   blue, with the dot pulsing in the link's blue, so pill and name read as one link. */
+.home .home-live-title .home-live-pill { background: #e8f0fe; color: #1967d2; }
+.home .home-live-title .home-live-pill .home-live-dot { background: #1a73e8; animation-name: home-live-pulse-blue; }
+@keyframes home-live-pulse-blue { 0% { box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.45); } 70% { box-shadow: 0 0 0 7px rgba(26, 115, 232, 0); } 100% { box-shadow: 0 0 0 0 rgba(26, 115, 232, 0); } }
