@@ -2212,8 +2212,8 @@ main :is(figure, .fig-well) :is(p, ul, ol, dl, table, figcaption, .note, .meta) 
 #site-nav { background: var(--bar) !important; border-bottom: 1px solid var(--line) !important; transition: box-shadow 0.2s; }
 #site-nav.scrolled { box-shadow: 0 1px 3px rgba(60, 64, 67, 0.2), 0 2px 8px rgba(60, 64, 67, 0.12); border-bottom-color: transparent !important; }
 #site-nav a[href="/"] { color: var(--accent) !important; }
-#site-nav .nav-btn { border-radius: 999px; padding: 0 14px; height: 36px; }
-#site-nav .nav-cta { border-radius: 999px !important; background: var(--btn-primary) !important; border-color: var(--btn-primary) !important; color: #fff !important; padding: 0 18px !important; height: 36px !important; }
+#site-nav .nav-btn { border-radius: 999px; padding: 0 16px; height: 42px; }
+#site-nav .nav-cta { border-radius: 999px !important; background: var(--btn-primary) !important; border-color: var(--btn-primary) !important; color: #fff !important; padding: 0 22px 0 18px !important; height: 42px !important; gap: 8px !important; font-size: 15.5px !important; font-weight: 600 !important; }
 #site-nav .nav-cta:hover { background: var(--btn-primary-hover) !important; box-shadow: var(--shadow-card); }
 .nav-panel, .nav-menu { background: var(--paper) !important; border: 0 !important; border-radius: 16px !important; box-shadow: var(--shadow-menu) !important; }
 .docs-menu-item { border-radius: 999px !important; }
@@ -2291,3 +2291,33 @@ main .btn.is-primary:hover:not(:disabled) { background: var(--btn-primary-hover)
 .bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { translate: 5px 0; color: var(--accent); }
 .bg-page-nav .bg-action-link.back:hover .arrow, .bg-page-nav .bg-action-link.back:focus-visible .arrow { translate: -5px 0; }
 @media (prefers-reduced-motion: reduce) { .bg-page-nav .bg-action-link .arrow { transition: color 0.2s ease; } .bg-page-nav .bg-action-link:hover .arrow, .bg-page-nav .bg-action-link:focus-visible .arrow { translate: none; } }
+/* On a narrow phone the pill's label wraps rather than pushing the arrow out of the pill. */
+.bg-page-nav .bg-action-link > span { min-width: 0; }
+@media (max-width: 480px) { .bg-page-nav .bg-action-link { padding: 11px 14px !important; gap: 8px !important; font-size: 15px !important; } }
+/* Every filled or outlined action button shares the bar button's weight (600): the home page's
+   See a real BitGraph and How it works read thinner than Make a BitGraph beside them. */
+.bg-action-link, .home .actions .bg-action-link { font-weight: 600 !important; }
+/* Tables on a phone: code inside a cell may wrap, so a long field name can't push the card
+   past the screen (the MCP page's tool table ran 13px wide at 320). */
+@media (max-width: 600px) { main table code { white-space: normal !important; overflow-wrap: anywhere; } }
+/* Focus ring: Google's blue, rounded, only for keyboard focus. */
+:focus-visible { outline: 3px solid #1a73e8 !important; outline-offset: 3px; border-radius: 8px; }
+:focus:not(:focus-visible) { outline: none !important; }
+/* THE HOME HEADLINE, re-solved for the 1600 frame (the 09-26 rule solved it against 1040: 88px,
+   about 80% of that frame). The longer line measures 9.46x its size, so 0.0846 x the frame keeps
+   it at the same 80% of the new frame: 110px at a 1440 window, 135px at the full 1600. The
+   paragraph under it scales in step (26px at 1440), still balanced into three lines. Phones keep
+   their own rule. */
+@media (min-width: 900px) {
+  .home h1 { font-size: calc(min(90vw, 1600px) * 0.0846) !important; }
+  .home .lede { font-size: calc(min(90vw, 1600px) * 0.0205) !important; max-width: 36em; }
+}
+@media (min-width: 900px) { .home .actions .bg-action-link { font-size: 18px !important; padding: 15px 30px !important; } }
+/* A table inside its scroll wrapper: the CARD is the wrapper, so its corners and shadow are
+   never clipped by the wrapper's own scrolling (they were, on the Audit page's exit codes), and
+   a wide table scrolls inside the card on a phone. */
+main .table-scroll { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); max-width: var(--measure); overflow-x: auto; margin: 1.5rem 0; }
+main .table-scroll > table { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; overflow: visible !important; max-width: none !important; margin: 0 !important; }
+/* A long unbroken identifier in a sentence (environment.attestation.reportB64) may break
+   anywhere on a phone rather than push the page sideways. */
+@media (max-width: 600px) { main :not(pre) > code { overflow-wrap: anywhere; } }
