@@ -2343,3 +2343,8 @@ main .table-scroll > table { background: transparent !important; box-shadow: non
 .bg-page-nav .bg-action-link, .bg-page-nav .bg-action-link .arrow { color: var(--accent) !important; }
 .bg-page-nav .bg-action-link:hover, .bg-page-nav .bg-action-link:hover .arrow,
 .bg-page-nav .bg-action-link:focus-visible, .bg-page-nav .bg-action-link:focus-visible .arrow { color: var(--ink) !important; }
+/* The copy pill nests inside the header band: 7px above and below, 8px from the right edge,
+   the file label centred on the same line (it had crossed the band's bottom rule). */
+.code-block-header { padding: 7px 8px 7px 16px !important; min-height: 44px; box-sizing: border-box; align-items: center !important; }
+.code-block-header { padding-right: 7px !important; }
+.code-block-header .code-copy { margin: 0 !important; }
