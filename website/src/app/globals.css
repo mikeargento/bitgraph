@@ -2402,3 +2402,20 @@ a:hover > .ext-arrow { translate: 2px -2px; }
 /* A thumb-sized target on phones: 10px of invisible padding above and below makes the title link
    44px tall without moving anything (the negative margin gives the space back). */
 @media (max-width: 600px) { .home .home-live-title { padding: 10px 0; margin: -10px 0; } }
+/* THE ANCHORS LIST, raised (Mike, 2026-09-29: "eth anchors need a new style they kind of just
+   blend in"). The rows sit on one white card, as the postseason's lists do: rows split by the
+   soft rule, a pale hover, and each row led by the anchor's own mark, the solid blue square the
+   figures use for an anchor. The block becomes a tonal blue chip, so the one link that leaves
+   the site reads as a thing to press; the counter stays ink, the hash and time dim. */
+main div:has(> .xp-row) { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden; gap: 0 !important; }
+main .xp-row { padding: 14px 20px !important; border: 0 !important; border-bottom: 1px solid var(--line-2) !important; border-radius: 0 !important; background: transparent !important; }
+main .xp-row:last-child { border-bottom: 0 !important; }
+@media (hover: hover) { main .xp-row:hover { background: #f8f9fa !important; } }
+main .xp-row:not(.xp-row-interval)::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--g-blue, #4285f4); }
+main .xp-row a[href*="etherscan"] { background: #e8f0fe; color: #1967d2 !important; padding: 4px 10px; border-radius: 999px; font-size: 12.5px !important; transition: background 0.15s; }
+main .xp-row a[href*="etherscan"]:hover { background: #d2e3fc; }
+main .xp-row .xp-counter { font-size: 15px !important; }
+/* Proof-page cards carried a hairline AND the shadow (their inline border: 1px solid var(--hair)),
+   so they read heavier than every other card (Mike, 2026-09-29: "the shadows on proof pages are
+   stronger"). The shadow alone, as everywhere else. */
+.proof-grid > div { border-color: transparent !important; }
