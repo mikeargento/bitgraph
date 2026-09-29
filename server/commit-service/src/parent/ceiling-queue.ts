@@ -17,6 +17,8 @@ const QUEUE_PATH = process.env["CEILING_QUEUE_PATH"];
 
 export interface CeilingQueueItem {
   proofHash: string;
+  /** artifact.digestB64: where the record's proof page lives (/proof/<digest>). Absent on items queued before 09-29 evening. */
+  digestB64?: string;
   /** commit.counter: a position on (epochId, chainId). */
   position: string;
   epochId: string;
@@ -45,6 +47,7 @@ export function ceilingItems(proofs: BitGraphProof[], committedAt: Date): Ceilin
     if (commit.anchor || p.attribution?.name === "Ethereum Anchor") continue;
     out.push({
       proofHash,
+      digestB64: p.artifact.digestB64,
       position: commit.counter,
       epochId: commit.epochId,
       chainId: commit.chainId ?? "",

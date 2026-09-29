@@ -150,6 +150,23 @@ export default function ProofPage() {
   }
 
   const [proof, setProof] = useState<BitGraphProof | null>(null);
+  // Base ceiling (bitgraph-ceiling/1): the record's ceiling in TIME, written
+  // by the ceiling writer beside the proof, never inside it. A 404 means none
+  // was written (every record before 2026-09-29, or one still queued), and
+  // then the card is simply absent: nothing here implies a ceiling exists.
+  const [baseCeiling, setBaseCeiling] = useState<{
+    status: "pending" | "included" | "safe" | "finalized";
+    anchor: { txHash: string; blockNumber: number; blockTimestamp: number } | null;
+    floor?: { blockNumber: number; blockTimestamp: number } | null;
+  } | null>(null);
+  useEffect(() => {
+    const ph = (proof as (BitGraphProof & { proofHash?: string }) | null)?.proofHash;
+    if (!ph) return;
+    let cancelled = false;
+    const safe = ph.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    fetch(`/api/ceilings/${safe}`).then((r) => (r.ok ? r.json() : null)).then((j) => { if (!cancelled && j?.version === "bitgraph-ceiling/1") setBaseCeiling(j); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [proof]);
   const [causalWindow, setCausalWindow] = useState<{
     anchorBefore: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null; recordedMs?: number | null } | null;
     anchorAfter: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null; recordedMs?: number | null } | null;
@@ -2092,6 +2109,43 @@ export default function ProofPage() {
               )}
             </CollapsibleCard>
           ) : null}
+
+          {/* Base ceiling: a ceiling in TIME, beside the positional one above.
+              Times are the Base block's own, in UTC, so they match Basescan.
+              The window's floor is the proof's signed slotAnchor block, read
+              from the header the sidecar carries (checked by the writer). */}
+          {!isEth && baseCeiling && (
+            <CollapsibleCard title={baseCeiling.anchor ? "Existed by this Base block" : "Base ceiling pending"}>
+              {baseCeiling.anchor ? (
+                <>
+                  <Field label="Block time" value={stampTz(new Date(baseCeiling.anchor.blockTimestamp * 1000))} highlight />
+                  <Field label="Block" value={`#${baseCeiling.anchor.blockNumber.toLocaleString()}`} />
+                  {baseCeiling.floor?.blockTimestamp != null && (
+                    <Field label="Window" value={`${(baseCeiling.anchor.blockTimestamp - baseCeiling.floor.blockTimestamp).toLocaleString()} seconds after the floor block`} />
+                  )}
+                  <Field
+                    label="Status"
+                    value={baseCeiling.status === "safe" || baseCeiling.status === "finalized"
+                      ? "Settled on Ethereum"
+                      : "Relies on Base's sequencer until settled on Ethereum"}
+                  />
+                  <Field label="Basescan" value={`https://basescan.org/tx/${baseCeiling.anchor.txHash}`} link />
+                  <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)", display: "flex", gap: 20, flexWrap: "wrap" }}>
+                    <a href={`/ceilings?day=${new Date(baseCeiling.anchor.blockTimestamp * 1000).toISOString().slice(0, 10)}`} className="bg-action-link">
+                      <span>All Base ceilings</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </a>
+                    <a href={`/api/ceilings/${((proof as BitGraphProof & { proofHash?: string }).proofHash ?? "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`} download className="bg-action-link">
+                      <span>Download ceiling file</span>
+                      <span className="arrow" aria-hidden>&darr;</span>
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <Field label="Status" value="Queued for the next Base write" />
+              )}
+            </CollapsibleCard>
+          )}
 
           {/* Submitter's Note — self-supplied, only for non-ETH proofs that carry
               it. These values are typed in by whoever made the proof and are NOT

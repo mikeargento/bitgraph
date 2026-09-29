@@ -309,6 +309,7 @@ export class CeilingWriter {
       }
       this.writeSidecar(i, b, tree, "included");
     }
+    this.writeRecord(b);
     this.event({
       type: "write", batch: b.id, records: b.items.length, blockNumber: inc.blockNumber, blockTimestamp: inc.blockTimestamp,
       txHash: s.txHash, attempts: b.sends.length, fees: inc.fees, latencyMs: latencies,
@@ -351,6 +352,7 @@ export class CeilingWriter {
       this.saveBatch(b);
       const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
       for (const i of b.items) this.writeSidecar(i, b, tree, next as CeilingStatus);
+      this.writeRecord(b);
       this.event({ type: "status", batch: b.id, status: next, blockNumber: inc.blockNumber });
     }
   }
@@ -359,12 +361,56 @@ export class CeilingWriter {
     this.event({ type: "reorg", batch: b.id, blockNumber: b.inclusion!.blockNumber, dropped: b.inclusion!.blockHash, canonical, records: b.items.length });
     b.state = "dropped";
     this.saveBatch(b);
+    this.writeRecord(b); // the page shows it struck through, never silently gone
     for (const i of b.items) this.anchored.delete(i.proofHash);
     // Back to the FRONT of the queue; their sidecars say pending again.
     this.backlog = [...b.items, ...this.backlog.filter((x) => !b.items.some((i) => i.proofHash === x.proofHash))];
     this.saveBacklog();
     const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
     for (const i of b.items) this.writeSidecar(i, { ...b, inclusion: undefined } as Batch, tree, "pending");
+  }
+
+  // ── write records (one per Base transaction, for the Base ceilings page) ──
+
+  /** `writes/<UTC day of the block>/<block, 12 digits>-<tx hash head>.json`, relative to ceilings/. */
+  static writeRecordName(b: Batch): string | null {
+    const inc = b.inclusion;
+    if (!inc) return null;
+    const day = new Date(inc.blockTimestamp * 1000).toISOString().slice(0, 10);
+    return `writes/${day}/${String(inc.blockNumber).padStart(12, "0")}-${inc.txHash.slice(2, 12)}.json`;
+  }
+
+  private writeRecord(b: Batch): void {
+    const name = CeilingWriter.writeRecordName(b);
+    if (!name || !b.inclusion) return;
+    const inc = b.inclusion;
+    const rec = {
+      version: "bitgraph-ceiling-write/1",
+      chainId: this.o.chain.chainId,
+      writer: this.o.chain.writer,
+      txHash: inc.txHash,
+      blockNumber: inc.blockNumber,
+      blockHash: inc.blockHash,
+      blockTimestamp: inc.blockTimestamp,
+      status: b.state,
+      statusObserved: b.statusObserved,
+      records: b.items.length,
+      epochId: b.group.epochId,
+      bitgraphChain: b.group.chainId,
+      firstPos: b.firstPos,
+      lastPos: b.lastPos,
+      root: b.root,
+      prev: b.prev,
+      payload: b.payload,
+      fees: inc.fees,
+      attempts: b.sends.length,
+      items: b.items.map((i) => ({ proofHash: i.proofHash, position: i.position, ...(i.digestB64 ? { digestB64: i.digestB64 } : {}) })),
+    };
+    const json = JSON.stringify(rec, null, 2);
+    const local = join(this.o.stateDir, name);
+    mkdirSync(join(local, ".."), { recursive: true, mode: 0o700 });
+    atomicWrite(local, json);
+    if (this.o.publish) this.unpublished.set(name, json);
   }
 
   // ── sidecars ──

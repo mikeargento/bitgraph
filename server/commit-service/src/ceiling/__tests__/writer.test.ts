@@ -138,7 +138,7 @@ import { decodeHeader } from "@mikeargento/bitgraph-verify";
 function rlpDecodeTxRoot(h: string): Uint8Array { return evmHexToBytes(decodeHeader(evmHexToBytes(h)).transactionsRoot); }
 
 test("a burst coalesces: one transaction in flight, the rest ride the next", async () => {
-  const { chain, mk, push, sidecar, events } = setup();
+  const { dir, chain, mk, push, sidecar, events } = setup();
   const w = mk();
   const first = item();
   push(first);
@@ -162,6 +162,11 @@ test("a burst coalesces: one transaction in flight, the rest ride the next", asy
   assert.equal(evmBytesToHex(p2.prev), evmBytesToHex(ceilingPayloadHash(p1)));
   assert.equal(p2.firstPos, BigInt(burst[0]!.position));
   assert.equal(p2.lastPos, BigInt(burst[49]!.position));
+  // One write record per transaction, filed under the block's UTC day.
+  const days = readdirSync(join(dir, "writes"));
+  const recs = days.flatMap((d) => readdirSync(join(dir, "writes", d)).map((f) => JSON.parse(readFileSync(join(dir, "writes", d, f), "utf8"))));
+  assert.deepEqual(recs.map((r) => r.records).sort((a, b) => a - b), [1, 50]);
+  assert.equal(recs.find((r) => r.records === 50).items.length, 50);
 });
 
 test("a sidecar says pending until inclusion", async () => {

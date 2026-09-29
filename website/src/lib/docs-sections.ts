@@ -51,6 +51,7 @@ export const DOCS_GROUPS: { label: string; items: DocsSection[] }[] = [
       { href: "/docs/audit", label: "Audit a bundle" },
       { href: "/docs/try", label: "Make a BitGraph" },
       { href: "/ledger", label: "Ethereum anchors" },
+      { href: "/ceilings", label: "Base ceilings" },
       { href: "/exam", label: "The sealed exam" },
     ],
   },

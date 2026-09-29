@@ -2412,8 +2412,8 @@ main .xp-row { padding: 14px 20px !important; border: 0 !important; border-botto
 main .xp-row:last-child { border-bottom: 0 !important; }
 @media (hover: hover) { main .xp-row:hover { background: #f8f9fa !important; } }
 main .xp-row:not(.xp-row-interval)::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--g-blue, #4285f4); }
-main .xp-row a[href*="etherscan"] { background: #e8f0fe; color: #1967d2 !important; padding: 4px 10px; border-radius: 999px; font-size: 12.5px !important; transition: background 0.15s; }
-main .xp-row a[href*="etherscan"]:hover { background: #d2e3fc; }
+main .xp-row a[href*="etherscan"], main .xp-row a[href*="basescan"] { background: #e8f0fe; color: #1967d2 !important; padding: 4px 10px; border-radius: 999px; font-size: 12.5px !important; transition: background 0.15s; }
+main .xp-row a[href*="etherscan"]:hover, main .xp-row a[href*="basescan"]:hover { background: #d2e3fc; }
 main .xp-row .xp-counter { font-size: 15px !important; }
 /* Proof-page cards carried a hairline AND the shadow (their inline border: 1px solid var(--hair)),
    so they read heavier than every other card (Mike, 2026-09-29: "the shadows on proof pages are
