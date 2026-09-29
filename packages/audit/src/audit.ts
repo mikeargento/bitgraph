@@ -17,6 +17,7 @@
  * Zero network access, as everywhere in this package.
  */
 
+import { verifyCeilings } from "./ceilings.js";
 import { ingestBundle } from "./ingest.js";
 import { verifyObservedProofs } from "./verify-tiers.js";
 import { reconstructChains } from "./reconstruct.js";
@@ -37,7 +38,7 @@ import type { AuditOptions, AuditResult, ExitFlags, IngestResult } from "./types
  * this equals package.json's version, so the constant cannot drift silently
  * across releases.
  */
-export const AUDIT_VERSION = "0.6.4";
+export const AUDIT_VERSION = "0.7.0";
 
 /** The audit package's own version. */
 export function auditToolVersion(): string {
@@ -80,6 +81,7 @@ export async function auditIngest(
   const witnesses = await verifyAnchorWitnesses(ingest, anchors);
   // Populates EpochRecord.anchorBounds on the reconstruction result.
   const temporal = deriveTemporalBounds(ingest, reconstruction, anchors, witnesses);
+  const ceilings = await verifyCeilings(ingest, options?.ceilings ?? {});
   const attestations = await validateAttestations(
     ingest,
     authorities,
@@ -104,6 +106,7 @@ export async function auditIngest(
     witnesses,
     temporal,
     attestations,
+    ceilings,
   };
 }
 
@@ -152,7 +155,11 @@ export function computeExitFlags(result: AuditResult): ExitFlags {
   const witnessVerificationFailures = result.witnesses.findings.some((f) =>
     WITNESS_VERIFICATION_FAILURE_CODES.has(f.code)
   );
+  // A ceiling file that is present and wrong is failed evidence, like a bad
+  // witness: bit 2. Pending, unmatched and status notes are reported, never bits.
+  const ceilingFailures = (result.ceilings?.checks ?? []).some((c) => c.status === "failed");
   const chainAnomaliesOrDivergences =
+    ceilingFailures ||
     result.anomalies.anomalies.length > 0 ||
     result.anomalies.divergences.length > 0 ||
     result.authorities.anomalies.length > 0 ||

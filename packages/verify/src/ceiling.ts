@@ -308,22 +308,20 @@ export async function verifyCeiling(
 }
 
 /**
- * Ask a Base RPC whether the sidecar's block is on the chain. Returns a
+ * Ask a Base node whether the sidecar's block is on the chain. Returns a
  * finding, never throws. Online is the only way to learn canonicality.
+ *
+ * The package makes no network calls of its own (the audit's zero-network
+ * guarantee covers it), so the caller supplies the one lookup:
+ * `getBlockHash(n)` returns the chain's hash at height n, or null.
  */
 export async function checkCeilingOnline(
   sidecar: CeilingSidecar,
-  rpcUrl: string,
+  getBlockHash: (blockNumber: number) => Promise<string | null>,
 ): Promise<{ onChain: boolean | null; detail: string }> {
   if (!sidecar.anchor) return { onChain: null, detail: "no anchor to check" };
   try {
-    const res = await fetch(rpcUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: ["0x" + sidecar.anchor.blockNumber.toString(16), false] }),
-    });
-    const j = (await res.json()) as { result?: { hash?: string } | null };
-    const hash = j.result?.hash?.toLowerCase();
+    const hash = (await getBlockHash(sidecar.anchor.blockNumber))?.toLowerCase();
     if (!hash) return { onChain: null, detail: "the RPC did not return that block" };
     if (hash === sidecar.anchor.blockHash.toLowerCase()) return { onChain: true, detail: `block ${sidecar.anchor.blockNumber} matches the chain` };
     return { onChain: false, detail: `the chain's block ${sidecar.anchor.blockNumber} is ${hash}, not this header` };

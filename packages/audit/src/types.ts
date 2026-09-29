@@ -406,6 +406,8 @@ export interface IngestCounts {
   artifacts: number;
   /** Anchor witness files. */
   witnesses: number;
+  /** Ceiling files (bitgraph-ceiling/1) and ceiling status notes (bitgraph-ceiling-status/1). */
+  ceilings?: number;
   /** Container entries skipped for unsafe paths. */
   skippedUnsafePaths: number;
 }
@@ -467,6 +469,10 @@ export interface IngestResult {
   artifacts: ArtifactRecord[];
   /** Anchor witness files in observation order. */
   witnesses: AnchorWitnessFile[];
+  /** Ceiling files (bitgraph-ceiling/1) in observation order. Optional so older embedders' IngestResults still type. */
+  ceilings?: CeilingFile[];
+  /** Ceiling status notes (bitgraph-ceiling-status/1): a package saying why a ceiling is absent. */
+  ceilingStatuses?: CeilingFile[];
   /** Present when a root manifest.json entry existed. */
   manifest?: ManifestReport;
 
@@ -1306,6 +1312,8 @@ export interface AuditOptions {
    * explicitly non-AWS deployments.
    */
   trustedRootCaDer?: Uint8Array;
+  /** Ceilings in time: the declared writer, the chain, and an optional Base RPC for the one online check. */
+  ceilings?: import("./ceilings.js").CeilingAuditOptions;
 }
 
 /**
@@ -1325,6 +1333,48 @@ export interface AuditRunMetadata {
 }
 
 /** Everything one full audit run produced, in pipeline order. */
+/** A ceiling file or a ceiling status note, as found in the bundle. Never an artifact. */
+export interface CeilingFile {
+  path: string;
+  fileSha256Hex: string;
+  json: Record<string, unknown>;
+}
+
+/** One ceiling file checked against its proof (verifyCeiling), offline. */
+export interface CeilingCheck {
+  path: string;
+  proofHash: string | null;
+  /**
+   * verified: every offline check passed. failed: the file is present and
+   * wrong (a tampered or foreign ceiling). pending: the file says no Base
+   * transaction yet. unmatched: no proof in the bundle has its proofHash.
+   */
+  status: "verified" | "failed" | "pending" | "unmatched";
+  reason?: string;
+  /** One line for people, e.g. "Ceiling: Base block N at hh:mm:ss UTC, settled on Ethereum." */
+  label?: string;
+  window?: {
+    floorBlock: number | null;
+    floorTime: number | null;
+    ceilingChainId: number;
+    ceilingBlock: number;
+    ceilingTime: number;
+    widthSeconds: number | null;
+  };
+  /** Online check against a Base RPC: null when not asked or unreachable. */
+  onChain: boolean | null;
+  onChainDetail?: string;
+}
+
+export interface CeilingAnalysis {
+  /** The writer address the ceilings were checked against. */
+  writer: string;
+  chainId: number;
+  checks: CeilingCheck[];
+  /** Status notes carried instead of a ceiling (path and note). */
+  statuses: Array<{ path: string; status: string; note: string }>;
+}
+
 export interface AuditResult {
   runMetadata: AuditRunMetadata;
   ingest: IngestResult;
@@ -1336,6 +1386,8 @@ export interface AuditResult {
   witnesses: AnchorWitnessAnalysis;
   temporal: TemporalAnalysis;
   attestations: AttestationAnalysis;
+  /** Ceilings in time on Base. Absent from results made before this stage existed. */
+  ceilings?: CeilingAnalysis;
 }
 
 /**
@@ -1577,6 +1629,8 @@ export interface AuditJsonReport {
     groups: AuthorityGroup[];
     sharedSignersAcrossEpochs: SignerEpochSpan[];
   };
+  /** Ceilings in time on Base (bitgraph-ceiling/1). Absent when the bundle carries none. */
+  ceilings?: import("./types.js").CeilingAnalysis;
   attestations: {
     records: ProofAttestationRecord[];
     counts: AttestationAnalysis["counts"];

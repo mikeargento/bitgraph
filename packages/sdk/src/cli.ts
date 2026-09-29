@@ -15,6 +15,7 @@
  *   bitgraph verify <path>            offline judgment (BitGraphed files need nothing else)
  *   bitgraph bitgraphed <path>        write the BitGraphed file beside the original
  *   bitgraph complete <path>          fetch the closing anchor into a BitGraphed file
+ *   bitgraph ceiling verify <proof> <ceiling>   check a ceiling in time (offline; --rpc asks Base)
  *   bitgraph serve [--port 8791]      the same verbs on 127.0.0.1 for every runtime
  *
  * --base-url and --api-key (or BITGRAPH_API_URL / BITGRAPH_API_KEY) point a
@@ -29,6 +30,9 @@ import { serve, DEFAULT_PORT } from "./serve.js";
 import { ApiError } from "./api.js";
 import { carrierLine } from "./carrier-io.js";
 import { SLOT_TTL_SECONDS } from "./task.js";
+
+/** BitGraph's published ceiling writer on Base mainnet (bitgraph.ing/ceilings). */
+const BITGRAPH_CEILING_WRITER = "0xf3972408D853c975F86351C311f4310220bbF2a3";
 
 interface Parsed {
   cmd: string;
@@ -68,6 +72,9 @@ const HELP = `bitgraph — make, check and verify BitGraphs from any stack
   verify <path> [--proof proof.json]   offline judgment; exit 2 on FALSE/corrupt
   bitgraphed <path> [--wait ms] [--out file]
   complete <path> [--wait ms]
+  ceiling verify <proof.json> <ceiling.json> [--rpc URL] [--writer 0x..] [--chain 8453]
+                                       check a ceiling in time offline; --rpc also
+                                       asks a Base node that the block is Base's
   serve [--port ${DEFAULT_PORT}]                    localhost API (127.0.0.1 only)
 
 Every command takes --json (one JSON document on stdout), --base-url and
@@ -226,6 +233,42 @@ async function main(): Promise<void> {
       out({ path: target, changed: done.changed, ceiling: done.ceiling }, () =>
         done.changed ? `closing anchor fetched in; the window is complete` : done.ceiling === "present" ? "already complete; nothing changed" : "the window has not closed yet; try again after the next anchor"
       );
+      return;
+    }
+    case "ceiling": {
+      if (args[0] !== "verify" || args.length !== 3) fail("usage: bitgraph ceiling verify <proof.json> <ceiling.json> [--rpc URL] [--writer 0x..] [--chain 8453]");
+      const { readFile } = await import("node:fs/promises");
+      const { verifyCeiling, checkCeilingOnline } = await import("@mikeargento/bitgraph-verify");
+      const proof = JSON.parse(await readFile(args[1] as string, "utf8"));
+      const sidecar = JSON.parse(await readFile(args[2] as string, "utf8"));
+      const writer = typeof flags.get("writer") === "string" ? (flags.get("writer") as string) : BITGRAPH_CEILING_WRITER;
+      const chainId = typeof flags.get("chain") === "string" ? Number(flags.get("chain")) : 8453;
+      const r = await verifyCeiling(proof, sidecar, { writerAddress: writer, chainId });
+      const rpc = flags.get("rpc");
+      let online: { onChain: boolean | null; detail: string } = { onChain: null, detail: "header not checked against chain (add --rpc https://mainnet.base.org)" };
+      if (r.ok && typeof rpc === "string") {
+        online = await checkCeilingOnline(sidecar, async (n) => {
+          const res = await fetch(rpc, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: ["0x" + n.toString(16), false] }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          const j = (await res.json()) as { result?: { hash?: string } | null };
+          return j.result?.hash ?? null;
+        });
+      }
+      out({ ...r, writer, chainId, onChain: online.onChain, onChainDetail: online.detail }, () => {
+        if (!r.ok) return `NOT VERIFIED: ${r.reason}`;
+        const w = r.window!;
+        const lines = [`VERIFIED  ${r.label}`];
+        if (w.floor.blockTimestamp != null) lines.push(`  window: ${w.widthSeconds} s, from Ethereum block ${w.floor.blockNumber} to Base block ${w.ceiling.blockNumber}`);
+        else lines.push(`  floor: Ethereum block ${w.floor.blockNumber} (no header carried, so its time needs an Ethereum node)`);
+        lines.push(`  ${online.detail}`);
+        for (const c of r.checks) lines.push(`  ${c.ok ? "ok " : "!! "} ${c.name}${c.detail ? `: ${c.detail}` : ""}`);
+        return lines.join("\n");
+      });
+      if (!r.ok || online.onChain === false) process.exit(2);
       return;
     }
     case "serve": {

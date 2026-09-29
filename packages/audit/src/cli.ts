@@ -52,7 +52,7 @@ const KNOWN_POLICY_FIELDS: readonly string[] = [
 class UsageError extends Error {}
 
 const USAGE_LINE =
-  "Usage: bitgraph-audit <path-to-bundle> [--out <dir>] [--format json,md] [--trust-policy <path>]";
+  "Usage: bitgraph-audit <path-to-bundle> [--out <dir>] [--format json,md] [--trust-policy <path>] [--ceiling-writer <0x...>] [--ceiling-chain <id>]";
 
 function helpText(): string {
   return [
@@ -78,6 +78,14 @@ function helpText(): string {
     "                         verification tiers. Valid fields:",
     `                         ${KNOWN_POLICY_FIELDS.join(", ")}.`,
     "                         Any other field is an error.",
+    "  --ceiling-writer <0x…> The address ceilings in time must come from",
+    "                         (default: BitGraph's published writer,",
+    "                         0xf3972408D853c975F86351C311f4310220bbF2a3).",
+    "  --ceiling-chain <id>   Base chain id for ceilings (default 8453).",
+    "                         The audit never goes online, so whether each",
+    "                         ceiling's Base block is on Base's chain is",
+    "                         reported as unchecked: confirm it on basescan.org",
+    "                         or with `bitgraph ceiling verify --rpc <url>`.",
     "  --help, -h             Print this help and exit 0.",
     "",
     "Exit codes (bit flags):",
@@ -98,7 +106,10 @@ function helpText(): string {
     "      or a supplied anchor witness that fails its offline verification",
     "      (block-hash mismatch, digest binding, block number, header or",
     "      RLP malformation, an invalid candidate anchor, or an unmatched",
-    "      witness). Benign findings are reported but never set exit bits:",
+    "      witness), or a ceiling in time (bitgraph-ceiling/1) that fails",
+    "      its check against its proof (wrong writer, root, block, header).",
+    "      A pending ceiling or a ceiling status note never sets a bit.",
+    "      Benign findings are reported but never set exit bits:",
     "      duplicate copies, manifest advisories, unsafe paths, embedded",
     "      proofHash mismatches, and informational anchor findings (unsigned",
     "      metadata disagreements, metadata-only anchor claims, and",
@@ -120,6 +131,8 @@ interface ParsedArgs {
   outDir: string;
   formats: ReadonlySet<"json" | "md">;
   trustPolicyPath?: string;
+  ceilingWriter?: string;
+  ceilingChain?: number;
 }
 
 function parseArgs(argv: string[]): ParsedArgs | "help" {
@@ -127,6 +140,8 @@ function parseArgs(argv: string[]): ParsedArgs | "help" {
   let outDir = ".";
   let formats: Set<"json" | "md"> = new Set(["json", "md"]);
   let trustPolicyPath: string | undefined;
+  let ceilingWriter: string | undefined;
+  let ceilingChain: number | undefined;
 
   const takeValue = (flag: string, index: number): string => {
     const value = argv[index + 1];
@@ -158,6 +173,15 @@ function parseArgs(argv: string[]): ParsedArgs | "help" {
     } else if (arg === "--trust-policy") {
       trustPolicyPath = takeValue(arg, i);
       i++;
+    } else if (arg === "--ceiling-writer") {
+      ceilingWriter = takeValue(arg, i);
+      i++;
+      if (!/^0x[0-9a-fA-F]{40}$/.test(ceilingWriter)) throw new UsageError("--ceiling-writer must be a 0x address.");
+    } else if (arg === "--ceiling-chain") {
+      ceilingChain = Number(takeValue(arg, i));
+      i++;
+      if (!Number.isInteger(ceilingChain) || ceilingChain <= 0) throw new UsageError("--ceiling-chain must be a chain id.");
+
     } else if (arg.startsWith("-")) {
       throw new UsageError(`unknown option "${arg}".`);
     } else if (bundlePath === undefined) {
@@ -173,6 +197,9 @@ function parseArgs(argv: string[]): ParsedArgs | "help" {
     outDir,
     formats,
     ...(trustPolicyPath !== undefined ? { trustPolicyPath } : {}),
+    ...(ceilingWriter !== undefined ? { ceilingWriter } : {}),
+    ...(ceilingChain !== undefined ? { ceilingChain } : {}),
+
   };
 }
 
@@ -209,7 +236,7 @@ function exitMeaning(flags: ExitFlags): string {
   const parts: string[] = [];
   if (flags.verificationFailures) parts.push("verification failures");
   if (flags.chainAnomaliesOrDivergences) {
-    parts.push("chain anomalies, divergences, or anchor witness verification failures");
+    parts.push("chain anomalies, divergences, or anchor witness verification failures (or a failed ceiling in time)");
   }
   return parts.join("; ");
 }
@@ -308,10 +335,15 @@ async function main(): Promise<number> {
 
   let result;
   try {
-    result = await runAudit(
-      bundlePath,
-      trustAnchors !== undefined ? { trustAnchors } : undefined
-    );
+    const ceilings = {
+      ...(parsed.ceilingWriter !== undefined ? { writer: parsed.ceilingWriter } : {}),
+      ...(parsed.ceilingChain !== undefined ? { chainId: parsed.ceilingChain } : {}),
+
+    };
+    result = await runAudit(bundlePath, {
+      ...(trustAnchors !== undefined ? { trustAnchors } : {}),
+      ceilings,
+    });
   } catch (err) {
     process.stderr.write(
       `bitgraph-audit: cannot audit "${parsed.bundlePath}": ` +
@@ -338,6 +370,13 @@ async function main(): Promise<number> {
   if (carrierFlags & 1) { flags.verificationFailures = true; }
   if (carrierFlags & 2) { flags.chainAnomaliesOrDivergences = true; }
   flags.code = flags.code | carrierFlags;
+  for (const c of result.ceilings?.checks ?? []) {
+    const width = c.window?.widthSeconds != null ? ` (window ${c.window.widthSeconds}s after the floor block)` : "";
+    process.stdout.write(c.status === "verified"
+      ? `ceiling VERIFIED ${c.path}: ${c.label ?? ""}${width}; ${c.onChainDetail ?? ""}\n`
+      : `ceiling ${c.status.toUpperCase()} ${c.path}: ${c.reason ?? ""}\n`);
+  }
+  for (const s of result.ceilings?.statuses ?? []) process.stdout.write(`ceiling ${s.status} ${s.path}: ${s.note}\n`);
   process.stdout.write(
     `bitgraph-audit ${auditToolVersion()}: wrote ${written.join(", ")}\n` +
       `exit ${flags.code}: ${exitMeaning(flags)}\n`

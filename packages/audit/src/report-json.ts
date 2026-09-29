@@ -109,6 +109,9 @@ export function buildJsonReport(result: AuditResult): AuditJsonReport {
       groups: result.authorities.groups,
       sharedSignersAcrossEpochs: result.authorities.sharedSignersAcrossEpochs,
     },
+    ...(result.ceilings && (result.ceilings.checks.length > 0 || result.ceilings.statuses.length > 0)
+      ? { ceilings: result.ceilings }
+      : {}),
     attestations: {
       records: result.attestations.records,
       counts: result.attestations.counts,

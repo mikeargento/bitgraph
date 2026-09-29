@@ -68,6 +68,15 @@ node packages/audit/dist/cli.js /path/to/bundle.tar.gz --out ./audit`}</Code>
         Both write <code>audit-report.json</code> (machine-readable, complete) and <code>audit-report.md</code> (human-readable) into the output directory. No network access occurs in either mode: no RPC, no HTTP, no DNS.
       </p>
 
+      <h2 id="ceilings" className="copy-new">Ceilings in time</h2>
+      <p className="copy-new">
+        A package from a proof page carries <code>base-ceiling/ceiling.json</code> beside <code>proof.json</code> when the record has a ceiling in time. The audit checks it offline against its proof: the record&rsquo;s hash under the Merkle root, the root in a Base transaction signed by BitGraph&rsquo;s published writer, the transaction inside the block, and the block&rsquo;s time from its header. A package without one carries <code>ceiling-status.json</code> saying why.
+      </p>
+      <p className="copy-new">
+        The audit never goes online, so it reports whether that block is Base&rsquo;s own as unchecked. One command answers it, or any Base explorer:
+      </p>
+      <pre className="copy-new"><code>npx -p @mikeargento/bitgraph-sdk bitgraph ceiling verify proof.json base-ceiling/ceiling.json --rpc https://mainnet.base.org</code></pre>
+
       <h2 id="report">Read the report</h2>
       <p>
         Open <code>audit-report.md</code>. The executive summary at the top is written for a reader with no cryptography background: how many proofs were observed, how many fully verified, how many lacked their file bytes (their binding to a specific file was not independently checked), whether the observed chain is intact, what anomalies and divergences exist, and what externally verifiable time evidence the bundle carries. Every anomaly is explained by consequence, and absence of evidence is stated as exactly that: a counter position missing from the bundle means the supplied evidence cannot reconstruct it, not that the authority failed to create it. The engineer-level sections and the JSON report carry the full records.

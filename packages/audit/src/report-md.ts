@@ -333,6 +333,26 @@ function executiveSummary(
   );
   lines.push("");
 
+  // Ceilings in time (bitgraph-ceiling/1), only when the bundle carries any.
+  const cl = report.ceilings;
+  if (cl && (cl.checks.length > 0 || cl.statuses.length > 0)) {
+    lines.push("### Ceilings in time (Base)");
+    lines.push("");
+    lines.push(`Checked against writer ${inlineCode(cl.writer)} on chain ${cl.chainId}.`);
+    lines.push("");
+    for (const c of cl.checks) {
+      if (c.status === "verified") {
+        const w = c.window!;
+        const width = w.widthSeconds != null ? `, ${w.widthSeconds} s after the floor block` : "";
+        lines.push(`- VERIFIED ${inlineCode(c.path)}: ${c.label ?? ""}${width}. ${c.onChainDetail ?? ""}.`);
+      } else {
+        lines.push(`- ${c.status.toUpperCase()} ${inlineCode(c.path)}: ${c.reason ?? ""}`);
+      }
+    }
+    for (const st of cl.statuses) lines.push(`- ${st.status} ${inlineCode(st.path)}: ${st.note}`);
+    lines.push("");
+  }
+
   // External time evidence.
   lines.push("### External time evidence");
   lines.push("");

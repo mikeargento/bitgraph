@@ -101,6 +101,8 @@ export { identifyAnchors } from "./anchors.js";
 export { verifyAnchorWitnesses, verifyAnchorWitness } from "./witness.js";
 
 export { deriveTemporalBounds } from "./temporal.js";
+export { verifyCeilings, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./ceilings.js";
+export type { CeilingAuditOptions } from "./ceilings.js";
 
 export { validateAttestations, validateNitroAttestationDocument } from "./attestation.js";
 

@@ -156,7 +156,7 @@ type BatchEntry = {
    *  positions these bytes hold, NOT a complete count. */
   partial?: true;
 };
-import { SET_METADATA_KEY, readSetMetadata, type BitGraphProof as VerifyProof } from "@mikeargento/bitgraph-verify";
+import { SET_METADATA_KEY, readSetMetadata, computeProofHash, type BitGraphProof as VerifyProof } from "@mikeargento/bitgraph-verify";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -2242,6 +2242,30 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      * saying so. The anchor files themselves are unchanged, so this is purely
      * additive: nothing that used to be written stops being written.
      */
+    // The ceiling in time beside each proof (bitgraph-ceiling/1), or a status
+    // note saying why there is none: same wording as the proof page's zip.
+    const addCeilingFor = async (dir: string, proof: Record<string, unknown>) => {
+      let ph = "";
+      try {
+        ph = (proof.proofHash as string | undefined) ?? computeProofHash(proof as never);
+        const safe = ph.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        const r = await fetch(`/api/ceilings/${safe}`);
+        if (r.ok) { addText(`${dir}base-ceiling/ceiling.json`, await r.text()); return; }
+        addText(`${dir}base-ceiling/ceiling-status.json`, JSON.stringify({
+          version: "bitgraph-ceiling-status/1", proofHash: ph,
+          status: r.status === 404 ? "none-found" : "unavailable",
+          note: r.status === 404
+            ? "No ceiling in time was found for this record when this package was built. Records made before 2026-09-29 22:43 UTC have none; a newer record may still be queued for its Base write, so build the package again."
+            : `BitGraph answered ${r.status} when this package was built, so the ceiling was never learned. Build the package again.`,
+        }, null, 2));
+      } catch (e) {
+        addText(`${dir}base-ceiling/ceiling-status.json`, JSON.stringify({
+          version: "bitgraph-ceiling-status/1", ...(ph ? { proofHash: ph } : {}), status: "unavailable",
+          note: `The ceiling was not fetched: the request did not complete (${(e as Error).message}). Build the package again.`,
+        }, null, 2));
+      }
+    };
+
     const addAnchorsFor = async (dir: string, afterCounter: string, beforeCounter: string, epoch: string) => {
       const anchorDir = `${dir}ethereum-anchors/`;
       if (!epoch) {
@@ -2410,6 +2434,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         fileEntry.push(fileBytes, true);
         for (const pos of allPositions) {
           addText(`${prefix}proof.json`, JSON.stringify(setOut ? withSetManifest(pos, setOut.manifestBytes) : pos, null, 2));
+          await addCeilingFor(prefix, pos as unknown as Record<string, unknown>);
           const found = setOut ? null : memberEvidenceOf(pos as unknown as Record<string, unknown>);
           if (found !== null) addText(`${prefix}member.json`, JSON.stringify(found, null, 2));
           singles.push(pos);
@@ -2425,6 +2450,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           fileEntry.push(fileBytes, true);
           addText(`${dir}proof.json`, JSON.stringify(pos, null, 2));
           if (c) await addAnchorsFor(dir, c, c, pos.commit?.epochId || "");
+          await addCeilingFor(dir, pos as unknown as Record<string, unknown>);
           built.push({ dir: dir.replace(/\/$/, ""), fileName: f.name,
                        proof: pos as unknown as Record<string, unknown>, sides: sidesOf(dir) });
         }

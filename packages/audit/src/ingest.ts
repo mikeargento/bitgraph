@@ -43,6 +43,7 @@ import { readTarEntries } from "./tar.js";
 import { combineEntryDigests } from "./contents-hash.js";
 import type {
   AnchorWitnessFile,
+  CeilingFile,
   ArtifactRecord,
   AuditFinding,
   BundleManifest,
@@ -82,6 +83,8 @@ const NUL = new Uint8Array([0]);
 const MANIFEST_PATH = "manifest.json";
 const BUNDLE_VERSION = "bitgraph-bundle/1";
 const WITNESS_VERSION = "bitgraph-anchor-witness/1";
+const CEILING_VERSION_TAG = "bitgraph-ceiling/1";
+const CEILING_STATUS_VERSION_TAG = "bitgraph-ceiling-status/1";
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -336,6 +339,8 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
   const proofsByHash = new Map<string, ObservedProof>();
   const unsupportedVersions: UnsupportedVersionRecord[] = [];
   const witnesses: AnchorWitnessFile[] = [];
+  const ceilings: CeilingFile[] = [];
+  const ceilingStatuses: CeilingFile[] = [];
   const artifactsByHex = new Map<string, ArtifactRecord>();
   let manifest: ManifestReport | undefined;
   let proofFiles = 0;
@@ -393,6 +398,17 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
       continue;
     }
 
+    // A ceiling in time travels beside its proof: evidence, never an artifact.
+    const pv = parsed !== undefined ? (parsed as Record<string, unknown>)["version"] : undefined;
+    if (pv === CEILING_VERSION_TAG || pv === CEILING_STATUS_VERSION_TAG) {
+      (pv === CEILING_VERSION_TAG ? ceilings : ceilingStatuses).push({
+        path: entry.path,
+        fileSha256Hex: entry.sha256Hex,
+        json: parsed as Record<string, unknown>,
+      });
+      continue;
+    }
+
     indexArtifact(entry, artifactsByHex);
   }
 
@@ -420,6 +436,7 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
     unsupportedVersion: unsupportedVersions.length,
     artifacts: artifacts.length,
     witnesses: witnesses.length,
+    ceilings: ceilings.length + ceilingStatuses.length,
     skippedUnsafePaths,
   };
 
@@ -432,6 +449,8 @@ function finalizeIngest(params: FinalizeParams): IngestResult {
     unsupportedVersions,
     artifacts,
     witnesses,
+    ceilings,
+    ceilingStatuses,
     ...(manifest !== undefined ? { manifest } : {}),
     computedContentsHashB64,
     findings,

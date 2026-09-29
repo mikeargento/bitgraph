@@ -99,8 +99,11 @@ describe("audit package dependency audit: zero network surface", () => {
     );
     assert.deepEqual(
       Object.keys(verifyPkg["dependencies"] ?? {}).sort(),
-      ["@noble/ed25519", "@noble/hashes"],
-      "verify (the only workspace dependency) brings exactly the @noble crypto pair"
+      ["@noble/curves", "@noble/ed25519", "@noble/hashes"],
+      // @noble/curves joined 2026-09-29: secp256k1 recovery of the Base
+      // ceiling writer's signature (verifyCeiling). Same author and audit
+      // lineage as the other two; still no network surface.
+      "verify (the only workspace dependency) brings exactly the @noble crypto trio"
     );
     // No side doors that could widen the closure at install time.
     for (const [pkgName, pkg] of [

@@ -27,7 +27,7 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkInline, isInlineProof } from "@/lib/fuse-client";
 import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair } from "@/lib/carrier-site";
-import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64, bytesToHex } from "@mikeargento/bitgraph-verify";
+import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64, bytesToHex, computeProofHash } from "@mikeargento/bitgraph-verify";
 
 /** Carry encodings this page knows; anything else in the title is a placement. */
 const ENCODING_IDS: string[] = [ENCODING_BASE64URL];
@@ -1351,6 +1351,37 @@ export default function ProofPage() {
         { state: "unavailable", note: `This side was not fetched: the request did not complete (${(e as Error).message}). Ask again.` },
         { state: "unavailable", note: `This side was not fetched: the request did not complete (${(e as Error).message}). Ask again.` },
       ), null, 2));
+    }
+
+    // The ceiling in time (bitgraph-ceiling/1) travels beside the proof, in its
+    // own folder, exactly as the writer published it: the Merkle path, the
+    // signed Base transaction, the block header and its inclusion proof, and
+    // the floor block's header. With proof.json it verifies offline, with no
+    // call to bitgraph.ing (bitgraph-audit, or verifyCeiling). Absent, the
+    // package says so in words instead of staying silent (the same rule as
+    // the anchor status above): an unfetched ceiling is not a missing one.
+    try {
+      const ph = (proof as BitGraphProof & { proofHash?: string }).proofHash ?? computeProofHash(proof as never);
+      const safe = ph.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      const cr = await fetch(`/api/ceilings/${safe}`);
+      if (cr.ok) {
+        files["base-ceiling/ceiling.json"] = new Uint8Array(await cr.arrayBuffer());
+      } else {
+        files["base-ceiling/ceiling-status.json"] = strToU8(JSON.stringify({
+          version: "bitgraph-ceiling-status/1",
+          proofHash: ph,
+          status: cr.status === 404 ? "none-found" : "unavailable",
+          note: cr.status === 404
+            ? "No ceiling in time was found for this record when this package was built. Records made before 2026-09-29 22:43 UTC have none; a newer record may still be queued for its Base write, so build the package again."
+            : `BitGraph answered ${cr.status} when this package was built, so the ceiling was never learned. Build the package again.`,
+        }, null, 2));
+      }
+    } catch (e) {
+      files["base-ceiling/ceiling-status.json"] = strToU8(JSON.stringify({
+        version: "bitgraph-ceiling-status/1",
+        status: "unavailable",
+        note: `The ceiling was not fetched: the request did not complete (${(e as Error).message}). Build the package again.`,
+      }, null, 2));
     }
 
     // ❄️ NO index.html. An export carries evidence, not a rendering of it.
