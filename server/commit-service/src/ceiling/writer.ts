@@ -92,6 +92,13 @@ export interface WriterSettlementOptions {
   everyMs?: number;
   /** Stop asking this long after the batch reached safe (default 24 h). */
   giveUpAfterMs?: number;
+  /**
+   * Wall-clock budget for one pass, in ms (default 10 000). A pass always settles at least one
+   * batch, stops after the batch that crosses the budget, and carries on next pass, so a backlog
+   * (a restart, a beacon outage) never holds the writer's own work: on 2026-09-30 the first pass
+   * walked 460 batches and no ceiling was written for the twenty minutes it took.
+   */
+  budgetMs?: number;
 }
 
 /** A sidecar as written: bitgraph-ceiling/1 with the settlement pointer in the slot reserved for it. */
@@ -197,6 +204,35 @@ export class CeilingWriter {
       this.batches.set(b.id, b);
       if (b.state !== "dropped") for (const i of b.items) this.anchored.set(i.proofHash, b.id);
     }
+    // Publishes pending when the process last stopped, re-read from disk. Without a journal (the
+    // first start of this code) everything settled is queued again: the published copies of
+    // those sidecars and records may predate their settlement, and a blob already published is
+    // left alone by the publisher's HEAD.
+    const journal = this.p("unpublished.json");
+    const requeueFile = (name: string): void => {
+      if (!this.o.publish) return;
+      const local = name.endsWith(".ceiling.json") ? join(this.dirs.sidecars, name) : join(this.o.stateDir, name);
+      if (existsSync(local)) this.unpublished.set(name, readFileSync(local, "utf8"));
+    };
+    const requeueBlob = (file: string): void => {
+      if (!this.o.settlement?.publishBlob) return;
+      const local = join(this.dirs.blobs, file);
+      if (existsSync(local)) this.unpublishedBlobs.set(file, new Uint8Array(readFileSync(local)));
+    };
+    if (existsSync(journal)) {
+      const j = readJson<{ files: string[]; blobs: string[] }>(journal, { files: [], blobs: [] });
+      for (const name of j.files) requeueFile(name);
+      for (const file of j.blobs) requeueBlob(file);
+    } else if (this.o.publish || this.o.settlement?.publishBlob) {
+      for (const b of this.batches.values()) {
+        if (!b.settlement || !b.inclusion) continue;
+        for (const i of b.items) requeueFile(`${safeName(i.proofHash)}.ceiling.json`);
+        const rec = CeilingWriter.writeRecordName(b);
+        if (rec) requeueFile(rec);
+        for (const file of b.settlement.blobFiles) requeueBlob(file);
+      }
+      this.journalPublish();
+    }
   }
 
   private saveBatch(b: Batch): void {
@@ -206,6 +242,11 @@ export class CeilingWriter {
   private saveBacklog(): void { atomicWrite(this.p("backlog.json"), JSON.stringify(this.backlog)); }
   private saveCursor(): void { atomicWrite(this.p("cursor.json"), JSON.stringify({ offset: this.cursor })); }
   private saveChain(): void { atomicWrite(this.p("chain.json"), JSON.stringify({ lastPayloadHash: this.lastPayloadHash })); }
+  /** The names still to publish, kept on disk so a restart picks them up; the content is re-read from the local files. */
+  private journalPublish(): void {
+    if (!this.o.publish && !this.o.settlement?.publishBlob) return;
+    atomicWrite(this.p("unpublished.json"), JSON.stringify({ files: [...this.unpublished.keys()], blobs: [...this.unpublishedBlobs.keys()] }));
+  }
   private event(e: Record<string, unknown>): void {
     const line = { at: this.o.now().toISOString(), ...e };
     appendFileSync(this.p("events.jsonl"), JSON.stringify(line) + "\n", { mode: 0o600 });
@@ -432,9 +473,14 @@ export class CeilingWriter {
     const s = this.o.settlement;
     if (!s) return;
     const giveUpAfter = s.giveUpAfterMs ?? 24 * 60 * 60 * 1000;
+    const budget = s.budgetMs ?? 10_000;
+    const started = Date.now();
+    let asked = 0;
     for (const b of this.batches.values()) {
       if (b.state !== "safe" && b.state !== "finalized") continue;
       if (b.settlement || b.settlementSearch?.gaveUp || !b.inclusion) continue;
+      if (asked > 0 && Date.now() - started > budget) break;
+      asked++;
       const inc = b.inclusion;
       const now = this.o.now();
       const attempts = (b.settlementSearch?.attempts ?? 0) + 1;
@@ -559,7 +605,7 @@ export class CeilingWriter {
     const local = join(this.o.stateDir, name);
     mkdirSync(join(local, ".."), { recursive: true, mode: 0o700 });
     atomicWrite(local, json);
-    if (this.o.publish) this.unpublished.set(name, json);
+    if (this.o.publish) { this.unpublished.set(name, json); this.journalPublish(); }
   }
 
   // ── sidecars ──
@@ -599,10 +645,11 @@ export class CeilingWriter {
     };
     const json = JSON.stringify(s, null, 2);
     atomicWrite(this.sidecarPath(i.proofHash), json);
-    if (this.o.publish) this.unpublished.set(`${safeName(i.proofHash)}.ceiling.json`, json);
+    if (this.o.publish) { this.unpublished.set(`${safeName(i.proofHash)}.ceiling.json`, json); this.journalPublish(); }
   }
 
   private async flushPublish(): Promise<void> {
+    const pending = this.unpublished.size + this.unpublishedBlobs.size;
     if (this.o.publish && this.unpublished.size > 0) {
       const batch = [...this.unpublished.entries()].slice(0, 200);
       await Promise.all(batch.map(async ([name, json]) => {
@@ -627,6 +674,7 @@ export class CeilingWriter {
         }
       }));
     }
+    if (pending > 0) this.journalPublish();
   }
 
   // ── inspection ──

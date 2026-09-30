@@ -18,6 +18,7 @@
  *                           (the only chain whose batcher pins are built in); never on elsewhere.
  *   CEILING_L1_RPC_URL      Ethereum RPC for settlement (default publicnode).
  *   CEILING_BEACON_URL      Ethereum beacon API for blob sidecars (default publicnode).
+ *   CEILING_SETTLEMENT_BUDGET_MS  Wall-clock budget of one settlement pass (default 10000).
  */
 
 import { join } from "node:path";
@@ -89,6 +90,7 @@ if (chainId === 8453 && env["CEILING_SETTLEMENT"] !== "off") {
       log: (e) => console.log(JSON.stringify(e)),
     }),
     pins: BASE_MAINNET_SETTLEMENT_PINS,
+    ...(env["CEILING_SETTLEMENT_BUDGET_MS"] ? { budgetMs: Number(env["CEILING_SETTLEMENT_BUDGET_MS"]) } : {}),
     ...(publishBlob ? { publishBlob } : {}),
   };
 }

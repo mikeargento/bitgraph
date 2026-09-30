@@ -12,7 +12,7 @@
 
 import { test, describe } from "node:test";
 import * as assert from "node:assert/strict";
-import { readFileSync, existsSync, mkdtempSync, appendFileSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdtempSync, appendFileSync, readdirSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash, randomBytes } from "node:crypto";
@@ -602,5 +602,91 @@ describe("the writer's settlement pass", () => {
     assert.equal(blobFileName(VH_A), `${VH_A}.bin`);
     assert.throws(() => blobFileName("0x02" + "aa".repeat(31)), /not a versioned hash/);
     assert.throws(() => blobFileName("../x"), /not a versioned hash/);
+  });
+});
+
+describe("the writer's settlement pass, bounded and journaled", () => {
+  const safeName = (b64: string) => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+  test("a pass settles at least one batch and stops at its budget; the rest wait for the next pass", async () => {
+    let answer = false;
+    const { mk, sidecar, toSafe } = setup(async (t) => (answer ? fakeFound(t) : null), { budgetMs: -1 } as { giveUpAfterMs?: number });
+    const w = mk();
+    const a = item();
+    const b = item();
+    await toSafe(w, a);
+    await toSafe(w, b);
+    assert.equal(sidecar(a).settlement, null);
+    assert.equal(sidecar(b).settlement, null);
+    answer = true;
+    await w.tick();
+    const settled = [a, b].filter((i) => sidecar(i).settlement !== null).length;
+    assert.equal(settled, 1, "one batch per pass under a budget that is already spent");
+    await w.tick();
+    assert.equal([a, b].filter((i) => sidecar(i).settlement !== null).length, 2);
+  });
+
+  function journaled(fail: () => boolean) {
+    const dir = mkdtempSync(join(tmpdir(), "ceiling-journal-"));
+    const queuePath = join(dir, "queue.jsonl");
+    const chain = new FakeChain();
+    const published: string[] = [];
+    const now = () => new Date(Date.UTC(2026, 8, 30, 12));
+    const mk = () => new CeilingWriter({
+      stateDir: dir, queuePath, chain, log: () => {}, now,
+      publish: async (name) => { if (fail()) throw new Error("s3 down"); published.push(name); },
+      settlement: { find: async (t) => fakeFound(t), everyMs: -1, publishBlob: async (name) => { if (fail()) throw new Error("s3 down"); published.push(name); } },
+    });
+    const sidecarName = (i: CeilingQueueItem) => `${safeName(i.proofHash)}.ceiling.json`;
+    const sidecar = (i: CeilingQueueItem) => JSON.parse(readFileSync(join(dir, "sidecars", sidecarName(i)), "utf8")) as { status: string; anchor: { blockNumber: number } | null; settlement: SettlementPointer | null };
+    const journal = () => JSON.parse(readFileSync(join(dir, "unpublished.json"), "utf8")) as { files: string[]; blobs: string[] };
+    const toSafe = async (w: CeilingWriter, i: CeilingQueueItem) => {
+      appendFileSync(queuePath, JSON.stringify(i) + "\n");
+      await w.tick();
+      chain.step();
+      await w.tick();
+      chain.safe = sidecar(i).anchor!.blockNumber;
+      (w as unknown as { lastStatusPoll: number }).lastStatusPoll = 0;
+      await w.tick();
+      assert.equal(sidecar(i).status, "safe");
+    };
+    return { dir, mk, published, sidecar, sidecarName, journal, toSafe };
+  }
+
+  test("what could not be published is journaled, and a restarted writer publishes it", async () => {
+    let down = true;
+    const { mk, published, sidecar, sidecarName, journal, toSafe } = journaled(() => down);
+    const w1 = mk();
+    const a = item();
+    await toSafe(w1, a);
+    assert.ok(sidecar(a).settlement, "settled on disk");
+    assert.equal(published.length, 0, "nothing reached the publisher while it was down");
+    const j = journal();
+    assert.ok(j.files.includes(sidecarName(a)), "the sidecar is journaled");
+    assert.ok(j.files.some((f) => f.startsWith("writes/")), "the write record is journaled");
+    assert.equal(j.blobs.length, 2, "both blobs are journaled");
+    down = false;
+    const w2 = mk();
+    await w2.tick();
+    assert.ok(published.includes(sidecarName(a)), "the restarted writer published the sidecar");
+    assert.ok(published.some((f) => f.startsWith("writes/")), "and the write record");
+    assert.equal(published.filter((f) => f.startsWith("blobs/")).length, 2, "and both blobs");
+    assert.deepEqual(journal(), { files: [], blobs: [] }, "the journal is empty once everything is out");
+  });
+
+  test("without a journal, a start queues every settled batch again, so copies made before settlement are replaced", async () => {
+    const { dir, mk, published, sidecarName, toSafe } = journaled(() => false);
+    const w1 = mk();
+    const a = item();
+    await toSafe(w1, a);
+    assert.ok(published.includes(sidecarName(a)));
+    published.length = 0;
+    unlinkSync(join(dir, "unpublished.json"));
+    const w2 = mk();
+    assert.ok(existsSync(join(dir, "unpublished.json")), "the journal is written at start");
+    await w2.tick();
+    assert.ok(published.includes(sidecarName(a)), "the settled sidecar goes out again");
+    assert.ok(published.some((f) => f.startsWith("writes/")), "so does its write record");
+    assert.equal(published.filter((f) => f.startsWith("blobs/")).length, 2, "and its blobs (the publisher's HEAD keeps them from being written twice)");
   });
 });
