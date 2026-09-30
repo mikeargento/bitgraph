@@ -2258,38 +2258,13 @@ function FreshRecordingWait() {
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
 
-/* Opening a card brings it into view (Mike, 2026-09-29): centred in the space
-   under the nav when it fits, its header just under the nav when it is taller
-   than that (Raw JSON, Hashes), since a centred tall card would hide its own
-   header. Cards open independently: a one-at-a-time limit was tried the same
-   evening and dropped, so two cards can sit open side by side in a walkthrough. */
-function bringIntoView(el: HTMLElement) {
-  // Two frames: the opened content has to lay out first, or the measurement
-  // is taken against the collapsed card.
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    const nav = document.getElementById("site-nav");
-    const top = nav ? nav.getBoundingClientRect().bottom : 0;
-    const r = el.getBoundingClientRect();
-    const room = window.innerHeight - top;
-    const margin = 16;
-    const y = r.height <= room - margin * 2
-      ? window.scrollY + r.top - top - (room - r.height) / 2
-      : window.scrollY + r.top - top - margin;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.scrollTo({ top: Math.max(0, y), behavior: reduce ? "auto" : "smooth" });
-  }));
-}
-
 function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   // Every card folds. The record card was the one always-open ("plain") card
   // until 2026-09-28, when it became a card like the rest, closed by default.
-  const ref = useRef<HTMLDivElement>(null);
-  const [open, setOpenState] = useState(!!defaultOpen);
-  const setOpen = (fn: (o: boolean) => boolean) => {
-    const next = fn(open);
-    setOpenState(next);
-    if (next && ref.current) bringIntoView(ref.current);
-  };
+  // Cards open in place; the page does not scroll to them. Scrolling an opened
+  // card to the centre was tried on 2026-09-29 and reverted the next day
+  // (Mike: "they should load like they used to").
+  const [open, setOpen] = useState(!!defaultOpen);
   const headerStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
     fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "var(--accent)",
@@ -2298,7 +2273,7 @@ function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactN
     textAlign: "left", fontFamily: "inherit",
   };
   return (
-    <div ref={ref} style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", overflow: "hidden", scrollMarginTop: 16 }}>
+    <div style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
       {(
         /* The header is a full-row toggle with the same hover + outlined-button
            affordance as the explorer rows: the row tints on hover and the
