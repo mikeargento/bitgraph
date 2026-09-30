@@ -12,9 +12,10 @@
  *   bitgraph proof (--digest D | --path P | --number N)
  *   bitgraph open                     hold a position; prints the commitment and a token
  *   bitgraph seal --token T <path>    seal the task that carries the commitment
- *   bitgraph verify <path>            offline judgment (BitGraphed files need nothing else)
- *   bitgraph bitgraphed <path>        write the BitGraphed file beside the original
- *   bitgraph complete <path>          fetch the closing anchor into a BitGraphed file
+ *   bitgraph verify <path>            offline judgment, one line per claim (BitGraphed files need nothing else;
+ *                                     --eth-rpc/--base-rpc confirm the blocks, --pcr0 names the images accepted)
+ *   bitgraph bitgraphed <path>        write the BitGraphed file (carrier/2) beside the original
+ *   bitgraph complete <path>          fetch the closing anchor and the Base ceiling into a BitGraphed file
  *   bitgraph ceiling verify <proof> <ceiling>   check a ceiling in time (offline; --rpc asks Base)
  *   bitgraph serve [--port 8791]      the same verbs on 127.0.0.1 for every runtime
  *
@@ -69,7 +70,9 @@ const HELP = `bitgraph — make, check and verify BitGraphs from any stack
   proof --digest D | --path P | --number N
   open                                 hold a position before the work exists
   seal --token T <path>                seal the task that carries the commitment
-  verify <path> [--proof proof.json]   offline judgment; exit 2 on FALSE/corrupt
+  verify <path> [--proof proof.json] [--eth-rpc URL] [--base-rpc URL] [--pcr0 hex,..]
+                                       offline judgment, one line per claim; exit 2 on FALSE/corrupt.
+                                       The rpc flags confirm each block against a node.
   bitgraphed <path> [--wait ms] [--out file]
   complete <path> [--wait ms]
   ceiling verify <proof.json> <ceiling.json> [--rpc URL] [--writer 0x..] [--chain 8453]
@@ -202,11 +205,35 @@ async function main(): Promise<void> {
         const { readFile } = await import("node:fs/promises");
         proof = JSON.parse(await readFile(proofPath, "utf8")) as unknown;
       }
-      const v = await bg.verify(target, proof);
+      // The confirmed level: a node per chain answers whether each header is the chain's own block.
+      const rpcLookup = (url: string) => async (n: number): Promise<string | null> => {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: ["0x" + n.toString(16), false] }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const j = (await res.json()) as { result?: { hash?: string } | null };
+        return j.result?.hash ?? null;
+      };
+      const ethRpc = flags.get("eth-rpc"), baseRpc = flags.get("base-rpc"), pcr0 = flags.get("pcr0");
+      const v = await bg.verify(target, proof, {
+        lookups: {
+          ...(typeof ethRpc === "string" ? { ethereumBlockHash: rpcLookup(ethRpc) } : {}),
+          ...(typeof baseRpc === "string" ? { baseBlockHash: rpcLookup(baseRpc) } : {}),
+        },
+        ...(typeof pcr0 === "string" ? { pins: { pcr0: pcr0.split(",").map((x) => x.trim()).filter(Boolean) } } : {}),
+      });
       out(v, () => {
         const lines = [`${v.verdict}${v.carrier === "corrupt" ? " (carrier block unreadable: corrupted, not judged)" : ""}`];
         if (v.bounds) lines.push(`  ${carrierLine(v.bounds)}`);
-        for (const r of v.reasons) lines.push(`  - ${r}`);
+        for (const c of v.claims) {
+          const mark = c.result === "TRUE" ? "ok " : c.result === "FALSE" ? "!! " : c.result === "NOT_CARRIED" ? "-- " : "?? ";
+          lines.push(`  ${mark} ${c.name}${c.result === "TRUE" && c.restsOn ? ` [${c.restsOn}]` : ""}${c.result !== "TRUE" ? `: ${c.detail}` : ""}`);
+        }
+        if (v.claims.length === 0) for (const r of v.reasons) lines.push(`  - ${r}`);
+        if (v.reading) lines.push("", `  ${v.reading}`);
+        if (v.claims.length > 0 && typeof ethRpc !== "string") lines.push("", "  add --eth-rpc <url> and --base-rpc <url> to confirm the blocks against nodes; --pcr0 <hex,...> to name the images you accept");
         return lines.join("\n");
       });
       if (v.verdict === "FALSE" || v.carrier === "corrupt") process.exit(2);
@@ -219,8 +246,11 @@ async function main(): Promise<void> {
       const built = await bg.bitgraphedFile(target, typeof wait === "string" ? { waitForCeilingMs: Number(wait) } : {});
       const outPath = typeof flags.get("out") === "string" ? (flags.get("out") as string) : join(dirname(target), built.fileName);
       await writeFile(outPath, built.bytes, { flag: "wx" });
-      out({ path: outPath, ceiling: built.ceiling }, () =>
-        `BitGraphed file written at ${outPath}${built.ceiling === "unfetched" ? "\n  closing anchor NOT FETCHED yet; run: bitgraph complete " + JSON.stringify(outPath) : ""}`
+      out({ path: outPath, ceiling: built.ceiling, ceilingInTime: built.ceilingInTime, witness: built.witness }, () =>
+        `BitGraphed file written at ${outPath}` +
+        (built.ceilingInTime === "unfetched" ? "\n  Base ceiling NOT FETCHED yet (it lands seconds after the commit); run: bitgraph complete " + JSON.stringify(outPath) : "") +
+        (built.ceiling === "unfetched" ? "\n  closing anchor NOT FETCHED yet; run: bitgraph complete " + JSON.stringify(outPath) : "") +
+        (built.witness ? "" : "\n  the openssl attestation witness was left out to keep this ZIP-family file under its 64 KiB limit; the proof inside still carries the attestation")
       );
       return;
     }
@@ -230,9 +260,11 @@ async function main(): Promise<void> {
       const wait = flags.get("wait");
       const done = await bg.complete(target, typeof wait === "string" ? { waitForCeilingMs: Number(wait) } : {});
       if (done.changed) await writeFile(target, done.bytes);
-      out({ path: target, changed: done.changed, ceiling: done.ceiling }, () =>
-        done.changed ? `closing anchor fetched in; the window is complete` : done.ceiling === "present" ? "already complete; nothing changed" : "the window has not closed yet; try again after the next anchor"
-      );
+      out({ path: target, changed: done.changed, ceiling: done.ceiling, ceilingInTime: done.ceilingInTime }, () => {
+        const complete = done.ceiling === "present" && done.ceilingInTime !== "unfetched";
+        if (done.changed) return complete ? "fetched in; the window is complete" : "fetched in; still waiting for " + (done.ceiling !== "present" ? "the closing anchor" : "the Base ceiling");
+        return complete ? "already complete; nothing changed" : "nothing has landed yet; try again in a moment";
+      });
       return;
     }
     case "ceiling": {

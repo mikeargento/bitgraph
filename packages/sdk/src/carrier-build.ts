@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
- * Building the BitGraphed file (bitgraph-carrier/1) from the committed bytes
+ * Building the BitGraphed file (bitgraph-carrier/2) from the committed bytes
  * in hand: the proof is fetched by digest, the floor anchor is matched BY
  * IDENTITY to the anchor the enclave signed into the slot, the first later
  * anchor closes the window when it exists, and every anchor is verified
@@ -12,14 +12,23 @@
  * the bytes are committed. A file whose ceiling has not landed yet says so
  * in those words ("unfetched") and can be completed later from public data;
  * completion never overwrites a ceiling already inside.
+ *
+ * /2 (2026-09-30) adds the ceiling in TIME (the Base sidecar the site serves
+ * at /api/ceilings/<proofHash>, verified with verifyCeiling before it travels),
+ * the attestation laid out as an openssl-checkable witness, and the declared
+ * pins. A ZIP-family file keeps its block under the 64 KiB its end record can
+ * be found behind: the witness is dropped first, and a block still too large
+ * is refused rather than written into a file that would not open.
  */
 
 import { createHash } from "node:crypto";
 import {
   verify, createVerificationContext,
-  buildCarrier, parseCarrier, completeCarrier as completeCarrierBlock,
+  buildCarrier, parseCarrier, completeCarrier as completeCarrierBlock, completeCarrierInTime, carrierVersionOf,
   checkFloorBinding, checkCeilingBinding, anchorMessageBytes, verifyWitnessHeader, anchorMarkOf,
-  type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierCeiling,
+  verifyCeiling, assembleCarrierV2Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID,
+  computeProofHash,
+  type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierCeiling, type CarrierCeilingInTime,
 } from "@mikeargento/bitgraph-verify";
 import { ApiError, getProofDetail, type ApiConfig } from "./api.js";
 import { toUrlSafeB64 } from "./encoding.js";
@@ -82,7 +91,12 @@ async function fetchAnchorSide(
 export interface BuiltCarrier {
   bytes: Uint8Array;
   fileName: string;
+  /** The ceiling in position: the next anchor. */
   ceiling: "present" | "unfetched";
+  /** The ceiling in time: the Base block the record existed by. */
+  ceilingInTime: "present" | "unfetched";
+  /** Whether the openssl attestation witness is inside (left out only to keep a ZIP-family file under its limit). */
+  witness: boolean;
 }
 
 /** photo.jpg -> photo.bitgraph.jpg; a name with no extension gets ".bitgraph" appended. */
@@ -93,12 +107,50 @@ export function carrierFileName(name: string): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** PK\x03\x04: a ZIP-family file (zip, docx, xlsx, pptx, jar), whose reader must find its end record within the last 64 KiB. */
+function isZipFamily(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
+/**
+ * The ceiling in time for a proof, from the site, verified before it travels.
+ * null with pending=true when the writer has not written one yet (404, or a
+ * sidecar still without a transaction).
+ */
+async function fetchCeilingInTime(config: ApiConfig, proof: BitGraphProof): Promise<{ sidecar: Record<string, unknown> | null; pending: boolean }> {
+  const ph = (proof as { proofHash?: string }).proofHash ?? computeProofHash(proof);
+  const res = await fetch(`${config.baseUrl}/api/ceilings/${encodeURIComponent(toUrlSafeB64(ph))}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
+  if (res.status === 404) return { sidecar: null, pending: true };
+  if (res.status !== 200) throw new ApiError(res.status, `the ceiling read answered ${res.status}`);
+  const sidecar = (await res.json()) as Record<string, unknown>;
+  const r = await verifyCeiling(proof as never, sidecar as never, { writerAddress: BITGRAPH_CEILING_WRITER, chainId: BASE_MAINNET_CHAIN_ID });
+  if (!r.ok) {
+    if (r.status === "pending") return { sidecar: null, pending: true };
+    throw new ApiError(502, `ceiling in time: ${r.reason ?? "does not verify"}`);
+  }
+  return { sidecar, pending: false };
+}
+
+/** The block for these parts, under the ZIP limit when the bytes are a ZIP-family file. Throws when it cannot be. */
+function payloadWithinLimits(committedBytes: Uint8Array, parts: Parameters<typeof assembleCarrierV2Payload>[0]): { payload: CarrierPayload; witness: boolean } {
+  let payload = assembleCarrierV2Payload(parts);
+  let witness = payload.attestation !== undefined;
+  if (isZipFamily(committedBytes) && carrierBlockSize(payload) > CARRIER_BLOCK_ZIP_LIMIT) {
+    payload = assembleCarrierV2Payload({ ...parts, withAttestationWitness: false });
+    witness = false;
+    if (carrierBlockSize(payload) > CARRIER_BLOCK_ZIP_LIMIT) {
+      throw new ApiError(413, `the proof block (${carrierBlockSize(payload)} bytes) would pass the 64 KiB a ZIP-family file can carry after its end record; keep the proof beside the file instead`);
+    }
+  }
+  return { payload, witness };
+}
+
 /**
  * The committed bytes in hand become the file that carries its own proof.
  * The proof is fetched by the bytes' digest (they must already be on
  * record); the floor is the anchor the slot names, matched by identity; the
- * ceiling is the first later anchor, waited for up to `waitForCeilingMs`
- * only while the window is genuinely pending.
+ * ceilings (the first later anchor, and the Base block) are waited for up to
+ * `waitForCeilingMs` only while genuinely pending.
  */
 export async function buildBitGraphedFile(
   config: ApiConfig,
@@ -131,62 +183,96 @@ export async function buildBitGraphedFile(
   if (floorProblems.length > 0) throw new ApiError(502, `floor binding: ${floorProblems.join("; ")}`);
 
   let ceiling: CarrierCeiling = { status: "unfetched" };
+  let ceilingInTime: CarrierCeilingInTime = { status: "unfetched" };
   const waitMs = opts?.waitForCeilingMs ?? 0;
   const deadline = Date.now() + waitMs;
   for (;;) {
-    const { found: after, pending } = await fetchAnchorSide(config, counter, epochId, "after");
-    if (after !== null) {
-      await vetAnchor(after.anchor, after.witness, "ceiling");
-      const candidate: CarrierCeiling = { status: "present", basis: "counter-order", anchor: after.anchor, witness: after.witness };
-      const problems = checkCeilingBinding(proof as unknown as CarrierPayload["proof"], candidate);
-      if (problems.length > 0) throw new ApiError(502, `ceiling binding: ${problems.join("; ")}`);
-      ceiling = candidate;
-      break;
+    if (ceiling.status !== "present") {
+      const { found: after, pending } = await fetchAnchorSide(config, counter, epochId, "after");
+      if (after !== null) {
+        await vetAnchor(after.anchor, after.witness, "ceiling");
+        const candidate: CarrierCeiling = { status: "present", basis: "counter-order", anchor: after.anchor, witness: after.witness };
+        const problems = checkCeilingBinding(proof as unknown as CarrierPayload["proof"], candidate);
+        if (problems.length > 0) throw new ApiError(502, `ceiling binding: ${problems.join("; ")}`);
+        ceiling = candidate;
+      } else if (!pending) ceiling = { status: "unfetched" };
     }
-    if (!pending || Date.now() + 2_000 > deadline) break;
+    if (ceilingInTime.status !== "present") {
+      const { sidecar, pending } = await fetchCeilingInTime(config, proof);
+      if (sidecar !== null) ceilingInTime = { status: "present", sidecar };
+      else if (!pending) ceilingInTime = { status: "unfetched", searched: { at: new Date().toISOString() } };
+    }
+    if ((ceiling.status === "present" && ceilingInTime.status === "present") || Date.now() + 2_000 > deadline) break;
     await sleep(2_000);
   }
+  if (ceilingInTime.status === "unfetched" && !ceilingInTime.searched) ceilingInTime = { status: "unfetched", searched: { at: new Date().toISOString() } };
 
-  const payload: CarrierPayload = {
-    carrier: "bitgraph-carrier/1",
-    proof: proof as unknown as CarrierPayload["proof"],
+  const { payload, witness } = payloadWithinLimits(committedBytes, {
+    proof: proof as unknown as CarrierProof,
     floor: { status: "present", anchor: floor.anchor, witness: floor.witness },
     ceiling,
-  };
-  return { bytes: buildCarrier(committedBytes, payload), fileName: carrierFileName(fileName), ceiling: ceiling.status };
+    ceilingInTime,
+  });
+  return { bytes: buildCarrier(committedBytes, payload), fileName: carrierFileName(fileName), ceiling: ceiling.status, ceilingInTime: ceilingInTime.status, witness };
 }
 
 export interface CompletedCarrier {
   bytes: Uint8Array;
   changed: boolean;
   ceiling: "present" | "unfetched";
+  /** "n/a" on a bitgraph-carrier/1 file, which has no such field. */
+  ceilingInTime: "present" | "unfetched" | "n/a";
 }
 
 /**
- * Fetch the closing anchor into an existing BitGraphed file. A ceiling
- * already inside is never overwritten; a window still open comes back
- * unchanged with its state stated.
+ * Fetch what followed the commit into an existing BitGraphed file: the
+ * closing anchor, and (on a /2 file) the Base block. Whatever is already
+ * inside is never overwritten; a window still open comes back unchanged with
+ * its state stated.
  */
 export async function completeBitGraphedFile(config: ApiConfig, carrierBytes: Uint8Array, opts?: { waitForCeilingMs?: number }): Promise<CompletedCarrier> {
-  const parsed = parseCarrier(carrierBytes);
+  let parsed = parseCarrier(carrierBytes);
   if (parsed.kind !== "carrier") throw new ApiError(400, parsed.kind === "corrupt" ? `unreadable carrier block: ${parsed.reason}` : "these bytes carry no proof inside");
-  if (parsed.payload.ceiling.status === "present") return { bytes: carrierBytes, changed: false, ceiling: "present" };
+  const v2 = carrierVersionOf(parsed.payload) === 2;
   const commit = (parsed.payload.proof as { commit?: { counter?: string; epochId?: string } }).commit;
   if (typeof commit?.counter !== "string" || typeof commit?.epochId !== "string") throw new ApiError(400, "the carried proof carries no position");
 
+  let bytes = carrierBytes;
+  let changed = false;
   const waitMs = opts?.waitForCeilingMs ?? 0;
   const deadline = Date.now() + waitMs;
   for (;;) {
-    const { found: after, pending } = await fetchAnchorSide(config, commit.counter, commit.epochId, "after");
-    if (after !== null) {
-      await vetAnchor(after.anchor, after.witness, "ceiling");
-      const problems = checkCeilingBinding(parsed.payload.proof, { status: "present", basis: "counter-order", anchor: after.anchor, witness: after.witness });
-      if (problems.length > 0) throw new ApiError(502, `ceiling binding: ${problems.join("; ")}`);
-      const done = completeCarrierBlock(carrierBytes, { anchor: after.anchor, witness: after.witness });
-      return { bytes: done.bytes, changed: done.changed, ceiling: "present" };
+    let stillPending = false;
+    if (parsed.payload.ceiling.status !== "present") {
+      const { found: after, pending } = await fetchAnchorSide(config, commit.counter, commit.epochId, "after");
+      if (after !== null) {
+        await vetAnchor(after.anchor, after.witness, "ceiling");
+        const problems = checkCeilingBinding(parsed.payload.proof, { status: "present", basis: "counter-order", anchor: after.anchor, witness: after.witness });
+        if (problems.length > 0) throw new ApiError(502, `ceiling binding: ${problems.join("; ")}`);
+        const done = completeCarrierBlock(bytes, { anchor: after.anchor, witness: after.witness });
+        if (done.error) throw new ApiError(409, done.error);
+        bytes = done.bytes; changed ||= done.changed;
+      } else stillPending ||= pending;
     }
-    if (!pending || Date.now() + 2_000 > deadline) break;
+    if (v2 && parsed.payload.ceilingInTime?.status !== "present") {
+      const { sidecar, pending } = await fetchCeilingInTime(config, parsed.payload.proof as unknown as BitGraphProof);
+      if (sidecar !== null) {
+        const done = completeCarrierInTime(bytes, sidecar);
+        if (done.error) throw new ApiError(409, done.error);
+        bytes = done.bytes; changed ||= done.changed;
+      } else stillPending ||= pending;
+    }
+    const again = parseCarrier(bytes);
+    if (again.kind !== "carrier") throw new ApiError(500, "the completed block does not parse");
+    parsed = again;
+    const complete = parsed.payload.ceiling.status === "present" && (!v2 || parsed.payload.ceilingInTime?.status === "present");
+    if (complete || !stillPending || Date.now() + 2_000 > deadline) break;
     await sleep(2_000);
   }
-  return { bytes: carrierBytes, changed: false, ceiling: "unfetched" };
+  return {
+    bytes,
+    changed,
+    ceiling: parsed.payload.ceiling.status,
+    ceilingInTime: v2 ? (parsed.payload.ceilingInTime?.status === "present" ? "present" : "unfetched") : "n/a",
+  };
 }

@@ -109,8 +109,27 @@ export type {
   CarrierWitness, CarrierProof, CarrierFloor, CarrierCeiling, CarrierPayload,
   CarrierParse, WitnessCheck, CarrierBounds,
 } from "./carrier.js";
-export { verifyCarrier } from "./carrier-verify.js";
-export type { CarrierVerifyResult } from "./carrier-verify.js";
+export { verifyCarrier, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./carrier-verify.js";
+export type { CarrierVerifyResult, CarrierClaim, ClaimResult, CarrierLookups, CarrierVerifyOptions } from "./carrier-verify.js";
+
+/* bitgraph-carrier/2 (2026-09-30): the ceiling in time, its settlement, the attestation witness and the declared pins, in the same block. */
+export {
+  CARRIER_VERSION_2, CEILING_SIDECAR_VERSION, SETTLEMENT_POINTER_VERSION, ATTESTATION_WITNESS_VERSION,
+  carrierVersionOf, completeCarrierInTime, completeCarrierSettlement,
+} from "./carrier.js";
+export type { CarrierVersion, CarrierCeilingInTime, CarrierSettlement, CarrierPins } from "./carrier.js";
+export { assembleCarrierV2Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT } from "./carrier-assemble.js";
+export type { CarrierV2Parts } from "./carrier-assemble.js";
+
+/* AWS Nitro attestation: decode, verify (chain to the AWS root, validity at the document's instant), and the openssl-checkable witness. */
+export {
+  AWS_NITRO_ROOT_CA_PEM, awsNitroRootDer, awsNitroRootSha256, decodeNitroAttestation, verifyNitroAttestation,
+  attestationWitness, witnessMatchesAttestation, encodeSigStructure, rawEcdsaSigToDer, derToPem, pemToDer, ATTESTATION_WITNESS_FORMAT,
+} from "./nitro.js";
+export type { NitroDocument, NitroDecoded, NitroCheck, NitroVerifyOptions, NitroVerifyResult, AttestationWitness } from "./nitro.js";
+
+/* Settlement of a Base ceiling on Ethereum: L1 data inclusion (bitgraph-settlement/1). The pointer layer is here; the blob layer is bitgraph-audit's. */
+export * from "./settlement.js";
 
 // Ceiling in time on Base (bitgraph-ceiling/1): a sidecar beside the proof, never inside it.
 export {

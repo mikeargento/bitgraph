@@ -31,6 +31,16 @@
  * many words. There is no third state, and absence of the field is a corrupt
  * block, not a missing bound.
  *
+ * bitgraph-carrier/2 (2026-09-30) keeps everything above and adds, in the same
+ * block: the ceiling in TIME (the bitgraph-ceiling/1 sidecar: a Base block the
+ * record existed by), its settlement on Ethereum when known (a
+ * bitgraph-settlement/1 pointer: the Ethereum block that committed the batch
+ * data), the AWS attestation laid out as openssl-checkable evidence
+ * (aws-nitro-witness/1), and the pins the file was made under (PCR0, the
+ * ceiling writer, the chains), which a verifier compares with ITS OWN list and
+ * never reads as authority. A reader that knows only v1 reports an unknown
+ * version (UNDETERMINED), never a verdict.
+ *
  * ⚠️ TWO BYTE-IDENTICAL COPIES OF THIS FILE EXIST, on purpose:
  *   packages/verify/src/carrier.ts   (canonical, published with the package)
  *   website/src/lib/carrier.ts       (the site cannot import unpublished code)
@@ -52,6 +62,12 @@ export const CARRIER_OVERHEAD = 24;
 export const MAX_CARRIER_PAYLOAD = 8 * 1024 * 1024;
 
 export const CARRIER_VERSION = "bitgraph-carrier/1";
+export const CARRIER_VERSION_2 = "bitgraph-carrier/2";
+export type CarrierVersion = typeof CARRIER_VERSION | typeof CARRIER_VERSION_2;
+/** The sidecar and pointer formats a v2 block carries; their shapes are checked by their own modules. */
+export const CEILING_SIDECAR_VERSION = "bitgraph-ceiling/1";
+export const SETTLEMENT_POINTER_VERSION = "bitgraph-settlement/1";
+export const ATTESTATION_WITNESS_VERSION = "aws-nitro-witness/1";
 
 /* ── The payload ────────────────────────────────────────────────────────── */
 
@@ -86,12 +102,39 @@ export type CarrierCeiling =
       witness: CarrierWitness;
     };
 
+/** v2: the ceiling in time, a Base block the record existed by, carried as the bitgraph-ceiling/1 sidecar. */
+export type CarrierCeilingInTime =
+  | { status: "unfetched"; searched?: { at: string } }
+  | { status: "present"; sidecar: Record<string, unknown> };
+
+/** v2: the Ethereum block that committed the Base batch data, as a bitgraph-settlement/1 pointer. Blob bytes travel beside the package, not here. */
+export type CarrierSettlement =
+  | { status: "unfetched" }
+  | { status: "present"; pointer: Record<string, unknown> };
+
+/** v2: what the file was made under. Declared only; a verifier compares with its own pins. */
+export interface CarrierPins {
+  pcr0?: string;
+  enclave?: string;
+  ceilingWriter?: string;
+  chains?: { ethereum?: number; base?: number };
+}
+
 export interface CarrierPayload {
-  carrier: typeof CARRIER_VERSION;
+  carrier: CarrierVersion;
   /** The bitgraph/1 proof exactly as the commit returned it. */
   proof: CarrierProof;
   floor: CarrierFloor;
+  /** The ceiling in position: the next anchor in the chain. Every proof ever made has one. */
   ceiling: CarrierCeiling;
+  /** v2 only. Required on a v2 block, so absence reads as a corrupt block, never as "no ceiling". */
+  ceilingInTime?: CarrierCeilingInTime;
+  /** v2 only, optional. */
+  settlement?: CarrierSettlement;
+  /** v2 only, optional. */
+  pins?: CarrierPins;
+  /** v2 only, optional: the proof's attestation as aws-nitro-witness/1 evidence. */
+  attestation?: Record<string, unknown>;
 }
 
 export type CarrierParse =
@@ -188,7 +231,8 @@ export function buildCarrier(inner: Uint8Array, payload: CarrierPayload): Uint8A
 function payloadShapeError(p: unknown): string | null {
   const o = record(p);
   if (o === null) return "payload is not an object";
-  if (o["carrier"] !== CARRIER_VERSION) return `unknown carrier version ${JSON.stringify(o["carrier"])}`;
+  const v2 = o["carrier"] === CARRIER_VERSION_2;
+  if (o["carrier"] !== CARRIER_VERSION && !v2) return `unknown carrier version ${JSON.stringify(o["carrier"])}`;
   if (record(o["proof"]) === null) return "payload carries no proof object";
   const floor = record(o["floor"]);
   if (floor === null || floor["status"] !== "present") return "floor must be present: a floorless carrier is not a not-before";
@@ -199,15 +243,42 @@ function payloadShapeError(p: unknown): string | null {
   }
   const ceil = record(o["ceiling"]);
   if (ceil === null) return "ceiling is missing: absence must be a stated fact, not a missing key";
-  if (ceil["status"] === "unfetched") return null;
-  if (ceil["status"] !== "present") return `ceiling status must be "unfetched" or "present", got ${JSON.stringify(ceil["status"])}`;
-  if (ceil["basis"] !== "counter-order") return `unknown ceiling basis ${JSON.stringify(ceil["basis"])}`;
-  if (record(ceil["anchor"]) === null) return "ceiling carries no anchor proof";
-  const cw = record(ceil["witness"]);
-  if (cw === null || typeof cw["headerRlpHex"] !== "string" || typeof cw["blockNumber"] !== "number" || typeof cw["blockHash"] !== "string") {
-    return "ceiling carries no readable block-header witness";
+  if (ceil["status"] !== "unfetched") {
+    if (ceil["status"] !== "present") return `ceiling status must be "unfetched" or "present", got ${JSON.stringify(ceil["status"])}`;
+    if (ceil["basis"] !== "counter-order") return `unknown ceiling basis ${JSON.stringify(ceil["basis"])}`;
+    if (record(ceil["anchor"]) === null) return "ceiling carries no anchor proof";
+    const cw = record(ceil["witness"]);
+    if (cw === null || typeof cw["headerRlpHex"] !== "string" || typeof cw["blockNumber"] !== "number" || typeof cw["blockHash"] !== "string") {
+      return "ceiling carries no readable block-header witness";
+    }
+  }
+  if (!v2) return null;
+  // v2: the ceiling in time is stated either way; settlement, pins and the attestation witness are optional.
+  const ct = record(o["ceilingInTime"]);
+  if (ct === null) return "ceilingInTime is missing: a v2 block states the ceiling in time or that it was not fetched";
+  if (ct["status"] === "present") {
+    const sc = record(ct["sidecar"]);
+    if (sc === null || sc["version"] !== CEILING_SIDECAR_VERSION) return `ceilingInTime carries no ${CEILING_SIDECAR_VERSION} sidecar`;
+  } else if (ct["status"] !== "unfetched") return `ceilingInTime status must be "unfetched" or "present", got ${JSON.stringify(ct["status"])}`;
+  if (o["settlement"] !== undefined) {
+    const st = record(o["settlement"]);
+    if (st === null) return "settlement is not an object";
+    if (st["status"] === "present") {
+      const pt = record(st["pointer"]);
+      if (pt === null || pt["version"] !== SETTLEMENT_POINTER_VERSION) return `settlement carries no ${SETTLEMENT_POINTER_VERSION} pointer`;
+    } else if (st["status"] !== "unfetched") return `settlement status must be "unfetched" or "present", got ${JSON.stringify(st["status"])}`;
+  }
+  if (o["pins"] !== undefined && record(o["pins"]) === null) return "pins is not an object";
+  if (o["attestation"] !== undefined) {
+    const at = record(o["attestation"]);
+    if (at === null || at["format"] !== ATTESTATION_WITNESS_VERSION) return `attestation is not an ${ATTESTATION_WITNESS_VERSION} witness`;
   }
   return null;
+}
+
+/** 1 or 2, from a parsed payload. */
+export function carrierVersionOf(payload: CarrierPayload): 1 | 2 {
+  return payload.carrier === CARRIER_VERSION_2 ? 2 : 1;
 }
 
 export function parseCarrier(bytes: Uint8Array): CarrierParse {
@@ -259,6 +330,53 @@ export function completeCarrier(
   };
   if (ceiling === null && !searched) return { changed: false, bytes };
   return { changed: true, bytes: buildCarrier(p.inner, payload) };
+}
+
+/**
+ * v2: stamp the ceiling in time (a verified bitgraph-ceiling/1 sidecar) into a
+ * carrier, or record that a completion looked and found none yet. Pure; the
+ * caller verifies the sidecar BEFORE stamping. Never overwrites a present one
+ * that differs (a conflicting embedded ceiling is evidence worth keeping); the
+ * same one again is a no-op. A v1 block is left alone: it has no such field.
+ */
+export function completeCarrierInTime(
+  bytes: Uint8Array,
+  sidecar: Record<string, unknown> | null,
+  searched?: { at: string },
+): { changed: boolean; bytes: Uint8Array; error?: string } {
+  const p = parseCarrier(bytes);
+  if (p.kind !== "carrier") return { changed: false, bytes, error: p.kind === "none" ? "not a carrier" : `corrupt block: ${p.reason}` };
+  if (carrierVersionOf(p.payload) !== 2) return { changed: false, bytes, error: "a bitgraph-carrier/1 block has no ceiling in time; rebuild the file as carrier/2" };
+  const cur = p.payload.ceilingInTime;
+  if (cur && cur.status === "present") {
+    if (sidecar === null) return { changed: false, bytes };
+    const a = record(cur.sidecar["anchor"]), b = record(sidecar["anchor"]);
+    const same = a !== null && b !== null && a["txHash"] === b["txHash"] && String(a["blockHash"] ?? "").toLowerCase() === String(b["blockHash"] ?? "").toLowerCase();
+    return same ? { changed: false, bytes } : { changed: false, bytes, error: "carrier already holds a different ceiling in time; refusing to overwrite it" };
+  }
+  if (sidecar === null && !searched) return { changed: false, bytes };
+  const payload: CarrierPayload = {
+    ...p.payload,
+    ceilingInTime: sidecar === null ? { status: "unfetched", ...(searched ? { searched } : {}) } : { status: "present", sidecar },
+  };
+  return { changed: true, bytes: buildCarrier(p.inner, payload) };
+}
+
+/** v2: stamp a verified settlement pointer. Never overwrites a present one that differs. */
+export function completeCarrierSettlement(
+  bytes: Uint8Array,
+  pointer: Record<string, unknown>,
+): { changed: boolean; bytes: Uint8Array; error?: string } {
+  const p = parseCarrier(bytes);
+  if (p.kind !== "carrier") return { changed: false, bytes, error: p.kind === "none" ? "not a carrier" : `corrupt block: ${p.reason}` };
+  if (carrierVersionOf(p.payload) !== 2) return { changed: false, bytes, error: "a bitgraph-carrier/1 block has no settlement; rebuild the file as carrier/2" };
+  const cur = p.payload.settlement;
+  if (cur && cur.status === "present") {
+    const a = record(cur.pointer["l1"]), b = record(pointer["l1"]);
+    const same = a !== null && b !== null && a["txHash"] === b["txHash"] && String(a["blockHash"] ?? "").toLowerCase() === String(b["blockHash"] ?? "").toLowerCase();
+    return same ? { changed: false, bytes } : { changed: false, bytes, error: "carrier already holds a different settlement; refusing to overwrite it" };
+  }
+  return { changed: true, bytes: buildCarrier(p.inner, { ...p.payload, settlement: { status: "present", pointer } }) };
 }
 
 /* ── Consistency checks (no network, no signatures — bindings only) ─────── */
@@ -458,18 +576,44 @@ export function verifyWitnessHeader(w: CarrierWitness): WitnessCheck {
 
 export interface CarrierBounds {
   notBefore: { blockNumber: number; blockHash: string; timestamp: number | null };
-  /** null means NOT FETCHED — say so in those words — never "none exists". */
+  /** The ceiling in POSITION: the next anchor. null means NOT FETCHED — say so in those words — never "none exists". */
   notAfter: { blockNumber: number; blockHash: string; timestamp: number | null } | null;
+  /**
+   * v2: the ceiling in TIME, as the sidecar states it (verifyCarrier recomputes
+   * it from the header). null on a v1 block or when not fetched.
+   */
+  existedBy: { chain: "base"; blockNumber: number; blockHash: string; timestamp: number } | null;
+  /** v2: the Ethereum block that committed the Base batch data, as the pointer states it. */
+  settledBy: { chain: "ethereum"; blockNumber: number; blockHash: string; timestamp: number } | null;
 }
 
 export function carrierBounds(payload: CarrierPayload): CarrierBounds {
   const f = payload.floor.witness;
   const floorTs = verifyWitnessHeader(f);
   const notBefore = { blockNumber: f.blockNumber, blockHash: f.blockHash.toLowerCase(), timestamp: floorTs.ok ? floorTs.timestamp : null };
-  if (payload.ceiling.status !== "present") return { notBefore, notAfter: null };
-  const c = payload.ceiling.witness;
-  const ceilTs = verifyWitnessHeader(c);
-  return { notBefore, notAfter: { blockNumber: c.blockNumber, blockHash: c.blockHash.toLowerCase(), timestamp: ceilTs.ok ? ceilTs.timestamp : null } };
+  let notAfter: CarrierBounds["notAfter"] = null;
+  if (payload.ceiling.status === "present") {
+    const c = payload.ceiling.witness;
+    const ceilTs = verifyWitnessHeader(c);
+    notAfter = { blockNumber: c.blockNumber, blockHash: c.blockHash.toLowerCase(), timestamp: ceilTs.ok ? ceilTs.timestamp : null };
+  }
+  let existedBy: CarrierBounds["existedBy"] = null;
+  const ct = payload.ceilingInTime;
+  if (ct && ct.status === "present") {
+    const a = record(ct.sidecar["anchor"]);
+    if (a && typeof a["blockNumber"] === "number" && typeof a["blockHash"] === "string" && typeof a["blockTimestamp"] === "number") {
+      existedBy = { chain: "base", blockNumber: a["blockNumber"], blockHash: a["blockHash"].toLowerCase(), timestamp: a["blockTimestamp"] };
+    }
+  }
+  let settledBy: CarrierBounds["settledBy"] = null;
+  const st = payload.settlement;
+  if (st && st.status === "present") {
+    const l1 = record(st.pointer["l1"]);
+    if (l1 && typeof l1["blockNumber"] === "number" && typeof l1["blockHash"] === "string" && typeof l1["blockTimestamp"] === "number") {
+      settledBy = { chain: "ethereum", blockNumber: l1["blockNumber"], blockHash: l1["blockHash"].toLowerCase(), timestamp: l1["blockTimestamp"] };
+    }
+  }
+  return { notBefore, notAfter, existedBy, settledBy };
 }
 
 /** SHA-256 of the committed bytes, compared to the carried proof's artifact digest. */

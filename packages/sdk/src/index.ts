@@ -12,7 +12,7 @@
  */
 
 export { BitGraph } from "./bitgraph.js";
-export type { BitGraphOptions, RecordResult, RecordedFile, CheckedInput, VerifyOutcome, Slot } from "./bitgraph.js";
+export type { BitGraphOptions, RecordResult, RecordedFile, CheckedInput, VerifyOutcome, VerifyOptions, Slot } from "./bitgraph.js";
 
 // The engine, piece by piece.
 export { configFromEnv, batchCheck, getProofDetail, search, indexSetMembers, ApiError, BATCH_CHECK_LIMIT } from "./api.js";

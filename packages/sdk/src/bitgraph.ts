@@ -27,7 +27,7 @@
 
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { verify, verifyCarrier, createVerificationContext, parseCarrier } from "@mikeargento/bitgraph-verify";
+import { verify, verifyCarrier, createVerificationContext, parseCarrier, type CarrierClaim, type CarrierVerifyOptions } from "@mikeargento/bitgraph-verify";
 import { ApiError, batchCheck, configFromEnv, getProofDetail, search, type ApiConfig } from "./api.js";
 import { fromUrlSafeB64, looksLikeDigest, mapConcurrent, toUrlSafeB64 } from "./encoding.js";
 import { classifyPath, fuseFilePipeline, fuseSetPipeline, type CarrierRow, type ClassifiedPath, type FuseFileFn, type FuseSetFn, type SetSummary } from "./pipelines.js";
@@ -92,7 +92,14 @@ export interface VerifyOutcome {
   carrier: "ok" | "none" | "corrupt";
   bounds: CarrierWindowView | null;
   reasons: string[];
+  /** One result per claim, each saying what it rests on (a BitGraphed file only). */
+  claims: CarrierClaim[];
+  /** Plain language, written from the claims. */
+  reading: string | null;
 }
+
+/** For the confirmed level: nodes that answer the one online question per chain, and the verifier's own pins. */
+export type VerifyOptions = CarrierVerifyOptions;
 
 /** A position held before the work exists. Put `commitment` into the task, then seal it within the TTL. */
 export interface Slot {
@@ -364,28 +371,28 @@ export class BitGraph {
    * Fully offline judgment, no network ever. A BitGraphed file needs nothing
    * else; plain bytes need their proof.
    */
-  async verify(input: string | Uint8Array, proof?: unknown): Promise<VerifyOutcome> {
+  async verify(input: string | Uint8Array, proof?: unknown, opts: VerifyOptions = {}): Promise<VerifyOutcome> {
     const bytes = typeof input === "string" ? new Uint8Array(await readFile(input)) : input;
     const parsed = parseCarrier(bytes);
     if (parsed.kind === "carrier" || parsed.kind === "corrupt") {
-      const r = await verifyCarrier(bytes);
-      return { verdict: r.verdict, carrier: r.carrier === "none" ? "none" : r.carrier, bounds: r.bounds !== null ? carrierWindowView(r) : null, reasons: r.reasons };
+      const r = await verifyCarrier(bytes, opts);
+      return { verdict: r.verdict, carrier: r.carrier === "none" ? "none" : r.carrier, bounds: r.bounds !== null ? carrierWindowView(r) : null, reasons: r.reasons, claims: r.claims, reading: r.reading };
     }
     if (proof === undefined || proof === null) {
-      return { verdict: "UNDETERMINED", carrier: "none", bounds: null, reasons: ["plain bytes carry no proof inside; pass the proof to verify them"] };
+      return { verdict: "UNDETERMINED", carrier: "none", bounds: null, reasons: ["plain bytes carry no proof inside; pass the proof to verify them"], claims: [], reading: null };
     }
     const r = await verify({ proof: proof as Parameters<typeof verify>[0]["proof"], bytes, context: createVerificationContext() });
-    return { verdict: r.valid ? "TRUE" : "FALSE", carrier: "none", bounds: null, reasons: r.valid ? [] : [r.reason ?? "the proof does not verify"] };
+    return { verdict: r.valid ? "TRUE" : "FALSE", carrier: "none", bounds: null, reasons: r.valid ? [] : [r.reason ?? "the proof does not verify"], claims: [], reading: null };
   }
 
-  /** Build the BitGraphed file for committed bytes already on record: the file that carries its own proof, floor inside, ceiling when it exists. */
+  /** Build the BitGraphed file (bitgraph-carrier/2) for committed bytes already on record: the proof, the floor, both ceilings when they exist, and the attestation as openssl-checkable evidence, all inside. */
   async bitgraphedFile(input: string | Uint8Array, opts: { fileName?: string; waitForCeilingMs?: number } = {}): Promise<BuiltCarrier> {
     const bytes = typeof input === "string" ? new Uint8Array(await readFile(input)) : input;
     const name = opts.fileName ?? (typeof input === "string" ? (input.split("/").pop() as string) : "artifact");
     return buildBitGraphedFile(this.config, bytes, name, opts.waitForCeilingMs !== undefined ? { waitForCeilingMs: opts.waitForCeilingMs } : {});
   }
 
-  /** Fetch the closing anchor into an existing BitGraphed file. A ceiling already inside is never overwritten. */
+  /** Fetch what followed the commit into an existing BitGraphed file: the closing anchor and, on a /2 file, the Base block. Nothing already inside is overwritten. */
   async complete(input: string | Uint8Array, opts: { waitForCeilingMs?: number } = {}): Promise<CompletedCarrier> {
     const bytes = typeof input === "string" ? new Uint8Array(await readFile(input)) : input;
     return completeBitGraphedFile(this.config, bytes, opts.waitForCeilingMs !== undefined ? { waitForCeilingMs: opts.waitForCeilingMs } : {});

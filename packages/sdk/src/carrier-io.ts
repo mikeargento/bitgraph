@@ -30,7 +30,12 @@ export interface CarrierWindowView {
   not_before: { block: number; hash: string; time: string | null } | null;
   /** null when the ceiling has not been fetched into the file yet. */
   not_after: { block: number; hash: string; time: string | null } | null;
+  /** The ceiling in TIME (carrier/2): the Base block the record existed by. null on a /1 file or when not fetched. */
+  existed_by: { chain: "base"; block: number; hash: string; time: string } | null;
+  /** The Ethereum block that committed the Base batch data (carrier/2, when carried). */
+  settled_by: { chain: "ethereum"; block: number; hash: string; time: string } | null;
   ceiling: "present" | "unfetched" | null;
+  version: 1 | 2 | null;
   reasons: string[];
 }
 
@@ -39,7 +44,10 @@ export function carrierWindowView(r: CarrierVerifyResult): CarrierWindowView {
     verdict: r.verdict,
     not_before: r.bounds ? { block: r.bounds.notBefore.blockNumber, hash: r.bounds.notBefore.blockHash, time: iso(r.bounds.notBefore.timestamp) } : null,
     not_after: r.bounds?.notAfter ? { block: r.bounds.notAfter.blockNumber, hash: r.bounds.notAfter.blockHash, time: iso(r.bounds.notAfter.timestamp) } : null,
+    existed_by: r.bounds?.existedBy ? { chain: "base", block: r.bounds.existedBy.blockNumber, hash: r.bounds.existedBy.blockHash, time: iso(r.bounds.existedBy.timestamp) as string } : null,
+    settled_by: r.bounds?.settledBy ? { chain: "ethereum", block: r.bounds.settledBy.blockNumber, hash: r.bounds.settledBy.blockHash, time: iso(r.bounds.settledBy.timestamp) as string } : null,
     ceiling: r.ceiling,
+    version: r.version,
     reasons: r.reasons,
   };
 }
@@ -56,6 +64,9 @@ export function carrierWindowView(r: CarrierVerifyResult): CarrierWindowView {
 export function carrierLine(view: CarrierWindowView): string {
   const parts: string[] = [`carried proof ${view.verdict}`];
   if (view.not_before) parts.push(`after block ${view.not_before.block}${view.not_before.time ? ` (mined ${view.not_before.time})` : ""}`);
+  if (view.existed_by) parts.push(`existed by Base block ${view.existed_by.block} (${view.existed_by.time})`);
+  else if (view.version === 2) parts.push("Base ceiling NOT FETCHED (run: bitgraph complete <file>)");
+  if (view.settled_by) parts.push(`batch data on Ethereum in block ${view.settled_by.block} (${view.settled_by.time})`);
   parts.push(
     view.not_after
       ? `before the anchoring of block ${view.not_after.block}${view.not_after.time ? ` (block mined ${view.not_after.time})` : ""}`
