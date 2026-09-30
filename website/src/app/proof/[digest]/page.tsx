@@ -3099,15 +3099,17 @@ function FileCard({ cachedFile, label, preview, pending }: {
     return () => URL.revokeObjectURL(u);
   }, [shown, kind, mime]);
 
-  // Text excerpt: enough lines to see what the document is, never the whole
-  // thing — Open shows the full file in its own tab.
+  // Text: a plain text file opens all the way (Mike, 2026-09-30: "why dont we
+  // just let txt files open all the way up"); only a huge one stops, at 50,000
+  // characters, and says Open shows the rest. A formatted JSON record keeps its
+  // 60-line excerpt.
   let excerpt: { text: string; truncated: boolean; formatted?: boolean } | null = null;
   // Pending: one blank line keeps the text's place, so nothing below jumps.
   if (kind === "text" && pending) excerpt = { text: "\u00a0", truncated: false };
   else if (kind === "text") {
     try {
-      let raw = new TextDecoder("utf-8", { fatal: false }).decode(shown.data.slice(0, 6000));
-      let partial = shown.data.byteLength > 6000;
+      let raw = new TextDecoder("utf-8", { fatal: false }).decode(shown.data.slice(0, 60_000));
+      let partial = shown.data.byteLength > 60_000;
       // A small .json file reads indented, since a sealed record is usually
       // one compact line. Display only, and labelled below: the bytes are untouched.
       let formatted = false;
@@ -3117,9 +3119,9 @@ function FileCard({ cachedFile, label, preview, pending }: {
           if (pretty.split("\n").length > raw.split("\n").length) { raw = pretty; partial = false; formatted = true; }
         } catch { /* not JSON after all: shown as it is */ }
       }
-      const limit = formatted ? 60 : 24;
+      const limit = formatted ? 60 : Infinity;
       const lines = raw.split("\n");
-      const text = lines.slice(0, limit).join("\n").slice(0, formatted ? 6000 : 3000);
+      const text = lines.slice(0, limit).join("\n").slice(0, formatted ? 6000 : 50_000);
       excerpt = { text, truncated: lines.length > limit || raw.length > text.length || partial, formatted };
     } catch { excerpt = null; }
   }
@@ -3164,7 +3166,8 @@ function FileCard({ cachedFile, label, preview, pending }: {
           values. 11px keeps 44 columns down to a 360px screen; 12.5px returns
           by ~417px. The bytes can't be changed to help: the file has to
           contain the exact value.
-          Height caps at 1200px, raised from 560 (same day): the home
+          (2026-09-30: text files now open all the way; the history below is
+          why the old height cap existed.) Height capped at 1200px, raised from 560 (same day): the home
           demonstration file measured 894 to 961px tall on phones, so 560 cut
           it off mid-way and hid its last lines, the ones saying what a proof
           does NOT show. 1000 fitted, but with 39px spare at 412px (the font
@@ -3174,9 +3177,12 @@ function FileCard({ cachedFile, label, preview, pending }: {
           unchanged; this cap only has to clear a short file whose lines wrap
           on a narrow screen. */}
       {kind === "text" && excerpt && (
-        <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: "clamp(11px, 3vw, 12.5px)", lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 1200, overflow: "hidden" }}>
+        <pre style={{ margin: 0, padding: 16, fontFamily: "var(--font-mono)", fontSize: "clamp(11px, 3vw, 12.5px)", lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
           {excerpt.text}{excerpt.truncated ? "\n…" : ""}
         </pre>
+      )}
+      {kind === "text" && excerpt?.truncated && !excerpt.formatted && (
+        <div style={{ padding: "0 16px 14px", fontSize: 12.5, color: "var(--dim)" }}>The first 50,000 characters. Open shows the whole file.</div>
       )}
       {kind === "text" && excerpt?.formatted && (
         <div style={{ padding: "0 16px 14px", fontSize: 12.5, color: "var(--dim)" }}>Indented for reading. The file itself is compact JSON, exactly as recorded; Open shows it as it is.</div>
