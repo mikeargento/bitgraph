@@ -214,11 +214,14 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const isAnchor = m.kind === "anchor";
   const attested = m.attestedMs;
   const floorMs = m.floor?.blockTime ? new Date(m.floor.blockTime).getTime() : null;
-  const sinceFloor = attested !== null && floorMs !== null ? Math.max(0, Math.round((attested - floorMs) / 1000)) : null;
+  // Whole seconds, floored, so the count agrees with the two clock readings shown beside it.
+  const sinceFloor = attested !== null && floorMs !== null ? Math.max(0, Math.floor((attested - floorMs) / 1000)) : null;
   const ct = m.ceilingTime;
   const ctMs = ct?.anchor ? ct.anchor.blockTimestamp * 1000 : null;
   const settle = ct?.settlement?.l1;
   const posMined = m.ceilingPos?.blockTime ? new Date(m.ceilingPos.blockTime).getTime() : null;
+  const blockMs = m.anchorBlock?.minedMs ?? null;
+  const sinceBlock = attested !== null && blockMs !== null ? Math.max(0, Math.floor((attested - blockMs) / 1000)) : null;
   const c = m.checks;
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
@@ -253,7 +256,6 @@ export function ProofView({ m }: { m: ProofViewModel }) {
                 <>
                   <span className="pv-when-label">Recorded </span>
                   <TimeChip date={new Date(attested)} withDate />
-                  <span className="pv-when-root"> · enclave clock</span>
                 </>
               ) : m.leadFallback}
             </div>
@@ -291,7 +293,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         <div className="pv-section-title">Where it sits in time</div>
         <div className="pv-moments">
           {isAnchor && m.anchorBlock && (
-            <Moment label="Recorded" title={<>Ethereum block {m.anchorBlock.number ? `#${fmtNum(m.anchorBlock.number)}` : "#?"}{m.anchorBlock.minedMs !== null ? <span className="pv-moment-dim"> · mined {whenBeside(m.anchorBlock.minedMs, attested)}</span> : null}</>} note="This anchor is a BitGraph of that block's hash. The block existed before it, so everything placed after this anchor came after the block.">
+            <Moment label="Ethereum block" title={<>Block {m.anchorBlock.number ? `#${fmtNum(m.anchorBlock.number)}` : "#?"}{m.anchorBlock.minedMs !== null ? <span className="pv-moment-dim"> · mined {whenBeside(m.anchorBlock.minedMs, attested)}</span> : null}</>} note="This anchor is a BitGraph of that block's hash. The block existed before it, so everything placed after this anchor came after the block.">
               {m.anchorBlock.etherscanUrl && <Pill href={m.anchorBlock.etherscanUrl} external>Etherscan</Pill>}
             </Moment>
           )}
@@ -300,7 +302,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <Moment
               label="Floor in time"
               title={<>Made after Ethereum block #{fmtNum(m.floor.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"> · mined {whenBeside(floorMs, attested)}</span> : null}</>}
-              note={<>The block the enclave fixed when the position opened and signed into the proof. A block hash cannot be known before its block exists.{m.floor.recordedMs !== null ? <> Recorded as anchor #{fmtNum(m.floor.counter)} at {whenBeside(m.floor.recordedMs, attested)}.</> : null}{m.commitAfter ? <> The commit itself also follows anchor #{fmtNum(m.commitAfter.counter)}, Ethereum block #{fmtNum(m.commitAfter.blockNumber)}{m.commitAfter.blockTime ? <> (mined {whenBeside(new Date(m.commitAfter.blockTime).getTime(), attested)})</> : null}, by the chain of proof hashes: a tighter bound on the commit, not on the bytes.</> : null}</>}
+              note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot be known before its block exists.{m.floor.recordedMs !== null ? <> Recorded as anchor #{fmtNum(m.floor.counter)} at {whenBeside(m.floor.recordedMs, attested)}.</> : null}{m.commitAfter ? <> The commit also follows anchor #{fmtNum(m.commitAfter.counter)}, Ethereum block #{fmtNum(m.commitAfter.blockNumber)}{m.commitAfter.blockTime ? <> (mined {whenBeside(new Date(m.commitAfter.blockTime).getTime(), attested)})</> : null}, by the chain of proof hashes: a tighter bound on the commit, not on the bytes.</> : null}</>}
             >
               {m.floor.etherscanUrl && <Pill href={m.floor.etherscanUrl} external>Etherscan</Pill>}
               {m.floor.digestB64 && <Pill href={`/proof/${encodeURIComponent(safe(m.floor.digestB64))}`}>Anchor #{fmtNum(m.floor.counter)}</Pill>}
@@ -310,8 +312,8 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {!isAnchor && attested !== null && (
             <Moment
               label="Recorded"
-              title={<>{stampTz(new Date(attested))}{sinceFloor !== null ? <span className="pv-moment-dim"> · {sinceFloor} s after the floor block</span> : null}</>}
-              note="The instant of the commit, per the enclave platform's signed clock, inside the attestation below."
+              title={<>{whenBeside(attested, floorMs)}{sinceFloor !== null ? <span className="pv-moment-dim"> · {sinceFloor} s after the floor block</span> : null}</>}
+              note="The instant of the commit, per the enclave platform's signed clock, carried in the attestation under Details."
               accent
             />
           )}
@@ -352,7 +354,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <Moment label="Ceiling in position" title={<span className="pv-moment-dim">Waiting for the next anchor<span className="pv-dots" aria-hidden /></span>} note="An anchor lands about every 12 seconds. This page keeps asking." />
           )}
           {isAnchor && attested !== null && (
-            <Moment label="Recorded by BitGraph" title={<>{stampTz(new Date(attested))}</>} note="Per the enclave platform's signed clock: when the enclave signed this anchor, later than the block it carries." accent />
+            <Moment label="Recorded" title={<>{whenBeside(attested, blockMs)}{sinceBlock !== null ? <span className="pv-moment-dim"> · {sinceBlock} s after the block</span> : null}</>} note="The instant the enclave signed this anchor, per the enclave platform's signed clock: after the block it carries." accent />
           )}
         </div>
       </section>
@@ -365,13 +367,13 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {c.state === "idle" && <div className="pv-note">The checks run once the proof and its anchors are in hand.</div>}
         {c.state === "done" && (
           <>
-            {c.reading && (
-              <div className={`pv-reading${c.verdict === "FALSE" ? " is-false" : ""}`}>{c.reading}</div>
-            )}
             <div className="pv-checks-summary">
               <span className={`pv-verdict pv-verdict-${(c.verdict ?? "UNDETERMINED").toLowerCase()}`}>{c.verdict === "TRUE" ? "Holds" : c.verdict === "FALSE" ? "Does not hold" : "Undetermined"}</span>
               <span className="pv-checks-count">{okCount} checks passed{badCount ? `, ${badCount} failed` : ""}{c.bytesInHand ? "" : " · the file's own bytes are not in hand, so the two checks that need them are not run here"}</span>
             </div>
+            {c.reading && (
+              <div className={`pv-reading${c.verdict === "FALSE" ? " is-false" : ""}`}>{c.reading}</div>
+            )}
             {groups.map(([title, pick]) => {
               const rows = c.claims.filter((x) => pick(x.id));
               if (rows.length === 0) return null;
@@ -414,16 +416,18 @@ export function ProofView({ m }: { m: ProofViewModel }) {
         {m.downloadNotes.length > 0 && (
           <div className="pv-note">{m.downloadNotes.map((n, i) => <div key={i}>{n}</div>)}</div>
         )}
-        <div className="pv-offline">
-          <div className="pv-sub-title">Check it anywhere</div>
-          <div className="pv-offline-text">
-            The BitGraphed file verifies with nothing but itself, one line per claim, on any machine. The package holds the proof, the anchors with their block headers and the ceiling file, for the offline audit.
+        {m.kind === "file" && (
+          <div className="pv-offline">
+            <div className="pv-sub-title">Check it anywhere</div>
+            <div className="pv-offline-text">
+              The BitGraphed file verifies with nothing but itself, one line per claim, on any machine. The package holds the proof, the anchors with their block headers and the ceiling file, for the offline audit.
+            </div>
+            <div className="code-block pv-code">
+              <div className="code-block-header"><span>Shell</span><CopyCode /></div>
+              <pre><code>{`npx @mikeargento/bitgraph-sdk verify <file>.bitgraph<ext>\nnpx @mikeargento/bitgraph-audit ./BitGraph-package/`}</code></pre>
+            </div>
           </div>
-          <div className="code-block pv-code">
-            <div className="code-block-header"><span>Shell</span><CopyCode /></div>
-            <pre><code>{`npx @mikeargento/bitgraph-sdk verify <file>.bitgraph<ext>\nnpx @mikeargento/bitgraph-audit ./BitGraph-package/`}</code></pre>
-          </div>
-        </div>
+        )}
         {m.againNode && <div className="pv-again">{m.againNode}</div>}
       </section>
 
@@ -482,7 +486,7 @@ function ClaimRow({ x }: { x: CarrierClaim }) {
   const [open, setOpen] = useState(false);
   const glyph = x.result === "TRUE" ? "✓" : x.result === "FALSE" ? "✗" : x.result === "NOT_CARRIED" ? "–" : "?";
   return (
-    <div className={`pv-claim pv-claim-${x.result.toLowerCase().replace("_", "-")}`}>
+    <div className={`pv-claim pv-claim-${x.result.toLowerCase().replace("_", "-")}${open ? " is-open" : ""}`}>
       <button type="button" className="pv-claim-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className="pv-claim-glyph" aria-hidden>{glyph}</span>
         <span className="pv-claim-name">{x.name}</span>

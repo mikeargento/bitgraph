@@ -29,6 +29,7 @@ import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLarge
 import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence } from "@/lib/carrier-site";
 import { verifyCarrierPayload, type CarrierClaim, type CarrierLookups } from "@mikeargento/bitgraph-verify";
 import { ProofView, type ProofViewModel, type FieldView, type PositionRowView, type SetRowView, type DownloadView } from "./proof-view";
+import { PUBLISHED_PCR0S } from "@/lib/enclave-measurements";
 import { ENCODING_BASE64URL, bytesToBase64, bytesToHex, computeProofHash } from "@mikeargento/bitgraph-verify";
 import { computeCommitmentFor } from "@/lib/fuse-commitment";
 import { FUSE2_ATTRIBUTION_NAME, isFuseName } from "@/lib/fuse-core";
@@ -247,7 +248,7 @@ export default function ProofPage() {
         ev = { payload: assembled.payload as never, forCounter: proof.commit.counter ?? null, ceilings: key };
         evidenceRef.current = ev;
       }
-      const r = await verifyCarrierPayload(ev.payload, checksBytesRef.current, lookups ? { lookups } : {});
+      const r = await verifyCarrierPayload(ev.payload, checksBytesRef.current, { pins: { pcr0: [...PUBLISHED_PCR0S] }, ...(lookups ? { lookups } : {}) });
       setChecks({ state: "done", claims: r.claims, reading: r.reading, verdict: r.verdict, note: null, bytesInHand: checksBytesRef.current !== null, confirming: false, confirmed: lookups !== undefined });
       const sideOf = (anchor: Record<string, unknown> | undefined, witness: { blockNumber: number; blockHash: string } | undefined, ts: number | null) => {
         const ac = (anchor as { commit?: { counter?: string } } | undefined)?.commit;
@@ -271,7 +272,12 @@ export default function ProofPage() {
     // The committed bytes, when they are in hand: a plain recording's file, or a fused
     // new file. An original in hand is not the artifact (it rebuilds into it), and a set's
     // artifact is its root document, so neither is offered as the bytes.
-    const bytes = cachedFile && cachedRole !== "original" && !isSetProof(proof) ? new Uint8Array(cachedFile.data) : null;
+    // An anchor's bytes are the block hash it records, as text: they are in the proof itself.
+    const attrib = proof.attribution as { name?: string; message?: string } | undefined;
+    const anchorText = attrib?.name?.startsWith("Ethereum") ? attrib.message : undefined;
+    const bytes = cachedFile && cachedRole !== "original" && !isSetProof(proof)
+      ? new Uint8Array(cachedFile.data)
+      : typeof anchorText === "string" && anchorText.length > 0 ? new TextEncoder().encode(anchorText) : null;
     (async () => {
       if (bytes) {
         const h = await hashBytes(bytes);
@@ -1180,65 +1186,6 @@ export default function ProofPage() {
   // folds (Mike, 2026-09-28: "BitGraph #1,012 would be label and it is closed
   // by default"), it is the card's label, and each page shows its own number.
   const recordName = `BitGraph${commitCounter !== null ? ` #${commitCounter.toLocaleString("en-US")}` : ""}`;
-  /* The folded card's label: the name, then the epoch, cut to 8 characters.
-     The counter restarts with every epoch, so "#1,012" alone names one BitGraph
-     a day; the epoch is what tells them apart. Not the date (Mike, 2026-09-28:
-     time is "a consensus construct" and "should only be a part of the
-     recording"): a date changes with the reader's time zone, 9:45 PM EDT on the
-     24th is the 25th in UTC and in the epoch's own day, so it cannot be an
-     identity. Epoch and counter are the position's own address, the pair the
-     URL carries. Mono, as everywhere an epoch is shown: base64 mixes I, l, 1, O
-     and 0. The full ID stays inside the card. */
-  const recordLabel = (
-    <>
-      {recordName}
-      {epochFull && (
-        <span style={{ fontWeight: 400, letterSpacing: 0, color: "var(--dim)" }}>
-          {" · epoch "}
-          <span style={{ fontFamily: mono, fontSize: 12.5 }}>{epochFull.slice(0, 8)}</span>
-        </span>
-      )}
-    </>
-  );
-  const whenBlock = (named: boolean) => (recordedDate || whenNode) ? (
-    /* Written like a card field: the date is the heading, the time window the
-       value beneath it in the monospace/data font, matching the hashes and
-       counters elsewhere on the page. */
-    <div style={{ display: "flex", flexDirection: "column", gap: 5, padding: "14px 16px" }}>
-      {recordedDate && (!isInterval ? (
-        // One bold line, the name "BitGraph #n", then two quiet detail lines (Mike,
-        // 2026-09-26): the date and time in normal text, "epoch" as a grey label and its ID
-        // in mono, the one string a reader copies or compares character by character.
-        // Inside the folding card the name is the label, so only the date stays here.
-        named ? (
-          <div style={{ fontSize: 14, color: "var(--ink)", letterSpacing: "-0.01em" }}>
-            <strong style={{ fontWeight: 700 }}>{recordName}</strong>
-            {committedLine ? "" : <> &middot; <strong style={{ fontWeight: 700 }}>{recordedDate}</strong></>}
-          </div>
-        ) : committedLine ? null : (
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
-            {recordedDate}
-          </div>
-        )
-      ) : (
-        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>
-          {recordedDate}
-        </div>
-      ))}
-      {whenNode}
-      {!isInterval && epochFull && (
-        <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--dim)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={epochFull}>
-          {/* The label in normal text like the lines above; the ID in mono, because
-              base64 mixes I, l, 1, O and 0 and a sans makes them indistinguishable. */}
-          epoch <span style={{ fontFamily: mono, fontSize: 12, color: "var(--ink)" }}>{epochFull}</span>
-        </div>
-      )}
-    </div>
-  ) : null;
-  // Named: the standalone when-card (intervals, and an anchor with no block card).
-  const whenRow = whenBlock(true);
-  // Unnamed: inside the record card, whose label already names it.
-  const whenBody = whenBlock(false);
 
   // Interval window, derived from the causal positions the page already loads
   // (metadata.interval does not survive the TEE, so nothing here relies on it):
@@ -1248,14 +1195,6 @@ export default function ProofPage() {
   const intervalBlockNum = isInterval ? (attr?.title?.match(/\/block\/(\d+)/)?.[1] ?? null) : null;
   const originalPos = isInterval && positions.length > 0 && positions[0]?.counter !== commit?.counter ? positions[0] : null;
   const intervalBegan = originalPos ? formatWindow(originalPos.lowerTime, originalPos.upperTime) : null;
-  // Highlighted node form so "Window began" reads like "Window ended".
-  let intervalBeganNode: React.ReactNode = intervalBegan;
-  if (originalPos?.lowerTime && originalPos?.upperTime) {
-    const b1 = new Date(originalPos.lowerTime), b2 = new Date(originalPos.upperTime);
-    intervalBeganNode = sameUtcDay(b1, b2)
-      ? <>between <Em>{timeTz(b1)}</Em> and <Em>{timeTz(b2)}</Em> on <Em>{utcDate(b2)}</Em></>
-      : <>between <Em>{stampTz(b1)}</Em> and <Em>{stampTz(b2)}</Em></>;
-  }
 
   // The fused copy is stored nowhere: it is rebuilt here from the original in
   // hand and the proof, and offered only on this explicit click. A visitor who
@@ -1605,18 +1544,7 @@ export default function ProofPage() {
     <Shell>
       <style>{`
         @keyframes fadeIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
-        @keyframes ethWaitPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
         @keyframes spin { to { transform: rotate(360deg) } }
-        /* Collapsible card header — the disclosure affordance is a single blue
-           chevron that rotates down when open; the row tints on hover. */
-        .bg-collapse-head { transition: background .12s; }
-        .bg-collapse-chev { color:var(--accent); transition: color .15s; }
-        @media (hover:hover) {
-          /* Hover previews the open state: same tint the header band carries
-             once the card is open, so hovering shows you where you are going. */
-          .bg-collapse-head:hover { background:var(--tint) !important; }
-          .bg-collapse-head:hover .bg-collapse-chev { color:var(--accent-2); }
-        }
         /* Face-ID-style success: a brand-blue ring sweeps closed, then the checkmark
            draws itself, the whole badge springs in and fades away. Plays once
            on a freshly-recorded BitGraph. */
@@ -1629,20 +1557,6 @@ export default function ProofPage() {
         .fid-ring { fill:none; stroke:var(--accent); stroke-width:6; stroke-linecap:round; stroke-dasharray:295; stroke-dashoffset:295; animation:fidDraw .5s ease-out .05s forwards; }
         .fid-check { fill:none; stroke:var(--accent); stroke-width:7; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:fidDraw .3s ease-out .46s forwards; }
         @media (prefers-reduced-motion: reduce) { .fid-badge, .fid-scrim, .fid-ring, .fid-check { animation-duration:.01ms !important; animation-delay:0s !important; } }
-        .proof-fields > div:last-child { border-bottom: none !important; }
-        /* Causal Positions rows: a stacked entry that reads the same at every
-           width. Line 1 is the counter (left) and the View/Viewing action
-           (right); below it the role reads as a bold heading, then the ETH
-           anchor window as secondary detail. Stacking avoids the ragged inline
-           wrap the single-line layout produced on narrow screens. */
-        .causal-row { padding: 14px 16px; }
-        .causal-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-        .causal-label { font-size: 14px; font-weight: 700; white-space: nowrap; }
-        .causal-action { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-        .causal-role { font-size: 13px; font-weight: 700; color: var(--ink); margin-top: 6px; }
-        .causal-window { font-size: 13px; color: var(--dim); line-height: 1.5; margin-top: 2px; }
-        @media print {
-        }
       `}</style>
 
       {justCreated && (
@@ -1678,7 +1592,7 @@ export default function ProofPage() {
             <div className="pv-file-row">
               <span className="pv-file-name">
                 <strong>Ethereum block {ethBlockNum ? `#${Number(ethBlockNum).toLocaleString("en-US")}` : "#?"}</strong>
-                {anchorBlock?.blockTime ? <span className="pv-file-meta"> · mined {stampTz(new Date(anchorBlock.blockTime))}</span> : null}
+                {anchorBlock?.blockTime ? <span className="pv-file-meta"> · mined {attestedMs !== null && sameDayTz(new Date(anchorBlock.blockTime), new Date(attestedMs)) ? timeTz(new Date(anchorBlock.blockTime)) : stampTz(new Date(anchorBlock.blockTime))}</span> : null}
               </span>
               {attr?.title && <a href={attr.title} target="_blank" rel="noopener" className="pv-list-link">Open <span aria-hidden>&#8599;</span></a>}
             </div>

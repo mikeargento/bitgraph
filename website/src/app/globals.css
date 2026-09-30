@@ -2500,11 +2500,11 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 
 /* ═══ THE PROOF PAGE (2026-09-30, Mike: "completely overhaul the proof pages ... the MOST
    intuitive and simple streamlined way"). Five raised cards on the ground: the record, where it
-   sits in time, what holds, take it with you, details. Sentences hold the 1040px measure;
-   the cards take the frame. ═══ */
+   sits in time, what holds, take it with you, details. Text runs the card's full width (Mike, 09-30:
+   "you could utilize full width right?"); the cards take the frame. ═══ */
 .pv { display: grid; gap: 16px; }
-.pv-card { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); padding: 20px 24px; min-width: 0; }
-@media (max-width: 640px) { .pv-card { padding: 16px 16px; } }
+.pv-card { --pv-pad: 24px; background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); padding: 20px var(--pv-pad); min-width: 0; }
+@media (max-width: 640px) { .pv-card { --pv-pad: 16px; padding: 16px var(--pv-pad); } }
 .pv-section-title { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--dim); margin: 0 0 14px; }
 .pv-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .pv-head-main { min-width: 0; flex: 1; }
@@ -2525,9 +2525,9 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-file-meta { white-space: nowrap; }
 .pv-sub { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-2); }
 .pv-sub-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
-.pv-sub-note { font-size: 13px; color: var(--dim); line-height: 1.5; padding: 6px 0; max-width: var(--measure); }
-.pv-note { font-size: 13.5px; color: var(--dim); line-height: 1.55; max-width: var(--measure); }
-.pv-row { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-2); cursor: pointer; position: relative; }
+.pv-sub-note { font-size: 13px; color: var(--dim); line-height: 1.5; padding: 6px 0; }
+.pv-note { font-size: 13.5px; color: var(--dim); line-height: 1.55; }
+.pv-row { display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line-2); cursor: pointer; }
 .pv-row:first-child { border-top: 0; }
 .pv-row-label { font-size: 13px; color: var(--dim); }
 .pv-row-value { font-size: 13.5px; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
@@ -2555,22 +2555,23 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-moment-label { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--dim); }
 .pv-moment-title { font-size: 15.5px; font-weight: 600; color: var(--ink); margin-top: 2px; line-height: 1.4; }
 .pv-moment-dim { color: var(--dim); font-weight: 400; }
-.pv-moment-note { font-size: 13.5px; color: var(--dim); line-height: 1.5; margin-top: 3px; max-width: var(--measure); }
+.pv-moment-note { font-size: 13.5px; color: var(--dim); line-height: 1.5; margin-top: 3px; }
 .pv-moment-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .pv-pill { margin: 0 !important; }
 .pv-dots::after { content: "…"; animation: pv-dots 1.6s steps(3, end) infinite; }
 @keyframes pv-dots { 0% { content: ""; } 33% { content: "."; } 66% { content: ".."; } 100% { content: "..."; } }
 /* The checks */
-.pv-reading { font-size: 15px; line-height: 1.55; color: var(--ink); max-width: var(--measure); margin-bottom: 12px; }
+.pv-reading { font-size: 15px; line-height: 1.55; color: var(--ink); margin-bottom: 12px; }
 .pv-reading.is-false { color: var(--err); }
 .pv-checks-summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13.5px; color: var(--dim); margin-bottom: 10px; }
 .pv-verdict { font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
 .pv-verdict-true { background: #e6f4ea; color: #137333; }
 .pv-verdict-false { background: #fce8e6; color: #c5221f; }
 .pv-verdict-undetermined { background: #fef7e0; color: #b06000; }
-.pv-checks-group { border-top: 1px solid var(--line-2); padding: 8px 0 4px; }
+.pv-checks-group { border-top: 1px solid var(--line-2); padding: 10px 0 2px; }
 .pv-checks-group-title { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--dim); margin: 4px 0 4px; }
-.pv-claim-head { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: baseline; width: 100%; padding: 5px 0; background: none; border: 0; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+.pv-claim + .pv-claim { border-top: 1px solid var(--line-2); }
+.pv-claim-head { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: baseline; width: 100%; padding: 8px 0; background: none; border: 0; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
 .pv-claim-glyph { font-weight: 700; color: #137333; }
 .pv-claim-false .pv-claim-glyph { color: #c5221f; }
 .pv-claim-not-carried .pv-claim-glyph, .pv-claim-undetermined .pv-claim-glyph { color: var(--dim); }
@@ -2578,27 +2579,43 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-claim-name { font-size: 14px; }
 .pv-claim-rests { font-size: 12.5px; color: var(--dim); text-align: right; }
 .pv-claim-false .pv-claim-rests { color: #c5221f; font-weight: 600; }
-.pv-claim-detail { font-size: 13px; color: var(--dim); line-height: 1.5; padding: 0 0 8px 32px; max-width: var(--measure); }
+.pv-claim-detail { font-size: 13px; color: var(--dim); line-height: 1.5; padding: 4px 0 10px 32px; }
 @media (max-width: 640px) { .pv-claim-head { grid-template-columns: 22px 1fr; } .pv-claim-rests { grid-column: 2; text-align: left; } }
 .pv-checks-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
-.pv-checks-hint { font-size: 12.5px; color: var(--dim); line-height: 1.5; max-width: 620px; }
+.pv-checks-hint { font-size: 12.5px; color: var(--dim); line-height: 1.5; }
 /* Take it with you */
 .pv-downloads { display: flex; flex-wrap: wrap; gap: 8px; }
 .pv-dl { margin: 0 !important; min-height: 42px; }
 .pv-dl.is-primary { background: var(--btn-primary) !important; color: #fff !important; border-color: var(--btn-primary) !important; }
 .pv-dl.is-primary:hover { background: var(--btn-primary-hover) !important; }
 .pv-offline { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-2); }
-.pv-offline-text { font-size: 13.5px; color: var(--dim); line-height: 1.55; max-width: var(--measure); margin-bottom: 10px; }
-.pv-code { margin: 0 !important; max-width: var(--measure); }
+.pv-offline-text { font-size: 13.5px; color: var(--dim); line-height: 1.55; margin-bottom: 10px; }
+.pv-code { margin: 0 !important; }
 .pv-again { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-2); }
 /* Details: folded groups */
-.pv-details .pv-section-title { margin-bottom: 4px; }
-.pv-fold { border-top: 1px solid var(--line-2); }
-.pv-fold-head { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 12px 0; background: none; border: 0; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--ink); cursor: pointer; text-align: left; }
+/* Details: no strokes, shaded blocks instead (Mike, 09-30: "maybe no strokes just lighter and
+   darker"): a closed fold is a light block, hover a shade darker, the open one wears the
+   tint on its head with its rows on white beneath, so the open one is unmistakable. */
+.pv-details .pv-section-title { margin-bottom: 10px; }
+.pv-fold { border-radius: 10px; background: var(--code-bg); margin-bottom: 6px; transition: background .12s; }
+.pv-fold:last-child { margin-bottom: 0; }
+@media (hover: hover) { .pv-fold:not(.is-open):hover { background: #e8eaed; } }
+.pv-fold.is-open { background: transparent; box-shadow: inset 0 0 0 1px var(--line-2); }
+.pv-fold.is-open > .pv-fold-head { background: var(--tint); border-radius: 10px 10px 0 0; }
+.pv-fold-head { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 12px 14px; background: none; border: 0; border-radius: 10px; font: inherit; font-size: 14.5px; font-weight: 600; color: var(--ink); cursor: pointer; text-align: left; }
+.pv-fold.is-open .pv-chevron { color: var(--accent); }
+/* Rows that open or copy tint on hover and, once open, stay tinted (Mike, 09-30: "hoverable
+   and shaded modals so you know which one is open"). The tint is a layer behind the row that
+   runs edge to edge of the card, a highlighted row with inset strokes, since a band that
+   overhung the strokes by 12px "looks funny on active" and wider strokes were "too wide". */
+.pv-claim-head, .pv-row { position: relative; isolation: isolate; }
+.pv-claim-head::before, .pv-row::before { content: ""; position: absolute; inset: 0 calc(-1 * var(--pv-pad, 24px)); z-index: -1; transition: background .12s; }
+@media (hover: hover) { .pv-claim-head:hover::before, .pv-row:hover::before { background: var(--tint); } }
+.pv-claim.is-open > .pv-claim-head::before { background: var(--tint); }
 .pv-fold-count { color: var(--dim); font-weight: 400; }
 .pv-chevron { color: var(--dim); transition: transform 0.15s; flex-shrink: 0; }
 .pv-fold.is-open .pv-chevron { transform: rotate(90deg); }
-.pv-fold-body { padding: 0 0 12px; }
+.pv-fold-body { --pv-pad: 14px; padding: 4px 14px 12px; }
 .pv-raw { position: relative; cursor: pointer; background: var(--code-bg); border-radius: 12px; padding: 12px 14px; max-height: 480px; overflow: auto; }
 .pv-raw pre { margin: 0; font-family: var(--font-mono), "SF Mono", SFMono-Regular, monospace; font-size: 11.5px; line-height: 1.5; color: var(--text); white-space: pre; }
 .pv-raw-copied { position: sticky; top: 0; float: right; font-size: 12px; color: var(--accent); background: var(--paper); border-radius: 999px; padding: 2px 8px; }
