@@ -189,7 +189,7 @@ test("a reader strips exactly one block: a carried envelope comes back whole", (
   // return the envelope, not strip on down to the file inside it (outside review, 2026-09-30).
   const envelope = buildCarrier(demo1, payload1);
   const envDigest = Buffer.from(createHash("sha256").update(envelope).digest()).toString("base64");
-  const outer: CarrierPayload = { ...payload1, proof: { ...proof1, artifact: { ...proof1.artifact, digestB64: envDigest } } };
+  const outer: CarrierPayload = { ...payload1, proof: { ...proof1, artifact: { ...(proof1["artifact"] as Record<string, unknown>), digestB64: envDigest } } };
   const p = parseCarrier(buildCarrier(envelope, outer));
   assert.equal(p.kind, "carrier");
   if (p.kind !== "carrier") return;

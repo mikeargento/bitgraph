@@ -171,6 +171,11 @@ interface ChainState {
 // not by the party presenting the proof. Both fields live inside `commit`,
 // which every published verifier copies whole into the signed body, so a v6
 // verifier keeps verifying v7 proofs. The slot record is unchanged.
+//
+// v9 (2026-09-30) also RETURNS that anchor with the allocation, unsigned, so
+// a producer can bind the floor block into a fused file's commitment
+// (bitgraph-fuse/2). Nothing signed changes: no new proof field, the slot
+// record as before.
 // ---------------------------------------------------------------------------
 
 const ANCHOR_SERVICE_PUBLIC_KEY_B64 = "L/zyqG3111Y0hEyKF6NIKI4amSvSBBQxGMjdjLa2520=";
@@ -356,7 +361,7 @@ function cleanExpiredSlots(): void {
  * The signed slot record is embedded in the resulting proof so that any
  * verifier can confirm the nonce existed before the artifact was bound.
  */
-async function handleAllocateSlot(chainId?: string): Promise<{ slotId: string; slot: SlotAllocation; chainId: string }> {
+async function handleAllocateSlot(chainId?: string): Promise<{ slotId: string; slot: SlotAllocation; chainId: string; anchor?: AnchorMark }> {
   cleanExpiredSlots();
 
   if (pendingSlots.size >= MAX_PENDING_SLOTS) {
@@ -402,7 +407,17 @@ async function handleAllocateSlot(chainId?: string): Promise<{ slotId: string; s
   });
 
   console.log(`[enclave] slot allocated: chain=${resolvedChainId} counter=${record.counter} (${pendingSlots.size} pending)`);
-  return { slotId: nonceB64, slot: record, chainId: resolvedChainId };
+  // v9: hand the caller the floor it will be signed with, so a fused file can
+  // bind that block into its commitment (bitgraph-fuse/2). Unsigned here, and
+  // it needs no signature: the commit signs the same anchor as
+  // commit.slotAnchor, and a fuse/2 verifier recomputes the commitment from
+  // that signed value, so a wrong answer here only makes the file fail.
+  return {
+    slotId: nonceB64,
+    slot: record,
+    chainId: resolvedChainId,
+    ...(chain.latestAnchor ? { anchor: { ...chain.latestAnchor } } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
