@@ -2103,7 +2103,7 @@ export default function ProofPage() {
               block" so the pair reads as a bracket: after this block, before
               that one. */}
           {!isEth && causalWindow?.anchorBefore && (
-            <CollapsibleCard title={<BoundTitle text="Placed after this Ethereum block" kind="time / position floor" />}>
+            <CollapsibleCard title="Time and position floor">
               {causalWindow.anchorBefore.blockNumber !== null && (
                 <Field label="Block" value={`#${causalWindow.anchorBefore.blockNumber.toLocaleString()}`} highlight />
               )}
@@ -2134,7 +2134,7 @@ export default function ProofPage() {
               only the file proof's sealing "Before" anchor renders — an anchor
               is the bracket, so it has no before/after window of its own. */}
           {!isEth && causalWindow?.anchorAfter ? (
-            <CollapsibleCard title={<BoundTitle text={`Before anchor #${Number(causalWindow.anchorAfter.counter).toLocaleString()}`} kind="position ceiling" />}>
+            <CollapsibleCard title="Position ceiling">
               {/* The card answers its own title first: when the anchor was recorded,
                   which is the ceiling. The block's mine time follows, labelled as the
                   block's, because it is earlier than the anchor and is not a bound. */}
@@ -2169,7 +2169,7 @@ export default function ProofPage() {
               The window's floor is the proof's signed slotAnchor block, read
               from the header the sidecar carries (checked by the writer). */}
           {!isEth && baseCeiling && (
-            <CollapsibleCard title={<BoundTitle text={baseCeiling.anchor ? "Existed by this Base block" : "Base ceiling pending"} kind="time ceiling" />}>
+            <CollapsibleCard title={baseCeiling.anchor ? "Time ceiling" : "Time ceiling, pending"}>
               {baseCeiling.anchor ? (
                 <>
                   <Field label="Block time" value={stampTz(new Date(baseCeiling.anchor.blockTimestamp * 1000))} highlight />
@@ -2281,18 +2281,9 @@ function FreshRecordingWait() {
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
 
-/* A bound card's title with its kind beside it (Mike, 2026-09-30):
-   the floor anchor fixes a time AND a place; the next anchor a place; the
-   Base block a time. */
-function BoundTitle({ text, kind }: { text: string; kind: string }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", flexWrap: "wrap", columnGap: 10, rowGap: 2 }}>
-      <span>{text}</span>
-      <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.02em", color: "var(--dim)", textTransform: "none" }}>{kind}</span>
-    </span>
-  );
-}
-
+/* The three bound cards are titled by what they do (Mike, 2026-09-30): "Time
+   and position floor", "Position ceiling", "Time ceiling". Which block or anchor
+   each one is sits inside the card, with its Etherscan or Basescan link. */
 function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
   // Every card folds. The record card was the one always-open ("plain") card
   // until 2026-09-28, when it became a card like the rest, closed by default.
