@@ -38,6 +38,8 @@ export interface CeilingWrite {
   epochId: string;
   fees: { l2Wei: string; l1Wei: string; totalWei: string };
   items: Array<{ proofHash: string; position: string; digestB64?: string }>;
+  /** L1 data inclusion (bitgraph-settlement/1), once the writer found the Ethereum batch carrying this Base block. */
+  settlement?: { l1BlockNumber: number; l1BlockHash: string; l1BlockTimestamp: number; l1TxHash: string; blobs: string[]; foundAt: string } | null;
 }
 
 const LOCAL = process.env.NODE_ENV !== "production" ? process.env.CEILINGS_LOCAL_DIR : undefined;

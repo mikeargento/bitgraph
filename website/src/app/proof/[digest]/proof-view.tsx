@@ -369,7 +369,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           <>
             <div className="pv-checks-summary">
               <span className={`pv-verdict pv-verdict-${(c.verdict ?? "UNDETERMINED").toLowerCase()}`}>{c.verdict === "TRUE" ? "Holds" : c.verdict === "FALSE" ? "Does not hold" : "Undetermined"}</span>
-              <span className="pv-checks-count">{okCount} checks passed{badCount ? `, ${badCount} failed` : ""}{c.bytesInHand ? "" : " · the file's own bytes are not in hand, so the two checks that need them are not run here"}</span>
+              <span className="pv-checks-count">{okCount} checks passed{badCount ? `, ${badCount} failed` : ""}{c.bytesInHand ? "" : m.set ? " · the set's root document is not in hand, so the two checks that need its bytes are not run here" : " · the file's own bytes are not in hand, so the two checks that need them are not run here"}</span>
             </div>
             {c.reading && (
               <div className={`pv-reading${c.verdict === "FALSE" ? " is-false" : ""}`}>{c.reading}</div>

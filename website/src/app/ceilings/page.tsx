@@ -68,6 +68,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
         .cl-settling { background: #fef7e0; color: #b06000; }
         .cl-settled { background: #e6f4ea; color: #137333; }
         .cl-dropped { background: #fce8e6; color: #c5221f; text-decoration: line-through; }
+        .cl-eth { flex-shrink: 0; font-size: 12.5px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; text-decoration: none; }
         .cl-writer { font-family: var(--mono, ui-monospace, monospace); font-size: 13px; }
         .cl-when-short { display: none; }
         /* The position range is the first thing to go: it truncates to "#14,2…"
@@ -75,7 +76,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
         @media (max-width: 900px) { .cl-pos { visibility: hidden; } }
         @media (max-width: 640px) {
           .cl-records { min-width: 0; }
-          .cl-pos, .cl-row .cl-status, .cl-when-long { display: none; }
+          .cl-pos, .cl-row .cl-status, .cl-row .cl-eth, .cl-when-long { display: none; }
           .cl-when-short { display: inline; }
           .cl-when { margin-left: auto; }
         }
@@ -127,6 +128,11 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
                   {w.firstPos === w.lastPos ? `#${fmt(w.firstPos)}` : `#${fmt(w.firstPos)} to #${fmt(w.lastPos)}`}
                 </a>
                 <StatusChip status={w.status} />
+                {w.settlement && (
+                  <a href={`https://etherscan.io/block/${w.settlement.l1BlockNumber}`} target="_blank" rel="noopener" className="cl-eth" title="The Ethereum block carrying the batch data that holds this Base block">
+                    Ethereum {fmt(w.settlement.l1BlockNumber)} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
+                  </a>
+                )}
                 <a href={detail} className="cl-when" style={{ textDecoration: "none" }}>
                   <span className="cl-when-long">{when(w.blockTimestamp)}</span>
                   <span className="cl-when-short">{clock(w.blockTimestamp)}</span>

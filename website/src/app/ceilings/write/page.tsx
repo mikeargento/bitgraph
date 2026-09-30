@@ -44,6 +44,11 @@ export default async function CeilingWritePage({ searchParams }: { searchParams:
       </p>
       <div style={{ marginTop: 28, background: "var(--paper)", borderRadius: 16, boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
         <Row label="Status"><StatusChip status={w.status} /></Row>
+        {w.settlement && (
+          <Row label="On Ethereum">
+            block <a href={`https://etherscan.io/block/${w.settlement.l1BlockNumber}`} target="_blank" rel="noopener">{fmt(w.settlement.l1BlockNumber)} &#8599;</a>, {new Date(w.settlement.l1BlockTimestamp * 1000).toISOString().replace("T", " ").slice(0, 19)} UTC: the batch data holding this Base block, in <a href={`https://etherscan.io/tx/${w.settlement.l1TxHash}`} target="_blank" rel="noopener" style={mono}>{w.settlement.l1TxHash.slice(0, 18)}&hellip;</a>
+          </Row>
+        )}
         <Row label="Block time">{time}</Row>
         <Row label="Block"><a href={`${BASESCAN}/block/${w.blockNumber}`} target="_blank" rel="noopener">{fmt(w.blockNumber)} &#8599;</a></Row>
         <Row label="Transaction"><a href={`${BASESCAN}/tx/${w.txHash}`} target="_blank" rel="noopener" style={mono}>{w.txHash}</a></Row>
