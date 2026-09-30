@@ -2,6 +2,13 @@
 
 All notable changes to `@mikeargento/bitgraph-player` are documented here.
 
+## 0.15.0 (2026-09-30)
+
+- `KNOWN_ENCLAVE_MEASUREMENTS` gains enclave v9 (PCR0 `934feb8b…c1fcf8`, tag
+  `enclave-v9`, live from 2026-09-30 17:16 UTC); v8's period closes the same day.
+  v9 changes nothing a verifier reads: the allocation response now carries the
+  floor anchor the enclave signs at commit, for `bitgraph-fuse/2`.
+
 ## 0.10.0 (2026-09-05)
 
 - `KNOWN_ENCLAVE_MEASUREMENTS` gains enclave v6 (PCR0 `cd8ba52d…12f77bf`, tag

@@ -204,7 +204,7 @@ const result = await verify({
   bytes: artifactBytes,
   trustAnchors: {
     requireEnforcement: "measured-tee",
-    allowedMeasurements: ["eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b"], // enclave-v8, see PINS.md
+    allowedMeasurements: ["934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8"], // enclave-v9, see PINS.md
     requireAttestation: true,
     requireAttestationFormat: ["aws-nitro"],
   },
@@ -273,7 +273,7 @@ curl https://nitro.occproof.com/key
 # Response:
 # {
 #   "publicKeyB64": "...",
-#   "measurement": "eccfc1c78006f4b7...05c72b",
+#   "measurement": "934feb8bb6f4f7e2...c1fcf8",
 #   "epochId": "...",
 #   "enforcement": "measured-tee"
 # }`}</Code>

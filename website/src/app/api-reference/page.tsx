@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Every BitGraph endpoint: making a BitGraph on bitgraph.ing, the enclave host, looking up proofs and anchors, verifying, the types and the errors.",
 };
 
-const PCR0 = "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b";
+const PCR0 = "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8";
 
 /**
  * One endpoint: the method and path in the data face, a one-line summary,

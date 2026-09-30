@@ -9,9 +9,9 @@ export const metadata: Metadata = {
     "What a BitGraph verifier needs, the seven checks it runs in order, what valid, incomplete, invalid and unverifiable mean, what no result can say, and three ways to run it: a folder offline, in code, or over HTTP.",
 };
 
-/* The published enclave measurement (enclave-v8). PINS.md in the repository
+/* The published enclave measurement (enclave-v9). PINS.md in the repository
    holds it; the build is reproducible, so anyone can derive it again. */
-const PCR0 = "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b";
+const PCR0 = "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8";
 
 export default function VerificationPage() {
   return (
@@ -29,7 +29,7 @@ export default function VerificationPage() {
         <li><b>The proof</b><span>The <code>bitgraph/1</code> JSON the holder keeps. It carries the digest, the position record, both counters, the signature, the enclave&rsquo;s measurement and its attestation.</span></li>
         <li><b>The file</b><span>The exact bytes. For a fused file, either the fused bytes or the original they were built from; the proof rebuilds one from the other.</span></li>
         <li><b>The anchors</b><span>For the floor: the anchor proofs that bracket the position and the Ethereum block header witnesses. An export includes them. Without them the floor is a block number in the proof, not a time.</span></li>
-        <li><b>A trust policy</b><span>The list of PCR0 measurements you accept. The published one is <code className="break">{PCR0}</code> (enclave-v8), reproducible from source. A proof from any other image should fail your check, whatever else it passes.</span></li>
+        <li><b>A trust policy</b><span>The list of PCR0 measurements you accept. The published one is <code className="break">{PCR0}</code> (enclave-v9), reproducible from source. A proof from any other image should fail your check, whatever else it passes.</span></li>
       </ul>
 
       <h2 id="gets">What a verifier gets</h2>

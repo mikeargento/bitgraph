@@ -9,11 +9,11 @@ export const metadata: Metadata = {
     "Run your own BitGraph enclave on AWS Nitro, reproduce the published measurement, and know where a self-hosted sequence stands.",
 };
 
-const PCR0 = "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b";
+const PCR0 = "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8";
 
 /**
  * Every command on this page is the one that runs in production, kept
- * verbatim. The published PCR0 above is the enclave-v8 tag; PINS.md in the
+ * verbatim. The published PCR0 above is the enclave-v9 tag; PINS.md in the
  * repo holds it with every pinned input.
  */
 export default function SelfHostTEEPage() {
@@ -148,24 +148,24 @@ cd bitgraph
 # --reproducible mode, and packs the EIF with a pinned nitro-cli. Requires
 # Docker + git on a linux/amd64 host; Nitro hardware is NOT needed to build the
 # EIF (only to run it). Build the tagged enclave source release: the production
-# enclave is built from the enclave-v8 tag, not necessarily the latest commit.
-./server/commit-service/reproducible-build/build-eif.sh enclave-v8
+# enclave is built from the enclave-v9 tag, not necessarily the latest commit.
+./server/commit-service/reproducible-build/build-eif.sh enclave-v9
 
 # PCR0 is printed at the end and written to eif-out/pcr0.txt.`}</Code>
       </div>
 
       <h3>Step 5: Verify the PCR0 is reproducible</h3>
       <p>
-        PCR0 is a SHA-384 measurement of the entire EIF, and it is the enclave&rsquo;s identity that every proof embeds. Because the build above pins all of its inputs, you can show the build is deterministic: build it twice and confirm the PCR0 is byte-identical, and that it equals the value BitGraph publishes. If it matches, you have independently confirmed the production enclave runs exactly the code at the tagged enclave source release (<code>enclave-v8</code>) in this repository, trusting no one.
+        PCR0 is a SHA-384 measurement of the entire EIF, and it is the enclave&rsquo;s identity that every proof embeds. Because the build above pins all of its inputs, you can show the build is deterministic: build it twice and confirm the PCR0 is byte-identical, and that it equals the value BitGraph publishes. If it matches, you have independently confirmed the production enclave runs exactly the code at the tagged enclave source release (<code>enclave-v9</code>) in this repository, trusting no one.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>Shell</span><CopyCode /></div>
         <Code lang="bash">{`# Build twice from clean state and assert identical PCR0 == the published value:
-./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v8 \\
+./server/commit-service/reproducible-build/verify-pcr0.sh enclave-v9 \\
   ${PCR0}
 
 # PASS: two independent builds produced identical PCR0:
-#   eccfc1c7...05c72b
+#   934feb8b...c1fcf8
 # PASS: matches the published PCR0.
 
 # See server/commit-service/reproducible-build/PINS.md for every pinned
@@ -173,7 +173,7 @@ cd bitgraph
       </div>
       <div className="callout">
         <span className="kicker">BitGraph&rsquo;s published measurement</span>
-        <p>The BitGraph enclave image in production (tag <code>enclave-v8</code>) measures as:</p>
+        <p>The BitGraph enclave image in production (tag <code>enclave-v9</code>) measures as:</p>
         <p className="mono break small">PCR0 {PCR0}</p>
         <p>
           This is the value BitGraph publishes and stands behind. Every proof embeds this measurement, and the attestation check confirms the attestation&rsquo;s PCR0 matches it. The measurement is <strong>reproducible</strong>: rebuild from this source on any linux/amd64 host with <code>verify-pcr0.sh</code> and you will re-derive exactly this PCR0. (The <code>.eif</code> file itself is not byte-identical between builds, because its header embeds the time of the build. PCR0 measures the enclave contents, not that header, which is why the measurement is stable while the file hash is not.) You do not have to trust BitGraph&rsquo;s assertion, you can recompute it yourself. The one input you trust AWS for is their signed enclave kernel, which is what PCR1 independently measures; everything else folded into PCR0 is built from the auditable source in this repository.

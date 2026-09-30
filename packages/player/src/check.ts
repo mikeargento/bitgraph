@@ -114,7 +114,12 @@ export const KNOWN_ENCLAVE_MEASUREMENTS: ReadonlyArray<{ pcr0: string; label: st
   {
     pcr0: "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
     label: "enclave v8 (reproducible, authenticated anchors and the floor gate)",
-    period: "2026-09-07 onward",
+    period: "2026-09-07 to 2026-09-30",
+  },
+  {
+    pcr0: "934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8",
+    label: "enclave v9 (reproducible; the allocation returns the floor anchor, for bitgraph-fuse/2)",
+    period: "2026-09-30 onward",
   },
 ];
 

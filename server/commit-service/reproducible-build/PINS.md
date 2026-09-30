@@ -5,19 +5,23 @@ re-derive the **identical PCR0**. Change any one of these and the PCR0 changes.
 This file is the authoritative record; the `Dockerfile.enclave`, `build-eif.sh`,
 and `eif-builder.Dockerfile` all reference these exact pins.
 
-Last resolved: 2026-09-07 (resolved on the production Nitro host, linux/amd64).
-Source: tag `enclave-v8` (`3b3568d4`).
+Last resolved: 2026-09-30 (resolved on the production Nitro host, linux/amd64).
+Source: tag `enclave-v9` (`b32c6c74`).
 
 ## Published measurement
 
 ```
-PCR0 = eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b
+PCR0 = 934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8
 ```
 
-Built **2026-09-07**, and **verified by two independent builds on that date**:
-the pipeline was run twice from a clean context at `3b3568d4` and both produced
+Built **2026-09-30**, and **verified by two independent builds on that date**:
+the pipeline was run twice from a clean context at `b32c6c74` and both produced
 this identical PCR0 (a third, the deliverable build, agreed as well). The source
-change since `enclave-v7` is the floor gate: on the anchored chain
+change since `enclave-v8` is one line of behaviour: the allocation response
+returns the floor anchor the enclave will sign at commit (`anchor: {counter,
+blockNumber, blockHash}`), so a producer can bind that block into a
+`bitgraph-fuse/2` commitment. Nothing signed changed: the slot record and the
+proof are v8's. The v8 change over `enclave-v7` was the floor gate: on the anchored chain
 (`bitgraph:main`) the enclave refuses to sign a proof whose slot was allocated
 before that epoch's first authenticated anchor, so no proof on that chain can
 lack a floor. Authenticated anchor commits are exempt, which is what lets the
@@ -42,7 +46,7 @@ Companion measurements of this build:
 
 ```
 PCR1 = 4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493
-PCR2 = 36974f9a1f1bc77d01a2b4c6b11242d1e9df042c4797bf70e2f75abf65246a56d2132dc7576d83b7fbb89ecf69a7c990
+PCR2 = 2770eeefa035ca7431790348a9fbc2bfb75d48520c992148d1b5b09dd07f597b05f970e2fedfe3e5c06b78af68ec9279
 ```
 
 PCR1 is unchanged from every prior build: it measures AWS's signed kernel, which
@@ -56,6 +60,7 @@ old proofs to verify.
 
 | PCR0 | Period | Note |
 |------|--------|------|
+| `eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b` | 2026-09-07 → 2026-09-30 | v8-repro (`enclave-v8`, `3b3568d4`). Verified by two clean builds 2026-09-07. PCR2 `36974f9a…`. |
 | `394c3cf515651dc27187d85e4716c12dfeb99c1227f1fe0eacfaa427d80018e1a28ebba9469e99c7936601f901d74e1d` | 2026-09-06 → 2026-09-07 | v7-repro (`enclave-v7`, `448e2fdb`). Verified by two clean builds 2026-09-06. |
 | `cd8ba52d340fb1be78610b59953ded2ceca23be1cfcc7ab504a26b8fdcd7ba92090f49e28a32d008df046ec4212f77bf` | 2026-09-05 → 2026-09-06 | v6-repro (`enclave-v6`, `30a97c60`). Verified by two clean builds 2026-09-05. |
 | `6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f` | 2026-07-29 → 2026-09-05 | v5-repro (`enclave-v5`, `f8fa324d`). Verified by two clean builds 2026-07-29. |
