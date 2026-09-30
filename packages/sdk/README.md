@@ -46,16 +46,17 @@ await bg.check("photo.jpg");                   // on record? read-only
 await bg.proof({ digest });                    // the proof and its window
 await bg.verify("photo.bitgraph.jpg");         // fully offline: verdict, floor, ceiling
 await bg.bitgraphedFile("photo.jpg");          // build the file that carries its own proof
-await bg.complete("photo.bitgraph.jpg");       // fetch the closing anchor in, later
+await bg.complete("photo.bitgraph.jpg");       // fetch the closing anchor and the Base ceiling in, later
 ```
 
-`verify` needs no network and no server: a BitGraphed file argues for itself. The window is stated in the protocol's own units: no earlier than the floor block (a time), committed before the anchoring of the later block (a position).
+`verify` needs no network and no server: a BitGraphed file argues for itself, one line per claim, each saying what it rests on (SHA-256, Ed25519, the AWS Nitro root, an Ethereum block, a Base block). The window is stated in the protocol's own units: no earlier than the floor block (a time), existed by the Base block (a time), committed before the anchoring of the later anchor (a position). Offline, the blocks are taken from their headers; `--eth-rpc` and `--base-rpc` confirm them against nodes you name.
 
 ## Any language
 
 ```bash
 npx bitgraph record run-042.log --json
-npx bitgraph verify photo.bitgraph.jpg          # exit 2 on FALSE or corrupt
+npx bitgraph verify photo.bitgraph.jpg          # one line per claim; exit 2 on FALSE or corrupt
+npx bitgraph verify photo.bitgraph.jpg --eth-rpc https://ethereum-rpc.publicnode.com --base-rpc https://mainnet.base.org   # confirm the blocks against nodes
 npx bitgraph open                               # prints the commitment and a token
 npx bitgraph seal --token <token> task.txt      # proof written beside the file
 ```
