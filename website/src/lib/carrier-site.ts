@@ -14,13 +14,17 @@
  * says which with `bound.state`, and a read failure there is a 503).
  */
 
-import { verify, createVerificationContext, type BitGraphProof } from "@mikeargento/bitgraph-verify";
 import {
-  buildCarrier, parseCarrier, completeCarrier, carrierBounds,
+  verify, createVerificationContext, verifyCeiling, assembleCarrierV2Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT,
+  BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID, computeProofHash, type BitGraphProof,
+} from "@mikeargento/bitgraph-verify";
+import {
+  buildCarrier, parseCarrier, completeCarrier, completeCarrierInTime, carrierBounds, carrierVersionOf,
   checkFloorBinding, checkCeilingBinding, anchorMessageBytes, verifyWitnessHeader,
   innerDigestMatches,
-  type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierParse, type CarrierBounds,
+  type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierParse, type CarrierBounds, type CarrierCeilingInTime,
 } from "./carrier";
+import { toUrlSafeB64 } from "./explorer";
 
 type AnchorSideAnswer = {
   anchors?: Array<Record<string, unknown>>;
@@ -87,10 +91,55 @@ async function fetchAfterWithWait(counter: string, epochId: string, waitMs: numb
 export interface BuiltCarrier {
   bytes: Uint8Array;
   fileName: string;
+  /** The ceiling in position: the next anchor. */
   ceiling: "present" | "unfetched";
+  /** The ceiling in time: the Base block the record existed by. */
+  ceilingInTime: "present" | "unfetched";
+  /** Whether the openssl attestation witness is inside (left out only to keep a ZIP-family file under its limit). */
+  witness: boolean;
   bounds: CarrierBounds;
   /** Why the ceiling is unfetched, when it is: the anchors route's own word. */
   ceilingNote: string | null;
+}
+
+/** PK\x03\x04: a ZIP-family file (zip, docx, xlsx, pptx), whose reader must find its end record within the last 64 KiB. */
+function isZipFamily(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
+/**
+ * The ceiling in time for a proof, from this site's own route, verified with
+ * the published verifier before it travels. null with pending=true when the
+ * writer has not written one yet (404, or a sidecar still without a
+ * transaction); a sidecar that does not verify throws, since a carrier is
+ * never built on a guess.
+ */
+async function fetchCeilingInTime(proof: BitGraphProof): Promise<{ sidecar: Record<string, unknown> | null; pending: boolean }> {
+  const ph = (proof as { proofHash?: string }).proofHash ?? computeProofHash(proof);
+  const r = await fetch(`/api/ceilings/${encodeURIComponent(toUrlSafeB64(ph))}`);
+  if (r.status === 404) return { sidecar: null, pending: true };
+  if (!r.ok) throw new Error(`the ceiling read failed (${r.status}); nothing was concluded from it`);
+  const sidecar = (await r.json()) as Record<string, unknown>;
+  const v = await verifyCeiling(proof as never, sidecar as never, { writerAddress: BITGRAPH_CEILING_WRITER, chainId: BASE_MAINNET_CHAIN_ID });
+  if (!v.ok) {
+    if (v.status === "pending") return { sidecar: null, pending: true };
+    throw new Error(`the ceiling in time does not verify: ${v.reason ?? "unspecified"}`);
+  }
+  return { sidecar, pending: false };
+}
+
+/** The v2 payload for these parts, kept under the ZIP limit when the bytes are a ZIP-family file. */
+function payloadWithinLimits(committedBytes: Uint8Array, parts: Parameters<typeof assembleCarrierV2Payload>[0]): { payload: CarrierPayload; witness: boolean } {
+  let payload = assembleCarrierV2Payload(parts as never) as unknown as CarrierPayload;
+  let witness = payload.attestation !== undefined;
+  if (isZipFamily(committedBytes) && carrierBlockSize(payload as never) > CARRIER_BLOCK_ZIP_LIMIT) {
+    payload = assembleCarrierV2Payload({ ...parts, withAttestationWitness: false } as never) as unknown as CarrierPayload;
+    witness = false;
+    if (carrierBlockSize(payload as never) > CARRIER_BLOCK_ZIP_LIMIT) {
+      throw new Error(`the proof block (${carrierBlockSize(payload as never)} bytes) would pass the 64 KiB a ZIP-family file can carry after its end record; download the proof beside the file instead`);
+    }
+  }
+  return { payload, witness };
 }
 
 /** photo.jpg → photo.bitgraph.jpg; a name already in that form keeps it. */
@@ -205,17 +254,15 @@ export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: 
   const floorWitness = await fetchWitness(c.slotAnchor.blockNumber, c.slotAnchor.blockHash);
   await vetAnchor(floorAnchor, floorWitness, "the floor anchor");
 
-  const payloadBase: CarrierPayload = {
-    carrier: "bitgraph-carrier/1",
-    proof: proof as unknown as CarrierProof,
-    floor: { status: "present", anchor: floorAnchor as CarrierProof, witness: floorWitness },
-    ceiling: { status: "unfetched" },
-  };
-  const floorErrs = checkFloorBinding(payloadBase.proof, payloadBase.floor);
+  const floor = { status: "present" as const, anchor: floorAnchor as CarrierProof, witness: floorWitness };
+  const floorErrs = checkFloorBinding(proof as unknown as CarrierProof, floor);
   if (floorErrs.length > 0) throw new Error(`the fetched anchor is not the signed floor: ${floorErrs[0]}`);
-  if (!innerDigestMatches(committedBytes, payloadBase)) throw new Error("these bytes do not hash to the proof's artifact digest; refusing to build a carrier around them");
+  if (!innerDigestMatches(committedBytes, { carrier: "bitgraph-carrier/2", proof: proof as unknown as CarrierProof, floor, ceiling: { status: "unfetched" } })) {
+    throw new Error("these bytes do not hash to the proof's artifact digest; refusing to build a carrier around them");
+  }
 
-  // The ceiling, if one has landed. "pending" and "could not fetch" stay distinct sentences.
+  // The ceiling in position, if one has landed. "pending" and "could not fetch" stay distinct sentences.
+  let ceiling: CarrierPayload["ceiling"] = { status: "unfetched" };
   let ceilingNote: string | null = null;
   try {
     const after = await fetchAfterWithWait(c.counter, c.epochId, opts.waitForCeilingMs ?? 0);
@@ -225,19 +272,37 @@ export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: 
       if (id && typeof id.blockNumber === "number" && typeof id.blockHash === "string") {
         const w = await fetchWitness(id.blockNumber, id.blockHash);
         await vetAnchor(anchor, w, "the closing anchor");
-        const ceiling = { status: "present" as const, basis: "counter-order" as const, anchor: anchor as CarrierProof, witness: w };
-        const errs = checkCeilingBinding(payloadBase.proof, ceiling);
+        const candidate = { status: "present" as const, basis: "counter-order" as const, anchor: anchor as CarrierProof, witness: w };
+        const errs = checkCeilingBinding(proof as unknown as CarrierProof, candidate);
         if (errs.length > 0) throw new Error(errs[0]);
-        const payload = { ...payloadBase, ceiling };
-        return { bytes: buildCarrier(committedBytes, payload), fileName: carrierFileName(fileName), ceiling: "present", bounds: carrierBounds(payload), ceilingNote: null };
+        ceiling = candidate;
       }
     }
-    ceilingNote = after.bound?.note ?? "No anchor follows this position yet.";
+    if (ceiling.status !== "present") ceilingNote = after.bound?.note ?? "No anchor follows this position yet.";
   } catch (e) {
     // The floor stands on its own; an unreachable ceiling is stated, not silently blessed or invented.
     ceilingNote = e instanceof Error ? e.message : "The closing anchor could not be fetched.";
   }
-  return { bytes: buildCarrier(committedBytes, payloadBase), fileName: carrierFileName(fileName), ceiling: "unfetched", bounds: carrierBounds(payloadBase), ceilingNote };
+
+  // The ceiling in time: the Base block, seconds after the commit. Not yet is a state, not a failure.
+  let ceilingInTime: CarrierCeilingInTime = { status: "unfetched", searched: { at: new Date().toISOString() } };
+  try {
+    const { sidecar } = await fetchCeilingInTime(proof);
+    if (sidecar !== null) ceilingInTime = { status: "present", sidecar };
+  } catch (e) {
+    ceilingNote = ceilingNote ?? (e instanceof Error ? e.message : "The Base ceiling could not be fetched.");
+  }
+
+  const { payload, witness } = payloadWithinLimits(committedBytes, { proof: proof as unknown as CarrierProof, floor, ceiling, ceilingInTime });
+  return {
+    bytes: buildCarrier(committedBytes, payload),
+    fileName: carrierFileName(fileName),
+    ceiling: ceiling.status,
+    ceilingInTime: ceilingInTime.status,
+    witness,
+    bounds: carrierBounds(payload),
+    ceilingNote,
+  };
 }
 
 /**
@@ -273,37 +338,60 @@ export interface CompletionResult {
   bounds: CarrierBounds | null;
 }
 
-/** Fetch and stamp the closing anchor into a dropped carrier. Never overwrites, never invents. */
+/**
+ * Fetch and stamp what followed the commit into a dropped carrier: the closing
+ * anchor, and on a /2 file the Base block. Never overwrites, never invents.
+ */
 export async function completeDroppedCarrier(bytes: Uint8Array, opts: { waitForCeilingMs?: number } = {}): Promise<CompletionResult> {
-  const p: CarrierParse = parseCarrier(bytes);
+  let p: CarrierParse = parseCarrier(bytes);
   if (p.kind !== "carrier") {
     return { status: "failed", bytes, note: p.kind === "none" ? "This file carries no proof block." : `The proof block is unreadable: ${p.reason}`, bounds: null };
   }
-  if (p.payload.ceiling.status === "present") {
+  const v2 = carrierVersionOf(p.payload) === 2;
+  const needsAnchor = p.payload.ceiling.status !== "present";
+  const needsTime = v2 && p.payload.ceilingInTime?.status !== "present";
+  if (!needsAnchor && !needsTime) {
     return { status: "already-complete", bytes, note: "The time window inside is already complete.", bounds: carrierBounds(p.payload) };
   }
   const c = commitOf(p.payload.proof);
   if (c === null) return { status: "failed", bytes, note: "The carried proof is missing its commit fields.", bounds: null };
-  const after = await fetchAfterWithWait(c.counter, c.epochId, opts.waitForCeilingMs ?? 0);
-  const anchor = after.anchors?.[0];
-  if (after.bound?.state !== "anchored" || !anchor) {
-    return { status: "pending", bytes, note: after.bound?.note ?? "No anchor follows this position yet.", bounds: carrierBounds(p.payload) };
+  let out = bytes;
+  const stamped: string[] = [];
+  const pending: string[] = [];
+
+  if (needsAnchor) {
+    const after = await fetchAfterWithWait(c.counter, c.epochId, opts.waitForCeilingMs ?? 0);
+    const anchor = after.anchors?.[0];
+    if (after.bound?.state === "anchored" && anchor) {
+      const id = (anchor as { commit?: { anchor?: { blockNumber?: number; blockHash?: string } } }).commit?.anchor;
+      if (!id || typeof id.blockNumber !== "number" || typeof id.blockHash !== "string") {
+        return { status: "failed", bytes, note: "The ledger's closing anchor carries no signed block identity.", bounds: carrierBounds(p.payload) };
+      }
+      const w = await fetchWitness(id.blockNumber, id.blockHash);
+      await vetAnchor(anchor, w, "the closing anchor");
+      const errs = checkCeilingBinding(p.payload.proof, { status: "present", basis: "counter-order", anchor: anchor as CarrierProof, witness: w });
+      if (errs.length > 0) return { status: "failed", bytes, note: `The closing anchor does not bind: ${errs[0]}`, bounds: carrierBounds(p.payload) };
+      const done = completeCarrier(out, { anchor: anchor as CarrierProof, witness: w });
+      if (done.error) return { status: "failed", bytes, note: done.error, bounds: carrierBounds(p.payload) };
+      out = done.bytes;
+      stamped.push("the closing anchor");
+    } else pending.push(after.bound?.note ?? "No anchor follows this position yet.");
   }
-  const id = (anchor as { commit?: { anchor?: { blockNumber?: number; blockHash?: string } } }).commit?.anchor;
-  if (!id || typeof id.blockNumber !== "number" || typeof id.blockHash !== "string") {
-    return { status: "failed", bytes, note: "The ledger's closing anchor carries no signed block identity.", bounds: carrierBounds(p.payload) };
+
+  if (needsTime) {
+    const { sidecar } = await fetchCeilingInTime(p.payload.proof as unknown as BitGraphProof);
+    if (sidecar !== null) {
+      const done = completeCarrierInTime(out, sidecar);
+      if (done.error) return { status: "failed", bytes, note: done.error, bounds: carrierBounds(p.payload) };
+      out = done.bytes;
+      stamped.push("the Base ceiling");
+    } else pending.push("The Base ceiling has not been written yet.");
   }
-  const w = await fetchWitness(id.blockNumber, id.blockHash);
-  await vetAnchor(anchor, w, "the closing anchor");
-  const errs = checkCeilingBinding(p.payload.proof, { status: "present", basis: "counter-order", anchor: anchor as CarrierProof, witness: w });
-  if (errs.length > 0) return { status: "failed", bytes, note: `The closing anchor does not bind: ${errs[0]}`, bounds: carrierBounds(p.payload) };
-  const done = completeCarrier(bytes, { anchor: anchor as CarrierProof, witness: w });
-  if (done.error) return { status: "failed", bytes, note: done.error, bounds: carrierBounds(p.payload) };
-  const parsed = parseCarrier(done.bytes);
-  return {
-    status: "completed",
-    bytes: done.bytes,
-    note: "The closing anchor is now inside the file.",
-    bounds: parsed.kind === "carrier" ? carrierBounds(parsed.payload) : null,
-  };
+
+  const parsed = parseCarrier(out);
+  p = parsed;
+  const bounds = parsed.kind === "carrier" ? carrierBounds(parsed.payload) : null;
+  if (stamped.length === 0) return { status: "pending", bytes, note: pending.join(" "), bounds };
+  const note = `${stamped.join(" and ").replace(/^./, (ch) => ch.toUpperCase())} ${stamped.length === 1 ? "is" : "are"} now inside the file.${pending.length ? ` ${pending.join(" ")}` : ""}`;
+  return { status: "completed", bytes: out, note, bounds };
 }

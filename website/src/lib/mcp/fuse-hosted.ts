@@ -340,7 +340,7 @@ function memberInput(input: OpenInput): { originDigest: Uint8Array; placement: H
  * dependency lands, the boundary's floor is carried in the token and shown,
  * and the commitment stays fuse/1. Flip to 2 with the dependency bump.
  */
-const HOSTED_FUSE_VERSION: 1 | 2 = 1;
+const HOSTED_FUSE_VERSION: 1 | 2 = 2;
 
 /** The floor anchor an enclave v9 allocation hands back: the one it signs at commit as commit.slotAnchor. */
 interface AnchorMark { counter: string; blockNumber: number; blockHash: string }
