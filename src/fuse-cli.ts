@@ -21,7 +21,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
 import { sha256 } from "@noble/hashes/sha256";
-import { parseFrame, verifyFuse, verifyFuseMember, bytesToBase64 } from "@mikeargento/bitgraph-verify";
+import { parseFrame, verifyFuse, verifyFuseMember, bytesToBase64, isFuseMarkerName } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof, PlacementId, FuseVerifyResult, FuseMemberResult } from "@mikeargento/bitgraph-verify";
 import { fuse, fuseSet, builderFor, placementForBytes, fusedNamesFor, FuseError } from "./fuse.js";
 import type { FuseTransport } from "./fuse.js";
@@ -219,7 +219,7 @@ async function runCheck(args: Args): Promise<number> {
   const policy = typeof max === "string" ? { maxPositions: BigInt(max) } : {};
   // A set proof and a file that is not its manifest: the member verifier answers.
   const a = proof.attribution;
-  if (a?.name === "bitgraph-fuse/1" && a.title === "set/1" && bytesToBase64(sha256(bytes)) !== proof.artifact.digestB64) {
+  if (isFuseMarkerName(a?.name) && a?.title === "set/1" && bytesToBase64(sha256(bytes)) !== proof.artifact.digestB64) {
     const manifestArg = args.flags.get("manifest");
     const manifest = typeof manifestArg === "string" ? new Uint8Array(await readFile(resolve(manifestArg))) : undefined;
     const r = await verifyFuseMember({ proof, bytes, ...(manifest !== undefined ? { manifest } : {}), ...policy });

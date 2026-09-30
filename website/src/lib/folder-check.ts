@@ -43,6 +43,7 @@
  * is judged by the manifest, and the manifest by hashing to the signature.
  */
 
+import { isFuseName } from "./fuse-core.ts";
 import {
   hashFile,
   isBitGraphProof,
@@ -74,9 +75,9 @@ const asVerify = (proof: BitGraphProof): VerifyProof => proof as unknown as Veri
  * is a set, and then only through verifyFuseMember, which binds it to the
  * signed digest before reading a row. */
 const isSetProof = (proof: BitGraphProof): boolean =>
-  proof.attribution?.name === FUSE_ATTRIBUTION_NAME && (proof.attribution?.title === SET_PLACEMENT_ID || proof.attribution?.title === SET2_PLACEMENT_ID);
+  isFuseName(proof.attribution?.name) && (proof.attribution?.title === SET_PLACEMENT_ID || proof.attribution?.title === SET2_PLACEMENT_ID);
 const isSet2Proof = (proof: BitGraphProof): boolean =>
-  proof.attribution?.name === FUSE_ATTRIBUTION_NAME && proof.attribution?.title === SET2_PLACEMENT_ID;
+  isFuseName(proof.attribution?.name) && proof.attribution?.title === SET2_PLACEMENT_ID;
 
 /* ── Walking the dropped tree ── */
 

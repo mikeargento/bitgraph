@@ -27,17 +27,22 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkInline, isInlineProof } from "@/lib/fuse-client";
 import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair } from "@/lib/carrier-site";
-import { ENCODING_BASE64URL, computeSlotCommitment, bytesToBase64, bytesToHex, computeProofHash } from "@mikeargento/bitgraph-verify";
+import { ENCODING_BASE64URL, bytesToBase64, bytesToHex, computeProofHash } from "@mikeargento/bitgraph-verify";
+import { computeCommitmentFor } from "@/lib/fuse-commitment";
+import { FUSE2_ATTRIBUTION_NAME, isFuseName } from "@/lib/fuse-core";
 
 /** Carry encodings this page knows; anything else in the title is a placement. */
 const ENCODING_IDS: string[] = [ENCODING_BASE64URL];
 
-/** The commitment from a proof’s own slot record, base64url, for the row that lets a reader search the file. */
+/** The commitment from a proof’s own slot record, base64url, for the row that lets a reader search the file.
+ *  A bitgraph-fuse/2 marker means the commitment also binds the proof's signed floor block. */
 function slotCommitmentOf(proof: unknown): string | null {
-  const slot = (proof as { slotAllocation?: unknown } | null)?.slotAllocation;
+  const p = proof as { slotAllocation?: unknown; attribution?: { name?: unknown }; commit?: { slotAnchor?: { blockHash?: unknown } } } | null;
+  const slot = p?.slotAllocation;
   if (!slot) return null;
   try {
-    return bytesToBase64(computeSlotCommitment(slot as never)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const floor = p?.attribution?.name === FUSE2_ATTRIBUTION_NAME ? (p?.commit?.slotAnchor?.blockHash as string | undefined) ?? null : null;
+    return bytesToBase64(computeCommitmentFor(slot as never, floor)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   } catch { return null; }
 }
 import { SET_KEY, bindSet, bindSetMember, dropDigestsFor, isSetProof, memberEvidenceOf, memberOf, type BoundSet, type SetMemberRow } from "@/lib/fuse-set";
@@ -235,7 +240,7 @@ export default function ProofPage() {
   useEffect(() => {
     const marker = (proof?.attribution as { name?: string; message?: string } | undefined);
     const settle = (role: "original" | "new" | null) => { setCachedRole(role); setRoleOf(cachedFile); };
-    if (!cachedFile || !proof || marker?.name !== "bitgraph-fuse/1") { settle(null); setHeldMember(null); return; }
+    if (!cachedFile || !proof || !marker || !isFuseName(marker.name)) { settle(null); setHeldMember(null); return; }
     let cancelled = false;
     if (isSetProof(proof)) {
       // A member's original is accepted by reconstruction, its new file
@@ -855,7 +860,7 @@ export default function ProofPage() {
   // of two vocabularies: a placement id (a recipe exists, so the artifact
   // rebuilds from an original) or an encoding id (there is no original; the
   // artifact was MADE with the commitment inside it, so it is looked for).
-  const carryId = attr?.name === "bitgraph-fuse/1" ? attr.title ?? null : null;
+  const carryId = attr && isFuseName(attr.name) ? attr.title ?? null : null;
   const isInline = carryId !== null && ENCODING_IDS.includes(carryId);
   const placementId = isInline ? null : carryId;
   // Which of a BitGraph's two files is in hand, said on the file's own line
@@ -1269,7 +1274,7 @@ export default function ProofPage() {
         // new-file/<name> and no original, because unpackNewFile had nothing to
         // unpack.
         files[cachedFile.name] = bytes;
-      } else if (attr?.name === "bitgraph-fuse/1" && cachedRole === "new") {
+      } else if (isFuseName(attr?.name) && cachedRole === "new") {
         const u = await unpackNewFile(packProof, bytes, cachedFile.name);
         const name = u.originalName ?? cachedFile.name;
         files[`new-file/${name}`] = bytes;
@@ -1277,7 +1282,7 @@ export default function ProofPage() {
           files[u.originalName] = u.originalBytes;
           packLabel = u.originalName;
         }
-      } else if (attr?.name === "bitgraph-fuse/1") {
+      } else if (isFuseName(attr?.name)) {
         files[cachedFile.name] = bytes;
         const r = await rebuildFromOrigin(packProof, bytes, cachedFile.name);
         if (r.fusedBytes) files[`new-file/${cachedFile.name}`] = r.fusedBytes;
@@ -1455,7 +1460,7 @@ export default function ProofPage() {
       const bytes = new Uint8Array(cachedFile.data);
       let committed = bytes;
       let label = cachedFile.name;
-      if (!isInlineProof(proof) && attr?.name === "bitgraph-fuse/1" && cachedRole !== "new") {
+      if (!isInlineProof(proof) && isFuseName(attr?.name) && cachedRole !== "new") {
         const r = await rebuildFromOrigin(proof, bytes, cachedFile.name);
         if (!r.fusedBytes) throw new Error("the new file could not be rebuilt from this original");
         committed = new Uint8Array(r.fusedBytes);
@@ -1696,7 +1701,7 @@ export default function ProofPage() {
                   buttons get real height: a download is a tap target, not a chip. */}
               <div style={{ padding: "8px 16px 14px" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
-                  {cachedFile && !isSet && cachedRole !== "original" && attr?.name === "bitgraph-fuse/1" && !isInlineProof(proof) ? (
+                  {cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? (
                     <button onClick={downloadOriginal} disabled={originBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
                       <span>{originBusy ? "Recovering\u2026" : "Original file"}</span>
                     </button>
@@ -2251,7 +2256,7 @@ export default function ProofPage() {
               which used to render as a link to nowhere. */}
           {/* The signed marker is not a person's note: the Hashes card reads it
               into the lines above and it stays in Raw JSON. */}
-          {attr && !isEth && !isInterval && attr.name !== "bitgraph-fuse/1" && (
+          {attr && !isEth && !isInterval && !isFuseName(attr.name) && (
             <CollapsibleCard title="Submitter's Note">
               {attr.name && <Field label="Submitted by" value={attr.name} />}
               {attr.message && <Field label="Note" value={attr.message} mono />}

@@ -48,7 +48,6 @@ import { getPlacement,
   base64ToBytes,
   bytesEqual,
   bytesToBase64,
-  computeSlotCommitment,
   fuseAttribution,
   inlineAttribution,
   ENCODING_BASE64URL,
@@ -62,7 +61,8 @@ import { getPlacement,
   type SlotAllocation,
 } from "@mikeargento/bitgraph-verify";
 import { fusedNamesFor, placementForBytes } from "@mikeargento/bitgraph";
-import { FUSE_CHAIN, isSlotRecord } from "../fuse-core.ts";
+import { computeCommitmentFor } from "../fuse-commitment.ts";
+import { FUSE_CHAIN, FUSE2_ATTRIBUTION_NAME, isSlotRecord } from "../fuse-core.ts";
 import { apiBaseUrl } from "./api.ts";
 import { toUrlSafeB64 } from "./encoding.ts";
 import { blockTimeFromHeader } from "../export-pages.ts";
@@ -208,6 +208,8 @@ export function choosePlacement(head: Uint8Array | null, originSize: number): Ho
 export interface OpenState {
   v: 1;
   slot: SlotAllocation;
+  /** The floor bound into a fuse/2 commitment; absent on a fuse/1 token. */
+  anchor?: AnchorMark;
   placement: HostedPlacement;
   origin: { digestB64: string; size: number; name: string };
   fusedName: string;
@@ -250,6 +252,7 @@ export function decodeToken(token: string): OpenState | null {
     origin: { digestB64: origin.digestB64, size: origin.size, name: origin.name },
     fusedName: s.fusedName,
     frameName: s.frameName,
+    ...(isAnchorMark(s.anchor) ? { anchor: s.anchor } : {}),
     ...(s.set === true ? { set: true as const } : {}),
   };
 }
@@ -330,8 +333,42 @@ function memberInput(input: OpenInput): { originDigest: Uint8Array; placement: H
   return { originDigest, placement };
 }
 
-/** One slot from the boundary, through the site's own gate. */
-async function allocateHosted(): Promise<SlotAllocation> {
+/**
+ * Which commitment this server writes into new files. 2 (bitgraph-fuse/2, the
+ * floor block bound in) needs the site's @mikeargento/bitgraph-verify to be
+ * 1.15.0 or later, so the proof page and the drop box can read it. Until that
+ * dependency lands, the boundary's floor is carried in the token and shown,
+ * and the commitment stays fuse/1. Flip to 2 with the dependency bump.
+ */
+const HOSTED_FUSE_VERSION: 1 | 2 = 1;
+
+/** The floor anchor an enclave v9 allocation hands back: the one it signs at commit as commit.slotAnchor. */
+interface AnchorMark { counter: string; blockNumber: number; blockHash: string }
+function isAnchorMark(x: unknown): x is AnchorMark {
+  if (x === null || typeof x !== "object" || Array.isArray(x)) return false;
+  const a = x as Record<string, unknown>;
+  return typeof a.counter === "string" && /^(0|[1-9][0-9]*)$/.test(a.counter)
+    && typeof a.blockNumber === "number" && Number.isSafeInteger(a.blockNumber) && a.blockNumber >= 0
+    && typeof a.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(a.blockHash);
+}
+
+/**
+ * The signed marker with the version the token's commitment has: fuse/2 when a
+ * floor was bound in, else the name as the library made it. Built here because
+ * the site's published verify does not take a version yet.
+ */
+function markerFor<T extends { name?: string }>(attr: T, anchor: AnchorMark | null | undefined): T {
+  return anchor ? { ...attr, name: FUSE2_ATTRIBUTION_NAME } : attr;
+}
+
+/** The commitment for a slot and the floor the boundary returned with it, under HOSTED_FUSE_VERSION. */
+function hostedCommitment(slot: SlotAllocation, anchor: AnchorMark | null | undefined): { commitment: Uint8Array; version: 1 | 2; anchor: AnchorMark | null } {
+  const bind = HOSTED_FUSE_VERSION === 2 && anchor ? anchor : null;
+  return { commitment: computeCommitmentFor(slot, bind ? bind.blockHash : null), version: bind ? 2 : 1, anchor: bind };
+}
+
+/** One slot from the boundary, through the site's own gate, with the floor it returned (enclave v9 and later). */
+async function allocateHosted(): Promise<{ slot: SlotAllocation; anchor: AnchorMark | null }> {
   const alloc = await boundaryPost("/api/fuse/allocate", {}, ALLOCATE_TIMEOUT_MS);
   if (alloc.status !== 200) {
     throw new HostedFuseError(
@@ -341,20 +378,21 @@ async function allocateHosted(): Promise<SlotAllocation> {
       alloc.retryAfterSec
     );
   }
-  const a = alloc.json as { slotId?: unknown; slot?: unknown; chainId?: unknown } | null;
+  const a = alloc.json as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown } | null;
   if (a === null || !isSlotRecord(a.slot) || a.slotId !== a.slot.nonceB64 || a.chainId !== FUSE_CHAIN) {
     throw new HostedFuseError("allocate-failed", "the allocation response is not a position record", alloc.status);
   }
-  return a.slot as unknown as SlotAllocation;
+  return { slot: a.slot as unknown as SlotAllocation, anchor: isAnchorMark(a.anchor) ? a.anchor : null };
 }
 
 /** The recipe and token for one file under a held slot. Pure once the slot is in hand. */
-function openMember(slot: SlotAllocation, commitment: Uint8Array, input: OpenInput, member: { originDigest: Uint8Array; placement: HostedPlacement }, set: boolean): Opened {
+function openMember(slot: SlotAllocation, commitment: Uint8Array, input: OpenInput, member: { originDigest: Uint8Array; placement: HostedPlacement }, set: boolean, anchor: AnchorMark | null = null): Opened {
   const recipe = recipeFor(member.placement, member.originDigest, input.size, commitment);
   const names = fusedNamesFor(input.name, member.placement);
   const state: OpenState = {
     v: 1,
     slot,
+    ...(anchor ? { anchor } : {}),
     placement: member.placement,
     origin: { digestB64: input.digestB64, size: input.size, name: input.name },
     fusedName: names.fusedName,
@@ -374,8 +412,9 @@ function openMember(slot: SlotAllocation, commitment: Uint8Array, input: OpenInp
 /** Step one for a single file: a slot for it, and the recipe for the bytes that will occupy it. */
 export async function openHosted(input: OpenInput): Promise<Opened> {
   const member = memberInput(input);
-  const slot = await allocateHosted();
-  return openMember(slot, computeSlotCommitment(slot), input, member, false);
+  const { slot, anchor } = await allocateHosted();
+  const c = hostedCommitment(slot, anchor);
+  return openMember(slot, c.commitment, input, member, false, c.anchor);
 }
 
 export interface OpenedSet {
@@ -396,14 +435,14 @@ export interface OpenedSet {
 export async function openHostedSet(inputs: readonly OpenInput[]): Promise<OpenedSet> {
   if (inputs.length < 2) throw new HostedFuseError("bad-input", "a set opens two or more files");
   const members = inputs.map(memberInput);
-  const slot = await allocateHosted();
-  const commitment = computeSlotCommitment(slot);
+  const { slot, anchor: returned } = await allocateHosted();
+  const { commitment, anchor } = hostedCommitment(slot, returned);
   return {
     slot,
     commitmentB64: bytesToBase64(commitment),
     slotCounter: slot.counter,
     epochB64: toUrlSafeB64(slot.epochId),
-    members: inputs.map((input, i) => openMember(slot, commitment, input, members[i]!, true)),
+    members: inputs.map((input, i) => openMember(slot, commitment, input, members[i]!, true, anchor)),
   };
 }
 
@@ -507,7 +546,8 @@ export async function commitHosted(state: OpenState, artifactDigestB64: string):
     slotId: slot.nonceB64,
     slot,
     chainId: FUSE_CHAIN,
-    attribution: fuseAttribution(placement, originDigest),
+    attribution: markerFor(fuseAttribution(placement, originDigest), state.anchor),
+    ...(state.anchor ? { anchor: state.anchor } : {}),
   });
   // A minted proof is checked by a reader before it is called a proof. The
   // bytes are not here, so this is the integrity half: signature, slot binding,
@@ -554,7 +594,7 @@ export interface SetManifestBuilt {
 export async function setManifestFor(entries: readonly SetEntry[]): Promise<SetManifestBuilt> {
   if (entries.length === 0) throw new HostedFuseError("bad-input", "a set commits at least one member");
   const slot = entries[0]!.state.slot;
-  const commitment = computeSlotCommitment(slot);
+  const commitment = computeCommitmentFor(slot, entries[0]!.state.anchor?.blockHash ?? null);
   const members: SetMember[] = [];
   const seen = new Map<string, number>();
   for (const e of entries) {
@@ -679,6 +719,8 @@ export interface TaskState {
   v: 1;
   task: true;
   slot: SlotAllocation;
+  /** The floor bound into a fuse/2 commitment; absent on a fuse/1 token. */
+  anchor?: AnchorMark;
 }
 
 export function encodeTaskToken(state: TaskState): string {
@@ -695,7 +737,7 @@ export function decodeTaskToken(token: string): TaskState | null {
   if (typeof parsed !== "object" || parsed === null) return null;
   const s = parsed as Record<string, unknown>;
   if (s.v !== 1 || s.task !== true || !isSlotRecord(s.slot)) return null;
-  return { v: 1, task: true, slot: s.slot as unknown as SlotAllocation };
+  return { v: 1, task: true, slot: s.slot as unknown as SlotAllocation, ...(isAnchorMark(s.anchor) ? { anchor: s.anchor } : {}) };
 }
 
 export interface Begun {
@@ -737,9 +779,10 @@ export const toBase64Url = (b64: string): string => b64.replace(/\+/g, "-").repl
 
 /** Step one of the task form: a held slot and its commitment, before any work exists. */
 export async function beginHosted(): Promise<Begun> {
-  const slot = await allocateHosted();
-  const commitmentB64 = bytesToBase64(computeSlotCommitment(slot));
-  const state: TaskState = { v: 1, task: true, slot };
+  const { slot, anchor: returned } = await allocateHosted();
+  const { commitment, anchor } = hostedCommitment(slot, returned);
+  const commitmentB64 = bytesToBase64(commitment);
+  const state: TaskState = { v: 1, task: true, slot, ...(anchor ? { anchor } : {}) };
   return {
     token: encodeTaskToken(state),
     state,
@@ -771,7 +814,8 @@ export async function commitHostedTask(state: TaskState, artifactDigestB64: stri
     slotId: slot.nonceB64,
     slot,
     chainId: FUSE_CHAIN,
-    attribution: inlineAttribution(),
+    attribution: markerFor(inlineAttribution(), state.anchor),
+    ...(state.anchor ? { anchor: state.anchor } : {}),
   });
   const integrity = await verifyProofIntegrity({ proof: proof as unknown as VerifyProof });
   if (!integrity.valid) throw new HostedFuseError("verification-failed", `the returned proof does not verify: ${integrity.reason ?? "unknown reason"}`);

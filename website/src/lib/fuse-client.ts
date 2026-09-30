@@ -16,12 +16,14 @@
  * is the one producer of them afterwards, from the original, the proof's slot
  * record and the row's placement.
  */
+import { computeCommitmentFor } from "./fuse-commitment.ts";
+import { FUSE2_ATTRIBUTION_NAME } from "./fuse-core.ts";
 import { FuseError, MAX_SET_MEMBERS, builderFor, fuse, fuseSet, type FuseSetMember as CoreSetMember, type FuseSetProgress, type FuseTransport } from "@mikeargento/bitgraph";
 import { finishState } from "./scan-hash";
 export type { FuseSetProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest, SetMemberProof, SetRoot } from "@mikeargento/bitgraph-verify";
 import { paintFrame, PAINT_EVERY_MS } from "./paint-frame";
-import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, computeSlotCommitment, getPlacement, isCarryEncoding, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
+import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, getPlacement, isCarryEncoding, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
 import { MAX_FUSE_BYTES, fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
 import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
 
@@ -138,7 +140,7 @@ export async function rebuildFromOrigin(siteProof: SiteProof, original: Uint8Arr
   const slot = proof.slotAllocation;
   if (placement === undefined || slot === undefined) return none;
   const originDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", original as BufferSource));
-  const commitment = computeSlotCommitment(slot);
+  const commitment = computeCommitmentFor(slot, proof.attribution?.name === FUSE2_ATTRIBUTION_NAME ? (proof.commit?.slotAnchor?.blockHash ?? null) : null);
   const fusedBytes = placement.build({ original, originDigest, commitment });
   const artifactDigest = base64ToBytes(proof.artifact.digestB64);
   if (artifactDigest === null) return none;
@@ -491,7 +493,7 @@ export async function rebuildSetMember(siteProof: SiteProof, original: Uint8Arra
   const id = placement.id;
   if (!isSitePlacement(id)) return none;
   const originDigest = new Uint8Array(await crypto.subtle.digest("SHA-256", original as BufferSource));
-  const commitment = computeSlotCommitment(slot);
+  const commitment = computeCommitmentFor(slot, proof.attribution?.name === FUSE2_ATTRIBUTION_NAME ? (proof.commit?.slotAnchor?.blockHash ?? null) : null);
   let fusedBytes: Uint8Array;
   try {
     fusedBytes = placement.build({ original, originDigest, commitment });

@@ -51,6 +51,7 @@ import {
   bytesToBase64,
   bytesToHex,
   computeSlotCommitment,
+  producerCommitment,
   computeSlotRecordHash,
   fuseAttribution,
   getPlacement,
@@ -86,11 +87,22 @@ export async function digest(bytes: Uint8Array): Promise<Uint8Array> {
 
 export type { FuseFrame, PlacementId, SlotAllocation, BitGraphProof, SetManifest, FuseMemberResult, FuseVerifyResult } from "@mikeargento/bitgraph-verify";
 
+/** The floor anchor an enclave v9 allocation hands back: the one it signs at commit as commit.slotAnchor. */
+export interface AnchorMark {
+  counter: string;
+  blockNumber: number;
+  blockHash: string;
+}
+
 /** What the builder receives. The raw nonce is deliberately absent. */
 export interface BuilderInput {
-  /** 32-byte commitment to the signed slot record. Write this into the artifact. */
+  /** 32-byte commitment to the signed slot record (bitgraph-fuse/2 also binds the floor block). Write this into the artifact. */
   commitment: Uint8Array;
   commitmentHex: string;
+  /** Which commitment this is: 2 when the boundary returned its floor anchor (enclave v9 and later), else 1. */
+  fuseVersion: 1 | 2;
+  /** The floor bound into a fuse/2 commitment, when there is one. */
+  floor?: AnchorMark;
   /** The origin digest, when the fused artifact names a source. */
   originDigest?: Uint8Array;
   /** The signed slot record, for producers that want to embed its fields. Contains the nonce: do not copy it into the artifact. */
@@ -321,8 +333,21 @@ async function recover(
   return null;
 }
 
-/** 1. nonce. The signed slot record from the boundary; it must sit on the anchored chain. */
-async function allocateSlot(t: BoundTransport): Promise<SlotAllocation> {
+function isAnchorMark(x: unknown): x is AnchorMark {
+  if (x === null || typeof x !== "object" || Array.isArray(x)) return false;
+  const a = x as Record<string, unknown>;
+  return typeof a.counter === "string" && /^(0|[1-9][0-9]*)$/.test(a.counter)
+    && typeof a.blockNumber === "number" && Number.isSafeInteger(a.blockNumber) && a.blockNumber >= 0
+    && typeof a.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(a.blockHash);
+}
+
+/**
+ * 1. nonce. The signed slot record from the boundary; it must sit on the
+ * anchored chain. Since enclave v9 the response also carries the floor anchor
+ * the boundary will sign at commit; with it the producer makes a
+ * bitgraph-fuse/2 commitment, without it a fuse/1 one.
+ */
+async function allocateSlot(t: BoundTransport): Promise<{ slot: SlotAllocation; anchor: AnchorMark | null }> {
   const alloc = await request(t, t.allocatePath, { method: "POST", body: {} });
   if (alloc.status === 503 && codeOf(alloc.json) === "tee-restarting") throw new FuseError("tee-restarting", messageOf(alloc.json, "the boundary is restarting"), 503);
   if (alloc.status !== 200) throw new FuseError("allocate-failed", messageOf(alloc.json, `allocation failed (${alloc.status})`), alloc.status);
@@ -330,7 +355,8 @@ async function allocateSlot(t: BoundTransport): Promise<SlotAllocation> {
   const slot = (alloc.json as { slot?: unknown } | null)?.slot;
   if (!isSlotRecord(slot) || slotId !== slot.nonceB64) throw new FuseError("allocate-failed", "the allocation response is not a slot record", alloc.status);
   if (slot.chainId !== "bitgraph:main") throw new FuseError("allocate-failed", "the slot is not on the anchored chain; a fused floor needs bitgraph:main");
-  return slot;
+  const anchorRaw = (alloc.json as { anchor?: unknown } | null)?.anchor;
+  return { slot, anchor: isAnchorMark(anchorRaw) ? anchorRaw : null };
 }
 
 /**
@@ -407,13 +433,13 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
   const originDigestB64 = originDigest !== undefined ? bytesToBase64(originDigest) : null;
 
   // 1. nonce
-  const slot = await allocateSlot(t);
+  const { slot, anchor } = await allocateSlot(t);
 
   // 2. fuse
-  const commitment = computeSlotCommitment(slot);
+  const { commitment, version } = producerCommitment(slot, anchor);
   let fused: Uint8Array;
   try {
-    fused = await builder({ commitment, commitmentHex: bytesToHex(commitment), ...(originDigest !== undefined ? { originDigest } : {}), slot });
+    fused = await builder({ commitment, commitmentHex: bytesToHex(commitment), fuseVersion: version, ...(anchor !== null ? { floor: anchor } : {}), ...(originDigest !== undefined ? { originDigest } : {}), slot });
   } catch (err) {
     throw new FuseError("builder-failed", `the builder threw: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -425,13 +451,15 @@ export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<
   const artifactDigestB64 = bytesToBase64(artifactDigest);
 
   // 4. fill
-  const attribution = fuseAttribution(placement.id, originDigest);
+  const attribution = fuseAttribution(placement.id, originDigest, version);
   const body: Record<string, unknown> = {
     digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
     chainId: "bitgraph:main",
     attribution,
+    // fuse/2: the boundary checks the bound floor against its ledger before spending the slot.
+    ...(version === 2 ? { anchor } : {}),
   };
   if (options.agency !== undefined) body.agency = options.agency;
   const { proof, recovered } = await commitUnderSlot(t, body, artifactDigestB64, slot);
@@ -482,6 +510,10 @@ export type SetMemberPlacement = "trailer/1" | "container/1" | "container/2";
 
 /** What a hashed member's fused digest is computed for: the held slot and its commitment. */
 export interface FusedDigestInput {
+  /** Which commitment this is: 2 when the boundary returned its floor anchor, else 1. */
+  fuseVersion: 1 | 2;
+  /** The floor bound into a fuse/2 commitment, when there is one. */
+  floor?: AnchorMark;
   commitment: Uint8Array;
   commitmentHex: string;
   slot: SlotAllocation;
@@ -721,7 +753,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
   const t: BoundTransport = { ...DEFAULTS, ...(options.transport ?? {}) };
 
   // 1. nonce: one slot for the whole set
-  const slot = await allocateSlot(t);
+  const { slot, anchor } = await allocateSlot(t);
 
   // 2. fuse: the commitment once, every member's digest under it. The slot
   //    is held and its TTL is running; a throw here burns it but commits
@@ -729,7 +761,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
   //    and released in turn, so memory holds one member's bytes at a time.
   //    They are held only for a caller who keeps them or asks the full
   //    verifier to read them.
-  const commitment = computeSlotCommitment(slot);
+  const { commitment, version } = producerCommitment(slot, anchor);
   const commitmentHex = bytesToHex(commitment);
   const fusedBytes: (Uint8Array | null)[] = [];
   const rows: SetMember[] = [];
@@ -741,7 +773,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     if (c.kind === "hashed") {
       let d: unknown;
       try {
-        d = await c.fusedDigest!({ commitment, commitmentHex, slot });
+        d = await c.fusedDigest!({ commitment, commitmentHex, fuseVersion: version, ...(anchor !== null ? { floor: anchor } : {}), slot });
       } catch (err) {
         throw new FuseError("builder-failed", `member ${i}: fusedDigest threw: ${err instanceof Error ? err.message : String(err)}; ${expiring}`, null, i);
       }
@@ -766,7 +798,7 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
       const builder = c.builder ?? builderFor(c.id, original);
       let fused: Uint8Array;
       try {
-        fused = await builder({ commitment, commitmentHex, originDigest: c.originDigest, slot });
+        fused = await builder({ commitment, commitmentHex, fuseVersion: version, ...(anchor !== null ? { floor: anchor } : {}), originDigest: c.originDigest, slot });
       } catch (err) {
         throw new FuseError("builder-failed", `member ${i}: the builder threw: ${err instanceof Error ? err.message : String(err)}`, null, i);
       }
@@ -817,8 +849,9 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     slotId: slot.nonceB64,
     slot,
     chainId: "bitgraph:main",
-    attribution: fuseAttribution(setKind === "set/1" ? SET_PLACEMENT_ID_LOCAL : SET2_PLACEMENT_ID),
+    attribution: fuseAttribution(setKind === "set/1" ? SET_PLACEMENT_ID_LOCAL : SET2_PLACEMENT_ID, undefined, version),
     metadata: { [SET_METADATA_KEY]: manifest },
+    ...(version === 2 ? { anchor } : {}),
   };
   if (options.agency !== undefined) body.agency = options.agency;
   report("commit", 0, 1);

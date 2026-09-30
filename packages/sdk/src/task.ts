@@ -18,7 +18,7 @@
  */
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { bytesToBase64, computeSlotCommitment, findCommitment, inlineAttribution, verifyProofIntegrity, ENCODING_BASE64URL } from "@mikeargento/bitgraph-verify";
+import { bytesToBase64, computeSlotCommitment, producerCommitment, findCommitment, inlineAttribution, verifyProofIntegrity, ENCODING_BASE64URL } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof, SlotAllocation } from "@mikeargento/bitgraph-verify";
 import { ApiError, type ApiConfig } from "./api.js";
 import { toUrlSafeB64 } from "./encoding.js";
@@ -28,10 +28,27 @@ const CHAIN = "bitgraph:main";
 const B64_32 = /^[A-Za-z0-9+/]{43}=$/;
 const B64_64 = /^[A-Za-z0-9+/]{86}==$/;
 
+/** The floor anchor an enclave v9 allocation hands back: the one it signs at commit as commit.slotAnchor. */
+export interface AnchorMark {
+  counter: string;
+  blockNumber: number;
+  blockHash: string;
+}
+
 export interface TaskState {
   v: 1;
   task: true;
   slot: SlotAllocation;
+  /** Present when the boundary returned its floor (enclave v9 and later): the task then carries a bitgraph-fuse/2 commitment. */
+  anchor?: AnchorMark;
+}
+
+function isAnchorMark(x: unknown): x is AnchorMark {
+  if (x === null || typeof x !== "object" || Array.isArray(x)) return false;
+  const a = x as Record<string, unknown>;
+  return typeof a.counter === "string" && /^(0|[1-9][0-9]*)$/.test(a.counter)
+    && typeof a.blockNumber === "number" && Number.isSafeInteger(a.blockNumber) && a.blockNumber >= 0
+    && typeof a.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(a.blockHash);
 }
 
 function isSlotRecord(x: unknown): x is SlotAllocation {
@@ -51,7 +68,8 @@ export function decodeTaskToken(token: string): TaskState | null {
   if (typeof parsed !== "object" || parsed === null) return null;
   const s = parsed as Record<string, unknown>;
   if (s.v !== 1 || s.task !== true || !isSlotRecord(s.slot)) return null;
-  return { v: 1, task: true, slot: s.slot };
+  // A token made before v9 carries no anchor and stays a fuse/1 task.
+  return { v: 1, task: true, slot: s.slot, ...(isAnchorMark(s.anchor) ? { anchor: s.anchor } : {}) };
 }
 
 async function post(config: ApiConfig, path: string, body: unknown, timeoutMs: number): Promise<{ status: number; json: unknown; retryAfterSec: number | null }> {
@@ -78,6 +96,8 @@ export interface Begun {
   slotCounter: string;
   epoch: string;
   floor: { block: number } | null;
+  /** 2 when the commitment binds the floor block (bitgraph-fuse/2; the boundary returned its floor), else 1. */
+  fuseVersion: 1 | 2;
 }
 
 /** Step one of the task form: a held slot and its commitment, before any work exists. */
@@ -86,15 +106,18 @@ export async function beginTask(config: ApiConfig): Promise<Begun> {
   if (r.status !== 200) throw new ApiError(r.status, messageOf(r.json, `allocation refused (${r.status})`), r.retryAfterSec);
   const slot = (r.json as { slot?: unknown } | null)?.slot;
   if (!isSlotRecord(slot)) throw new ApiError(502, "the allocation response is not a slot record on bitgraph:main");
-  const commitmentB64 = bytesToBase64(computeSlotCommitment(slot));
-  let floor: Begun["floor"] = null;
-  try {
+  const anchorRaw = (r.json as { anchor?: unknown } | null)?.anchor;
+  const anchor = isAnchorMark(anchorRaw) ? anchorRaw : undefined;
+  const { commitment: commitmentBytes, version } = producerCommitment(slot, anchor ?? null);
+  const commitmentB64 = bytesToBase64(commitmentBytes);
+  let floor: Begun["floor"] = anchor ? { block: anchor.blockNumber } : null;
+  if (floor === null) try {
     const res = await fetch(`${config.baseUrl}/api/proofs/anchors?counter=${encodeURIComponent(slot.counter)}&epoch=${encodeURIComponent(slot.epochId)}&before=1`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
     const data = res.status === 200 ? ((await res.json()) as { anchors?: Array<{ commit?: { anchor?: { blockNumber?: number } } }> }) : null;
     const b = data?.anchors?.[0]?.commit?.anchor?.blockNumber;
     if (typeof b === "number") floor = { block: b };
   } catch { floor = null; }
-  return { token: encodeTaskToken({ v: 1, task: true, slot }), commitment: toUrlSafeB64(commitmentB64), commitmentB64, slotCounter: slot.counter, epoch: toUrlSafeB64(slot.epochId), floor };
+  return { token: encodeTaskToken({ v: 1, task: true, slot, ...(anchor ? { anchor } : {}) }), commitment: toUrlSafeB64(commitmentB64), commitmentB64, slotCounter: slot.counter, epoch: toUrlSafeB64(slot.epochId), floor, fuseVersion: version };
 }
 
 export interface SealedTask {
@@ -112,7 +135,7 @@ export interface SealedTask {
  */
 export async function sealTask(config: ApiConfig, state: TaskState, task: { path: string } | { bytes: Uint8Array } | { digestB64: string }): Promise<SealedTask> {
   const { slot } = state;
-  const commitment = computeSlotCommitment(slot);
+  const { commitment, version } = producerCommitment(slot, state.anchor ?? null);
   let bytes: Uint8Array | null = null;
   let artifactDigestB64: string;
   if ("digestB64" in task) {
@@ -126,8 +149,8 @@ export async function sealTask(config: ApiConfig, state: TaskState, task: { path
   if (offsets !== null && offsets.length === 0) {
     throw new ApiError(400, `the task bytes do not contain the commitment string ${toUrlSafeB64(bytesToBase64(commitment))}; put it in before sealing. Nothing was committed and the position is still held.`);
   }
-  const attribution = inlineAttribution();
-  const r = await post(config, "/api/fuse/commit", { digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }], slotId: slot.nonceB64, slot, chainId: CHAIN, attribution }, 40_000);
+  const attribution = inlineAttribution(version);
+  const r = await post(config, "/api/fuse/commit", { digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }], slotId: slot.nonceB64, slot, chainId: CHAIN, attribution, ...(version === 2 ? { anchor: state.anchor } : {}) }, 40_000);
   let proof: BitGraphProof | null = null;
   if (r.status === 200) proof = ((r.json as { proof?: BitGraphProof } | null)?.proof ?? null);
   else if (r.status === 409 || r.status === 503) proof = await recover(config, artifactDigestB64, slot);

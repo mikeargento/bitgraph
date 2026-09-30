@@ -102,6 +102,8 @@ export interface Slot {
   slotCounter: string;
   epoch: string;
   floor: { block: number } | null;
+  /** 2 when the commitment binds the floor block (bitgraph-fuse/2), else 1. */
+  fuseVersion: 1 | 2;
   /** Survives process boundaries: `bitgraph seal --token ...` or BitGraph.seal(token, ...). */
   token: string;
   ttlSeconds: number;
@@ -351,6 +353,7 @@ export class BitGraph {
       slotCounter: begun.slotCounter,
       epoch: begun.epoch,
       floor: begun.floor,
+      fuseVersion: begun.fuseVersion,
       token: begun.token,
       ttlSeconds: SLOT_TTL_SECONDS,
       seal: (task) => this.seal(begun.token, task),
