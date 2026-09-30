@@ -26,7 +26,9 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLargeError, rebuildSetMember, unpackSetMember, checkInline, isInlineProof } from "@/lib/fuse-client";
-import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair } from "@/lib/carrier-site";
+import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence } from "@/lib/carrier-site";
+import { verifyCarrierPayload, type CarrierClaim, type CarrierLookups } from "@mikeargento/bitgraph-verify";
+import { ProofView, type ProofViewModel, type FieldView, type PositionRowView, type SetRowView, type DownloadView } from "./proof-view";
 import { ENCODING_BASE64URL, bytesToBase64, bytesToHex, computeProofHash } from "@mikeargento/bitgraph-verify";
 import { computeCommitmentFor } from "@/lib/fuse-commitment";
 import { FUSE2_ATTRIBUTION_NAME, isFuseName } from "@/lib/fuse-core";
@@ -82,17 +84,6 @@ function formatHashAlg(alg: string): string {
 
 // Leading icon for the page's action buttons, so they read as controls rather
 // than as bordered panels. Stroke style matches the title check mark.
-function BtnIcon({ name, color = "var(--accent)", size = 18 }: { name: "code" | "certificate" | "link" | "download" | "plus"; color?: string; size?: number }) {
-  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, style: { flexShrink: 0 } };
-  if (name === "code") return <svg {...common}><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>;
-  // Attestation = a signed credential: a document with a ribboned seal (the
-  // Tabler "certificate" glyph).
-  if (name === "certificate") return <svg {...common}><path d="M15 15m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /><path d="M13 17.5v4.5l2 -1.5l2 1.5v-4.5" /><path d="M10 19h-5a2 2 0 0 1 -2 -2v-10c0 -1.1 .9 -2 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -1 1.73" /><path d="M6 9l12 0" /><path d="M6 12l3 0" /><path d="M6 15l2 0" /></svg>;
-  if (name === "link") return <svg {...common}><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>;
-  if (name === "plus") return <svg {...common}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
-  return <svg {...common}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
-}
-
 /* Files the site hosts, so a shared proof link shows the picture instead of an
    empty "bring your file" box. Keyed by digest so an ordinary proof page
    fetches nothing: without the key there is one entry to try, and with it
@@ -228,6 +219,80 @@ export default function ProofPage() {
     void bindSet(asRecord(proof)).then((b) => { if (!cancelled) setSetBound(b); }).catch(() => { if (!cancelled) setSetBound(null); });
     return () => { cancelled = true; };
   }, [proof]);
+  // The checks (2026-09-30): the same claims the CLI answers, computed here from
+  // the same evidence a download carries (assembleProofEvidence: the floor anchor
+  // and its header, the closing anchor, the Base sidecar, each vetted), with the
+  // file's bytes when they are in hand and are the committed bytes. Re-run when
+  // a ceiling lands or a file arrives; confirmed against public nodes on request.
+  const [checks, setChecks] = useState<{ state: "idle" | "running" | "done" | "failed"; claims: CarrierClaim[]; reading: string | null; verdict: "TRUE" | "FALSE" | "UNDETERMINED" | null; note: string | null; bytesInHand: boolean; confirming: boolean; confirmed: boolean }>({ state: "idle", claims: [], reading: null, verdict: null, note: null, bytesInHand: false, confirming: false, confirmed: false });
+  // The floor and the closing anchor as the vetted evidence names them: the floor is the
+  // proof's SIGNED commit.slotAnchor (the anchor fixed at allocation), which is what the
+  // checks, the BitGraphed file and the docs mean by the floor; the window route's
+  // "anchor before" is the anchor before the COMMIT, a tighter bound on the commit by
+  // hash order, shown as a note.
+  const [evidenceSides, setEvidenceSides] = useState<{
+    floor: { counter: string; blockNumber: number; blockHash: string; timestamp: number | null; digestB64: string | null; recordedMs: number | null } | null;
+    ceiling: { counter: string; blockNumber: number; blockHash: string; timestamp: number | null; digestB64: string | null; recordedMs: number | null } | null;
+  }>({ floor: null, ceiling: null });
+  const evidenceRef = useRef<{ payload: Parameters<typeof verifyCarrierPayload>[0]; forCounter: string | null; ceilings: string } | null>(null);
+  const checksBytesRef = useRef<Uint8Array | null>(null);
+  const runChecks = async (lookups?: CarrierLookups) => {
+    if (!proof || !proof.commit?.slotAnchor) { setChecks((c) => ({ ...c, state: "failed", note: proof && !proof.commit?.slotAnchor ? "This proof was recorded before enclave v7 and carries no signed floor, so its window cannot be checked here; the signature and attestation can be checked from the package." : null })); return; }
+    setChecks((c) => ({ ...c, state: c.state === "done" ? "done" : "running", confirming: lookups !== undefined }));
+    try {
+      const key = `${baseCeiling?.anchor?.txHash ?? "-"}|${causalWindow?.anchorAfter?.counter ?? "-"}`;
+      let ev = evidenceRef.current;
+      if (!ev || ev.forCounter !== (proof.commit.counter ?? null) || ev.ceilings !== key) {
+        const assembled = await assembleProofEvidence(proof as never);
+        ev = { payload: assembled.payload as never, forCounter: proof.commit.counter ?? null, ceilings: key };
+        evidenceRef.current = ev;
+      }
+      const r = await verifyCarrierPayload(ev.payload, checksBytesRef.current, lookups ? { lookups } : {});
+      setChecks({ state: "done", claims: r.claims, reading: r.reading, verdict: r.verdict, note: null, bytesInHand: checksBytesRef.current !== null, confirming: false, confirmed: lookups !== undefined });
+      const sideOf = (anchor: Record<string, unknown> | undefined, witness: { blockNumber: number; blockHash: string } | undefined, ts: number | null) => {
+        const ac = (anchor as { commit?: { counter?: string } } | undefined)?.commit;
+        const digest = (anchor as { artifact?: { digestB64?: string } } | undefined)?.artifact?.digestB64 ?? null;
+        const rep = (anchor as { environment?: { attestation?: { reportB64?: string } } } | undefined)?.environment?.attestation?.reportB64;
+        if (!ac || typeof ac.counter !== "string" || !witness) return null;
+        return { counter: ac.counter, blockNumber: witness.blockNumber, blockHash: witness.blockHash, timestamp: ts, digestB64: digest, recordedMs: typeof rep === "string" ? attestationTimestampMs(rep) : null };
+      };
+      const p = ev.payload as { floor: { anchor: Record<string, unknown>; witness: { blockNumber: number; blockHash: string } }; ceiling: { status: string; anchor?: Record<string, unknown>; witness?: { blockNumber: number; blockHash: string } } };
+      setEvidenceSides({
+        floor: sideOf(p.floor.anchor, p.floor.witness, r.bounds?.notBefore.timestamp ?? null),
+        ceiling: p.ceiling.status === "present" ? sideOf(p.ceiling.anchor, p.ceiling.witness, r.bounds?.notAfter?.timestamp ?? null) : null,
+      });
+    } catch (e) {
+      setChecks((c) => ({ ...c, state: "failed", note: e instanceof Error ? e.message : String(e), confirming: false }));
+    }
+  };
+  useEffect(() => {
+    if (!proof) return;
+    let cancelled = false;
+    // The committed bytes, when they are in hand: a plain recording's file, or a fused
+    // new file. An original in hand is not the artifact (it rebuilds into it), and a set's
+    // artifact is its root document, so neither is offered as the bytes.
+    const bytes = cachedFile && cachedRole !== "original" && !isSetProof(proof) ? new Uint8Array(cachedFile.data) : null;
+    (async () => {
+      if (bytes) {
+        const h = await hashBytes(bytes);
+        if (cancelled) return;
+        checksBytesRef.current = h === proof.artifact.digestB64 ? bytes : null;
+      } else checksBytesRef.current = null;
+      if (!cancelled) void runChecks();
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proof, cachedFile, cachedRole, baseCeiling?.anchor?.txHash, causalWindow?.anchorAfter?.counter]);
+  const confirmAgainstNodes = () => {
+    const rpc = (url: string) => async (n: number): Promise<string | null> => {
+      try {
+        const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getBlockByNumber", params: ["0x" + n.toString(16), false] }), signal: AbortSignal.timeout(15_000) });
+        const j = (await res.json()) as { result?: { hash?: string } | null };
+        return j.result?.hash ?? null;
+      } catch { return null; }
+    };
+    void runChecks({ ethereumBlockHash: rpc("https://ethereum-rpc.publicnode.com"), baseBlockHash: rpc("https://mainnet.base.org") });
+  };
   // The manifest row the file in hand belongs to, when this is a set proof:
   // named by the verifier, which is also what decides the role below.
   const [heldMember, setHeldMember] = useState<SetMemberRow | null>(null);
@@ -1590,687 +1655,184 @@ export default function ProofPage() {
         </>
       )}
 
-      {/* 56px on top like every other page (Mike, 2026-09-30: "proof pages still have some
-          extra headroom"); the anchor page's button now takes its own row instead. */}
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
-
-        {anchorsBackHref && (
-          /* Its own row over the card, 16px above it (Mike, 2026-09-29: "kind of small and
-             jammed up there"). Outside .proof-grid, because the grid itself is the white card.
-             It arrives with the proof, in the same render that replaces the skeleton, so it
-             never moves the card after the card is shown. Until 2026-09-30 every proof page
-             carried 96px of top padding to hold this button's place, which left file proofs
-             with extra headroom. marginRight -8 cancels the 8px right margin every button
-             carries. */
-          <div style={{ display: "flex", justifyContent: "flex-end", marginRight: -8, marginBottom: 16 }}>
-            <a href={anchorsBackHref} className="bg-action-link bg-proof-top">All floors</a>
-          </div>
-        )}
-
-        <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-
-          {/* The content itself sits first: the page
-              certifies the photograph, so you see the subject before its
-              paperwork. The match banner rides with it after an active check. */}
-          {/* The receipt: a plain (non-collapsible) card, always open, that
-              answers "what is this page" in one line — date on the left, the
-              precise wall-clock window on the right. "BitGraphed" is dropped as a
-              label (you are already looking at the proof); the window carries
-              whether the sealing Ethereum anchor has landed yet ("waiting for
-              the next block…"). Each value is an unbreakable unit, so on narrow phones
-              the window wraps at its connector (never mid-value) and the whole
-              right column can drop below the date. Gated on the recording info it
-              shows, not on proofHash (which is absent from exported/older
-              proofs). */}
-          {/* Interval proofs have no content card, so the "when" is its own
-              small card here. File proofs show it inside the BitGraphed File
-              card, and Ethereum anchors inside the BitGraphed Ethereum Block
-              card (both below), above the content — so the time always leads the
-              first card rather than floating in a card of its own. The only
-              anchor that still needs a standalone when-card is the rare Ethereum
-              anchor with no etherscan title (no block card to hold it). */}
-          {(isInterval || (isEth && !attr?.title)) && whenRow && (
-            <div style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)" }}>
-              {whenRow}
+        <ProofView m={(() => {
+          const kind: ProofViewModel["kind"] = isEth ? "anchor" : isInterval ? "interval" : "file";
+          const stdB64 = (x: string | null | undefined) => (typeof x === "string" ? x : "");
+          // Anchor views for the window, with each anchor's own recorded instant beside it.
+          const side = (a: typeof causalWindow extends null ? never : NonNullable<typeof causalWindow>["anchorBefore"], recordedMs: number | null) =>
+            a ? { counter: a.counter, blockNumber: a.blockNumber, blockHash: a.blockHash, etherscanUrl: a.etherscanUrl, blockTime: a.blockTime ?? null, digestB64: a.digestB64 ?? null, recordedMs } : null;
+          const fromEvidence = (e: typeof evidenceSides.floor) => e ? {
+            counter: e.counter, blockNumber: e.blockNumber, blockHash: e.blockHash, etherscanUrl: `https://etherscan.io/block/${e.blockNumber}`,
+            blockTime: e.timestamp !== null ? new Date(e.timestamp * 1000).toISOString() : null, digestB64: e.digestB64, recordedMs: e.recordedMs,
+          } : null;
+          const floorView = fromEvidence(evidenceSides.floor) ?? side(causalWindow?.anchorBefore ?? null, anchorRecordedMs.before);
+          const ceilView = fromEvidence(evidenceSides.ceiling) ?? side(causalWindow?.anchorAfter ?? null, anchorRecordedMs.after);
+          // The anchor before the commit, when it is a later anchor than the signed floor: a
+          // tighter bound on the commit itself, by hash order, said as a note.
+          const commitAfter = causalWindow?.anchorBefore && floorView && causalWindow.anchorBefore.counter !== floorView.counter && causalWindow.anchorBefore.blockNumber !== null
+            ? { counter: causalWindow.anchorBefore.counter, blockNumber: causalWindow.anchorBefore.blockNumber, blockTime: causalWindow.anchorBefore.blockTime ?? null, digestB64: causalWindow.anchorBefore.digestB64 ?? null }
+            : null;
+          // The file pane: the preview, the drop box, or the anchor's block row.
+          const filePane: React.ReactNode = isEth ? (
+            <div className="pv-file-row">
+              <span className="pv-file-name">
+                <strong>Ethereum block {ethBlockNum ? `#${Number(ethBlockNum).toLocaleString("en-US")}` : "#?"}</strong>
+                {anchorBlock?.blockTime ? <span className="pv-file-meta"> · mined {stampTz(new Date(anchorBlock.blockTime))}</span> : null}
+              </span>
+              {attr?.title && <a href={attr.title} target="_blank" rel="noopener" className="pv-list-link">Open <span aria-hidden>&#8599;</span></a>}
             </div>
-          )}
-
-          {/* The content slot: the "BitGraph Record" card. Unlike the technical
-              cards below it, this one is plain (no toggle) and always open — it
-              holds the file, its "when", and its hash.
-              ⚠️ It is a NOUN. It read "BitGraph Recorded" until 2026-09-04, a
-              confirmation carried over from the removed receipt, which is only
-              true in the minute after minting: this page is permanent and
-              linkable, and almost every visit to it is someone opening a record,
-              not watching an event. A certificate names itself. The noun is also
-              the only form that is true of every proof here, since a fused
-              artifact was MADE rather than recorded (recording is the
-              compatibility path) and no participle covers both. The "when" leads
-              the body, then the image when the bytes are in hand (or the
-              bring-your-file dropzone), then the file hash. */}
-          {!isEth && !isInterval && (
-            <>
-            {/* No visible page title (Mike, 2026-09-26): the card's date line says
-                "BitGraphed <date>" and carries it. The heading stays for screen
-                readers and search. */}
-            <h1 className="sr-only">BitGraph Record</h1>
-            {/* Folds like every card below it, closed by default, its label the
-                record's own name (Mike, 2026-09-28: "this whole field should be a
-                modal like these. BitGraph #1,012 would be label and it is closed by
-                default and opens the preview when clicked to open"). Inside: the
-                date, the epoch, then the file, or the drop box to find it. */}
-            <CollapsibleCard title={recordLabel}>
-              {/* The "when" and the export share one box at the top of the card,
-                  as the Recorder puts its actions under its verdict (Mike,
-                  2026-09-16: "this button should share that box and say .zip"). */}
-              {whenBody && (
-                <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)" }}>
-                  {whenBody}
-                </div>
-              )}
-              {isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
-                <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={heldLabel} />
-              ) : cachedFile ? (
-                <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
-              ) : (
-                <div style={{ padding: 16 }}>
-                  <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} />
-                </div>
-              )}
-              {/* The fingerprint lives with the file: this SHA-256 IS the file's
-                  pre-existing identity. In the no-file state it is also the
-                  value a dropped file is checked against. */}
-              {/* The committed digest used to sit here for a recording and in
-                  the Hashes card for a fused artifact, which made one kind of
-                  BitGraph look like a different kind of object. Both now put
-                  every hash in the Hashes card below (Mike, 2026-09-07). */}
-              {/* The export moved up into the "when" box (2026-09-16). */}
-            </CollapsibleCard>
-            {/* A fused proof has two hashes, the new file's and the original's.
-                They sit in their own collapsed card under the receipt, like every
-                other technical value, rather than doubling the identity line in
-                the card above (Mike, 2026-09-03). New file first. The original is
-                plain, not a link: it has no position of its own. Both are what a
-                dropped file is checked against. */}
-            {/* A set proof's artifact is the manifest, so its hash is the Set
-                hash. A member (the file in hand, or the row the URL digest
-                names) adds its own two, read from the BOUND manifest. */}
-            <CollapsibleCard title="Downloads">
-              {/* The card body has no side padding of its own (.proof-fields pads
-                  vertically only), so this section carries the 16px itself, and the
-                  buttons get real height: a download is a tap target, not a chip. */}
-              <div style={{ padding: "8px 16px 14px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
-                  {cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? (
-                    <button onClick={downloadOriginal} disabled={originBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
-                      <span>{originBusy ? "Recovering\u2026" : "Original file"}</span>
-                    </button>
-                  ) : null}
-                  {cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor ? (
-                    <button onClick={downloadCarrier} disabled={carrierBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
-                      <span>{carrierBusy ? "Assembling\u2026" : "BitGraphed file"}</span>
-                    </button>
-                  ) : null}
-                  {!isEth ? (
-                    <button onClick={downloadAnchors} disabled={anchorsBusy} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
-                      <span>{anchorsBusy ? "Fetching\u2026" : "Ethereum anchors"}</span>
-                    </button>
-                  ) : null}
-                  <button onClick={exportZip} disabled={exporting} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
-                    <span>{exporting ? "Exporting\u2026" : "Package (.zip)"}</span>
-                  </button>
-                </div>
-                {(carrierMsg || anchorsMsg || originMsg || !cachedFile) && (
-                  <div style={{ fontSize: 12.5, color: "var(--dim)", marginTop: 8, display: "grid", gap: 2 }}>
-                    {originMsg && <div>{originMsg}</div>}
-                    {carrierMsg && <div>{carrierMsg}</div>}
-                    {anchorsMsg && <div>{anchorsMsg}</div>}
-                    {!cachedFile && <div>BitGraph only: the original file is not on this device</div>}
-                  </div>
-                )}
-              </div>
-            </CollapsibleCard>
-            <CollapsibleCard title="Hashes">
-              <Field label="Commitment" value={carriedBy} />
-              {/* "Position commitment", not "Slot commitment" (Mike, 2026-09-27): the
-                  outward name, as the demonstration file and the TRACE doc call it. */}
-              {inlineCommitment && <Field label="Position commitment" value={inlineCommitment} mono />}
-              {isSet ? (
-                <>
-                  {viewingRow && <Field label="New file hash" value={viewingRow.fusedDigestB64} mono />}
-                  {viewingRow && <Field label="Original file hash" value={viewingRow.originDigestB64} mono />}
-                  <Field label="Set hash" value={proof.artifact.digestB64} mono />
-                </>
-              ) : placementId !== null ? (
-                <>
-                  <Field label="New file hash" value={proof.artifact.digestB64} mono />
-                  <Field label="Original file hash" value={attr?.message ?? "not declared"} mono />
-                </>
-              ) : (
-                <Field label="File hash" value={proof.artifact.digestB64} mono />
-              )}
-            </CollapsibleCard>
-            {/* The set's members, in manifest order, from the bound manifest
-                only. Each row is a position-row: ordinal, the placement that
-                carries the commitment, the original's digest. The member in
-                hand (or the one the URL names) reads Viewing; every other
-                opens its own page at this same position, by its original's
-                digest, the way the camera opens a member. */}
-            {setBound && (
-              <CollapsibleCard title={`Set (${setBound.count})`}>
-                {/* A set/2 commits its members by a Merkle root, so the proof
-                    carries no member list: rows exist only for the member whose
-                    evidence came with this copy, or the one whose file is in
-                    hand. With neither, this card used to open on nothing at all
-                    (Mike, 2026-09-07). What the signed artifact DOES hold is the
-                    count and the root, so it says those. */}
-                {setRows.length === 0 && (
-                  <>
-                    <Field label="Members" value={setBound.count.toLocaleString()} />
-                    {setBound.root && <Field label="Set root" value={bytesToHex(setBound.root)} mono />}
-                    <div style={{ padding: "0 16px 12px", fontSize: 12.5, color: "var(--dim)" }}>
-                      A member's row comes with the member: drop one of these files above.
-                    </div>
-                  </>
-                )}
-                {setRows.map((m, i) => {
-                  const isHeld = viewingRow !== null && viewingRow.index === m.index;
-                  const ordinal = setBound.kind === "set/2" ? m.index + 1 : i + 1;
-                  return (
-                    <div key={m.index} className="causal-row" style={{ borderBottom: "1px solid var(--line)" }}>
-                      <div className="causal-top">
-                        <span className="causal-label" style={{ color: "var(--c-accent)" }}>{ordinal} of {setBound.count}</span>
-                        {isHeld ? (
-                          <span className="causal-action" style={{ color: "var(--text)" }}>Viewing</span>
-                        ) : (
-                          <a
-                            className="causal-action bg-arrow-link"
-                            href={`/proof/${encodeURIComponent(toUrlSafeB64(m.originDigestB64))}?counter=${encodeURIComponent(commit.counter ?? "")}${commit.epochId ? `&epoch=${encodeURIComponent(toSafeB64(String(commit.epochId)))}` : ""}`}
-                            style={{ color: "var(--c-accent)", textDecoration: "none" }}
-                          >
-                            View <span className="arrow" aria-hidden>&rarr;</span>
-                          </a>
-                        )}
-                      </div>
-                      <div className="causal-role" style={{ fontFamily: mono }}>{m.placement}</div>
-                      <div className="causal-window" style={{ fontFamily: mono }}>{truncateHash(m.originDigestB64, 12)}</div>
-                    </div>
-                  );
-                })}
-              </CollapsibleCard>
-            )}
-            </>
-          )}
-
-          {/* An anchor's artifact IS the Ethereum block hash, so its block card
-              sits in the same content slot the BitGraphed File uses on file
-              proofs, titled to match. */}
-          {isEth && attr?.title && (
-            <>
-            {/* An anchor page in the file-proof format (Mike, 2026-09-27: "fix
-                the ethereum anchors pages to match the new proof page format").
-                An anchor is a BitGraph whose recorded thing is an Ethereum block,
-                so it gets the same card: no visible page title (the card's first
-                line names the record), the same header, an identity row naming
-                what was recorded where a file shows its name, and downloads in
-                the same Downloads card. It used to carry a page title with
-                "Download JSON" beside it; that title is what the file pages
-                dropped on 2026-09-26.
-                The way back stays (Mike, 2026-09-09: "no way back from the proof
-                page"; 09-11: to the right, "all ethereum anchors"), above the
-                card on the right. It is laid over the page's top margin rather
-                than given a row of its own: a row pushed the card 52px lower
-                than on every other proof, and the loading skeleton, which cannot
-                know the page is an anchor until the proof arrives, then jumped
-                (Mike, 2026-09-27: "skeleton of eth anchor bitgraphs is wrong").
-                Tried the same day on the card's first line, beside "BitGraph #n":
-                a 32px button crowded the heading ("kind of smooshed no?"). */}
-            <h1 className="sr-only">BitGraph Record</h1>
-            {/* minWidth 0: this wrapper is the grid item now, and without it the epoch ID's
-                nowrap line widened the whole card past a phone's edge instead of truncating. */}
-            <div style={{ position: "relative", minWidth: 0 }}>
-            {/* Folds like the file proof's record card (2026-09-28): an anchor is a
-                BitGraph too, labelled with its own number. */}
-            <CollapsibleCard title={recordLabel}>
-              {whenBody && (
-                <div className="bg-when-box" style={{ borderBottom: "1px solid var(--line)" }}>
-                  {whenBody}
-                </div>
-              )}
-              {/* The identity row, in the file card's exact shape: what was
-                  recorded, a detail, and Open. For a file that is its name and
-                  size; for an anchor it is the block and the time it was mined,
-                  and Open goes to the block on Etherscan. The mine time lives
-                  here, beside the block it belongs to, not in the header: the
-                  header is when BitGraph recorded it, which is later. */}
-              {(() => {
-                const b = anchorBlock?.blockTime ? new Date(anchorBlock.blockTime) : null;
-                const a = attestedMs ? new Date(attestedMs) : null;
-                const mined = b ? ((a && sameUtcDay(b, a)) ? timeTz(b) : stampTz(b)) : null;
-                return (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 16px" }}>
-                    {/* Wraps rather than truncating, unlike a filename: a block
-                        row is always short, and the mine time is the one thing
-                        this page says nowhere else, so an ellipsis would hide it
-                        on a phone ("mine…"). Each half stays whole; the break
-                        falls between them. */}
-                    <span style={{ minWidth: 0, fontSize: 13, color: "var(--dim)" }}>
-                      <span style={{ fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap" }}>
-                        Ethereum block {ethBlockNum ? `#${Number(ethBlockNum).toLocaleString("en-US")}` : "#?"}
-                      </span>
-                      {mined ? <>{" "}<span style={{ whiteSpace: "nowrap" }}>{"· mined "}{mined}</span></> : null}
-                    </span>
-                    <a href={attr.title} target="_blank" rel="noopener" title="Open this block on Etherscan" className="bg-arrow-link" style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-                      Open
-                    </a>
-                  </div>
-                );
-              })()}
-            </CollapsibleCard>
+          ) : isInterval ? null : isDisplayableImage(cachedFile, cachedFile?.c2pa) ? (
+            <PhotoCard cachedFile={cachedFile} c2pa={cachedFile?.c2pa ?? null} bare previewKey={stdDigest(digestParam)} label={heldLabel} />
+          ) : cachedFile ? (
+            <FileCard cachedFile={cachedFile} label={heldLabel} preview={originalInHand} pending={previewPending} />
+          ) : (
+            <div style={{ padding: 16 }}>
+              <BringYourFile proof={proof} setBound={setBound} cacheKey={stdDigest(digestParam)} onMatch={(rec) => setCachedFile(rec)} onResolvedMember={setResolvedMember} />
             </div>
-            {/* Downloads, as on a file proof. One button: an anchor has no
-                original file, so the package zip is deliberately absent (it
-                would hold one member, and a proof is already one file). Named
-                for what it is, since the card around it says download. */}
-            <CollapsibleCard title="Downloads">
-              <div style={{ padding: "8px 16px 14px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
-                  <button onClick={downloadProof} className="bg-action-link" style={{ margin: 0, width: "100%", boxSizing: "border-box", justifyContent: "center", minHeight: 42 }}>
-                    <span>Proof (.json)</span>
-                  </button>
-                </div>
-              </div>
-            </CollapsibleCard>
-            {/* Hashes, where a file proof has them: first after Downloads. */}
-            <CollapsibleCard title="Hashes">
-              {attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
-              <Field
-                label={attr?.message ? `${formatHashAlg(proof.artifact.hashAlg)} of Block Hash` : `${formatHashAlg(proof.artifact.hashAlg)} Digest`}
-                value={proof.artifact.digestB64}
-                mono
-              />
-            </CollapsibleCard>
-            </>
-          )}
-
-          {/* Content Credentials (C2PA) — the manifest embedded in these same
-              bytes, so it continues the file card's thought: the artifact
-              described a second way. It sits ABOVE Recordings, which pivots
-              from describing the file to placing it in the ledger. */}
-          {!isEth && cachedFile?.c2pa?.present && <C2PACard c2pa={cachedFile.c2pa} />}
-
-          {/* Declaration — the key that authorized THIS position. It sits with
-              the recording rather than with the file: the bytes are the same
-              whoever recorded them, and a second recording of them can carry a
-              different key or none. Needs no file in hand, because it is in
-              the proof rather than in the bytes. */}
-
-          {/* Recordings — every causal position these exact bytes occupy. Always
-              present on a file proof (even a single position), so it is also the
-              home of "BitGraph this file Again," the action that adds to this
-              list. File-level context, so it sits right under the file, ahead of
-              the single-proof construction cards. Each row: BitGraph #, the date
-              it was recorded in the role line, and its time window in the
-              mono/data font, plus a link to that position. Ethereum/interval
-              proofs keep the old "only when more than one" behaviour. */}
-          {((!isEth && !isInterval) ? positions.length >= 1 : positions.length > 1) && (
-            <CollapsibleCard title={`Positions (${positions.length})`}>
-              <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)", fontSize: 13, color: "var(--text)", lineHeight: 1.5 }}>
-                {(() => {
-                  // One voice for every position: the original and the new file
-                  // made from it find the same proof, so nothing here says which
-                  // hash the visitor arrived by (Mike, 2026-09-03).
-                  return positions.length === 1
-                    ? <>One position, with its own floor.</>
-                    : <>{`${positions.length} positions. Each sits at its own place in the sequence, with its own floor.`}</>;
-                })()}
-              </div>
-              {[...positions].reverse().map((pos) => {
-                const recordedPositions = positions.filter((p) => p.kind !== "fused");
-                const fusedPositions = positions.filter((p) => p.kind === "fused");
-                const isFusedRow = pos.kind === "fused";
-                // `positions` arrives earliest first (the route fetches it that
-                // way and the ledger's order is chronological across epochs,
-                // which counters alone are not: they reset every epoch). The
-                // rows render reversed, newest at the top.
-                const isEarliest = pos === recordedPositions[0];
-                /* Fused rows were excluded from ranking when they were
-                   introduced, and rightly: back then one only appeared on the
-                   ORIGIN's page, where it is not a recording of those bytes and
-                   "earliest recorded position" would have been false. Fusing is
-                   the standard path now, so a file's whole history can be fused
-                   rows and nothing was marked first at all (Mike, 2026-09-04).
-                   Only when there is more than one: a lone fused row on a
-                   recorded file's page has nothing to be earliest among. */
-                const isEarliestFused = isFusedRow && fusedPositions.length > 1 && pos === fusedPositions[0];
-                const isCurrent =
-                  String(pos.counter) === String(commit.counter) &&
-                  (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
-                const num = pos.counter != null ? Number(pos.counter).toLocaleString() : "?";
-                const t1 = pos.lowerTime ? new Date(pos.lowerTime) : null;
-                const t2 = pos.upperTime ? new Date(pos.upperTime) : null;
-                const sameDay = !!(t1 && t2 && sameUtcDay(t1, t2));
-                // The row's time is the position's own recorded time, the TEE's
-                // signed clock, as the page it opens leads with (Mike, 2026-09-27:
-                // "make it consistent"). It used to be the floor block's mine
-                // time, a different clock and an earlier moment. The block-time
-                // lines stand in only when the attestation cannot be read.
-                const rec = typeof pos.recordedMs === "number" ? new Date(pos.recordedMs) : null;
-                let rowDate: string | null = null;
-                if (rec) rowDate = longDate(rec);
-                else if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
-                else if (t2) rowDate = longDate(t2);
-                else if (t1) rowDate = longDate(t1);
-                /* A fused descendant is listed, never ranked, and links to its
-                   own proof page. It says "from the original" rather than "from
-                   these bytes": this list appears on the ORIGINAL's page and on
-                   every new file's, and from a new file's page "these bytes"
-                   would name the artifact being viewed rather than the origin
-                   all of them share. "The original" is true from either, and
-                   matches the Hashes card above (2026-09-04). */
-                const roleText = isFusedRow
-                  ? isEarliestFused
-                    ? "Earliest new file made from the original"
-                    : "New file made from the original"
-                  : recordedPositions.length === 1 ? "Placed" : isEarliest ? "Earliest placement" : "Placed again";
-                const rowDigest = isFusedRow && pos.artifactDigest ? pos.artifactDigest : digestParam;
-                const roleLine = rowDate ? `${roleText} on ${rowDate}` : roleText;
-                // Without a recorded time, the floor only: a position row carries
-                // no anchor counter, and the next anchor's block time is not an
-                // upper bound.
-                const timesNode = rec
-                  ? val(timeTz(rec))
-                  : t1 ? <>{conn("after ")}{val(sameDay || !t2 ? timeTz(t1) : stampTz(t1))}</> : null;
-                return (
-                  <div key={`${pos.epoch}-${pos.counter}`} className="causal-row" style={{ borderBottom: "1px solid var(--line)" }}>
-                    <div className="causal-top">
-                      <span className="causal-label" style={{ color: "var(--c-accent)" }}>BitGraph <span style={{ fontFamily: mono }}>#{num}</span></span>
-                      {isCurrent ? (
-                        <span className="causal-action" style={{ color: "var(--text)" }}>Viewing</span>
-                      ) : (
-                        <a
-                          className="causal-action bg-arrow-link"
-                          // n= carries THIS page's recording count to the target
-                          // (links between positions are full loads, so nothing
-                          // else survives the hop). The target treats a CDN
-                          // response listing fewer than n positions as provably
-                          // stale and refetches — the case where this page knows
-                          // a recording the cached sibling page predates.
-                          href={`/proof/${encodeURIComponent(rowDigest)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}&n=${positions.length}`}
-                          style={{ color: "var(--c-accent)", textDecoration: "none" }}
-                        >
-                          View <span className="arrow" aria-hidden>&rarr;</span>
-                        </a>
-                      )}
-                    </div>
-                    <div className="causal-role">{roleLine}</div>
-                    {timesNode && <div className="causal-window" style={{ fontFamily: mono }}>{timesNode}</div>}
-                  </div>
-                );
-              })}
-              {/* BitGraph again — a NEW fused artifact from the file in hand,
-                  at a new causal position. It ADDS to the origin's list, so it
-                  lives here rather than in the file card. Offered only with the
-                  file in hand: fusing needs the bytes. */}
-              {!isEth && !isInterval && cachedFile && (
-                /* A column: side by side they collided, and they are two
-                   choices about the same act rather than one sentence. */
-                <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-                  <BitGraphAgainButton proof={proof} cachedFile={cachedFile} />
-                </div>
-              )}
-            </CollapsibleCard>
-          )}
-
-          {/* 1. Slot — reserved first, before anything else */}
-          {/* "Position", not "slot", wherever a reader sees it (Mike, 2026-09-27): a slot IS a
-              reserved position. The schema keeps its signed names (slotAllocation, slotCounter,
-              slotHashB64); the page does not. */}
-          {slot && (
-            <CollapsibleCard title="Reserved Position">
-              <Field label="Position" value={`#${slot.counter}`} highlight />
-              {slot.nonceB64 ? <Field label="Nonce" value={String(slot.nonceB64)} mono /> : null}
-              {slot.signatureB64 ? <Field label="Signature" value={String(slot.signatureB64)} mono /> : null}
-              {slot.epochId ? <Field label="Epoch ID" value={String(slot.epochId)} mono /> : null}
-            </CollapsibleCard>
-          )}
-
-          {/* 2. Artifact hash — only for Ethereum anchors and interval proofs,
-              whose artifact IS a block hash rather than a file. User-file proofs
-              carry their File Hash inside the BitGraphed File card above, with
-              the file it identifies, so there is no separate box here. */}
-          {/* Anchors show these in their own Hashes card, up with the record
-              (2026-09-27); only the legacy interval proof still uses this one. */}
-          {isInterval && (
-            <CollapsibleCard title="Artifact Hash">
-              {isEth && attr?.message && <Field label="Ethereum Block Hash" value={attr.message} mono />}
-              <Field
-                label={isEth && attr?.message
-                  ? `${formatHashAlg(proof.artifact.hashAlg)} of Block Hash`
-                  : `${formatHashAlg(proof.artifact.hashAlg)} Digest`}
-                value={proof.artifact.digestB64}
-                mono
-              />
-            </CollapsibleCard>
-          )}
-
-          {/* 3. Commit — the artifact digest bound to its own position, one past
-              the reserved slot. commit.counter is a DISTINCT position from the
-              slot's (slot reserved at N, the artifact commits at N+1), so it is
-              labeled "Artifact Counter" to set it apart from the slot's counter.
-              When the Causal Slot card above is present it already shows the
-              Epoch ID, Nonce, and slot counter (commit.slotCounter is the same
-              value), so those are not echoed here; the Slot Hash remains as the
-              cryptographic link binding this commit to that slot. With no slot
-              card, they surface here so nothing is hidden. */}
-          <CollapsibleCard title="Artifact Commit">
-            <Field label="Artifact Counter" value={`#${commit.counter}`} highlight />
-            {!slot && commit.epochId && <Field label="Epoch ID" value={String(commit.epochId)} mono />}
-            {commit.prevB64 && <Field label="Previous Hash" value={commit.prevB64} mono />}
-            {!slot && commit.nonceB64 && <Field label="Nonce" value={commit.nonceB64} mono />}
-            {!slot && commit.slotCounter != null && <Field label="Reserved Position" value={`#${commit.slotCounter}`} />}
-            {commit.slotHashB64 && <Field label="Reserved Position Hash" value={commit.slotHashB64} mono />}
-            {/* Enclave v7: the floor fixed at allocation (the chain's latest
-                Ethereum anchor when this slot was reserved), and, on anchor
-                proofs, the block this proof anchors. Both are signed. */}
-            {commit.slotAnchor && (
-              <Field label="Anchor at Allocation" value={`Ethereum block ${commit.slotAnchor.blockNumber} (anchor #${commit.slotAnchor.counter})`} />
-            )}
-            {commit.slotAnchor && <Field label="Anchor Block Hash" value={commit.slotAnchor.blockHash} mono />}
-            {commit.anchor && <Field label="Anchored Block" value={`Ethereum block ${commit.anchor.blockNumber}`} highlight />}
-            {commit.anchor && <Field label="Anchored Block Hash" value={commit.anchor.blockHash} mono />}
-          </CollapsibleCard>
-
-          {/* 4. Signer — the proof's own fingerprint (the proofHash) first, then
-              the enclave's Ed25519 signature over it. The proofHash is computed
-              last, from the fully assembled signed body, and is the value the
-              attestation in the Environment card below binds to
-              (user_data == proofHash), so it belongs here at the signing step,
-              not up in the receipt. */}
-          <CollapsibleCard title="Signature">
-            {(proof as BitGraphProof & { proofHash?: string }).proofHash && (
-              <Field label="This BitGraph's Hash" value={(proof as BitGraphProof & { proofHash?: string }).proofHash!} mono />
-            )}
-            <Field label="Signature" value={proof.signer.signatureB64} mono />
-            <Field label="Public Key" value={proof.signer.publicKeyB64} mono />
-          </CollapsibleCard>
-
-          {/* 5. Environment — where it was signed */}
-          {/* The title states the signing environment outright (the old vague
-              "Environment" + Enforcement field pair), and the evidence — PCR0,
-              attestation format, the verify action — is optional depth. */}
-          <CollapsibleCard title={isTee ? "Hardware Enclave" : "Software"}>
-            {proof.environment?.measurement && <Field label="PCR0 Measurement" value={proof.environment.measurement} mono />}
-            {proof.environment?.attestation?.format && <Field label="Attestation Format" value={proof.environment.attestation.format} />}
-            {proof.environment?.attestation?.reportB64 && proof.environment?.measurement && (
-              <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
-                <AttestationButton
-                  reportB64={proof.environment.attestation.reportB64}
-                  measurement={proof.environment.measurement}
-                  proof={proof}
-                  bounds={baseCeiling?.anchor && baseCeiling.floor ? { floor: baseCeiling.floor, ceiling: baseCeiling.anchor } : undefined}
-                />
-              </div>
-            )}
-          </CollapsibleCard>
-
-          {/* Ethereum Seal */}
-          {/* Ethereum info — single card for both anchor proofs and user proofs */}
-
-          {/* "Recorded after this block" — the previous same-epoch anchor (lower
-              time bound). Renders anchorBefore, the earlier block: the BitGraph
-              was recorded AFTER this block. Shown above "Recorded before this
-              block" so the pair reads as a bracket: after this block, before
-              that one. */}
-          {!isEth && causalWindow?.anchorBefore && (
-            <CollapsibleCard title="Time and position floor">
-              {causalWindow.anchorBefore.blockNumber !== null && (
-                <Field label="Block" value={`#${causalWindow.anchorBefore.blockNumber.toLocaleString()}`} highlight />
-              )}
-              {causalWindow.anchorBefore.blockTime && (
-                <Field label="Block mined" value={stampTz(new Date(causalWindow.anchorBefore.blockTime))} />
-              )}
-              {anchorRecordedMs.before !== null && (
-                <Field label="Anchor recorded" value={stampTz(new Date(anchorRecordedMs.before))} />
-              )}
-              {causalWindow.anchorBefore.etherscanUrl && (
-                <Field label="Etherscan" value={causalWindow.anchorBefore.etherscanUrl} link />
-              )}
-              {causalWindow.anchorBefore.digestB64 && (
-                <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
-                  <a
-                    href={`/proof/${encodeURIComponent((causalWindow.anchorBefore.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
-                    className="bg-action-link"
-                  >
-                    <span>View Anchor BitGraph #{causalWindow.anchorBefore.counter}</span>
-                    <span className="arrow" aria-hidden>&rarr;</span>
-                  </a>
-                </div>
-              )}
-            </CollapsibleCard>
-          )}
-
-          {/* The anchor's own block card moved to the content slot above; here
-              only the file proof's sealing "Before" anchor renders — an anchor
-              is the bracket, so it has no before/after window of its own. */}
-          {!isEth && causalWindow?.anchorAfter ? (
-            <CollapsibleCard title="Position ceiling">
-              {/* The card answers its own title first: when the anchor was recorded,
-                  which is the ceiling. The block's mine time follows, labelled as the
-                  block's, because it is earlier than the anchor and is not a bound. */}
-              {anchorRecordedMs.after !== null && (
-                <Field label="Anchor recorded" value={stampTz(new Date(anchorRecordedMs.after))} highlight />
-              )}
-              {causalWindow.anchorAfter.blockNumber !== null && (
-                <Field label="Block" value={`#${causalWindow.anchorAfter.blockNumber.toLocaleString()}`} highlight={anchorRecordedMs.after === null} />
-              )}
-              {causalWindow.anchorAfter.blockTime && (
-                <Field label="Block mined" value={stampTz(new Date(causalWindow.anchorAfter.blockTime))} />
-              )}
-              {causalWindow.anchorAfter.etherscanUrl && (
-                <Field label="Etherscan" value={causalWindow.anchorAfter.etherscanUrl} link />
-              )}
-              {causalWindow.anchorAfter.digestB64 && (
-                <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
-                  <a
-                    href={`/proof/${encodeURIComponent((causalWindow.anchorAfter.digestB64 || "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""))}`}
-                    className="bg-action-link"
-                  >
-                    <span>View Anchor BitGraph #{causalWindow.anchorAfter.counter}</span>
-                    <span className="arrow" aria-hidden>&rarr;</span>
-                  </a>
-                </div>
-              )}
-            </CollapsibleCard>
-          ) : null}
-
-          {/* Base ceiling: a ceiling in TIME, beside the positional one above.
-              Times are the Base block's own, in UTC, so they match Basescan.
-              The window's floor is the proof's signed slotAnchor block, read
-              from the header the sidecar carries (checked by the writer). */}
-          {!isEth && baseCeiling && (
-            <CollapsibleCard title={baseCeiling.anchor ? "Time ceiling" : "Time ceiling, pending"}>
-              {baseCeiling.anchor ? (
-                <>
-                  <Field label="Block time" value={stampTz(new Date(baseCeiling.anchor.blockTimestamp * 1000))} highlight />
-                  <Field label="Block" value={`#${baseCeiling.anchor.blockNumber.toLocaleString()}`} />
-                  {baseCeiling.floor?.blockTimestamp != null && (
-                    <Field label="Window" value={`${(baseCeiling.anchor.blockTimestamp - baseCeiling.floor.blockTimestamp).toLocaleString()} seconds after the floor block`} />
-                  )}
-                  {/* The status is what BitGraph's Base node last reported, not something the ceiling file
-                      proves (outside review, 2026-09-30). Base "safe" means the block's data is posted to
-                      Ethereum; "finalized" means the Ethereum block holding it is final. */}
-                  <Field
-                    label="Status"
-                    value={baseCeiling.status === "finalized"
-                      ? "Final on Ethereum, as BitGraph's Base node last reported"
-                      : baseCeiling.status === "safe"
-                        ? "Posted to Ethereum, as BitGraph's Base node last reported"
-                        : "Relies on Base's sequencer until it is posted to Ethereum"}
-                  />
-                  <Field label="Basescan" value={`https://basescan.org/tx/${baseCeiling.anchor.txHash}`} link />
-                  <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)", display: "flex", gap: 20, flexWrap: "wrap" }}>
-                    <a href={`/ceilings?day=${new Date(baseCeiling.anchor.blockTimestamp * 1000).toISOString().slice(0, 10)}`} className="bg-action-link">
-                      <span>All ceilings</span>
-                      <span className="arrow" aria-hidden>&rarr;</span>
-                    </a>
-                    <a href={`/api/ceilings/${((proof as BitGraphProof & { proofHash?: string }).proofHash ?? "").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`} download className="bg-action-link">
-                      <span>Download ceiling file</span>
-                      <span className="arrow" aria-hidden>&darr;</span>
-                    </a>
-                  </div>
-                </>
-              ) : (
-                <Field label="Status" value="Queued for the next Base write" />
-              )}
-            </CollapsibleCard>
-          )}
-
-          {/* Submitter's Note — self-supplied, only for non-ETH proofs that carry
-              it. These values are typed in by whoever made the proof and are NOT
-              verified by BitGraph, so the card says so and never labels the name
-              as "Creator". */}
-          {isInterval && (
-            <CollapsibleCard title="Interval BitGraph">
-              {intervalBlockNum && <Field label="Ethereum Block" value={`https://etherscan.io/block/${intervalBlockNum}`} link />}
-              {attr?.message && <Field label="Block Hash" value={attr.message} mono />}
-              {intervalBegan && <Field label="Window Began" value={intervalBegan} valueNode={intervalBeganNode} />}
-              {recordedLine && <Field label="Window Ended" value={recordedLine} valueNode={recordedNode} />}
-            </CollapsibleCard>
-          )}
-
-          {/* Advisory timestamp — the Ethereum window above is the authoritative
-              time mechanism. A TSA time, if present, is advisory only, so it is
-              labeled as such and sits last. */}
-          {ts && (
-            <CollapsibleCard title="Advisory Timestamp">
-              {ts.authority ? <Field label="Authority" value={String(ts.authority)} /> : null}
-              {ts.time ? <Field label="TSA Time" value={String(ts.time)} /> : null}
-              {ts.digestAlg ? <Field label="Digest Algorithm" value={String(ts.digestAlg)} /> : null}
-            </CollapsibleCard>
-          )}
-
-          {/* Submitter's Note — LAST card, like an appendix: it was appended to
-              the recording by whoever made it. The title slot is a link ONLY
-              when it actually holds a URL; agents routinely put prose there,
-              which used to render as a link to nowhere. */}
-          {/* The signed marker is not a person's note: the Hashes card reads it
-              into the lines above and it stays in Raw JSON. */}
-          {attr && !isEth && !isInterval && !isFuseName(attr.name) && (
-            <CollapsibleCard title="Submitter's Note">
-              {attr.name && <Field label="Submitted by" value={attr.name} />}
-              {attr.message && <Field label="Note" value={attr.message} mono />}
-              {attr.title && (/^https?:\/\//i.test(attr.title.trim())
-                ? <Field label="Link" value={attr.title} link />
-                : <Field label="Title" value={attr.title} />)}
-            </CollapsibleCard>
-          )}
-
-          {/* Raw JSON — a collapsible card like the others (was a button that
-              opened a modal), so the whole proof reads as one stack of cards. */}
-          <JsonSection proof={proof} />
-        </div>
-
+          );
+          const hashes: FieldView[] = isEth
+            ? [
+                ...(attr?.message ? [{ label: "Ethereum block hash", value: attr.message, mono: true }] : []),
+                { label: attr?.message ? `${formatHashAlg(proof.artifact.hashAlg)} of the block hash` : `${formatHashAlg(proof.artifact.hashAlg)} digest`, value: proof.artifact.digestB64, mono: true },
+              ]
+            : [
+                { label: "Commitment", value: carriedBy },
+                ...(inlineCommitment ? [{ label: "Position commitment", value: inlineCommitment, mono: true }] : []),
+                ...(isSet
+                  ? [
+                      ...(viewingRow ? [{ label: "New file hash", value: viewingRow.fusedDigestB64, mono: true }, { label: "Original file hash", value: viewingRow.originDigestB64, mono: true }] : []),
+                      { label: "Set hash", value: proof.artifact.digestB64, mono: true },
+                    ]
+                  : placementId !== null
+                    ? [{ label: "New file hash", value: proof.artifact.digestB64, mono: true }, { label: "Original file hash", value: attr?.message ?? "not declared", mono: true }]
+                    : [{ label: "File hash", value: proof.artifact.digestB64, mono: true }]),
+              ];
+          // Positions: every causal position these bytes occupy, newest first, each with its
+          // role and its own recorded instant (the enclave's clock; the floor time stands in).
+          const recordedPositions = positions.filter((p) => p.kind !== "fused");
+          const fusedPositions = positions.filter((p) => p.kind === "fused");
+          const positionRows: PositionRowView[] = [...positions].reverse().map((pos) => {
+            const isFusedRow = pos.kind === "fused";
+            const isEarliest = pos === recordedPositions[0];
+            const isEarliestFused = isFusedRow && fusedPositions.length > 1 && pos === fusedPositions[0];
+            const isCurrent = String(pos.counter) === String(commit.counter) && (!pos.epoch || !commit.epochId || pos.epoch === toSafeB64(String(commit.epochId)));
+            const t1 = pos.lowerTime ? new Date(pos.lowerTime) : null;
+            const t2 = pos.upperTime ? new Date(pos.upperTime) : null;
+            const sameDay = !!(t1 && t2 && sameUtcDay(t1, t2));
+            const rec = typeof pos.recordedMs === "number" ? new Date(pos.recordedMs) : null;
+            let rowDate: string | null = null;
+            if (rec) rowDate = longDate(rec);
+            else if (t1 && t2) { if (sameDay) rowDate = longDate(t2); }
+            else if (t2) rowDate = longDate(t2);
+            else if (t1) rowDate = longDate(t1);
+            const roleText = isFusedRow
+              ? isEarliestFused ? "Earliest new file made from the original" : "New file made from the original"
+              : recordedPositions.length === 1 ? "Placed" : isEarliest ? "Earliest placement" : "Placed again";
+            const rowDigest = isFusedRow && pos.artifactDigest ? pos.artifactDigest : digestParam;
+            return {
+              key: `${pos.epoch}-${pos.counter}`,
+              num: pos.counter != null ? Number(pos.counter).toLocaleString() : "?",
+              viewing: isCurrent,
+              href: `/proof/${encodeURIComponent(rowDigest)}?counter=${encodeURIComponent(pos.counter ?? "")}${pos.epoch ? `&epoch=${encodeURIComponent(pos.epoch)}` : ""}&n=${positions.length}`,
+              roleLine: rowDate ? `${roleText} on ${rowDate}` : roleText,
+              timeNode: rec ? timeTz(rec) : t1 ? `after ${sameDay || !t2 ? timeTz(t1) : stampTz(t1)}` : null,
+            };
+          });
+          const showPositions = (!isEth && !isInterval) ? positions.length >= 1 : positions.length > 1;
+          const setRowsView: SetRowView[] = setBound ? setRows.map((mrow, i) => ({
+            key: String(mrow.index),
+            ordinal: setBound.kind === "set/2" ? mrow.index + 1 : i + 1,
+            viewing: viewingRow !== null && viewingRow.index === mrow.index,
+            href: `/proof/${encodeURIComponent(toUrlSafeB64(mrow.originDigestB64))}?counter=${encodeURIComponent(commit.counter ?? "")}${commit.epochId ? `&epoch=${encodeURIComponent(toSafeB64(String(commit.epochId)))}` : ""}`,
+            placement: mrow.placement,
+            originDigestB64: mrow.originDigestB64,
+          })) : [];
+          const downloads: DownloadView[] = isEth
+            ? [{ label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false }]
+            : [
+                ...(cachedFile && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor ? [{ label: "BitGraphed file", busyLabel: "Assembling\u2026", onClick: downloadCarrier, busy: carrierBusy, primary: true }] : []),
+                { label: "Package (.zip)", busyLabel: "Exporting\u2026", onClick: exportZip, busy: exporting },
+                { label: "Proof (.json)", busyLabel: "Proof (.json)", onClick: downloadProof, busy: false },
+                ...(cachedFile && !isSet && cachedRole !== "original" && isFuseName(attr?.name) && !isInlineProof(proof) ? [{ label: "Original file", busyLabel: "Recovering\u2026", onClick: downloadOriginal, busy: originBusy }] : []),
+                { label: "Ethereum anchors", busyLabel: "Fetching\u2026", onClick: downloadAnchors, busy: anchorsBusy },
+              ];
+          const downloadNotes = [
+            ...(originMsg ? [originMsg] : []),
+            ...(carrierMsg ? [carrierMsg] : []),
+            ...(anchorsMsg ? [anchorsMsg] : []),
+            ...(!cachedFile && !isEth ? ["The file itself is not on this device: the downloads carry the proof and its evidence, and the BitGraphed file needs the file in hand."] : []),
+          ];
+          const proofHashField = (proof as BitGraphProof & { proofHash?: string }).proofHash;
+          const model: ProofViewModel = {
+            kind,
+            proof,
+            recordName,
+            epochFull,
+            attestedMs,
+            leadFallback: whenNode,
+            filePane,
+            c2pa: !isEth && cachedFile?.c2pa?.present ? cachedFile.c2pa : null,
+            set: setBound ? { kind: setBound.kind, count: setBound.count, root: setBound.root ? bytesToHex(setBound.root) : null, rows: setRowsView } : null,
+            anchorBlock: isEth ? { number: ethBlockNum, minedMs: anchorBlock?.blockTime ? new Date(anchorBlock.blockTime).getTime() : null, etherscanUrl: attr?.title ?? anchorBlock?.etherscanUrl ?? null } : null,
+            anchorsBackHref,
+            floor: floorView,
+            commitAfter,
+            ceilingPos: ceilView,
+            ethWait,
+            ceilingTime: !isEth ? (baseCeiling as ProofViewModel["ceilingTime"]) : null,
+            ceilingFileHref: !isEth && baseCeiling?.anchor && proofHashField ? `/api/ceilings/${stdB64(proofHashField).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}` : null,
+            checks,
+            onConfirm: confirmAgainstNodes,
+            downloads,
+            downloadNotes,
+            againNode: !isEth && !isInterval && cachedFile ? <BitGraphAgainButton proof={proof} cachedFile={cachedFile} /> : null,
+            hashes,
+            positions: showPositions ? { intro: positions.length === 1 ? "One position, with its own floor." : `${positions.length} positions. Each sits at its own place in the sequence, with its own floor.`, rows: positionRows } : null,
+            positionRecord: slot ? [
+              { label: "Position", value: `#${slot.counter}`, highlight: true },
+              ...(slot.nonceB64 ? [{ label: "Nonce", value: String(slot.nonceB64), mono: true }] : []),
+              ...(slot.signatureB64 ? [{ label: "Signature", value: String(slot.signatureB64), mono: true }] : []),
+              ...(slot.epochId ? [{ label: "Epoch", value: String(slot.epochId), mono: true }] : []),
+            ] : [],
+            commitRows: [
+              { label: "Commit position", value: `#${commit.counter}`, highlight: true },
+              ...(!slot && commit.epochId ? [{ label: "Epoch", value: String(commit.epochId), mono: true }] : []),
+              ...(commit.prevB64 ? [{ label: "Previous proof hash", value: commit.prevB64, mono: true }] : []),
+              ...(!slot && commit.nonceB64 ? [{ label: "Nonce", value: commit.nonceB64, mono: true }] : []),
+              ...(!slot && commit.slotCounter != null ? [{ label: "Reserved position", value: `#${commit.slotCounter}` }] : []),
+              ...(commit.slotHashB64 ? [{ label: "Position record hash", value: commit.slotHashB64, mono: true }] : []),
+              ...(commit.slotAnchor ? [{ label: "Floor at allocation", value: `Ethereum block ${commit.slotAnchor.blockNumber} (anchor #${commit.slotAnchor.counter})` }, { label: "Floor block hash", value: commit.slotAnchor.blockHash, mono: true }] : []),
+              ...(commit.anchor ? [{ label: "Anchored block", value: `Ethereum block ${commit.anchor.blockNumber}`, highlight: true }, { label: "Anchored block hash", value: commit.anchor.blockHash, mono: true }] : []),
+            ],
+            signatureRows: [
+              ...(proofHashField ? [{ label: "This BitGraph's hash", value: proofHashField, mono: true }] : []),
+              { label: "Signature", value: proof.signer.signatureB64, mono: true },
+              { label: "Public key", value: proof.signer.publicKeyB64, mono: true },
+            ],
+            enclaveRows: [
+              ...(proof.environment?.measurement ? [{ label: "PCR0 (the enclave image)", value: proof.environment.measurement, mono: true }] : []),
+              ...(proof.environment?.attestation?.format ? [{ label: "Attestation", value: proof.environment.attestation.format }] : []),
+            ],
+            intervalRows: isInterval ? [
+              ...(intervalBlockNum ? [{ label: "Ethereum block", value: `https://etherscan.io/block/${intervalBlockNum}`, link: true }] : []),
+              ...(attr?.message ? [{ label: "Block hash", value: attr.message, mono: true }] : []),
+              ...(intervalBegan ? [{ label: "Window began", value: intervalBegan }] : []),
+              ...(recordedLine ? [{ label: "Window ended", value: recordedLine }] : []),
+            ] : [],
+            advisoryRows: ts ? [
+              ...(ts.authority ? [{ label: "Authority", value: String(ts.authority) }] : []),
+              ...(ts.time ? [{ label: "TSA time", value: String(ts.time) }] : []),
+              ...(ts.digestAlg ? [{ label: "Digest algorithm", value: String(ts.digestAlg) }] : []),
+            ] : [],
+            noteRows: attr && !isEth && !isInterval && !isFuseName(attr.name) ? [
+              ...(attr.name ? [{ label: "Submitted by", value: attr.name }] : []),
+              ...(attr.message ? [{ label: "Note", value: attr.message, mono: true }] : []),
+              ...(attr.title ? [(/^https?:\/\//i.test(attr.title.trim()) ? { label: "Link", value: attr.title, link: true } : { label: "Title", value: attr.title })] : []),
+            ] : [],
+          };
+          return model;
+        })()} />
       </div>
     </Shell>
   );
@@ -2305,91 +1867,6 @@ function FreshRecordingWait() {
 /* ── Collapsible card — same face as Card, but the header is a disclosure
    toggle. Used for the two ETH anchor sections: their titles already state
    the essential fact (after/before block #N), so the details are optional. ── */
-
-/* The three bound cards are titled by what they do (Mike, 2026-09-30): "Time
-   and position floor", "Position ceiling", "Time ceiling". Which block or anchor
-   each one is sits inside the card, with its Etherscan or Basescan link. */
-function CollapsibleCard({ title, children, defaultOpen }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
-  // Every card folds. The record card was the one always-open ("plain") card
-  // until 2026-09-28, when it became a card like the rest, closed by default.
-  // Cards open in place; the page does not scroll to them. Scrolling an opened
-  // card to the centre was tried on 2026-09-29 and reverted the next day
-  // (Mike: "they should load like they used to").
-  const [open, setOpen] = useState(!!defaultOpen);
-  const headerStyle: React.CSSProperties = {
-    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%",
-    fontSize: 14, fontWeight: 700, letterSpacing: "0.04em", color: "var(--accent)",
-    padding: "14px 16px", background: open ? "var(--tint)" : "var(--panel)",
-    border: "none", borderBottom: open ? "1px solid var(--line)" : "none",
-    textAlign: "left", fontFamily: "inherit",
-  };
-  return (
-    <div style={{ background: "var(--panel)", border: "1px solid var(--hair)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
-      {(
-        /* The header is a full-row toggle with the same hover + outlined-button
-           affordance as the explorer rows: the row tints on hover and the
-           chevron button inverts to solid blue, so a collapsed card reads as
-           clearly clickable. */
-        <button
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className="bg-collapse-head"
-          style={{ ...headerStyle, cursor: "pointer" }}
-        >
-          <span>{title}</span>
-          <span className="bg-collapse-chev" aria-hidden style={{ display: "inline-flex", flexShrink: 0, transform: open ? "rotate(90deg)" : "none", transition: "transform .18s" }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6 L15 12 L9 18" /></svg>
-          </span>
-        </button>
-      )}
-      {open && <div className="proof-fields" style={{ padding: "4px 0", animation: "fadeIn .2s ease-out" }}>{children}</div>}
-    </div>
-  );
-}
-
-/* ── Field with copy ── */
-
-function Field({ label, value, valueNode, mono: isMono, highlight, link, center, topBorder }: { label: string; value: string; valueNode?: React.ReactNode; mono?: boolean; highlight?: boolean; link?: boolean; center?: boolean; topBorder?: boolean }) {
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <div
-      onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-      style={{
-        display: "flex", flexDirection: "column", gap: 5,
-        padding: "14px 16px", borderBottom: "1px solid var(--line)", cursor: "pointer",
-        textAlign: center ? "center" : undefined,
-        // Divider above the row, for when it follows non-field content (e.g. the
-        // File Hash under the file image/dropzone, which has no bottom border).
-        ...(topBorder ? { borderTop: "1px solid var(--line)" } : {}),
-      }}
-    >
-      <span style={{ fontSize: 14, color: "var(--text)", fontWeight: 700 }}>{label}</span>
-      {link ? (
-        <a href={value} target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{
-          fontSize: 13, color: "var(--c-accent)", textDecoration: "none", wordBreak: "break-all",
-        }}>{value}</a>
-      ) : (
-        <span style={{
-          fontSize: isMono ? 12 : 14,
-          fontFamily: isMono ? mono : "inherit",
-          color: copied ? "var(--accent)" : highlight ? "var(--c-accent)" : "var(--text)",
-          fontWeight: highlight ? 700 : 400,
-          transition: "color .2s", lineHeight: 1.6,
-          // Mono values (hashes, keys, nonces) are long fixed-length strings:
-          // keep them on one line and let the row scroll horizontally on narrow
-          // screens instead of shredding them across ragged wrapped lines.
-          // Still tap-to-copy, so nobody needs to scroll to grab the value.
-          ...(isMono
-            ? { whiteSpace: "nowrap", overflowX: "auto", WebkitOverflowScrolling: "touch" }
-            : { wordBreak: valueNode ? "normal" : "break-all" }),
-        }}>
-          {copied ? "Copied!" : (valueNode ?? value)}
-        </span>
-      )}
-    </div>
-  );
-}
 
 const btnStyle: React.CSSProperties = {
   padding: "8px 16px", fontSize: 13, fontWeight: 600, color: "var(--panel)",
@@ -2435,48 +1912,6 @@ function BitGraphAgainButton({ proof, cachedFile }: { proof: BitGraphProof; cach
         <div style={{ fontSize: 12.5, color: "var(--err)", textAlign: "center" }}>{message}</div>
       )}
     </>
-  );
-}
-
-function JsonSection({ proof }: { proof: BitGraphProof }) {
-  const [copied, setCopied] = useState(false);
-  const json = JSON.stringify(proof, null, 2);
-  return (
-    <CollapsibleCard title="Raw JSON">
-      {/* No copy button: click anywhere on the JSON to copy it, the same
-          tap-to-copy affordance every Field uses. A brief "Copied!" chip
-          confirms it without hiding the content. */}
-      <div style={{ padding: "14px 16px", position: "relative" }}>
-        {copied && (
-          <span style={{
-            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 50,
-            padding: "10px 22px", fontSize: 14, fontWeight: 700, color: "var(--panel)",
-            background: "var(--accent)", borderRadius: "var(--radius-card)", pointerEvents: "none",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
-          }}>
-            Copied!
-          </span>
-        )}
-        <pre
-          onClick={() => { navigator.clipboard.writeText(json); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-          style={{
-            fontSize: 12,
-            lineHeight: 1.6,
-            color: "var(--text)",
-            padding: 14,
-            margin: 0,
-            background: "var(--panel)",
-            border: "1px solid var(--line)",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-            fontFamily: mono,
-            cursor: "pointer",
-          }}
-        >
-          {json}
-        </pre>
-      </div>
-    </CollapsibleCard>
   );
 }
 
@@ -3241,83 +2676,12 @@ function FileCard({ cachedFile, label, preview, pending }: {
    recognized IPTC source types get a friendly label, so an unknown code falls
    back to the generator line rather than guessing. */
 
-const SOURCE_TYPE_LABELS: Record<string, string> = {
-  trainedAlgorithmicMedia: "Generated by AI",
-  compositeWithTrainedAlgorithmicMedia: "Contains AI-generated elements",
-  digitalCapture: "Camera capture",
-};
 
 // Turn a raw C2PA generator into a human label, e.g.
 // "lightroom_classic/15.3.1" -> "Lightroom Classic 15.3.1". Prefers the
 // structured claimGeneratorInfo (clean name + version), falling back to the
 // User-Agent-style claim_generator string. Only word-initial letters are
 // cased, so acronyms like "ChatGPT" / "OpenAI" survive untouched.
-function formatGenerator(c2pa: C2PAReadResult): string | undefined {
-  const prettify = (s: string) =>
-    s.replace(/[_-]+/g, " ").trim().replace(/\b\w/g, (ch) => ch.toUpperCase());
-  const info = c2pa.claimGeneratorInfo?.find((g) => g.name);
-  if (info?.name) return info.version ? `${prettify(info.name)} ${info.version}` : prettify(info.name);
-  const raw = c2pa.claimGenerator;
-  if (!raw) return undefined;
-  const [namePart, version] = raw.split(/\s+/)[0].split("/");
-  return version ? `${prettify(namePart)} ${version}` : prettify(namePart);
-}
-
-function C2PACard({ c2pa }: { c2pa: C2PAReadResult }) {
-  const sourceText = c2pa.digitalSourceType ? SOURCE_TYPE_LABELS[c2pa.digitalSourceType] : undefined;
-  const generator = formatGenerator(c2pa);
-  // OpenAI-origin credentials get a link to OpenAI's own verifier
-  // (upload-only; it has no URL parameters, and BitGraph never holds the
-  // bytes). The visitor uploads the same file there themselves, which is
-  // exactly what makes the check independent of this site.
-  const isOpenAI = /openai|chatgpt|gpt-image|dall.?e/i.test(
-    [c2pa.claimGenerator, ...(c2pa.claimGeneratorInfo?.map((g) => g.name) || []), c2pa.signatureIssuer]
-      .filter(Boolean).join(" "),
-  );
-
-  return (
-    /* Collapsible like the other optional cards, plain title, no badge: the
-       fields inside (Signed by, Source, Made with) say what the manifest
-       claims; a header glyph must never imply validation. It never asserts
-       the file is authentic. */
-    <CollapsibleCard title="Content Credentials (C2PA)">
-      {sourceText && <Field label="Source" value={sourceText} highlight />}
-      {generator && <Field label="Made with" value={generator} />}
-      {c2pa.creator && <Field label="Creator" value={c2pa.creator} />}
-      {c2pa.signatureIssuer && <Field label="Signed by" value={c2pa.signatureIssuer} />}
-      {/* The ancestors the file carries, one row each, nearest first. Until now
-          the card showed a four-manifest file exactly as it showed a
-          one-manifest file: the toolkit decoded every ancestor and the reader
-          kept only a count, which was never rendered.
-
-          The relationship is printed AS DECLARED rather than flattened to
-          "Parent". `parentOf` and `inputTo` are different claims and the
-          difference is load bearing: an ancestor attached as an input is not
-          reached by walking parents, so a chain can look complete while its
-          real source sits off to the side.
-
-          Nothing here is a verdict. These rows say what the file carries and
-          who signed each part, which is exactly what lets a reader see that an
-          ancestor was signed with a throwaway local certificate. */}
-      {c2pa.chain?.map((link, i) => (
-        <Field
-          key={i}
-          label={i === 0 ? "Chain" : ""}
-          value={`${link.relationship ?? "ancestor"} · ${link.signer ?? "unknown signer"}`}
-        />
-      ))}
-      {isOpenAI && (
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
-          <a href="https://openai.com/research/verify/" target="_blank" rel="noopener" className="bg-action-link">
-            <span>Verify with OpenAI</span>
-            <span className="arrow" aria-hidden>&rarr;</span>
-          </a>
-        </div>
-      )}
-    </CollapsibleCard>
-  );
-}
-
 /* ── Sniff browser-renderable image types from magic bytes ──
    Lets the preview work when the filename has no usable extension (some AI
    exports / ChatGPT downloads arrive that way). Covers only the formats an
@@ -3461,198 +2825,4 @@ function extractJpegFromRaw(data: Uint8Array): Blob | null {
 
 /* ── Attestation Verifier (modal) ── */
 
-/** What AWS documents each PCR as measuring. PCR0 has its own line above; PCR8 is empty on an unsigned image. */
-const PCR_MEANING: Record<string, string> = {
-  "1": "Linux kernel and boot",
-  "2": "application",
-  "3": "IAM role of the parent instance; changes if that role changes",
-  "4": "ID of the parent instance; changes when the enclave runs on a different instance",
-  "8": "enclave image signing certificate",
-};
 
-function AttestationButton({ reportB64, measurement, proof, bounds: win }: {
-  reportB64: string;
-  measurement: string;
-  proof: BitGraphProof;
-  /** The floor block and the Base ceiling block, when this proof has a time ceiling. */
-  bounds?: { floor: { blockNumber: number; blockTimestamp: number }; ceiling: { blockNumber: number; blockTimestamp: number } };
-}) {
-  const [open, setOpen] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<NitroVerifyResult | null>(null);
-  const [copiedReport, setCopiedReport] = useState(false);
-
-  async function runVerify() {
-    setRunning(true);
-    setResult(null);
-    // Yield to allow UI repaint
-    await new Promise((r) => setTimeout(r, 50));
-    try {
-      // Recompute this proof's hash and require the attestation's user_data to
-      // match it, so a genuine attestation can't be lifted onto a forged proof.
-      const expectedUserData = await proofHashB64(proof);
-      const r = await verifyNitroAttestation(reportB64, measurement, expectedUserData);
-      setResult(r);
-    } catch (e) {
-      setResult({
-        valid: false,
-        checks: [{ name: "Verification Error", pass: false, detail: e instanceof Error ? e.message : String(e) }],
-        pcrs: {},
-      });
-    }
-    setRunning(false);
-  }
-
-  if (!open) {
-    return (
-      <button onClick={() => { setOpen(true); runVerify(); }} className="bg-action-link">
-        <span>Verify Attestation</span>
-        <span className="arrow" aria-hidden>&rarr;</span>
-      </button>
-    );
-  }
-
-  return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
-      onClick={() => setOpen(false)}
-    >
-      <div
-        style={{ width: "100%", maxWidth: 920, maxHeight: "85vh", display: "flex", flexDirection: "column", background: "var(--panel)", borderRadius: "var(--radius-card)", border: "1px solid var(--hair)", boxShadow: "var(--shadow-menu)", overflow: "hidden" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--line)" }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>AWS Nitro attestation</span>
-          {/* RESTYLE 2026-09-11: the app's pill, like every action. */}
-          <button type="button" onClick={() => setOpen(false)} className="bg-action-link" style={{ margin: 0, padding: "7px 16px", fontSize: 14 }}>Close</button>
-        </div>
-
-        {/* Body */}
-        <div style={{ flex: 1, overflow: "auto", padding: "18px 20px" }}>
-          {running && (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--dim)", fontSize: 14 }}>
-              Verifying signature, certificate chain, and PCR0…
-            </div>
-          )}
-
-          {result && (
-            <>
-              {/* Overall status */}
-              <div style={{
-                padding: "14px 18px", marginBottom: 16, borderRadius: "var(--radius-row)",
-                background: result.valid ? "var(--tint)" : "var(--err-tint)",
-                border: `1px solid ${result.valid ? "var(--tint)" : "var(--err-tint)"}`,
-              }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: result.valid ? "var(--accent)" : "var(--err)" }}>
-                  {result.valid ? "Attestation Verified" : "Verification Failed"}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--dim)", marginTop: 4 }}>
-                  {result.valid
-                    ? "All checks passed. This BitGraph was signed inside an AWS Nitro Enclave with the displayed PCR0."
-                    : "One or more verification steps failed. See details below."}
-                </div>
-              </div>
-
-              {/* Checks */}
-              <div style={{ marginBottom: 18 }}>
-                {result.checks.map((c, i) => (
-                  <div key={i} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: i < result.checks.length - 1 ? "1px solid var(--panel)" : "none" }}>
-                    <span style={{ fontSize: 16, color: c.pass ? "var(--accent)" : "var(--err)", flexShrink: 0 }}>{c.pass ? "✓" : "✗"}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--dim)", marginTop: 2, wordBreak: "break-all" }}>{c.detail}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Decoded fields */}
-              {(result.moduleId || result.timestamp || result.userDataB64) && (
-                <div style={{ marginBottom: 18, padding: "14px 18px", background: "var(--panel)", borderRadius: "var(--radius-row)", border: "1px solid var(--line)" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Decoded from Attestation Document</div>
-                  {result.moduleId && (
-                    <div style={{ fontSize: 12, color: "var(--text)", marginBottom: 4, wordBreak: "break-all" }}>
-                      <span style={{ color: "var(--dim)" }}>Module ID: </span>{result.moduleId}
-                    </div>
-                  )}
-                  {result.timestamp && (
-                    <div style={{ fontSize: 12, color: "var(--text)", marginBottom: 4 }}>
-                      <span style={{ color: "var(--dim)" }}>Timestamp, signed by AWS Nitro hardware: </span>{stampTz(new Date(result.timestamp))}
-                    </div>
-                  )}
-                  {/* Compared with the floor block and the Base block only: the time ceiling, never the
-                      positional one (CANON 3.6: the two are not merged on a page). */}
-                  {result.timestamp && win && (() => {
-                    const t = result.timestamp / 1000;
-                    const inside = t >= win.floor.blockTimestamp && t <= win.ceiling.blockTimestamp;
-                    return (
-                      <div style={{ fontSize: 12, color: "var(--text)", marginBottom: 4 }}>
-                        <span style={{ color: "var(--dim)" }}>Inside the window: </span>
-                        {inside
-                          ? `yes, after Ethereum block #${win.floor.blockNumber.toLocaleString()} and before Base block #${win.ceiling.blockNumber.toLocaleString()}`
-                          : `no, it falls outside Ethereum block #${win.floor.blockNumber.toLocaleString()} to Base block #${win.ceiling.blockNumber.toLocaleString()}`}
-                      </div>
-                    );
-                  })()}
-                  {result.userDataB64 && (
-                    <div style={{ fontSize: 12, color: "var(--text)", wordBreak: "break-all" }}>
-                      <span style={{ color: "var(--dim)" }}>user_data: </span>{result.userDataB64}
-                      {(proof as BitGraphProof & { proofHash?: string }).proofHash === result.userDataB64 && (
-                        <span style={{ color: "var(--dim)" }}> (equals This BitGraph&rsquo;s Hash)</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Other PCRs */}
-              {Object.keys(result.pcrs).length > 1 && (
-                <div style={{ marginBottom: 18 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Other Active PCRs</div>
-                  {Object.entries(result.pcrs)
-                    .filter(([idx]) => idx !== "0")
-                    .map(([idx, hex]) => (
-                      <div key={idx} style={{ marginBottom: 6 }}>
-                        {PCR_MEANING[idx] && <div style={{ fontSize: 12, color: "var(--text)" }}>PCR{idx}: {PCR_MEANING[idx]}</div>}
-                        <div style={{ fontSize: 11, fontFamily: mono, color: "var(--dim)", wordBreak: "break-all" }}>
-                          {PCR_MEANING[idx] ? "" : `PCR${idx}: `}{hex}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              )}
-
-              {/* Reproducible build */}
-              <div style={{ padding: "14px 18px", background: "var(--tint)", border: "1px solid var(--line)", borderRadius: "var(--radius-row)", marginBottom: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-accent)", marginBottom: 6 }}>What PCR0 proves</div>
-                <div style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.5, marginBottom: 8 }}>
-                  PCR0 is the SHA-384 hash of the exact enclave image that signed this BitGraph, shown above. The enclave source is published and the measurement is reproducible: you can rebuild it on any linux/amd64 host and re-derive this exact PCR0 yourself. You do not have to take BitGraph at its word for what runs inside the boundary.
-                </div>
-                <a href="/docs/self-host-tee" target="_blank" rel="noopener" style={{ fontSize: 12, fontWeight: 600, color: "var(--c-accent)", textDecoration: "none" }}>
-                  Rebuild and verify this PCR0 &rarr;
-                </a>
-              </div>
-
-              {/* Raw report */}
-              <div style={{ padding: "12px 16px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-row)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Raw Attestation Report</div>
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(reportB64); setCopiedReport(true); setTimeout(() => setCopiedReport(false), 1500); }}
-                    style={{ fontSize: 11, fontWeight: 600, color: "var(--c-accent)", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
-                  >
-                    {copiedReport ? "Copied!" : "Copy"}
-                  </button>
-                </div>
-                <div style={{ fontSize: 10, fontFamily: mono, color: "var(--dim)", wordBreak: "break-all", maxHeight: 60, overflow: "hidden" }}>
-                  {reportB64.slice(0, 200)}...
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
