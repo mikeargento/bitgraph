@@ -2080,7 +2080,7 @@ export default function ProofPage() {
               block" so the pair reads as a bracket: after this block, before
               that one. */}
           {!isEth && causalWindow?.anchorBefore && (
-            <CollapsibleCard title="Placed after this block">
+            <CollapsibleCard title="Placed after this Ethereum block">
               {causalWindow.anchorBefore.blockNumber !== null && (
                 <Field label="Block" value={`#${causalWindow.anchorBefore.blockNumber.toLocaleString()}`} highlight />
               )}
