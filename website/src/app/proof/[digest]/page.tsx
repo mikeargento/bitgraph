@@ -159,13 +159,36 @@ export default function ProofPage() {
     anchor: { txHash: string; blockNumber: number; blockTimestamp: number } | null;
     floor?: { blockNumber: number; blockTimestamp: number } | null;
   } | null>(null);
+  // Auto-check (Mike, 2026-09-30): the Base write lands seconds after the
+  // commit, so a fresh proof keeps asking until its card appears (every 4 s,
+  // up to 3 minutes), and an included one keeps asking until Base settles it
+  // on Ethereum (every 15 s, up to 10 minutes). An old proof asks once.
   useEffect(() => {
     const ph = (proof as (BitGraphProof & { proofHash?: string }) | null)?.proofHash;
     if (!ph) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const safe = ph.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    fetch(`/api/ceilings/${safe}`).then((r) => (r.ok ? r.json() : null)).then((j) => { if (!cancelled && j?.version === "bitgraph-ceiling/1") setBaseCeiling(j); }).catch(() => {});
-    return () => { cancelled = true; };
+    const rep = proof?.environment?.attestation?.reportB64;
+    const madeMs = typeof rep === "string" && rep.length > 0 ? attestationTimestampMs(rep) : null;
+    const fresh = freshRef.current === true || (madeMs !== null && Date.now() - madeMs < 10 * 60_000);
+    const started = Date.now();
+    const ask = async () => {
+      let j: { version?: string; status?: string } | null = null;
+      try {
+        const r = await fetch(`/api/ceilings/${safe}`, { cache: "no-store" });
+        j = r.ok ? await r.json() : null;
+      } catch { j = null; }
+      if (cancelled) return;
+      if (j?.version === "bitgraph-ceiling/1") setBaseCeiling(j as never);
+      const elapsed = Date.now() - started;
+      const settled = j?.status === "safe" || j?.status === "finalized";
+      // Nothing yet, or queued ("pending") and not yet in a block: ask again soon.
+      if ((!j || j.status === "pending") && fresh && elapsed < 3 * 60_000) timer = setTimeout(ask, 4_000);
+      else if (j && !settled && elapsed < 10 * 60_000) timer = setTimeout(ask, 15_000);
+    };
+    void ask();
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [proof]);
   const [causalWindow, setCausalWindow] = useState<{
     anchorBefore: { counter: string; attrName: string; blockNumber: number | null; blockHash: string | null; etherscanUrl: string | null; blockTime?: string | null; digestB64?: string | null; recordedMs?: number | null } | null;
