@@ -139,7 +139,7 @@ export default function VerificationPage() {
 
       <h2 id="limits">What the checks cannot conclude</h2>
       <p>
-        A valid result is a statement about placement. It does not say the file is true, who made it, that these bytes did not exist somewhere earlier, or at what time the commit happened. The floor is a time: the block the proof names had been mined before the position existed. The ceiling<span className="copy-new"> in position</span> is a position: the next anchor in the sequence, which does not convert to a clock reading. No field in a proof is a trusted clock, and the <span className="copy-new">proof </span>verifier makes no upper bound claim in time. <span className="copy-new">That claim comes from the ceiling file, checked on its own: the record's hash under a Merkle root, the root in a Base transaction from the published writer, the transaction in a block, and the block's time.</span>
+        A valid result is a statement about placement. It does not say the file is true, who made it, that these bytes did not exist somewhere earlier, or at what time the commit happened. The floor is a time: the block the proof names had been mined before the position existed. The ceiling in position is a position: the next anchor in the sequence, which does not convert to a clock reading. No field in a proof is a trusted clock, and the proof verifier makes no upper bound claim in time. That claim comes from the ceiling file, checked on its own: the record's hash under a Merkle root, the root in a Base transaction from the published writer, the transaction in a block, and the block's time.
       </p>
       <div className="table-scroll">
         <table className="table-k">

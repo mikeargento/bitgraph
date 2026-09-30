@@ -8,11 +8,6 @@ import React from "react";
  * Usage:
  *   renderInline("Verifiers should pin `allowedMeasurements` to known-good values.")
  */
-// STAGING ONLY: ⟦new words⟧ render red for review. Strip before push.
-function stageNew(text: string, key: string): React.ReactNode {
-  if (!text.includes("⟦")) return text;
-  return text.split(/⟦|⟧/).map((t, j) => (j % 2 ? <span key={`${key}-${j}`} className="copy-new">{t}</span> : t));
-}
 export function renderInline(text: string): React.ReactNode {
   return text.split("`").map((part, i) =>
     i % 2 === 1 ? (
@@ -23,7 +18,7 @@ export function renderInline(text: string): React.ReactNode {
         {part}
       </code>
     ) : (
-      <React.Fragment key={i}>{stageNew(part, String(i))}</React.Fragment>
+      <React.Fragment key={i}>{part}</React.Fragment>
     ),
   );
 }

@@ -83,8 +83,8 @@ export default function TrustModelPage() {
         <dd>Verification is offline and requires no BitGraph service. The one external reference is that the anchored block is canonical Ethereum, checkable against any node or explorer.</dd>
         <dt>Temporal</dt>
         <dd>One direction. The position was placed after the block its position record names was mined: a floor that needs no trust in the anchor service, because a block hash cannot precede its block. The position also preceded the next anchor in the chain: a ceiling in position, which does not convert to a wall-clock bound and is not claimed as one.</dd>
-        <dt className="copy-new">Ceiling in time</dt>
-        <dd className="copy-new">After a commit, the ceiling writer puts a Merkle root over new records&rsquo; proof hashes into a Base transaction from its published address. The record existed by that block&rsquo;s time. The writer can make a ceiling late, or not at all, but never early: a proof hash does not exist before its commit. Until Base settles the block on Ethereum it rests on Base&rsquo;s sequencer; after, on Ethereum.</dd>
+        <dt>Ceiling in time</dt>
+        <dd>After a commit, the ceiling writer puts a Merkle root over new records&rsquo; proof hashes into a Base transaction from its published address. The record existed by that block&rsquo;s time. The writer can make a ceiling late, or not at all, but never early: a proof hash does not exist before its commit. Until Base settles the block on Ethereum it rests on Base&rsquo;s sequencer; after, on Ethereum.</dd>
         <dt>Attestation</dt>
         <dd>The Nitro document&rsquo;s user data equals SHA-256 of this proof&rsquo;s signed body, and the document chains to the AWS Nitro Root CA G1. Assumes the reader parses and validates it; the core verifier deliberately leaves that to the audit package.</dd>
         <dt>Deployment</dt>

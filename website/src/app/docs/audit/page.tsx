@@ -68,14 +68,14 @@ node packages/audit/dist/cli.js /path/to/bundle.tar.gz --out ./audit`}</Code>
         Both write <code>audit-report.json</code> (machine-readable, complete) and <code>audit-report.md</code> (human-readable) into the output directory. No network access occurs in either mode: no RPC, no HTTP, no DNS.
       </p>
 
-      <h2 id="ceilings" className="copy-new">Ceilings in time</h2>
-      <p className="copy-new">
+      <h2 id="ceilings">Ceilings in time</h2>
+      <p>
         A package from a proof page carries <code>base-ceiling/ceiling.json</code> beside <code>proof.json</code> when the record has a ceiling in time. The audit checks it offline against its proof: the record&rsquo;s hash under the Merkle root, the root in a Base transaction signed by BitGraph&rsquo;s published writer, the transaction inside the block, and the block&rsquo;s time from its header. A package without one carries <code>ceiling-status.json</code> saying why.
       </p>
-      <p className="copy-new">
+      <p>
         The audit never goes online, so it reports whether that block is Base&rsquo;s own as unchecked. One command answers it, or any Base explorer:
       </p>
-      <pre className="copy-new"><code>npx -p @mikeargento/bitgraph-sdk bitgraph ceiling verify proof.json base-ceiling/ceiling.json --rpc https://mainnet.base.org</code></pre>
+      <pre><code>npx -p @mikeargento/bitgraph-sdk bitgraph ceiling verify proof.json base-ceiling/ceiling.json --rpc https://mainnet.base.org</code></pre>
 
       <h2 id="report">Read the report</h2>
       <p>
