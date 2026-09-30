@@ -2,6 +2,13 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
+## 0.8.0 (2026-09-30)
+
+- Settlement of a Base ceiling on Ethereum (`bitgraph-settlement/1`, L1 data inclusion). A ceiling sidecar that carries a `settlement` pointer is checked offline: the Ethereum block header re-hashes to its hash, the batcher's type-3 transaction is in that block (re-encoded, and placed in the transactions trie), the blob versioned hashes are the ones the signed transaction commits to, and the pointer's Base block and ceiling transaction agree with the sidecar. When the blob bytes are in the bundle (`<versioned hash>.bin` beside the ceiling file, under `blobs/`, or at the root) the KZG commitment is recomputed per blob, the frames are decoded into the channel (whole, or as a prefix when only some blobs are held), the batches are decompressed, the Base block is found by timestamp and parent hash, and the ceiling transaction's bytes are compared with the sidecar's. Reported as two lines under the ceiling: `settlement: pointer ok, Ethereum block N at <time>` and `settlement: blobs decoded (...), ceiling tx located in Base block N`; blobs not in the bundle read `blobs not in bundle` and never fail. A wrong pointer or blob fails the ceiling (exit bit 2). Pins for Base mainnet (batcher, inbox) are built in and overridable.
+- Two dependencies for the KZG check, loaded only when a blob is present: `micro-eth-signer` 0.20.1 and `@paulmillr/trusted-setups` 0.3.0, pinned exactly, as the zero-network dependency test now admits. Everything else in the audit still makes no network call.
+- Requires `@mikeargento/bitgraph-verify` 1.15.0, which carries the pointer layer (`verifySettlementPointer`).
+- The report gains `CeilingSettlementCheck` on each ceiling entry; `toolVersion` is `0.8.0`.
+
 ## 0.4.1 (2026-09-03)
 
 - Ingest reads the proof carried by a bitgraph-fuse/1 Frame (`{ type: "bitgraph-fuse/1", manifest, fusePayload?, proof }`): the nested proof is the member and the Frame file is never an artifact candidate. Before this, `bitgraph-play check <frame> <fused bytes>` reported "no BitGraph proofs were found"; found on the first production fused artifact.
