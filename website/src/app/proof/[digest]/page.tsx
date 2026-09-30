@@ -1581,7 +1581,9 @@ export default function ProofPage() {
         </>
       )}
 
-      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "96px 0 96px", animation: "fadeIn .3s ease-out" }}>
+      {/* 56px on top like every other page (Mike, 2026-09-30: "proof pages still have some
+          extra headroom"); the anchor page's button now takes its own row instead. */}
+      <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
 
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
 
@@ -1806,11 +1808,13 @@ export default function ProofPage() {
                 nowrap line widened the whole card past a phone's edge instead of truncating. */}
             <div style={{ position: "relative", minWidth: 0 }}>
             {anchorsBackHref && (
-              /* The frame's top padding is 96px: 28px, the 44px button, 24px, then the card
-                 (Mike, 2026-09-29: "kind of small and jammed up there"). Every proof page
-                 carries the same 96px, so nothing moves when a page learns it is an anchor.
-                 right: -8 cancels the 8px right margin every button carries. */
-              <div style={{ position: "absolute", right: -8, top: -68, display: "flex" }}>
+              /* Its own row over the card, 16px above it (Mike, 2026-09-29: "kind of small and
+                 jammed up there"). It arrives with the proof, in the same render that replaces
+                 the skeleton, so it never moves the card after the card is shown. Until
+                 2026-09-30 every proof page carried 96px of top padding to hold this button's
+                 place, which left file proofs with extra headroom. marginRight -8 cancels the
+                 8px right margin every button carries. */
+              <div style={{ display: "flex", justifyContent: "flex-end", marginRight: -8, marginBottom: 16 }}>
                 <a href={anchorsBackHref} className="bg-action-link bg-proof-top">All floors</a>
               </div>
             )}

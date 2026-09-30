@@ -99,7 +99,8 @@ import { FigMarkers } from "@/components/figures/fig";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable}`}>
+    // suppressHydrationWarning: the head script below marks <html> data-js before React loads.
+    <html lang="en" suppressHydrationWarning className={`${sourceSerif.variable} ${sourceCode.variable} ${jetbrainsMono.variable} ${inter.variable}`}>
       <head>
         {/* Acumin Pro, the kit the site wore until 2026-09-11 (weights 400, 600,
             700 and italics). PREVIEW 2026-09-16 (Mike: "what about good ol
@@ -120,7 +121,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html:
               "try{var n=performance.getEntriesByType('navigation')[0];" +
-              "if(n&&n.type==='reload'&&!location.hash){history.scrollRestoration='manual';}}catch(e){}",
+              "if(n&&n.type==='reload'&&!location.hash){history.scrollRestoration='manual';}}catch(e){}" +
+              // Marks that script runs, so the home headline can stay hidden until it types itself.
+              "document.documentElement.setAttribute('data-js','');",
           }}
         />
       </head>

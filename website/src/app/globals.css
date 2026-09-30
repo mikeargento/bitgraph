@@ -2211,7 +2211,8 @@ main :is(figure, .fig-well) :is(p, ul, ol, dl, table, figcaption, .note, .meta) 
    .scrolled). The wordmark takes the blue, as the postseason's does. */
 #site-nav { background: var(--bar) !important; border-bottom: 1px solid var(--line) !important; transition: box-shadow 0.2s; }
 #site-nav.scrolled { box-shadow: 0 1px 3px rgba(60, 64, 67, 0.2), 0 2px 8px rgba(60, 64, 67, 0.12); border-bottom-color: transparent !important; }
-#site-nav a[href="/"] { color: var(--accent) !important; }
+/* The wordmark in ink (Mike, 2026-09-30): the filled New button is the one blue in the bar. */
+#site-nav a[href="/"] { color: var(--ink) !important; }
 #site-nav .nav-btn { border-radius: 999px; padding: 0 16px; height: 42px; }
 #site-nav .nav-cta { border-radius: 999px !important; background: var(--btn-primary) !important; border-color: var(--btn-primary) !important; color: #fff !important; padding: 0 22px 0 18px !important; height: 42px !important; gap: 8px !important; font-size: 15.5px !important; font-weight: 600 !important; }
 #site-nav .nav-cta:hover { background: var(--btn-primary-hover) !important; box-shadow: var(--shadow-card); }
@@ -2490,3 +2491,5 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .typed-caret.on { animation: typed-blink 1s steps(1) infinite; opacity: 1; }
 @keyframes typed-blink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .typed-caret { display: none; } }
+/* The home headline types itself; until it starts, its server-sent text is hidden with its space held. */
+@media (prefers-reduced-motion: no-preference) { html[data-js] .home h1[data-typing="pending"] > span { visibility: hidden; } }

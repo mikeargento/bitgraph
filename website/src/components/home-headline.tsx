@@ -1,39 +1,58 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const LINE1 = "Position commitment";
 
 /**
- * The home headline types through what a position commitment is for (Mike, 2026-09-30):
- * it loads as the first phrase, real text, then after a pause backspaces and types the
- * next, with a blinking caret, once through, and rests on the last.
- * Reduced motion keeps the first phrase and never moves. The animated text is hidden
- * from screen readers; the heading carries the full sentence once as its label.
+ * The home headline types itself (Mike, 2026-09-30): a caret types the whole headline
+ * from nothing, then backspaces the line after "for" and types through what a position
+ * commitment is for, once through, and rests on the last. Backspacing stops at what the
+ * next phrase shares, as a typist would: "any bytes." back to "any b", then "its.".
+ *
+ * The server sends the full sentence, so search, a page without script and reduced motion
+ * all read "Position commitment for <first phrase>". The layout's head script marks the
+ * page `data-js`, and globals.css keeps the text hidden (its space held) until this
+ * component clears it and starts typing, so the sentence never flashes first. The
+ * animated text is hidden from screen readers; the heading carries the sentence as its
+ * label.
  */
 export function HomeHeadline({ phrases }: { phrases: string[] }) {
-  const [text, setText] = useState(phrases[0] ?? "");
+  const first = `for ${phrases[0] ?? ""}`;
+  const [l1, setL1] = useState(LINE1);
+  const [l2, setL2] = useState(first);
+  const [onLine1, setOnLine1] = useState(false);
   const [moving, setMoving] = useState(false);
+  const [phase, setPhase] = useState<"pending" | "typing" | "static">("pending");
+  const h1 = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    if (phrases.length < 2) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setPhase("static"); return; }
+    // Hold the two-line height while the lines are empty, so nothing under it moves.
+    if (h1.current) h1.current.style.minHeight = `${h1.current.offsetHeight}px`;
+    setL1(""); setL2(""); setOnLine1(true); setMoving(true); setPhase("typing");
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     const wait = (ms: number) => new Promise<void>((r) => { timer = setTimeout(r, ms); });
+    const type = async (s: string, set: (v: string) => void, from = 0) => {
+      for (let n = from + 1; n <= s.length && !cancelled; n++) { set(s.slice(0, n)); await wait(72); }
+    };
     (async () => {
-      await wait(2600);
-      setMoving(true);
-      // Once through, ending on the last phrase; then the caret goes and it rests there.
+      await wait(500);
+      await type(LINE1, setL1);
+      await wait(220);
+      if (cancelled) return;
+      setOnLine1(false);
+      await type(first, setL2);
+      await wait(2400);
       for (let i = 0; i + 1 < phrases.length && !cancelled; i++) {
-        const current = phrases[i]!;
-        const next = phrases[i + 1]!;
-        // Backspace only to what the two share, as a typist would: "any bytes." back to "any b", then "its."
+        const current = `for ${phrases[i]}`;
+        const next = `for ${phrases[i + 1]}`;
         let keep = 0;
         while (keep < current.length && keep < next.length && current[keep] === next[keep]) keep++;
-        for (let n = current.length; n >= keep && !cancelled; n--) { setText(current.slice(0, n)); await wait(38); }
+        for (let n = current.length; n >= keep && !cancelled; n--) { setL2(current.slice(0, n)); await wait(38); }
         await wait(260);
-        for (let n = keep + 1; n <= next.length && !cancelled; n++) { setText(next.slice(0, n)); await wait(72); }
+        await type(next, setL2, keep);
         // The last three are one thought (any file, any bytes, any bits), so they hold briefly.
         if (i + 2 < phrases.length) await wait(i + 4 >= phrases.length ? 900 : 2400);
       }
@@ -42,12 +61,13 @@ export function HomeHeadline({ phrases }: { phrases: string[] }) {
       if (!cancelled) setMoving(false);
     })();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [phrases]);
+  }, [phrases, first]);
 
+  const caret = <span className={`typed-caret${moving ? " on" : ""}`} />;
   return (
-    <h1 aria-label={`${LINE1} for ${phrases[0] ?? ""}`}>
-      <span aria-hidden="true" style={{ whiteSpace: "nowrap" }}>{LINE1}</span><br />
-      <span aria-hidden="true" style={{ whiteSpace: "nowrap" }}>for {text}<span className={`typed-caret${moving ? " on" : ""}`} /></span>
+    <h1 ref={h1} data-typing={phase} aria-label={`${LINE1} ${first}`}>
+      <span aria-hidden="true" style={{ whiteSpace: "nowrap" }}>{l1}{onLine1 && caret}</span><br />
+      <span aria-hidden="true" style={{ whiteSpace: "nowrap" }}>{l2}{!onLine1 && caret}</span>
     </h1>
   );
 }
