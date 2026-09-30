@@ -240,7 +240,25 @@ export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; no
  * `unfetched` in so many words otherwise. Throws with a sentence on any
  * failed read: a carrier is never built on a guess.
  */
-export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: { version: string; commit: unknown }, fileName: string, opts: { waitForCeilingMs?: number } = {}): Promise<BuiltCarrier> {
+/** The evidence a proof page or a download assembles around a proof: the parts of a carrier/2 block, each vetted before it is used. */
+export interface ProofEvidence {
+  parts: { proof: CarrierProof; floor: CarrierPayload["floor"]; ceiling: CarrierPayload["ceiling"]; ceilingInTime: CarrierCeilingInTime };
+  /** The v2 payload with the openssl witness and the declared pins, for verifyCarrierPayload and for a download. */
+  payload: CarrierPayload;
+  ceiling: "present" | "unfetched";
+  ceilingInTime: "present" | "unfetched";
+  /** Why a ceiling is unfetched, when it is: the route's own word. */
+  ceilingNote: string | null;
+}
+
+/**
+ * Fetch and vet everything that brackets a proof: the floor anchor named by
+ * the signed slotAnchor with its Ethereum header, the closing anchor when it
+ * has landed, and the Base ceiling when written. Every anchor is verified over
+ * its own message and every header recomputed before it is used. A read that
+ * fails throws with a sentence; a ceiling that has not landed is a state.
+ */
+export async function assembleProofEvidence(proofIn: { version: string; commit: unknown }, opts: { waitForCeilingMs?: number } = {}): Promise<ProofEvidence> {
   const proof = proofIn as unknown as BitGraphProof;
   const c = commitOf(proof as unknown as CarrierProof);
   if (c === null) throw new Error("the proof is missing its commit fields");
@@ -253,13 +271,9 @@ export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: 
   if (!floorAnchor) throw new Error(`the floor anchor could not be read from the ledger (${floorSide.bound?.state ?? "no answer"}); the proof still names it, try again`);
   const floorWitness = await fetchWitness(c.slotAnchor.blockNumber, c.slotAnchor.blockHash);
   await vetAnchor(floorAnchor, floorWitness, "the floor anchor");
-
   const floor = { status: "present" as const, anchor: floorAnchor as CarrierProof, witness: floorWitness };
   const floorErrs = checkFloorBinding(proof as unknown as CarrierProof, floor);
   if (floorErrs.length > 0) throw new Error(`the fetched anchor is not the signed floor: ${floorErrs[0]}`);
-  if (!innerDigestMatches(committedBytes, { carrier: "bitgraph-carrier/2", proof: proof as unknown as CarrierProof, floor, ceiling: { status: "unfetched" } })) {
-    throw new Error("these bytes do not hash to the proof's artifact digest; refusing to build a carrier around them");
-  }
 
   // The ceiling in position, if one has landed. "pending" and "could not fetch" stay distinct sentences.
   let ceiling: CarrierPayload["ceiling"] = { status: "unfetched" };
@@ -293,15 +307,25 @@ export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: 
     ceilingNote = ceilingNote ?? (e instanceof Error ? e.message : "The Base ceiling could not be fetched.");
   }
 
-  const { payload, witness } = payloadWithinLimits(committedBytes, { proof: proof as unknown as CarrierProof, floor, ceiling, ceilingInTime });
+  const parts = { proof: proof as unknown as CarrierProof, floor, ceiling, ceilingInTime };
+  const payload = assembleCarrierV2Payload(parts as never) as unknown as CarrierPayload;
+  return { parts, payload, ceiling: ceiling.status, ceilingInTime: ceilingInTime.status, ceilingNote };
+}
+
+export async function buildCarrierForProof(committedBytes: Uint8Array, proofIn: { version: string; commit: unknown }, fileName: string, opts: { waitForCeilingMs?: number } = {}): Promise<BuiltCarrier> {
+  const ev = await assembleProofEvidence(proofIn, opts);
+  if (!innerDigestMatches(committedBytes, ev.payload)) {
+    throw new Error("these bytes do not hash to the proof's artifact digest; refusing to build a carrier around them");
+  }
+  const { payload, witness } = payloadWithinLimits(committedBytes, ev.parts);
   return {
     bytes: buildCarrier(committedBytes, payload),
     fileName: carrierFileName(fileName),
-    ceiling: ceiling.status,
-    ceilingInTime: ceilingInTime.status,
+    ceiling: ev.ceiling,
+    ceilingInTime: ev.ceilingInTime,
     witness,
     bounds: carrierBounds(payload),
-    ceilingNote,
+    ceilingNote: ev.ceilingNote,
   };
 }
 
