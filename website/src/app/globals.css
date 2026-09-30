@@ -1609,7 +1609,11 @@ th, .prose th, .prose-doc th, .overview th { background: transparent; }
 #site-nav .nav-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
 .nav-menu { position: absolute; top: calc(100% + 8px); left: 0; min-width: 232px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-menu); z-index: 60; }
 .nav-menu .docs-menu-item, .nav-panel .docs-menu-item { display: block; padding: 7px 10px; font-size: 14px; color: var(--text); }
-.nav-menu .docs-menu-item:hover, .nav-panel .docs-menu-item:hover { background: var(--panel-2); color: var(--ink); }
+/* Hover only where there is a pointer that hovers (Mike, 2026-09-30: the phone menu "greys out
+   whatever you touch" while swiping). On a touch screen a touched row took the hover grey and
+   the browser's own tap grey, and kept them as the finger moved on to scroll. */
+@media (hover: hover) { .nav-menu .docs-menu-item:hover, .nav-panel .docs-menu-item:hover { background: var(--panel-2); color: var(--ink); } }
+.docs-menu-item { -webkit-tap-highlight-color: transparent; }
 .nav-menu .docs-menu-item[aria-current="page"], .nav-panel .docs-menu-item[aria-current="page"] { background: var(--panel-2); color: var(--ink); font-weight: 600; }
 /* Menu shows at every width now; the four dropdowns it folded are gone (2026-09-18). */
 #site-nav .nav-docs { display: inline-flex; }
