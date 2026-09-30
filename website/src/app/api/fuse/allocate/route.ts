@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentEpochHasAnchor, currentEpochId, TEE_URL, teeRestarting503 } from "@/lib/anchor-gate";
-import { FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isSlotRecord, retryAfterHeaders, rotationGuardActive } from "@/lib/fuse";
+import { FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isAnchorMark, isSlotRecord, retryAfterHeaders, rotationGuardActive } from "@/lib/fuse";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(err, { status: teeRes.status, headers: retryAfterHeaders(teeRes) });
     }
 
-    const data = (await teeRes.json()) as { slotId?: unknown; slot?: unknown; chainId?: unknown };
+    const data = (await teeRes.json()) as { slotId?: unknown; slot?: unknown; chainId?: unknown; anchor?: unknown };
     if (!isSlotRecord(data.slot) || data.slotId !== data.slot.nonceB64 || data.chainId !== FUSE_CHAIN) {
       return NextResponse.json({ error: "Unexpected allocation response from the boundary" }, { status: 502 });
     }
@@ -64,7 +64,9 @@ export async function POST(req: NextRequest) {
     // The orphaned slot expires in the enclave on its own.
     if (data.slot.epochId !== gatedEpoch) return teeRestarting503();
 
-    return NextResponse.json({ slotId: data.slotId, slot: data.slot, chainId: data.chainId });
+    // Enclave v9 hands back the floor it will sign at commit; pass it on so the
+    // producer can bind it into a bitgraph-fuse/2 commitment. v8 sends none.
+    return NextResponse.json({ slotId: data.slotId, slot: data.slot, chainId: data.chainId, ...(isAnchorMark(data.anchor) ? { anchor: data.anchor } : {}) });
   } catch (e) {
     console.error("[api/fuse/allocate] Error:", (e as Error).message);
     return NextResponse.json({ error: "Allocation failed" }, { status: 500 });

@@ -47,7 +47,7 @@ import {
   bytesEqual,
   bytesToBase64,
   bytesToHex,
-  computeSlotCommitment,
+  commitmentForProof,
   getPlacement,
   PLACEMENTS,
   parseSetManifest,
@@ -388,7 +388,7 @@ export async function verifyFuseMember(opts: FuseMemberOptions): Promise<FuseMem
   }
   let commitment: Uint8Array;
   try {
-    commitment = computeSlotCommitment(slot);
+    commitment = commitmentForProof(proof, slot);
   } catch (err) {
     return base("INVALID_SLOT_COMMITMENT", common, `commitment could not be recomputed: ${err instanceof Error ? err.message : String(err)}`);
   }

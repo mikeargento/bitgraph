@@ -13,6 +13,7 @@
  * predicate and bind through the same function.
  */
 import type { BitGraphProof, SetManifest, SetMemberProof, SetRoot, SlotAllocation } from "@mikeargento/bitgraph-verify";
+import { computeCommitmentFor } from "./fuse-commitment.ts";
 import { bytesEqual, bytesToBase64, bytesToHex, computeSlotCommitment, parseSetManifest, parseSetMemberProof, parseSetRoot, readSetMetadata, setRootFromMember, MAX_SET2_MEMBERS, SET2_PLACEMENT_ID, SET_MEMBER_METADATA_KEY } from "@mikeargento/bitgraph-verify";
 
 /** The signed placement id of a set/1 proof (attribution.title). Pinned; the suite checks it equals SET_PLACEMENT_ID. */
@@ -259,7 +260,7 @@ const NOT_A_MANIFEST = `metadata['${SET_KEY}'] is not a set manifest`;
  * passes it.
  */
 export async function validateSetCommit(
-  input: { title: string; message?: unknown; metadata: unknown; digestB64: string; slot: SlotAllocation },
+  input: { title: string; message?: unknown; metadata: unknown; digestB64: string; slot: SlotAllocation; floorBlockHash?: string | null },
   limits: { maxMetadataJson?: number } = {},
 ): Promise<SetCommitVerdict> {
   try {
@@ -290,7 +291,7 @@ export async function validateSetCommit(
       if (canonicalBytes === null) return refuse(`metadata['${SET_KEY}'] is not a set root document`);
       const doc = parseSetRoot(canonicalBytes);
       if (doc === null) return refuse(`metadata['${SET_KEY}'] is not a set root document`);
-      if (!bytesEqual(doc.commitment, computeSlotCommitment(input.slot))) return refuse("root document commitment is not this position's");
+      if (!bytesEqual(doc.commitment, computeCommitmentFor(input.slot, input.floorBlockHash))) return refuse("root document commitment is not this position's");
       if ((await sha256B64(canonicalBytes)) !== input.digestB64) return refuse("root document does not hash to the committed digest");
       return { ok: true, canonicalBytes, manifestObject: JSON.parse(decode(canonicalBytes)) as SetManifest, members: [] };
     }
@@ -322,7 +323,7 @@ export async function validateSetCommit(
     if (canonicalBytes === null) return refuse(NOT_A_MANIFEST);
     const parsed = parseSetManifest(canonicalBytes);
     if (parsed === null) return refuse(NOT_A_MANIFEST);
-    if (!bytesEqual(parsed.commitment, computeSlotCommitment(input.slot))) return refuse("manifest commitment is not this position's");
+    if (!bytesEqual(parsed.commitment, computeCommitmentFor(input.slot, input.floorBlockHash))) return refuse("manifest commitment is not this position's");
     if ((await sha256B64(canonicalBytes)) !== input.digestB64) return refuse("manifest does not hash to the committed digest");
     return { ok: true, canonicalBytes, manifestObject: JSON.parse(decode(canonicalBytes)) as SetManifest, members: rowsOf(parsed.members) };
   } catch {

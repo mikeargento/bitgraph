@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { storeProofByDigest, getProofByDigest, getAnchorBeforeCounter, LedgerUnavailableError } from "@/lib/s3";
 import { TEE_URL, teeRestarting503 } from "@/lib/anchor-gate";
-import { FUSE_ATTRIBUTION_NAME, FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isDigestB64, isSlotRecord, retryAfterHeaders } from "@/lib/fuse";
+import { FUSE_ATTRIBUTION_NAME, FUSE2_ATTRIBUTION_NAME, FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isAnchorMark, isDigestB64, isFuseName, isSlotRecord, retryAfterHeaders } from "@/lib/fuse";
 import { SET_KEY, SET_TITLE, SET2_TITLE, reconcileSetMetadata, validateSetCommit, type SetCommitOk } from "@/lib/fuse-set";
 
 export const dynamic = "force-dynamic";
@@ -74,8 +74,15 @@ export async function POST(req: NextRequest) {
     if (attr === undefined || attr === null || typeof attr !== "object" || Array.isArray(attr)) {
       return NextResponse.json({ error: `body.attribution is required: { name: '${FUSE_ATTRIBUTION_NAME}', title: <placement id>, message?: <origin digest> }` }, { status: 400 });
     }
-    if (attr.name !== FUSE_ATTRIBUTION_NAME) {
-      return NextResponse.json({ error: `attribution.name must be "${FUSE_ATTRIBUTION_NAME}"` }, { status: 400 });
+    if (!isFuseName(attr.name)) {
+      return NextResponse.json({ error: `attribution.name must be "${FUSE_ATTRIBUTION_NAME}" or "${FUSE2_ATTRIBUTION_NAME}"` }, { status: 400 });
+    }
+    // bitgraph-fuse/2 binds the floor block into the commitment, so the caller
+    // names the floor it bound: the anchor /api/fuse/allocate returned.
+    const fuse2 = attr.name === FUSE2_ATTRIBUTION_NAME;
+    const boundFloor = fuse2 ? body.anchor : undefined;
+    if (fuse2 && !isAnchorMark(boundFloor)) {
+      return NextResponse.json({ error: "a bitgraph-fuse/2 commit carries body.anchor: the floor anchor /api/fuse/allocate returned with this position" }, { status: 400 });
     }
     if (typeof attr.title !== "string" || attr.title.length === 0 || attr.title.length > MAX_TITLE || !PRINTABLE.test(attr.title)) {
       return NextResponse.json({ error: "attribution.title must be the placement id (printable ASCII, 1 to 64 characters)" }, { status: 400 });
@@ -83,7 +90,7 @@ export async function POST(req: NextRequest) {
     if (attr.message !== undefined && (typeof attr.message !== "string" || attr.message.length > MAX_MESSAGE || !PRINTABLE.test(attr.message))) {
       return NextResponse.json({ error: "attribution.message, when present, must be the origin digest (printable ASCII, at most 128 characters)" }, { status: 400 });
     }
-    const attribution: Record<string, string> = { name: FUSE_ATTRIBUTION_NAME, title: attr.title };
+    const attribution: Record<string, string> = { name: fuse2 ? FUSE2_ATTRIBUTION_NAME : FUSE_ATTRIBUTION_NAME, title: attr.title };
     if (typeof attr.message === "string" && attr.message.length > 0) attribution.message = attr.message;
 
     // A set's manifest is verified BEFORE the anchor gate, the pre-read and
@@ -100,7 +107,7 @@ export async function POST(req: NextRequest) {
     const isSet = attr.title === SET_TITLE || attr.title === SET2_TITLE;
     let verifiedSet: SetCommitOk | null = null;
     if (isSet || body.metadata !== undefined) {
-      const v = await validateSetCommit({ title: attr.title, message: attr.message, metadata: body.metadata, digestB64, slot });
+      const v = await validateSetCommit({ title: attr.title, message: attr.message, metadata: body.metadata, digestB64, slot, floorBlockHash: isAnchorMark(boundFloor) ? boundFloor.blockHash : null });
       if (!v.ok) return NextResponse.json({ error: v.error }, { status: v.status });
       verifiedSet = v;
     }
@@ -123,6 +130,24 @@ export async function POST(req: NextRequest) {
         },
         { status: 409 },
       );
+    }
+
+    // fuse/2: the floor the caller bound must be the one the enclave will sign,
+    // the latest anchor below this position. The ledger can trail a just-landed
+    // anchor by a moment, so only a CONTRADICTION is refused: a floor older than
+    // the ledger's, or the same counter with a different block. A refused one
+    // costs a fresh allocation, not a proof that silently fails to verify.
+    if (isAnchorMark(boundFloor)) {
+      const ledger = (anchorBefore.commit as { counter?: unknown; anchor?: { blockHash?: unknown } } | undefined) ?? {};
+      const ledgerCounter = typeof ledger.counter === "string" ? BigInt(ledger.counter) : null;
+      const bound = BigInt(boundFloor.counter);
+      const contradicted = ledgerCounter !== null && (bound < ledgerCounter || (bound === ledgerCounter && String(ledger.anchor?.blockHash ?? "").toLowerCase() !== boundFloor.blockHash));
+      if (contradicted) {
+        return NextResponse.json(
+          { error: "The floor bound into this file is not the anchor before its position. Reserve a new position through /api/fuse/allocate.", code: "floor-mismatch" },
+          { status: 409 },
+        );
+      }
     }
 
     // Snapshot the legacy by-digest key before committing (see api/commit).

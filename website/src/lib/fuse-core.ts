@@ -16,6 +16,35 @@ export const FUSE_CHAIN = "bitgraph:main";
  */
 export const FUSE_ATTRIBUTION_NAME = "bitgraph-fuse/1";
 
+/**
+ * bitgraph-fuse/2 (2026-09-30): the commitment also binds the floor block, so
+ * the file's content floor rests on the block hash alone. Same placements,
+ * same payloads; only the commitment and this signed name differ. Must equal
+ * FUSE2_ATTRIBUTION_NAME in @mikeargento/bitgraph-verify 1.15.0.
+ */
+export const FUSE2_ATTRIBUTION_NAME = "bitgraph-fuse/2";
+
+/** True for either fused marker name. Never compare against one version's string. */
+export function isFuseName(name: unknown): boolean {
+  return name === FUSE_ATTRIBUTION_NAME || name === FUSE2_ATTRIBUTION_NAME;
+}
+
+/** The floor anchor an enclave v9 allocation hands back, exactly as it will sign it at commit. */
+export interface AnchorMark {
+  counter: string;
+  blockNumber: number;
+  blockHash: string;
+}
+
+/** Structural check only: the commit's signed slotAnchor is what makes it the floor. */
+export function isAnchorMark(x: unknown): x is AnchorMark {
+  if (x === null || typeof x !== "object" || Array.isArray(x)) return false;
+  const a = x as Record<string, unknown>;
+  return typeof a.counter === "string" && DECIMAL.test(a.counter)
+    && typeof a.blockNumber === "number" && Number.isSafeInteger(a.blockNumber) && a.blockNumber >= 0
+    && typeof a.blockHash === "string" && /^0x[0-9a-f]{64}$/.test(a.blockHash);
+}
+
 export interface SlotRecord {
   version: "bitgraph/slot/1";
   nonceB64: string;
@@ -54,7 +83,7 @@ export const isDigestB64 = (x: unknown): x is string => typeof x === "string" &&
  */
 export function fusedOriginDigestOf(proof: Record<string, unknown>): string | null {
   const a = proof.attribution as { name?: unknown; message?: unknown } | undefined;
-  if (!a || a.name !== FUSE_ATTRIBUTION_NAME || typeof a.message !== "string") return null;
+  if (!a || !isFuseName(a.name) || typeof a.message !== "string") return null;
   if (!B64_32.test(a.message)) return null;
   const bytes = Buffer.from(a.message, "base64");
   return bytes.length === 32 && bytes.toString("base64") === a.message ? a.message : null;
@@ -63,7 +92,7 @@ export function fusedOriginDigestOf(proof: Record<string, unknown>): string | nu
 /** True when the proof's signed attribution marks it fused (origin declared or not). */
 export function isFusedProof(proof: Record<string, unknown>): boolean {
   const a = proof.attribution as { name?: unknown } | undefined;
-  return !!a && a.name === FUSE_ATTRIBUTION_NAME;
+  return !!a && isFuseName(a.name);
 }
 
 /**

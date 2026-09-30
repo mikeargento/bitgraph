@@ -30,7 +30,7 @@ import type { BitGraphProof, VerificationPolicy } from "./types.js";
 import {
   bytesEqual,
   bytesToBase64,
-  computeSlotCommitment,
+  commitmentForProof,
   findCommitment,
   getPlacement,
   isCarryEncoding,
@@ -233,7 +233,7 @@ export async function verifyFuse(opts: FuseVerifyOptions): Promise<FuseVerifyRes
     }
     let expected: Uint8Array;
     try {
-      expected = computeSlotCommitment(slot);
+      expected = commitmentForProof(proof, slot);
     } catch (err) {
       return base("INVALID_SLOT_COMMITMENT", common, `commitment could not be recomputed: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -314,7 +314,7 @@ export async function verifyFuse(opts: FuseVerifyOptions): Promise<FuseVerifyRes
     }
     let commitment: Uint8Array;
     try {
-      commitment = computeSlotCommitment(slot);
+      commitment = commitmentForProof(proof, slot);
     } catch (err) {
       return base("INVALID_SLOT_COMMITMENT", common, `commitment could not be recomputed: ${err instanceof Error ? err.message : String(err)}`);
     }

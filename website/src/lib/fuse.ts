@@ -11,6 +11,9 @@ export const FUSE_ENABLED = process.env.FUSE_ENABLED === "true";
 export {
   FUSE_CHAIN,
   FUSE_ATTRIBUTION_NAME,
+  FUSE2_ATTRIBUTION_NAME,
+  isFuseName,
+  isAnchorMark,
   isSlotRecord,
   isDigestB64,
   fusedOriginDigestOf,
@@ -20,7 +23,7 @@ export {
   ROTATION_GUARD_SECONDS,
   ROTATION_UTC,
 } from "@/lib/fuse-core";
-export type { SlotRecord } from "@/lib/fuse-core";
+export type { SlotRecord, AnchorMark } from "@/lib/fuse-core";
 
 export const fuseDisabled = () =>
   NextResponse.json({ error: "BitGraph Fuse is not enabled on this site", code: "fuse-disabled" }, { status: 404 });

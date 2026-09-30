@@ -177,6 +177,90 @@ export function computeSlotCommitment(slot: SlotAllocation): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
+// bitgraph-fuse/2 (2026-09-30): the commitment also binds the floor block.
+//
+//   commitment/2 = SHA256(UTF8("bitgraph-fuse/2") || 0x00 || slotRecordHash || nonce || floorBlockHash)
+//
+// floorBlockHash is the 32 raw bytes of the Ethereum block hash the enclave
+// signs into the proof as commit.slotAnchor.blockHash (enclave v9 returns it
+// with the allocation, so a producer knows it before finishing the file). A
+// file carrying commitment/2 could not have been finished before that block
+// existed, by hash alone: the floor under the file's content no longer rests
+// on the enclave's counter. Everything else is fuse/1's: the placements, the
+// payload formats and the set documents carry the 32-byte commitment and do
+// not change. A proof is fuse/2 exactly when its SIGNED attribution name says
+// so; a fuse/1 verifier sees an ordinary proof and says nothing about the file.
+// ---------------------------------------------------------------------------
+
+export const FUSE2_PROFILE = "bitgraph-fuse/2" as const;
+export const FUSE2_ATTRIBUTION_NAME = FUSE2_PROFILE;
+
+/** "bitgraph-fuse/2" followed by one zero byte. */
+export const FUSE2_DOMAIN: Uint8Array = (() => {
+  const label = new TextEncoder().encode(FUSE2_PROFILE);
+  const out = new Uint8Array(label.length + 1);
+  out.set(label, 0);
+  out[label.length] = 0x00;
+  return out;
+})();
+
+/** Which commitment a fused proof's signed marker declares: 1, 2, or null when the proof is not fused. */
+export function fuseVersionOfName(name: unknown): 1 | 2 | null {
+  return name === FUSE_ATTRIBUTION_NAME ? 1 : name === FUSE2_ATTRIBUTION_NAME ? 2 : null;
+}
+
+/** True for either fused marker name. Use this, never a string compare against one version. */
+export function isFuseMarkerName(name: unknown): boolean {
+  return fuseVersionOfName(name) !== null;
+}
+
+function floorHashBytes(floorBlockHash: string | Uint8Array): Uint8Array {
+  const b = typeof floorBlockHash === "string" ? hexToBytes(floorBlockHash.toLowerCase().replace(/^0x/, "")) : floorBlockHash;
+  if (b === null || b.length !== 32) throw new TypeError("the floor block hash must be 32 bytes");
+  return b;
+}
+
+/** The exact preimage of commitment/2: domain || slotRecordHash || nonce || floorBlockHash. */
+export function slotCommitment2Preimage(slot: SlotAllocation, floorBlockHash: string | Uint8Array): Uint8Array {
+  const nonce = base64ToBytes(slot.nonceB64);
+  if (nonce === null || nonce.length !== 32) {
+    throw new TypeError("slot.nonceB64 must decode to exactly 32 bytes");
+  }
+  return concat(FUSE2_DOMAIN, computeSlotRecordHash(slot), nonce, floorHashBytes(floorBlockHash));
+}
+
+/** commitment/2 = SHA256(domain/2 || slotRecordHash || nonce || floorBlockHash). */
+export function computeSlotCommitment2(slot: SlotAllocation, floorBlockHash: string | Uint8Array): Uint8Array {
+  return sha256(slotCommitment2Preimage(slot, floorBlockHash));
+}
+
+/**
+ * The commitment a fused proof's bytes must carry, chosen by its signed marker:
+ * fuse/2 binds the proof's own signed commit.slotAnchor block, fuse/1 does not.
+ * Throws when a fuse/2 proof has no signed floor to bind.
+ */
+export function commitmentForProof(proof: BitGraphProof, slot: SlotAllocation): Uint8Array {
+  if (fuseVersionOfName(proof.attribution?.name) === 2) {
+    const hash = proof.commit?.slotAnchor?.blockHash;
+    if (typeof hash !== "string") throw new TypeError("a bitgraph-fuse/2 proof must carry a signed commit.slotAnchor to bind");
+    return computeSlotCommitment2(slot, hash);
+  }
+  return computeSlotCommitment(slot);
+}
+
+/**
+ * The commitment a PRODUCER writes into new bytes, from what the allocation
+ * returned: fuse/2 when the enclave handed back its floor anchor (v9 and
+ * later), else fuse/1. The attribution name must be chosen to match; see
+ * fuseAttribution's version argument.
+ */
+export function producerCommitment(slot: SlotAllocation, floor?: { blockHash: string } | null): { commitment: Uint8Array; version: 1 | 2 } {
+  return floor && typeof floor.blockHash === "string"
+    ? { commitment: computeSlotCommitment2(slot, floor.blockHash), version: 2 }
+    : { commitment: computeSlotCommitment(slot), version: 1 };
+}
+
+// ---------------------------------------------------------------------------
 // Form C canonical payload
 // ---------------------------------------------------------------------------
 
@@ -907,11 +991,11 @@ export function getPlacement(id: string): Placement | undefined {
  * set/1 refuses an origin digest: a set/1 marker carrying one is out of
  * profile and verifyFuseMember refuses it.
  */
-export function fuseAttribution(placement: PlacementId, originDigest?: Uint8Array): Attribution {
+export function fuseAttribution(placement: PlacementId, originDigest?: Uint8Array, version: 1 | 2 = 1): Attribution {
   if (originDigest !== undefined && originDigest.length !== 32) throw new TypeError("originDigest must be 32 bytes");
   if ((placement === SET_PLACEMENT_ID || placement === SET2_PLACEMENT_ID) && originDigest !== undefined) throw new TypeError(`${placement} has no single origin; a set marker carries no origin digest`);
   return {
-    name: FUSE_ATTRIBUTION_NAME,
+    name: version === 2 ? FUSE2_ATTRIBUTION_NAME : FUSE_ATTRIBUTION_NAME,
     title: placement,
     ...(originDigest !== undefined ? { message: bytesToBase64(originDigest) } : {}),
   };
@@ -933,6 +1017,8 @@ export interface FuseMarker {
   originSource?: MarkerSource;
   /** "attribution" when the proof's signed attribution marks it fused, else "manifest". */
   source: MarkerSource;
+  /** Which commitment the signed marker declares; absent on a manifest-only marker, which means 1. */
+  version?: 1 | 2;
 }
 
 /** Read the fused marker from a proof's signed attribution, or null when the proof is not marked fused. */
@@ -983,15 +1069,16 @@ export function findCommitment(bytes: Uint8Array, commitment: Uint8Array, encodi
 }
 
 /** The attribution a producer sends for an artifact made with the commitment inside it. */
-export function inlineAttribution(): { name: string; title: string } {
-  return { name: FUSE_ATTRIBUTION_NAME, title: ENCODING_BASE64URL };
+export function inlineAttribution(version: 1 | 2 = 1): { name: string; title: string } {
+  return { name: version === 2 ? FUSE2_ATTRIBUTION_NAME : FUSE_ATTRIBUTION_NAME, title: ENCODING_BASE64URL };
 }
 
 export function readFuseAttribution(proof: BitGraphProof): FuseMarker | null {
   const a = proof.attribution;
-  if (a === undefined || a.name !== FUSE_ATTRIBUTION_NAME) return null;
+  const version = fuseVersionOfName(a?.name);
+  if (a === undefined || version === null) return null;
   const declared = typeof a.title === "string" && a.title.length > 0;
-  const marker: FuseMarker = { placement: declared ? (a.title as string) : null, placementSource: declared ? "attribution" : null, source: "attribution" };
+  const marker: FuseMarker = { placement: declared ? (a.title as string) : null, placementSource: declared ? "attribution" : null, source: "attribution", version };
   if (typeof a.message === "string" && a.message.length > 0) {
     const d = base64ToBytes(a.message);
     // A message that is not a digest is still a fused marker; the origin is simply undeclared.
