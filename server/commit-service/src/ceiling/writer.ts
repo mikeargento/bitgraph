@@ -18,11 +18,12 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, statSync, openSync, readSync, closeSync } from "node:fs";
 import { join } from "node:path";
 import {
-  CEILING_VERSION, MerkleTree, ceilingLeaf, ceilingPayloadHash, encodeCeilingPayload,
+  CEILING_VERSION, MerkleTree, ceilingLeaf, ceilingPayloadHash, encodeCeilingPayload, decodeHeader, verifySettlementPointer,
   evmBytesToHex as bytesToHex, evmHexToBytes as hexToBytes,
-  type CeilingSidecar, type CeilingStatus,
+  type CeilingSidecar, type CeilingStatus, type SettlementPointer, type SettlementPins,
 } from "@mikeargento/bitgraph-verify";
 import type { CeilingQueueItem } from "../parent/ceiling-queue.js";
+import type { SettlementFound } from "./settlement.js";
 
 // ── The chain, as the writer needs it (viem in production, a fake in tests) ──
 
@@ -70,7 +71,31 @@ export interface Batch {
   createdAt: string;
   inclusion?: Inclusion & { txHash: string; rawTx: string; observedAt: string };
   statusObserved: { included: string | null; safe: string | null; finalized: string | null };
+  /** The L1 data inclusion of this batch's Base block (bitgraph-settlement/1), once found. Never replaced. */
+  settlement?: { pointer: SettlementPointer; foundAt: string; blobFiles: string[] };
+  /** The search for it: how many tries, the last one, its error; `gaveUp` once the deadline passed. */
+  settlementSearch?: { attempts: number; lastAt: string; lastError?: string; gaveUp?: boolean };
 }
+
+/** What the writer knows about a batch's Base block when it asks for its settlement. */
+export interface SettlementTarget { blockNumber: number; blockHash: string; blockTimestamp: number; parentHash: string; txHash: string }
+export type SettlementFinder = (block: SettlementTarget) => Promise<SettlementFound | null>;
+
+export interface WriterSettlementOptions {
+  /** Find the L1 batch data carrying the block: null when not there yet (asked again later), a throw is logged and retried. */
+  find: SettlementFinder;
+  /** The pins the pointer must satisfy before it is written; a pointer that fails is refused and logged. */
+  pins?: SettlementPins;
+  /** Publish blob bytes beside the sidecars (S3 `ceilings/blobs/<file>`); idempotent. The local copy under <state>/blobs is written first. */
+  publishBlob?: (name: string, bytes: Uint8Array) => Promise<void>;
+  /** Between settlement passes, in ms (default 60 000). */
+  everyMs?: number;
+  /** Stop asking this long after the batch reached safe (default 24 h). */
+  giveUpAfterMs?: number;
+}
+
+/** A sidecar as written: bitgraph-ceiling/1 with the settlement pointer in the slot reserved for it. */
+type SidecarOut = Omit<CeilingSidecar, "settlement"> & { settlement: SettlementPointer | null };
 
 export interface WriterOptions {
   stateDir: string;
@@ -87,6 +112,12 @@ export interface WriterOptions {
    * always written first and is the writer's own record.
    */
   publish?: (fileName: string, json: string) => Promise<void>;
+  /**
+   * Settlement on Ethereum (bitgraph-settlement/1): once a batch is safe,
+   * find the L1 batcher transaction whose blobs carry its Base block, keep the
+   * blob bytes, and put the pointer on every record's sidecar. Off when absent.
+   */
+  settlement?: WriterSettlementOptions;
 }
 
 const ZERO32 = "0x" + "00".repeat(32);
@@ -95,10 +126,16 @@ function safeName(b64: string): string {
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function atomicWrite(path: string, data: string): void {
+function atomicWrite(path: string, data: string | Uint8Array): void {
   const tmp = `${path}.tmp-${process.pid}`;
   writeFileSync(tmp, data, { mode: 0o600 });
   renameSync(tmp, path);
+}
+
+/** Where a blob's bytes live beside the sidecars: `blobs/<versioned hash>.bin`, the pointer's `file` being the basename. */
+export function blobFileName(versionedHash: string): string {
+  if (!/^0x01[0-9a-f]{62}$/.test(versionedHash)) throw new TypeError(`not a versioned hash: ${versionedHash}`);
+  return `${versionedHash}.bin`;
 }
 
 function readJson<T>(path: string, fallback: T): T {
@@ -111,10 +148,13 @@ function groupKey(i: CeilingQueueItem): string {
 }
 
 export class CeilingWriter {
-  private readonly o: Required<Omit<WriterOptions, "minBalanceWei" | "publish">> & { minBalanceWei: bigint | null; publish: WriterOptions["publish"] };
+  private readonly o: Required<Omit<WriterOptions, "minBalanceWei" | "publish" | "settlement">> & { minBalanceWei: bigint | null; publish: WriterOptions["publish"]; settlement: WriterOptions["settlement"] };
   /** Sidecars written locally and not yet published, newest content per file. */
   private unpublished = new Map<string, string>();
-  private readonly dirs: { batches: string; sidecars: string };
+  /** Blob bytes written locally and not yet published, and the names already published by this process. */
+  private unpublishedBlobs = new Map<string, Uint8Array>();
+  private publishedBlobs = new Set<string>();
+  private readonly dirs: { batches: string; sidecars: string; blobs: string };
   private backlog: CeilingQueueItem[] = [];
   private cursor = 0;
   private lastPayloadHash = ZERO32;
@@ -124,6 +164,7 @@ export class CeilingWriter {
   private floorCache = new Map<string, { blockNumber: number; blockTimestamp: number; headerRlp: string } | null>();
   private lastStatusPoll = 0;
   private lastBalancePoll = 0;
+  private lastSettlementPass = 0;
 
   constructor(opts: WriterOptions) {
     this.o = {
@@ -133,10 +174,12 @@ export class CeilingWriter {
       ...opts,
       minBalanceWei: opts.minBalanceWei ?? null,
       publish: opts.publish,
+      settlement: opts.settlement,
     };
-    this.dirs = { batches: join(opts.stateDir, "batches"), sidecars: join(opts.stateDir, "sidecars") };
+    this.dirs = { batches: join(opts.stateDir, "batches"), sidecars: join(opts.stateDir, "sidecars"), blobs: join(opts.stateDir, "blobs") };
     mkdirSync(this.dirs.batches, { recursive: true, mode: 0o700 });
     mkdirSync(this.dirs.sidecars, { recursive: true, mode: 0o700 });
+    mkdirSync(this.dirs.blobs, { recursive: true, mode: 0o700 });
     this.load();
   }
 
@@ -223,6 +266,11 @@ export class CeilingWriter {
       this.lastBalancePoll = t;
       const bal = await this.o.chain.balanceWei();
       if (bal < this.o.minBalanceWei) this.event({ type: "low-balance", balanceWei: bal.toString(), thresholdWei: this.o.minBalanceWei.toString() });
+    }
+    if (this.o.settlement && t - this.lastSettlementPass > (this.o.settlement.everyMs ?? 60_000)) {
+      this.lastSettlementPass = t;
+      await this.settlementPass();
+      await this.flushPublish();
     }
   }
 
@@ -367,7 +415,100 @@ export class CeilingWriter {
     this.backlog = [...b.items, ...this.backlog.filter((x) => !b.items.some((i) => i.proofHash === x.proofHash))];
     this.saveBacklog();
     const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
-    for (const i of b.items) this.writeSidecar(i, { ...b, inclusion: undefined } as Batch, tree, "pending");
+    for (const i of b.items) this.writeSidecar(i, { ...b, inclusion: undefined, settlement: undefined } as Batch, tree, "pending");
+  }
+
+  // ── settlement on Ethereum (bitgraph-settlement/1) ──
+
+  /**
+   * For every safe or finalized batch without a settlement: ask where its
+   * Base block's batch data is on Ethereum. Found: the blob bytes go to disk
+   * (and to the publisher), the batch keeps the pointer, every record's
+   * sidecar and the write record are rewritten with it. Not found yet: asked
+   * again next pass, until the deadline. A settlement, once written, is never
+   * replaced.
+   */
+  private async settlementPass(): Promise<void> {
+    const s = this.o.settlement;
+    if (!s) return;
+    const giveUpAfter = s.giveUpAfterMs ?? 24 * 60 * 60 * 1000;
+    for (const b of this.batches.values()) {
+      if (b.state !== "safe" && b.state !== "finalized") continue;
+      if (b.settlement || b.settlementSearch?.gaveUp || !b.inclusion) continue;
+      const inc = b.inclusion;
+      const now = this.o.now();
+      const attempts = (b.settlementSearch?.attempts ?? 0) + 1;
+      const sinceSafe = b.statusObserved.safe ? now.getTime() - Date.parse(b.statusObserved.safe) : 0;
+      if (sinceSafe > giveUpAfter) {
+        b.settlementSearch = { attempts: attempts - 1, lastAt: b.settlementSearch?.lastAt ?? now.toISOString(), gaveUp: true };
+        this.saveBatch(b);
+        this.event({ type: "settlement-gave-up", batch: b.id, blockNumber: inc.blockNumber, attempts: attempts - 1, sinceSafeMs: sinceSafe });
+        continue;
+      }
+      let parentHash = "";
+      try { parentHash = decodeHeader(hexToBytes(inc.headerRlp)).parentHash; } catch { /* the header was checked at inclusion; without a parent hash the finder checks less */ }
+      let found: SettlementFound | null;
+      try {
+        found = await s.find({ blockNumber: inc.blockNumber, blockHash: inc.blockHash, blockTimestamp: inc.blockTimestamp, parentHash, txHash: inc.txHash });
+      } catch (e) {
+        const error = (e as Error).message.slice(0, 300);
+        b.settlementSearch = { attempts, lastAt: now.toISOString(), lastError: error };
+        this.saveBatch(b);
+        this.event({ type: "settlement-error", batch: b.id, blockNumber: inc.blockNumber, attempts, error });
+        continue;
+      }
+      if (b.settlement) continue; // never replaced, whatever the finder returned meanwhile
+      if (!found) {
+        b.settlementSearch = { attempts, lastAt: now.toISOString() };
+        this.saveBatch(b);
+        continue;
+      }
+      const pointer: SettlementPointer = {
+        ...found.pointer,
+        blobs: found.pointer.blobs.map((x) => ({ ...x, file: blobFileName(x.versionedHash) })),
+      };
+      if (s.pins) {
+        const v = verifySettlementPointer(pointer, s.pins);
+        if (!v.ok) {
+          b.settlementSearch = { attempts, lastAt: now.toISOString(), lastError: `pointer refused: ${v.reason ?? "invalid"}` };
+          this.saveBatch(b);
+          this.event({ type: "settlement-refused", batch: b.id, blockNumber: inc.blockNumber, reason: v.reason ?? "invalid" });
+          continue;
+        }
+      }
+      const listed = new Map(found.blobs.map((x) => [x.versionedHash.toLowerCase(), x]));
+      const blobFiles: string[] = [];
+      for (const ref of pointer.blobs) {
+        const blob = listed.get(ref.versionedHash.toLowerCase());
+        if (!blob) {
+          this.event({ type: "settlement-error", batch: b.id, blockNumber: inc.blockNumber, attempts, error: `no bytes for blob ${ref.versionedHash}` });
+          blobFiles.length = 0;
+          break;
+        }
+        const file = blobFileName(ref.versionedHash);
+        const local = join(this.dirs.blobs, file);
+        if (!existsSync(local)) atomicWrite(local, blob.bytes);
+        if (s.publishBlob && !this.publishedBlobs.has(file)) this.unpublishedBlobs.set(file, blob.bytes);
+        blobFiles.push(file);
+      }
+      if (blobFiles.length !== pointer.blobs.length) {
+        b.settlementSearch = { attempts, lastAt: now.toISOString(), lastError: "blob bytes missing" };
+        this.saveBatch(b);
+        continue;
+      }
+      // Bytes first, then the batch, then what readers see: sidecars and the write record.
+      b.settlement = { pointer, foundAt: now.toISOString(), blobFiles };
+      b.settlementSearch = { attempts, lastAt: now.toISOString() };
+      this.saveBatch(b);
+      const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
+      for (const i of b.items) this.writeSidecar(i, b, tree, b.state as CeilingStatus);
+      this.writeRecord(b);
+      this.event({
+        type: "settlement", batch: b.id, records: b.items.length, blockNumber: inc.blockNumber,
+        l1BlockNumber: pointer.l1.blockNumber, l1BlockTimestamp: pointer.l1.blockTimestamp, l1TxHash: pointer.l1.txHash,
+        blobs: blobFiles.length, channel: pointer.channel?.id ?? null, latencySeconds: pointer.l1.blockTimestamp - inc.blockTimestamp, attempts,
+      });
+    }
   }
 
   // ── write records (one per Base transaction, for the Base ceilings page) ──
@@ -405,6 +546,14 @@ export class CeilingWriter {
       fees: inc.fees,
       attempts: b.sends.length,
       items: b.items.map((i) => ({ proofHash: i.proofHash, position: i.position, ...(i.digestB64 ? { digestB64: i.digestB64 } : {}) })),
+      settlement: b.settlement ? {
+        l1BlockNumber: b.settlement.pointer.l1.blockNumber,
+        l1BlockHash: b.settlement.pointer.l1.blockHash,
+        l1BlockTimestamp: b.settlement.pointer.l1.blockTimestamp,
+        l1TxHash: b.settlement.pointer.l1.txHash,
+        blobs: b.settlement.blobFiles,
+        foundAt: b.settlement.foundAt,
+      } : null,
     };
     const json = JSON.stringify(rec, null, 2);
     const local = join(this.o.stateDir, name);
@@ -423,7 +572,7 @@ export class CeilingWriter {
     const leafIndex = b.items.findIndex((x) => x.proofHash === i.proofHash);
     const inc = status === "pending" ? undefined : b.inclusion;
     const floor = i.floor ? this.floorCache.get(i.floor.blockHash) ?? null : null;
-    const s: CeilingSidecar = {
+    const s: SidecarOut = {
       version: CEILING_VERSION,
       proofHash: i.proofHash,
       leafIndex,
@@ -446,7 +595,7 @@ export class CeilingWriter {
       status,
       statusObserved: inc ? { ...b.statusObserved } : { included: null, safe: null, finalized: null },
       floor: i.floor && floor ? { blockNumber: floor.blockNumber, blockHash: i.floor.blockHash, blockTimestamp: floor.blockTimestamp, blockHeader: floor.headerRlp } : null,
-      settlement: null,
+      settlement: inc && b.settlement ? b.settlement.pointer : null,
     };
     const json = JSON.stringify(s, null, 2);
     atomicWrite(this.sidecarPath(i.proofHash), json);
@@ -454,16 +603,30 @@ export class CeilingWriter {
   }
 
   private async flushPublish(): Promise<void> {
-    if (!this.o.publish || this.unpublished.size === 0) return;
-    const batch = [...this.unpublished.entries()].slice(0, 200);
-    await Promise.all(batch.map(async ([name, json]) => {
-      try {
-        await this.o.publish!(name, json);
-        if (this.unpublished.get(name) === json) this.unpublished.delete(name);
-      } catch (e) {
-        this.event({ type: "publish-error", file: name, error: (e as Error).message.slice(0, 200) });
-      }
-    }));
+    if (this.o.publish && this.unpublished.size > 0) {
+      const batch = [...this.unpublished.entries()].slice(0, 200);
+      await Promise.all(batch.map(async ([name, json]) => {
+        try {
+          await this.o.publish!(name, json);
+          if (this.unpublished.get(name) === json) this.unpublished.delete(name);
+        } catch (e) {
+          this.event({ type: "publish-error", file: name, error: (e as Error).message.slice(0, 200) });
+        }
+      }));
+    }
+    const publishBlob = this.o.settlement?.publishBlob;
+    if (publishBlob && this.unpublishedBlobs.size > 0) {
+      const batch = [...this.unpublishedBlobs.entries()].slice(0, 20);
+      await Promise.all(batch.map(async ([file, bytes]) => {
+        try {
+          await publishBlob(`blobs/${file}`, bytes);
+          this.publishedBlobs.add(file);
+          this.unpublishedBlobs.delete(file);
+        } catch (e) {
+          this.event({ type: "publish-error", file: `blobs/${file}`, error: (e as Error).message.slice(0, 200) });
+        }
+      }));
+    }
   }
 
   // ── inspection ──

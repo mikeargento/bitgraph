@@ -348,6 +348,8 @@ function executiveSummary(
       } else {
         lines.push(`- ${c.status.toUpperCase()} ${inlineCode(c.path)}: ${c.reason ?? ""}`);
       }
+      // Settlement on Ethereum (bitgraph-settlement/1), one line per layer.
+      for (const line of c.settlement?.lines ?? []) lines.push(`  - ${line}`);
     }
     for (const st of cl.statuses) lines.push(`- ${st.status} ${inlineCode(st.path)}: ${st.note}`);
     lines.push("");

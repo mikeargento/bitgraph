@@ -16,7 +16,7 @@ import {
   BASE_MAINNET_SETTLEMENT_PINS, SETTLEMENT_VERSION, verifySettlementPointer, decodeEip4844, versionedHashOf, checkSettlementOnline,
   type SettlementPointer, type SettlementPins,
 } from "../settlement.js";
-import { bytesToHex, hexToBytes, keccak256, decodeHeader, rlpEncode } from "../ceiling-evm.js";
+import { bytesToHex, hexToBytes, keccak256, decodeHeader, rlpEncode, rlpDecode } from "../ceiling-evm.js";
 
 const fix = (name: string): string => readFileSync(new URL(`../../src/__tests__/fixtures/settlement/${name}`, import.meta.url), "utf8");
 const pointer = JSON.parse(fix("pointer-51979918.json")) as SettlementPointer;
@@ -141,13 +141,13 @@ rejects("the block number moved (record field)", () => {
 
 rejects("a rebuilt header with a moved timestamp does not hash to blockHash", () => {
   const p = clone(pointer);
-  const f = hexToBytes(p.l1.blockHeader);
   // Header field 11 is the timestamp; re-encoding it changes the hash, which blockHash still pins.
-  const items = (JSON.parse(JSON.stringify([])) as never, f);
-  void items;
+  const f = rlpDecode(hexToBytes(p.l1.blockHeader)) as Uint8Array[];
+  f[11] = hexToBytes((L1.timestamp - 3600).toString(16));
+  p.l1.blockHeader = bytesToHex(rlpEncode(f));
   p.l1.blockTimestamp = L1.timestamp - 3600;
   return { p };
-}, /^header:/);
+}, /^header: .*does not hash/);
 
 rejects("the transaction index of the other batcher transaction", () => {
   const p = clone(pointer);

@@ -375,6 +375,7 @@ async function main(): Promise<number> {
     process.stdout.write(c.status === "verified"
       ? `ceiling VERIFIED ${c.path}: ${c.label ?? ""}${width}; ${c.onChainDetail ?? ""}\n`
       : `ceiling ${c.status.toUpperCase()} ${c.path}: ${c.reason ?? ""}\n`);
+    for (const line of c.settlement?.lines ?? []) process.stdout.write(`  ${line}\n`);
   }
   for (const s of result.ceilings?.statuses ?? []) process.stdout.write(`ceiling ${s.status} ${s.path}: ${s.note}\n`);
   process.stdout.write(

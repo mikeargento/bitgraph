@@ -1364,6 +1364,37 @@ export interface CeilingCheck {
   /** Online check against a Base RPC: null when not asked or unreachable. */
   onChain: boolean | null;
   onChainDetail?: string;
+  /** Present when the ceiling file carries a settlement pointer (bitgraph-settlement/1). */
+  settlement?: CeilingSettlementCheck;
+}
+
+/**
+ * A ceiling's settlement on Ethereum, checked offline in two layers: the
+ * POINTER (the Ethereum header, the batcher transaction's inclusion, its
+ * blob commitments) and the BLOBS (blob bytes kept in the bundle, verified
+ * against those commitments and decoded down to the ceiling transaction).
+ * Blob bytes absent from the bundle are reported, never a failure.
+ */
+export interface CeilingSettlementCheck {
+  /** verified: both layers passed. pointer-only: the pointer passed and no blob bytes were in the bundle. failed: a layer that ran failed. */
+  status: "verified" | "pointer-only" | "failed";
+  pointer: {
+    ok: boolean;
+    reason?: string;
+    /** The Ethereum block the batcher transaction is in, read from its verified header. */
+    existedBy?: { blockNumber: number; blockHash: string; blockTimestamp: number };
+  };
+  blobs: {
+    status: "verified" | "failed" | "absent";
+    detail: string;
+    /** Blobs the pointer names, and how many had bytes in the bundle. */
+    listed: number;
+    supplied: number;
+    /** Where the ceiling transaction was found inside the decoded batch data. */
+    located?: { baseBlockNumber: number; baseTxIndex: number; txHash: string; batchComplete: boolean; framesDecoded: number; framesTotal: number | null };
+  };
+  /** One line per layer, for people. */
+  lines: string[];
 }
 
 export interface CeilingAnalysis {

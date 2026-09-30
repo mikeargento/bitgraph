@@ -14,12 +14,18 @@
  *   CEILING_TICK_MS         loop interval (default 1000).
  *   CEILING_S3_BUCKET       publish sidecars to s3://<bucket>/ceilings/ (optional).
  *   CEILING_S3_REGION       default us-east-2.
+ *   CEILING_SETTLEMENT      "off" to skip settlement on Ethereum. On by default on Base mainnet
+ *                           (the only chain whose batcher pins are built in); never on elsewhere.
+ *   CEILING_L1_RPC_URL      Ethereum RPC for settlement (default publicnode).
+ *   CEILING_BEACON_URL      Ethereum beacon API for blob sidecars (default publicnode).
  */
 
 import { join } from "node:path";
 import { parseEther, formatEther } from "viem";
+import { BASE_MAINNET_SETTLEMENT_PINS } from "@mikeargento/bitgraph-verify";
 import { BaseChain, CHAINS, loadKey } from "./base-chain.js";
-import { CeilingWriter } from "./writer.js";
+import { createSettlementCache, findSettlement, settlementEndpointsFromEnv } from "./settlement.js";
+import { CeilingWriter, type WriterSettlementOptions } from "./writer.js";
 
 const env = process.env;
 const stateDir = env["CEILING_STATE_DIR"];
@@ -46,17 +52,49 @@ const chain = new BaseChain({
 });
 const bucket = env["CEILING_S3_BUCKET"];
 let publish: ((name: string, json: string) => Promise<void>) | undefined;
+let publishBlob: ((name: string, bytes: Uint8Array) => Promise<void>) | undefined;
 if (bucket) {
-  const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+  const { S3Client, PutObjectCommand, HeadObjectCommand } = await import("@aws-sdk/client-s3");
   const s3 = new S3Client({ region: env["CEILING_S3_REGION"] ?? "us-east-2" });
   publish = async (name, json) => {
     await s3.send(new PutObjectCommand({
       Bucket: bucket, Key: `ceilings/${name}`, Body: json, ContentType: "application/json", CacheControl: "no-cache",
     }));
   };
+  // Blob bytes are content-addressed and immutable: an object already there is left alone.
+  publishBlob = async (name, bytes) => {
+    const Key = `ceilings/${name}`;
+    try {
+      await s3.send(new HeadObjectCommand({ Bucket: bucket, Key }));
+      return;
+    } catch (e) {
+      const status = (e as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+      if (status !== 404 && (e as Error).name !== "NotFound") throw e;
+    }
+    await s3.send(new PutObjectCommand({
+      Bucket: bucket, Key, Body: bytes, ContentType: "application/octet-stream", CacheControl: "public, max-age=31536000, immutable",
+    }));
+  };
+}
+let settlement: WriterSettlementOptions | undefined;
+if (chainId === 8453 && env["CEILING_SETTLEMENT"] !== "off") {
+  const endpoints = settlementEndpointsFromEnv(env);
+  const cache = createSettlementCache();
+  settlement = {
+    find: (b) => findSettlement(b.blockNumber, b.blockHash, {
+      ...endpoints,
+      pins: BASE_MAINNET_SETTLEMENT_PINS,
+      base: { blockTimestamp: b.blockTimestamp, txHash: b.txHash, ...(b.parentHash ? { parentHash: b.parentHash } : {}) },
+      cache,
+      log: (e) => console.log(JSON.stringify(e)),
+    }),
+    pins: BASE_MAINNET_SETTLEMENT_PINS,
+    ...(publishBlob ? { publishBlob } : {}),
+  };
 }
 const writer = new CeilingWriter({
   ...(publish ? { publish } : {}),
+  ...(settlement ? { settlement } : {}),
   stateDir,
   queuePath: env["CEILING_QUEUE_PATH"] ?? join(stateDir, "queue.jsonl"),
   chain,
@@ -64,7 +102,10 @@ const writer = new CeilingWriter({
 });
 
 const bal = await chain.balanceWei();
-console.log(JSON.stringify({ type: "start", chainId, writer: chain.writer, balanceEth: formatEther(bal), stateDir, publishTo: bucket ? `s3://${bucket}/ceilings/` : null }));
+console.log(JSON.stringify({
+  type: "start", chainId, writer: chain.writer, balanceEth: formatEther(bal), stateDir, publishTo: bucket ? `s3://${bucket}/ceilings/` : null,
+  settlement: settlement ? settlementEndpointsFromEnv(env) : null,
+}));
 
 const tickMs = Number(env["CEILING_TICK_MS"] ?? 1000);
 let stopping = false;

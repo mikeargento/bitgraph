@@ -104,6 +104,10 @@ export { deriveTemporalBounds } from "./temporal.js";
 export { verifyCeilings, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./ceilings.js";
 export type { CeilingAuditOptions } from "./ceilings.js";
 
+// The blob layer of a ceiling's settlement on Ethereum (bitgraph-settlement/1): KZG, frames, channel, batches, the ceiling transaction.
+export { verifySettlementBlobs, decodeOpBlob, parseFrames, decompressChannel, decodeBatches, decodeSpanBatch, BASE_MAINNET_ROLLUP, BLOB_BYTES, MAX_BLOB_DATA_BYTES } from "./settlement-blobs.js";
+export type { SettlementBlobsResult, SettlementBlobsCheck, SettlementBlobsOptions, SettlementLocated, ChannelFrame, DecodedBatch, BatchTx } from "./settlement-blobs.js";
+
 export { validateAttestations, validateNitroAttestationDocument } from "./attestation.js";
 
 export { runAudit, auditIngest, computeExitFlags, auditToolVersion, AUDIT_VERSION } from "./audit.js";

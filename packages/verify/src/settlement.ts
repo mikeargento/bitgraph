@@ -143,7 +143,7 @@ export function verifySettlementPointer(pointer: SettlementPointer, pins: Settle
   } catch (e) {
     return fail("transaction", (e as Error).message);
   }
-  const txHash = "0x" + bytesToHex(keccak256(rawTx));
+  const txHash = bytesToHex(keccak256(rawTx));
   if (txHash !== l1.txHash.toLowerCase()) return fail("transaction", "the raw transaction does not hash to txHash");
   const inBlock = mptVerify(hexToBytes(header.transactionsRoot), txTrieKey(l1.txIndex), l1.txInclusionProof.map(hexToBytes));
   if (!inBlock || !bytesEqual(inBlock, rawTx)) return fail("inclusion", "the transaction is not in this block");
@@ -181,7 +181,7 @@ export function verifySettlementPointer(pointer: SettlementPointer, pins: Settle
 export function versionedHashOf(kzgCommitment: Uint8Array): string {
   const h = sha256(kzgCommitment);
   h[0] = 0x01;
-  return "0x" + bytesToHex(h);
+  return bytesToHex(h);
 }
 
 /** The one online question: is that Ethereum header the chain's own block? `getBlockHash` is injected; this module never fetches. */
@@ -238,7 +238,7 @@ export function decodeEip4844(raw: Uint8Array): Eip4844Tx {
   if (toBytes.length !== 20) throw new TypeError("tx: a blob transaction names a recipient");
   const data = asBytes(f[7], "tx.data");
   asList(f[8], "tx.accessList");
-  const hashes = asList(f[10], "tx.blobVersionedHashes").map((h) => "0x" + bytesToHex(asBytes(h, "tx.blobVersionedHashes[]")));
+  const hashes = asList(f[10], "tx.blobVersionedHashes").map((h) => bytesToHex(asBytes(h, "tx.blobVersionedHashes[]")));
   if (hashes.length === 0) throw new TypeError("tx: a blob transaction lists at least one blob");
   const yParity = rlpUint(f[11], "tx.yParity");
   const r = rlpUint(f[12], "tx.r");
@@ -253,6 +253,6 @@ export function decodeEip4844(raw: Uint8Array): Eip4844Tx {
   const sig = secp256k1.Signature.fromBytes(compact, "compact");
   if (sig.hasHighS()) throw new TypeError("tx: high-s signature");
   const pub = sig.addRecoveryBit(Number(yParity)).recoverPublicKey(signingHash).toBytes(false);
-  const from = "0x" + bytesToHex(keccak256(pub.slice(1)).slice(12));
-  return { chainId, nonce, to: "0x" + bytesToHex(toBytes), data, blobVersionedHashes: hashes, from, hash: "0x" + bytesToHex(keccak256(raw)) };
+  const from = bytesToHex(keccak256(pub.slice(1)).slice(12));
+  return { chainId, nonce, to: bytesToHex(toBytes), data, blobVersionedHashes: hashes, from, hash: bytesToHex(keccak256(raw)) };
 }

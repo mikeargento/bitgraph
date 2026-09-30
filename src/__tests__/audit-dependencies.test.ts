@@ -94,8 +94,14 @@ describe("audit package dependency audit: zero network surface", () => {
 
     assert.deepEqual(
       Object.keys(auditPkg["dependencies"] ?? {}).sort(),
-      ["@mikeargento/bitgraph-verify", "@noble/hashes"],
-      "audit runtime dependencies are exactly verify + @noble/hashes"
+      ["@mikeargento/bitgraph-verify", "@noble/hashes", "@paulmillr/trusted-setups", "micro-eth-signer"],
+      // micro-eth-signer (kzg.js only, pure JS over @noble/curves BLS12-381)
+      // and @paulmillr/trusted-setups (the mainnet KZG setup, data only)
+      // joined 2026-09-30 for the blob layer of a ceiling's settlement on
+      // Ethereum (settlement-blobs.ts). Same author and audit lineage as the
+      // @noble packages. micro-eth-signer ships network helpers under net/,
+      // which the audit never imports; the dist walk below still holds.
+      "audit runtime dependencies are exactly verify + @noble/hashes + the KZG pair"
     );
     assert.deepEqual(
       Object.keys(verifyPkg["dependencies"] ?? {}).sort(),
