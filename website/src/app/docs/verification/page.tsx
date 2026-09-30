@@ -175,6 +175,32 @@ export default function VerificationPage() {
         </table>
       </div>
 
+      <h2 id="attestation-yourself">Checking the attestation yourself</h2>
+      <p>
+        The attestation is the one check that used to need BitGraph&rsquo;s own code, because it is a COSE-signed CBOR document whose certificates live about three hours. A <Link href="/docs/carrier">BitGraphed file</Link> carries the same document laid out as evidence (<code>aws-nitro-witness/1</code>): the bytes the signature covers, the signature in DER, the certificate chain and the AWS root as PEM, the instant to evaluate at, and each decoded value beside the value it must equal. With those written to files, the check is openssl alone, and the expected output of each line is in the witness itself:
+      </p>
+      <div className="code-block">
+        <div className="code-block-header"><span>Shell</span><CopyCode /></div>
+        <Code lang="bash">{`openssl x509 -in root.pem -outform DER | openssl dgst -sha256                       # the AWS Nitro root: 641a0321…9bb5b
+openssl verify -attime <atTimeUnix> -CAfile root.pem -untrusted chain.pem leaf.pem   # leaf.pem: OK
+openssl x509 -in leaf.pem -pubkey -noout > leaf.pub
+openssl dgst -sha384 -verify leaf.pub -signature sig.der sigstructure.bin            # Verified OK
+xxd -p sigstructure.bin | tr -d '\n' | grep -c <pcr0>                                # 1
+xxd -p sigstructure.bin | tr -d '\n' | grep -c <user_data>                           # 1`}</Code>
+      </div>
+      <p>
+        Then PCR0 must equal the proof&rsquo;s <code>environment.measurement</code>, <code>user_data</code> must equal the SHA-256 of the canonical signed body (<code>proofHash</code> on an ordinary proof), and the timestamp must fall between the floor block&rsquo;s time and the Base block&rsquo;s time. A verifier never trusts the witness: it recomputes it from the document inside the proof and refuses one that differs. The same checks run in code in <code>verifyNitroAttestation</code>, which also evaluates every certificate at the document&rsquo;s own instant.
+      </p>
+
+      <h2 id="levels">One line per claim, two levels</h2>
+      <p>
+        <code>verifyCarrier</code> answers a BitGraphed file with one result per claim, each naming what it rests on: SHA-256, Ed25519, the AWS Nitro root, an Ethereum block, a Base block. <strong>Offline</strong>, every claim holds by mathematics and the AWS root, with the block headers taken as the ones matching their hashes. <strong>Confirmed</strong> asks any node the caller names one question per chain, whether that header is the chain&rsquo;s own block; the lookups are injected and the package never fetches. A claim the file does not carry yet (a ceiling not landed, no settlement) is stated as not carried, never as failure. The reading at the end is written from the results.
+      </p>
+      <div className="code-block">
+        <div className="code-block-header"><span>Shell</span><CopyCode /></div>
+        <Code lang="bash">{`npx @mikeargento/bitgraph-sdk verify photo.bitgraph.jpg --eth-rpc https://ethereum-rpc.publicnode.com --base-rpc https://mainnet.base.org --pcr0 ${PCR0}`}</Code>
+      </div>
+
       <h2 id="run">Three ways to run it</h2>
       <h3>A folder, offline</h3>
       <p>
@@ -204,7 +230,14 @@ const result = await verify({ proof, bytes, trustAnchors: policy });
 
 const fused = await verifyFuse({ proof, bytes, trustAnchors: policy });
 // fused.category: RECORDED | FUSED_DIRECT | FUSED_FROM_ORIGIN | NO_MATCH | ...
-// fused.statements: the sentences above, with the real positions filled in`}</Code>
+// fused.statements: the sentences above, with the real positions filled in
+
+import { verifyCarrier } from "@mikeargento/bitgraph-verify";
+const file = await verifyCarrier(bitgraphedFileBytes, {
+  pins: { pcr0: policy.allowedMeasurements },
+  lookups: { ethereumBlockHash: async (n) => hashFromYourNode(n), baseBlockHash: async (n) => hashFromYourBaseNode(n) },
+});
+// file.verdict, file.claims: [{ id, name, result, restsOn, detail, level }], file.reading`}</Code>
       </div>
 
       <h3>Over HTTP</h3>

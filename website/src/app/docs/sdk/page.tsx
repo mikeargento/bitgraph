@@ -48,17 +48,20 @@ console.log(r.files[0].proofUrl);`}</Code>
         <div className="code-block-header"><span>position-first.ts</span><CopyCode /></div>
         <Code lang="typescript">{`const slot = await bg.open();
 const task = prompt + "\\n<!-- " + slot.commitment + " -->";
-const sealed = await slot.seal(Buffer.from(task));`}</Code>
+const sealed = await slot.seal(Buffer.from(task));
+// slot.fuseVersion is 2 when the boundary returned its floor (enclave v9): the commitment then
+// binds the floor block's hash, so the task could not have been written before that block existed.`}</Code>
       </div>
 
       <h2 id="cli">Any language: the CLI</h2>
       <p>
-        Every command takes <code>--json</code> and prints one JSON document, so anything that can spawn a process is integrated. <code>verify</code> exits 2 on FALSE or a corrupt block.
+        Every command takes <code>--json</code> and prints one JSON document, so anything that can spawn a process is integrated. <code>verify</code> prints one line per claim and the reading, and exits 2 on FALSE or a corrupt block; <code>--eth-rpc</code> and <code>--base-rpc</code> confirm each block against a node, <code>--pcr0</code> names the enclave images you accept. <code>bitgraphed</code> writes the <Link href="/docs/carrier">BitGraphed file</Link> (carrier/2) beside the original, and <code>complete</code> fetches in what has landed since.
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>shell</span><CopyCode /></div>
         <Code lang="text">{`npx bitgraph record run-042.log --json
-npx bitgraph verify photo.bitgraph.jpg
+npx bitgraph verify photo.bitgraph.jpg --eth-rpc https://ethereum-rpc.publicnode.com --base-rpc https://mainnet.base.org
+npx bitgraph bitgraphed photo.jpg --wait 30000
 npx bitgraph open
 npx bitgraph seal --token <token> task.txt`}</Code>
       </div>

@@ -29,10 +29,11 @@ export interface CarrierV2Parts {
 
 /**
  * A ZIP-family file (docx, xlsx, pptx, zip) stops opening once the trailing
- * block passes about 65,300 bytes, because its end-of-archive record must sit
- * within the last 64 KiB. Builders keep every block under this, dropping the
- * attestation witness first (it is derivable from the proof) and refusing the
- * carrier otherwise.
+ * block passes 65,535 bytes, because its end-of-archive record must sit within
+ * the last 64 KiB (measured 2026-09-30: Python and Spotlight fail at 65,536,
+ * QuickLook hangs; MP4 and MOV have no limit at all). Builders keep every
+ * block under this, dropping the attestation witness first (it is derivable
+ * from the proof) and refusing the carrier otherwise.
  */
 export const CARRIER_BLOCK_ZIP_LIMIT = 60_000;
 

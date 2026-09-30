@@ -101,10 +101,16 @@ export default function APIReferencePage() {
     "chainId": "bitgraph:main",
     "signatureB64": "..."
   },
-  "chainId": "bitgraph:main"
+  "chainId": "bitgraph:main",
+  "anchor": {                        // since enclave v9 (2026-09-30): the floor the enclave will sign at commit
+    "counter": "270",                //   as commit.slotAnchor. Bind its blockHash into a bitgraph-fuse/2 commitment.
+    "blockNumber": 25949300,
+    "blockHash": "0x..."
+  }
 }`}
           />
           <ul>
+            <li><code>anchor</code> is unsigned here and needs no signature: the commit signs the same anchor as <code>commit.slotAnchor</code>, and a <code>bitgraph-fuse/2</code> verifier recomputes the commitment from that signed value, so a wrong answer here only makes the file fail. It is absent before an epoch&rsquo;s first anchor, when no fused commit can succeed anyway.</li>
             <li>The <code>slotId</code> is the position&rsquo;s nonce: a bearer ticket until the position is consumed. Write only the derived commitment into the file, never the nonce, and do not log it. The commitment is SHA-256 over the domain string <code>bitgraph-fuse/1</code>, a zero byte, the SHA-256 of the canonical slot record, and the nonce.</li>
             <li>The chain is bound at allocation and pinned to <code>bitgraph:main</code>, the anchored sequence. A position that is never consumed expires after 120 seconds.</li>
             <li>The route sits behind the anchor-first gate and a rotation guard: until the current epoch has an anchor, in the window before the daily restart, and when the enclave cannot be reached, it answers <code>503 tee-restarting</code>. Retry. The epoch that issued the position must be the epoch the gate approved; a position from a rotation inside that check is refused the same way and expires on its own.</li>
@@ -129,10 +135,11 @@ export default function APIReferencePage() {
   }],
   "chainId": "bitgraph:main",
   "attribution": {
-    "name": "bitgraph-fuse/1",       // fixed value; marks a fused proof
+    "name": "bitgraph-fuse/2",       // bitgraph-fuse/1 or bitgraph-fuse/2: which commitment the file carries
     "title": "trailer/1",            // placement id: trailer/1 | container/1 | container/2 | produced/1 | set/1 | set/2, or the encoding id base64url
     "message": "<origin digest, standard base64>"   // optional; the original the new file was built from
   },
+  "anchor": { "counter": "270", "blockNumber": 25949300, "blockHash": "0x..." },   // bitgraph-fuse/2 only: the floor bound into the commitment, from /api/fuse/allocate
   "metadata": {                      // sets only: the manifest (set/1) or Merkle root document (set/2)
     "bitgraph-fuse/1": { ... }
   }
@@ -157,6 +164,7 @@ export default function APIReferencePage() {
             <li>Validation, all <code>400</code>: the body must be a JSON object; <code>slot</code> must be the record the allocate route returned; <code>slotId</code> must equal <code>slot.nonceB64</code>; <code>digests</code> carries exactly one entry with <code>hashAlg: "sha256"</code>; <code>attribution.name</code> must be <code>bitgraph-fuse/1</code>; <code>title</code> is printable ASCII, 1 to 64 characters; <code>message</code>, when present, is printable ASCII up to 128 characters.</li>
             <li>Sets: with title <code>set/1</code> or <code>set/2</code>, <code>metadata["bitgraph-fuse/1"]</code> carries the manifest or the Merkle root document, and it is verified before the position is spent: exact shape, size cap, strict canonical round trip, the named position&rsquo;s commitment, and the hash to the committed digest. <code>metadata</code> on any other title is refused. The returned proof carries the verified manifest whether or not the enclave echoed it; a different manifest from the enclave is refused with <code>502 manifest-mismatch</code>.</li>
             <li>An anchor must precede the reserved position in its epoch, or the fused floor is undefined: <code>409 no-anchor-before-slot</code>. That condition cannot heal for a given position, so the failure is final: allocate again.</li>
+            <li><code>bitgraph-fuse/2</code>: <code>anchor</code> is required (<code>400</code> without it) and is compared with the ledger&rsquo;s anchor before the position; a floor the ledger contradicts (an older counter, or the same counter with a different block) is <code>409 floor-mismatch</code>, final for that position. A set&rsquo;s manifest or root document must carry the /2 commitment when the marker says /2.</li>
             <li><code>502 slot-mismatch</code>: the enclave returned a proof under a different position; nothing is reported as success. <code>503 tee-restarting</code> or <code>503 ledger-unavailable</code>: retry. <code>429</code> carries <code>Retry-After</code>.</li>
           </ul>
         </Endpoint>

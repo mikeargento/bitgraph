@@ -197,19 +197,23 @@ export default function ProofFormatPage() {
       <div className="code-block">
         <div className="code-block-header"><span>attribution (fused)</span><CopyCode /></div>
         <Code lang="jsonc">{`{
-  "name":    "bitgraph-fuse/1",      // fixed value; marks a fused proof
+  "name":    "bitgraph-fuse/2",      // the commitment version: bitgraph-fuse/1 or bitgraph-fuse/2
   "title":   "trailer/1",            // placement id, or the encoding id base64url
   "message": "<base64>"              // origin digest, SHA-256, standard base64
 }`}</Code>
       </div>
       <p>
-        The position commitment is derived from the signed position record. The raw nonce never enters the artifact:
+        The position commitment is derived from the signed position record. The raw nonce never enters the artifact. Since 2026-09-30 (enclave v9) the allocation also returns the floor anchor the enclave will sign at commit, and a producer that has it binds that block&rsquo;s hash into the commitment, marked <code>bitgraph-fuse/2</code>:
       </p>
       <div className="code-block">
         <div className="code-block-header"><span>commitment</span><CopyCode /></div>
-        <Code lang="typescript">{`slotRecordHash = SHA-256(canonicalize(slotBody))                            // = commit.slotHashB64
-commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  // nonce: 32 raw bytes`}</Code>
+        <Code lang="typescript">{`slotRecordHash = SHA-256(canonicalize(slotBody))                                              // = commit.slotHashB64
+commitment/1   = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)                    // nonce: 32 raw bytes
+commitment/2   = SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce || floorBlockHash)   // the 32 raw bytes of commit.slotAnchor.blockHash`}</Code>
       </div>
+      <p>
+        A verifier chooses the formula by the signed marker name and recomputes commitment/2 from the proof&rsquo;s own signed <code>commit.slotAnchor.blockHash</code>, so a producer can neither tighten nor loosen the floor. What /2 adds: a block hash cannot be known before its block exists, so bytes carrying commitment/2 were finished after that block by the hash alone; with /1, that step rested on the enclave&rsquo;s counter order (the anchor before the position). Placements, payloads and set documents are unchanged between the two; a set&rsquo;s documents keep the <code>bitgraph-fuse/1</code> type and metadata key, and the commitment version is the signed attribution name. A verifier that knows only /1 sees a /2 proof as an ordinary valid proof and says nothing about the file.
+      </p>
       <p>
         Two or more files made together are one set under one position: the committed artifact is the set root, and each file is a member with its own row. Registered placements say, byte for byte, where the commitment sits:
       </p>
@@ -277,7 +281,10 @@ commitment     = SHA-256("bitgraph-fuse/1" || 0x00 || slotRecordHash || nonce)  
         <strong>A verifier checks, offline:</strong> the proof&rsquo;s signature; that the record&rsquo;s leaf and path reach the root; that the payload carries that root; that the raw transaction is signed by the writer the verifier names, sent to that same address, on the expected chain, carrying the payload, and hashes to <code>txHash</code>; that the header hashes to <code>blockHash</code> and the transaction is in it; and that the floor header hashes to the proof&rsquo;s signed <code>commit.slotAnchor</code>. The block time is read from the header, never from the file&rsquo;s own field. Offline, that shows the header is the one with that hash; that it is Base&rsquo;s own block is one lookup on any Base node or explorer, at any time.
       </p>
       <p>
-        <strong>What the file does not prove.</strong> <code>status</code> is what BitGraph&rsquo;s Base node reported when the file was written: included by Base&rsquo;s sequencer, <code>safe</code> once Base had posted the block&rsquo;s data to Ethereum, <code>finalized</code> once that Ethereum block was final. Ask any Base node for its safe or finalized block to check it yourself. <code>settlement</code> is empty in this version; it is reserved for the Ethereum evidence that settles the Base block.
+        <strong>What the file does not prove.</strong> <code>status</code> is what BitGraph&rsquo;s Base node reported when the file was written: included by Base&rsquo;s sequencer, <code>safe</code> once Base had posted the block&rsquo;s data to Ethereum, <code>finalized</code> once that Ethereum block was final. Ask any Base node for its safe or finalized block to check it yourself.
+      </p>
+      <p>
+        <strong>Settlement</strong> is the proof of that step, filled in once the batch is on Ethereum (minutes after the Base block): a <code>bitgraph-settlement/1</code> pointer naming the Ethereum block that committed the batch data, its raw header, the batcher&rsquo;s blob transaction with its inclusion proof against that header&rsquo;s <code>transactionsRoot</code>, and the KZG commitments of the blobs that carry the batch. Offline, a verifier checks the header against its hash, the transaction in it, that it is a blob transaction to Base&rsquo;s batch inbox signed by Base&rsquo;s batcher (two pins the verifier names), and that each versioned hash is <code>0x01 || SHA-256(commitment)[1:]</code>. That shows the ceiling transaction&rsquo;s batch data was committed by that Ethereum block, whatever Base&rsquo;s own state says. Ethereum nodes prune blob bytes after about 18 days and keep only the commitment, so a download package keeps the blob bytes beside the ceiling file; <code>bitgraph-audit</code> verifies each blob against its commitment, decodes the batch, and locates the ceiling transaction inside it. What settlement does not prove: that Base&rsquo;s derivation accepted the batch, and that the Ethereum header is canonical, which is one lookup on any node.
       </p>
       <p>
         <strong>The floor it names</strong> is always the proof&rsquo;s <code>commit.slotAnchor</code> block. A record whose own bytes quote a later anchor, as the demonstration file on the home page quotes the anchor recorded right after its position opened, has a tighter floor of its own, which a reader checks from that quote.
