@@ -35,7 +35,7 @@
  * The reading is written HERE, from the results, never read from the file.
  */
 
-import { verify, createVerificationContext } from "./verifier.js";
+import { verify, verifyProofIntegrity, createVerificationContext } from "./verifier.js";
 import { verifyFuse } from "./fuse-verify.js";
 import { readFuseAttribution } from "./fuse.js";
 import { computeProofHash, computeSignedBodyHash } from "./proof-hash.js";
@@ -116,7 +116,17 @@ export async function verifyCarrier(bytes: Uint8Array, opts: CarrierVerifyOption
     const claim: CarrierClaim = { id: "block", name: "A proof block at the end of the file", result: "UNDETERMINED", restsOn: "", detail, level: "offline" };
     return { verdict: "UNDETERMINED", carrier: "corrupt", version: null, reasons: [detail], bounds: null, ceiling: null, claims: [claim], reading: "The file ends in a proof block this reader cannot read. That is a damaged or newer block, not a verdict on the file.", payload: null, inner: null };
   }
-  const { inner, payload } = parsed;
+  return verifyCarrierPayload(parsed.payload, parsed.inner, opts);
+}
+
+/**
+ * The same claims over a payload already in hand, with the committed bytes or
+ * without them. A proof page holds the payload's parts (the proof, the anchors,
+ * the headers, the Base sidecar) and often not the file, so with `inner` null the
+ * two claims that need the bytes (the digest, the fused commitment) are stated
+ * as not carried, and everything else is judged exactly as for a file.
+ */
+export async function verifyCarrierPayload(payload: CarrierPayload, inner: Uint8Array | null, opts: CarrierVerifyOptions = {}): Promise<CarrierVerifyResult> {
   const version = carrierVersionOf(payload);
   const claims: CarrierClaim[] = [];
   const add = (id: string, name: string, result: ClaimResult, restsOn: string, detail: string, level: "offline" | "confirmed" = "offline") =>
@@ -125,15 +135,22 @@ export async function verifyCarrier(bytes: Uint8Array, opts: CarrierVerifyOption
   const pinnedWriter = opts.pins?.ceilingWriter ?? BITGRAPH_CEILING_WRITER;
   const baseChainId = opts.pins?.baseChainId ?? BASE_MAINNET_CHAIN_ID;
 
-  add("block", "A proof block at the end of the file", "TRUE", "the block's own structure", `bitgraph-carrier/${version}, found from the end of the file and stripped exactly once`);
+  if (inner !== null) add("block", "A proof block at the end of the file", "TRUE", "the block's own structure", `bitgraph-carrier/${version}, found from the end of the file and stripped exactly once`);
 
   // 1. The committed bytes are the ones the proof names.
-  const digestOk = innerDigestMatches(inner, payload);
-  add("bytes.digest", "The committed bytes are the ones the proof names", digestOk ? "TRUE" : "FALSE", "SHA-256", digestOk ? "SHA-256 of the bytes before the block equals the proof's artifact digest" : "the committed bytes do not hash to the carried proof's artifact digest");
+  if (inner !== null) {
+    const digestOk = innerDigestMatches(inner, payload);
+    add("bytes.digest", "The committed bytes are the ones the proof names", digestOk ? "TRUE" : "FALSE", "SHA-256", digestOk ? "SHA-256 of the bytes before the block equals the proof's artifact digest" : "the committed bytes do not hash to the carried proof's artifact digest");
+  } else {
+    add("bytes.digest", "The committed bytes are the ones the proof names", "NOT_CARRIED", "", `the file is not in hand; the proof names SHA-256 ${String((proof.artifact as { digestB64?: string } | undefined)?.digestB64 ?? "")}`);
+  }
 
   // 2. The proof itself, under the existing bitgraph/1 algorithm. A fresh
   //    context: a carrier is judged alone, not against this process's history.
-  const proofResult = await verify({ proof, bytes: inner, context: createVerificationContext() });
+  //    Without the bytes, the integrity half runs (verify() without bytes).
+  const proofResult = inner !== null
+    ? await verify({ proof, bytes: inner, context: createVerificationContext() })
+    : await verifyProofIntegrity({ proof, context: createVerificationContext() });
   add("proof.signature", "The proof is signed and its position record is bound to it", proofResult.valid ? "TRUE" : "FALSE", "Ed25519", proofResult.valid ? "the enclave's Ed25519 signature over the canonical signed body verifies; the position record's own signature, its hash in the commit, the nonce and the counter order all agree" : `the carried proof does not verify: ${proofResult.reason ?? "unspecified"}`);
 
   const ph = (payload.proof as { proofHash?: unknown }).proofHash;
@@ -144,7 +161,9 @@ export async function verifyCarrier(bytes: Uint8Array, opts: CarrierVerifyOption
 
   // 3. Fused: the commitment inside the bytes, rebuilt from the signed record (fuse/2: and the signed floor block).
   const marker = readFuseAttribution(proof);
-  if (marker !== null) {
+  if (marker !== null && inner === null) {
+    add("proof.fused", "The bytes carry the position commitment", "NOT_CARRIED", "", `the file is not in hand; its bytes carry a bitgraph-fuse/${marker.version ?? 1} commitment to check`);
+  } else if (marker !== null && inner !== null) {
     const f = await verifyFuse({ proof, bytes: inner });
     const good = f.category === "FUSED_DIRECT" || f.category === "CARRIED_INLINE";
     add("proof.fused", "The bytes carry the position commitment", good ? "TRUE" : "FALSE",
@@ -340,9 +359,12 @@ function writeReading(
   const by = ceilingTime ? `, and existed by Base block ${ceilingTime.blockNumber} (${iso(ceilingTime.blockTimestamp)})` : "";
   const settled = bounds.settledBy ? `, whose batch data Ethereum committed in block ${bounds.settledBy.blockNumber} (${iso(bounds.settledBy.timestamp)})` : "";
   const before = bounds.notAfter ? `; committed before the anchoring of Ethereum block ${bounds.notAfter.blockNumber}, a bound in position` : "";
-  const subject = fused?.result === "TRUE"
-    ? (fused.restsOn.includes("floor block") ? "These exact bytes were finished after the floor block existed" : "These exact bytes were finished after their position was opened")
-    : "These exact bytes were committed";
+  const digest = get("bytes.digest");
+  const subject = digest?.result !== "TRUE"
+    ? "The bytes this proof names were committed"
+    : fused?.result === "TRUE"
+      ? (fused.restsOn.includes("floor block") ? "These exact bytes were finished after the floor block existed" : "These exact bytes were finished after their position was opened")
+      : "These exact bytes were committed";
   const att = get("attestation.root");
   const rests: string[] = ["SHA-256", "Ed25519"];
   if (att?.result === "TRUE") rests.push(`the AWS Nitro root (${awsNitroRootSha256().slice(0, 8)}…)`);

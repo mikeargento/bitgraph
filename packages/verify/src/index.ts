@@ -109,7 +109,7 @@ export type {
   CarrierWitness, CarrierProof, CarrierFloor, CarrierCeiling, CarrierPayload,
   CarrierParse, WitnessCheck, CarrierBounds,
 } from "./carrier.js";
-export { verifyCarrier, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./carrier-verify.js";
+export { verifyCarrier, verifyCarrierPayload, BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID } from "./carrier-verify.js";
 export type { CarrierVerifyResult, CarrierClaim, ClaimResult, CarrierLookups, CarrierVerifyOptions } from "./carrier-verify.js";
 
 /* bitgraph-carrier/2 (2026-09-30): the ceiling in time, its settlement, the attestation witness and the declared pins, in the same block. */
