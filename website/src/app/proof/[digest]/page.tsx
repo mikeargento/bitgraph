@@ -1585,6 +1585,19 @@ export default function ProofPage() {
           extra headroom"); the anchor page's button now takes its own row instead. */}
       <div style={{ width: "90%", maxWidth: "var(--frame)", margin: "0 auto", padding: "56px 0 96px", animation: "fadeIn .3s ease-out" }}>
 
+        {anchorsBackHref && (
+          /* Its own row over the card, 16px above it (Mike, 2026-09-29: "kind of small and
+             jammed up there"). Outside .proof-grid, because the grid itself is the white card.
+             It arrives with the proof, in the same render that replaces the skeleton, so it
+             never moves the card after the card is shown. Until 2026-09-30 every proof page
+             carried 96px of top padding to hold this button's place, which left file proofs
+             with extra headroom. marginRight -8 cancels the 8px right margin every button
+             carries. */
+          <div style={{ display: "flex", justifyContent: "flex-end", marginRight: -8, marginBottom: 16 }}>
+            <a href={anchorsBackHref} className="bg-action-link bg-proof-top">All floors</a>
+          </div>
+        )}
+
         <div className="proof-grid" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
 
           {/* The content itself sits first: the page
@@ -1807,17 +1820,6 @@ export default function ProofPage() {
             {/* minWidth 0: this wrapper is the grid item now, and without it the epoch ID's
                 nowrap line widened the whole card past a phone's edge instead of truncating. */}
             <div style={{ position: "relative", minWidth: 0 }}>
-            {anchorsBackHref && (
-              /* Its own row over the card, 16px above it (Mike, 2026-09-29: "kind of small and
-                 jammed up there"). It arrives with the proof, in the same render that replaces
-                 the skeleton, so it never moves the card after the card is shown. Until
-                 2026-09-30 every proof page carried 96px of top padding to hold this button's
-                 place, which left file proofs with extra headroom. marginRight -8 cancels the
-                 8px right margin every button carries. */
-              <div style={{ display: "flex", justifyContent: "flex-end", marginRight: -8, marginBottom: 16 }}>
-                <a href={anchorsBackHref} className="bg-action-link bg-proof-top">All floors</a>
-              </div>
-            )}
             {/* Folds like the file proof's record card (2026-09-28): an anchor is a
                 BitGraph too, labelled with its own number. */}
             <CollapsibleCard title={recordLabel}>
