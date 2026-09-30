@@ -2,6 +2,33 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.15.0 (2026-09-30)
+
+- `bitgraph-fuse/2`: the position commitment also binds the floor block,
+  `SHA-256("bitgraph-fuse/2" || 0x00 || slotRecordHash || nonce || floorBlockHash)`,
+  marked by the signed attribution name. `computeSlotCommitment2`, `commitmentForProof`
+  (picks the formula by the signed marker and the proof's signed `commit.slotAnchor`),
+  `producerCommitment`, `fuseVersionOfName`, `isFuseMarkerName`; `fuseAttribution` and
+  `inlineAttribution` take a version. `verifyFuse` and `verifyFuseMember` recompute
+  either. Enclave v9 returns the floor anchor with the allocation.
+- `bitgraph-carrier/2`: the same block also carries the ceiling in time (the
+  `bitgraph-ceiling/1` sidecar), a `bitgraph-settlement/1` pointer when known, the
+  declared pins, and the attestation as an `aws-nitro-witness/1` (checkable with
+  openssl alone). `verifyCarrier` now answers one result per claim with what it rests
+  on, at two levels (offline; confirmed through injected block-hash lookups), and
+  writes the reading from the results. `assembleCarrierV2Payload`,
+  `completeCarrierInTime`, `completeCarrierSettlement`, `carrierBlockSize`,
+  `CARRIER_BLOCK_ZIP_LIMIT` (60,000: a ZIP-family file breaks past 65,535). A /1
+  reader reports a /2 block as an unknown version, never a verdict.
+- `nitro.ts`: `verifyNitroAttestation` (ES384 over the Sig_structure, chain to the
+  embedded AWS Nitro root 641A0321…, every certificate evaluated at the document's
+  own instant, PCR0 and user_data comparisons), `decodeNitroAttestation`,
+  `attestationWitness`, `witnessMatchesAttestation`.
+- `settlement.ts`: `verifySettlementPointer` (Ethereum header, batcher transaction
+  inclusion, type-3 decode with sender recovery, batcher and inbox pins, KZG versioned
+  hashes), `checkSettlementOnline`, `decodeEip4844`, `versionedHashOf`.
+- Golden fixture: BitGraph #4,546 as a carrier/2, with negatives.
+
 ## 1.5.0 (2026-09-05)
 
 - BitGraph Sets: one slot serves any number of files. Placement `set/1` (Form C)

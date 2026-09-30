@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph",
-  "version": "1.9.2",
+  "version": "1.10.0",
   "license": "SEE LICENSE IN LICENSE",
   "description": "Portable proof that these exact bytes filled a position that existed before them.",
   "keywords": [
@@ -43,7 +43,7 @@
     "test:integration": "npm run build --prefix server/commit-service && npm run test:core"
   },
   "dependencies": {
-    "@mikeargento/bitgraph-verify": "^1.7.0",
+    "@mikeargento/bitgraph-verify": "^1.15.0",
     "@noble/ed25519": "^2.1.0",
     "@noble/hashes": "^1.4.0"
   },
