@@ -2234,10 +2234,12 @@ footer { border-top: 1px solid var(--line); }
 @media (max-width: 640px) { .fig-well { padding: 18px 14px !important; } }
 /* A callout is a card with its colour as a band on the left edge, as the postseason marks
    right and wrong. */
-.callout { padding: 16px 20px 16px 22px !important; box-shadow: inset 4px 0 0 var(--line), var(--shadow-card) !important; }
-.callout.is-limit { box-shadow: inset 4px 0 0 var(--err), var(--shadow-card) !important; }
-.callout.is-ok { box-shadow: inset 4px 0 0 var(--ok), var(--shadow-card) !important; }
-.callout.is-err { box-shadow: inset 4px 0 0 var(--err), var(--shadow-card) !important; }
+/* The band is painted as a background, not an inset shadow: an inset shadow follows the
+   rounded corner on both edges and reads as a crescent. Painted, its inner edge stays
+   straight and only its outer edge takes the card's corner. */
+.callout { --band: var(--line); padding: 16px 20px 16px 22px !important; background: linear-gradient(to right, var(--band) 4px, var(--paper) 4px) !important; }
+.callout.is-limit, .callout.is-err { --band: var(--err); }
+.callout.is-ok { --band: var(--ok); }
 /* Tables sit on a card: a white surface, rows split by the soft rule, header in the dim tone. */
 .prose table, .prose-doc table { background: var(--paper); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden; border-collapse: separate; border-spacing: 0; }
 .prose th, .prose td, .prose-doc th, .prose-doc td { border: 0 !important; border-bottom: 1px solid var(--line-2) !important; padding: 10px 14px !important; }
@@ -2483,3 +2485,8 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
    "if we learn one thing, maybe the font weight?"). The kit carries Acumin 400/600/700,
    so 600 is the one step lighter. Size, tracking and alignment unchanged. */
 .home h1 { font-weight: 600 !important; }
+/* MOCK (not committed): the typing caret on the home headline. */
+.typed-caret { display: inline-block; width: 0.06em; height: 0.82em; margin-left: 0.06em; vertical-align: -0.06em; background: var(--accent); opacity: 0; }
+.typed-caret.on { animation: typed-blink 1s steps(1) infinite; opacity: 1; }
+@keyframes typed-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .typed-caret { display: none; } }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { HomeHeadline } from "@/components/home-headline";
 import Link from "next/link";
 import { HOME_EXAMPLE_DIGEST } from "@/lib/warm";
 import { WarmExample } from "@/components/warm-example";
@@ -44,17 +45,15 @@ export default function HomePage() {
       }}
     >
 
-      <h1>
-        {/* The category, named (Mike, 2026-09-26). A frontier model asked how to create a
-            position for records before they exist could not name one, and every scheme it
-            offered let the producer draw its own randomness, so the producer kept the option.
-            The page has to name the thing and say why giving up the option is the point.
-            "AI records", not "digital records": a category is named for its first market
-            (Certificate Transparency for TLS certificates), and everyone BitGraph is pitching
-            this month holds AI records; the mechanism stays universal in the docs. */}
-        <span style={{ whiteSpace: "nowrap" }}>Position commitment</span><br />
-        <span style={{ whiteSpace: "nowrap" }}>for AI&nbsp;records.</span>
-      </h1>
+      {/* The category, named (Mike, 2026-09-26). A frontier model asked how to create a
+          position for records before they exist could not name one, and every scheme it
+          offered let the producer draw its own randomness, so the producer kept the option.
+          The page has to name the thing and say why giving up the option is the point.
+          "AI records", not "digital records": a category is named for its first market
+          (Certificate Transparency for TLS certificates), and everyone BitGraph is pitching
+          this month holds AI records; the mechanism stays universal in the docs. The line
+          after "for" types through the uses (Mike, 2026-09-30). */}
+      <HomeHeadline phrases={["AI records.", "AI agent actions.", "AI evaluations.", "predictions.", "sealed bids.", "evidence.", "any file.", "any bytes.", "any bits."]} />
 
       {/* Why it matters, in Schelling's terms: a commitment is credible because it gives up
           options. The term in game theory is "commitment" ("credible commitment", Schelling
