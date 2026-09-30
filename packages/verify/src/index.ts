@@ -115,7 +115,7 @@ export type { CarrierVerifyResult, CarrierClaim, ClaimResult, CarrierLookups, Ca
 /* bitgraph-carrier/2 (2026-09-30): the ceiling in time, its settlement, the attestation witness and the declared pins, in the same block. */
 export {
   CARRIER_VERSION_2, CEILING_SIDECAR_VERSION, SETTLEMENT_POINTER_VERSION, ATTESTATION_WITNESS_VERSION,
-  carrierVersionOf, completeCarrierInTime, completeCarrierSettlement,
+  carrierVersionOf, completeCarrierInTime, completeCarrierSettlement, settlementFromSidecar,
 } from "./carrier.js";
 export type { CarrierVersion, CarrierCeilingInTime, CarrierSettlement, CarrierPins } from "./carrier.js";
 export { assembleCarrierV2Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT } from "./carrier-assemble.js";

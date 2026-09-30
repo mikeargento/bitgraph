@@ -362,6 +362,17 @@ export function completeCarrierInTime(
   return { changed: true, bytes: buildCarrier(p.inner, payload) };
 }
 
+/**
+ * v2: the settlement part a verified bitgraph-ceiling/1 sidecar carries, when
+ * the writer has attached its bitgraph-settlement/1 pointer; undefined before
+ * that. Builders and completions call this so the pointer travels with the
+ * ceiling it settles.
+ */
+export function settlementFromSidecar(sidecar: Record<string, unknown> | null | undefined): Extract<CarrierSettlement, { status: "present" }> | undefined {
+  const p = sidecar ? record(sidecar["settlement"]) : null;
+  return p !== null && p["version"] === SETTLEMENT_POINTER_VERSION ? { status: "present", pointer: p } : undefined;
+}
+
 /** v2: stamp a verified settlement pointer. Never overwrites a present one that differs. */
 export function completeCarrierSettlement(
   bytes: Uint8Array,

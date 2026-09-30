@@ -18,6 +18,7 @@ import {
   verify, createVerificationContext, verifyCeiling, assembleCarrierV2Payload, carrierBlockSize, CARRIER_BLOCK_ZIP_LIMIT,
   BITGRAPH_CEILING_WRITER, BASE_MAINNET_CHAIN_ID, computeProofHash, type BitGraphProof,
 } from "@mikeargento/bitgraph-verify";
+import { settlementFromSidecar, completeCarrierSettlement, type CarrierSettlement } from "@mikeargento/bitgraph-verify";
 import {
   buildCarrier, parseCarrier, completeCarrier, completeCarrierInTime, carrierBounds, carrierVersionOf,
   checkFloorBinding, checkCeilingBinding, anchorMessageBytes, verifyWitnessHeader,
@@ -242,7 +243,7 @@ export async function deCarrierFiles(files: File[]): Promise<{ files: File[]; no
  */
 /** The evidence a proof page or a download assembles around a proof: the parts of a carrier/2 block, each vetted before it is used. */
 export interface ProofEvidence {
-  parts: { proof: CarrierProof; floor: CarrierPayload["floor"]; ceiling: CarrierPayload["ceiling"]; ceilingInTime: CarrierCeilingInTime };
+  parts: { proof: CarrierProof; floor: CarrierPayload["floor"]; ceiling: CarrierPayload["ceiling"]; ceilingInTime: CarrierCeilingInTime; settlement?: CarrierSettlement };
   /** The v2 payload with the openssl witness and the declared pins, for verifyCarrierPayload and for a download. */
   payload: CarrierPayload;
   ceiling: "present" | "unfetched";
@@ -307,7 +308,9 @@ export async function assembleProofEvidence(proofIn: { version: string; commit: 
     ceilingNote = ceilingNote ?? (e instanceof Error ? e.message : "The Base ceiling could not be fetched.");
   }
 
-  const parts = { proof: proof as unknown as CarrierProof, floor, ceiling, ceilingInTime };
+  // The Ethereum settlement rides with the ceiling it settles, once the writer has attached it.
+  const settlement = settlementFromSidecar(ceilingInTime.status === "present" ? ceilingInTime.sidecar : null);
+  const parts = { proof: proof as unknown as CarrierProof, floor, ceiling, ceilingInTime, ...(settlement ? { settlement } : {}) };
   const payload = assembleCarrierV2Payload(parts as never) as unknown as CarrierPayload;
   return { parts, payload, ceiling: ceiling.status, ceilingInTime: ceilingInTime.status, ceilingNote };
 }
@@ -374,7 +377,9 @@ export async function completeDroppedCarrier(bytes: Uint8Array, opts: { waitForC
   const v2 = carrierVersionOf(p.payload) === 2;
   const needsAnchor = p.payload.ceiling.status !== "present";
   const needsTime = v2 && p.payload.ceilingInTime?.status !== "present";
-  if (!needsAnchor && !needsTime) {
+  // A settlement missing is not pending: the writer attaches it when the batch is found on Ethereum; a drop just asks again.
+  const needsSettlement = v2 && !needsTime && !p.payload.settlement;
+  if (!needsAnchor && !needsTime && !needsSettlement) {
     return { status: "already-complete", bytes, note: "The time window inside is already complete.", bounds: carrierBounds(p.payload) };
   }
   const c = commitOf(p.payload.proof);
@@ -402,20 +407,27 @@ export async function completeDroppedCarrier(bytes: Uint8Array, opts: { waitForC
     } else pending.push(after.bound?.note ?? "No anchor follows this position yet.");
   }
 
-  if (needsTime) {
+  if (needsTime || needsSettlement) {
     const { sidecar } = await fetchCeilingInTime(p.payload.proof as unknown as BitGraphProof);
     if (sidecar !== null) {
-      const done = completeCarrierInTime(out, sidecar);
-      if (done.error) return { status: "failed", bytes, note: done.error, bounds: carrierBounds(p.payload) };
-      out = done.bytes;
-      stamped.push("the Base ceiling");
-    } else pending.push("The Base ceiling has not been written yet.");
+      if (needsTime) {
+        const done = completeCarrierInTime(out, sidecar);
+        if (done.error) return { status: "failed", bytes, note: done.error, bounds: carrierBounds(p.payload) };
+        out = done.bytes;
+        stamped.push("the Base ceiling");
+      }
+      const st = settlementFromSidecar(sidecar);
+      if (st) {
+        const done = completeCarrierSettlement(out, st.pointer);
+        if (!done.error && done.changed) { out = done.bytes; stamped.push("the Ethereum settlement"); }
+      }
+    } else if (needsTime) pending.push("The Base ceiling has not been written yet.");
   }
 
   const parsed = parseCarrier(out);
   p = parsed;
   const bounds = parsed.kind === "carrier" ? carrierBounds(parsed.payload) : null;
-  if (stamped.length === 0) return { status: "pending", bytes, note: pending.join(" "), bounds };
+  if (stamped.length === 0) return pending.length > 0 ? { status: "pending", bytes, note: pending.join(" "), bounds } : { status: "already-complete", bytes, note: "The time window inside is already complete.", bounds };
   const note = `${stamped.join(" and ").replace(/^./, (ch) => ch.toUpperCase())} ${stamped.length === 1 ? "is" : "are"} now inside the file.${pending.length ? ` ${pending.join(" ")}` : ""}`;
   return { status: "completed", bytes: out, note, bounds };
 }

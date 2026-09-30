@@ -172,6 +172,9 @@ export class CeilingWriter {
   private lastStatusPoll = 0;
   private lastBalancePoll = 0;
   private lastSettlementPass = 0;
+  /** Batches whose sidecars on disk lack a floor header their items name; repaired a few per tick. */
+  private floorRepair: string[] = [];
+  private floorRepairTries = new Map<string, number>();
 
   constructor(opts: WriterOptions) {
     this.o = {
@@ -203,6 +206,10 @@ export class CeilingWriter {
       const b = JSON.parse(readFileSync(join(this.dirs.batches, f), "utf8")) as Batch;
       this.batches.set(b.id, b);
       if (b.state !== "dropped") for (const i of b.items) this.anchored.set(i.proofHash, b.id);
+    }
+    for (const b of this.batches.values()) {
+      if (!b.inclusion || b.state === "dropped") continue;
+      if (b.items.some((i) => i.floor && !this.floorOnDisk(i))) this.floorRepair.push(b.id);
     }
     // Publishes pending when the process last stopped, re-read from disk. Without a journal (the
     // first start of this code) everything settled is queued again: the published copies of
@@ -246,6 +253,50 @@ export class CeilingWriter {
   private journalPublish(): void {
     if (!this.o.publish && !this.o.settlement?.publishBlob) return;
     atomicWrite(this.p("unpublished.json"), JSON.stringify({ files: [...this.unpublished.keys()], blobs: [...this.unpublishedBlobs.keys()] }));
+  }
+  /**
+   * Every item's floor header in the cache before a sidecar is written: from the cache, else from
+   * the sidecar already on disk (a restart empties the cache), else from the chain. On 2026-09-30
+   * the settlement pass rewrote 683 sidecars after a restart with `floor: null`, the cache empty.
+   */
+  private async ensureFloors(items: CeilingQueueItem[]): Promise<void> {
+    for (const i of items) {
+      if (!i.floor || this.floorCache.get(i.floor.blockHash)) continue;
+      const onDisk = this.floorOnDisk(i);
+      if (onDisk) { this.floorCache.set(i.floor.blockHash, onDisk); continue; }
+      const fetched = await this.o.chain.floorHeader(i.floor.blockHash).catch(() => null);
+      if (fetched) this.floorCache.set(i.floor.blockHash, fetched);
+    }
+  }
+  /** The floor header the sidecar on disk carries for this item, when it is the item's own block. */
+  private floorOnDisk(i: CeilingQueueItem): { blockNumber: number; blockTimestamp: number; headerRlp: string } | null {
+    if (!i.floor) return null;
+    const path = this.sidecarPath(i.proofHash);
+    if (!existsSync(path)) return null;
+    try {
+      const f = (JSON.parse(readFileSync(path, "utf8")) as { floor?: { blockNumber: number; blockHash: string; blockTimestamp: number; blockHeader: string } | null }).floor;
+      return f && f.blockHash === i.floor.blockHash ? { blockNumber: f.blockNumber, blockTimestamp: f.blockTimestamp, headerRlp: f.blockHeader } : null;
+    } catch { return null; }
+  }
+  /** Sidecars on disk written without their floor header: a few batches per tick, rewritten with it. */
+  private async repairFloors(): Promise<void> {
+    let n = 0;
+    while (this.floorRepair.length > 0 && n < 10) {
+      const b = this.batches.get(this.floorRepair.shift()!);
+      n++;
+      if (!b || !b.inclusion || b.state === "dropped") continue;
+      await this.ensureFloors(b.items);
+      const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
+      for (const i of b.items) this.writeSidecar(i, b, tree, b.state as CeilingStatus);
+      const stillMissing = b.items.filter((i) => i.floor && !this.floorCache.get(i.floor.blockHash)).length;
+      this.event({ type: "floor-repair", batch: b.id, records: b.items.length, stillMissing });
+      // A header the chain would not give (an RPC hiccup) is asked for again, a few times, at the back of the line.
+      if (stillMissing > 0) {
+        const tries = (this.floorRepairTries.get(b.id) ?? 0) + 1;
+        this.floorRepairTries.set(b.id, tries);
+        if (tries < 5) this.floorRepair.push(b.id);
+      }
+    }
   }
   private event(e: Record<string, unknown>): void {
     const line = { at: this.o.now().toISOString(), ...e };
@@ -311,6 +362,10 @@ export class CeilingWriter {
     if (this.o.settlement && t - this.lastSettlementPass > (this.o.settlement.everyMs ?? 60_000)) {
       this.lastSettlementPass = t;
       await this.settlementPass();
+      await this.flushPublish();
+    }
+    if (this.floorRepair.length > 0) {
+      await this.repairFloors();
       await this.flushPublish();
     }
   }
@@ -392,12 +447,8 @@ export class CeilingWriter {
     this.saveBatch(b);
     const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
     const latencies = b.items.map((i) => inc.blockTimestamp * 1000 - Date.parse(i.committedAt));
-    for (const i of b.items) {
-      if (i.floor && !this.floorCache.has(i.floor.blockHash)) {
-        this.floorCache.set(i.floor.blockHash, await this.o.chain.floorHeader(i.floor.blockHash).catch(() => null));
-      }
-      this.writeSidecar(i, b, tree, "included");
-    }
+    await this.ensureFloors(b.items);
+    for (const i of b.items) this.writeSidecar(i, b, tree, "included");
     this.writeRecord(b);
     this.event({
       type: "write", batch: b.id, records: b.items.length, blockNumber: inc.blockNumber, blockTimestamp: inc.blockTimestamp,
@@ -440,6 +491,7 @@ export class CeilingWriter {
       b.state = next;
       this.saveBatch(b);
       const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
+      await this.ensureFloors(b.items);
       for (const i of b.items) this.writeSidecar(i, b, tree, next as CeilingStatus);
       this.writeRecord(b);
       this.event({ type: "status", batch: b.id, status: next, blockNumber: inc.blockNumber });
@@ -546,6 +598,7 @@ export class CeilingWriter {
       b.settlement = { pointer, foundAt: now.toISOString(), blobFiles };
       b.settlementSearch = { attempts, lastAt: now.toISOString() };
       this.saveBatch(b);
+      await this.ensureFloors(b.items);
       const tree = new MerkleTree(b.items.map((i) => ceilingLeaf(i.proofHash)));
       for (const i of b.items) this.writeSidecar(i, b, tree, b.state as CeilingStatus);
       this.writeRecord(b);
@@ -617,7 +670,7 @@ export class CeilingWriter {
   private writeSidecar(i: CeilingQueueItem, b: Batch, tree: MerkleTree, status: CeilingStatus): void {
     const leafIndex = b.items.findIndex((x) => x.proofHash === i.proofHash);
     const inc = status === "pending" ? undefined : b.inclusion;
-    const floor = i.floor ? this.floorCache.get(i.floor.blockHash) ?? null : null;
+    const floor = i.floor ? this.floorCache.get(i.floor.blockHash) ?? this.floorOnDisk(i) : null;
     const s: SidecarOut = {
       version: CEILING_VERSION,
       proofHash: i.proofHash,

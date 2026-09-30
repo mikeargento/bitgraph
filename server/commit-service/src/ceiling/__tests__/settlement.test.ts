@@ -452,7 +452,7 @@ class FakeChain implements Chain {
   async safeHead() { return this.safe; }
   async finalizedHead() { return this.finalized; }
   async balanceWei() { return 10n ** 18n; }
-  async floorHeader() { return null; }
+  async floorHeader(): Promise<{ blockNumber: number; blockTimestamp: number; headerRlp: string } | null> { return null; }
 }
 
 let seq = 0;
@@ -688,5 +688,78 @@ describe("the writer's settlement pass, bounded and journaled", () => {
     assert.ok(published.includes(sidecarName(a)), "the settled sidecar goes out again");
     assert.ok(published.some((f) => f.startsWith("writes/")), "so does its write record");
     assert.equal(published.filter((f) => f.startsWith("blobs/")).length, 2, "and its blobs (the publisher's HEAD keeps them from being written twice)");
+  });
+});
+
+describe("the floor header survives restarts and rewrites", () => {
+  const FLOOR_HASH = "0x" + "fe".repeat(32);
+  const HEADER = { blockNumber: 26088457, blockTimestamp: 1790749163, headerRlp: "0xf90211a0" + "00".repeat(40) };
+  class FlooredChain extends FakeChain {
+    headerAnswer: typeof HEADER | null = HEADER;
+    override async floorHeader() { return this.headerAnswer; }
+  }
+  function floored(find: (t: SettlementTarget) => Promise<SettlementFound | null>) {
+    const dir = mkdtempSync(join(tmpdir(), "ceiling-floor-"));
+    const queuePath = join(dir, "queue.jsonl");
+    const chain = new FlooredChain();
+    const published: string[] = [];
+    const now = () => new Date(Date.UTC(2026, 8, 30, 12));
+    const mk = () => new CeilingWriter({
+      stateDir: dir, queuePath, chain, log: () => {}, now,
+      publish: async (name) => { published.push(name); },
+      settlement: { find, everyMs: -1, publishBlob: async () => {} },
+    });
+    const sidecarName = (i: CeilingQueueItem) => `${i.proofHash.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}.ceiling.json`;
+    const sidecar = (i: CeilingQueueItem) => JSON.parse(readFileSync(join(dir, "sidecars", sidecarName(i)), "utf8")) as { status: string; anchor: { blockNumber: number } | null; floor: { blockNumber: number; blockHash: string; blockHeader: string } | null; settlement: SettlementPointer | null };
+    const events = () => readFileSync(join(dir, "events.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l) as Record<string, unknown>);
+    const toSafe = async (w: CeilingWriter, i: CeilingQueueItem) => {
+      appendFileSync(queuePath, JSON.stringify(i) + "\n");
+      await w.tick();
+      chain.step();
+      await w.tick();
+      chain.safe = sidecar(i).anchor!.blockNumber;
+      (w as unknown as { lastStatusPoll: number }).lastStatusPoll = 0;
+      await w.tick();
+      assert.equal(sidecar(i).status, "safe");
+    };
+    return { chain, mk, published, sidecar, sidecarName, events, toSafe };
+  }
+  const withFloor = (): CeilingQueueItem => ({ ...item(), floor: { blockHash: FLOOR_HASH } } as CeilingQueueItem);
+
+  test("a settlement rewrite after a restart keeps the floor the sidecar already carried, even with the chain unreachable", async () => {
+    let answer = false;
+    const { chain, mk, sidecar, toSafe } = floored(async (t) => (answer ? fakeFound(t) : null));
+    const w1 = mk();
+    const a = withFloor();
+    await toSafe(w1, a);
+    assert.equal(sidecar(a).floor?.blockHash, FLOOR_HASH, "written with its floor");
+    assert.equal(sidecar(a).settlement, null);
+    chain.headerAnswer = null;
+    answer = true;
+    const w2 = mk();
+    await w2.tick();
+    const s = sidecar(a);
+    assert.ok(s.settlement, "settled by the restarted writer");
+    assert.equal(s.floor?.blockHash, FLOOR_HASH, "and the floor is still there");
+    assert.equal(s.floor?.blockHeader, HEADER.headerRlp);
+  });
+
+  test("a sidecar written without its floor is repaired at the next start, from the chain, and published", async () => {
+    const { chain, mk, published, sidecar, sidecarName, events, toSafe } = floored(async () => null);
+    chain.headerAnswer = null;
+    const w1 = mk();
+    const a = withFloor();
+    await toSafe(w1, a);
+    assert.equal(sidecar(a).floor, null, "the chain gave no header, so none was written");
+    chain.headerAnswer = HEADER;
+    published.length = 0;
+    const w2 = mk();
+    await w2.tick();
+    assert.equal(sidecar(a).floor?.blockHash, FLOOR_HASH, "repaired");
+    assert.equal(sidecar(a).floor?.blockNumber, HEADER.blockNumber);
+    assert.ok(published.includes(sidecarName(a)), "and published again");
+    const ev = events().find((e) => e["type"] === "floor-repair");
+    assert.ok(ev, "the repair is logged");
+    assert.equal(ev!["stillMissing"], 0);
   });
 });

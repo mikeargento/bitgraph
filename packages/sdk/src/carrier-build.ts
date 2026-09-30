@@ -30,6 +30,7 @@ import {
   computeProofHash,
   type CarrierPayload, type CarrierProof, type CarrierWitness, type CarrierCeiling, type CarrierCeilingInTime,
 } from "@mikeargento/bitgraph-verify";
+import { settlementFromSidecar, completeCarrierSettlement } from "@mikeargento/bitgraph-verify";
 import { ApiError, getProofDetail, type ApiConfig } from "./api.js";
 import { toUrlSafeB64 } from "./encoding.js";
 import type { BitGraphProof } from "./types.js";
@@ -207,11 +208,14 @@ export async function buildBitGraphedFile(
   }
   if (ceilingInTime.status === "unfetched" && !ceilingInTime.searched) ceilingInTime = { status: "unfetched", searched: { at: new Date().toISOString() } };
 
+  // The Ethereum settlement rides with the ceiling it settles, once the writer has attached it.
+  const settlement = settlementFromSidecar(ceilingInTime.status === "present" ? ceilingInTime.sidecar : null);
   const { payload, witness } = payloadWithinLimits(committedBytes, {
     proof: proof as unknown as CarrierProof,
     floor: { status: "present", anchor: floor.anchor, witness: floor.witness },
     ceiling,
     ceilingInTime,
+    ...(settlement ? { settlement } : {}),
   });
   return { bytes: buildCarrier(committedBytes, payload), fileName: carrierFileName(fileName), ceiling: ceiling.status, ceilingInTime: ceilingInTime.status, witness };
 }
@@ -254,13 +258,22 @@ export async function completeBitGraphedFile(config: ApiConfig, carrierBytes: Ui
         bytes = done.bytes; changed ||= done.changed;
       } else stillPending ||= pending;
     }
-    if (v2 && parsed.payload.ceilingInTime?.status !== "present") {
+    if (v2 && (parsed.payload.ceilingInTime?.status !== "present" || !parsed.payload.settlement)) {
+      const needsTime = parsed.payload.ceilingInTime?.status !== "present";
       const { sidecar, pending } = await fetchCeilingInTime(config, parsed.payload.proof as unknown as BitGraphProof);
       if (sidecar !== null) {
-        const done = completeCarrierInTime(bytes, sidecar);
-        if (done.error) throw new ApiError(409, done.error);
-        bytes = done.bytes; changed ||= done.changed;
-      } else stillPending ||= pending;
+        if (needsTime) {
+          const done = completeCarrierInTime(bytes, sidecar);
+          if (done.error) throw new ApiError(409, done.error);
+          bytes = done.bytes; changed ||= done.changed;
+        }
+        // A settlement missing is not pending: the writer attaches it when the batch is found on Ethereum.
+        const st = settlementFromSidecar(sidecar);
+        if (st) {
+          const done = completeCarrierSettlement(bytes, st.pointer);
+          if (!done.error) { bytes = done.bytes; changed ||= done.changed; }
+        }
+      } else if (needsTime) stillPending ||= pending;
     }
     const again = parseCarrier(bytes);
     if (again.kind !== "carrier") throw new ApiError(500, "the completed block does not parse");
