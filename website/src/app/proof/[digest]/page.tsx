@@ -2099,7 +2099,12 @@ export default function ProofPage() {
             {proof.environment?.attestation?.format && <Field label="Attestation Format" value={proof.environment.attestation.format} />}
             {proof.environment?.attestation?.reportB64 && proof.environment?.measurement && (
               <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)" }}>
-                <AttestationButton reportB64={proof.environment.attestation.reportB64} measurement={proof.environment.measurement} proof={proof} />
+                <AttestationButton
+                  reportB64={proof.environment.attestation.reportB64}
+                  measurement={proof.environment.measurement}
+                  proof={proof}
+                  bounds={baseCeiling?.anchor && baseCeiling.floor ? { floor: baseCeiling.floor, ceiling: baseCeiling.anchor } : undefined}
+                />
               </div>
             )}
           </CollapsibleCard>
@@ -2187,11 +2192,16 @@ export default function ProofPage() {
                   {baseCeiling.floor?.blockTimestamp != null && (
                     <Field label="Window" value={`${(baseCeiling.anchor.blockTimestamp - baseCeiling.floor.blockTimestamp).toLocaleString()} seconds after the floor block`} />
                   )}
+                  {/* The status is what BitGraph's Base node last reported, not something the ceiling file
+                      proves (outside review, 2026-09-30). Base "safe" means the block's data is posted to
+                      Ethereum; "finalized" means the Ethereum block holding it is final. */}
                   <Field
                     label="Status"
-                    value={baseCeiling.status === "safe" || baseCeiling.status === "finalized"
-                      ? "Settled on Ethereum"
-                      : "Relies on Base's sequencer until settled on Ethereum"}
+                    value={baseCeiling.status === "finalized"
+                      ? "Final on Ethereum, as BitGraph's Base node last reported"
+                      : baseCeiling.status === "safe"
+                        ? "Posted to Ethereum, as BitGraph's Base node last reported"
+                        : "Relies on Base's sequencer until it is posted to Ethereum"}
                   />
                   <Field label="Basescan" value={`https://basescan.org/tx/${baseCeiling.anchor.txHash}`} link />
                   <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--line)", display: "flex", gap: 20, flexWrap: "wrap" }}>
@@ -3446,7 +3456,22 @@ function extractJpegFromRaw(data: Uint8Array): Blob | null {
 
 /* ── Attestation Verifier (modal) ── */
 
-function AttestationButton({ reportB64, measurement, proof }: { reportB64: string; measurement: string; proof: BitGraphProof }) {
+/** What AWS documents each PCR as measuring. PCR0 has its own line above; PCR8 is empty on an unsigned image. */
+const PCR_MEANING: Record<string, string> = {
+  "1": "Linux kernel and boot",
+  "2": "application",
+  "3": "IAM role of the parent instance; changes if that role changes",
+  "4": "ID of the parent instance; changes when the enclave runs on a different instance",
+  "8": "enclave image signing certificate",
+};
+
+function AttestationButton({ reportB64, measurement, proof, bounds: win }: {
+  reportB64: string;
+  measurement: string;
+  proof: BitGraphProof;
+  /** The floor block and the Base ceiling block, when this proof has a time ceiling. */
+  bounds?: { floor: { blockNumber: number; blockTimestamp: number }; ceiling: { blockNumber: number; blockTimestamp: number } };
+}) {
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<NitroVerifyResult | null>(null);
@@ -3538,7 +3563,7 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
               </div>
 
               {/* Decoded fields */}
-              {(result.moduleId || result.timestamp || result.certChainLength) && (
+              {(result.moduleId || result.timestamp || result.userDataB64) && (
                 <div style={{ marginBottom: 18, padding: "14px 18px", background: "var(--panel)", borderRadius: "var(--radius-row)", border: "1px solid var(--line)" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Decoded from Attestation Document</div>
                   {result.moduleId && (
@@ -3548,12 +3573,29 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
                   )}
                   {result.timestamp && (
                     <div style={{ fontSize: 12, color: "var(--text)", marginBottom: 4 }}>
-                      <span style={{ color: "var(--dim)" }}>Timestamp: </span>{stampTz(new Date(result.timestamp))}
+                      <span style={{ color: "var(--dim)" }}>Timestamp, signed by AWS Nitro hardware: </span>{stampTz(new Date(result.timestamp))}
                     </div>
                   )}
-                  {result.certChainLength && (
-                    <div style={{ fontSize: 12, color: "var(--text)" }}>
-                      <span style={{ color: "var(--dim)" }}>Certificate Chain: </span>{result.certChainLength} certificates
+                  {/* Compared with the floor block and the Base block only: the time ceiling, never the
+                      positional one (CANON 3.6: the two are not merged on a page). */}
+                  {result.timestamp && win && (() => {
+                    const t = result.timestamp / 1000;
+                    const inside = t >= win.floor.blockTimestamp && t <= win.ceiling.blockTimestamp;
+                    return (
+                      <div style={{ fontSize: 12, color: "var(--text)", marginBottom: 4 }}>
+                        <span style={{ color: "var(--dim)" }}>Inside the window: </span>
+                        {inside
+                          ? `yes, after Ethereum block #${win.floor.blockNumber.toLocaleString()} and before Base block #${win.ceiling.blockNumber.toLocaleString()}`
+                          : `no, it falls outside Ethereum block #${win.floor.blockNumber.toLocaleString()} to Base block #${win.ceiling.blockNumber.toLocaleString()}`}
+                      </div>
+                    );
+                  })()}
+                  {result.userDataB64 && (
+                    <div style={{ fontSize: 12, color: "var(--text)", wordBreak: "break-all" }}>
+                      <span style={{ color: "var(--dim)" }}>user_data: </span>{result.userDataB64}
+                      {(proof as BitGraphProof & { proofHash?: string }).proofHash === result.userDataB64 && (
+                        <span style={{ color: "var(--dim)" }}> (equals This BitGraph&rsquo;s Hash)</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -3566,8 +3608,11 @@ function AttestationButton({ reportB64, measurement, proof }: { reportB64: strin
                   {Object.entries(result.pcrs)
                     .filter(([idx]) => idx !== "0")
                     .map(([idx, hex]) => (
-                      <div key={idx} style={{ fontSize: 11, fontFamily: mono, color: "var(--dim)", marginBottom: 4, wordBreak: "break-all" }}>
-                        <span style={{ color: "var(--dim)" }}>PCR{idx}: </span>{hex}
+                      <div key={idx} style={{ marginBottom: 6 }}>
+                        {PCR_MEANING[idx] && <div style={{ fontSize: 12, color: "var(--text)" }}>PCR{idx}: {PCR_MEANING[idx]}</div>}
+                        <div style={{ fontSize: 11, fontFamily: mono, color: "var(--dim)", wordBreak: "break-all" }}>
+                          {PCR_MEANING[idx] ? "" : `PCR${idx}: `}{hex}
+                        </div>
                       </div>
                     ))}
                 </div>

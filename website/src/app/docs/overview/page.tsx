@@ -48,7 +48,7 @@ export default function OverviewPage() {
       </p>
       <HowFigure />
       <p>
-        <strong>Allocation.</strong> The enclave draws 32 bytes from its hardware random number generator, advances a counter, and signs a small record: the nonce, the counter, the epoch identifier, its own public key and the latest Ethereum anchor it has authenticated. This is the position record. It has no field that could hold a digest and is signed before any digest reaches the enclave. The position is kept in enclave memory as unused.
+        <strong>Allocation.</strong> The enclave draws 32 bytes from its hardware random number generator, advances a counter, and signs a small record: the nonce, the counter, the epoch identifier, its own public key and the chain. This is the position record. Beside it, the enclave notes the latest Ethereum anchor it has authenticated; that becomes the floor, signed into the proof at commit. It has no field that could hold a digest and is signed before any digest reaches the enclave. The position is kept in enclave memory as unused.
       </p>
       <p>
         <strong>The new bytes.</strong> From the signed position record your device derives a 32-byte position commitment, builds the new bytes with it, and hashes them. Section 3 covers where the commitment goes in different kinds of file.
@@ -98,7 +98,7 @@ export default function OverviewPage() {
         A format you produce yourself, such as an AI system&rsquo;s audit record, can carry the commitment in a field of its own. Then there is nothing to rebuild: the record with its commitment is the file you keep.
       </p>
       <p>
-        Either way, the new bytes name the position and the position names the new bytes, and the anchor signed into the position record puts a public time under them. The proof&rsquo;s signed attribution field carries the marker: the label <code>bitgraph-fuse/1</code>, the placement used and, for a wrapped file, the digest of the original.
+        Either way, the new bytes name the position and the position names the new bytes, and the floor the enclave fixed when it allocated the position puts a public time under them. The proof&rsquo;s signed attribution field carries the marker: the label <code>bitgraph-fuse/1</code>, the placement used and, for a wrapped file, the digest of the original.
       </p>
       <p>
         Two or more files made together become one set under one position, with each file a member that keeps its own row and inclusion path. The <Link href="/docs/proof-format#fused">proof format</Link> page has the byte-level placements.
@@ -106,14 +106,14 @@ export default function OverviewPage() {
 
       <h2 id="time">4. Where time comes from</h2>
       <p>
-        Nothing inside the sequence is a clock. Counters and previous-proof hashes give a total order within an epoch, and that order needs no time to be checked. Wall-clock statements come from outside, from Ethereum, which BitGraph reads and never writes to.
+        Nothing inside the sequence is a clock. Counters and previous-proof hashes give a total order within an epoch, and that order needs no time to be checked. Wall-clock statements come from outside. The floor comes from Ethereum, which BitGraph reads and never writes to. The ceiling in time comes from Base, where BitGraph writes one small transaction per batch of records, carrying a Merkle root over their proof hashes.
       </p>
       <p>
         An <em>anchor</em> is an ordinary position whose file is the hash of a recent Ethereum block, committed by the same enclave, on the same sequence, with the same key. The enclave accepts an anchor only from an anchor service whose signature it verifies against a key baked into its image, and it records the block number and hash in the signed body. A block hash cannot be known before its block is mined, so an anchor, and everything the sequence placed after it, came after that block.
       </p>
       <AnchorFigure />
       <p>
-        <strong>The floor.</strong> Every position record on the anchored sequence names the latest anchor at the moment of allocation (since enclave version 7), and since version 8 the enclave refuses to sign a proof whose position record carries none. The block that anchor names had been mined before the position existed, so its time is a lower bound on the position that nobody involved chose. A verifier reads the block&rsquo;s time from its header, which an export ships as a witness, and can confirm the same block on any Ethereum explorer.
+        <strong>The floor.</strong> On the anchored sequence the enclave fixes a floor for every position at the moment it allocates it: the latest anchor, which it signs into the proof at commit (since enclave version 7). Since version 8 it refuses to sign a proof without one. The block that anchor names had been mined before the position existed, so its time is a lower bound on the position that nobody involved chose. A verifier reads the block&rsquo;s time from its header, which an export ships as a witness, and can confirm the same block on any Ethereum explorer.
       </p>
       <p>
         <strong>The ceiling.</strong> The next anchor the sequence took is the position&rsquo;s ceiling: the record was committed before that anchor took its place. That is a fact about order in the sequence and it does not convert to a clock reading. An anchor is made after the block it carries, so a record can sit after that block was mined and still before the anchor. No field in a proof is a trusted timestamp, and the proof itself makes no wall-clock upper-bound claim.
@@ -147,7 +147,7 @@ export default function OverviewPage() {
             <tr><td>commit.slotCounter, commit.counter</td><td>The reserved position and the commit&rsquo;s. The first is always smaller.</td></tr>
             <tr><td>commit.slotHashB64</td><td>Hash of the position record, inside the signed body, so the position cannot be swapped.</td></tr>
             <tr><td>commit.prevB64</td><td>Hash of the previous proof on the sequence: the link that makes the order checkable.</td></tr>
-            <tr><td>commit.slotAnchor</td><td>The Ethereum block the floor rests on, signed into the position record.</td></tr>
+            <tr><td>commit.slotAnchor</td><td>The Ethereum block the floor rests on: fixed by the enclave when the position was allocated, signed into the proof at commit.</td></tr>
             <tr><td>signer, environment</td><td>The enclave&rsquo;s key and signature, its PCR0 measurement, and its hardware attestation over this body.</td></tr>
             <tr><td>attribution</td><td>Signed. The marker, the placement and, for a wrapped file, the original&rsquo;s digest.</td></tr>
             <tr><td>metadata, timestamps</td><td>Unsigned and advisory. Never evidence.</td></tr>

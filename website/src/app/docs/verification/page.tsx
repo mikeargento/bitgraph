@@ -38,7 +38,7 @@ export default function VerificationPage() {
         <ul className="facts">
           <li><b>Integrity</b><span>The record in hand is exactly the one that was committed. Change one byte and it no longer matches.</span></li>
           <li><b>Position</b><span>The commitment inside the record points to a position that existed before the record was signed, and the proof commits this record. A commitment copied from another record fails, because its proof commits a different one.</span></li>
-          <li><b>Floor</b><span>The position record names an Ethereum block that had already been mined when the position was allocated. The record could not have been finished before that block.</span></li>
+          <li><b>Floor</b><span>The proof names an Ethereum block that had already been mined when the position was allocated. A record carrying the position commitment could not have been finished before that block.</span></li>
           <li><b>Origin of the proof</b><span>The signature verifies, and a hardware attestation ties the signing key to a published, reproducible enclave image the verifier chooses to accept.</span></li>
         </ul>
         <p>Those are the conclusions. The checks that produce them, in the order the verifier runs them, are below.</p>
@@ -169,7 +169,7 @@ export default function VerificationPage() {
             </tr>
             <tr>
               <td>Wall-clock floor of a fused file</td>
-              <td>The proof names its floor in the signed position record (commit.slotAnchor). Turning that into a clock time needs the Ethereum block header, which the export package ships as a witness; the verifier does not fetch it.</td>
+              <td>The proof names its floor in its signed commit (commit.slotAnchor). Turning that into a clock time needs the Ethereum block header, which the export package ships as a witness; the verifier does not fetch it.</td>
             </tr>
           </tbody>
         </table>

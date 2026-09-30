@@ -342,7 +342,7 @@ curl -X POST http://localhost:8080/commit \\
       </ol>
       <p>For each proof request:</p>
       <ol className="steps">
-        <li>Validates the position exists (no position, no proof). On the anchored chain it also requires the position record to carry a floor: the latest authenticated anchor, fixed at allocation</li>
+        <li>Validates the position exists (no position, no proof). On the anchored chain it also requires the position to have a floor: the latest authenticated anchor, fixed at allocation</li>
         <li>Increments the chain counter</li>
         <li>Builds the signed body: artifact, commit, measurement, and any attribution or policy</li>
         <li>Signs with Ed25519</li>

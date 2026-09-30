@@ -8,8 +8,8 @@
  *   1. /api/proofs/witness answers with the witness object itself; 0.1.0 read a
  *      { witness } envelope the route never sends.
  *   2. The floor was asked for with the COMMIT counter. For a position held while
- *      an anchor landed, that is a later anchor than the one the enclave signed
- *      into the position record, and the floor binding refuses it.
+ *      an anchor landed, that is a later anchor than the one the enclave fixed
+ *      at allocation, and the floor binding refuses it.
  *
  * The fixture is a real held position: demo2 was reserved at 2871 and committed
  * at 2874, with its signed floor at anchor #2870 (floor2) and the next anchor

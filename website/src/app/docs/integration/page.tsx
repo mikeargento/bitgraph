@@ -64,7 +64,7 @@ export default function IntegrationPage() {
         <li><strong>Commit under the same position.</strong> The enclave binds the digest to the position and consumes it in one atomic step, signs the body, and attests it. If any part fails, no proof exists and the position is lost.</li>
       </ol>
       <p>
-        The commitment is a function of a record that did not exist until the position was allocated, so the fused bytes could not have been finished before that moment, and the anchor signed into the position record puts a public time under them. That bound reaches the fused bytes. It does not reach the original: the original can be any age, and the proof says only that it existed no later than the commit.
+        The commitment is a function of a record that did not exist until the position was allocated, so the fused bytes could not have been finished before that moment, and the floor the enclave fixed at that moment puts a public time under them. That bound reaches the fused bytes. It does not reach the original: the original can be any age, and the proof says only that it existed no later than the commit.
       </p>
 
       <h3>A record you produce yourself</h3>

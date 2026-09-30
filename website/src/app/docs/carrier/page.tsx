@@ -26,24 +26,27 @@ export default function CarrierPage() {
         The outer file is an envelope. Its own hash is committed nowhere and proves nothing: anyone can repackage the same committed bytes with the same block and get a different outer hash, and that is fine. The envelope is never the recorded thing; <strong>the bytes inside it are.</strong> A verifier strips the block by structure, hashes what remains, and checks that digest against the proof. Change one byte of the committed bytes and the pair is detectably invalid.
       </p>
       <p>
-        Dropping a BitGraphed file on this site does the same thing: the block is stripped and the bytes inside are checked. If you want the envelope itself to hold a position, record it like any other file; the recursion is allowed and unremarkable.
+        Dropping a BitGraphed file on this site does the same thing: the block is stripped and the bytes inside are checked, and the MCP server and the SDK likewise never record the envelope in place of what it carries. An envelope can still be given a position of its own through any path that hashes it as it is. A reader of that file then strips one block and finds the envelope, which is why a reader strips exactly one.
       </p>
 
       <h2 id="window">The time window</h2>
       <p>
-        The floor is always inside: the anchor the enclave signed into the slot, matched by identity, with the block header beside it so <em>placed no earlier than this block</em> is checked by recomputing the header&rsquo;s hash locally. The ceiling cannot be inside at the moment the file is made, because the anchor that follows the commit has not landed yet. So the block states one of exactly two things:
+        The floor is always inside. It is the anchor the enclave fixed when the position was allocated and signed into the proof, matched to the signed block number and hash, with that block&rsquo;s raw header beside it. Recomputing the header&rsquo;s hash offline shows it is the header the enclave signed, so the time read from it belongs to that block; one lookup on any Ethereum node or explorer, at any time, shows the block is on Ethereum. Together they say the record was placed after this block. The ceiling in position cannot be inside at the moment of the commit, because the anchor that follows it has not landed yet; the site waits a few seconds for it before building the file, and usually has it. So the block states one of exactly two things:
       </p>
       <ul>
-        <li><strong>Closing anchor inside.</strong> The window is complete: no earlier than the floor block, committed before the closing anchor. Each proof inside also carries the enclave platform&apos;s signed clock, so the file states the instant it was committed and proves the window around it.</li>
+        <li><strong>Closing anchor inside.</strong> The window is complete: placed after the floor block, and committed before the anchoring of the closing block, a bound in position, not a clock time.</li>
         <li><strong>Closing anchor not fetched.</strong> Stated in those words. The floor stands on its own; nothing about the ceiling is implied, invented or downgraded.</li>
       </ul>
+      <p>
+        Every proof inside also carries its Nitro attestation, whose timestamp is the enclave platform&rsquo;s signed clock. It states the instant of the commit, and the anchors bound that instant from outside. The carrier check does not read the attestation; <code>bitgraph-audit</code> verifies it. The ceiling in time, the Base block, is not in the block: it travels in its own file beside the proof, in the proof page&rsquo;s download.
+      </p>
       <p>
         Completion is a one-step patch from public data: drop the file back on the site and fetch the anchor that followed, and the file comes back with the closing anchor inside. The committed bytes never change, so the proof is unaffected. A file that already holds a ceiling is never overwritten.
       </p>
 
       <h2 id="survival">What survives, what does not</h2>
       <p>
-        The block rides after the file&rsquo;s own end, in formats whose readers stop at an internal end marker, so a BitGraphed photo still opens as a photo. Copying preserves it byte for byte. Re-encoding does not: export from an editor, and the block is gone the way any trailing data is. The original recording is unaffected either way, and the proof can be re-downloaded from its position page.
+        The block rides after the file&rsquo;s own end. Most formats never read past their own data, so a BitGraphed photo still opens as a photo. PDF and ZIP-based files (docx, xlsx, pptx) are read from the end, and tested readers still open them because they search back for their own end marker; a ZIP-based file stops opening if the block passes 64 KiB, far above the roughly 29 KB a block is today. Copying preserves it byte for byte. Re-encoding does not: export from an editor, and the block is gone the way any trailing data is. The original recording is unaffected either way, and the proof can be re-downloaded from its position page.
       </p>
 
       <h2 id="format">The block, for people writing readers</h2>
@@ -59,6 +62,9 @@ export default function CarrierPage() {
 <uint32 BE>                             payload length again
 "BGPROOF" 0x01                          8 bytes  magic again`}</Code>
       </div>
+      <p>
+        Strip exactly one block. The committed bytes can themselves end in a block, when an envelope was given a position and then carried, so a reader must never repeat the strip.
+      </p>
       <div className="code-block">
         <div className="code-block-header"><span>payload</span><CopyCode /></div>
         <Code lang="jsonc">{`{

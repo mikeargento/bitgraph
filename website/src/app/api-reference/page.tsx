@@ -299,7 +299,7 @@ const proofs = await resp.json();
           />
           <ul>
             <li>Consuming a held position (<code>slotId</code>) is available only where the service enables it, and a held position commits exactly one digest per request.</li>
-            <li>On enclave v8 the anchored chain <code>bitgraph:main</code> refuses to commit until an authenticated anchor has landed in the epoch, and every position record on it carries the latest anchor as its floor.</li>
+            <li>On enclave v8 the anchored chain <code>bitgraph:main</code> refuses to commit until an authenticated anchor has landed in the epoch, and every proof on it carries, as its floor, the latest anchor at the moment its position was allocated.</li>
             <li>A proof committed here directly is not indexed by the site. To have it indexed, commit through <code>/api/commit</code>.</li>
           </ul>
         </Endpoint>

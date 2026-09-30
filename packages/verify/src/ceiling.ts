@@ -3,8 +3,8 @@
 /**
  * A ceiling in TIME for a BitGraph, carried beside the proof, never inside it.
  *
- * Every BitGraph already has a floor in time (the Ethereum block fused in at
- * slot allocation, `commit.slotAnchor`) and a ceiling in POSITION (the
+ * Every BitGraph already has a floor in time (the Ethereum block the enclave
+ * fixes at slot allocation and signs at commit, `commit.slotAnchor`) and a ceiling in POSITION (the
  * anchors that follow it in the chain). This adds the one thing a record
  * cannot supply for itself: something outside the operator's control that
  * depends on the record. After a commit, a writer puts a Merkle root over

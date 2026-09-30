@@ -22,9 +22,10 @@
  * the carrier as recorded — the bytes inside it are.
  *
  * THE TIME WINDOW. The payload always carries the floor: the anchor the
- * enclave signed into the slot (`commit.slotAnchor`, present since enclave
- * v7) plus that block's header, so "placed no earlier than this block" checks
- * offline by identity. The ceiling cannot exist when the carrier is written —
+ * enclave fixed at slot allocation and signed at commit (`commit.slotAnchor`,
+ * present since enclave v7) plus that block's header, so the header checks
+ * offline against the signed hash; that the block is on Ethereum is one
+ * lookup anywhere. The ceiling cannot exist when the carrier is written —
  * the anchor that follows the commit has not landed yet — so it is either
  * `present` (stamped in later from public data) or `unfetched`, stated in so
  * many words. There is no third state, and absence of the field is a corrupt
@@ -54,7 +55,7 @@ export const CARRIER_VERSION = "bitgraph-carrier/1";
 
 /* ── The payload ────────────────────────────────────────────────────────── */
 
-/** The raw Ethereum block header, so the block's identity and time check offline. */
+/** The raw Ethereum block header: offline it matches the signed hash and gives the block's time; that it is Ethereum's own block is one lookup. */
 export interface CarrierWitness {
   headerRlpHex: string;
   blockNumber: number;

@@ -119,7 +119,7 @@ export async function buildBitGraphedFile(
   const epochId = commit?.epochId;
   if (typeof counter !== "string" || typeof epochId !== "string") throw new ApiError(502, "the proof carries no position to bracket");
 
-  // The floor is the anchor the enclave signed into the position record, so it is
+  // The floor is the anchor the enclave fixed when it allocated the position, so it is
   // the anchor before the RESERVED position, never the one before the commit. For
   // a position held while an anchor landed they differ, and 0.1.0 asked with the
   // commit counter, fetched the later anchor, and checkFloorBinding refused it.

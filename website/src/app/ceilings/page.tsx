@@ -90,6 +90,7 @@ export default async function CeilingsPage({ searchParams }: { searchParams: Pro
         <a className="cl-writer" href={`${BASESCAN}/address/${CEILING_WRITER}`} target="_blank" rel="noopener">
           {CEILING_WRITER} <span aria-hidden style={{ fontSize: 10 }}>&#8599;</span>
         </a>
+        . It sends nothing but ceiling writes, each a zero-value transaction to itself, and each names the SHA-256 of the one before, so its full history lists every ceiling.
       </p>
 
       <div style={{ display: "flex", gap: 12, margin: "28px 0 20px" }}>

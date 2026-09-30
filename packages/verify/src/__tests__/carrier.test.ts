@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import {
   buildCarrier, parseCarrier, completeCarrier, carrierBounds,
   checkFloorBinding, checkCeilingBinding, verifyWitnessHeader,
@@ -181,4 +182,21 @@ test("a carrier fused inside a carrier resolves outermost-first", () => {
   assert.equal(p2.kind, "carrier");
   if (p2.kind !== "carrier") return;
   assert.deepEqual(Buffer.from(p2.inner), Buffer.from(demo2));
+});
+
+test("a reader strips exactly one block: a carried envelope comes back whole", () => {
+  // An envelope given a position of its own and then carried ends in two blocks. The reader must
+  // return the envelope, not strip on down to the file inside it (outside review, 2026-09-30).
+  const envelope = buildCarrier(demo1, payload1);
+  const envDigest = Buffer.from(createHash("sha256").update(envelope).digest()).toString("base64");
+  const outer: CarrierPayload = { ...payload1, proof: { ...proof1, artifact: { ...proof1.artifact, digestB64: envDigest } } };
+  const p = parseCarrier(buildCarrier(envelope, outer));
+  assert.equal(p.kind, "carrier");
+  if (p.kind !== "carrier") return;
+  assert.deepEqual(Buffer.from(p.inner), Buffer.from(envelope));
+  assert.ok(innerDigestMatches(p.inner, p.payload));
+  // Stripping again would reach the original file, which does not match the outer proof.
+  const deeper = parseCarrier(p.inner);
+  assert.equal(deeper.kind, "carrier");
+  if (deeper.kind === "carrier") assert.ok(!innerDigestMatches(deeper.inner, p.payload));
 });

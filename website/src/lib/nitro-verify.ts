@@ -13,7 +13,7 @@
  */
 
 import { p384 } from "@noble/curves/nist.js";
-import { sha384 } from "@noble/hashes/sha2.js";
+import { sha256, sha384 } from "@noble/hashes/sha2.js";
 import { rootCaDerBytes } from "./aws-nitro-root-ca";
 
 // ─── Public API ──────────────────────────────────────────────────────────
@@ -99,10 +99,10 @@ export async function verifyNitroAttestation(
     // COSE signature is raw r||s (96 bytes for P-384). @noble/curves expects compact form.
     const sigValid = verifyP384(signatureBytes, sigStructureHash, leafCert.publicKey);
     checks.push({
-      name: "ECDSA P-384 Signature",
+      name: sigValid ? "AWS signature verified" : "AWS signature",
       pass: sigValid,
       detail: sigValid
-        ? "Attestation signed by leaf certificate"
+        ? "The attestation document's ES384 signature checks against its leaf certificate"
         : "Signature verification failed against leaf certificate public key",
     });
     if (!sigValid) return { valid: false, checks, pcrs, pcr0, moduleId, timestamp, certChainLength };
@@ -136,10 +136,10 @@ export async function verifyNitroAttestation(
     }
 
     checks.push({
-      name: "Certificate Chain",
+      name: "Certificate chain",
       pass: chainValid,
       detail: chainValid
-        ? `${chain.length} certificates, each signed by parent`
+        ? "Each certificate is signed by the one above it"
         : chainFailReason,
     });
     if (!chainValid) return { valid: false, checks, pcrs, pcr0, moduleId, timestamp, certChainLength };
@@ -149,11 +149,14 @@ export async function verifyNitroAttestation(
     const topCert = chain[0];
     const topHash = sha384(topCert.tbsCertificate);
     const rootMatch = verifyP384(topCert.signature, topHash, rootCert.publicKey);
+    // The fingerprint is computed here from the root this page embeds, not typed in, so a reader
+    // can compare it with the one AWS publishes (641A0321... for AWS Nitro Root G1).
+    const rootFp = Array.from(sha256(rootCaDerBytes())).map((b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
     checks.push({
-      name: "AWS Nitro Root CA",
+      name: rootMatch ? `Chains to AWS Nitro root (${rootFp.slice(0, 8)}\u2026)` : "AWS Nitro root",
       pass: rootMatch,
       detail: rootMatch
-        ? "Chain anchored to AWS Nitro Root G1 (CN=aws.nitro-enclaves)"
+        ? `The top of the chain is signed by AWS Nitro Root G1 (CN=aws.nitro-enclaves), SHA-256 ${rootFp}`
         : "Top of chain not signed by AWS Nitro Root CA",
     });
     if (!rootMatch) return { valid: false, checks, pcrs, pcr0, moduleId, timestamp, certChainLength };
@@ -177,7 +180,7 @@ export async function verifyNitroAttestation(
         name: "Bound to this proof",
         pass: bound,
         detail: bound
-          ? "Attestation user_data matches this proof's hash"
+          ? "The attestation's user_data equals the SHA-256 of this proof's signed body, recomputed here"
           : userDataB64
             ? "Attestation user_data does not match this proof"
             : "Attestation carries no user_data to bind",

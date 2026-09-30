@@ -19,7 +19,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "What does a proof establish, exactly?",
-    a: "That these exact bytes were committed at this position in one sequence, that the position was allocated before their digest arrived, and that the position was placed after the Ethereum block its position record names. Not truth, not authorship, not first creation, not an exact time.",
+    a: "That these exact bytes were committed at this position in one sequence, that the position was allocated before their digest arrived, and that the position was placed after the Ethereum block its proof names as the floor. Not truth, not authorship, not first creation, not an exact time.",
     href: "/docs/what-bitgraph-is-not", label: "Limits",
   },
   {
@@ -34,7 +34,7 @@ const faqs: { q: string; a: string; href?: string; label?: string }[] = [
   },
   {
     q: "What is a floor, and is there a ceiling?",
-    a: "The floor is the Ethereum block named in the position record: it was mined before the position existed, so the position was placed after that block's time. The ceiling in position is the next anchor in the sequence: a place, not a clock reading. The ceiling in time is the Base block that includes the record: a few seconds after each commit, BitGraph writes a Merkle root over new records to Base, and the record existed by that block's time. See Ceilings.",
+    a: "The floor is the Ethereum block the proof names in `commit.slotAnchor`, the latest anchor when the position was allocated: it was mined before the position existed, so the position was placed after that block's time. The ceiling in position is the next anchor in the sequence: a place, not a clock reading. The ceiling in time is the Base block that includes the record: a few seconds after each commit, BitGraph writes a Merkle root over new records to Base, and the record existed by that block's time. See Ceilings.",
     href: "/docs/overview#time", label: "Where time comes from",
   },
   {
