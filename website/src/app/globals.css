@@ -2079,11 +2079,7 @@ body { background: var(--bg); }
   .br-desk { display: inline; }
 }
 @media (max-width: 899px) {
-  /* Re-solved 2026-10-01 for the longest line the headline now rests on,
-     "for any bits / BitGraph": measured 9.68x its font size (334px at 34.5px).
-     Column is 90vw, so 90/9.68 = 9.3vw is the edge; 8.6vw leaves about 7%.
-     Floor 24px: 232px wide, inside the 252px column of a 280px screen. */
-  .home h1 { font-size: clamp(24px, 8.6vw, 72px) !important; }
+  .home h1 { font-size: clamp(28px, 9.2vw, 72px) !important; }
 }
 /* The line under it scales with the headline rather than sitting at the body
    size. At 58px over 17px the step is 3.4x and the italic reads as a caption
