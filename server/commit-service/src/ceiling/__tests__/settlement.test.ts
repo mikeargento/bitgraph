@@ -333,6 +333,19 @@ describe("findSettlement against a fake L1", () => {
     assert.equal(w.calls.filter((c) => c === "eth_getRawTransactionByHash").length, 1);
   });
 
+  test("only the blobs up to the one completing the ceiling transaction are kept: the rest of the channel is not this record's", async () => {
+    // Three frames in one transaction; the ceiling transaction's bytes end before the last 100
+    // compressed bytes, so frames 0 and 1 reach them and the third blob is not needed.
+    const { frames } = buildChannel([100_000, -100]);
+    const w = await world([{ l1Block: 26088463, blobDatas: frames }]);
+    const found = await find(w);
+    assert.ok(found);
+    assert.equal(frames.length, 3);
+    assert.deepEqual(found.pointer.blobs.map((b) => b.index), [0, 1], "the third blob carries only what comes after the ceiling transaction");
+    assert.equal(found.blobs.length, 2, "and only those blobs' bytes are kept");
+    assert.equal(found.pointer.located?.txHash, CEILING_TX);
+  });
+
   test("frame 0 in one transaction, the last frame in another: the pointer names the transaction that completes the ceiling's bytes", async () => {
     const { frames } = buildChannel([100_000]);
     const w = await world([{ l1Block: 26088463, blobDatas: [frames[0]!] }, { l1Block: 26088464, blobDatas: [frames[1]!] }]);
@@ -518,7 +531,7 @@ describe("the writer's settlement pass", () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0]!.txHash, s.anchor!.txHash);
     assert.equal(calls[0]!.parentHash, "0x" + "ab".repeat(32), "the parent hash is read from the carried header");
-    assert.deepEqual(new Uint8Array(readFileSync(join(dir, "blobs", `${VH_A}.bin`))), new Uint8Array([1, 2, 3]));
+    assert.ok(!existsSync(join(dir, "blobs", `${VH_A}.bin`)), "the local copy goes once the blob is published");
     assert.deepEqual(published.sort(), [`blobs/${VH_A}.bin`, `blobs/${VH_B}.bin`]);
     const rec = record().find((r) => r["settlement"]) as { settlement: Record<string, unknown> };
     assert.equal(rec.settlement["l1BlockNumber"], 26088463);
@@ -687,7 +700,8 @@ describe("the writer's settlement pass, bounded and journaled", () => {
     await w2.tick();
     assert.ok(published.includes(sidecarName(a)), "the settled sidecar goes out again");
     assert.ok(published.some((f) => f.startsWith("writes/")), "so does its write record");
-    assert.equal(published.filter((f) => f.startsWith("blobs/")).length, 2, "and its blobs (the publisher's HEAD keeps them from being written twice)");
+    assert.equal(published.filter((f) => f.startsWith("blobs/")).length, 0, "the blobs do not: their local copies went when they were published");
+    assert.equal(readdirSync(join(dir, "blobs")).length, 0, "no blob is kept on disk once published");
   });
 });
 

@@ -1,7 +1,10 @@
 /**
  * Ethereum Anchor Service
  *
- * Commits the latest Ethereum block hash to the BitGraph proof chain via TEE.
+ * Commits a fresh Ethereum block hash to the BitGraph proof chain via TEE: the parent of the
+ * head, one block behind `latest`, so that a depth-1 reorg (the common kind) cannot orphan a
+ * block a proof's floor rests on. Ruled 2026-09-30 after positions 854-856 of that day got a
+ * floor whose block Ethereum no longer knows.
  * The anchor proof is a NORMAL BitGraph proof on the SAME monotonic counter chain
  * as user proofs — same counter, same prevB64, same enclave key, same epoch.
  *
@@ -546,6 +549,8 @@ interface EthBlock {
 }
 
 async function getLatestBlock(): Promise<EthBlock> {
+  // The head is fetched only to name its parent: the block returned is `latest - 1`, by hash,
+  // so the two reads agree with each other even if the head moved between them.
   const endpoints = [
     "https://ethereum-rpc.publicnode.com",
     "https://rpc.ankr.com/eth",
@@ -566,8 +571,21 @@ async function getLatestBlock(): Promise<EthBlock> {
       });
 
       if (!res.ok) continue;
-      const data = await res.json() as { result?: RpcBlockHeader };
-      if (!data.result?.hash) continue;
+      const head = await res.json() as { result?: RpcBlockHeader };
+      if (!head.result?.hash || !head.result.parentHash) continue;
+      const parentRes = await fetch(rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "eth_getBlockByHash",
+          params: [head.result.parentHash, false],
+          id: 2,
+        }),
+      });
+      if (!parentRes.ok) continue;
+      const data = await parentRes.json() as { result?: RpcBlockHeader };
+      if (!data.result?.hash || data.result.hash.toLowerCase() !== head.result.parentHash.toLowerCase()) continue;
 
       return {
         hash: data.result.hash,

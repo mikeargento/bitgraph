@@ -15,7 +15,7 @@
  * record anchored twice is harmless and is logged.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, statSync, openSync, readSync, closeSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, statSync, openSync, readSync, closeSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import {
   CEILING_VERSION, MerkleTree, ceilingLeaf, ceilingPayloadHash, encodeCeilingPayload, decodeHeader, verifySettlementPointer,
@@ -722,6 +722,8 @@ export class CeilingWriter {
           await publishBlob(`blobs/${file}`, bytes);
           this.publishedBlobs.add(file);
           this.unpublishedBlobs.delete(file);
+          // The local copy was only ever the staging copy: published, it goes, and the host's disk stays flat.
+          try { unlinkSync(join(this.dirs.blobs, file)); } catch { /* already gone */ }
         } catch (e) {
           this.event({ type: "publish-error", file: `blobs/${file}`, error: (e as Error).message.slice(0, 200) });
         }

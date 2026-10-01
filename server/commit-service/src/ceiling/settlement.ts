@@ -666,17 +666,18 @@ export async function findSettlement(baseBlockNumber: number, baseBlockHash: str
   let k = 0;
   while (k + 1 < ordered.length && ordered[k + 1]!.txHash === firstTxHash) k++;
   let pointerTx = firstTxHash;
+  /** Whether frames 0..upTo, decompressed as a prefix, reach the ceiling transaction's last byte. */
+  const reaches = (upTo: number): boolean => {
+    const joined = new Uint8Array(ordered.slice(0, upTo + 1).reduce((n, f) => n + f.frameData.length, 0));
+    let o = 0;
+    for (const f of ordered.slice(0, upTo + 1)) { joined.set(f.frameData, o); o += f.frameData.length; }
+    try {
+      return decompressChannel(joined, false).bytes.length >= reachEnd;
+    } catch {
+      return false;
+    }
+  };
   if (k < ordered.length - 1) {
-    const reaches = (upTo: number): boolean => {
-      const joined = new Uint8Array(ordered.slice(0, upTo + 1).reduce((n, f) => n + f.frameData.length, 0));
-      let o = 0;
-      for (const f of ordered.slice(0, upTo + 1)) { joined.set(f.frameData, o); o += f.frameData.length; }
-      try {
-        return decompressChannel(joined, false).bytes.length >= reachEnd;
-      } catch {
-        return false;
-      }
-    };
     if (!reaches(k)) {
       let j = k + 1;
       while (j < ordered.length - 1 && !reaches(j)) j++;
@@ -688,7 +689,20 @@ export async function findSettlement(baseBlockNumber: number, baseBlockHash: str
   if (!entry) throw new Error(`L1 block ${frameOfTx.l1Block} left the cache during the search`);
   const tx = entry.batcher.find((t) => t.hash === pointerTx)!;
   const channelVhs = new Set(ordered.map((f) => f.versionedHash));
-  const pointerBlobs = tx.blobs.filter((b) => channelVhs.has(b.versionedHash)).sort((a, b) => a.index - b.index);
+  let pointerBlobs = tx.blobs.filter((b) => channelVhs.has(b.versionedHash)).sort((a, b) => a.index - b.index);
+  // Keep only what a reader needs (Mike, 2026-09-30: the cheaper setting, as long as it still
+  // works): when the pointer's transaction opens the channel, the blobs from its first up to the
+  // one whose frames complete the ceiling transaction's bytes. A prefix of the compressed stream
+  // decodes to a prefix of the channel, so the audit locates the transaction from these alone;
+  // the blobs after it carry later Base blocks and nothing this record needs.
+  if (pointerTx === firstTxHash) {
+    let upTo = 0;
+    while (upTo < ordered.length && ordered[upTo]!.txHash === pointerTx && !reaches(upTo)) upTo++;
+    if (upTo < ordered.length && ordered[upTo]!.txHash === pointerTx) {
+      const lastIndex = tx.blobs.find((b) => b.versionedHash === ordered[upTo]!.versionedHash)?.index;
+      if (lastIndex !== undefined) pointerBlobs = pointerBlobs.filter((b) => b.index <= lastIndex);
+    }
+  }
 
   // 5. The L1 evidence: header, every transaction's bytes, the trie.
   const block = entry.block;
@@ -730,6 +744,6 @@ export async function findSettlement(baseBlockNumber: number, baseBlockHash: str
     channel: { id: found.id, frames: ordered.length, compression: found.compression, firstBaseBlock: blocks[0]!.number, lastBaseBlock: blocks[blocks.length - 1]!.number },
     ...(located ? { located: { baseTxIndex: located.baseTxIndex, txHash: located.txHash } } : {}),
   };
-  log({ type: "settlement-found", baseBlockNumber, l1Block: pointer.l1.blockNumber, l1TxHash: pointerTx, blobs: pointerBlobs.length, channel: found.id, frames: ordered.length, located: located?.baseTxIndex ?? null });
+  log({ type: "settlement-found", baseBlockNumber, l1Block: pointer.l1.blockNumber, l1TxHash: pointerTx, blobs: pointerBlobs.length, blobsInChannel: tx.blobs.filter((b) => channelVhs.has(b.versionedHash)).length, channel: found.id, frames: ordered.length, located: located?.baseTxIndex ?? null });
   return { pointer, blobs: pointerBlobs.map((b) => ({ versionedHash: b.versionedHash, kzgCommitment: b.kzgCommitment, index: b.index, bytes: b.bytes })) };
 }
