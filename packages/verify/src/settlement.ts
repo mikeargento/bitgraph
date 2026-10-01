@@ -82,7 +82,12 @@ export interface SettlementPointer {
     /** Merkle-Patricia proof of rawTx in the header's transactionsRoot. */
     txInclusionProof: string[];
   };
-  /** Every blob of that transaction that carries a frame of the channel holding this Base block. */
+  /**
+   * The blobs of that transaction a reader needs, in order: from the first carrying a frame of the
+   * channel holding this Base block, up to the one whose frames complete the ceiling transaction's
+   * bytes (a prefix of the compressed stream decodes to a prefix of the channel). A writer may list
+   * every channel blob instead; each listed one must be among the transaction's.
+   */
   blobs: SettlementBlobRef[];
   /** The channel the Base block was found in, for readers that decode the blobs. */
   channel?: { id: string; frames: number; compression: "brotli" | "zlib"; firstBaseBlock: number; lastBaseBlock: number };
