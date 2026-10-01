@@ -13,7 +13,7 @@ import { signAsync } from "@noble/ed25519";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToBase64, canonicalize, canonicalSlotBody, computeSlotCommitment, getPlacement, parseSetManifest, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
 // The core package's own signing fixtures; a relative path, since the package's exports map does not list them.
-import { makeKey, signBody, b64 } from "../../../node_modules/@mikeargento/bitgraph/dist/__tests__/audit-fixtures.js";
+import { makeKey, signBody, b64 } from "../../../../dist/__tests__/audit-fixtures.js";
 import { validateSetCommit } from "../fuse-set.ts";
 import {
   HostedFuseError,

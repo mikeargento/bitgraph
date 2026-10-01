@@ -1,0 +1,647 @@
+{
+  "reportSchemaVersion": "bitgraph-audit-report/2",
+  "toolVersion": "0.8.0",
+  "runMetadata": {
+    "nondeterministic": true,
+    "note": "This block is the only nondeterministic section of the report. startedAt is the wall-clock start time of the audit run; every other value in this report is a pure function of the bundle contents and the tool version.",
+    "toolVersion": "0.8.0",
+    "startedAt": "2026-10-01T04:09:59.687Z",
+    "bundlePath": "/private/tmp/claude-501/-Users-argento-Desktop-Claude-Code/8f2d6508-adba-470a-aacc-387b8a4d61d6/scratchpad/pkg-test/pkg",
+    "container": "directory"
+  },
+  "input": {
+    "container": "directory",
+    "entriesScanned": 9,
+    "computedContentsHashB64": "3gkW3UHNvKuVXETMjPjM99m2bsQXXK55Z0JfczqF8V8=",
+    "counts": {
+      "observed": 3,
+      "proofFiles": 3,
+      "exactDuplicates": 0,
+      "semanticDuplicates": 0,
+      "unsupportedVersion": 0,
+      "verified": 1,
+      "failed": 0,
+      "artifactUnavailable": 2,
+      "chainless": 0,
+      "artifacts": 3,
+      "witnesses": 2,
+      "skippedUnsafePaths": 0
+    }
+  },
+  "proofs": [
+    {
+      "proofHash": "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+      "sources": [
+        {
+          "path": "ethereum-anchors/anchor-after.json",
+          "fileSha256Hex": "3017d66063ca461f5b801b121765b154d27d5e51620383608568ec95a92193ad",
+          "byteLength": 9701
+        }
+      ],
+      "verificationTier": "integrity",
+      "verificationStatus": "artifact-unavailable",
+      "embeddedProofHash": "match",
+      "counter": "4548",
+      "slotCounter": "4547",
+      "prevB64": "AE6UmRR9rT+51N8xbbhMwSUp8METGcT5VSkcCVlFjpk=",
+      "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+      "chainId": "bitgraph:main",
+      "publicKeyB64": "JBilJJVIJV2xSn4/AMDRSnrTamoCmkS89K+sCDKVN34=",
+      "measurement": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+      "enforcement": "measured-tee",
+      "chainless": false,
+      "hasSlotAllocation": true,
+      "hasAttestation": true,
+      "hasAgency": false,
+      "hasEpochLink": false
+    },
+    {
+      "proofHash": "ZxoPN9KEyrGQey8cn0obd2VFMjTTT+yCWRd728tOZjQ=",
+      "sources": [
+        {
+          "path": "proof.json",
+          "fileSha256Hex": "772efca40c651d3753a8666287242807e1a02c782e01312a9f93820b99678409",
+          "byteLength": 7678
+        }
+      ],
+      "verificationTier": "full",
+      "verificationStatus": "verified",
+      "artifactPath": "committed/bitgraph-demonstration.txt",
+      "embeddedProofHash": "match",
+      "counter": "4546",
+      "slotCounter": "4543",
+      "prevB64": "SCL7NtPO8V+JwqBF//055YoM9gEkHQCEKF49pgTQtDs=",
+      "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+      "chainId": "bitgraph:main",
+      "publicKeyB64": "JBilJJVIJV2xSn4/AMDRSnrTamoCmkS89K+sCDKVN34=",
+      "measurement": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+      "enforcement": "measured-tee",
+      "chainless": false,
+      "hasSlotAllocation": true,
+      "hasAttestation": true,
+      "hasAgency": false,
+      "hasEpochLink": false
+    },
+    {
+      "proofHash": "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+      "sources": [
+        {
+          "path": "ethereum-anchors/anchor-before.json",
+          "fileSha256Hex": "9ed8fcc069909caff67e7a1f4deb03aa1b3e2386a5d0e571dbeaa04cb49af98e",
+          "byteLength": 9683
+        }
+      ],
+      "verificationTier": "integrity",
+      "verificationStatus": "artifact-unavailable",
+      "embeddedProofHash": "match",
+      "counter": "4545",
+      "slotCounter": "4544",
+      "prevB64": "sOixrOt0v/ognf+6iMcvrTKphDokM5QiNJOZJTdx1j4=",
+      "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+      "chainId": "bitgraph:main",
+      "publicKeyB64": "JBilJJVIJV2xSn4/AMDRSnrTamoCmkS89K+sCDKVN34=",
+      "measurement": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+      "enforcement": "measured-tee",
+      "chainless": false,
+      "hasSlotAllocation": true,
+      "hasAttestation": true,
+      "hasAgency": false,
+      "hasEpochLink": false
+    }
+  ],
+  "unsupportedVersions": [],
+  "partitions": [
+    {
+      "key": {
+        "publicKeyB64": "JBilJJVIJV2xSn4/AMDRSnrTamoCmkS89K+sCDKVN34=",
+        "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+        "chainId": "bitgraph:main"
+      },
+      "memberProofHashes": [
+        "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+        "ZxoPN9KEyrGQey8cn0obd2VFMjTTT+yCWRd728tOZjQ=",
+        "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8="
+      ],
+      "components": [
+        {
+          "memberProofHashes": [
+            "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+            "ZxoPN9KEyrGQey8cn0obd2VFMjTTT+yCWRd728tOZjQ=",
+            "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8="
+          ],
+          "genesisProofHashes": [],
+          "brokenLinkProofHashes": [
+            "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160="
+          ],
+          "terminalProofHashes": [
+            "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8="
+          ],
+          "hasCounterEvidence": true,
+          "positionRange": {
+            "min": "4543",
+            "max": "4548"
+          }
+        }
+      ],
+      "intact": true
+    }
+  ],
+  "unchainedProofHashes": [],
+  "unpartitionedProofHashes": [],
+  "epochRelationships": {
+    "epochs": [
+      {
+        "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+        "chainIds": [
+          "bitgraph:main"
+        ],
+        "publicKeysB64": [
+          "JBilJJVIJV2xSn4/AMDRSnrTamoCmkS89K+sCDKVN34="
+        ],
+        "proofCount": 3,
+        "ordering": "observed-but-unordered",
+        "linkedPredecessorEpochIds": [],
+        "linkedSuccessorEpochIds": [],
+        "anchorBounds": [
+          {
+            "kind": "not-before",
+            "anchorProofHash": "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+            "blockNumber": "26088458",
+            "blockHash": "0x5fad81adb44f85d6bff81676e6bffcf28ff5c3ec0736a0382c5e2e08bc05abb8",
+            "witnessTimestamp": 1790749175,
+            "coverage": "members-after-anchor",
+            "coveredProofCount": 3,
+            "totalProofCount": 3,
+            "basis": "block-hash-unpredictability",
+            "evidence": "chain-link",
+            "weaker": false,
+            "claim": "3 of 3 observed proofs of this epoch were committed no earlier than unix 1790749175, grounded in block-hash unpredictability through verified anchor witnesses. This additionally assumes the anchored header is a genuine, publicly published Ethereum block, which this offline audit cannot confirm. The remaining proofs sit causally before the covering anchors and carry no lower bound from this evidence."
+          },
+          {
+            "kind": "not-after",
+            "anchorProofHash": "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+            "blockNumber": "26088459",
+            "blockHash": "0x9665797b028d4090d9da2c69ec51cdf12abc5db20c9ea9ea3acab2a5c5129195",
+            "witnessTimestamp": 1790749187,
+            "coverage": "members-before-anchor",
+            "coveredProofCount": 2,
+            "totalProofCount": 3,
+            "basis": "causal-precedence",
+            "evidence": "chain-link",
+            "weaker": false,
+            "claim": "2 of 3 observed proofs of this epoch existed before an anchor commit that consumed a block published at unix 1790749187. Reading that timestamp as a wall-clock ceiling additionally assumes the anchor consumed a recently published block; the causal precedence itself is verified. Proofs after the covering anchors are not covered."
+          }
+        ]
+      }
+    ],
+    "lineageEdges": [],
+    "orderedPairs": [],
+    "anchorOrderedPairs": [],
+    "unorderedPairs": []
+  },
+  "anomalies": [],
+  "divergences": [],
+  "boundaryEntryPoints": [
+    {
+      "partition": {
+        "publicKeyB64": "JBilJJVIJV2xSn4/AMDRSnrTamoCmkS89K+sCDKVN34=",
+        "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+        "chainId": "bitgraph:main"
+      },
+      "proofHash": "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+      "prevB64": "sOixrOt0v/ognf+6iMcvrTKphDokM5QiNJOZJTdx1j4="
+    }
+  ],
+  "authorities": {
+    "groups": [
+      {
+        "measurement": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+        "publicKeyB64": "JBilJJVIJV2xSn4/AMDRSnrTamoCmkS89K+sCDKVN34=",
+        "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+        "chainId": "bitgraph:main",
+        "attestationPresent": true,
+        "proofHashes": [
+          "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+          "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+          "ZxoPN9KEyrGQey8cn0obd2VFMjTTT+yCWRd728tOZjQ="
+        ],
+        "attested": {
+          "status": "validated",
+          "attestedMeasurement": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+          "matchesDeclared": true,
+          "validatedProofCount": 3,
+          "failedProofCount": 0
+        }
+      }
+    ],
+    "sharedSignersAcrossEpochs": []
+  },
+  "ceilings": {
+    "writer": "0xf3972408D853c975F86351C311f4310220bbF2a3",
+    "chainId": 8453,
+    "checks": [
+      {
+        "path": "base-ceiling/ceiling.json",
+        "proofHash": "ZxoPN9KEyrGQey8cn0obd2VFMjTTT+yCWRd728tOZjQ=",
+        "status": "verified",
+        "label": "Ceiling: included in Base block 51,979,918 at 06:19:43 UTC. A settlement pointer to Ethereum is attached; check it with verifySettlementPointer.",
+        "window": {
+          "floorBlock": 26088457,
+          "floorTime": 1790749163,
+          "ceilingChainId": 8453,
+          "ceilingBlock": 51979918,
+          "ceilingTime": 1790749183,
+          "widthSeconds": 20
+        },
+        "onChain": null,
+        "onChainDetail": "header not checked against chain",
+        "settlement": {
+          "status": "pointer-only",
+          "pointer": {
+            "ok": true,
+            "existedBy": {
+              "blockNumber": 26088463,
+              "blockHash": "0x8608654cd9d6d66c2ce8a80108db7e5202a6d9ad0072f8c81353cc988d3a93f2",
+              "blockTimestamp": 1790749235
+            }
+          },
+          "blobs": {
+            "status": "absent",
+            "detail": "blobs not in bundle",
+            "listed": 6,
+            "supplied": 0
+          },
+          "lines": [
+            "settlement: pointer ok, Ethereum block 26088463 at 2026-09-30 06:20:35 UTC",
+            "settlement: blobs not in bundle"
+          ]
+        }
+      }
+    ],
+    "statuses": []
+  },
+  "attestations": {
+    "records": [
+      {
+        "proofHash": "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+        "declaredMeasurementPresent": true,
+        "declaredMeasurement": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+        "documentPresent": true,
+        "attestationFormat": "aws-nitro",
+        "documentValidated": true,
+        "checks": [
+          {
+            "name": "CBOR Decode",
+            "pass": true,
+            "detail": "COSE_Sign1 envelope parsed"
+          },
+          {
+            "name": "ECDSA P-384 Signature",
+            "pass": true,
+            "detail": "Attestation signed by leaf certificate"
+          },
+          {
+            "name": "Certificate Chain",
+            "pass": true,
+            "detail": "5 certificates, each signed by parent"
+          },
+          {
+            "name": "AWS Nitro Root CA",
+            "pass": true,
+            "detail": "Chain anchored to AWS Nitro Root G1 (CN=aws.nitro-enclaves)"
+          },
+          {
+            "name": "Certificate Validity Window",
+            "pass": true,
+            "detail": "All 5 certificate validity windows contain the document timestamp"
+          },
+          {
+            "name": "PCR0 Match",
+            "pass": true,
+            "detail": "PCR0 inside attestation matches declared measurement"
+          },
+          {
+            "name": "Bound to this proof",
+            "pass": true,
+            "detail": "Attestation user_data matches this proof's canonical hash"
+          }
+        ],
+        "attestedPcr0": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+        "pcrs": {
+          "0": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+          "1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+          "2": "36974f9a1f1bc77d01a2b4c6b11242d1e9df042c4797bf70e2f75abf65246a56d2132dc7576d83b7fbb89ecf69a7c990",
+          "3": "fe5302b9cb5826f6e2465b2c133fb9f1e3a294319194bf8a471163d20ddc7dd4bc0a0cf9bcf3fc916e417ca67072553e",
+          "4": "7f3672d76000bac96a5a45fba29a5f26b4e309d1cdbc366c6e1c76716f6a911aac7030c1833d84aae0f7a8e5ab9b6402"
+        },
+        "moduleId": "i-0650273423ff67567-enc01a0ef9b87840be6",
+        "timestamp": 1790749189970,
+        "certChainLength": 5,
+        "userDataB64": "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+        "pcr0MatchesDeclared": true,
+        "userDataBoundToProof": true
+      },
+      {
+        "proofHash": "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+        "declaredMeasurementPresent": true,
+        "declaredMeasurement": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+        "documentPresent": true,
+        "attestationFormat": "aws-nitro",
+        "documentValidated": true,
+        "checks": [
+          {
+            "name": "CBOR Decode",
+            "pass": true,
+            "detail": "COSE_Sign1 envelope parsed"
+          },
+          {
+            "name": "ECDSA P-384 Signature",
+            "pass": true,
+            "detail": "Attestation signed by leaf certificate"
+          },
+          {
+            "name": "Certificate Chain",
+            "pass": true,
+            "detail": "5 certificates, each signed by parent"
+          },
+          {
+            "name": "AWS Nitro Root CA",
+            "pass": true,
+            "detail": "Chain anchored to AWS Nitro Root G1 (CN=aws.nitro-enclaves)"
+          },
+          {
+            "name": "Certificate Validity Window",
+            "pass": true,
+            "detail": "All 5 certificate validity windows contain the document timestamp"
+          },
+          {
+            "name": "PCR0 Match",
+            "pass": true,
+            "detail": "PCR0 inside attestation matches declared measurement"
+          },
+          {
+            "name": "Bound to this proof",
+            "pass": true,
+            "detail": "Attestation user_data matches this proof's canonical hash"
+          }
+        ],
+        "attestedPcr0": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+        "pcrs": {
+          "0": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+          "1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+          "2": "36974f9a1f1bc77d01a2b4c6b11242d1e9df042c4797bf70e2f75abf65246a56d2132dc7576d83b7fbb89ecf69a7c990",
+          "3": "fe5302b9cb5826f6e2465b2c133fb9f1e3a294319194bf8a471163d20ddc7dd4bc0a0cf9bcf3fc916e417ca67072553e",
+          "4": "7f3672d76000bac96a5a45fba29a5f26b4e309d1cdbc366c6e1c76716f6a911aac7030c1833d84aae0f7a8e5ab9b6402"
+        },
+        "moduleId": "i-0650273423ff67567-enc01a0ef9b87840be6",
+        "timestamp": 1790749178122,
+        "certChainLength": 5,
+        "userDataB64": "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+        "pcr0MatchesDeclared": true,
+        "userDataBoundToProof": true
+      },
+      {
+        "proofHash": "ZxoPN9KEyrGQey8cn0obd2VFMjTTT+yCWRd728tOZjQ=",
+        "declaredMeasurementPresent": true,
+        "declaredMeasurement": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+        "documentPresent": true,
+        "attestationFormat": "aws-nitro",
+        "documentValidated": true,
+        "checks": [
+          {
+            "name": "CBOR Decode",
+            "pass": true,
+            "detail": "COSE_Sign1 envelope parsed"
+          },
+          {
+            "name": "ECDSA P-384 Signature",
+            "pass": true,
+            "detail": "Attestation signed by leaf certificate"
+          },
+          {
+            "name": "Certificate Chain",
+            "pass": true,
+            "detail": "5 certificates, each signed by parent"
+          },
+          {
+            "name": "AWS Nitro Root CA",
+            "pass": true,
+            "detail": "Chain anchored to AWS Nitro Root G1 (CN=aws.nitro-enclaves)"
+          },
+          {
+            "name": "Certificate Validity Window",
+            "pass": true,
+            "detail": "All 5 certificate validity windows contain the document timestamp"
+          },
+          {
+            "name": "PCR0 Match",
+            "pass": true,
+            "detail": "PCR0 inside attestation matches declared measurement"
+          },
+          {
+            "name": "Bound to this proof",
+            "pass": true,
+            "detail": "Attestation user_data matches this proof's canonical hash"
+          }
+        ],
+        "attestedPcr0": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+        "pcrs": {
+          "0": "eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b",
+          "1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+          "2": "36974f9a1f1bc77d01a2b4c6b11242d1e9df042c4797bf70e2f75abf65246a56d2132dc7576d83b7fbb89ecf69a7c990",
+          "3": "fe5302b9cb5826f6e2465b2c133fb9f1e3a294319194bf8a471163d20ddc7dd4bc0a0cf9bcf3fc916e417ca67072553e",
+          "4": "7f3672d76000bac96a5a45fba29a5f26b4e309d1cdbc366c6e1c76716f6a911aac7030c1833d84aae0f7a8e5ab9b6402"
+        },
+        "moduleId": "i-0650273423ff67567-enc01a0ef9b87840be6",
+        "timestamp": 1790749179759,
+        "certChainLength": 5,
+        "userDataB64": "ZxoPN9KEyrGQey8cn0obd2VFMjTTT+yCWRd728tOZjQ=",
+        "pcr0MatchesDeclared": true,
+        "userDataBoundToProof": true
+      }
+    ],
+    "counts": {
+      "proofsWithDeclaredMeasurement": 3,
+      "proofsWithDocument": 3,
+      "documentsValidated": 3,
+      "documentsFailed": 0,
+      "pcr0Matches": 3,
+      "pcr0Mismatches": 0,
+      "userDataBound": 3,
+      "userDataUnbound": 0
+    }
+  },
+  "anchors": {
+    "records": [
+      {
+        "proofHash": "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+        "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+        "chainId": "bitgraph:main",
+        "counter": "4548",
+        "slotCounter": "4547",
+        "blockHash": "0x9665797b028d4090d9da2c69ec51cdf12abc5db20c9ea9ea3acab2a5c5129195",
+        "blockNumber": "26088459",
+        "metadataCorroboration": "agrees",
+        "verificationTier": "integrity",
+        "verificationStatus": "artifact-unavailable"
+      },
+      {
+        "proofHash": "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+        "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+        "chainId": "bitgraph:main",
+        "counter": "4545",
+        "slotCounter": "4544",
+        "blockHash": "0x5fad81adb44f85d6bff81676e6bffcf28ff5c3ec0736a0382c5e2e08bc05abb8",
+        "blockNumber": "26088458",
+        "metadataCorroboration": "agrees",
+        "verificationTier": "integrity",
+        "verificationStatus": "artifact-unavailable"
+      }
+    ],
+    "metadataOnlyProofHashes": []
+  },
+  "witnesses": {
+    "outcomes": [
+      {
+        "witnessPath": "ethereum-anchors/anchor-after-witness.json",
+        "anchorProofHash": "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+        "computedBlockHash": "0x9665797b028d4090d9da2c69ec51cdf12abc5db20c9ea9ea3acab2a5c5129195",
+        "verified": true,
+        "blockNumber": "26088459",
+        "timestamp": 1790749187
+      },
+      {
+        "witnessPath": "ethereum-anchors/anchor-before-witness.json",
+        "anchorProofHash": "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+        "computedBlockHash": "0x5fad81adb44f85d6bff81676e6bffcf28ff5c3ec0736a0382c5e2e08bc05abb8",
+        "verified": true,
+        "blockNumber": "26088458",
+        "timestamp": 1790749175
+      }
+    ]
+  },
+  "temporal": {
+    "segments": [
+      {
+        "partition": {
+          "publicKeyB64": "JBilJJVIJV2xSn4/AMDRSnrTamoCmkS89K+sCDKVN34=",
+          "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+          "chainId": "bitgraph:main"
+        },
+        "memberProofHashes": [
+          "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+          "ZxoPN9KEyrGQey8cn0obd2VFMjTTT+yCWRd728tOZjQ="
+        ],
+        "positionRange": {
+          "min": "4543",
+          "max": "4546"
+        },
+        "status": "lower-bounded-with-following-anchor",
+        "lowerBounds": [
+          {
+            "kind": "not-before",
+            "anchorProofHash": "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160=",
+            "blockNumber": "26088458",
+            "blockHash": "0x5fad81adb44f85d6bff81676e6bffcf28ff5c3ec0736a0382c5e2e08bc05abb8",
+            "timestamp": 1790749175,
+            "evidence": "chain-link",
+            "weaker": false,
+            "basis": "block-hash-unpredictability",
+            "boundClass": "evidence",
+            "claim": "These proofs were committed no earlier than 2026-09-30T06:19:35.000Z (unix 1790749175), the timestamp of Ethereum block 26088458: the block hash was unpredictable before that time and the anchor commit consumed it. Reading this as a wall-clock floor additionally assumes the anchored header is a genuine, publicly published Ethereum block: this offline audit checks the header's structure and hash binding, not proof-of-work, consensus, or chain membership, so it cannot confirm the block is real. Evidence: a verified hash-link path connects these proofs and the anchor."
+          }
+        ],
+        "upperBounds": [
+          {
+            "kind": "not-after",
+            "anchorProofHash": "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+            "blockNumber": "26088459",
+            "blockHash": "0x9665797b028d4090d9da2c69ec51cdf12abc5db20c9ea9ea3acab2a5c5129195",
+            "timestamp": 1790749187,
+            "evidence": "chain-link",
+            "weaker": false,
+            "basis": "causal-precedence",
+            "boundClass": "assumption",
+            "claim": "NOT a proof-carried upper bound. These proofs existed before the anchor commit that consumed the hash of Ethereum block 26088459 (block timestamp 2026-09-30T06:19:47.000Z, unix 1790749187). The block timestamp proves the anchor commit came at or after it, not how promptly; reading it as a wall-clock ceiling additionally assumes the anchor consumed a recently published block. Evidence: a verified hash-link path connects these proofs and the anchor."
+          }
+        ]
+      },
+      {
+        "partition": {
+          "publicKeyB64": "JBilJJVIJV2xSn4/AMDRSnrTamoCmkS89K+sCDKVN34=",
+          "epochId": "UX8Vhg+LzmNcRxJyzfos6DT0JpHmBTbS7TT/KRuYVpg=",
+          "chainId": "bitgraph:main"
+        },
+        "memberProofHashes": [
+          "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8="
+        ],
+        "positionRange": {
+          "min": "4547",
+          "max": "4548"
+        },
+        "status": "lower-bounded",
+        "lowerBounds": [
+          {
+            "kind": "not-before",
+            "anchorProofHash": "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+            "blockNumber": "26088459",
+            "blockHash": "0x9665797b028d4090d9da2c69ec51cdf12abc5db20c9ea9ea3acab2a5c5129195",
+            "timestamp": 1790749187,
+            "evidence": "chain-link",
+            "weaker": false,
+            "basis": "block-hash-unpredictability",
+            "boundClass": "evidence",
+            "claim": "These proofs were committed no earlier than 2026-09-30T06:19:47.000Z (unix 1790749187), the timestamp of Ethereum block 26088459: the block hash was unpredictable before that time and the anchor commit consumed it. Reading this as a wall-clock floor additionally assumes the anchored header is a genuine, publicly published Ethereum block: this offline audit checks the header's structure and hash binding, not proof-of-work, consensus, or chain membership, so it cannot confirm the block is real. Evidence: a verified hash-link path connects these proofs and the anchor."
+          }
+        ],
+        "upperBounds": []
+      }
+    ],
+    "verifiedAnchorProofHashes": [
+      "9EymzaSfGiKqgzCKQje9IpHaiRLWsGP8Sin2YSQTQe8=",
+      "qcjIrVxxL8iT27hJGy5tN+iijzpXMuyRRbeOVdc4160="
+    ],
+    "unverifiedAnchorProofHashes": []
+  },
+  "summary": {
+    "proofsObserved": 3,
+    "fullyVerified": 1,
+    "failed": 0,
+    "artifactUnavailable": 2,
+    "unsupportedVersion": 0,
+    "chainless": 0,
+    "exactDuplicates": 0,
+    "semanticDuplicates": 0,
+    "partitions": 1,
+    "partitionsIntact": 1,
+    "chainIntact": true,
+    "epochsObserved": 1,
+    "anomalyCountsByCode": {},
+    "divergenceCount": 0,
+    "boundaryEntryPoints": 1,
+    "authorityGroupCount": 1,
+    "distinctSignerCount": 1,
+    "distinctDeclaredMeasurementCount": 1,
+    "attestation": {
+      "declaredMeasurementPresent": 3,
+      "documentsPresent": 3,
+      "documentsValidated": 3,
+      "pcr0MatchesDeclared": 3,
+      "userDataBound": 3
+    },
+    "temporal": {
+      "anchorsIdentified": 2,
+      "anchorsWithVerifiedWitness": 2,
+      "segments": 2,
+      "segmentsWithFollowingAnchor": 1,
+      "segmentsLowerBounded": 1,
+      "segmentsUpperBounded": 0,
+      "segmentsUnanchored": 0
+    },
+    "exit": {
+      "verificationFailures": false,
+      "chainAnomaliesOrDivergences": false,
+      "code": 0
+    }
+  }
+}

@@ -1483,7 +1483,7 @@ export default function ProofPage() {
       files[PKG_README] = strToU8(packageReadme({
         recordName,
         epochId: String(commit.epochId ?? ""),
-        proofUrl: `${window.location.origin}/proof/${digestParam}`,
+        proofUrl: `https://bitgraph.ing/proof/${digestParam}`,
         committedPath, originalPath, carrierPath,
         committedSha256Hex: committedPath ? await hex(files[committedPath]) : null,
         originalSha256Hex: originalPath ? await hex(files[originalPath]) : null,
@@ -1501,7 +1501,9 @@ export default function ProofPage() {
       }));
     } catch (e) { console.warn("[bitgraph] README left out of the package:", e); }
 
-    const zipped = zipSync(files, { level: 0 });
+    // README first, so it is the first thing a recipient sees when the folder opens.
+    const ordered = files[PKG_README] ? { [PKG_README]: files[PKG_README], ...files } : files;
+    const zipped = zipSync(ordered, { level: 0 });
     const blob = new Blob([zipped as unknown as BlobPart], { type: "application/zip" });
     const url = URL.createObjectURL(blob);
     // Named the way the Folder names its exports, so the zip expands into an

@@ -26,6 +26,7 @@
  */
 
 import { DropPrompt, Browse } from "@/components/drop-prompt";
+import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR } from "@/lib/package-layout";
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { blockTimeFromHeader, type AnchorSide } from "@/lib/export-pages";
 import { useRouter } from "next/navigation";
@@ -36,6 +37,7 @@ import {
   verifyProofSignature,
   proofHashB64,
   type BitGraphProof,
+  hashBytes,
 } from "@/lib/bitgraph";
 import type { CommitStrategy } from "@/lib/commit-strategy";
 import { toUrlSafeB64 } from "@/lib/explorer";
@@ -2368,6 +2370,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       // rebuilt HERE from the original, the proof's slot record and the row's
       // placement, and a member that does not rebuild to its listed digest
       // exports original + proof.json and never a wrong new file.
+      const droppedDigest = await hashBytes(fileBytes);
+      const dirFor = (pos: { artifact?: { digestB64?: string } } | null | undefined) => (pos?.artifact?.digestB64 === droppedDigest ? PKG_COMMITTED_DIR : PKG_ORIGINAL_DIR);
       const fusedOut = withProofs[i].fused;
       const setOut = withProofs[i].setMember;
       const madeHere = fusedOut?.proof ?? setOut?.proof;
@@ -2395,7 +2399,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           // fusedBytes is null unless the rebuild actually reproduced the
           // committed artifact; both are checked so a wrong file is impossible.
           if (rebuilt.verification.category === "FUSED_FROM_ORIGIN" && rebuilt.fusedBytes) {
-            const entry = new ZipPassThrough(`${prefix}new-file/${f.name}`);
+            const entry = new ZipPassThrough(`${prefix}${PKG_COMMITTED_DIR}/${f.name}`);
             z.add(entry);
             entry.push(rebuilt.fusedBytes, true);
           }
@@ -2420,7 +2424,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // the original's own name and is told apart by its folder: it is the
         // same file plus 48 bytes, not a different thing.
         if (fusedBytes) {
-          const fusedEntry = new ZipPassThrough(`${dir}new-file/${f.name}`);
+          const fusedEntry = new ZipPassThrough(`${dir}${PKG_COMMITTED_DIR}/${f.name}`);
           z.add(fusedEntry);
           fusedEntry.push(fusedBytes, true);
         }
@@ -2429,7 +2433,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         if (setOut?.member.memberProof) addText(`${dir}member.json`, JSON.stringify(setOut.member.memberProof, null, 2));
       }
       if (allPositions.length <= 1) {
-        const fileEntry = new ZipPassThrough(`${prefix}${f.name}`);
+        // Named for what the bytes are (2026-10-01): committed/ when this file is the one the
+        // proof's digest names, original/ when the committed file was made from it.
+        const fileEntry = new ZipPassThrough(`${prefix}${dirFor(allPositions[0])}/${f.name}`);
         z.add(fileEntry);
         fileEntry.push(fileBytes, true);
         for (const pos of allPositions) {
@@ -2445,7 +2451,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         for (const pos of allPositions) {
           const c = pos.commit?.counter;
           const dir = `${prefix}bitgraph-${c ?? "unknown"}/`;
-          const fileEntry = new ZipPassThrough(`${dir}${f.name}`);
+          const fileEntry = new ZipPassThrough(`${dir}${dirFor(pos)}/${f.name}`);
           z.add(fileEntry);
           fileEntry.push(fileBytes, true);
           addText(`${dir}proof.json`, JSON.stringify(pos, null, 2));
