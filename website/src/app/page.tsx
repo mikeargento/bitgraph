@@ -81,7 +81,7 @@ export default function HomePage() {
           <span className="home-live-pill"><span className="home-live-dot" aria-hidden="true" />Live</span>
           <span className="home-live-name">BitGraph AI Postseason</span><svg className="ext-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg><span className="sr-only"> (opens in a new tab)</span>
         </a>
-        <p className="home-live-text">Jev, ChatGPT and Claude predict every at bat of the 2026 baseball postseason: will the batter reach base? BitGraph proves each prediction was made just before the at-bat.</p>
+        <p className="home-live-text">Jev, ChatGPT and Claude bet on how every at bat of the 2026 baseball postseason ends. BitGraph proves each bet was recorded before the at-bat started.</p>
       </div>
 
       {/* Renders nothing. Starts the example proof's fetch while the reader is still
