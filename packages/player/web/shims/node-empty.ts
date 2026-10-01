@@ -30,4 +30,9 @@ export const join = unavailable("path.join");
 export const basename = unavailable("path.basename");
 export const createGunzip = unavailable("zlib.createGunzip");
 export const gzipSync = unavailable("zlib.gzipSync");
+// The audit's settlement blob layer (bitgraph-settlement/1, 2026-09-30) decompresses Base's
+// channels; the browser verifier holds no blobs and never reaches it.
+export const brotliDecompressSync = unavailable("zlib.brotliDecompressSync");
+export const inflateSync = unavailable("zlib.inflateSync");
+export const constants = {} as Record<string, number>;
 export default {};
