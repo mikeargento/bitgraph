@@ -1,6 +1,6 @@
 {
   "name": "@mikeargento/bitgraph",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "license": "SEE LICENSE IN LICENSE",
   "description": "Portable proof that these exact bytes filled a position that existed before them.",
   "keywords": [
@@ -61,6 +61,6 @@
     "packages/titles"
   ],
   "bin": {
-    "bitgraph-fuse": "./dist/fuse-cli.js"
+    "bitgraph-fuse": "dist/fuse-cli.js"
   }
 }
