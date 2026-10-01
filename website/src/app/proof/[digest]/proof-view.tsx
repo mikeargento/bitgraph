@@ -205,7 +205,9 @@ const fmtNum = (n: number | string | null | undefined) => (n === null || n === u
 /** A block's own time beside the recorded instant: the time alone on the same day, else the full stamp. */
 function whenBeside(ms: number, ref: number | null): string {
   const d = new Date(ms);
-  return ref !== null && sameDayTz(d, new Date(ref)) ? timeTz(d) : stampTz(d);
+  const s = ref !== null && sameDayTz(d, new Date(ref)) ? timeTz(d) : stampTz(d);
+  // "7:22:57 PM EDT" is one reading: never let the zone or the AM/PM wrap onto a line of its own.
+  return s.replace(/(\d{1,2}:\d{2}(?::\d{2})?) (AM|PM)(?: ([A-Z]{2,5}|UTC))?/, (_m, t, ap, z) => `${t}\u00a0${ap}${z ? `\u00a0${z}` : ""}`);
 }
 
 /* ── The view ─────────────────────────────────────────────────────────────── */
