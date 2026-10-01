@@ -54,76 +54,82 @@ export interface ReadmeInput {
 const utc = (iso: string | null) => (iso ? `${iso.replace("T", " ").replace(/\.\d+Z$/, "").replace(/Z$/, "")} UTC` : "time not in this package");
 const n = (x: number) => x.toLocaleString("en-US");
 
+/**
+ * The README is written to read well as PLAIN TEXT, because that is how most
+ * people meet it: Quick Look, TextEdit, a terminal, an AI that is handed the
+ * folder. So: no tables, no bold markers, no backticks. Headings, short
+ * paragraphs, and "name: what it is" lists only. It is still valid Markdown.
+ */
 export function packageReadme(i: ReadmeInput): string {
   const L: string[] = [];
-  const committed = i.committedPath ? `\`${i.committedPath}\`` : "the committed file (not in this package)";
+  const committed = i.committedPath ?? "the committed file (not in this package)";
+  const item = (name: string, what: string) => { L.push(`- ${name}`, `  ${what}`, ""); };
+
   L.push(`# ${i.recordName}: how to read this package`, "");
+
   L.push("## What this package claims", "");
   if (i.floor && i.ceilingInTime) {
-    L.push(`The exact bytes of ${committed} were finished **after Ethereum block ${n(i.floor.block)}** (${utc(i.floor.iso)}) and **existed by Base block ${n(i.ceilingInTime.block)}** (${utc(i.ceilingInTime.iso)}).`, "");
+    L.push(`The exact bytes of ${committed} were finished after Ethereum block ${n(i.floor.block)} (${utc(i.floor.iso)}) and existed by Base block ${n(i.ceilingInTime.block)} (${utc(i.ceilingInTime.iso)}).`, "");
   } else if (i.floor) {
-    L.push(`The exact bytes of ${committed} were finished **after Ethereum block ${n(i.floor.block)}** (${utc(i.floor.iso)}). No ceiling in time is in this package (see base-ceiling/).`, "");
+    L.push(`The exact bytes of ${committed} were finished after Ethereum block ${n(i.floor.block)} (${utc(i.floor.iso)}). No ceiling in time is in this package (see the base-ceiling folder).`, "");
   } else {
     L.push(`The exact bytes of ${committed} hold a position in BitGraph's sequence. The floor anchor is not in this package, so the time bound cannot be read from it alone.`, "");
   }
-  L.push("- The lower bound holds because the bytes carry a commitment that could not be computed before that Ethereum block's hash existed.");
-  L.push("- The upper bound holds because a Merkle root over this proof is inside a transaction in that Base block.");
-  if (i.recordedIso) L.push(`- Between the two, the enclave's own clock recorded the commit at ${utc(i.recordedIso)} (inside the AWS Nitro attestation in \`proof.json\`).`);
-  L.push("", "**What it does not claim:** when the content was first created, who made it, who owns it, or whether what it shows is true. It dates this exact version of the bytes, nothing earlier.", "");
+  L.push("- After: the bytes carry a commitment that could not be computed before that Ethereum block's hash existed.");
+  L.push("- By: a Merkle root over this proof is inside a transaction in that Base block.");
+  if (i.recordedIso) L.push(`- Between the two, the enclave's own clock recorded the commit at ${utc(i.recordedIso)} (inside the AWS Nitro attestation in proof.json).`);
+  L.push("", "What it does not claim: when the content was first created, who made it, who owns it, or whether what it shows is true. It dates this exact version of the bytes, nothing earlier.", "");
 
   L.push("## What is in this folder", "");
-  L.push("| Path | What it is |", "|---|---|");
-  L.push("| `README.md` | This page. |");
-  L.push("| `proof.json` | The signed proof: the position, the commit, the enclave's signature and its AWS Nitro attestation. |");
-  if (i.committedPath) L.push(`| \`${i.committedPath}\` | **The committed bytes.** This is the file the proof's digest names. Hash this one. |`);
-  if (i.originalPath) L.push(`| \`${i.originalPath}\` | The original the committed file was made from: the same content, byte for byte, without the 48-byte commitment at the end. Its hash is in the proof as the signed origin, not as the artifact digest. |`);
-  if (i.carrierPath) L.push(`| \`${i.carrierPath}\` | The BitGraphed file: the committed bytes with the proof, the anchors and the ceiling packed inside one file. It verifies with nothing else beside it. |`);
-  if (i.hasAnchorsBefore || i.hasAnchorsAfter) L.push("| `ethereum-anchors/` | The anchor before (the floor) and the anchor after (the closing anchor), each with its Ethereum block header so the block's time reads offline. |");
-  L.push("| `base-ceiling/` | The ceiling in time: the Merkle path, the signed Base transaction, the Base block header and the transaction's inclusion proof. A `*-status.json` file here says in words when something was not available. |");
-  L.push("");
+  item("README.md", "This page.");
+  item("proof.json", "The signed proof: the position, the commit, the enclave's signature and its AWS Nitro attestation.");
+  if (i.committedPath) item(i.committedPath, "The committed bytes. This is the file the proof's digest names. Hash this one.");
+  if (i.originalPath) item(i.originalPath, "The original the committed file was made from: the same content, byte for byte, without the 48-byte commitment at the end. Its hash is in the proof as the signed origin, not as the artifact digest.");
+  if (i.carrierPath) item(i.carrierPath, "The BitGraphed file: the committed bytes with the proof, the anchors and the ceiling packed inside one file. It verifies with nothing else beside it.");
+  if (i.hasAnchorsBefore || i.hasAnchorsAfter) item("ethereum-anchors/", "The anchor before (the floor) and the anchor after (the closing anchor), each with its Ethereum block header so the block's time reads offline.");
+  item("base-ceiling/", "The ceiling in time: the Merkle path, the signed Base transaction, the Base block header and the transaction's inclusion proof. A file there whose name ends in -status.json says in words when something was not available.");
 
-  if (i.committedSha256Hex || i.originalSha256Hex) {
+  if (i.committedSha256Hex || (i.originalSha256Hex && i.originalPath)) {
     L.push("## Which file to hash", "");
-    if (i.committedSha256Hex) L.push(`- ${committed}: SHA-256 \`${i.committedSha256Hex}\`. This equals \`artifact.digestB64\` in \`proof.json\` (written there in base64).`);
-    if (i.originalSha256Hex && i.originalPath) L.push(`- \`${i.originalPath}\`: SHA-256 \`${i.originalSha256Hex}\`. This equals the signed \`attribution.message\` in \`proof.json\`. It is **not** the artifact digest, and it is not supposed to be.`);
-    L.push("");
+    if (i.committedSha256Hex) L.push(`- ${committed}`, `  SHA-256: ${i.committedSha256Hex}`, "  This equals artifact.digestB64 in proof.json (written there in base64).", "");
+    if (i.originalSha256Hex && i.originalPath) L.push(`- ${i.originalPath}`, `  SHA-256: ${i.originalSha256Hex}`, "  This equals the signed attribution.message in proof.json. It is not the artifact digest, and it is not supposed to be.", "");
   }
 
   L.push("## Check it yourself", "");
-  L.push("Offline, with Node 20 or later, from inside this folder:", "", "```", `npx @mikeargento/bitgraph-audit@${i.versions.audit} .`, "```", "");
+  L.push("Offline, with Node 20 or later, from inside this folder:", "", `    npx @mikeargento/bitgraph-audit@${i.versions.audit} .`, "");
   L.push("Expected: the committed file matches the proof, the signatures and the attestation hold, the floor and the ceiling verify from the block headers in this folder. Exit code 0.", "");
   if (i.carrierPath) {
-    L.push("Or check the single BitGraphed file, one line per claim, each saying what it rests on:", "", "```", `npx @mikeargento/bitgraph-sdk@${i.versions.sdk} verify "${i.carrierPath}"`, "```", "");
+    L.push("Or check the single BitGraphed file, one line per claim, each saying what it rests on:", "", `    npx @mikeargento/bitgraph-sdk@${i.versions.sdk} verify "${i.carrierPath}"`, "");
   }
-  L.push(`Or drop this folder on ${i.proofUrl.replace(/\/proof\/.*$/, "")}: the page hashes the files in your own browser. The record's page is ${i.proofUrl}`, "");
+  L.push(`Or drop this folder on ${i.proofUrl.replace(/\/proof\/.*$/, "")} and the page hashes the files in your own browser.`, "", `This record's page: ${i.proofUrl}`, "");
 
   L.push("## The time evidence, in order", "");
-  if (i.floor) L.push(`1. **Floor in time.** Ethereum block ${n(i.floor.block)}, ${utc(i.floor.iso)}. The enclave fixed this block when the position opened and signed it into the proof; its hash is inside the commitment the bytes carry.`);
-  if (i.recordedIso) L.push(`2. **Recorded.** ${utc(i.recordedIso)}, the enclave platform's signed clock.`);
-  if (i.ceilingInTime) L.push(`3. **Ceiling in time.** Base block ${n(i.ceilingInTime.block)}, ${utc(i.ceilingInTime.iso)}, transaction \`${i.ceilingInTime.txHash}\`.`);
-  if (i.ceilingInPosition) L.push(`4. **Ceiling in position.** The record was committed before anchor #${Number(i.ceilingInPosition.anchorCounter).toLocaleString("en-US")}${i.ceilingInPosition.block ? `, which carries Ethereum block ${n(i.ceilingInPosition.block)} (${utc(i.ceilingInPosition.iso)})` : ""}. **This is an order, not a clock time.** An anchor is made after the block it carries, so that block's time can be earlier than the recorded time above. Do not read the two Ethereum blocks as a time window; the Base block is the upper bound in time.`);
-  L.push("");
+  let step = 0;
+  const ev = (title: string, text: string) => { L.push(`${++step}. ${title}`, `   ${text}`, ""); };
+  if (i.floor) ev("Floor in time", `Ethereum block ${n(i.floor.block)}, ${utc(i.floor.iso)}. The enclave fixed this block when the position opened and signed it into the proof; its hash is inside the commitment the bytes carry.`);
+  if (i.recordedIso) ev("Recorded", `${utc(i.recordedIso)}, the enclave platform's signed clock.`);
+  if (i.ceilingInTime) ev("Ceiling in time", `Base block ${n(i.ceilingInTime.block)}, ${utc(i.ceilingInTime.iso)}. Transaction ${i.ceilingInTime.txHash}`);
+  if (i.ceilingInPosition) ev("Ceiling in position", `The record was committed before anchor #${Number(i.ceilingInPosition.anchorCounter).toLocaleString("en-US")}${i.ceilingInPosition.block ? `, which carries Ethereum block ${n(i.ceilingInPosition.block)} (${utc(i.ceilingInPosition.iso)})` : ""}. This is an order, not a clock time. An anchor is made after the block it carries, so that block's time can be earlier than the recorded time above. Do not read the two Ethereum blocks as a time window; the Base block is the upper bound in time.`);
 
   L.push("## What is checked, and what each result rests on", "");
   L.push("These are separate results. A pass on one says nothing about the next.", "");
-  L.push("| Result | What establishes it | Checked offline from this folder |", "|---|---|---|");
-  L.push("| File integrity | SHA-256 of the committed bytes equals the proof's digest; the commitment in the bytes is the one the signed position record produces | Yes |");
-  L.push("| Signatures | Ed25519 over the position record and the commit | Yes |");
-  L.push(`| Hardware attestation | AWS Nitro: ES384 signature and certificate chain to the AWS Nitro Enclaves root (SHA-256 fingerprint \`641A0321A3E244EFE456463195D606317ED7CDCC3C1756E09893F3C68F79BB5B\`), valid at the attestation's own instant; bound to this proof | Yes |`);
-  L.push(`| Which enclave image | PCR0 \`${i.pcr0 ?? "see proof.json"}\`${i.enclaveTag ? `, published by BitGraph as source tag \`${i.enclaveTag}\`` : ""}. Matching a published value shows which image ran; trusting what that image does means reading or rebuilding its source (bitgraph.ing/docs/self-host-tee) | The match, yes. The rebuild is yours to do |`);
-  L.push("| Inclusion on Base | The ceiling transaction's signature, sender " + `\`${i.writer}\`` + ", and its Merkle-Patricia proof against the Base block header in `base-ceiling/` | Yes |");
-  L.push(`| Chain confirmation | That the block headers in this folder are the real chains' blocks. Compare the block hashes with any node or explorer${i.floor ? `: https://etherscan.io/block/${i.floor.block}` : ""}${i.ceilingInTime ? ` and https://basescan.org/block/${i.ceilingInTime.block}` : ""} | **No.** One lookup each, by you |`);
+  const check = (name: string, rests: string, offline: string) => { L.push(`- ${name}`, `  Rests on: ${rests}`, `  Checked offline from this folder: ${offline}`, ""); };
+  check("File integrity", "SHA-256 of the committed bytes equals the proof's digest; the commitment in the bytes is the one the signed position record produces.", "yes");
+  check("Signatures", "Ed25519 over the position record and the commit.", "yes");
+  check("Hardware attestation", "AWS Nitro: ES384 signature and certificate chain to the AWS Nitro Enclaves root (SHA-256 fingerprint 641A0321A3E244EFE456463195D606317ED7CDCC3C1756E09893F3C68F79BB5B), valid at the attestation's own instant; bound to this proof.", "yes");
+  check("Which enclave image", `PCR0 ${i.pcr0 ?? "(see proof.json)"}${i.enclaveTag ? `, published by BitGraph as source tag ${i.enclaveTag}` : ""}. Matching a published value shows which image ran; trusting what that image does means reading or rebuilding its source (bitgraph.ing/docs/self-host-tee).`, "the match, yes. The rebuild is yours to do");
+  check("Inclusion on Base", `The ceiling transaction's signature, sender ${i.writer}, and its Merkle-Patricia proof against the Base block header in the base-ceiling folder.`, "yes");
+  check("Chain confirmation", `That the block headers in this folder are the real chains' blocks. Compare the block hashes with any node or explorer${i.floor ? `: https://etherscan.io/block/${i.floor.block}` : ""}${i.ceilingInTime ? ` and https://basescan.org/block/${i.ceilingInTime.block}` : ""}`, "NO. One lookup each, by you");
   if (i.settlement) {
-    L.push(`| Settlement on Ethereum | A \`bitgraph-settlement/1\` pointer is attached in \`base-ceiling/ceiling.json\`: Ethereum block ${n(i.settlement.block)} (${utc(i.settlement.iso)}) carries the batch data that holds the Base block, in transaction \`${i.settlement.txHash}\` | The pointer, yes. The blob bytes are checked by the audit when they are beside the package |`);
+    check("Settlement on Ethereum", `A bitgraph-settlement/1 pointer is attached in base-ceiling/ceiling.json: Ethereum block ${n(i.settlement.block)} (${utc(i.settlement.iso)}) carries the batch data that holds the Base block, in transaction ${i.settlement.txHash}`, "the pointer, yes. The blob bytes are checked by the audit when they are beside the package");
   } else if (i.ceilingInTime) {
-    L.push(`| Settlement on Ethereum | **Not attached.** The ceiling file says BitGraph's Base node reported the block "${i.ceilingInTime.reportedStatus}" when it was written; that is a report, and nothing in this folder proves it. The settlement pointer is attached to the ceiling a few minutes after the Base block, once its batch is on Ethereum: download the package again later to get it | No |`);
+    check("Settlement on Ethereum", `Not attached. The ceiling file says BitGraph's Base node reported the block "${i.ceilingInTime.reportedStatus}" when it was written; that is a report, and nothing in this folder proves it. The settlement pointer is attached to the ceiling a few minutes after the Base block, once its batch is on Ethereum: download the package again later to get it.`, "no");
   } else {
-    L.push("| Settlement on Ethereum | Not in this package | No |");
+    check("Settlement on Ethereum", "Not in this package.", "no");
   }
-  L.push("");
 
   L.push("## Keep the exact bytes", "");
   L.push("A proof is about exact bytes. Re-saving, re-encoding or sending the file through an app that recompresses it produces different bytes, and those will not match. Keep this folder, or the BitGraphed file, as it is.", "");
-  L.push(`Verifier versions this README was written for: @mikeargento/bitgraph-verify ${i.versions.verify}, bitgraph-audit ${i.versions.audit}, bitgraph-sdk ${i.versions.sdk}. Position: ${i.recordName}, epoch \`${i.epochId}\`.`, "");
+  L.push(`Written for: bitgraph-verify ${i.versions.verify}, bitgraph-audit ${i.versions.audit}, bitgraph-sdk ${i.versions.sdk}.`, `Position: ${i.recordName}, epoch ${i.epochId}`, "");
   return L.join("\n");
 }
