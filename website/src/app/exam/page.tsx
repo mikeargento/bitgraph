@@ -12,8 +12,8 @@ const ZIP_URL: string | null = "https://github.com/mikeargento/sealed-exam/relea
 
 /* Recomputed from the zip that packages/exam-cli/outreach/build.sh wrote on
    2026-09-14; rebuild the package and this line moves with it. */
-const ZIP_SHA256 = "8452ef97d6fa59be88a4bdbc371813788d185432a248637691366358dbabf901";
-const ZIP_SIZE = "4.1 MB";
+const ZIP_SHA256 = "2110ba7051c5ae00883d38f81560efe1dcb233fdc7004c73a6034223f5150330";
+const ZIP_SIZE = "4.9 MB";
 
 export const metadata: Metadata = {
   title: "The sealed exam",
