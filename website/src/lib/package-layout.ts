@@ -80,6 +80,22 @@ export function packageReadme(i: ReadmeInput): string {
   if (i.recordedIso) L.push(`- Between the two, the enclave's own clock recorded the commit at ${utc(i.recordedIso)} (inside the AWS Nitro attestation in proof.json).`);
   L.push("", "What it does not claim: when the content was first created, who made it, who owns it, or whether what it shows is true. It dates this exact version of the bytes, nothing earlier.", "");
 
+  // The same file at up to three stages: say which is which before listing the folder.
+  if (i.committedPath && (i.originalPath || i.carrierPath)) {
+    L.push("## One file, at three stages", "");
+    L.push("The files in this package are the same content at different stages. Each stage adds something to the one before. They open the same way and look the same; the difference is in the bytes.", "");
+    let stage = 0;
+    const st = (title: string, path: string, text: string) => { L.push(`${++stage}. ${title}: ${path}`, `   ${text}`, ""); };
+    if (i.originalPath) st("The original", i.originalPath, "The file as it was before BitGraph touched it. Nothing added.");
+    st("The committed file", i.committedPath, `${i.originalPath ? "The original" : "The file"} with a 48-byte commitment at the end. The commitment is a one-time code from the position BitGraph opened, and it could not exist before the floor block. This is the file the proof is about: its SHA-256 is the digest in proof.json.${i.originalPath ? " The original's is not." : ""}`);
+    if (i.carrierPath) st("The BitGraphed file", i.carrierPath, "The committed file with the proof, the anchors and the ceiling packed inside it. One file that verifies with nothing else beside it.");
+    L.push("Which to use:", "");
+    if (i.carrierPath) L.push("- To share or keep one file: the BitGraphed file. The proof travels inside it.");
+    L.push("- To check the fingerprint by hand: the committed file, against proof.json.");
+    if (i.originalPath) L.push("- To have the file back untouched: the original.");
+    L.push("");
+  }
+
   L.push("## What is in this folder", "");
   item("README.md", "This page.");
   item("proof.json", "The signed proof: the position, the commit, the enclave's signature and its AWS Nitro attestation.");
