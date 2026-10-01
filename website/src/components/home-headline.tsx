@@ -35,26 +35,26 @@ export function HomeHeadline({ phrases }: { phrases: string[] }) {
     let timer: ReturnType<typeof setTimeout>;
     const wait = (ms: number) => new Promise<void>((r) => { timer = setTimeout(r, ms); });
     const type = async (s: string, set: (v: string) => void, from = 0) => {
-      for (let n = from + 1; n <= s.length && !cancelled; n++) { set(s.slice(0, n)); await wait(72); }
+      for (let n = from + 1; n <= s.length && !cancelled; n++) { set(s.slice(0, n)); await wait(54); }
     };
     (async () => {
       await wait(500);
       await type(LINE1, setL1);
-      await wait(220);
+      await wait(180);
       if (cancelled) return;
       setOnLine1(false);
       await type(first, setL2);
-      await wait(2400);
+      await wait(1700);
       for (let i = 0; i + 1 < phrases.length && !cancelled; i++) {
         const current = `for ${phrases[i]}`;
         const next = `for ${phrases[i + 1]}`;
         let keep = 0;
         while (keep < current.length && keep < next.length && current[keep] === next[keep]) keep++;
-        for (let n = current.length; n >= keep && !cancelled; n--) { setL2(current.slice(0, n)); await wait(38); }
-        await wait(260);
+        for (let n = current.length; n >= keep && !cancelled; n--) { setL2(current.slice(0, n)); await wait(28); }
+        await wait(200);
         await type(next, setL2, keep);
         // The last three are one thought (any file, any bytes, any bits), so they hold briefly.
-        if (i + 2 < phrases.length) await wait(i + 4 >= phrases.length ? 900 : 2400);
+        if (i + 2 < phrases.length) await wait(i + 4 >= phrases.length ? 700 : 1700);
       }
       if (cancelled) return;
       await wait(1600);
