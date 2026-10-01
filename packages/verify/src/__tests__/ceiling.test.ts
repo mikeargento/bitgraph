@@ -137,7 +137,7 @@ test("a valid sidecar verifies and reports the window", async () => {
   assert.equal(r.window!.floor.blockNumber, 26037892);
   assert.ok(r.window!.floor.blockTimestamp! > 0);
   assert.equal(r.window!.widthSeconds, 1_790_000_000 - r.window!.floor.blockTimestamp!);
-  assert.match(r.label!, /Relies on Base's sequencer until settled on Ethereum\.$/);
+  assert.match(r.label!, /Relies on Base's sequencer until its batch data is on Ethereum; no settlement evidence is attached\.$/);
   assert.equal(r.headerCheckedAgainstChain, false);
 });
 
@@ -145,7 +145,8 @@ test("at safe the label says settled", async () => {
   const { sidecar, writer } = build();
   sidecar.status = "safe";
   const r = await verifyCeiling(proof, sidecar, { writerAddress: writer, chainId: CHAIN });
-  assert.match(r.label!, /settled on Ethereum\.$/);
+  assert.match(r.label!, /reported the block "(safe|finalized)" when this file was written; that report is not proven here, and no settlement evidence is attached\.$/);
+  assert.doesNotMatch(r.label!, /settled on Ethereum/);
   assert.doesNotMatch(r.label!, /Relies/);
 });
 

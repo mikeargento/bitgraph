@@ -165,10 +165,19 @@ function hhmmss(unix: number): string {
   return new Date(unix * 1000).toISOString().slice(11, 19);
 }
 
-export function ceilingLabel(status: CeilingStatus, blockNumber: number, blockTimestamp: number): string {
+/**
+ * One line for people. It states what this check establishes, the transaction's
+ * inclusion in a Base block whose header is given, and never more: the sidecar's
+ * `status` is what BitGraph's Base node reported when the file was written, an
+ * observation the file cannot prove (an outside review on 2026-09-30 changed
+ * it to "finalized" and every offline check still passed). Settlement is proven
+ * only by a bitgraph-settlement/1 pointer, checked by verifySettlementPointer.
+ */
+export function ceilingLabel(status: CeilingStatus, blockNumber: number, blockTimestamp: number, hasSettlementPointer = false): string {
   const at = `Base block ${blockNumber.toLocaleString("en-US")} at ${hhmmss(blockTimestamp)} UTC`;
-  if (status === "safe" || status === "finalized") return `Ceiling: ${at}, settled on Ethereum.`;
-  return `Ceiling: ${at}. Relies on Base's sequencer until settled on Ethereum.`;
+  if (hasSettlementPointer) return `Ceiling: included in ${at}. A settlement pointer to Ethereum is attached; check it with verifySettlementPointer.`;
+  if (status === "safe" || status === "finalized") return `Ceiling: included in ${at}. BitGraph's Base node reported the block "${status}" when this file was written; that report is not proven here, and no settlement evidence is attached.`;
+  return `Ceiling: included in ${at}. Relies on Base's sequencer until its batch data is on Ethereum; no settlement evidence is attached.`;
 }
 
 /**
@@ -302,7 +311,7 @@ export async function verifyCeiling(
       ceiling: { chainId: a.chainId, blockNumber: header.number, blockHash: header.hash, blockTimestamp: header.timestamp },
       widthSeconds: width,
     },
-    label: ceilingLabel(status, header.number, header.timestamp),
+    label: ceilingLabel(status, header.number, header.timestamp, typeof (sidecar as { settlement?: unknown }).settlement === "object" && (sidecar as { settlement?: unknown }).settlement !== null),
     headerCheckedAgainstChain: false,
   };
 }

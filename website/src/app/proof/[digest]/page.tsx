@@ -29,7 +29,8 @@ import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, fuseFile, FuseTooLarge
 import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence } from "@/lib/carrier-site";
 import { verifyCarrierPayload, type CarrierClaim, type CarrierLookups } from "@mikeargento/bitgraph-verify";
 import { ProofView, type ProofViewModel, type FieldView, type PositionRowView, type SetRowView, type DownloadView } from "./proof-view";
-import { PUBLISHED_PCR0S } from "@/lib/enclave-measurements";
+import { PUBLISHED_PCR0S, PUBLISHED_ENCLAVE_MEASUREMENTS } from "@/lib/enclave-measurements";
+import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_CARRIER_DIR, PKG_README, packageReadme } from "@/lib/package-layout";
 import { ENCODING_BASE64URL, bytesToBase64, bytesToHex, computeProofHash } from "@mikeargento/bitgraph-verify";
 import { computeCommitmentFor } from "@/lib/fuse-commitment";
 import { FUSE2_ATTRIBUTION_NAME, isFuseName } from "@/lib/fuse-core";
@@ -1257,18 +1258,18 @@ export default function ProofPage() {
         // A set member's new file: the original back out of it, beside it.
         const u = await unpackSetMember(packProof, bytes, cachedFile.name, setBound?.bytes ?? null);
         const name = u.originalName ?? cachedFile.name;
-        files[`new-file/${name}`] = bytes;
+        files[`${PKG_COMMITTED_DIR}/${name}`] = bytes;
         if (u.originalBytes && u.originalName) {
-          files[u.originalName] = u.originalBytes;
+          files[`${PKG_ORIGINAL_DIR}/${u.originalName}`] = u.originalBytes;
           packLabel = u.originalName;
         }
       } else if (isSet) {
         // A set member's original: its new file rebuilt from the row's
         // placement and the set's slot commitment, only when the rebuild
         // hashes to the row's listed digest. Never a wrong new-file.
-        files[cachedFile.name] = bytes;
+        files[`${PKG_ORIGINAL_DIR}/${cachedFile.name}`] = bytes;
         const r = await rebuildSetMember(packProof, bytes, cachedFile.name, setBound?.bytes ?? null);
-        if (r.fusedBytes) files[`new-file/${cachedFile.name}`] = r.fusedBytes;
+        if (r.fusedBytes) files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = r.fusedBytes;
       } else if (isInlineProof(packProof)) {
         // An inline record carries its commitment in its own bytes: there is no
         // container and no separate original, so the file is both halves at once.
@@ -1276,25 +1277,27 @@ export default function ProofPage() {
         // that never existed and leaves the artifact where bitgraph-audit does not
         // look for it. Verified 2026-09-21: before this branch the export held only
         // new-file/<name> and no original, because unpackNewFile had nothing to
-        // unpack.
-        files[cachedFile.name] = bytes;
+        // unpack. Since 2026-10-01 every package names its folders for what the
+        // bytes are: committed/ holds the bytes the proof's digest names, always;
+        // original/ exists only when the committed file was made from one.
+        files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = bytes;
       } else if (isFuseName(attr?.name) && cachedRole === "new") {
         const u = await unpackNewFile(packProof, bytes, cachedFile.name);
         const name = u.originalName ?? cachedFile.name;
-        files[`new-file/${name}`] = bytes;
+        files[`${PKG_COMMITTED_DIR}/${name}`] = bytes;
         if (u.originalBytes && u.originalName) {
-          files[u.originalName] = u.originalBytes;
+          files[`${PKG_ORIGINAL_DIR}/${u.originalName}`] = u.originalBytes;
           packLabel = u.originalName;
         }
       } else if (isFuseName(attr?.name)) {
-        files[cachedFile.name] = bytes;
+        files[`${PKG_ORIGINAL_DIR}/${cachedFile.name}`] = bytes;
         const r = await rebuildFromOrigin(packProof, bytes, cachedFile.name);
-        if (r.fusedBytes) files[`new-file/${cachedFile.name}`] = r.fusedBytes;
+        if (r.fusedBytes) files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = r.fusedBytes;
       } else {
-        files[cachedFile.name] = bytes;
+        files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = bytes;
       }
     } else if (cachedFile) {
-      files[cachedFile.name] = new Uint8Array(cachedFile.data);
+      files[`${PKG_COMMITTED_DIR}/${cachedFile.name}`] = new Uint8Array(cachedFile.data);
     }
     // Captured as the anchors are gathered, so the export's own page can state
     // the causal window without a second round of fetching. Declared out here
@@ -1389,6 +1392,7 @@ export default function ProofPage() {
       ), null, 2));
     }
 
+    let ceilingDoc: { status?: string; settlement?: { l1?: { blockNumber?: number; blockTimestamp?: number; txHash?: string } } | null; anchor?: { blockNumber?: number; blockTimestamp?: number; txHash?: string } | null } | null = null;
     // The ceiling in time (bitgraph-ceiling/1) travels beside the proof, in its
     // own folder, exactly as the writer published it: the Merkle path, the
     // signed Base transaction, the block header and its inclusion proof, and
@@ -1401,7 +1405,20 @@ export default function ProofPage() {
       const safe = ph.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       const cr = await fetch(`/api/ceilings/${safe}`);
       if (cr.ok) {
-        files["base-ceiling/ceiling.json"] = new Uint8Array(await cr.arrayBuffer());
+        const ceilingBytes = new Uint8Array(await cr.arrayBuffer());
+        files["base-ceiling/ceiling.json"] = ceilingBytes;
+        try { ceilingDoc = JSON.parse(new TextDecoder().decode(ceilingBytes)); } catch { ceilingDoc = null; }
+        // Settlement is attached a few minutes after the Base block. Absent, the package says
+        // so in words: the sidecar's "status" is a report, not evidence (outside review, 2026-09-30).
+        if (ceilingDoc && !ceilingDoc.settlement) {
+          files["base-ceiling/settlement-status.json"] = strToU8(JSON.stringify({
+            version: "bitgraph-settlement-status/1",
+            proofHash: ph,
+            status: "not-attached",
+            reportedBaseStatus: ceilingDoc.status ?? null,
+            note: "No settlement pointer was attached to this ceiling when the package was built. The ceiling's status field is what BitGraph's Base node reported, which this package cannot prove. The pointer (the Ethereum block that carries the batch data holding this Base block) is attached a few minutes after the Base block: build the package again later to get it.",
+          }, null, 2));
+        }
       } else {
         files["base-ceiling/ceiling-status.json"] = strToU8(JSON.stringify({
           version: "bitgraph-ceiling-status/1",
@@ -1433,6 +1450,56 @@ export default function ProofPage() {
     //
     // The two must not diverge: a zip from here and a folder from the Folder
     // are meant to be the same object, and they now are.
+
+    // The BitGraphed file rides along when it can be built: one file with the whole proof inside,
+    // for whoever receives only a file. A set member waits (as on the page); a failure leaves it out.
+    const committedPath = Object.keys(files).find((k) => k.startsWith(`${PKG_COMMITTED_DIR}/`)) ?? null;
+    const originalPath = Object.keys(files).find((k) => k.startsWith(`${PKG_ORIGINAL_DIR}/`)) ?? null;
+    let carrierPath: string | null = null;
+    if (committedPath && proof && !isSet && (commit as { slotAnchor?: unknown }).slotAnchor) {
+      try {
+        const built = await buildCarrierForProof(files[committedPath]!, proof, committedPath.slice(PKG_COMMITTED_DIR.length + 1), { waitForCeilingMs: 0 });
+        carrierPath = `${PKG_CARRIER_DIR}/${built.fileName}`;
+        files[carrierPath] = built.bytes;
+      } catch (e) { console.warn("[bitgraph] the BitGraphed file was left out of the package:", e); }
+    }
+    // README.md: the claim, which file is which, how to check, and what each result rests on.
+    try {
+      const hex = async (b: Uint8Array | undefined) => b ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", b as unknown as BufferSource))).map((x) => x.toString(16).padStart(2, "0")).join("") : null;
+      const iso = (sec: number | null | undefined) => (typeof sec === "number" && sec > 0 ? new Date(sec * 1000).toISOString() : null);
+      const sa = (commit as { slotAnchor?: { blockNumber?: number; blockHash?: string } }).slotAnchor;
+      let floorIso: string | null = sa?.blockNumber !== undefined && sides.before.block === sa.blockNumber ? iso(sides.before.ts ?? null) : null;
+      if (sa?.blockNumber !== undefined && sa.blockHash && floorIso === null) {
+        try {
+          const w = await fetch(`/api/proofs/witness?block=${sa.blockNumber}&hash=${encodeURIComponent(sa.blockHash)}`).then((r) => (r.ok ? r.json() : null));
+          if (w?.headerRlpHex) floorIso = iso(blockTimeFromHeader(w.headerRlpHex));
+        } catch { /* the README says the time is not in the package */ }
+      }
+      let afterCounter: string | null = null;
+      try { afterCounter = files["ethereum-anchors/anchor-after.json"] ? String(JSON.parse(new TextDecoder().decode(files["ethereum-anchors/anchor-after.json"])).commit?.counter ?? "") || null : null; } catch { afterCounter = null; }
+      const pcr0 = proof?.environment?.measurement ?? null;
+      const tagNote = PUBLISHED_ENCLAVE_MEASUREMENTS.find((m) => m.pcr0 === pcr0)?.note.match(/^v(\d+)/);
+      const ca = ceilingDoc?.anchor, st = ceilingDoc?.settlement?.l1;
+      files[PKG_README] = strToU8(packageReadme({
+        recordName,
+        epochId: String(commit.epochId ?? ""),
+        proofUrl: `${window.location.origin}/proof/${digestParam}`,
+        committedPath, originalPath, carrierPath,
+        committedSha256Hex: committedPath ? await hex(files[committedPath]) : null,
+        originalSha256Hex: originalPath ? await hex(files[originalPath]) : null,
+        recordedIso: attestedMs !== null ? new Date(attestedMs).toISOString() : null,
+        floor: sa?.blockNumber !== undefined ? { block: sa.blockNumber, iso: floorIso } : null,
+        ceilingInTime: ca && typeof ca.blockNumber === "number" && typeof ca.blockTimestamp === "number" && ca.txHash
+          ? { block: ca.blockNumber, iso: new Date(ca.blockTimestamp * 1000).toISOString(), txHash: ca.txHash, reportedStatus: String(ceilingDoc?.status ?? "included") } : null,
+        settlement: st && typeof st.blockNumber === "number" && typeof st.blockTimestamp === "number" && st.txHash
+          ? { block: st.blockNumber, iso: new Date(st.blockTimestamp * 1000).toISOString(), txHash: st.txHash } : null,
+        ceilingInPosition: afterCounter ? { anchorCounter: afterCounter, block: sides.after.block ?? null, iso: iso(sides.after.ts ?? null) } : null,
+        pcr0, enclaveTag: tagNote ? `enclave-v${tagNote[1]}` : null,
+        writer: "0xf3972408D853c975F86351C311f4310220bbF2a3",
+        hasAnchorsBefore: !!files["ethereum-anchors/anchor-before.json"], hasAnchorsAfter: !!files["ethereum-anchors/anchor-after.json"],
+        versions: { verify: "1.15.1", audit: "0.8.0", sdk: "0.3.0" },
+      }));
+    } catch (e) { console.warn("[bitgraph] README left out of the package:", e); }
 
     const zipped = zipSync(files, { level: 0 });
     const blob = new Blob([zipped as unknown as BlobPart], { type: "application/zip" });

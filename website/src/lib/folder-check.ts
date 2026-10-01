@@ -43,6 +43,7 @@
  * is judged by the manifest, and the manifest by hashing to the signature.
  */
 
+import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_LEGACY_NEW_FILE_DIR, PKG_README, PKG_KNOWN_DIRS } from "./package-layout.ts";
 import { isFuseName } from "./fuse-core.ts";
 import {
   hashFile,
@@ -377,9 +378,16 @@ export function discoverDrop(walked: WalkedFile[]): DropScan {
       if (rel[0] === "proof.json") cand.proofFile = w.file;
       else if (rel[0] === "index.html") cand.receipt = w.file;
       else if (rel[0] === "member.json") cand.memberEvidence = w.file;
+      else if (rel[0] === PKG_README) { /* the package's own explanation: not a recording, not a stray */ }
       else cand.artifactCandidates.push(w.file);
-    } else if (rel.length === 2 && rel[0] === "new-file") {
+    } else if (rel.length === 2 && (rel[0] === PKG_COMMITTED_DIR || rel[0] === PKG_LEGACY_NEW_FILE_DIR)) {
+      // committed/ since 2026-10-01; new-file/ in every package made before it.
       cand.newFile = w.file;
+    } else if (rel.length === 2 && rel[0] === PKG_ORIGINAL_DIR) {
+      // The original the committed file was made from: a candidate exactly as it was at the top level.
+      cand.artifactCandidates.push(w.file);
+    } else if (rel.length === 2 && PKG_KNOWN_DIRS.has(rel[0]!)) {
+      // The ceiling files and the BitGraphed copy: evidence that travels with the package.
     } else if (rel.length === 2 && rel[0] === "ethereum-anchors") {
       if (rel[1] === "anchor-before.json") cand.anchors.before = w.file;
       else if (rel[1] === "anchor-after.json") cand.anchors.after = w.file;

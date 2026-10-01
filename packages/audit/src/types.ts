@@ -1351,7 +1351,7 @@ export interface CeilingCheck {
    */
   status: "verified" | "failed" | "pending" | "unmatched";
   reason?: string;
-  /** One line for people, e.g. "Ceiling: Base block N at hh:mm:ss UTC, settled on Ethereum." */
+  /** One line for people, e.g. "Ceiling: included in Base block N at hh:mm:ss UTC. ..."; it never claims settlement the file does not prove. */
   label?: string;
   window?: {
     floorBlock: number | null;

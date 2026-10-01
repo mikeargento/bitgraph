@@ -2,6 +2,10 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.15.1 (2026-10-01)
+
+- `verifyCeiling`'s label no longer says "settled on Ethereum" from the sidecar's `status`. That field is what BitGraph's Base node reported when the file was written and the file cannot prove it (an outside review changed it to `finalized` and every offline check still passed, as it should: the checks are about inclusion). The label now states the inclusion, quotes the reported status as a report, and says whether a settlement pointer is attached. `ceilingLabel` takes a fourth argument, `hasSettlementPointer`. Nothing about `ok`, the checks, or the window changed.
+
 ## 1.15.0 (2026-09-30)
 
 - `bitgraph-fuse/2`: the position commitment also binds the floor block,
