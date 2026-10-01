@@ -53,7 +53,7 @@ export default function HomePage() {
           (Certificate Transparency for TLS certificates), and everyone BitGraph is pitching
           this month holds AI records; the mechanism stays universal in the docs. The line
           after "for" types through the uses (Mike, 2026-09-30). */}
-      <HomeHeadline phrases={["AI records.", "AI agent actions.", "AI evaluations.", "predictions.", "sealed bids.", "chain of custody.", "time.", "any file.", "any bytes.", "any bits."]} />
+      <HomeHeadline phrases={["AI records.", "AI agent actions.", "AI evaluations.", "predictions.", "sealed bids.", "chain of custody.", "time.", "any file.", "any bytes.", "any bits.", "any bits / BitGraph"]} />
 
       {/* Why it matters, in Schelling's terms: a commitment is credible because it gives up
           options. The term in game theory is "commitment" ("credible commitment", Schelling
@@ -79,9 +79,9 @@ export default function HomePage() {
       <div className="home-live">
         <a className="home-live-title" href="https://live.bitgraph.ing" target="_blank" rel="noopener">
           <span className="home-live-pill"><span className="home-live-dot" aria-hidden="true" />Live</span>
-          <span className="home-live-name">BitGraph Postseason</span><svg className="ext-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg><span className="sr-only"> (opens in a new tab)</span>
+          <span className="home-live-name">BitGraph AI Postseason</span><svg className="ext-arrow" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg><span className="sr-only"> (opens in a new tab)</span>
         </a>
-        <p className="home-live-text">An AI is predicting every at bat of the 2026 baseball postseason. Each prediction gets its BitGraph position before the first pitch, so anyone can check that none was changed after the result.</p>
+        <p className="home-live-text">Jev, ChatGPT and Claude predict every at bat of the 2026 baseball postseason: will the batter reach base? BitGraph proves each prediction was made just before the at-bat.</p>
       </div>
 
       {/* Renders nothing. Starts the example proof's fetch while the reader is still

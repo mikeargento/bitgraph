@@ -53,8 +53,8 @@ export function HomeHeadline({ phrases }: { phrases: string[] }) {
         for (let n = current.length; n >= keep && !cancelled; n--) { setL2(current.slice(0, n)); await wait(28); }
         await wait(200);
         await type(next, setL2, keep);
-        // The last three are one thought (any file, any bytes, any bits), so they hold briefly.
-        if (i + 2 < phrases.length) await wait(i + 4 >= phrases.length ? 700 : 1700);
+        // The close is one thought (any file, any bytes, any bits, then the name), so those hold briefly.
+        if (i + 2 < phrases.length) await wait(i + 5 >= phrases.length ? 700 : 1700);
       }
       if (cancelled) return;
       await wait(1600);
