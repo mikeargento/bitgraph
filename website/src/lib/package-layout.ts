@@ -88,7 +88,7 @@ export function packageReadme(i: ReadmeInput): string {
     const st = (title: string, path: string, text: string) => { L.push(`${++stage}. ${title}: ${path}`, `   ${text}`, ""); };
     if (i.originalPath) st("The original", i.originalPath, "The file as it was before BitGraph touched it. Nothing added.");
     st("The committed file", i.committedPath, `${i.originalPath ? "The original" : "The file"} with a 48-byte commitment at the end. The commitment is a one-time code from the position BitGraph opened, and it could not exist before the floor block. This is the file the proof is about: its SHA-256 is the digest in proof.json.${i.originalPath ? " The original's is not." : ""}`);
-    if (i.carrierPath) st("The BitGraphed file", i.carrierPath, "The committed file with the proof, the anchors and the ceiling packed inside it. One file that verifies with nothing else beside it.");
+    if (i.carrierPath) st("The BitGraphed file", i.carrierPath, "The committed file with the proof, the Ethereum anchors and the Base ceiling packed inside it. One file that verifies with nothing else beside it.");
     L.push("Which to use:", "");
     if (i.carrierPath) L.push("- To share or keep one file: the BitGraphed file. The proof travels inside it.");
     L.push("- To check the fingerprint by hand: the committed file, against proof.json.");
@@ -101,7 +101,7 @@ export function packageReadme(i: ReadmeInput): string {
   item("proof.json", "The signed proof: the position, the commit, the enclave's signature and its AWS Nitro attestation.");
   if (i.committedPath) item(i.committedPath, "The committed bytes. This is the file the proof's digest names. Hash this one.");
   if (i.originalPath) item(i.originalPath, "The original the committed file was made from: the same content, byte for byte, without the 48-byte commitment at the end. Its hash is in the proof as the signed origin, not as the artifact digest.");
-  if (i.carrierPath) item(i.carrierPath, "The BitGraphed file: the committed bytes with the proof, the anchors and the ceiling packed inside one file. It verifies with nothing else beside it.");
+  if (i.carrierPath) item(i.carrierPath, "The BitGraphed file: the committed bytes with the proof, the Ethereum anchors and the Base ceiling packed inside one file. It verifies with nothing else beside it.");
   if (i.hasAnchorsBefore || i.hasAnchorsAfter) item("ethereum-anchors/", "The anchor before (the floor) and the anchor after (the closing anchor), each with its Ethereum block header so the block's time reads offline.");
   item("base-ceiling/", "The ceiling in time: the Merkle path, the signed Base transaction, the Base block header and the transaction's inclusion proof. A file there whose name ends in -status.json says in words when something was not available.");
 
