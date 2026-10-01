@@ -53,7 +53,7 @@ export default function HomePage() {
           (Certificate Transparency for TLS certificates), and everyone BitGraph is pitching
           this month holds AI records; the mechanism stays universal in the docs. The line
           after "for" types through the uses (Mike, 2026-09-30). */}
-      <HomeHeadline phrases={["AI records.", "AI agent actions.", "AI evaluations.", "predictions.", "sealed bids.", "chain of custody.", "time.", "any file.", "any bytes.", "any bits.", "any bits / BitGraph"]} />
+      <HomeHeadline phrases={["AI records.", "AI agent actions.", "AI evaluations.", "predictions.", "sealed bids.", "chain of custody.", "any file.", "any bytes.", "any bits.", "any bits / BitGraph"]} />
 
       {/* Why it matters, in Schelling's terms: a commitment is credible because it gives up
           options. The term in game theory is "commitment" ("credible commitment", Schelling
