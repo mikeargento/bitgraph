@@ -2734,3 +2734,54 @@ html { background: #ffffff !important; }
 .menu-v2 .menu-head-q { color: #3c4043; }
 .menu-v2 .menu-head-label { color: #202124; }
 .menu-v2 .menu-block.g-blue, .menu-v2 .menu-block.g-red, .menu-v2 .menu-block.g-yellow, .menu-v2 .menu-block.g-green, .menu-v2 .menu-block { background: #ffffff !important; color: #202124 !important; }
+
+/* ── 2026-10-02: the menu in Base's pattern ──────────────────────────────────────────────────────
+   Wide screens: each group a dropdown on the right of the bar. Narrower than 960px: one Menu
+   button and a full-screen sheet whose groups open in place. */
+.nav2-cats { display: flex; align-items: center; gap: 2px; }
+.nav2-menu { display: none !important; }
+@media (max-width: 960px) { .nav2-cats { display: none; } .nav2-menu { display: inline-flex !important; } }
+.nav2-cat { position: relative; }
+#site-nav .nav2-trigger { font-size: 15px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+.nav2-drop { position: absolute; top: calc(100% + 12px); left: 0; box-sizing: border-box; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px rgba(60, 64, 67, 0.3); z-index: 60; animation: dropIn 0.16s ease-out; }
+.nav2-drop.slide { animation: none; transition: transform 0.24s cubic-bezier(0.2, 0, 0, 1), height 0.24s cubic-bezier(0.2, 0, 0, 1); }
+.nav2-drop-inner { display: grid; gap: 2px; padding: 8px; animation: dropFade 0.18s ease-out; }
+@keyframes dropIn { from { opacity: 0; margin-top: -6px; } to { opacity: 1; margin-top: 0; } }
+@keyframes dropFade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .nav2-drop, .nav2-drop.slide, .nav2-drop-inner { animation: none; transition: none; } }
+/* The gap under the buttons belongs to the group row, so moving the cursor down to the panel does not close it. */
+.nav2-cats::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px; }
+/* Base's slight pill under the cursor and on the open group. */
+/* (An older rule strips every button in this spot of its background, padding and height with !important.) */
+#site-nav .bg-nav-links > .nav2-cats > button.nav2-trigger { border-radius: 999px !important; padding: 0 14px !important; height: 36px !important; font-size: 15px !important; font-weight: 600 !important; color: var(--ink) !important; background: transparent !important; transition: background 0.15s; }
+#site-nav .bg-nav-links > .nav2-cats > button.nav2-trigger:hover, #site-nav .bg-nav-links > .nav2-cats > button.nav2-trigger[aria-expanded="true"] { background: #f1f3f4 !important; color: var(--ink) !important; }
+.nav2-item { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 14px; align-items: center; padding: 10px 12px; border-radius: 12px; color: var(--ink); text-decoration: none; }
+.nav2-item:hover { background: #f1f3f4; text-decoration: none; }
+.nav2-item .menu-block { width: 40px; height: 40px; border-radius: 10px; background: #ffffff !important; border: 1px solid #dadce0 !important; color: #202124 !important; }
+.nav2-item:hover .menu-block { border-color: #bdc1c6 !important; }
+.nav2-text { display: grid; gap: 2px; min-width: 0; }
+.nav2-label { display: inline-flex; align-items: center; gap: 5px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.nav2-desc { font-size: 13.5px; line-height: 1.35; color: #4d5156; }
+.nav2-tail { display: flex; flex-wrap: wrap; gap: 6px 20px; padding: 12px 12px 6px; margin-top: 4px; border-top: 1px solid #e8eaed; font-size: 14px; }
+.nav2-tail a { display: inline-flex; align-items: center; gap: 4px; color: #3c4043; text-decoration: none; }
+.nav2-tail a:hover { color: var(--accent); }
+/* The sheet. */
+.nav2-sheet { position: fixed; inset: 0; z-index: 100; background: #ffffff; display: flex; flex-direction: column; }
+.nav2-sheet-top { flex: none; height: 64px; width: 90%; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.nav2-sheet-mark { font-size: 19px; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; text-decoration: none; }
+.nav2-close { border: 0; background: none; padding: 8px; margin-right: -8px; color: var(--ink); cursor: pointer; display: inline-flex; }
+.nav2-sheet-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; width: 90%; margin: 0 auto; padding: 8px 0 max(24px, env(safe-area-inset-bottom)); }
+.nav2-shead { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; background: none; padding: 16px 0; font: inherit; font-size: 18px; font-weight: 500; color: var(--ink); cursor: pointer; text-align: left; }
+.nav2-shead svg { width: 16px; height: 16px; transform: rotate(-90deg); transition: transform 0.15s; color: #3c4043; }
+.nav2-shead[aria-expanded="true"] svg { transform: rotate(0deg); }
+.nav2-sitems { display: grid; gap: 2px; padding: 0 0 12px; }
+.nav2-sitems .nav2-item { grid-template-columns: 28px minmax(0, 1fr); column-gap: 14px; padding: 10px 0; border-radius: 0; }
+.nav2-sitems .nav2-item:hover { background: none; }
+.nav2-sitems .menu-block { width: 28px; height: 28px; background: none !important; border: 0 !important; }
+.nav2-sitems .nav2-label { font-size: 16px; font-weight: 400; }
+.nav2-sheet .nav2-tail { border-top: 1px solid #e8eaed; margin-top: 12px; padding: 18px 0 0; gap: 10px 24px; font-size: 15px; }
+/* Mike 10-02: "center it". On wide screens the four groups sit in the middle of the bar, the way Base
+   does it, so Make a BitGraph stands alone on the right. */
+@media (min-width: 961px) { .nav2-cats { position: absolute; left: 50%; transform: translateX(-50%); } }
+/* Mike 10-02: "maybe a little bolder on the text of buttons?" The phone Menu button matches the bar's groups. */
+#site-nav .nav2-menu { font-weight: 600 !important; }

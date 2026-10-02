@@ -82,7 +82,7 @@ export const MENU_GROUPS: MenuGroup[] = [
     label: "See it working",
     feature: true,
     items: [
-      { href: "https://live.bitgraph.ing", label: "BitGraph AI Postseason", desc: "Three AIs bet on every at bat. Each bet is a BitGraph made before the pitch.", external: true },
+      { href: "https://live.bitgraph.ing", label: "BitGraph AI Postseason", desc: "Three AIs bet on every at bat.", external: true },
       { href: "/exam", label: "The sealed exam", desc: "An exam sealed in BitGraph, and how to check it." },
       { href: "/docs/try", label: "Make a BitGraph", desc: "Drop in any file and get its proof." },
       { href: "/ledger", label: "Floors", desc: "The Ethereum blocks each BitGraph was made after." },
@@ -98,6 +98,7 @@ export const MENU_GROUPS: MenuGroup[] = [
       { href: "/docs/trust-model", label: "Trust model", desc: "What you rely on, and what you don't." },
       { href: "/docs/what-bitgraph-is-not", label: "Limits", desc: "What a BitGraph does not prove." },
       { href: "/docs/what-is-bitgraph", label: "The protocol", desc: "The full specification." },
+      { href: "/docs/faq", label: "FAQ", desc: "Common questions, answered." },
     ],
   },
   {
@@ -105,10 +106,11 @@ export const MENU_GROUPS: MenuGroup[] = [
     question: "How do I use it?",
     items: [
       { href: "/docs/integration", label: "Integration guide", desc: "Add BitGraph to your product." },
-      { href: "/docs/sdk", label: "SDK", desc: "One package: a library, a command line and a local server." },
+      { href: "/docs/sdk", label: "SDK", desc: "A library, a command line and a local server." },
       { href: "/docs/mcp", label: "MCP server", desc: "Give an AI agent BitGraph." },
       { href: "/api-reference", label: "API reference", desc: "Every request and response." },
       { href: "/docs/self-host-tee", label: "Self-host a TEE", desc: "Run your own BitGraph enclave." },
+      { href: "https://github.com/mikeargento/bitgraph", label: "GitHub", desc: "The source code.", external: true },
     ],
   },
   {
