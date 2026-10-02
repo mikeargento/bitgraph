@@ -2622,3 +2622,96 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 .pv-raw { position: relative; cursor: pointer; background: var(--code-bg); border-radius: 12px; padding: 12px 14px; max-height: 480px; overflow: auto; }
 .pv-raw pre { margin: 0; font-family: var(--font-mono), "SF Mono", SFMono-Regular, monospace; font-size: 11.5px; line-height: 1.5; color: var(--text); white-space: pre; }
 .pv-raw-copied { position: sticky; top: 0; float: right; font-size: 12px; color: var(--accent); background: var(--paper); border-radius: 999px; padding: 2px 8px; }
+
+/* ── Menu v2 (2026-10-01 proposal): demos first, a line under every row, a quiet foot. ── */
+.menu-v2 { padding: 20px 18px 12px !important; }
+.menu-cols { display: grid; grid-template-columns: 1.15fr 1fr 1fr 1fr; gap: 8px 20px; align-items: start; }
+.menu-group { min-width: 0; }
+.menu-feature { background: #f4f8fe; border-radius: 12px; padding: 10px 6px 8px; margin: -10px 0 0 -6px; }
+.menu-v2 .menu-item { display: grid !important; gap: 1px; padding: 8px 10px !important; }
+.menu-label { font-size: 14.5px; font-weight: 600; color: var(--ink); display: inline-flex; align-items: center; gap: 5px; }
+.menu-desc { font-size: 13px; line-height: 1.35; color: var(--dim); font-weight: 400; }
+.menu-desc.review { color: #c5221f; }
+.menu-more { padding: 8px 10px 0; font-size: 13px; color: var(--dim); line-height: 1.6; }
+.menu-more span:first-child { margin-right: 4px; }
+.menu-more a { color: var(--text); text-decoration: none; }
+.menu-more a:hover { color: var(--accent); }
+.menu-foot { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 14px; padding: 10px 10px 2px; border-top: 1px solid var(--rule, #e8eaed); font-size: 13.5px; }
+.menu-foot a { color: var(--text); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 0 !important; background: none !important; }
+.menu-foot a:hover { color: var(--accent); }
+@media (max-width: 1000px) { .menu-cols { grid-template-columns: 1fr 1fr; row-gap: 18px; } .menu-feature { margin: 0; } }
+@media (max-width: 560px) { .menu-cols { grid-template-columns: 1fr; } }
+
+/* Menu v2, round 2: a band of demos on top, three question-led columns under it, no pills. */
+.menu-v2 { padding: 22px 22px 14px !important; }
+.menu-head { display: flex; flex-direction: column; gap: 2px; padding: 0 10px 10px; }
+.menu-head-label { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink); }
+.menu-head-q { font-size: 13px; color: var(--dim); }
+.menu-top { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--rule, #e8eaed); }
+.menu-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.menu-tiles .menu-item { border-radius: 12px !important; background: #f6f8fb !important; padding: 12px 12px 11px !important; height: 100%; box-sizing: border-box; }
+@media (hover: hover) { .menu-tiles .menu-item:hover { background: #edf2fb !important; } }
+.menu-cols { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; column-gap: 28px !important; }
+.menu-cols .menu-group + .menu-group { border-left: 1px solid var(--rule, #e8eaed); padding-left: 18px; }
+/* The page you are on: its label in blue with a small bar, not a filled pill. */
+.menu-v2 .docs-menu-item[aria-current="page"], .menu-v2 .docs-menu-item[aria-current="page"]:hover { background: transparent !important; box-shadow: inset 3px 0 0 #1a73e8; border-radius: 0 !important; }
+.menu-v2 .docs-menu-item[aria-current="page"] .menu-label { color: #1967d2; }
+.menu-tiles .docs-menu-item[aria-current="page"] { background: #f6f8fb !important; box-shadow: inset 0 0 0 1.5px #1a73e8; border-radius: 12px !important; }
+.menu-feature { background: none; padding: 0; margin: 0; }
+@media (max-width: 1000px) {
+  .menu-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .menu-cols { grid-template-columns: 1fr 1fr !important; row-gap: 20px; }
+  .menu-cols .menu-group + .menu-group { border-left: 0; padding-left: 0; }
+}
+@media (max-width: 560px) {
+  .menu-tiles { grid-template-columns: 1fr; gap: 6px; }
+  .menu-cols { grid-template-columns: 1fr !important; }
+  .menu-cols .menu-group + .menu-group { border-top: 1px solid var(--rule, #e8eaed); padding-top: 14px; }
+}
+/* No current-page mark in the menu (Mike, 2026-10-01: "the highlight for current is bad"): the page's own heading says where you are. */
+.menu-v2 .docs-menu-item[aria-current="page"], .menu-v2 .docs-menu-item[aria-current="page"]:hover { box-shadow: none !important; border-radius: 8px !important; }
+.menu-v2 .menu-cols .docs-menu-item[aria-current="page"] { background: transparent !important; }
+.menu-v2 .docs-menu-item[aria-current="page"] .menu-label { color: var(--ink); }
+.menu-v2 .menu-tiles .docs-menu-item[aria-current="page"] { background: #f6f8fb !important; border-radius: 12px !important; }
+@media (hover: hover) { .menu-v2 .menu-cols .docs-menu-item:hover { background: #f6f8fb !important; } }
+
+/* Menu v2, round 3: an outlined icon block beside every row (Base's style, Mike: "blocks is cool"). */
+.menu-v2 .menu-item { display: grid !important; grid-template-columns: 38px minmax(0, 1fr); column-gap: 12px; align-items: start; }
+.menu-text { display: grid; gap: 1px; min-width: 0; }
+.menu-block { width: 38px; height: 38px; box-sizing: border-box; border: 1px solid #dfe3e8; border-radius: 9px; background: var(--paper, #fff); display: inline-flex; align-items: center; justify-content: center; color: #3c4043; }
+@media (hover: hover) { .menu-v2 .menu-item:hover .menu-block { border-color: #c4ccd6; color: #1a73e8; } }
+.menu-tiles .menu-item { background: transparent !important; padding: 8px 10px !important; }
+@media (hover: hover) { .menu-tiles .menu-item:hover { background: #f6f8fb !important; } }
+.menu-v2 .menu-tiles .docs-menu-item[aria-current="page"] { background: transparent !important; }
+.menu-tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+@media (max-width: 1180px) { .menu-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .menu-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .menu-tiles { grid-template-columns: 1fr; } }
+/* The hover highlight is a rounded rectangle that matches the icon blocks, not a pill. */
+.menu-v2 .menu-item, .menu-v2 .menu-item:hover, .menu-v2 .docs-menu-item, .menu-v2 .docs-menu-item:hover { border-radius: 12px !important; }
+/* Round 4 (Mike: "each one needs its own space with strokes"): every row is its own outlined card;
+   the icon sits in a soft filled square inside it so the two strokes don't stack. */
+.menu-v2 .menu-item { border: 1px solid #e3e7ec !important; background: var(--paper, #fff) !important; padding: 11px 12px !important; margin: 0 0 8px; }
+.menu-v2 .menu-group .menu-item:last-of-type { margin-bottom: 0; }
+.menu-tiles .menu-item { margin: 0 !important; height: 100%; }
+.menu-tiles { gap: 8px !important; }
+@media (hover: hover) { .menu-v2 .menu-item:hover { border-color: #c6d4ea !important; background: #f8faff !important; } }
+.menu-block { border: 0; background: #f1f4f8; }
+@media (hover: hover) { .menu-v2 .menu-item:hover .menu-block { background: #e8f0fe; color: #1a73e8; } }
+.menu-cols .menu-group + .menu-group { border-left: 0 !important; padding-left: 0 !important; }
+.menu-cols { column-gap: 16px !important; }
+.menu-head { padding-left: 2px; }
+.menu-more { padding-left: 2px; }
+
+/* Google-style icon blocks: a rounded Material Symbol on a tint of Google's colours. */
+.material-symbols-rounded { font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; font-size: 21px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; direction: ltr; -webkit-font-smoothing: antialiased; font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20; overflow: hidden; width: 1em; }
+.menu-block { border: 0 !important; border-radius: 10px; }
+.menu-block.g-blue { background: #e8f0fe; color: #1967d2; }
+.menu-block.g-red { background: #fce8e6; color: #c5221f; }
+.menu-block.g-yellow { background: #fef7e0; color: #b06000; }
+.menu-block.g-green { background: #e6f4ea; color: #137333; }
+@media (hover: hover) { .menu-v2 .menu-item:hover .menu-block .material-symbols-rounded { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20; } }
+@media (hover: hover) { .menu-v2 .menu-item:hover .menu-block.g-blue { background: #e8f0fe; color: #1967d2; } .menu-v2 .menu-item:hover .menu-block.g-red { background: #fce8e6; color: #c5221f; } .menu-v2 .menu-item:hover .menu-block.g-yellow { background: #fef7e0; color: #b06000; } .menu-v2 .menu-item:hover .menu-block.g-green { background: #e6f4ea; color: #137333; } }
+/* Monochrome (Mike: "those but monochrome"): one neutral grey block for every icon; on hover the block darkens a shade and the icon fills in. */
+.menu-block.g-blue, .menu-block.g-red, .menu-block.g-yellow, .menu-block.g-green { background: #f1f3f4 !important; color: #3c4043 !important; }
+@media (hover: hover) { .menu-v2 .menu-item:hover .menu-block.g-blue, .menu-v2 .menu-item:hover .menu-block.g-red, .menu-v2 .menu-item:hover .menu-block.g-yellow, .menu-v2 .menu-item:hover .menu-block.g-green { background: #e8eaed !important; color: #202124 !important; } }

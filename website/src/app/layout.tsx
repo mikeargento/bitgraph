@@ -1,3 +1,4 @@
+import { MENU_ICON_NAMES } from "@/components/menu-icons";
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Inter, Source_Serif_4, Source_Code_Pro } from "next/font/google";
 import "./globals.css";
@@ -106,6 +107,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             700 and italics). PREVIEW 2026-09-16 (Mike: "what about good ol
             acumen"): --font-term in globals.css points at it. */}
         <link rel="stylesheet" href="https://use.typekit.net/svq0oqy.css" />
+        {/* Google's Material Symbols, only the icons the Menu uses. */}
+        <link rel="stylesheet" href={`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&icon_names=${MENU_ICON_NAMES}&display=block`} />
         {/* Runs during parse, before the browser restores scroll. On a reload
             the browser re-applies your saved offset as the page grows, and our
             pages grow after paint (skeleton, then payload, then a full-size

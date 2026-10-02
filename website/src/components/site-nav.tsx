@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-sections";
+import { DOCS_TAIL, DOCS_REPO, MENU_GROUPS, type DocsSection, type MenuItem } from "@/lib/docs-sections";
+import { MenuIcon } from "./menu-icons";
 
 /**
  * The bar: the wordmark, one Menu button, and the filled button that opens the page
@@ -26,8 +27,6 @@ import { DOCS_GROUPS, DOCS_TAIL, DOCS_REPO, type DocsSection } from "@/lib/docs-
  * one row that leaves the site and says so; /deck carries no chrome; on the home route
  * the wordmark forces a fresh load.
  */
-type Group = { label: string; items: DocsSection[]; external?: boolean };
-const GROUPS: Group[] = [...DOCS_GROUPS, { label: "Reference", items: DOCS_TAIL, external: true }];
 
 function Chevron() {
   return (
@@ -86,6 +85,12 @@ export function SiteNav() {
       {s.label}
     </Link>
   );
+  const item = (s: MenuItem, index = 0) => {
+    const body = (<><MenuIcon href={s.href} index={index} /><span className="menu-text"><span className="menu-label">{s.label}{s.external ? <svg className="ext-arrow" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg> : null}</span><span className="menu-desc">{s.desc}</span></span></>);
+    return s.external
+      ? <a key={s.href} href={s.href} target="_blank" rel="noopener" role="menuitem" className="docs-menu-item menu-item" onClick={() => setOpen(null)}>{body}<span className="sr-only">(opens in a new tab)</span></a>
+      : <Link key={s.href} href={s.href} role="menuitem" className="docs-menu-item menu-item" aria-current={pathname === s.href ? "page" : undefined} onClick={() => setOpen(null)}>{body}</Link>;
+  };
   const github = (
     <a href={DOCS_REPO} target="_blank" rel="noopener" role="menuitem" className="docs-menu-item" onClick={() => setOpen(null)}>
       GitHub <svg className="ext-arrow" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -134,15 +139,32 @@ export function SiteNav() {
       </div>
 
       {open === "all" && (
-        <div role="menu" aria-label="Menu" className="nav-panel" onMouseEnter={cancelClose} onMouseLeave={() => hoverClose("all")}>
-          <div className="docs-panel-cols">
-            {GROUPS.map((g) => (
-              <div key={g.label} role="group" aria-label={g.label} className="docs-panel-group">
-                <div aria-hidden="true" className="nav-panel-title">{g.label}</div>
-                {g.items.map(row)}
-                {g.external && github}
+        <div role="menu" aria-label="Menu" className="nav-panel menu-v2" onMouseEnter={cancelClose} onMouseLeave={() => hoverClose("all")}>
+          {MENU_GROUPS.filter((g) => g.feature).map((g) => (
+            <div key={g.label} role="group" aria-label={g.label} className="menu-top">
+              <div aria-hidden="true" className="menu-head"><span className="menu-head-label">{g.label}</span></div>
+              <div className="menu-tiles">{g.items.map((it, k) => item(it, k))}</div>
+            </div>
+          ))}
+          <div className="menu-cols">
+            {MENU_GROUPS.filter((g) => !g.feature).map((g) => (
+              <div key={g.label} role="group" aria-label={g.label} className="menu-group">
+                <div aria-hidden="true" className="menu-head"><span className="menu-head-label">{g.label}</span>{g.question ? <span className="menu-head-q">{g.question}</span> : null}</div>
+                {g.items.map((it, k) => item(it, k))}
+                {g.more && (
+                  <div className="menu-more">
+                    <span>More:</span>
+                    {g.more.map((m, k) => (
+                      <span key={m.href}>{k ? <span aria-hidden="true"> · </span> : null}<Link href={m.href} role="menuitem" onClick={() => setOpen(null)}>{m.label}</Link></span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
+          </div>
+          <div className="menu-foot">
+            {DOCS_TAIL.map((d: DocsSection) => <Link key={d.href} href={d.href} role="menuitem" onClick={() => setOpen(null)}>{d.label}</Link>)}
+            {github}
           </div>
         </div>
       )}
