@@ -2715,3 +2715,22 @@ button.bg-arrow-link { height: 40px !important; margin: 0 !important; line-heigh
 /* Monochrome (Mike: "those but monochrome"): one neutral grey block for every icon; on hover the block darkens a shade and the icon fills in. */
 .menu-block.g-blue, .menu-block.g-red, .menu-block.g-yellow, .menu-block.g-green { background: #f1f3f4 !important; color: #3c4043 !important; }
 @media (hover: hover) { .menu-v2 .menu-item:hover .menu-block.g-blue, .menu-v2 .menu-item:hover .menu-block.g-red, .menu-v2 .menu-item:hover .menu-block.g-yellow, .menu-v2 .menu-item:hover .menu-block.g-green { background: #e8eaed !important; color: #202124 !important; } }
+
+/* ── 2026-10-02 (Mike): "the bottom white bar on bitgraph site is too thick and should be all white
+   even if you pull up on iphone. also, the menu needs contrast" ─────────────────────────────────
+   Footer: a slim bar. The canvas (html) is white, so pulling past either end on an iPhone shows white
+   under the white footer and above the white header; the grey stays on the page itself (body). */
+html { background: #ffffff !important; }
+.bg-footer-inner { padding: 12px 0 !important; min-height: 0 !important; row-gap: 0 !important; }
+@media (max-width: 600px) {
+  .bg-footer-inner { padding: 10px 0 max(10px, env(safe-area-inset-bottom)) !important; font-size: 12.5px; line-height: 1.6; }
+}
+/* Menu: set apart from the page by a shade over everything behind it, with firmer cards and darker text. */
+.nav-panel.menu-v2 { box-shadow: 0 0 0 100vmax rgba(32, 33, 36, 0.32), 0 8px 28px rgba(32, 33, 36, 0.28) !important; }
+/* Mike 10-02: "menu items shoud start shaded": each card starts filled, not white with an outline. */
+.menu-v2 .menu-item { background: #f1f3f4 !important; border-color: transparent !important; }
+@media (hover: hover) { .menu-v2 .menu-item:hover { background: #e8eaed !important; border-color: transparent !important; } }
+.menu-v2 .menu-desc { color: #3c4043; }
+.menu-v2 .menu-head-q { color: #3c4043; }
+.menu-v2 .menu-head-label { color: #202124; }
+.menu-v2 .menu-block.g-blue, .menu-v2 .menu-block.g-red, .menu-v2 .menu-block.g-yellow, .menu-v2 .menu-block.g-green, .menu-v2 .menu-block { background: #ffffff !important; color: #202124 !important; }
