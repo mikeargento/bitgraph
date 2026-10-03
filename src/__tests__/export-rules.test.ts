@@ -53,7 +53,9 @@ import {
 } from "@mikeargento/bitgraph-verify";
 import { sha256 } from "@noble/hashes/sha256";
 import { makeCert, makeDocB64, makeP384, PCR0_HEX, type TestKeyPair } from "./nitro-fixtures.js";
-import { BASE_TEST_CHAIN, chainWorld, makeBoundary, mintFromBody } from "./tree-fixtures.js";
+import { BASE_TEST_CHAIN, FLOOR_NUMBER, FLOOR_TIME, chainWorld, makeBoundary, mintFromBody, signedSlot, type Boundary } from "./tree-fixtures.js";
+import { b64, signBody, utf8 } from "./audit-fixtures.js";
+import { buildCarrier, canonicalSlotBody, verifyCarrier, type CarrierPayload, type SlotAllocation } from "@mikeargento/bitgraph-verify";
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const VEC = JSON.parse(readFileSync(here("../../spec/vectors/export-1.json"), "utf8")) as {
@@ -311,5 +313,89 @@ describe("containers in a signed tree", () => {
       const byNamed = await verifyTreeMember({ proof, member, rootDocument, bytes: named });
       assert.equal(byNamed.category, "RECONSTRUCTION_MISMATCH", `${id}: the named original does not rebuild the committed bytes`);
     }
+  });
+});
+
+describe("the same rules on a BitGraphed file", () => {
+  /** A signed proof under the boundary's key, with an attestation under the test root bound to it. */
+  async function mintAttested(b: Boundary, slot: SlotAllocation, digestB64: string, commitExtras: Record<string, unknown>, attribution: Record<string, string>, atMs: number | null) {
+    const commit = {
+      nonceB64: slot.nonceB64,
+      counter: (BigInt(slot.counter) + 3n).toString(),
+      epochId: slot.epochId,
+      slotCounter: slot.counter,
+      slotHashB64: b64(sha256(canonicalize(canonicalSlotBody(slot)))),
+      chainId: "bitgraph:main",
+      ...commitExtras,
+    };
+    const proof = await signBody(b.key, { hashAlg: "sha256", digestB64 }, commit as never, PCR0_HEX, { attribution, ...(atMs !== null ? { attestation: { format: "aws-nitro", reportB64: "placeholder" } } : {}) });
+    proof.slotAllocation = slot;
+    if (atMs !== null) {
+      const reportB64 = await makeDocB64({ leafPrivate: leaf.privateKey, leafCert, cabundle: [rootCert], userData: new Uint8Array(Buffer.from(computeSignedBodyHash(proof), "base64")), timestamp: atMs, pcr0: new Uint8Array(Buffer.from(PCR0_HEX, "hex")) });
+      (proof.environment as { attestation?: { format: string; reportB64: string } }).attestation = { format: "aws-nitro", reportB64 };
+    }
+    return proof;
+  }
+
+  /** A carrier/2 payload: the record's proof, the floor anchor it signed (a genuine anchor proof under the same key) with its header, and the Base ceiling sidecar. */
+  async function carrierWorld(attestedAtMs: number, baseTime: number) {
+    const b = await makeBoundary("700");
+    const inner = utf8("a record kept in a BitGraphed file\n");
+    const proof = await mintAttested(b, b.slot, b64(sha256(inner)), { slotAnchor: b.anchor }, { name: "test", title: "record" }, attestedAtMs);
+    const anchorSlot = await signedSlot(b.key, "696");
+    const anchor = await mintAttested(b, anchorSlot, b64(sha256(utf8(b.floor.hash))), { anchor: { blockNumber: FLOOR_NUMBER, blockHash: b.floor.hash } }, { name: "Ethereum Anchor", title: `https://etherscan.io/block/${FLOOR_NUMBER}`, message: b.floor.hash }, null);
+    const world = chainWorld(proof, b.floor.headerHex, { baseTime });
+    const payload = {
+      carrier: "bitgraph-carrier/2",
+      proof,
+      floor: { status: "present", anchor, witness: { version: "bitgraph-anchor-witness/1", headerRlpHex: b.floor.headerHex, blockNumber: FLOOR_NUMBER, blockHash: b.floor.hash } },
+      ceiling: { status: "unfetched" },
+      ceilingInTime: { status: "present", sidecar: world.sidecar },
+    } as unknown as CarrierPayload;
+    return { bytes: buildCarrier(inner, payload), pins: { rootDer: rootCert, pcr0: [PCR0_HEX], ceilingWriter: world.writer, baseChainId: BASE_TEST_CHAIN } };
+  }
+
+  test("a Base stamp earlier than the attestation document is withheld from the file's bounds; the inclusion stays TRUE and the verdict holds", async () => {
+    const baseTime = FLOOR_TIME + 40;
+    const fine = await carrierWorld((FLOOR_TIME + 20) * 1000, baseTime);
+    const r1 = await verifyCarrier(fine.bytes, { pins: fine.pins });
+    assert.equal(r1.verdict, "TRUE", r1.reasons.join("; "));
+    assert.equal(r1.bounds?.existedBy?.timestamp, baseTime);
+    assert.equal(r1.baseTimeWithheld, null);
+
+    const late = await carrierWorld((FLOOR_TIME + 600) * 1000, baseTime);
+    const r2 = await verifyCarrier(late.bytes, { pins: late.pins });
+    assert.equal(r2.verdict, "TRUE", r2.reasons.join("; "));
+    const c = Object.fromEntries(r2.claims.map((x) => [x.id, x.result]));
+    assert.equal(c["ceiling.time.inclusion"], "TRUE", "the record is in the Base block either way");
+    assert.equal(r2.bounds?.existedBy ?? null, null, "no stated bound carries the withheld time");
+    assert.match(r2.baseTimeWithheld ?? "", /more than 2 s before the attestation document was made/);
+    assert.match(r2.reading, /its time is not used as a bound/);
+    assert.doesNotMatch(r2.reading, /existed by Base block/);
+  });
+
+  test("the image check needs the whole attestation: a document under a root the verifier does not trust leaves pins undetermined even when its PCR0 is published", async () => {
+    const w = await carrierWorld((FLOOR_TIME + 20) * 1000, FLOOR_TIME + 40);
+    const { rootDer: _testRoot, ...awsRootOnly } = w.pins;
+    void _testRoot;
+    const r = await verifyCarrier(w.bytes, { pins: { ...awsRootOnly, pcr0: [PCR0_HEX] } });
+    const c = Object.fromEntries(r.claims.map((x) => [x.id, x.result]));
+    assert.equal(c["attestation.root"], "FALSE", "the test root is not the AWS root");
+    assert.equal(c["attestation.pins"], "UNDETERMINED", "a PCR0 on the list means nothing without verified hardware evidence");
+    assert.equal(r.verdict, "FALSE");
+  });
+});
+
+describe("the floor's time from the sidecar alone", () => {
+  test("an export without a top-level floor still guards the Base stamp against the floor header the sidecar carries", async () => {
+    const pre = await attested(VEC.memberExport, (floorTime + 20) * 1000);
+    // The Base block stamped one second before the floor block; the attestation comparison alone would pass it.
+    const world = chainWorld(pre.proof, VEC.memberExport.floor.header, { baseTime: floorTime - 1 });
+    const e = { ...pre, floor: null, ceiling: world.sidecar, settlement: null };
+    const r = await verifyExport(e, { bytes: file, pins: { ...trusted(), ceilingWriter: world.writer, baseChainId: BASE_TEST_CHAIN } });
+    assert.equal(claim(r, "floor.header")?.result, "NOT_CARRIED");
+    assert.equal(claim(r, "ceiling.base")?.result, "TRUE");
+    assert.equal(r.times.ceilingBase, null, "the stamp is withheld as a time");
+    assert.match(r.baseTimeWithheld ?? "", /before the floor block's own time/);
   });
 });

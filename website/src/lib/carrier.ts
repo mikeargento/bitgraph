@@ -590,8 +590,10 @@ export interface CarrierBounds {
   /** The ceiling in POSITION: the next anchor. null means NOT FETCHED — say so in those words — never "none exists". */
   notAfter: { blockNumber: number; blockHash: string; timestamp: number | null } | null;
   /**
-   * v2: the ceiling in TIME, as the sidecar states it (verifyCarrier recomputes
-   * it from the header). null on a v1 block or when not fetched.
+   * v2: the ceiling in TIME. From carrierBounds, as the sidecar states it;
+   * from verifyCarrier, only as verified from the header, and null when the
+   * ceiling did not verify or its stamp was withheld as a bound
+   * (CarrierVerifyResult.baseTimeWithheld). null on a v1 block or when not fetched.
    */
   existedBy: { chain: "base"; blockNumber: number; blockHash: string; timestamp: number } | null;
   /** v2: the Ethereum block that committed the Base batch data, as the pointer states it. */

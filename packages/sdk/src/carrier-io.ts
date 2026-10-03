@@ -30,8 +30,10 @@ export interface CarrierWindowView {
   not_before: { block: number; hash: string; time: string | null } | null;
   /** null when the ceiling has not been fetched into the file yet. */
   not_after: { block: number; hash: string; time: string | null } | null;
-  /** The ceiling in TIME (carrier/2): the Base block the record existed by. null on a /1 file or when not fetched. */
+  /** The ceiling in TIME (carrier/2): the Base block the record existed by, as verified. null on a /1 file, when not fetched, when the ceiling did not verify, or when its time was withheld as a bound. */
   existed_by: { chain: "base"; block: number; hash: string; time: string } | null;
+  /** Why the Base block's time is not stated as a bound, when the record is in a Base block whose stamp cannot be one (SPEC 10.4). */
+  base_time_withheld: string | null;
   /** The Ethereum block that committed the Base batch data (carrier/2, when carried). */
   settled_by: { chain: "ethereum"; block: number; hash: string; time: string } | null;
   ceiling: "present" | "unfetched" | null;
@@ -45,6 +47,7 @@ export function carrierWindowView(r: CarrierVerifyResult): CarrierWindowView {
     not_before: r.bounds ? { block: r.bounds.notBefore.blockNumber, hash: r.bounds.notBefore.blockHash, time: iso(r.bounds.notBefore.timestamp) } : null,
     not_after: r.bounds?.notAfter ? { block: r.bounds.notAfter.blockNumber, hash: r.bounds.notAfter.blockHash, time: iso(r.bounds.notAfter.timestamp) } : null,
     existed_by: r.bounds?.existedBy ? { chain: "base", block: r.bounds.existedBy.blockNumber, hash: r.bounds.existedBy.blockHash, time: iso(r.bounds.existedBy.timestamp) as string } : null,
+    base_time_withheld: r.baseTimeWithheld ?? null,
     settled_by: r.bounds?.settledBy ? { chain: "ethereum", block: r.bounds.settledBy.blockNumber, hash: r.bounds.settledBy.blockHash, time: iso(r.bounds.settledBy.timestamp) as string } : null,
     ceiling: r.ceiling,
     version: r.version,
@@ -65,6 +68,7 @@ export function carrierLine(view: CarrierWindowView): string {
   const parts: string[] = [`carried proof ${view.verdict}`];
   if (view.not_before) parts.push(`after block ${view.not_before.block}${view.not_before.time ? ` (mined ${view.not_before.time})` : ""}`);
   if (view.existed_by) parts.push(`existed by Base block ${view.existed_by.block} (${view.existed_by.time})`);
+  else if (view.base_time_withheld) parts.push(`in a Base block whose time is not used as a bound (${view.base_time_withheld})`);
   else if (view.version === 2) parts.push("Base ceiling NOT FETCHED (run: bitgraph complete <file>)");
   if (view.settled_by) parts.push(`batch data on Ethereum in block ${view.settled_by.block} (${view.settled_by.time})`);
   parts.push(

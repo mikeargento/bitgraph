@@ -221,7 +221,7 @@ The AWS Nitro Enclaves Root CA G1 (CN=aws.nitro-enclaves, O=Amazon, OU=AWS, C=US
 
 `hex(pcrs[0])` MUST equal `environment.measurement` (lowercase comparison); a measurement that is not a hex string names no image and fails.
 
-A verifier MUST then apply a **measurement policy**, a set of accepted PCR0 values. Its default is BitGraph's published images (section 16). A PCR0 outside the policy is FALSE: the attestation is genuine, but the proof is not BitGraph's. A reader who rebuilt an image from its tagged source and accepts exactly that may use a list of their own. An empty policy accepts nothing, and the claim (and so the verdict) is UNDETERMINED.
+A verifier MUST then apply a **measurement policy**, a set of accepted PCR0 values. Its default is BitGraph's published images (section 16). The PCR0 judged is the one inside the attestation document, and only once the document has verified in full (signature, chain, root, validity, PCR0 and binding, sections 5.2 to 5.7): the proof's declared `environment.measurement` is a claim, never hardware evidence, and a document that does not decode fails the signature check rather than leaving it open. A PCR0 outside the policy is FALSE: the attestation is genuine, but the proof is not BitGraph's. A reader who rebuilt an image from its tagged source and accepts exactly that may use a list of their own. An empty policy accepts nothing, and the claim (and so the verdict) is UNDETERMINED.
 
 ### 5.7 Binding to this proof
 
@@ -459,7 +459,7 @@ After each commit, a separate writer (not the enclave) batches new records, buil
 5. `rawTx` is an EIP-1559 transaction: `0x02 || RLP([chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, to, value, data, accessList, yParity, r, s])`. Its sender is recovered with secp256k1 from `keccak256(0x02 || RLP(first nine fields))`, `r`, `s` (low s) and `yParity`, as `keccak256(uncompressed public key without its 0x04 prefix)[12..32]`. The sender and `to` MUST both equal the writer address the verifier pins (section 16), `chainId` MUST be 8453, `data` MUST equal the payload, and `keccak256(rawTx)` MUST equal `txHash`.
 6. `keccak256(blockHeader) == blockHash`, and the header's number and timestamp equal `blockNumber` and `blockTimestamp` (section 9 decoding).
 7. The transaction is in the block: the Merkle-Patricia proof (section 10.3) for key `RLP(txIndex)` under the header's `transactionsRoot` returns exactly `rawTx`. `txIndex` counts every transaction in the block, deposits included.
-8. When the sidecar carries `floor.blockHeader`, it MUST hash to the proof's signed `commit.slotAnchor.blockHash` and carry its number. A carried part that does not hold fails the sidecar; it is never skipped.
+8. `floor` is null (no floor carried) or an object whose `blockHeader` is a non-empty hex string that hashes to the proof's signed `commit.slotAnchor.blockHash` and carries its number. A carried part that does not hold, an empty or missing header included, fails the sidecar; it is never skipped.
 
 The checks run in order and stop at the first failure. The ceiling's time is the Base header's timestamp. It is provisional until block B is checked against Base (section 1); the Ethereum ceiling (section 11) does not depend on that check.
 
@@ -490,9 +490,9 @@ loop:
 Base fixes each block's timestamp by its number, two seconds apart. After a halt it refills the missed time with blocks stamped in the past: in Base's halts of 2026-06-25 (blocks 47,806,547 to 47,808,791, stamped 15:47:21 to 17:02:09 UTC) and 2026-06-26 (blocks 47,849,207 to 47,849,619) those blocks were empty, but nothing in the protocol requires it. So the Base stamp is used as an "existed by" time only when:
 
 - it is not earlier than the floor block's own timestamp (section 9), and
-- it is not more than 2 seconds (one Base block) earlier than the attestation document's `timestamp` (section 5), taken only when the document's signature, chain and root hold. The document's time is milliseconds on the AWS Nitro hypervisor's clock; the document is made after the signed body it binds (section 5.7), and the writer posts the ceiling only after the proof exists, so an honest stamp is seconds to minutes later. The 2-second slack covers block sealing and clock skew.
+- it is not more than 2 seconds (one Base block) earlier than the attestation document's `timestamp` (section 5), taken only when the document's signature, chain and root hold. The document's time is milliseconds on the AWS Nitro hypervisor's clock at the document's creation; the document is made after the signed body it binds (section 5.7), and the writer posts the ceiling only after the proof exists, so an honest stamp is seconds to minutes later. The 2-second slack covers block sealing and clock skew.
 
-When the stamp fails either comparison, the inclusion (`ceiling.base`) still holds, and the ceiling's time is withheld and the reason stated. Passing does not make the stamp exact: it stays provisional until B is checked against Base, and only the Ethereum ceiling (section 11) is a bound that does not rest on Base.
+The floor's time is read from the floor header the export carries (section 12), or else from the verified header the sidecar carries (check 8). This is a consistency check, not a proof of the stamp's accuracy: it assumes the hypervisor's clock is within the slack of real time, and a stamp that passes is only not known to be wrong. When the stamp fails either comparison, the inclusion (`ceiling.base`) still holds, the ceiling's time is withheld as a bound, every result that states an "existed by" time omits it, and the reason is stated. A passing stamp stays provisional until B is checked against Base, and only the Ethereum ceiling (section 11) is a bound that does not rest on Base.
 
 ---
 
@@ -672,6 +672,8 @@ file = committed bytes || "BGPROOF\x01" || u32be(L) || payload (L bytes, UTF-8 J
 ```
 
 The magic is `42 47 50 52 4f 4f 46 01`; L is at most 8,388,608. The payload names `bitgraph-carrier/1` or `/2` and carries the proof, the floor anchor and witness, the ceiling in position, and for version 2 the Base ceiling sidecar, a settlement pointer, declared pins and an attestation witness. The committed bytes are everything before the block, and their SHA-256 is the proof's digest; the file's own hash is committed nowhere.
+
+A reader judges a BitGraphed file by the rules of sections 3 to 11 with the same discipline as section 12.1: TRUE only when the image passes the measurement policy (section 5.6) on a fully verified attestation, FALSE when any check (a reader's lookup included) fails, malformed parts FALSE and never an error, and the Base time withheld as section 10.4 says, so that no stated bound carries it.
 
 ### 15.6 Agency and policy
 

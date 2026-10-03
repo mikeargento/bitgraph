@@ -19,6 +19,7 @@ import {
 import { verifyCarrier } from "../carrier-verify.js";
 import { verifyNitroAttestation, attestationWitness, witnessMatchesAttestation, awsNitroRootSha256 } from "../nitro.js";
 import { computeSignedBodyHash } from "../proof-hash.js";
+import { verifyCeiling } from "../ceiling.js";
 
 const fix = (name: string): Buffer => readFileSync(new URL(`../../src/__tests__/fixtures/carrier2/${name}`, import.meta.url));
 const jfix = <T = Record<string, unknown>>(name: string): T => JSON.parse(fix(name).toString("utf-8")) as T;
@@ -71,6 +72,48 @@ test("the enclave image decides: an image off the list is FALSE, no list or no a
   const unattested = await verifyCarrier(buildCarrier(inner, bare));
   assert.notEqual(unattested.verdict, "TRUE");
   assert.equal(claimsById(unattested)["attestation.signature"], "NOT_CARRIED");
+});
+
+test("an attestation that does not decode is FALSE; a declared measurement is never hardware evidence", async () => {
+  // A deep copy: the fixture's proof object is shared by every test here.
+  const p = JSON.parse(JSON.stringify(golden())) as CarrierPayload;
+  (p.proof as { environment: { attestation: { reportB64: string } } }).environment.attestation.reportB64 = "AA==";
+  delete (p as { attestation?: unknown }).attestation;
+  const r = await verifyCarrier(buildCarrier(inner, p));
+  const c = claimsById(r);
+  assert.equal(c["attestation.signature"], "FALSE");
+  assert.equal(c["attestation.pins"], "UNDETERMINED", "the proof names a published image, and that is a claim, not evidence");
+  assert.equal(r.verdict, "FALSE");
+});
+
+test("a sidecar whose floor is present but carries no header fails; one with a null floor passes", async () => {
+  const opts = { writerAddress: "0xf3972408D853c975F86351C311f4310220bbF2a3", chainId: 8453 };
+  const empty = { ...sidecar, floor: { ...(sidecar as { floor: object }).floor, blockHeader: "" } };
+  const r = await verifyCeiling(proof as never, empty as never, opts);
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /^floor: the sidecar carries a floor without a header/);
+  const none = await verifyCeiling(proof as never, { ...sidecar, floor: null } as never, opts);
+  assert.equal(none.ok, true, none.reason);
+});
+
+test("malformed evidence never throws: a null root is FALSE in the sidecar check and in the file", async () => {
+  const opts = { writerAddress: "0xf3972408D853c975F86351C311f4310220bbF2a3", chainId: 8453 };
+  const broken = { ...sidecar, root: null };
+  const r = await verifyCeiling(proof as never, broken as never, opts);
+  assert.equal(r.ok, false);
+  const p = golden();
+  (p.ceilingInTime as { sidecar: Record<string, unknown> }).sidecar = broken;
+  const f = await verifyCarrier(buildCarrier(inner, p));
+  assert.equal(f.verdict, "FALSE");
+  assert.equal(f.bounds?.existedBy ?? null, null, "a ceiling that did not verify states no Base time");
+  for (const field of [["anchor", "rawTx"], ["anchor", "blockHeader"], ["anchor", "txIndex"], ["merklePath"], ["proofHash"]]) {
+    const s = JSON.parse(JSON.stringify(sidecar)) as Record<string, unknown>;
+    let at: Record<string, unknown> = s;
+    for (const k of field.slice(0, -1)) at = at[k] as Record<string, unknown>;
+    at[field[field.length - 1]!] = null;
+    const x = await verifyCeiling(proof as never, s as never, opts);
+    assert.equal(x.ok, false, field.join("."));
+  }
 });
 
 test("the block stays under the ZIP limit, with the witness inside", () => {

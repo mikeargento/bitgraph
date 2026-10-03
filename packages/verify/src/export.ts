@@ -215,15 +215,17 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     if (measurement === null) add("attestation.pcr0", "The attested image is the one the proof names", "FALSE", "", "the proof's environment.measurement is not a hex string, so it names no image");
     else add("attestation.pcr0", "The attested image is the one the proof names", r(pcr0), "PCR0 inside the signed document", pcr0?.detail ?? "not reached");
     add("attestation.binding", "The attestation is bound to this proof (user_data = SHA-256 of the signed body)", r(bound), "user_data inside the signed document", bound?.detail ?? "not reached");
+    const hardwareOk = n.doc !== null && measurement !== null && [sig, chain, root, validity, pcr0, bound].every((c) => c?.pass === true);
     if (sig?.pass && chain?.pass && root?.pass && typeof n.doc?.timestampMs === "number") attestedAtMs = n.doc.timestampMs;
 
     // Which image is BitGraph's is a measurement policy: BitGraph's published images unless the caller names its own.
+    // The image judged is the one the DOCUMENT attests, and only once the hardware's word verified in full.
     const docPcr0 = (n.doc?.pcrs as Record<number, unknown> | undefined)?.[0];
-    const measured = typeof docPcr0 === "string" ? docPcr0.toLowerCase() : measurement;
+    const measured = typeof docPcr0 === "string" ? docPcr0.toLowerCase() : null;
     const usingDefault = opts.pins?.pcr0 === undefined;
     const policy = (opts.pins?.pcr0 ?? PUBLISHED_PCR0S).map((x) => String(x).toLowerCase());
-    if (measured === null) {
-      add("attestation.pins", "The image is one the verifier accepts", "FALSE", "", "there is no PCR0 to judge: the document carries none and the proof names none");
+    if (!hardwareOk || measured === null) {
+      add("attestation.pins", "The image is one the verifier accepts", "UNDETERMINED", "", "not judged: the attestation did not verify in full, and a declared measurement is not hardware evidence");
     } else if (policy.length === 0) {
       add("attestation.pins", "The image is one the verifier accepts", "UNDETERMINED", "", `no accepted images were given: PCR0 is ${measured}; any AWS Nitro enclave can produce a valid attestation, and only a measurement policy says whose this is`);
     } else {
@@ -367,7 +369,8 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     if (r.ok && r.window) {
       ceilingB = { blockNumber: r.window.ceiling.blockNumber, blockHash: r.window.ceiling.blockHash };
       const where = `under the root in transaction ${(c as CeilingSidecar).anchor!.txIndex} of Base block ${r.window.ceiling.blockNumber}`;
-      const stamp = baseTimeIsBound(r.window.ceiling.blockTimestamp, { floorTimestampSec: times.floor?.blockTimestamp ?? null, attestedAtMs });
+      // The floor's time: the export's own header, else the verified header the sidecar carries.
+      const stamp = baseTimeIsBound(r.window.ceiling.blockTimestamp, { floorTimestampSec: times.floor?.blockTimestamp ?? r.window.floor.blockTimestamp ?? null, attestedAtMs });
       if (stamp.ok) {
         times.ceilingBase = { ...r.window.ceiling, provisional: true };
         add("ceiling.base", "The record is in a Base block", "TRUE", `SHA-256 path, the BGC1 payload, secp256k1, Merkle-Patricia; Base block ${r.window.ceiling.blockNumber}, header as given`,

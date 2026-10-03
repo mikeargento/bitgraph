@@ -168,6 +168,20 @@ export function verifyOutputRootSettlement(s: OutputRootSettlement, opts: Output
     checks.push({ name, ok: false, detail });
     return { ok: false, reason: `${name}: ${detail}`, checks };
   };
+  // A malformed field anywhere is a failed check, never an exception.
+  try {
+    return verifyOutputRootChecks(s, opts, checks, fail);
+  } catch (e) {
+    return fail("malformed", `a field of the settlement is malformed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+function verifyOutputRootChecks(
+  s: OutputRootSettlement,
+  opts: OutputRootVerifyOptions,
+  checks: OutputRootCheck[],
+  fail: (name: string, detail: string) => OutputRootVerifyResult,
+): OutputRootVerifyResult {
   const pass = (name: string, detail?: string) => checks.push(detail === undefined ? { name, ok: true } : { name, ok: true, detail });
 
   if (s?.version !== OUTPUT_ROOT_VERSION) return fail("format", `not a ${OUTPUT_ROOT_VERSION} settlement`);

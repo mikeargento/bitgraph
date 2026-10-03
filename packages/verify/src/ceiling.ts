@@ -195,6 +195,21 @@ export async function verifyCeiling(
     checks.push({ name, ok: false, detail });
     return { ok: false, reason: `${name}: ${detail}`, checks, headerCheckedAgainstChain: false };
   };
+  // A malformed field anywhere is a failed check, never an exception.
+  try {
+    return await verifyCeilingChecks(proof, sidecar, opts, checks, fail);
+  } catch (e) {
+    return fail("malformed", `a field of the sidecar is malformed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+async function verifyCeilingChecks(
+  proof: BitGraphProof,
+  sidecar: CeilingSidecar,
+  opts: CeilingVerifyOptions,
+  checks: CeilingCheck[],
+  fail: (name: string, detail: string) => CeilingVerifyResult,
+): Promise<CeilingVerifyResult> {
   const pass = (name: string, detail?: string) => checks.push(detail === undefined ? { name, ok: true } : { name, ok: true, detail });
 
   if (sidecar?.version !== CEILING_VERSION) return fail("format", `not a ${CEILING_VERSION} sidecar`);
@@ -289,7 +304,10 @@ export async function verifyCeiling(
   if (slotAnchor) {
     floor = { blockNumber: slotAnchor.blockNumber, blockHash: slotAnchor.blockHash, blockTimestamp: null };
     const w = sidecar.floor;
-    if (w && w.blockHeader) {
+    if (w !== null && w !== undefined) {
+      if (typeof w !== "object" || typeof w.blockHeader !== "string" || w.blockHeader.length === 0) {
+        return fail("floor", "the sidecar carries a floor without a header (absence is null; a present floor carries its header)");
+      }
       try {
         const fh = decodeHeader(hexToBytes(w.blockHeader));
         if (fh.hash === slotAnchor.blockHash.toLowerCase() && fh.number === slotAnchor.blockNumber) {
