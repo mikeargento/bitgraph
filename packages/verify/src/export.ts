@@ -157,10 +157,14 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   const att = proof.environment?.attestation;
   if (att && att.format === "aws-nitro" && typeof att.reportB64 === "string") {
     const n = verifyNitroAttestation(att.reportB64, { expectedPcr0: proof.environment.measurement, expectedUserDataB64: computeSignedBodyHash(proof) });
+    if (n.doc === null) {
+      // Not a Nitro document at all: that contradicts the proof's own claim to carry one.
+      add("attestation.signature", "AWS hardware signed the attestation", "FALSE", "", `the attestation does not decode as an AWS Nitro document (${n.checks[0]?.detail ?? "unreadable"})`);
+    }
     const byName = (prefix: string) => n.checks.find((c) => c.name.startsWith(prefix));
     const r = (c: { pass: boolean } | undefined): ExportClaimResult => (c === undefined ? "UNDETERMINED" : c.pass ? "TRUE" : "FALSE");
     const sig = byName("AWS signature"), chain = byName("Certificate chain"), root = byName("Chains to") ?? byName("Trust root"), validity = byName("Certificate validity"), pcr0 = byName("PCR0"), bound = byName("Bound to this proof");
-    add("attestation.signature", "AWS hardware signed the attestation", r(sig), "ES384 (P-384)", sig?.detail ?? "not reached");
+    if (n.doc !== null) add("attestation.signature", "AWS hardware signed the attestation", r(sig), "ES384 (P-384)", sig?.detail ?? "not reached");
     add("attestation.chain", "The certificate chain holds together", r(chain), "ES384 (P-384)", chain?.detail ?? "not reached");
     add("attestation.root", "The chain reaches the AWS Nitro root", r(root), `the AWS Nitro Enclaves Root CA G1 (${n.rootSha256.slice(0, 8)}…)`, root?.detail ?? "not reached");
     add("attestation.validity", "Every certificate was valid at the document's own instant (archival policy, not freshness)", r(validity), "the document's signed timestamp", validity?.detail ?? "not reached");
