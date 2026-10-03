@@ -11,13 +11,16 @@ import { describe, test } from "node:test";
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parseExport, verifyExport } from "@mikeargento/bitgraph-verify";
+import { createHash } from "node:crypto";
+import { signAsync } from "@noble/ed25519";
+import { canonicalize, parseExport, verifyExport } from "@mikeargento/bitgraph-verify";
 
 const VEC = JSON.parse(readFileSync(fileURLToPath(new URL("../../spec/vectors/export-1.json", import.meta.url)), "utf8")) as {
   memberExport: Record<string, any>;
   ownerExport: Record<string, any>;
   memberFileHex: string;
   expectedClaims: Record<string, string>;
+  signedBodyCanonicalHex: string;
 };
 const TREE = JSON.parse(readFileSync(fileURLToPath(new URL("../../spec/vectors/tree-1.json", import.meta.url)), "utf8")) as {
   files: Array<{ name: string; placementCode: number; originalHex: string; committedHex: string }>;
@@ -131,5 +134,63 @@ describe("export/1, confirmed level", () => {
     assert.equal(claim(no, "confirmed.floor"), "FALSE");
     const none = await verifyExport(VEC.memberExport, { bytes: file });
     assert.equal(claim(none, "confirmed.floor"), "UNDETERMINED");
+  });
+});
+
+describe("export/1, formats this verifier does not know: not judged, never FALSE", () => {
+  // The vectors' published TEST key (spec/tools/gen-vectors.mjs), so a proof can be re-signed honestly.
+  const TEST_KEY = createHash("sha256").update("bitgraph spec vector key (TEST ONLY, NOT A BITGRAPH KEY)").digest();
+  const signedBodyOf = (p: Record<string, any>) => ({ version: p.version, artifact: p.artifact, commit: p.commit, publicKeyB64: p.signer.publicKeyB64, enforcement: p.environment.enforcement, measurement: p.environment.measurement, attribution: p.attribution });
+  async function pinningAnotherSpec(e: Record<string, any>): Promise<Record<string, any>> {
+    const out = clone(e);
+    assert.equal(Buffer.from(canonicalize(signedBodyOf(out.proof) as never)).toString("hex"), VEC.signedBodyCanonicalHex, "the signed body is rebuilt exactly");
+    out.proof.attribution = { ...out.proof.attribution, message: createHash("sha256").update("a later SPEC.md").digest("base64") };
+    out.proof.signer.signatureB64 = Buffer.from(await signAsync(canonicalize(signedBodyOf(out.proof) as never), TEST_KEY)).toString("base64");
+    return out;
+  }
+  const falseOnes = (r: Awaited<ReturnType<typeof verifyExport>>) => r.claims.filter((c) => c.level === "offline" && c.result === "FALSE" && !c.id.startsWith("attestation")).map((c) => c.id);
+
+  test("a proof that pins a spec this verifier does not know: spec.pin and every tree claim UNDETERMINED", async () => {
+    const member = await pinningAnotherSpec(VEC.memberExport);
+    const r = await verifyExport(member, { bytes: file });
+    assert.equal(claim(r, "proof.signature"), "TRUE", "honestly signed");
+    assert.equal(claim(r, "spec.pin"), "UNDETERMINED");
+    for (const id of ["tree.root", "tree.member", "bytes.member"]) assert.equal(claim(r, id), "UNDETERMINED", id);
+    assert.deepEqual(falseOnes(r), []);
+    const owner = await pinningAnotherSpec(VEC.ownerExport);
+    const o = await verifyExport(owner, { bytes: Buffer.from(TREE.files[0]!.originalHex, "hex") });
+    assert.equal(claim(o, "tree.leaves"), "UNDETERMINED");
+    assert.match(o.claims.find((c) => c.id === "tree.leaves")!.detail, /^not judged: the proof follows a spec this verifier does not know/);
+    assert.deepEqual(falseOnes(o), []);
+  });
+
+  test("a ceiling or settlement in a format this verifier does not know is UNDETERMINED; a broken known one is still FALSE", async () => {
+    const settlement = JSON.parse(readFileSync(fileURLToPath(new URL("../../spec/vectors/output-root-1.json", import.meta.url)), "utf8")).settlement;
+    const laterCeiling = clone(VEC.memberExport);
+    laterCeiling.ceiling = { version: "bitgraph-ceiling/2", anchor: {} };
+    const c = await verifyExport(laterCeiling, { bytes: file });
+    assert.equal(claim(c, "ceiling.base"), "UNDETERMINED");
+    assert.deepEqual(falseOnes(c), []);
+
+    const blobs = clone(VEC.memberExport);
+    blobs.settlement = { version: "bitgraph-settlement/1", baseBlock: 1 };
+    const b = await verifyExport(blobs, { bytes: file });
+    assert.equal(claim(b, "ceiling.ethereum"), "UNDETERMINED", "blob settlement is not taken in an export, and not called false");
+    assert.deepEqual(falseOnes(b), []);
+
+    const both = clone(VEC.memberExport);
+    both.ceiling = { version: "bitgraph-ceiling/2", anchor: {} };
+    both.settlement = settlement;
+    const l = await verifyExport(both, { bytes: file });
+    assert.equal(claim(l, "ceiling.ethereum"), "UNDETERMINED", "a verified settlement whose ceiling cannot be judged: the link is not judged");
+
+    const broken = clone(VEC.memberExport);
+    broken.settlement = { ...settlement, outputRoot: { ...settlement.outputRoot, stateRoot: "0x" + "00".repeat(32) } };
+    const k = await verifyExport(broken, { bytes: file });
+    assert.equal(claim(k, "ceiling.ethereum"), "FALSE", "output-root/1 that does not verify is FALSE");
+    assert.doesNotMatch(k.claims.find((x) => x.id === "ceiling.ethereum")!.detail, /ceiling did not verify/, "FALSE for the settlement itself, before any link");
+    const brokenCeiling = clone(VEC.memberExport);
+    brokenCeiling.ceiling = { version: "bitgraph-ceiling/1", anchor: { txIndex: 0 } };
+    assert.equal(claim(await verifyExport(brokenCeiling, { bytes: file }), "ceiling.base"), "FALSE", "a ceiling/1 that does not verify is FALSE");
   });
 });

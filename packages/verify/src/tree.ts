@@ -79,8 +79,8 @@ export const TREE_METADATA_KEY = TREE_PROFILE;
  * removed, so every proof made under an earlier spec keeps verifying.
  */
 export const KNOWN_TREE_SPEC_HASHES: readonly string[] = Object.freeze([
-  // SPEC.md v1 (spec/SPEC.md). Filled in when the spec text is final; see spec/README.md.
-  "7CF2kYNNeWsk/zmKDQdSZ0onSgliQYmO6rZVjOqea/8=",
+  // SPEC.md v1 (spec/SPEC.md). Written by spec/pin-hash.mjs. Once a proof pins it, it never changes: a later spec is added beside it.
+  "nNveUTn1ddI/HzA94PfbQWm9W8lQIXBfHmMxjiE+16w=",
 ]);
 
 /** Placement codes: the first byte of a leaf. */

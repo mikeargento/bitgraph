@@ -372,7 +372,7 @@ The proof carries the root document, unsigned, as `proof.metadata["bitgraph-tree
 attribution = { "name": "bitgraph-fuse/2", "title": "tree/1", "message": B64(SHA-256(SPEC.md)) }
 ```
 
-The title selects these rules. The name MUST be `bitgraph-fuse/2`: tree/1 always binds the floor block. The message pins the version of this document the proof follows, and is signed by the enclave like everything in the attribution. A verifier MUST know the spec hash (it keeps a list of every version it supports); an unknown hash is a refusal, not a pass.
+The title selects these rules. The name MUST be `bitgraph-fuse/2`: tree/1 always binds the floor block. The message pins the version of this document the proof follows, and is signed by the enclave like everything in the attribution. A verifier MUST know the spec hash (it keeps a list of every version it supports). A proof that pins a hash the verifier does not know is not judged by these rules: the verifier reports it as undetermined, never as passing and never as false, and the same holds for every check that rests on the tree's rules (section 12.1).
 
 ### 8.5 A member's evidence, and the owner's list
 
@@ -564,7 +564,7 @@ A verifier reports one result per claim (TRUE, FALSE, UNDETERMINED, or NOT_CARRI
 | proof.signature | sections 3 and 4 |
 | attestation.* | section 5: signature, chain, root, validity at the document's instant, PCR0, binding |
 | attestation.pins | PCR0 against the verifier's own list; UNDETERMINED without a list |
-| spec.pin | section 8.4 |
+| spec.pin | section 8.4 (UNDETERMINED for a spec the verifier does not know) |
 | tree.root | section 8.6 step 3 |
 | tree.member / tree.leaves | section 8.5 or 8.7 |
 | bytes.member | section 8.6 step 5 (NOT_CARRIED without the file) |
@@ -574,6 +574,14 @@ A verifier reports one result per claim (TRUE, FALSE, UNDETERMINED, or NOT_CARRI
 | confirmed.* | the reader's own lookups of the floor block, the Base block and Ethereum block H |
 
 The verdict is FALSE if any offline claim is FALSE; UNDETERMINED if any offline claim other than attestation.pins is UNDETERMINED; otherwise TRUE. The three time claims are always stated separately; the Base time is labelled provisional until `confirmed.ceiling.base` is TRUE.
+
+FALSE means a check ran and failed. A part in a format the verifier does not know is UNDETERMINED, never FALSE:
+
+- a proof that pins a spec hash the verifier does not know (section 8.4): spec.pin, tree.root, tree.member, tree.leaves and bytes.member are UNDETERMINED;
+- a ceiling whose `version` is not `bitgraph-ceiling/1`: ceiling.base is UNDETERMINED, and so is ceiling.ethereum when a settlement that verifies cannot be linked to it;
+- a settlement whose `version` is not `bitgraph-output-root/1`, including the earlier blob settlement (section 11.2), which an export does not carry: ceiling.ethereum is UNDETERMINED.
+
+A part that names a format the verifier knows and does not verify is FALSE.
 
 ---
 

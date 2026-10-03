@@ -1,5 +1,7 @@
 // Recompute SHA-256(spec/SPEC.md) and write it into KNOWN_TREE_SPEC_HASHES as the v1 entry.
 // Run from the repo root: node spec/pin-hash.mjs
+// ONLY until the first real tree/1 proof exists. After that, v1's hash is signed into proofs
+// forever: an edited SPEC.md is v2, added beside v1, and this tool must not touch v1 again.
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 const spec = readFileSync(new URL("./SPEC.md", import.meta.url));

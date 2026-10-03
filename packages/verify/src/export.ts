@@ -32,10 +32,10 @@ import { sha256 } from "@noble/hashes/sha256";
 import { verifyProofIntegrity, createVerificationContext } from "./verifier.js";
 import { computeSignedBodyHash } from "./proof-hash.js";
 import { verifyNitroAttestation } from "./nitro.js";
-import { verifyCeiling, type CeilingSidecar } from "./ceiling.js";
+import { CEILING_VERSION, verifyCeiling, type CeilingSidecar } from "./ceiling.js";
 import { decodeHeader, hexToBytes as evmHex } from "./ceiling-evm.js";
 import { base64ToBytes, bytesEqual, hexToBytes } from "./fuse.js";
-import { verifyOutputRootSettlement, type OutputRootSettlement } from "./output-root.js";
+import { OUTPUT_ROOT_VERSION, verifyOutputRootSettlement, type OutputRootSettlement } from "./output-root.js";
 import { MerkleTree } from "./fuse-merkle.js";
 import {
   buildTreeMemberEvidence,
@@ -215,9 +215,20 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     extraSpecHashes: extra,
     proofAlreadyVerified: integrity.valid,
   });
-  const specOk = tr.category !== "UNKNOWN_SPEC" && tr.category !== "INVALID_TREE_MARKER" && tr.category !== "NOT_TREE";
-  add("spec.pin", "The proof pins a spec this verifier knows", tr.category === "NOT_TREE" ? "FALSE" : specOk ? "TRUE" : "FALSE", "the signed attribution.message",
-    (specOk ? `SPEC.md SHA-256 ${tr.specHashB64}` : tr.reason) + (exp.spec !== proof.attribution?.message ? `; note: the export's unsigned "spec" label (${String(exp.spec)}) differs, and only the signed value counts` : ""));
+  // A spec this verifier does not know is not judged: its rules may differ
+  // from every rule here, so neither TRUE nor FALSE is earned (SPEC 8.4).
+  const unknownSpec = tr.category === "UNKNOWN_SPEC";
+  const specOk = !unknownSpec && tr.category !== "INVALID_TREE_MARKER" && tr.category !== "NOT_TREE";
+  add("spec.pin", "The proof pins a spec this verifier knows", specOk ? "TRUE" : unknownSpec ? "UNDETERMINED" : "FALSE", "the signed attribution.message",
+    (specOk ? `SPEC.md SHA-256 ${tr.specHashB64}` : unknownSpec ? `${tr.reason}; a verifier that knows that spec can judge the tree` : tr.reason) + (exp.spec !== proof.attribution?.message ? `; note: the export's unsigned "spec" label (${String(exp.spec)}) differs, and only the signed value counts` : ""));
+  if (unknownSpec) {
+    // The owner's list was read under this verifier's rules before the pin was known: not judged either.
+    const leavesClaim = claims.find((c) => c.id === "tree.leaves");
+    if (leavesClaim) {
+      leavesClaim.result = "UNDETERMINED";
+      leavesClaim.detail = `not judged: the proof follows a spec this verifier does not know (under this verifier's rules: ${leavesClaim.detail})`;
+    }
+  }
   const rootOk = tr.tree !== null;
   add("tree.root", "The root document is the signed one and carries this position's commitment", rootOk ? "TRUE" : specOk ? "FALSE" : "UNDETERMINED", "SHA-256 over the signed position record, its nonce and the signed floor block hash",
     rootOk ? `a tree of ${tr.tree!.count} leaves, root ${tr.tree!.rootHex.slice(0, 16)}…` : tr.reason);
@@ -277,7 +288,11 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   const baseChainId = opts.pins?.baseChainId ?? 8453;
   let ceilingB: { blockNumber: number; blockHash: string } | null = null;
   const c = exp.ceiling;
-  if (!c || (c as { status?: string }).status === "pending" || !(c as CeilingSidecar).anchor) {
+  const ceilingVersion = (c as { version?: unknown } | null)?.version;
+  const ceilingUnknown = typeof ceilingVersion === "string" && ceilingVersion !== CEILING_VERSION;
+  if (ceilingUnknown) {
+    add("ceiling.base", "The record is in a Base block", "UNDETERMINED", "", `not judged: a ceiling format this verifier does not know (${ceilingVersion})`);
+  } else if (!c || (c as { status?: string }).status === "pending" || !(c as CeilingSidecar).anchor) {
     add("ceiling.base", "The record is in a Base block", "NOT_CARRIED", "", c ? "ceiling pending: the Base write had not landed when this export was made" : "no ceiling in the export");
   } else {
     let r: Awaited<ReturnType<typeof verifyCeiling>>;
@@ -298,7 +313,10 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
 
   // 5. The settlement: the Base transaction existed by Ethereum block H.
   const s = exp.settlement;
-  if (!s || (s as { status?: string }).status === "pending") {
+  const settlementVersion = (s as { version?: unknown } | null)?.version;
+  if (typeof settlementVersion === "string" && settlementVersion !== OUTPUT_ROOT_VERSION) {
+    add("ceiling.ethereum", "The record existed by an Ethereum block", "UNDETERMINED", "", `not judged: a settlement format this verifier does not take in an export (${settlementVersion})`);
+  } else if (!s || (s as { status?: string }).status === "pending") {
     add("ceiling.ethereum", "The record existed by an Ethereum block", "NOT_CARRIED", "", s ? "settlement pending: Base's claim for this block had not reached Ethereum when this export was made" : "no settlement in the export");
   } else {
     const so = s as OutputRootSettlement;
@@ -313,6 +331,8 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
       times.ceilingEthereum = r.existedBy!;
       add("ceiling.ethereum", "The record existed by an Ethereum block", "TRUE", `keccak-256 output root, EIP-2935 storage proof, Merkle-Patricia; Ethereum block ${r.existedBy!.blockNumber}, header as given`,
         `Base's output root for block ${so.outputRoot.blockNumber} commits to the ceiling's Base block and is carried by transaction ${so.ethereum.txIndex} of Ethereum block ${r.existedBy!.blockNumber} (${iso(r.existedBy!.blockTimestamp)}); this holds whatever Base's claim turns out to be`);
+    } else if (r.ok && !linked && ceilingUnknown) {
+      add("ceiling.ethereum", "The record existed by an Ethereum block", "UNDETERMINED", "", "the settlement verifies, but the ceiling it settles is in a format this verifier does not know, so the link is not judged");
     } else if (r.ok && !linked) {
       add("ceiling.ethereum", "The record existed by an Ethereum block", "FALSE", "", ceilingB === null ? "the settlement settles a Base block, but the ceiling did not verify" : "the settlement is for a different Base block than the ceiling");
     } else {
