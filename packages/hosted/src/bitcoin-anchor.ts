@@ -527,7 +527,21 @@ async function trackAnchorForIntervals(proof: unknown): Promise<void> {
 /* ── Ethereum RPC ── */
 
 const TEE_URL = "https://nitro.occproof.com";
-let anchorIntervalMs = 12 * 1000; // 12 seconds — every finalized Ethereum block
+/**
+ * Anchor cadence. 12 s is one Ethereum slot ("fire it up"); the operator sets
+ * 3600 s at rest. Nothing here waits for finality: each anchor is the parent
+ * of whatever head the RPC reports (`latest - 1`). At 12 s or less the service
+ * runs the head watcher (anchor when a new head appears), above 12 s a plain
+ * free-running timer. See "State & scheduling".
+ */
+let anchorIntervalMs = 12 * 1000;
+
+/** Public RPCs, tried in order. Shared by the block fetch and the head watcher. */
+const ETH_RPC_ENDPOINTS = [
+  "https://ethereum-rpc.publicnode.com",
+  "https://rpc.ankr.com/eth",
+  "https://eth.llamarpc.com",
+];
 
 function toBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64");
@@ -551,13 +565,7 @@ interface EthBlock {
 async function getLatestBlock(): Promise<EthBlock> {
   // The head is fetched only to name its parent: the block returned is `latest - 1`, by hash,
   // so the two reads agree with each other even if the head moved between them.
-  const endpoints = [
-    "https://ethereum-rpc.publicnode.com",
-    "https://rpc.ankr.com/eth",
-    "https://eth.llamarpc.com",
-  ];
-
-  for (const rpc of endpoints) {
+  for (const rpc of ETH_RPC_ENDPOINTS) {
     try {
       const res = await fetch(rpc, {
         method: "POST",
@@ -597,6 +605,35 @@ async function getLatestBlock(): Promise<EthBlock> {
   }
 
   throw new Error("Could not fetch Ethereum block from any RPC endpoint");
+}
+
+/** Per-request timeout for the head watcher's cheap polls. */
+const HEAD_FETCH_TIMEOUT_MS = 4000;
+
+/**
+ * The head's block number only (`eth_blockNumber`), for the head watcher. Much
+ * cheaper than a block fetch, and it is only a trigger: the anchor itself is
+ * still chosen by getLatestBlock (`latest - 1`, by hash). Each request is bounded
+ * so a hung endpoint cannot stall the watcher.
+ */
+async function fetchHeadNumber(): Promise<number> {
+  for (const rpc of ETH_RPC_ENDPOINTS) {
+    try {
+      const res = await fetch(rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "eth_blockNumber", params: [], id: 1 }),
+        signal: AbortSignal.timeout(HEAD_FETCH_TIMEOUT_MS),
+      });
+      if (!res.ok) continue;
+      const data = await res.json() as { result?: unknown };
+      if (typeof data.result !== "string") continue;
+      const n = parseInt(data.result, 16);
+      if (!Number.isSafeInteger(n) || n <= 0) continue;
+      return n;
+    } catch { continue; }
+  }
+  throw new Error("Could not fetch the Ethereum head number from any RPC endpoint");
 }
 
 /* ── TEE commit ── */
@@ -959,9 +996,181 @@ export async function manualAnchor(): Promise<{ block: EthBlock; proof: unknown;
   }
 }
 
-export function getAnchorStatus(): { running: boolean; lastAnchoredBlock: number; watermarkSeeded: boolean; source: string; intervalSeconds: number; anchorClaimKey: string | null } {
+/* ── Anchor loop: head watcher (block rate) or timer (at rest) ── */
+
+/**
+ * Why a head watcher. A free-running 12 s timer has the same period as Ethereum
+ * slots, so its phase against block production is frozen at whatever the last
+ * restart or interval change left it. Measured 2026-10-02: ticks fired about
+ * 1 s after each block was mined, before the RPC had it, so every anchor was
+ * the parent of a head already ~12 s old and landed ~25 s after its block
+ * (12 s deliberate depth plus ~12 s phase). The watcher removes the phase: it
+ * polls the cheap head number and anchors as soon as a new head shows up. The
+ * anchored block is unchanged: still `latest - 1`, by hash, through
+ * checkAndAnchor and all of its guards.
+ */
+
+/** Interval at or below which the head watcher runs (one Ethereum slot). */
+export const BLOCK_RATE_MAX_MS = 12 * 1000;
+/** Default head poll period. Override with ANCHOR_HEAD_POLL_MS. */
+export const HEAD_POLL_MS = 1500;
+export const HEAD_POLL_MIN_MS = 500;
+export const HEAD_POLL_MAX_MS = 6000;
+/**
+ * Runs per new head. The first run is the anchor; the extra ones cover an RPC
+ * backend that still serves the previous head to getLatestBlock right after
+ * another backend reported the new one (its `latest - 1` is then already
+ * anchored and the run is a no-op). Bounded so a failing TEE is retried a
+ * couple of polls later, not hammered every poll for a whole slot.
+ */
+const HEAD_RUNS_PER_BLOCK = 3;
+
+/** ANCHOR_HEAD_POLL_MS, clamped to [HEAD_POLL_MIN_MS, HEAD_POLL_MAX_MS]; HEAD_POLL_MS when unset or not a number. */
+export function headPollMsFromEnv(raw: string | undefined = process.env.ANCHOR_HEAD_POLL_MS): number {
+  const n = raw === undefined || raw.trim() === "" ? NaN : Number(raw);
+  if (!Number.isFinite(n)) return HEAD_POLL_MS;
+  return Math.min(HEAD_POLL_MAX_MS, Math.max(HEAD_POLL_MIN_MS, Math.round(n)));
+}
+
+/**
+ * What the loop calls out to. Production uses the real functions; tests swap
+ * them through __setAnchorLoopDepsForTest. The anchor commit path itself
+ * (checkAndAnchor and below) is not touched by this seam.
+ */
+interface AnchorLoopDeps {
+  headNumber: () => Promise<number>;
+  check: () => Promise<void>;
+  anchoredBlock: () => number;
+  busy: () => boolean;
+}
+const defaultLoopDeps: AnchorLoopDeps = {
+  headNumber: fetchHeadNumber,
+  check: checkAndAnchor,
+  anchoredBlock: () => lastAnchoredBlock,
+  busy: () => anchoring,
+};
+let loopDeps: AnchorLoopDeps = { ...defaultLoopDeps };
+
+let loopMode: "head" | "timer" | null = null;
+let headPollMs = HEAD_POLL_MS;
+let headPollId: ReturnType<typeof setInterval> | null = null;
+let loopGeneration = 0;       // bumped on every start/stop so a poll in flight from an old loop does nothing
+let headPolling = false;      // one poll at a time
+let lastSeenHead = 0;         // highest head number the watcher has seen
+let runsForHead = 0;          // checkAndAnchor runs spent on lastSeenHead
+let lastAttemptAt = 0;        // Date.now() of the last checkAndAnchor run started by the loop
+let headPollFailing = false;  // for logging once per outage, not once per poll
+
+function modeFor(intervalMs: number): "head" | "timer" {
+  return intervalMs <= BLOCK_RATE_MAX_MS ? "head" : "timer";
+}
+
+function runCheck(): Promise<void> {
+  lastAttemptAt = Date.now();
+  return loopDeps.check();
+}
+
+async function pollHead(generation: number): Promise<void> {
+  if (headPolling) return;
+  headPolling = true;
+  try {
+    let head = 0;
+    try {
+      head = await loopDeps.headNumber();
+      if (headPollFailing) {
+        headPollFailing = false;
+        console.log("[eth-anchor] head watcher: RPC head reads recovered");
+      }
+    } catch (err) {
+      if (!headPollFailing) {
+        headPollFailing = true;
+        console.error(`[eth-anchor] head watcher: ${(err as Error).message} (safety net still runs)`);
+      }
+    }
+    if (generation !== loopGeneration) return;
+
+    if (head > lastSeenHead) {
+      lastSeenHead = head;
+      runsForHead = 0;
+    }
+    // Anchor the new head's parent. Skipped while an anchor (tick or manual) is
+    // in flight, without spending a run, so the next poll tries again.
+    if (
+      lastSeenHead > 0 &&
+      loopDeps.anchoredBlock() < lastSeenHead - 1 &&
+      runsForHead < HEAD_RUNS_PER_BLOCK &&
+      !loopDeps.busy()
+    ) {
+      runsForHead++;
+      await runCheck();
+      return;
+    }
+    // Safety net: heads unreadable or not moving. Same check as a timer tick.
+    if (Date.now() - lastAttemptAt >= 2 * anchorIntervalMs) {
+      await runCheck();
+    }
+  } finally {
+    headPolling = false;
+  }
+}
+
+function stopLoops(): void {
+  loopGeneration++;
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+  if (headPollId) {
+    clearInterval(headPollId);
+    headPollId = null;
+  }
+  loopMode = null;
+}
+
+/** Start the loop that fits anchorIntervalMs. `kick` runs once right away (service start). */
+function startLoop(kick: boolean): void {
+  stopLoops();
+  const generation = loopGeneration;
+  lastAttemptAt = Date.now();
+  if (modeFor(anchorIntervalMs) === "head") {
+    loopMode = "head";
+    headPollMs = headPollMsFromEnv();
+    lastSeenHead = 0;   // the first poll anchors the current head's parent (a no-op if already anchored)
+    runsForHead = 0;
+    headPollId = setInterval(() => void pollHead(generation), headPollMs);
+    void pollHead(generation);
+  } else {
+    // At rest: exactly the old behaviour, a free-running timer.
+    loopMode = "timer";
+    if (kick) void runCheck();
+    intervalId = setInterval(() => void runCheck(), anchorIntervalMs);
+  }
+}
+
+/** Test seam: swap the loop's RPC/anchor calls, or restore them with no argument. Also stops any loop. */
+export function __setAnchorLoopDepsForTest(deps?: Partial<AnchorLoopDeps>): void {
+  stopLoops();
+  loopDeps = { ...defaultLoopDeps, ...(deps ?? {}) };
+  lastSeenHead = 0;
+  runsForHead = 0;
+  lastAttemptAt = 0;
+  headPolling = false;
+  headPollFailing = false;
+}
+
+export function getAnchorStatus(): {
+  running: boolean;
+  lastAnchoredBlock: number;
+  watermarkSeeded: boolean;
+  source: string;
+  intervalSeconds: number;
+  anchorClaimKey: string | null;
+  mode: "head" | "timer" | null;
+  headPollMs: number | null;
+  lastSeenHead: number | null;
+} {
   return {
-    running: intervalId !== null,
+    running: loopMode !== null,
     lastAnchoredBlock,
     // Enclave v7: the public key the anchor service signs its claims with, or
     // null when ANCHOR_SIGNING_KEY_B64 is unset. Must equal the constant baked
@@ -973,34 +1182,33 @@ export function getAnchorStatus(): { running: boolean; lastAnchoredBlock: number
     watermarkSeeded,
     source: "ethereum",
     intervalSeconds: anchorIntervalMs / 1000,
+    // "head": anchoring follows block arrival (interval <= 12 s); "timer": a
+    // free-running timer at intervalSeconds; null: the service is stopped.
+    mode: loopMode,
+    headPollMs: loopMode === "head" ? headPollMs : null,
+    lastSeenHead: loopMode === "head" ? lastSeenHead : null,
   };
 }
 
 export function startAnchorService(intervalMs?: number): void {
   if (intervalMs) anchorIntervalMs = intervalMs;
   loadAnchorSigningKey(); // derive the public key now so the status reports it before the first anchor
-  console.log(`[eth-anchor] Starting Ethereum anchor service (interval: ${anchorIntervalMs / 1000}s)`);
-
-  // Run immediately, then on interval
-  void checkAndAnchor();
-  intervalId = setInterval(() => void checkAndAnchor(), anchorIntervalMs);
+  startLoop(true);
+  console.log(`[eth-anchor] Starting Ethereum anchor service (interval: ${anchorIntervalMs / 1000}s, mode: ${loopMode}${loopMode === "head" ? `, head poll ${headPollMs}ms` : ""})`);
 }
 
 export function stopAnchorService(): void {
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = null;
-    console.log("[eth-anchor] Anchor service stopped");
-  }
+  const wasRunning = loopMode !== null;
+  stopLoops();
+  if (wasRunning) console.log("[eth-anchor] Anchor service stopped");
 }
 
 export function setAnchorInterval(seconds: number): { ok: boolean; intervalSeconds: number } {
   anchorIntervalMs = seconds * 1000;
-  if (intervalId) {
-    clearInterval(intervalId);
-    intervalId = setInterval(() => void checkAndAnchor(), anchorIntervalMs);
-  }
-  console.log(`[eth-anchor] Interval updated: ${seconds}s`);
+  // Only restart a loop that is running, as before: a stopped service stays stopped.
+  // A timer restart does not kick an immediate check, as before.
+  if (loopMode !== null) startLoop(false);
+  console.log(`[eth-anchor] Interval updated: ${seconds}s${loopMode ? ` (mode: ${loopMode})` : ""}`);
   return { ok: true, intervalSeconds: seconds };
 }
 
