@@ -2,7 +2,7 @@
 
 All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 
-## Unreleased (tree/1 and export/1, 2026-10-03; not published)
+## 0.9.0 (2026-10-03, prepared, not yet published)
 
 - Exports (`bitgraph-export/1`). Ingest finds an export by its `format` field wherever it sits (directory, `.tar`, `.tar.gz`, in memory); it is evidence, never an artifact. The tree/1 proof it carries is recorded as an observed proof from the export's path, so it joins verification tiers, partitions, chain links, counter gap and collision checks, authority and attestation analysis like any proof file (its artifact is the 84-byte root document, which travels inside the export, so at the proof level it counts as observed without artifact bytes). A file that declares another `bitgraph-export/` format (`export-unsupported-format`), lacks an export's structure (`export-malformed`), or opens an export but is past the export JSON cap (`export-too-large`) is reported and not checked.
 - New stage `verifyExports` (run by `auditIngest` after attestations): each export is checked with `verifyExport` from bitgraph-verify once per file in the bundle it covers, matched by SHA-256 (a member export: its leaf's committed bytes or original; the owner's export: any leaf's), or once without a file when none is there (the claims about the file read NOT_CARRIED, never a failure). The result (`AuditResult.exports`, and `exports` in the JSON report) gives per export its verdict, the FALSE claim ids, the covered files (leaf, placement, matched as committed bytes / original / as is, the export's unsigned name), the claims every run states alike once (`claims`), each run's own claims with their positions (`exportRunClaims(check, run)` puts a run's whole list back), what the floor covers for each file, the verifier's reading, and the three time claims apart: floor, ceiling on Base (provisional until checked against Base), ceiling on Ethereum.
@@ -11,7 +11,7 @@ All notable changes to `@mikeargento/bitgraph-audit` are documented here.
 - Ingest buffers an entry that opens an export object (`{"format": "bitgraph-export/...`) up to `IngestLimits.maxExportJsonBytes` (default 192 MiB, every container) instead of the 8 MiB JSON cap, so the owner's export of a large tree is found; ordinary JSON keeps the 8 MiB cap.
 - Options: `AuditOptions.exports` (`extraSpecHashes`, `pcr0`, `lookups` for embedders that allow network, `asGivenLeafBudget`). An export's Base ceiling is held to `ceilings.writer` / `ceilings.chainId` (`--ceiling-writer`, `--ceiling-chain`), and a trust policy's `allowedMeasurements` is the PCR0 list for its `attestation.pins` claim. The CLI prints one line per export and its three time claims, and makes no lookup.
 - Reports: a Markdown section in the executive summary and one in the details (claims, covered files, time claims, per-file claims and runs); `summary.exports` counts. For a bundle without exports both reports are unchanged; the in-memory `IngestResult.counts.exports` is 0.
-- Requires the bitgraph-verify that exports `verifyExport`, `parseExport` and the tree/1 functions (built in this workspace from `packages/verify`; the dependency range must move to that release when it is published).
+- Requires `@mikeargento/bitgraph-verify` 1.16.0 (`verifyExport`, `parseExport`, the tree/1 functions). The report's `toolVersion` is `0.9.0`.
 
 ## 0.8.0 (2026-09-30)
 

@@ -2,6 +2,13 @@
 
 All notable changes to `@mikeargento/bitgraph-verify` are documented here.
 
+## 1.16.0 (2026-10-03, prepared, not yet published)
+
+- **tree/1** (`tree.ts`): every BitGraph is a Merkle tree under one position; a single file is a tree of one. 65-byte leaves (`placement || artifact || origin`; codes 0x00 as is, 0x01 trailer/1, 0x02 container/1, 0x03 container/2), RFC 6962 tree, 84-byte root document (`"bitgraph-tree/1" 0x00 || u32be count || root || commitment/2`) whose SHA-256 is the signed digest, signed attribution `{name: "bitgraph-fuse/2", title: "tree/1", message: B64 SHA-256(SPEC.md)}`. `verifyTreeMember` (categories TREE_MEMBER_DIRECT / FROM_ORIGIN / AS_IS, TREE_PATH_VALID, TREE_ROOT_VALID, and every refusal), `verifyTreeLeaves` (the only check of order and uniqueness), builders and parsers, `KNOWN_TREE_SPEC_HASHES` and `currentTreeSpecHash`. No enclave change.
+- **bitgraph-output-root/1** (`output-root.ts`): a Base ceiling settled on Ethereum through Base's output root and an EIP-2935 storage proof of the ceiling block's hash (or the output root's own block hash when B = P), with the Ethereum transaction carrying the claim. No blob data and no KZG. `verifyOutputRootSettlement`, `computeOutputRoot`, `historySlot`.
+- **bitgraph-export/1** (`export.ts`): one JSON file that, with the file, checks a tree/1 BitGraph. `verifyExport` answers one claim per line (proof, attestation with the user_data binding, spec pin, tree root, member or owner's list, the file, floor header, Base ceiling, Ethereum ceiling, and the reader's own confirmed lookups), with the three time claims kept apart and the Base time provisional until confirmed. `parseExport`, `buildExport`.
+- The normative text is `spec/SPEC.md` in the repository; its SHA-256 is the pinned spec hash.
+
 ## 1.15.2 (2026-10-02)
 
 - `verifyCarrier`'s reading now ends by saying plainly that the file's own SHA-256 is not the committed digest, naming both hashes: the proof names the bytes before the proof block, and the file being verified includes that block. An outside review asked for it because a BitGraphed file travels without its package's README, and a recipient who hashes the file they were handed and compares it with the proof would otherwise conclude the proof is wrong. Only the reading changed: no claim, verdict or check is different, and `verifyCarrierPayload` (which has no outer file) is unchanged.
