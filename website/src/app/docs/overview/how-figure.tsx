@@ -30,6 +30,14 @@
  *
  * Wide figures scroll sideways on a phone, as the whitepaper's did.
  *
+ * 2026-10-02 (Mike, after an outside review of the floor): the floor block is shown. Since
+ * bitgraph-fuse/2 and enclave v9 the allocation also returns the newest anchored Ethereum block,
+ * and the position commitment is derived from the record, its nonce AND that block's hash, so the
+ * bytes prove "finished after this block" on their own. The record's tag reads "signed position
+ * record + floor block" (two lines, so the tag keeps its width and clears the green one), step 3
+ * names what the commitment is derived from, and the caption gains one sentence. Still no anchor
+ * box: the floor block arrives with the position.
+ *
  * 2026-09-17: back on How it works in place of the redesign's boundary figure
  * (Mike: "we should keep this diagram ... yours is way messier"). The frame
  * and caption follow the site's figure rules now; the inline margin and the
@@ -109,19 +117,21 @@ function Arrow({ d, id, brand, label, lx, ly }: { d: string; id: string; brand?:
 /* A label as its own small pill, centred on the line it belongs to, over the
    line (Mike, 2026-09-11: "should these have their own little connecting
    pills?"). Width from the text length at 9.5px with letter-spacing. */
-function Tag({ x, y, text, brand, held, proof, w: given }: { x: number; y: number; text: string; brand?: boolean; held?: boolean; proof?: boolean; w?: number }) {
+function Tag({ x, y, text, add, brand, held, proof, w: given }: { x: number; y: number; text: string; add?: string; brand?: boolean; held?: boolean; proof?: boolean; w?: number }) {
   const tone = proof ? C.proof : held ? C.held : brand ? C.brand : null;
   // Measured text width plus 20px each side where the caller has measured it
   // (2026-09-11 pass: the estimate gave one pill 19px of padding and another
   // 30); the estimate stays as the fallback.
   // Mono: ~6.1px per character at 9.5px, plus 14px each side (2026-09-16; the
   // sans-era widths left the digest tag overflowing its box).
-  const w = given ?? Math.round(text.length * 6.1 + 28);
-  const h = 22;
+  // An added line sits UNDER the label, so the tag keeps its width and stays clear of its neighbours.
+  const w = given ?? Math.round(Math.max(text.length, add ? add.length : 0) * 6.1 + 28);
+  const h = add ? 34 : 22;
   return (
     <g>
       <rect vectorEffect="non-scaling-stroke" x={x - w / 2} y={y - h / 2} width={w} height={h} rx={6} fill={tone ? TONE[tone].deep : C.white} stroke={tone ? "none" : "var(--faint)"} strokeWidth={1} />
-      <text x={x} y={y + 3.5} textAnchor="middle" fontSize={9.5} fill={tone ? TONE[tone].ink : C.mut} letterSpacing="0.04em">{rich(text, 9.5)}</text>
+      <text x={x} y={add ? y - 2.5 : y + 3.5} textAnchor="middle" fontSize={9.5} fill={tone ? TONE[tone].ink : C.mut} letterSpacing="0.04em">{rich(text, 9.5)}</text>
+      {add ? <text x={x} y={y + 9.5} textAnchor="middle" fontSize={9.5} fill={tone ? TONE[tone].ink : C.mut} letterSpacing="0.04em">{add}</text> : null}
     </g>
   );
 }
@@ -141,7 +151,7 @@ export function HowFigure() {
             stays put (Mike, 2026-09-11). */}
         <div className="fig-well">
         <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: 760 }} role="img" aria-label="Two lanes, your device over the enclave. In the enclave lane, position N is opened first from a hardware nonce while no digest exists, and its signed position record goes down to your device. In the device lane, your file becomes new bytes that carry a commitment to N, built on your device. Their digest H goes back up to the enclave and is committed under N, signed and attested; N is consumed. The proof comes back down and leaves with the file. N was held, unspent, between opening and commit.">
+        <div style={{ minWidth: 760 }} role="img" aria-label="Two lanes, your device over the enclave. In the enclave lane, position N is opened first from a hardware nonce while no digest exists, and its signed position record goes down to your device. In the device lane, your file becomes new bytes that carry a commitment to N and to the floor block, the newest Ethereum block BitGraph had recorded, built on your device. Their digest H goes back up to the enclave and is committed under N, signed and attested; N is consumed. The proof comes back down and leaves with the file. N was held, unspent, between opening and commit.">
           <svg viewBox="19 19 962 398" width="100%" style={{ display: "block", fontFamily: "inherit" }}>
             <defs>
               <marker id={`${id}-g`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -168,7 +178,7 @@ export function HowFigure() {
             {/* device lane: the file becomes new bytes that carry N */}
             <Box x={115} y={86} w={120} h={64} title="Your file" sub={["any bytes"]} />
             <Arrow id={id} d="M 235 118 L 316 118" />
-            <Box x={320} y={86} w={360} h={64} title="3. New bytes" sub={["the file + the position commitment, derived here", "built on your device, never uploaded"]} />
+            <Box x={320} y={86} w={360} h={64} title="3. New bytes" sub={["the file + the position commitment, derived here", "from the record, its nonce and the floor block", "built on your device, never uploaded"]} />
 
             {/* first: the slot record goes down into the bytes */}
             {/* the empty request, a pill on its wire like the other two (Mike,
@@ -180,7 +190,7 @@ export function HowFigure() {
                 position and the proof that closes it are the two ends of one path. */}
             <Tag x={175} y={218} text="1. ask for a position" proof />
             <Arrow id={id} d="M 355 306 L 355 154" brand />
-            <Tag x={355} y={218} text="signed position record" brand />
+            <Tag x={355} y={218} text="signed position record" add="+ floor block" brand />
 
             {/* then: the digest of the new bytes goes back up, under N */}
             <Arrow id={id} d="M 645 150 L 645 302" />
@@ -196,7 +206,7 @@ export function HowFigure() {
           {/* Plain words, no symbol: N lasted an afternoon and needed
               defining twice (Mike, 2026-09-11: "should N just be replaced by
               position?"). */}
-          The bytes name the position, and the position names the bytes. The position was open before the new bytes were final, so they could not have been finished before it. The commit spends the position on exactly those bytes in one indivisible step, so it can never name any&nbsp;others.
+          The bytes name the position, and the position names the bytes. The position was open before the new bytes were final, so they could not have been finished before it. The commit spends the position on exactly those bytes in one indivisible step, so it can never name any&nbsp;others. The commitment also carries the newest Ethereum block BitGraph had recorded, so the bytes could not have been finished before that block&nbsp;either.
         </figcaption>
         </div>
       </div>
