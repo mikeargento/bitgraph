@@ -45,6 +45,8 @@ import {
   treeRootFromMember,
   verifyTreeLeaves,
   verifyTreeMember,
+  KNOWN_TREE_SPEC_HASHES,
+  currentTreeSpecHash,
 } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof, SlotAllocation, TreeLeaf, TreeMemberEvidence, Attribution } from "@mikeargento/bitgraph-verify";
 import { makeKey, signBody, b64, utf8 } from "./audit-fixtures.js";
@@ -390,5 +392,18 @@ describe("the leaf hash is RFC 6962's", () => {
     const manual = sha256(new Uint8Array([0, ...encodeTreeLeaf(leaf)]));
     assert.deepEqual(treeLeafHash(leaf), manual);
     assert.deepEqual(merkleLeafHash(encodeTreeLeaf(leaf)), manual);
+  });
+});
+
+describe("the spec pin", () => {
+  test("SHA-256(spec/SPEC.md) is the newest known spec hash, the vectors pin it, and the website ships the same bytes", () => {
+    const spec = readFileSync(fileURLToPath(new URL("../../spec/SPEC.md", import.meta.url)));
+    const h = bytesToBase64(sha256(new Uint8Array(spec)));
+    assert.equal(KNOWN_TREE_SPEC_HASHES[KNOWN_TREE_SPEC_HASHES.length - 1], h, "run: node spec/pin-hash.mjs, rebuild packages/verify");
+    assert.equal(bytesToBase64(currentTreeSpecHash()), h);
+    const vec = JSON.parse(readFileSync(fileURLToPath(new URL("../../spec/vectors/export-1.json", import.meta.url)), "utf8")) as { memberExport: { spec: string } };
+    assert.equal(vec.memberExport.spec, h, "run: node spec/tools/gen-vectors.mjs");
+    const site = readFileSync(fileURLToPath(new URL("../../website/public/spec/SPEC.md", import.meta.url)));
+    assert.ok(Buffer.compare(site, spec) === 0, "copy spec/SPEC.md to website/public/spec/SPEC.md");
   });
 });

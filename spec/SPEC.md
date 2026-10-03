@@ -1,3 +1,716 @@
-# BitGraph SPEC v1 (draft in progress)
+# BitGraph Specification, version 1
 
-This file is being written. Its SHA-256 is pinned in every tree/1 proof's signed attribution.message, so the constant in packages/verify/src/tree.ts is regenerated from it by spec/pin-hash.mjs whenever it changes.
+Status: version 1, 2026-10-03. The SHA-256 of this exact file is pinned, in base64, in the signed `attribution.message` of every tree/1 proof (section 8.6). Any edit to this file is a new spec version with a new hash; verifiers keep every hash they have ever accepted.
+
+This document says how to check a BitGraph from bytes alone: the proof, the file it is about, and public block data. Nothing in it requires a service, a server or a software package of BitGraph's. A second implementation written from this text, in another language, is in `spec/tools/check.py`; it reproduces every vector in `spec/vectors/` and a production proof end to end.
+
+The key words MUST, MUST NOT, SHOULD and MAY are used as in RFC 2119.
+
+---
+
+## 0. Notation and encodings
+
+- `||` is byte concatenation. `0x00` is one zero byte. `u32be(n)` is n as 4 bytes big-endian; `u64be(n)` as 8 bytes.
+- **SHA-256** is FIPS 180-4. **Keccak-256** is the original Keccak with padding byte `0x01` (Ethereum's hash), not SHA3-256. `keccak256("")` = `c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470`.
+- **hex** means lowercase hexadecimal. EVM values (block hashes, addresses, transactions) are written `0x` + hex.
+- **B64** means RFC 4648 section 4 base64, standard alphabet, with `=` padding, in canonical form: decoding then re-encoding MUST reproduce the input exactly. That rejects the URL-safe alphabet, missing padding, whitespace and non-zero pad bits. **B64URL** means the URL-safe alphabet without padding (used only where stated).
+- **DEC** means a decimal integer written as a string, for counters.
+- A **digest field** in JSON is exactly `{"algorithm":"sha256","digest":"<64 hex>"}`: two keys, lowercase hex.
+- Times are Unix seconds unless stated. Block times are read from block headers, never from any other field.
+
+---
+
+## 1. What a BitGraph claims
+
+A BitGraph is a signed record that gives some bytes a **position** in a sequence kept by a measured AWS Nitro enclave. Before the bytes are finished, the enclave hands out a position (a "slot") with a secret nonce and fixes the newest Ethereum block it has recorded (the **floor block**). The bytes are then made to carry a **commitment** that depends on that position and that block, and the enclave signs the commit.
+
+Three time claims, never merged:
+
+| Claim | Statement | Rests on |
+|---|---|---|
+| Floor | The committed bytes were finished after Ethereum block N. | Hashes only, plus N being a real Ethereum block. |
+| Base ceiling | The record existed by Base block B, at B's timestamp. | A Base transaction carrying a Merkle root over the record, plus B being a real Base block. Until B is checked against Base, its time is provisional. |
+| Ethereum ceiling | The record existed by Ethereum block H. | Base's output root on Ethereum committing to B, plus H being a real Ethereum block. Base's honesty is not needed. |
+
+What a BitGraph does not claim: when content was first created, who made it, who owns it, or whether what it shows is true. It dates one exact version of the bytes.
+
+A reader makes these trust decisions, and no others:
+
+1. **Chain canonicality.** Whether a given block hash is part of the chain the network agreed on. A block header is self-consistent bytes, and anyone can build a self-consistent fake chain offline, so this is a fact about the network that no file can carry. It is checked once, against whatever node or consensus source the reader chooses; that source is part of the reader's trust model.
+2. **The AWS Nitro root.** The certificate chain in each attestation ends at the AWS Nitro Enclaves Root CA G1 (section 5.5).
+3. **What PCR0 measures.** The attestation says which enclave image signed. Knowing what that image does requires its source, built reproducibly to the same PCR0 (section 16).
+
+---
+
+## 2. Canonical JSON
+
+Signed and hashed JSON is serialized by one algorithm. It MUST be reproduced exactly, including the behaviours below that differ from RFC 8785; it is not RFC 8785.
+
+```
+canonicalize(v) = UTF-8( S(v) ), no byte-order mark, no trailing newline
+S(null) = "null"; S(true) = "true"; S(false) = "false"
+S(number) = the ECMAScript Number::toString of the value (rules below)
+S(string) = the ECMAScript JSON.stringify of the string (rules below)
+S(array)  = "[" + S(e0) + "," + S(e1) ... + "]"          order kept, no whitespace
+S(object) = "{" + K(k0) + ":" + S(v0) + "," ... + "}"    keys ordered as below, no whitespace
+```
+
+**Object key order.** Keys whose value is undefined are dropped (they never occur in parsed JSON). The remaining keys are emitted in two groups:
+
+1. **Array-index keys** first, in ascending numeric order. A key is an array index exactly when it equals the decimal string of an integer n with 0 <= n <= 4294967294 and no leading zeros (`"0"`, `"2"`, `"10"`; not `"01"`, `"-1"`, `"1.5"`, `"4294967295"`).
+2. **All other keys**, sorted by their UTF-16 code units (not by Unicode code points). For example, U+1F600 (surrogates `D83D DE00`) sorts before U+FFFD.
+
+So `{"10":0,"2":0,"b":0,"a":0}` serializes as `{"2":0,"10":0,"a":0,"b":0}`.
+
+**Strings.** `"` becomes `\"`, `\` becomes `\\`; U+0008, U+0009, U+000A, U+000C, U+000D become `\b`, `\t`, `\n`, `\f`, `\r`; every other code point below U+0020 becomes `\u00xx` with lowercase hex; an unpaired surrogate becomes `\udxxx` (lowercase). Everything else is written as itself in UTF-8, including `/`, U+007F, U+2028 and U+2029. No Unicode normalization.
+
+**Numbers.** The shortest decimal that round-trips to the same IEEE 754 double, written as ECMAScript does: integers below 10^21 without exponent (`1.0` is `1`, `-0` is `0`); exponent form `1e+21`, `1e-7` (no leading zeros in the exponent) for exponents >= 21 or < -6; NaN and infinities become `null`. Every number in a BitGraph proof is a non-negative integer below 2^53.
+
+**Vectors.** `{"s":"q\"b\\n\nl" + U+2028 + "c" + U+0007 + "e" + U+00E9 + "}"` canonicalizes to the bytes `7b2273223a22715c22625c5c6e5c6e6ce280a8635c753030303765c3a9227d`.
+
+**Where these rules matter.** All keys in BitGraph's own documents are ASCII and non-numeric, so for them the result equals sorted-key JSON. Fields a caller may fill freely (`policy`, `agency.actor`, unsigned `metadata`) can contain anything, and the rules above decide their bytes.
+
+---
+
+## 3. The signed proof, `bitgraph/1`
+
+### 3.1 Structure
+
+| Field | Required | Content |
+|---|---|---|
+| `version` | yes | exactly `"bitgraph/1"` |
+| `artifact.hashAlg` | yes | exactly `"sha256"` |
+| `artifact.digestB64` | yes | B64 of the 32-byte SHA-256 of the committed artifact |
+| `commit.nonceB64` | yes | B64 of the slot nonce (32 bytes) |
+| `commit.counter` | in production | DEC, this commit's position |
+| `commit.slotCounter` | with a slot | DEC, the slot's position |
+| `commit.slotHashB64` | with a slot | B64 of slotRecordHash (section 4) |
+| `commit.epochId` | in production | B64, the enclave's lifetime identifier |
+| `commit.chainId` | when not `"global"` | the chain name, `"bitgraph:main"` for user records |
+| `commit.prevB64` | except first of chain | B64 SHA-256 of the previous proof on the same chain and epoch (section 3.7) |
+| `commit.slotAnchor` | in production | the floor block: `{counter: DEC, blockNumber: integer, blockHash: "0x"+64 hex}` (section 9) |
+| `commit.anchor` | anchor proofs only | `{blockNumber, blockHash}` (section 14) |
+| `signer.publicKeyB64` | yes | B64 of the raw 32-byte Ed25519 public key |
+| `signer.signatureB64` | yes | B64 of the 64-byte Ed25519 signature |
+| `environment.enforcement` | yes | `"stub"`, `"hw-key"` or `"measured-tee"` (production: `"measured-tee"`) |
+| `environment.measurement` | yes | production: hex of PCR0 (96 characters) |
+| `environment.attestation` | in production | `{format: "aws-nitro", reportB64: B64 of the COSE_Sign1 document}` |
+| `slotAllocation` | in production | the position record (section 4) |
+| `attribution` | optional | `{name?, title?, message?}`: signed markers (sections 6, 8) |
+| `agency`, `policy` | optional | signed actor binding and policy reference (section 15.6) |
+| `metadata` | optional | unsigned; any content |
+| `proofHash`, `ethereum` | added by the ledger | unsigned convenience fields |
+
+Every other field is ignored by verification.
+
+### 3.2 The signed body
+
+```
+S = { "version":      P.version,
+      "artifact":     P.artifact,                      (the whole object)
+      "commit":       P.commit,                        (the whole object)
+      "publicKeyB64": P.signer.publicKeyB64,
+      "enforcement":  P.environment.enforcement,
+      "measurement":  P.environment.measurement }
+if P.environment.attestation is present: S.attestationFormat = P.environment.attestation.format
+if P.agency is present:                  S.actor = P.agency.actor
+if P.policy is present:                  S.policy = P.policy
+if P.attribution is present:             S.attribution = P.attribution
+M = canonicalize(S)
+```
+
+"Present" means the key exists; a JSON `null` value is present and is signed as `null`.
+
+### 3.3 The signature
+
+The signature MUST verify as Ed25519 (RFC 8032) with public key `B64dec(signer.publicKeyB64)` over the message **M itself** (not over a hash of M). The reference verifier uses the ZIP-215 rules (cofactored equation, non-canonical point encodings accepted, S < L required); honestly made signatures satisfy both ZIP-215 and strict RFC 8032.
+
+What the signature covers: everything in S, so every key inside `artifact` and `commit` (including `slotAnchor`), the attribution, the actor and the policy. What it does not cover: `signer.signatureB64`, `attestation.reportB64`, `agency.authorization`, `slotAllocation` (bound through `commit.slotHashB64`), `metadata`, `proofHash`, `ethereum`.
+
+### 3.4 The signed-body hash
+
+`signedBodyHash = SHA-256(M)`. The enclave puts exactly these 32 bytes in the attestation's `user_data` (section 5.7).
+
+### 3.5 proofHash
+
+```
+H = { version, artifact, commit,
+      publicKeyB64: signer.publicKeyB64,
+      enforcement:  environment.enforcement,
+      measurement:  environment.measurement }
+if attribution is present and not empty:  H.attribution = attribution
+if environment.attestation is present:    H.attestationFormat = environment.attestation.format
+proofHash = SHA-256(canonicalize(H))            written as B64
+```
+
+proofHash omits `actor` and `policy` on purpose (a frozen subset). It equals signedBodyHash for any proof without `agency` and `policy`. proofHash is the leaf of the Base ceiling (section 10) and names the proof in storage; it MUST NOT be used for the attestation binding.
+
+### 3.6 Counters, epochs and chains
+
+`commit.counter` and `slotCounter` are positions on one chain within one enclave epoch; every allocation and every commit takes the next position, so gaps are normal. `epochId` changes at every enclave restart and is opaque (it is derived from a boot nonce that is never disclosed). Positions on different chains or epochs are not comparable by counter; anchors relate them (section 14).
+
+### 3.7 The chain hash
+
+```
+chainHash(P) = SHA-256(canonicalize(P without its top-level "proofHash" and "ethereum" keys))
+```
+
+A proof's `commit.prevB64` is the B64 chainHash of the previous proof on the same chain and epoch, exactly as the enclave assembled it (signature, attestation, slot record, metadata included). Verifying a single proof does not check `prevB64`; an audit over many proofs does.
+
+---
+
+## 4. The position record
+
+`slotAllocation` is the slot the enclave issued before the bytes were finished.
+
+```
+slotBody = { "version": "bitgraph/slot/1", "nonceB64": N, "counter": DEC,
+             ["time": number, only if present], "epochId": E, "publicKeyB64": K,
+             ["chainId": C, only if present and not empty] }
+slotAllocation = slotBody + { "signatureB64": B64(Ed25519 over canonicalize(slotBody)) }
+slotRecordHash = SHA-256(canonicalize(slotBody))
+```
+
+For BitGraph's user chain the hashed bytes are exactly
+`{"chainId":"bitgraph:main","counter":"<DEC>","epochId":"<B64>","nonceB64":"<B64>","publicKeyB64":"<B64>","version":"bitgraph/slot/1"}`.
+
+When a proof carries `slotAllocation`, a verifier MUST check, with s = slotAllocation and c = commit:
+
+1. **Structure.** `s.version == "bitgraph/slot/1"`; `nonceB64`, `counter`, `epochId`, `publicKeyB64`, `signatureB64` are non-empty strings; `time` is absent or a finite number >= 0.
+2. **Slot signature.** Ed25519 over `canonicalize(slotBody)` rebuilt from s's own fields, with key `B64dec(s.publicKeyB64)` (32 bytes) and signature `B64dec(s.signatureB64)` (64 bytes).
+3. **Binding.** `c.slotHashB64` is present and `SHA-256(canonicalize(slotBody)) == B64dec(c.slotHashB64)`.
+4. **Nonce.** `s.nonceB64 == c.nonceB64` (string equality).
+5. **Order.** `c.slotCounter == s.counter` (string equality) and `int(s.counter) < int(c.counter)`.
+6. **Same key.** `s.publicKeyB64 == signer.publicKeyB64`.
+7. **Same epoch.** If `c.epochId` is present, `s.epochId == c.epochId`.
+
+The reference verifier also runs a defensive check that the slot body holds no artifact fields; it cannot fail on a rebuilt body. The reference parses counters leniently (any string BigInt accepts); a strict verifier SHOULD require DEC strings matching `^(0|[1-9][0-9]*)$`. `s.chainId` is not compared with `c.chainId`.
+
+---
+
+## 5. The attestation (AWS Nitro)
+
+`environment.attestation.reportB64` is the AWS Nitro attestation document: B64 of a COSE_Sign1 structure (RFC 9052). The ordinary signature check (section 3) does not read it; a verifier MUST check it as follows.
+
+### 5.1 Decoding
+
+The document is a CBOR array (tags, if any, are skipped) of at least four items: `[protected (bstr), unprotected (map), payload (bstr), signature (bstr)]`. Production documents are an untagged four-item array whose protected header is `{1: -35}` (ES384). The payload is a CBOR map; the fields used are `timestamp` (milliseconds), `pcrs` (map index to bstr), `certificate` (DER), `cabundle` (array of DER) and `user_data` (bstr).
+
+### 5.2 Signature
+
+```
+Sig_structure = CBOR array ["Signature1", bstr(protected as received), bstr(empty), bstr(payload as received)]
+valid iff ECDSA P-384 with SHA-384 verifies the 96-byte signature (r || s) over Sig_structure
+          with the public key of the certificate in the payload
+```
+
+### 5.3 Certificate chain
+
+`chain = cabundle[0], cabundle[1], ..., certificate`. `chain[0]` MUST be signed by the AWS root's key (section 5.5), and each later certificate by the one before it (ECDSA P-384, SHA-384, over its TBSCertificate). An empty cabundle fails.
+
+### 5.4 Validity window
+
+Each certificate in the chain MUST satisfy `notBefore <= t <= notAfter`, where t is the document's own `timestamp`, never the reader's clock. This is an archival policy: leaf certificates live about three hours, and judging them at the document's instant is what keeps a proof checkable forever. It is not a freshness check.
+
+### 5.5 The root
+
+The AWS Nitro Enclaves Root CA G1 (CN=aws.nitro-enclaves, O=Amazon, OU=AWS, C=US; P-384; valid 2019-10-28 to 2049-10-28). SHA-256 of its DER encoding:
+`641a0321a3e244efe456463195d606317ed7cdcc3c1756e09893f3c68f79bb5b`. A verifier MUST embed this certificate and compare it by this hash; it is published by AWS.
+
+### 5.6 PCR0
+
+`hex(pcrs[0])` MUST equal `environment.measurement` (lowercase comparison). Whether that PCR0 is acceptable is the reader's decision; section 16 lists BitGraph's published measurements.
+
+### 5.7 Binding to this proof
+
+`user_data` MUST be present and equal to `signedBodyHash = SHA-256(canonicalize(S))` from section 3.4. Without this check, a genuine attestation from another proof could be attached to an unrelated signature. The document's `public_key` and `nonce` fields are not used.
+
+---
+
+## 6. Commitments
+
+The commitment ties bytes to one position. It is computed from the position record and, for version 2, the floor block.
+
+```
+DOMAIN1 = UTF-8("bitgraph-fuse/1") || 0x00          (16 bytes)
+DOMAIN2 = UTF-8("bitgraph-fuse/2") || 0x00          (16 bytes)
+nonce   = B64dec(slotAllocation.nonceB64), exactly 32 bytes
+commitment/1 = SHA-256(DOMAIN1 || slotRecordHash || nonce)
+commitment/2 = SHA-256(DOMAIN2 || slotRecordHash || nonce || floorBlockHash)
+floorBlockHash = the 32 bytes of commit.slotAnchor.blockHash ("0x" prefix removed, hex decoded)
+```
+
+Which one a proof uses is decided only by its **signed** `attribution.name`: `"bitgraph-fuse/1"` means commitment/1, `"bitgraph-fuse/2"` means commitment/2 (and requires `commit.slotAnchor`). Any other name means the proof is not fused. A producer uses commitment/2 whenever the enclave returned a floor block with the slot (enclave v9 and later).
+
+Because commitment/2 includes the floor block's hash, bytes carrying it could not have been finished before that block existed, by hashing alone. The nonce never appears in the bytes; only the commitment does.
+
+**Vectors** (synthetic slot from `src/__tests__/fuse-fixtures/vectors.json`): slotRecordHash `0315c24fcbd94e8e6506b237861ece939666cd81902e1a926a146c8a665c37a0`, commitment/1 `0e658007a8aaecce318b2f594581b880e8ecc34af0ff54cd0c85624b42cb94b7`, commitment/2 with floor hash `0x22`*32 `96e602ad102782377845b03debfc63f4a054e21996b9d848c63dcbf61a2f23c3`. More in `spec/vectors/tree-1.json`.
+
+---
+
+## 7. Placements
+
+A placement says, byte for byte, how a commitment is put into an existing file (the **original**), producing the **committed bytes** whose SHA-256 a proof names. Each placement is a deterministic function of (original, commitment), so a holder of the original can rebuild the committed bytes, and a holder of the committed bytes can recover the original.
+
+### 7.1 trailer/1
+
+```
+committed = original || "BGFUSE01" || 0x00 * 8 || commitment          (original length + 48)
+```
+
+To locate: the last 48 bytes MUST be `"BGFUSE01"` (`42 47 46 55 53 45 30 31`), eight zero bytes, then the 32-byte commitment; the original is everything before them.
+
+### 7.2 The container manifest
+
+```
+manifest = canonicalize({ "origin":         {"algorithm":"sha256","digest": hex(SHA-256(original))},
+                          "slotCommitment": {"algorithm":"sha256","digest": hex(commitment)},
+                          "type":           "bitgraph-fuse/1" })                (always 250 bytes)
+```
+
+The `type` literal is `bitgraph-fuse/1` under both commitment versions.
+
+### 7.3 ustar headers
+
+Each entry header is 512 bytes, all zero except:
+
+| Offset | Length | Value |
+|---|---|---|
+| 0 | 100 | the entry name in UTF-8, zero-filled |
+| 100 | 8 | `"0000644\0"` |
+| 108 | 8 | `"0000000\0"` |
+| 116 | 8 | `"0000000\0"` |
+| 124 | 12 | the size as 11 octal digits, then `"\0"` |
+| 136 | 12 | `"00000000000\0"` (time zero) |
+| 148 | 8 | checksum: with these 8 bytes set to spaces, the sum of all 512 bytes as unsigned values, written as 6 octal digits, then `"\0 "` |
+| 156 | 1 | `"0"` (regular file) |
+| 257 | 6 | `"ustar\0"` |
+| 263 | 2 | `"00"` |
+
+Entry names: `bitgraph-fuse/manifest.json` and `bitgraph-fuse/original`. `pad(n)` is `(512 - n mod 512) mod 512` zero bytes. An entry is at most 8,589,934,591 bytes.
+
+### 7.4 container/1 and container/2
+
+```
+container/1 = hdr(manifest, 250) || manifest || pad(250) || hdr(original, n) || original || pad(n) || 0x00 * 1024
+container/2 = hdr(original, n) || original || pad(n) || hdr(manifest, 250) || manifest || pad(250) || 0x00 * 1024
+```
+
+Both are plain ustar archives any tar tool can list. To locate: parse exactly two entries with these names in this order, parse the manifest strictly (exact keys, lowercase hex, equal to its own canonical rebuild), and require the whole archive to equal its rebuild from (original, manifest) byte for byte.
+
+**Vectors.** Original `"hello"`, commitment `0x11`*32: trailer/1 SHA-256 `8dccc9720e90b1b10bb2b7332f462d0482ff64af0c27f2ff71a48b66c0329d6c`; container/1 (3,072 bytes) `d841f147cb3dcabc938bc5abb9f651d530eb6ee620ec560787adc847e784d6d6`; container/2 (3,072 bytes) `9fe94c83852be05d8817e7f86302b1b96876400a3028fbbd6203a03419587843`.
+
+### 7.5 Which placement producers choose
+
+trailer/1 when the file starts with a JPEG (`FF D8 FF`), PNG (`89 50 4E 47 0D 0A 1A 0A`), GIF (`47 49 46 38`), TIFF (`49 49 2A 00` or `4D 4D 00 2A`), BMP (`42 4D`, at least 14 bytes) or RIFF (`52 49 46 46`, at least 12 bytes) signature; container/2 for everything else. Files over 268,435,456 bytes (256 MiB) are recorded as they are (section 8.1, code 0x00). New BitGraphs never use container/1; verifiers MUST still accept it.
+
+---
+
+## 8. tree/1: the BitGraph format
+
+Every new BitGraph is a Merkle tree of files under one position. A single file is a tree of one.
+
+### 8.1 Leaves
+
+```
+leaf = placement (1 byte) || artifact (32 bytes) || origin (32 bytes)          65 bytes
+  artifact = SHA-256 of the committed bytes
+  origin   = SHA-256 of the file as it was handed in
+```
+
+| Code | Placement | Committed bytes |
+|---|---|---|
+| `0x00` | as is | the file itself; `artifact` MUST equal `origin` |
+| `0x01` | trailer/1 | section 7.1 |
+| `0x02` | container/1 | section 7.4 |
+| `0x03` | container/2 | section 7.4 |
+
+Any other code is invalid. Leaves are listed in strictly ascending byte order of `artifact`, with no two leaves sharing an `artifact`. The same original may appear under two placements (two leaves, two artifacts).
+
+### 8.2 The tree
+
+RFC 6962 hashing:
+
+```
+leafHash(leaf) = SHA-256(0x00 || leaf)
+node(L, R)     = SHA-256(0x01 || L || R)
+MTH([h])       = h
+MTH(h[0..n))   = node(MTH(h[0..k)), MTH(h[k..n)))   with k the largest power of two strictly below n
+```
+
+A member's **path** is the list of sibling subtree hashes from the leaf level up (RFC 6962 PATH). To verify a path for leaf hash `r` at `index` in a tree of `size` leaves (RFC 9162 section 2.1.3.2):
+
+```
+fail unless 0 <= index < size
+fn = index; sn = size - 1
+for p in path:
+    fail if sn == 0
+    if fn is odd or fn == sn:
+        r = node(p, r)
+        if fn is even: while fn is even and fn != 0: fn >>= 1; sn >>= 1
+    else:
+        r = node(r, p)
+    fn >>= 1; sn >>= 1
+fail unless sn == 0
+the result is r
+```
+
+### 8.3 The root document
+
+```
+rootDocument = UTF-8("bitgraph-tree/1") || 0x00 || u32be(count) || root (32) || commitment (32)     84 bytes
+proof.artifact.digestB64 = B64(SHA-256(rootDocument))
+```
+
+`count` is the number of leaves, from 1 to 1,000,000. `commitment` is commitment/2 (section 6) for this proof's position and floor block. Because the root document's hash is the signed artifact digest, the count, the root and the commitment are all signed.
+
+The proof carries the root document, unsigned, as `proof.metadata["bitgraph-tree/1"] = hex(rootDocument)`. A verifier MUST accept it from there or from an export, and in either case MUST check that it hashes to the signed digest before reading it.
+
+### 8.4 The signed marker
+
+```
+attribution = { "name": "bitgraph-fuse/2", "title": "tree/1", "message": B64(SHA-256(SPEC.md)) }
+```
+
+The title selects these rules. The name MUST be `bitgraph-fuse/2`: tree/1 always binds the floor block. The message pins the version of this document the proof follows, and is signed by the enclave like everything in the attribution. A verifier MUST know the spec hash (it keeps a list of every version it supports); an unknown hash is a refusal, not a pass.
+
+### 8.5 A member's evidence, and the owner's list
+
+```
+member evidence (JSON) = { "index": integer, "count": integer, "leaf": hex(65 bytes), "path": [hex(32 bytes), ...] }
+owner's list           = every leaf, in tree order, concatenated (count x 65 bytes)
+```
+
+The member evidence MUST have exactly these four keys, `0 <= index < count`, `count` equal to the root document's, a valid leaf, and 32-byte path nodes in lowercase hex. The owner's list needs no paths: the root and every path rebuild from it. File names, when kept, live beside the list, unsigned, and are never part of the tree.
+
+### 8.6 Verifying a member
+
+Given a proof, its root document, a member's evidence and a file:
+
+1. Check the proof (sections 3 to 5).
+2. Check the marker (section 8.4) and recompute commitment/2 (section 6).
+3. Check the root document: 84 bytes, the domain, `1 <= count <= 1,000,000`, SHA-256 equal to the signed digest, and its commitment equal to the recomputed one.
+4. Check the evidence (section 8.5) and that its leaf and path reach the root document's root (section 8.2).
+5. Match the file to the leaf, with `d = SHA-256(file)`:
+   - code `0x00` and `d == artifact`: **member, as is**. The file existed by the commit; nothing bounds it from below.
+   - `d == origin` (codes `0x01` to `0x03`): rebuild the committed bytes with the placement and the commitment; their SHA-256 MUST equal `artifact`. **Member, from its original.**
+   - `d == artifact` (codes `0x01` to `0x03`): locate the commitment in the file by the placement; it MUST equal the recomputed commitment, and any origin the bytes carry MUST equal the leaf's `origin`. **Member, committed bytes.**
+   - otherwise the file is not this member.
+
+What each result establishes:
+
+- **The floor covers the committed bytes only.** For codes `0x01` to `0x03`, the committed bytes were finished after the floor block. The original inside them has no floor of its own and could be years older. For code `0x00`, the file has no floor at all.
+- **A path proves one leaf.** A member's evidence cannot show that the rest of the list is sorted or free of duplicates; only a check of the owner's whole list (sorted, unique, rebuilding the root) establishes that, and a member check MUST NOT claim it.
+- **One list, one root.** One fixed list of leaves has exactly one root. The same originals under different placements or commitments give different leaves and a different root.
+
+### 8.7 Verifying the owner's list
+
+The list MUST be a whole number of valid 65-byte leaves, exactly `count` of them, strictly ascending by `artifact` with no duplicate, and MUST rebuild the root document's root.
+
+---
+
+## 9. The floor (Ethereum)
+
+`commit.slotAnchor = {counter, blockNumber, blockHash}` is the newest Ethereum block the enclave had recorded when it issued the slot, fixed at allocation and signed at commit. Its block is the floor.
+
+To read the floor's time offline, an export carries the floor block's header (RLP). A verifier MUST check `keccak256(header) == slotAnchor.blockHash` and that the header's number equals `slotAnchor.blockNumber`, then read the timestamp from the header.
+
+**Header decoding.** The header is an RLP list (strict RLP: canonical lengths, no trailing bytes) of at least 15 items. The fields used are `parentHash` = item 0, `stateRoot` = item 3, `transactionsRoot` = item 4, `number` = item 8 and `timestamp` = item 11, the last two as unsigned big-endian integers with no leading zero byte. Later forks append fields; any count of at least 15 is accepted, because the hash covers every byte.
+
+Whether the floor block is canonical is the reader's lookup (section 1).
+
+---
+
+## 10. The ceiling on Base, `bitgraph-ceiling/1`
+
+After each commit, a separate writer (not the enclave) batches new records, builds an RFC 6962 tree over their proofHash values, and sends the root to Base in a transaction to itself. The writer's one power is delay: a proofHash does not exist before its commit, so a ceiling can be late but never early.
+
+### 10.1 The sidecar
+
+```
+{ "version": "bitgraph-ceiling/1",
+  "proofHash": B64, "leafIndex": n, "leafCount": n, "merklePath": ["0x"+hex, ...], "root": "0x"+hex,
+  "anchor": null | { "chainId": 8453, "writer": address, "txHash", "rawTx", "payload",
+                     "blockNumber", "blockHash", "blockTimestamp", "blockHeader", "txIndex", "txInclusionProof": [...] },
+  "status": "pending" | "included" | "safe" | "finalized",
+  "statusObserved": {...}, "floor"?: {...}, "settlement"?: ... }
+```
+
+`status`, `statusObserved`, `anchor.writer` and everything in `floor` except its header are the writer's own notes: unverified, and never a basis for a claim.
+
+### 10.2 Checks
+
+1. `computeProofHash(proof)` (section 3.5) equals `proofHash`.
+2. The leaf `SHA-256(0x00 || B64dec(proofHash))` with `leafIndex`, `leafCount` and `merklePath` reaches `root` (section 8.2).
+3. `anchor` is not null (null means pending).
+4. The payload is 84 bytes:
+
+   | Offset | Length | Field |
+   |---|---|---|
+   | 0 | 4 | `"BGC1"` |
+   | 4 | 32 | root |
+   | 36 | 32 | prev: SHA-256 of the writer's previous payload (zeros for the first) |
+   | 68 | 8 | first position, u64be |
+   | 76 | 8 | last position, u64be |
+
+   Its root MUST equal the sidecar's root. `prev`, first and last are the writer's chain and are not otherwise checked.
+5. `rawTx` is an EIP-1559 transaction: `0x02 || RLP([chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, to, value, data, accessList, yParity, r, s])`. Its sender is recovered with secp256k1 from `keccak256(0x02 || RLP(first nine fields))`, `r`, `s` (low s) and `yParity`, as `keccak256(uncompressed public key without its 0x04 prefix)[12..32]`. The sender and `to` MUST both equal the writer address the verifier pins (section 16), `chainId` MUST be 8453, `data` MUST equal the payload, and `keccak256(rawTx)` MUST equal `txHash`.
+6. `keccak256(blockHeader) == blockHash`, and the header's number and timestamp equal `blockNumber` and `blockTimestamp` (section 9 decoding).
+7. The transaction is in the block: the Merkle-Patricia proof (section 10.3) for key `RLP(txIndex)` under the header's `transactionsRoot` returns exactly `rawTx`. `txIndex` counts every transaction in the block, deposits included.
+
+The ceiling's time is the Base header's timestamp. It is provisional until block B is checked against Base (section 1); the Ethereum ceiling (section 11) does not depend on that check.
+
+### 10.3 Merkle-Patricia inclusion proofs
+
+```
+key nibbles = the key's bytes, high nibble first
+want = root; depth = 0; i = 0
+loop:
+    if want is 32 bytes: node = proof[i]; i += 1; require keccak256(node) == want
+    else:                node = want                          (an inline child, under 32 bytes)
+    decode node as an RLP list
+    17 items (branch): if depth == key length: return item 16 (must be non-empty)
+                       child = item[nibble[depth]]; depth += 1; empty child means absent
+                       want = child if it is bytes, else RLP(child)
+    2 items:           decode item 0 by hex-prefix: flag = first nibble (0..3); leaf if flag >= 2;
+                       odd if flag is odd (the path starts after the flag), else skip the flag and a zero nibble
+                       the path segment MUST match the key's next nibbles; depth += its length
+                       leaf: depth MUST equal the key length; return item 1
+                       extension: want = item 1 if bytes, else RLP(item 1)
+    otherwise: fail
+```
+
+`RLP(i)` for a transaction index is the RLP of i's minimal big-endian bytes: 0 is `0x80`, 1 to 127 is the byte itself, 128 to 255 is `0x81 xx`, and so on.
+
+---
+
+## 11. Settlement on Ethereum
+
+### 11.1 `bitgraph-output-root/1` (current)
+
+Base posts an **output root** for one of its blocks P to Ethereum about every 600 Base blocks, as the `rootClaim` of a dispute game (factory `0x43edb88c4b80fdd2adff2412a7bebf9df42cb40e` on Ethereum mainnet):
+
+```
+outputRoot = keccak256(version (32 zero bytes) || stateRoot_P || messagePasserStorageRoot_P || blockHash_P)
+```
+
+Base runs the EIP-2935 history contract (`0x0000f90827f1c53a10cb7a02335b175320002935`), which keeps the hashes of the previous 8,191 blocks in its storage. So the hash of the ceiling's block B is provable from P's state when `1 <= P - B <= 8191`, and when `B = P` the output root names it directly.
+
+```
+{ "version": "bitgraph-output-root/1",
+  "base": { "chainId": 8453, "blockNumber": B, "blockHash": "0x..." },
+  "outputRoot": { "blockNumber": P, "version": "0x00..00", "stateRoot", "messagePasserStorageRoot", "blockHash" },
+  "history": null | { "address": "0x0000f908...2935", "slot": "0x"+64 hex, "accountProof": [...], "storageProof": [...] },
+  "ethereum": { "chainId": 1, "blockNumber": H, "blockHash", "blockTimestamp", "header", "txHash", "txIndex", "rawTx", "txInclusionProof": [...] },
+  "game"?: { informational, never checked } }
+```
+
+Checks, in order:
+
+1. `version` (the output-root field) is 32 zero bytes. Compute `outputRoot`.
+2. **B = P:** `history` MUST be null and `outputRoot.blockHash` MUST equal `base.blockHash`.
+   **B < P:** `1 <= P - B <= 8191`; `history.address` is the EIP-2935 contract; `history.slot` is `u256be(B mod 8191)`; the account proof (section 10.3, key `keccak256(address)`) under `stateRoot_P` returns the account `RLP([nonce, balance, storageRoot, codeHash])`; the storage proof under that `storageRoot` with key `keccak256(slot)` returns `RLP(value)`, and `value`, left-padded to 32 bytes, equals `base.blockHash`.
+3. `keccak256(ethereum.header) == ethereum.blockHash`, and its number and timestamp equal the stated ones.
+4. `keccak256(rawTx) == txHash`, and the Merkle-Patricia proof for key `RLP(txIndex)` under the header's `transactionsRoot` returns exactly `rawTx`.
+5. The bytes of `rawTx` contain the 32 bytes of `outputRoot`.
+6. `base.blockNumber` and `base.blockHash` equal the ceiling's block (section 10).
+
+**What it proves.** The output root is a hash of a preimage that contains P's state root, which commits to B's hash, which commits to B's header, which contains the ceiling transaction, which carries the root over the record. An Ethereum transaction that contains the output root therefore proves the record existed by Ethereum block H, whoever sent it and whether or not Base's claim is ever upheld. The sender and the game's outcome are deliberately not checked. What it does not prove: that B is canonical on Base, or B's timestamp.
+
+**Timing.** Base posts a claim about 40 minutes after its block P, so this settlement lands about an hour after the commit. An export made sooner carries `{"status":"pending"}` (section 12).
+
+**Vector.** `spec/vectors/output-root-1.json`: a BitGraph ceiling transaction in Base block 52,107,106, settled through game 23386 (P = 52,109,160) whose claim is in Ethereum block 26,110,095.
+
+### 11.2 `bitgraph-settlement/1` (blob data, earlier)
+
+Earlier ceilings were settled by pointing to the Ethereum blob transaction that carried Base's batch data. A verifier SHOULD support it for those proofs:
+
+- The pointer gives the Ethereum block (header, transaction, inclusion proof) and the blob versioned hashes. The transaction MUST be a type-3 transaction from Base's batcher `0x5050f69a9786f081509234f1a7f4684b5e5b76c9` to its inbox `0xff00000000000000000000000000000000008453`, and each listed versioned hash MUST be in it and equal `0x01 || SHA-256(kzgCommitment)[1..32]`.
+- To go further, the blob bytes (131,072 bytes each; Ethereum keeps them about 18 days, so they must be archived) are checked against their KZG commitments with the EIP-4844 trusted setup, decoded per the OP Stack blob encoding (version 0), split into frames, assembled into a channel, decompressed (brotli or zlib), and read as batches until the ceiling transaction is found in Base block B.
+
+This path needs the KZG trusted setup and archived blob bytes. tree/1 exports use section 11.1 instead.
+
+---
+
+## 12. The export, `bitgraph-export/1`
+
+One JSON file which, with the file it is about, lets anyone check a tree/1 BitGraph.
+
+```
+{ "format": "bitgraph-export/1",
+  "spec": B64(SHA-256(SPEC.md)),                         informational; the signed attribution.message decides
+  "proof": the signed proof,
+  "tree": { "rootDocument": hex(84 bytes),
+            "member": member evidence                      one file's export
+         or "leaves": B64(count x 65 bytes), "names"?: [...] },   the owner's export
+  "floor": { "blockNumber", "blockHash", "header" } | null,
+  "ceiling": bitgraph-ceiling/1 sidecar | { "status": "pending" } | null,
+  "settlement": bitgraph-output-root/1 | { "status": "pending", "baseBlock"?: B } | null }
+```
+
+`SPEC.md` (this file, byte for byte) travels beside the export. Copies are kept where BitGraph does not control them, so the text outlives BitGraph; its hash in the signed proof says which text applies.
+
+**Pending and completion.** An export made right after the commit has a pending ceiling (minutes) and a pending settlement (about an hour). Pending sections are reported as not carried, never as failures. Completing an export means filling those sections later, from public chain data or from any copy of the writer's published evidence, and writing a new export; nothing already in the export changes meaning.
+
+**What an export does not contain.** No copy of the file: the file travels separately, and the committed bytes rebuild from it. No anchors and no blob bytes: a tree/1 proof signs its floor, and its settlement uses section 11.1.
+
+### 12.1 Verification
+
+A verifier reports one result per claim (TRUE, FALSE, UNDETERMINED, or NOT_CARRIED), each saying what it rests on:
+
+| Claim | Check |
+|---|---|
+| format | the document is export/1 |
+| proof.signature | sections 3 and 4 |
+| attestation.* | section 5: signature, chain, root, validity at the document's instant, PCR0, binding |
+| attestation.pins | PCR0 against the verifier's own list; UNDETERMINED without a list |
+| spec.pin | section 8.4 |
+| tree.root | section 8.6 step 3 |
+| tree.member / tree.leaves | section 8.5 or 8.7 |
+| bytes.member | section 8.6 step 5 (NOT_CARRIED without the file) |
+| floor.header | section 9 |
+| ceiling.base | section 10 |
+| ceiling.ethereum | section 11.1 |
+| confirmed.* | the reader's own lookups of the floor block, the Base block and Ethereum block H |
+
+The verdict is FALSE if any offline claim is FALSE; UNDETERMINED if any offline claim other than attestation.pins is UNDETERMINED; otherwise TRUE. The three time claims are always stated separately; the Base time is labelled provisional until `confirmed.ceiling.base` is TRUE.
+
+---
+
+## 13. Recovery entries
+
+Recovery is a convenience BitGraph runs, not part of verification: if an export is lost, anyone holding the file can get its proof back. It uses BitGraph's storage; checking an export does not.
+
+For each member of a tree, up to two entries: one for the `origin` digest and one for the `artifact` digest (one entry when they are equal, code `0x00`). With `d` the raw 32-byte digest, `proofHash32` the raw 32 bytes of the tree proof's proofHash, and `leafIndex` the member's index:
+
+```
+address  = hex(SHA-256(UTF-8("bitgraph-lookup") || d))
+entryId  = hex(SHA-256(UTF-8("bitgraph-lookup-entry") || d || proofHash32 || u32be(leafIndex)))
+key      = SHA-256(UTF-8("bitgraph-lookup-key") || d)                       (an AES-256 key)
+objectKey = "recovery/v1/" + address + "/" + entryId
+envelope = 0x01 || nonce (12 random bytes, fresh for every entry) || AES-256-GCM ciphertext || tag (16)
+           with additional authenticated data = UTF-8(objectKey)
+plaintext = UTF-8 JSON { "format": "bitgraph-recovery/1", "proofHash": B64, "leafIndex": n,
+                         "rootDocument": hex, "member": member evidence,
+                         "proof": { "epochId", "counter", "artifactDigestB64" }, "name"?: string }
+```
+
+- **One entry per member of each recording.** Recording a file twice, or listing the same original twice in one tree under two placements, gives distinct entryIds under one address; recovery lists the address and returns them all. entryId shares nothing across a batch, so listing storage does not link the members of one tree.
+- **Create-only writes.** An entry is written only if absent. When storage reports that it already exists, the writer counts it as written only after reading it back, decrypting it, and finding the same proofHash and leafIndex. A conflicting concurrent write is retried. Storage MUST refuse deletes under `recovery/`, so a delete can never let a second version in.
+- **Never in the way of the proof.** The proof is delivered first; entries are written afterwards, retried, and saved across browser restarts. A file is shown as recoverable only after its writes land.
+- **Privacy.** The address and the key derive from the digest, so anyone who knows a file's digest (holding the file, a published digest, or guessing among a few likely files) can find and read its entries. That is the same ability recovery needs, and it is all an entry gives away: without the digest, an entry is opaque, and a member's entry holds its own path, never the rest of its batch. This covers these sealed entries only, not older indexes.
+- **Opting out.** A tree may be marked "keep no recovery copy"; then no entry is written, and a lost export cannot be recovered.
+
+---
+
+## 14. Anchors (earlier floor and ceiling evidence)
+
+An **anchor** is an ordinary proof that records an Ethereum block hash on the user chain. Proofs from before the floor was signed into the commit, and before Base ceilings existed (2026-09-29 22:43 UTC), rely on anchors.
+
+- **Identification.** A proof is an authenticated anchor when `commit.anchor = {blockNumber, blockHash}` is present (enclave v7 and later); before that, when its signed `attribution.name` is `"Ethereum Anchor"` (reserved). The anchored artifact is `SHA-256(UTF-8(blockHash as lowercase "0x" hex text))`.
+- **Witness.** `{"version":"bitgraph-anchor-witness/1","headerRlpHex","blockNumber","blockHash","network"?}`; `keccak256(header) == blockHash`, and item 8 is the block number, item 11 the time.
+- **Floor by anchor** (proofs without a signed `slotAnchor`): the latest anchor on the same chain, epoch and key with a lower counter.
+- **Ceiling in position:** an anchor on the same chain, epoch and key with a higher counter than the commit proves the commit preceded that anchor's recording. It is an order, not a clock time, and rests on the enclave's counter (PCR0).
+
+---
+
+## 15. Earlier formats
+
+Verifiers SHOULD support every earlier format, so every proof ever issued keeps verifying.
+
+### 15.1 Plain recordings
+
+No fused marker in the signed attribution. The file's SHA-256 equals `artifact.digestB64`. The bytes existed by the commit; nothing bounds them from below.
+
+### 15.2 A single fused file
+
+Signed attribution `{name: "bitgraph-fuse/1" or "/2", title: placement id, message: B64(SHA-256(original))}`. The artifact digest is the SHA-256 of the committed bytes (section 7). A file matching the digest is checked by locating the commitment; a file matching the origin is rebuilt with the placement and must reproduce the digest.
+
+- **Carried inline** (title `"base64url"`): the artifact was made with the commitment inside it, as the B64URL text of the 32 commitment bytes (43 characters). Check that the file's SHA-256 is the digest and that it contains that text.
+- **Produced** (title `"produced/1"`): the artifact is the canonical manifest of section 7.2 itself (with or without `origin`).
+
+### 15.3 set/1
+
+The artifact digest is the SHA-256 of a canonical manifest:
+`{"members":[ROW,...],"placement":"set/1","slotCommitment":{digest field},"type":"bitgraph-fuse/1"}` with each `ROW = {"artifact":{digest},"origin":{digest},"placement":"<id>"}`, rows strictly ascending by artifact hex, no duplicate artifacts, at most 2,000 rows. It rides in `proof.metadata["bitgraph-fuse/1"]`; it MUST hash to the signed digest and carry the recomputed commitment.
+
+### 15.4 set/2
+
+The artifact digest is the SHA-256 of `{"count":N,"placement":"set/2","root":{digest},"slotCommitment":{digest},"type":"bitgraph-fuse/1"}`. The tree is section 8.2 over leaves `SHA-256(0x00 || canonicalize(ROW))`, rows sorted as in set/1. A member's evidence is `{"count","index","member":ROW,"path":[hex],"placement":"set/2","type":"bitgraph-fuse/1"}`.
+
+### 15.5 BitGraphed files (carriers)
+
+```
+file = committed bytes || "BGPROOF\x01" || u32be(L) || payload (L bytes, UTF-8 JSON) || u32be(L) || "BGPROOF\x01"
+```
+
+The magic is `42 47 50 52 4f 4f 46 01`; L is at most 8,388,608. The payload names `bitgraph-carrier/1` or `/2` and carries the proof, the floor anchor and witness, the ceiling in position, and for version 2 the Base ceiling sidecar, a settlement pointer, declared pins and an attestation witness. The committed bytes are everything before the block, and their SHA-256 is the proof's digest; the file's own hash is committed nowhere.
+
+### 15.6 Agency and policy
+
+`agency.actor` (an ES256 key, its key id `hex(SHA-256(SPKI))` and provider) is signed as `actor`; `agency.authorization` is a P-256 signature (direct, or WebAuthn with user presence and verification) over the artifact digest, checked against the actor key. `policy` is signed verbatim and carries a policy reference; its contents are not interpreted.
+
+---
+
+## 16. Constants
+
+| Name | Value |
+|---|---|
+| AWS Nitro Root CA G1, SHA-256 of DER | `641a0321a3e244efe456463195d606317ed7cdcc3c1756e09893f3c68f79bb5b` |
+| Base ceiling writer | `0xf3972408D853c975F86351C311f4310220bbF2a3` |
+| Base mainnet chain id | 8453 |
+| Ethereum mainnet chain id | 1 |
+| Base dispute game factory (Ethereum) | `0x43edb88c4b80fdd2adff2412a7bebf9df42cb40e` (OptimismPortal `0x49048044D57e1C92A77f79988d21Fa8fAF74E97e`) |
+| L2ToL1MessagePasser (Base) | `0x4200000000000000000000000000000000000016` |
+| EIP-2935 history contract | `0x0000f90827f1c53a10cb7a02335b175320002935`, window 8,191 blocks |
+| Base batcher / inbox (blob settlement) | `0x5050f69a9786f081509234f1a7f4684b5e5b76c9` / `0xff00000000000000000000000000000000008453` |
+| User chain name | `bitgraph:main` |
+| Anchor attribution name | `Ethereum Anchor` |
+
+Published enclave measurements (PCR0):
+
+| Version | From | PCR0 |
+|---|---|---|
+| genesis | 2026-05-15 | `8530a6399399c4f23d89f5a1faa2e8bf2e09a5959f117070fca08148377f92c902c695fc926c17f67f35f110327dca92` |
+| v2 | 2026-06-27 | `bb9dd158703603ec222fe565495ceaa7edc08f665da5c1cddad91442ac2211731390267036d79deb720d13fb704f648a` |
+| v4 | 2026-07-05 | `e2fccbae77ee40aac4830e84f195e05d69eb4547bbd961f4d3459feba10807140424aca42ad03810354982598c86b9cb` |
+| v5 | 2026-07-29 | `6483cedffed74680ffb287507744a398b288c3fb943eb3f2e4fe889f8b60b3d575ad8942350360b69a1bd7bf713df27f` |
+| v6 | 2026-09-05 | `cd8ba52d340fb1be78610b59953ded2ceca23be1cfcc7ab504a26b8fdcd7ba92090f49e28a32d008df046ec4212f77bf` |
+| v7 | 2026-09-06 | `394c3cf515651dc27187d85e4716c12dfeb99c1227f1fe0eacfaa427d80018e1a28ebba9469e99c7936601f901d74e1d` |
+| v8 | 2026-09-07 | `eccfc1c78006f4b74f929c992785575c908a0f60eca08ff638cd6c0842f993f182ebb002457b8ef3e732a6a10805c72b` |
+| v9 | 2026-09-30 | `934feb8bb6f4f7e2d2f85d902a7d5edd0981f706d9d2385638988ac096a05ea0583c3d00eef2a7947865ec66efc1fcf8` |
+
+Each measurement corresponds to a tagged source revision (`enclave-v9` for v9) and a reproducible build recipe; keeping that source available is what lets a reader learn what a PCR0 measures.
+
+---
+
+## 17. Behaviour of the reference implementation worth knowing
+
+These are properties of BitGraph's own verifier as of 2026-10-03. A second implementation should match the first group and be aware of the second.
+
+Match these:
+
+- Canonical JSON key order and number formatting are as in section 2, not RFC 8785.
+- Ed25519 follows ZIP-215 (section 3.3).
+- Attestation certificate validity is judged at the document's own timestamp (section 5.4).
+- The Base ceiling's `status`, `statusObserved`, `anchor.writer`, and the payload's `prev`, first and last positions are not verified.
+- A member's path does not establish the order or uniqueness of the other leaves (section 8.6).
+
+Be aware of these:
+
+- Counters are parsed leniently by the reference (section 4); a strict verifier may reject non-canonical decimal strings.
+- The reference accepts a set/2 root document whose stated count exceeds the real number of leaves for members that are present; tree/1 has the same property, and only an owner's-list check (section 8.7) catches it.
+- The enclave signs any artifact digest whose lenient base64 decode is 32 bytes, while the verifier requires canonical base64; a non-canonical digest fails verification.
+
+---
+
+## 18. Test vectors
+
+| File | Covers |
+|---|---|
+| `spec/vectors/tree-1.json` | a position record, commitment/2, five files across every placement code (including an empty file and one kept as is), their committed bytes, leaves, the tree, the root document and every member's evidence |
+| `spec/vectors/export-1.json` | a member's export and the owner's export, signed with a published test key (not a BitGraph), with the expected result of every offline claim |
+| `spec/vectors/output-root-1.json` | a real ceiling transaction settled on Ethereum through Base's output root, captured from the live chains |
+| `packages/verify/src/__tests__/fixtures/carrier2/` | production proof #4,546: its AWS attestation, its Base ceiling, and a commitment carried inline |
+
+`spec/tools/check.py` is the independent implementation that checks all of them.
