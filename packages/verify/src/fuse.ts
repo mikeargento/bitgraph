@@ -336,7 +336,9 @@ export function parseFusePayload(bytes: Uint8Array): { commitment: Uint8Array; o
 // ---------------------------------------------------------------------------
 
 const BLOCK = 512;
-const MAX_ENTRY = 0o77777777777; // 8 GiB - 1, the 11-digit octal size field
+/** The largest file a container placement can hold: 8 GiB - 1, the ustar header's 11-digit octal size field (SPEC 7.3). */
+export const MAX_CONTAINER_ENTRY_BYTES = 0o77777777777;
+const MAX_ENTRY = MAX_CONTAINER_ENTRY_BYTES;
 
 function octal(n: number, width: number): Uint8Array {
   const s = n.toString(8).padStart(width - 1, "0") + "\0";

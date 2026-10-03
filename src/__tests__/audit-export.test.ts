@@ -414,7 +414,8 @@ describe("audit: exports (bitgraph-export/1)", () => {
       "tree.root": "TRUE",
       "tree.member": "TRUE",
       "bytes.member": "TRUE",
-      "bytes.floor": "TRUE",
+      "floor.record": "TRUE",
+      "floor.content": "TRUE",
       "floor.header": "TRUE",
       "ceiling.base": "NOT_CARRIED",
       "ceiling.ethereum": "NOT_CARRIED",
@@ -428,7 +429,7 @@ describe("audit: exports (bitgraph-export/1)", () => {
     assert.equal(claimOf(e, run, "proof.signature")!.restsOn, "Ed25519");
     assert.deepEqual(e.failedClaims, ["attestation.signature"]);
     assert.equal(e.verdict, "FALSE");
-    assert.equal(run.floorCovers, "committed-bytes");
+    assert.equal(run.floorCovers, "content");
     assert.equal(run.member?.index, 0);
     assert.equal(run.member?.count, 1);
 
@@ -465,7 +466,7 @@ describe("audit: exports (bitgraph-export/1)", () => {
     assert.ok(md.includes("- Ceiling on Base: not established (`ceiling.base` NOT_CARRIED: ceiling pending"));
     assert.ok(md.includes("- Ceiling on Ethereum: not established (`ceiling.ethereum` NOT_CARRIED: settlement pending"));
     for (const c of exportRunClaims(e, run)) assert.ok(md.includes(`| \`${c.id}\` | ${c.result} | ${c.level} |`), `claim row ${c.id}`);
-    assert.ok(md.includes("The floor covers the committed bytes; an original inside them has no floor of its own."));
+    assert.ok(md.includes("Recorded after the floor block, and its committed bytes were finished after it; an original inside them is not dated by it."));
   });
 
   it("the same export with the committed bytes instead of the original", async () => {
@@ -477,7 +478,7 @@ describe("audit: exports (bitgraph-export/1)", () => {
     const run = e.runs[0]!;
     assert.equal(resultOf(e, run, "bytes.member"), "TRUE");
     assert.match(claimOf(e, run, "bytes.member")!.detail, /^TREE_MEMBER_DIRECT/);
-    assert.equal(run.floorCovers, "committed-bytes");
+    assert.equal(run.floorCovers, "content");
     assert.deepEqual(e.failedClaims, ["attestation.signature"]);
     assert.deepEqual(verifierPart(e, run), await direct(exp, m.committed));
   });
@@ -503,7 +504,7 @@ describe("audit: exports (bitgraph-export/1)", () => {
       assert.equal(resultOf(e, run, "tree.leaves"), "TRUE", m.name);
       assert.equal(resultOf(e, run, "tree.member"), "TRUE", m.name);
       assert.equal(resultOf(e, run, "bytes.member"), "TRUE", m.name);
-      assert.equal(run.floorCovers, m.code === LEAF_AS_IS ? "none" : "committed-bytes", m.name);
+      assert.equal(run.floorCovers, m.code === LEAF_AS_IS ? "record" : "content", m.name);
       // The list-derived run is the as-given run, claim for claim, in order.
       assert.deepEqual(verifierPart(e, run), await direct(exp, i % 2 === 0 ? m.original : m.committed), m.name);
     }
@@ -513,10 +514,11 @@ describe("audit: exports (bitgraph-export/1)", () => {
     // Stated once: what every run says alike. Per run: what is about its file, with its place in the list.
     assert.deepEqual(e.claims.map((c) => c.id), [
       "format", "proof.signature", "attestation.signature", "tree.leaves", "spec.pin", "tree.root",
-      "floor.header", "ceiling.base", "ceiling.ethereum", "confirmed.floor",
+      "floor.record", "floor.header", "ceiling.base", "ceiling.ethereum", "confirmed.floor",
     ]);
+    // The record floor is every member's and reads the same for each, so it is stated once; the content floor differs for the as-is file.
     for (const run of e.runs) {
-      assert.deepEqual(run.claims.map((c) => [c.id, c.position]), [["tree.member", 6], ["bytes.member", 7], ["bytes.floor", 8]]);
+      assert.deepEqual(run.claims.map((c) => [c.id, c.position]), [["tree.member", 6], ["bytes.member", 7], ["floor.content", 9]]);
     }
 
     const md = buildMarkdownReport(r);
@@ -524,7 +526,7 @@ describe("audit: exports (bitgraph-export/1)", () => {
     assert.ok(md.includes("Claims, the same in every run:"));
     assert.ok(md.includes("Claims that differ by file:"));
     assert.ok(md.includes("| `folder/e-as-is.bin` | `bytes.member` | TRUE |"));
-    assert.ok(md.includes("- `folder/e-as-is.bin`: FALSE. Recorded as is: the file existed by the commit, and nothing bounds it from below."));
+    assert.ok(md.includes("- `folder/e-as-is.bin`: FALSE. Recorded as is: recorded after the floor block; the bytes themselves are not dated."));
     assert.equal(buildJsonReport(r).summary.exports?.coveredFilesChecked, 5);
   });
 
@@ -621,7 +623,7 @@ describe("audit: exports (bitgraph-export/1)", () => {
     assert.equal(run.file, null);
     assert.equal(resultOf(alone, run, "tree.member"), "TRUE", "the path is checked without the file");
     assert.equal(resultOf(alone, run, "bytes.member"), "NOT_CARRIED");
-    assert.equal(resultOf(alone, run, "bytes.floor"), undefined);
+    assert.equal(resultOf(alone, run, "floor.record"), undefined);
     assert.equal(run.floorCovers, null);
     assert.deepEqual(verifierPart(alone, run), await direct(exp));
     // The same export with its file fails on exactly the same claims: the absence added none.

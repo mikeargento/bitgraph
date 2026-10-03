@@ -38,8 +38,8 @@ export function proofUrl(
  * One outcome per path, in the product's own vocabulary. "fused": the file is
  * a leaf of the tree just made, and its committed bytes (listed by digest in
  * its leaf) carry the position commitment. "recorded": the file is a leaf
- * recorded as is (over 256 MiB): its own digest is its leaf; it existed by
- * the commit, and nothing bounds it from below. "on record": the bytes
+ * recorded as is: its own digest is its leaf; recorded after the floor block,
+ * the bytes themselves are not dated. "on record": the bytes
  * already had a recording or a fused artifact naming them as origin, and
  * nothing was made. "not fused": the attempt failed or the file was left out;
  * never claim "on record" for bytes that have no proof. "carried": the file

@@ -52,7 +52,8 @@ test("the golden carrier/2 verifies TRUE offline, every carried claim TRUE, the 
   assert.equal(r.bounds?.notAfter?.blockNumber, 26088459);
   assert.equal(r.bounds?.existedBy?.blockNumber, 51979918);
   assert.equal(r.bounds?.existedBy?.timestamp, 1790749183);
-  assert.match(r.reading, /made after Ethereum block 26088457 \(2026-09-30T06:19:23Z\), and existed by Base block 51979918 \(2026-09-30T06:19:43Z\)/);
+  assert.match(r.reading, /Recorded after Ethereum block 26088457 \(2026-09-30T06:19:23Z\), and existed by Base block 51979918 \(2026-09-30T06:19:43Z\)/);
+  assert.match(r.reading, /^These exact bytes carry the commitment, so they were finished after (the floor block|their position was opened) \(the content floor\)\. Recorded after/);
   assert.match(r.reading, /Rests on: SHA-256, Ed25519, the AWS Nitro root \(641A0321…\), Ethereum block 26088457, Base block 51979918/);
 });
 

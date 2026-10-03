@@ -28,11 +28,12 @@ Three time claims, never merged:
 
 | Claim | Statement | Rests on |
 |---|---|---|
-| Floor | The committed bytes were finished after Ethereum block N. | Hashes only, plus N being a real Ethereum block. |
+| Record floor | The record was made after Ethereum block N. | The enclave fixed N when the position opened and signed the root document after it, and the root document carries the commitment to N; so every leaf, as-is leaves included, inherits it. Rests on the signature and the attestation, plus N being a real Ethereum block. |
+| Content floor | These committed bytes were finished after Ethereum block N. | The commitment is inside the bytes. Placed leaves only (codes 0x01 to 0x03): an as-is leaf has none, and no leaf construction can give it one. Rests on hashes alone, plus N. |
 | Base ceiling | The record existed by Base block B, at B's timestamp. | A Base transaction carrying a Merkle root over the record, plus B being a real Base block. Until B is checked against Base, its time is provisional, and a stamp earlier than the floor block or the attestation document is never used as a bound (section 10.4). |
 | Ethereum ceiling | The record existed by Ethereum block H. | Base's output root on Ethereum committing to B, plus H being a real Ethereum block. Base's honesty is not needed. |
 
-What a BitGraph does not claim: when content was first created, who made it, who owns it, or whether what it shows is true. It dates one exact version of the bytes.
+What a BitGraph does not claim: when content was first created, who made it, who owns it, or whether what it shows is true. The floor dates the recording of the committed bytes, not the content inside them: a file fused years after it was made has a floor on the day it was fused, and only bytes fused at the moment of their creation have a floor equal to it. For an as-is leaf the floor dates the record alone: recorded after block N; the bytes themselves are not dated.
 
 A reader makes these trust decisions, and no others:
 
@@ -322,7 +323,7 @@ leaf = placement (1 byte) || artifact (32 bytes) || origin (32 bytes)          6
 
 | Code | Placement | Committed bytes |
 |---|---|---|
-| `0x00` | as is | the file itself; `artifact` MUST equal `origin` |
+| `0x00` | as is | the file itself; `artifact` MUST equal `origin`. The user's choice, never a producer's default: recorded after the floor block, the bytes themselves are not dated |
 | `0x01` | trailer/1 | section 7.1 |
 | `0x02` | container/1 | section 7.4 |
 | `0x03` | container/2 | section 7.4 |
@@ -401,7 +402,7 @@ Given a proof, its root document, a member's evidence and a file:
 
 What each result establishes:
 
-- **The floor covers the committed bytes only.** For codes `0x01` to `0x03`, the committed bytes were finished after the floor block. The original inside them has no floor of its own and could be years older. For code `0x00`, the file has no floor at all.
+- **Two floors.** Every member has the record floor: the root document, and so every leaf, was signed after the floor block. A placed member (codes `0x01` to `0x03`) also has the content floor: its committed bytes carry the commitment, so they were finished after that block. The original inside them, and an as-is file (code `0x00`), carry no commitment and have no content floor; their bytes could be years older. A verifier MUST state the two apart, and for an as-is member MUST say: recorded after block N; the bytes themselves are not dated.
 - **A path proves one leaf.** A member's evidence cannot show that the rest of the list is sorted or free of duplicates; only a check of the owner's whole list (sorted, unique, rebuilding the root) establishes that, and a member check MUST NOT claim it.
 - **One list, one root.** One fixed list of leaves has exactly one root. The same originals under different placements or commitments give different leaves and a different root.
 
@@ -581,6 +582,8 @@ A verifier reports one result per claim (TRUE, FALSE, UNDETERMINED, or NOT_CARRI
 | tree.root | section 8.6 step 3 |
 | tree.member / tree.leaves | section 8.5 or 8.7 |
 | bytes.member | section 8.6 step 5 (NOT_CARRIED without the file) |
+| floor.record | section 8.6: the record was made after the signed floor block (every member) |
+| floor.content | section 8.6: the committed bytes were finished after the floor block; NOT_CARRIED for an as-is member, whose bytes are not dated |
 | floor.header | section 9 |
 | ceiling.base | section 10 (its time used only as section 10.4 allows) |
 | ceiling.ethereum | section 11.1 |
@@ -647,7 +650,7 @@ Verifiers SHOULD support every earlier format, so every proof ever issued keeps 
 
 ### 15.1 Plain recordings
 
-No fused marker in the signed attribution. The file's SHA-256 equals `artifact.digestB64`. The bytes existed by the commit; nothing bounds them from below.
+No fused marker in the signed attribution. The file's SHA-256 equals `artifact.digestB64`. The record was made after the signed floor block when the proof carries one (`commit.slotAnchor`); the bytes carry no commitment, so the bytes themselves are not dated.
 
 ### 15.2 A single fused file
 

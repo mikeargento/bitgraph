@@ -513,9 +513,9 @@ def check_tree_member(p, root_doc: bytes, ev, file_bytes):
     code, artifact, origin = leaf[0], leaf[1:33], leaf[33:65]
     d = sha256(file_bytes)
     if code == 0 and d == artifact:
-        return "TREE_MEMBER_AS_IS", "none"
+        return "TREE_MEMBER_AS_IS", "record"
     if d == origin and code != 0:
-        return ("TREE_MEMBER_FROM_ORIGIN", "committed-bytes") if sha256(place(code, file_bytes, c)) == artifact else ("RECONSTRUCTION_MISMATCH", None)
+        return ("TREE_MEMBER_FROM_ORIGIN", "content") if sha256(place(code, file_bytes, c)) == artifact else ("RECONSTRUCTION_MISMATCH", None)
     if d == artifact:
         # Committed bytes in hand: strip the placement back to the original and rebuild.
         if code == 0x01:
@@ -526,7 +526,7 @@ def check_tree_member(p, root_doc: bytes, ev, file_bytes):
                 if cand[0] == "bitgraph-fuse/original":
                     orig = cand[1]
         if orig is not None and place(code, orig, c) == file_bytes and sha256(orig) == origin:
-            return "TREE_MEMBER_DIRECT", "committed-bytes"
+            return "TREE_MEMBER_DIRECT", "content"
         return "INVALID_SLOT_COMMITMENT", None
     return "NO_MATCH", None
 
@@ -865,7 +865,7 @@ def main():
     expect("export: proofHash", base64.b64encode(proof_hash(p)).decode(), e["proofHashB64"])
     expect("export: proof and position record", check_proof(p), None)
     file_bytes = hx(e["memberFileHex"])
-    expect("export: member from its original", check_tree_member(p, hx(me["tree"]["rootDocument"]), me["tree"]["member"], file_bytes), ("TREE_MEMBER_FROM_ORIGIN", "committed-bytes"))
+    expect("export: member from its original", check_tree_member(p, hx(me["tree"]["rootDocument"]), me["tree"]["member"], file_bytes), ("TREE_MEMBER_FROM_ORIGIN", "content"))
     hd = decode_header(hx(me["floor"]["header"]))
     expect("export: floor header is the signed floor block", ("0x" + hd["hash"].hex(), hd["number"]), (p["commit"]["slotAnchor"]["blockHash"], p["commit"]["slotAnchor"]["blockNumber"]))
     tampered = bytearray(file_bytes + b"x")

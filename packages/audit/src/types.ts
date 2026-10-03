@@ -1525,13 +1525,14 @@ export interface ExportRun {
   /** The member the run established (index, count, placement, digests), when it did. */
   member: { index: number; count: number; placement: string; artifactHex: string; originHex: string } | null;
   /**
-   * What the floor covers for this run's file, read from its claims:
-   * committed-bytes (the committed bytes were finished after the floor block;
-   * an original inside them has no floor of its own), none (an as-is leaf: the
-   * file existed by the commit, nothing bounds it from below), or null (the
-   * file was not established as a member, or no file was checked).
+   * What the floor covers for this run's file, read from its claims: content
+   * (the committed bytes carry the commitment, so they were finished after the
+   * floor block; an original inside them is not dated by it), record (an as-is
+   * leaf: the record was made after the floor block, the bytes themselves are
+   * not dated), or null (the file was not established as a member, or no file
+   * was checked).
    */
-  floorCovers: "committed-bytes" | "none" | null;
+  floorCovers: "content" | "record" | null;
   /** verifyExport's plain-language reading, written from its claims. */
   reading: string;
 }

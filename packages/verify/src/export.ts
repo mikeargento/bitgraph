@@ -114,7 +114,7 @@ export interface ExportVerifyResult {
   claims: ExportClaim[];
   /** The member the file matched (or the export's own member), when one did. */
   member: TreeVerifyResult["member"];
-  /** What the floor covers for the file in hand: "committed-bytes" (placements 0x01-0x03), "none" (as is), or null when no file was matched. */
+  /** What the floor covers for the file in hand: "content" (placements 0x01-0x03: the committed bytes), "record" (as is: the record only), or null when no file was matched. */
   floorCovers: TreeVerifyResult["floorCovers"];
   /** The three time claims, as established. Null fields were not established. */
   times: {
@@ -317,8 +317,20 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     add("bytes.member", "The file in hand is that member", isMember ? "TRUE" : tr.member !== null ? "FALSE" : "UNDETERMINED", tr.category === "TREE_MEMBER_FROM_ORIGIN" ? "the placement rule, rebuilt here" : "SHA-256",
       `${tr.category}: ${tr.reason}`);
     if (isMember) {
-      add("bytes.floor", "What the floor covers for this file", "TRUE", "",
-        tr.floorCovers === "none" ? "recorded as is: the file existed by the commit; nothing bounds it from below" : "the committed bytes were finished after the floor block; the original inside them has no floor of its own");
+      // Two floors, stated apart (SPEC 8.6). The record floor is every member's:
+      // the root document was signed after the floor block. The content floor
+      // is a placed member's: its committed bytes carry the commitment.
+      const n = proof.commit?.slotAnchor?.blockNumber;
+      const block = typeof n === "number" ? `Ethereum block ${n}` : "the signed floor block";
+      add("floor.record", "The record was made after the floor block", "TRUE", "the signed root document, which carries the commitment to the floor block",
+        `recorded after ${block}: the tree this file is a leaf of was signed after it`);
+      if (tr.floorCovers === "content") {
+        add("floor.content", "The committed bytes were finished after the floor block", "TRUE", "SHA-256: the commitment is inside the committed bytes",
+          `the committed bytes carry the commitment to ${block}, so they were finished after it; the original inside them is not dated by it`);
+      } else {
+        add("floor.content", "The committed bytes were finished after the floor block", "NOT_CARRIED", "",
+          "recorded as is: the bytes carry no commitment, so the bytes themselves are not dated");
+      }
     }
   }
 
@@ -490,9 +502,11 @@ function finish(
     const givenEth = "; that block's header is taken as given until it is checked against Ethereum";
     if (times.floor) {
       const at = `Ethereum block ${times.floor.blockNumber} (${iso(times.floor.blockTimestamp)})${confirmedTrue("confirmed.floor") ? "" : givenEth}`;
-      parts.push(floorCovers === "none"
-        ? `The tree was committed after ${at}. This file was recorded as is, so nothing bounds the file itself from below.`
-        : `The committed bytes were finished after ${at}. An original inside them has no floor of its own.`);
+      parts.push(floorCovers === "record"
+        ? `Recorded after ${at}; this file was kept as is, so the bytes themselves are not dated.`
+        : floorCovers === "content"
+          ? `Recorded after ${at}, and these committed bytes were finished after that block; an original inside them is not dated by it.`
+          : `Recorded after ${at}.`);
     }
     if (times.ceilingBase) parts.push(`The record existed by Base block ${times.ceilingBase.blockNumber} (${iso(times.ceilingBase.blockTimestamp)}${times.ceilingBase.provisional ? ", provisional until checked against Base" : ""}).`);
     else if (baseTimeWithheld) parts.push(`The record is in a Base block, but its time is not used as a bound: ${baseTimeWithheld}.`);

@@ -122,7 +122,7 @@ export interface ProofViewModel {
   anchorBlock: { number: string | null; minedMs: number | null; etherscanUrl: string | null } | null;
   anchorsBackHref: string | null;
   floor: AnchorSideView | null;
-  /** A sentence about what the floor covers, for a tree/1 record (a file kept as is has no floor). */
+  /** A sentence about what the floor covers, for a tree/1 record (every file recorded after it; a file kept as is not dated by it). */
   floorNote?: string | null;
   /** The anchor before the commit when it is later than the signed floor: a tighter bound on the commit by hash order. */
   commitAfter: { counter: string; blockNumber: number; blockTime: string | null; digestB64: string | null } | null;
@@ -325,7 +325,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
           {!isAnchor && m.floor && (
             <Moment
               label="Floor in time"
-              title={<>Made after Ethereum block #{fmtNum(m.floor.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"> · mined {whenBeside(floorMs, attested)}</span> : null}</>}
+              title={<>Recorded after Ethereum block #{fmtNum(m.floor.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"> · mined {whenBeside(floorMs, attested)}</span> : null}</>}
               note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot be known before its block exists.{m.floor.recordedMs !== null ? <> Recorded as anchor #{fmtNum(m.floor.counter)} at {whenBeside(m.floor.recordedMs, attested)}.</> : null}{m.commitAfter ? <> The commit also follows anchor #{fmtNum(m.commitAfter.counter)}, Ethereum block #{fmtNum(m.commitAfter.blockNumber)}{m.commitAfter.blockTime ? <> (mined {whenBeside(new Date(m.commitAfter.blockTime).getTime(), attested)})</> : null}, by the chain of proof hashes: a tighter bound on the commit, not on the bytes.</> : null}{m.floorNote ? <> {m.floorNote}</> : null}</>}
             >
               {m.floor.etherscanUrl && <Pill href={m.floor.etherscanUrl} external>Etherscan</Pill>}

@@ -19,10 +19,12 @@
  *   - A member's leaf and path prove that leaf is in the committed tree. They
  *     say nothing about the other leaves, so sorting and uniqueness are checked
  *     only where the whole list is seen (producers, verifyTreeLeaves).
- *   - Placements 0x01 to 0x03 carry the commitment, so the COMMITTED bytes were
- *     finished after the floor block. The original inside them has no floor.
- *   - Placement 0x00 (as is) carries nothing: the file existed by the commit,
- *     and nothing bounds it from below. "Existed by" only.
+ *   - Two floors (SPEC 8.6). Every member has the RECORD floor: the root
+ *     document, and so every leaf, was signed after the floor block. Placements
+ *     0x01 to 0x03 also have the CONTENT floor: the committed bytes carry the
+ *     commitment, so they were finished after that block. The original inside
+ *     them, and an as-is file (0x00), carry no commitment: recorded after the
+ *     block, the bytes themselves are not dated.
  *
  * Byte layouts (all integers big-endian, all digests raw 32 bytes):
  *   leaf          = placement (1) || artifact (32) || origin (32)              65 bytes
@@ -80,7 +82,7 @@ export const TREE_METADATA_KEY = TREE_PROFILE;
  */
 export const KNOWN_TREE_SPEC_HASHES: readonly string[] = Object.freeze([
   // SPEC.md v1 (spec/SPEC.md). Written by spec/pin-hash.mjs. Once a proof pins it, it never changes: a later spec is added beside it.
-  "Ja0q+2deje9YUNstP4curIiXY2zo5OXBmBLhOgjM/6w=",
+  "5WtV5PGrdEUVB7mQufWWJwBr6IHKXrn/yEL807fFArQ=",
 ]);
 
 /** Placement codes: the first byte of a leaf. */
@@ -398,11 +400,12 @@ export interface TreeVerifyResult {
   /** Present once the member's path reaches the bound root. */
   member: { index: number; count: number; placement: string; artifactHex: string; originHex: string } | null;
   /**
-   * What the floor covers for THIS file. "committed-bytes": the committed bytes
-   * were finished after the floor block (the original inside them has no floor).
-   * "none": an as-is leaf; the file existed by the commit, with no lower bound.
+   * What the floor covers for THIS file. "content": the committed bytes carry
+   * the commitment, so they were finished after the floor block (the original
+   * inside them is not dated by it). "record": an as-is leaf; the record was
+   * made after the floor block, and the bytes themselves are not dated.
    */
-  floorCovers: "committed-bytes" | "none" | null;
+  floorCovers: "content" | "record" | null;
   span: FuseSpan | null;
 }
 
@@ -474,7 +477,7 @@ export async function verifyTreeMember(opts: TreeVerifyOptions): Promise<TreeVer
   const fileDigest = sha256(opts.bytes);
   if (bytesEqual(fileDigest, ev.leaf.artifact)) {
     if (ev.leaf.placement === LEAF_AS_IS) {
-      return base("TREE_MEMBER_AS_IS", `this file is leaf ${ev.index} of ${ev.count}, recorded as is: it existed by the commit, and nothing bounds it from below`, { ...ok, floorCovers: "none" });
+      return base("TREE_MEMBER_AS_IS", `this file is leaf ${ev.index} of ${ev.count}, recorded as is: the record was made after the floor block; the bytes themselves are not dated`, { ...ok, floorCovers: "record" });
     }
     const located = getPlacement(placementId)!.locate(opts.bytes);
     if (located === null || !bytesEqual(located.commitment, commitment)) {
@@ -484,14 +487,14 @@ export async function verifyTreeMember(opts: TreeVerifyOptions): Promise<TreeVer
     if (embedded !== undefined && !bytesEqual(embedded, ev.leaf.origin)) {
       return base("INVALID_ORIGIN", "the origin inside the committed bytes does not match the leaf's origin", ok);
     }
-    return base("TREE_MEMBER_DIRECT", `these are the committed bytes of leaf ${ev.index} of ${ev.count}; they were finished after the floor block`, { ...ok, floorCovers: "committed-bytes" });
+    return base("TREE_MEMBER_DIRECT", `these are the committed bytes of leaf ${ev.index} of ${ev.count}; they were finished after the floor block`, { ...ok, floorCovers: "content" });
   }
   if (bytesEqual(fileDigest, ev.leaf.origin) && ev.leaf.placement !== LEAF_AS_IS) {
     const rebuilt = committedBytesFor(ev.leaf.placement, opts.bytes, commitment);
     if (!bytesEqual(sha256(rebuilt), ev.leaf.artifact)) {
       return base("RECONSTRUCTION_MISMATCH", `this file is leaf ${ev.index}'s origin, but placing the commitment in it does not reproduce the committed digest`, ok);
     }
-    return base("TREE_MEMBER_FROM_ORIGIN", `this file rebuilds the committed bytes of leaf ${ev.index} of ${ev.count}; the committed bytes were finished after the floor block, and this original existed by the commit`, { ...ok, floorCovers: "committed-bytes" });
+    return base("TREE_MEMBER_FROM_ORIGIN", `this file rebuilds the committed bytes of leaf ${ev.index} of ${ev.count}; the committed bytes were finished after the floor block, and this original is not dated by it`, { ...ok, floorCovers: "content" });
   }
   // The evidence holds (its path reaches the root), so the member is known; the file is not it.
   if (carriesCommitment(opts.bytes, commitment)) {

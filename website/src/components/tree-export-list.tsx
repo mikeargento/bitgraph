@@ -5,8 +5,9 @@
  * export covers, or per export dropped without its files.
  *
  * Each row says the verdict and then the three time claims on their own lines,
- * never merged (SPEC.md section 1): the floor (the committed bytes were
- * finished after an Ethereum block; a file recorded as is has none), the Base
+ * never merged (SPEC.md section 1): the floor (every file recorded after an
+ * Ethereum block; a placed file's committed bytes finished after it; a file
+ * recorded as is not dated by it), the Base
  * ceiling (existed by a Base block, its time provisional until that block is
  * checked against Base), and the Ethereum ceiling (existed by an Ethereum
  * block, through Base's output root; Base's honesty is not needed).
@@ -33,17 +34,19 @@ const fmtBlock = (n: number) => n.toLocaleString("en-US");
 const fmtTime = (unix: number) => fmtRowWhen(unix * 1000);
 
 /**
- * The floor line, for what this row is about. The floor covers a leaf's
- * COMMITTED bytes, which carry the commitment; a file kept as is carries none,
- * so for it the floor says nothing at all (SPEC.md 8.6). An export alone,
- * without a leaf of its own, can only say when the tree was committed.
+ * The floor line, for what this row is about (SPEC.md 8.6). Every file was
+ * recorded after the floor block (the record floor). A placed file's committed
+ * bytes carry the commitment, so they were finished after it too (the content
+ * floor); a file kept as is carries none, so its bytes are not dated. An export
+ * alone, without a leaf of its own, can only say when the tree was committed.
  */
 function floorLine(r: TreeExportRow): string {
-  if (r.floorCovers === "none" || r.member?.placement === "as-is") return "No floor: kept as is, the file existed by the commit and nothing bounds it from below";
   const f = r.times.floor;
   if (f === null) return "Not in this export";
-  const what = r.member ? "Its committed bytes were finished" : "The tree was committed";
-  return `${what} after Ethereum block ${fmtBlock(f.blockNumber)} · ${fmtTime(f.blockTimestamp)}`;
+  const when = `Ethereum block ${fmtBlock(f.blockNumber)} · ${fmtTime(f.blockTimestamp)}`;
+  if (r.floorCovers === "record" || r.member?.placement === "as-is") return `Recorded after ${when}; kept as is, so the bytes themselves are not dated`;
+  if (r.member) return `Recorded after ${when}, and its committed bytes were finished after that block`;
+  return `The tree was committed after ${when}`;
 }
 
 function baseLine(r: TreeExportRow): string {

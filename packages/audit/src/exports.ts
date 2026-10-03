@@ -375,7 +375,7 @@ async function runExport(plan: Plan, input: unknown, file: ExportCoveredFile | n
     claims,
     member: r.member === null ? null : { ...r.member },
     times: copyTimes(r.times),
-    floorCovers: file === null || !isMember || r.member === null ? null : r.member.placement === "as-is" ? "none" : "committed-bytes",
+    floorCovers: file === null || !isMember || r.member === null ? null : r.member.placement === "as-is" ? "record" : "content",
     reading: r.reading,
   };
 }

@@ -105,7 +105,7 @@ test("files across the placements: a saved state is finished, an unscanned file 
   for (let i = 0; i < originals.length; i++) {
     const r = await verifyTreeMember({ proof: made.proof, bytes: originals[i]!, member: made.evidenceOf(made.members[i]!.leafIndex) });
     assert.equal(r.category, "TREE_MEMBER_FROM_ORIGIN", `${inputs[i]!.name}: ${r.reason}`);
-    assert.equal(r.floorCovers, "committed-bytes");
+    assert.equal(r.floorCovers, "content");
   }
   // Another member's evidence does not cover a file.
   const wrong = await verifyTreeMember({ proof: made.proof, bytes: png, member: made.evidenceOf(made.members[0]!.leafIndex) });
@@ -119,7 +119,7 @@ test("as is over the cap: a tree of one large file is made without reading it, a
   assert.equal(made.members[0]!.code, LEAF_AS_IS);
   const r = await verifyTreeMember({ proof: made.proof, bytes, member: made.evidenceOf(made.members[0]!.leafIndex) });
   assert.equal(r.category, "TREE_MEMBER_AS_IS", r.reason);
-  assert.equal(r.floorCovers, "none");
+  assert.equal(r.floorCovers, "record");
   // The file alone rebuilds its leaf, kept as is.
   const bound = bindTree(made.proof);
   assert.ok(bound.ok);
@@ -195,7 +195,7 @@ test("the exports a holder keeps: one file's and the owner's, filled from the si
   assert.deepEqual(ev.settlement, { status: "pending" });
   assert.ok(ev.notes.some((n) => /ceiling/i.test(n)), "the pending ceiling is said");
 
-  const expected = { format: "TRUE", "proof.signature": "TRUE", "attestation.signature": "FALSE", "spec.pin": "TRUE", "tree.root": "TRUE", "tree.member": "TRUE", "bytes.member": "TRUE", "bytes.floor": "TRUE", "floor.header": "TRUE", "ceiling.base": "NOT_CARRIED", "ceiling.ethereum": "NOT_CARRIED" };
+  const expected = { format: "TRUE", "proof.signature": "TRUE", "attestation.signature": "FALSE", "spec.pin": "TRUE", "tree.root": "TRUE", "tree.member": "TRUE", "bytes.member": "TRUE", "floor.record": "TRUE", "floor.content": "TRUE", "floor.header": "TRUE", "ceiling.base": "NOT_CARRIED", "ceiling.ethereum": "NOT_CARRIED" };
   // One file's export.
   const m = made.members[1]!;
   const one = await buildTreeExport(made.proof, memberTree(made.rootDocument, made.evidenceOf(m.leafIndex)), ev);

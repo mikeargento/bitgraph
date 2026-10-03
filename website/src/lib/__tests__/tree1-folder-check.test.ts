@@ -64,7 +64,7 @@ test("one file's export with its file: the file is checked against its leaf, cov
   assert.equal(row.member?.index, 0);
   assert.equal(row.member?.count, 1);
   assert.equal(row.count, 1);
-  assert.equal(row.floorCovers, "committed-bytes");
+  assert.equal(row.floorCovers, "content");
   assert.equal(row.spec, "pinned");
   assert.equal(row.times.floor?.blockNumber, 25_100_000);
   assert.equal(row.ceiling, "pending");
@@ -100,7 +100,7 @@ test("the owner's export with its files: each file placed by the list, the claim
     assert.ok(k >= 0, row.fileName ?? "");
     assert.equal(row.scope, "file");
     assert.equal(row.member?.count, 4);
-    assert.equal(row.floorCovers, files[k]!.name === "kept.bin" ? "none" : "committed-bytes", row.fileName ?? "");
+    assert.equal(row.floorCovers, files[k]!.name === "kept.bin" ? "record" : "content", row.fileName ?? "");
     // The merged claims are exactly verifyExport's own for this file.
     const direct = await verifyExport(built.exp, { bytes: files[k]!.bytes });
     assert.deepEqual(row.claims, direct.claims, `${row.fileName}: claims`);
@@ -168,7 +168,7 @@ test("the spec's published vectors: one member's export and the owner's export c
   assert.equal(owner.rows.length, 5);
   for (const row of owner.rows) {
     assert.ok(row.claims.some((c) => c.id === "bytes.member" && c.result === "TRUE"), `${row.fileName}`);
-    assert.equal(row.floorCovers, row.fileName === "as-is.bin" ? "none" : "committed-bytes", `${row.fileName}`);
+    assert.equal(row.floorCovers, row.fileName === "as-is.bin" ? "record" : "content", `${row.fileName}`);
   }
   assert.equal(bytesToBase64(memberBytes).length > 0, true);
 });

@@ -1221,7 +1221,7 @@ export interface TreeExportRow {
   /** The tree's size from the bound root document, when it bound. */
   count: number | null;
   /** For a checked file: "committed-bytes" when the floor covers its committed bytes, "none" when it was recorded as is. */
-  floorCovers: "committed-bytes" | "none" | null;
+  floorCovers: "content" | "record" | null;
   times: ExportVerifyResult["times"];
   /** Whether the export carries each later section at all ("pending" counts as carried-but-pending). */
   ceiling: "present" | "pending" | "absent";
@@ -1258,7 +1258,7 @@ function verdictOf(claims: ExportClaim[]): TreeExportRow["verdict"] {
  * file, so a drop of thousands of files is not thousands of full checks. A
  * test holds the merged claims equal to verifyExport's own, file by file.
  */
-export function memberClaimsFor(tr: TreeVerifyResult): ExportClaim[] {
+export function memberClaimsFor(tr: TreeVerifyResult, floorBlockNumber?: number): ExportClaim[] {
   const out: ExportClaim[] = [];
   const add = (id: string, name: string, result: ExportClaim["result"], restsOn: string, detail: string) => out.push({ id, name, result, restsOn, detail, level: "offline" });
   const rootOk = tr.tree !== null;
@@ -1269,8 +1269,17 @@ export function memberClaimsFor(tr: TreeVerifyResult): ExportClaim[] {
   add("bytes.member", "The file in hand is that member", isMember ? "TRUE" : tr.member !== null ? "FALSE" : "UNDETERMINED", tr.category === "TREE_MEMBER_FROM_ORIGIN" ? "the placement rule, rebuilt here" : "SHA-256",
     `${tr.category}: ${tr.reason}`);
   if (isMember) {
-    add("bytes.floor", "What the floor covers for this file", "TRUE", "",
-      tr.floorCovers === "none" ? "recorded as is: the file existed by the commit; nothing bounds it from below" : "the committed bytes were finished after the floor block; the original inside them has no floor of its own");
+    // Two floors, stated apart (SPEC 8.6), word for word as verifyExport states them.
+    const block = typeof floorBlockNumber === "number" ? `Ethereum block ${floorBlockNumber}` : "the signed floor block";
+    add("floor.record", "The record was made after the floor block", "TRUE", "the signed root document, which carries the commitment to the floor block",
+      `recorded after ${block}: the tree this file is a leaf of was signed after it`);
+    if (tr.floorCovers === "content") {
+      add("floor.content", "The committed bytes were finished after the floor block", "TRUE", "SHA-256: the commitment is inside the committed bytes",
+        `the committed bytes carry the commitment to ${block}, so they were finished after it; the original inside them is not dated by it`);
+    } else {
+      add("floor.content", "The committed bytes were finished after the floor block", "NOT_CARRIED", "",
+        "recorded as is: the bytes carry no commitment, so the bytes themselves are not dated");
+    }
   }
   return out;
 }
@@ -1280,8 +1289,8 @@ export function mergeMemberClaims(base: ExportClaim[], member: ExportClaim[]): E
   const out: ExportClaim[] = [];
   for (const c of base) {
     if (c.id === "tree.member") out.push(member.find((m) => m.id === "tree.member") ?? c);
-    else if (c.id === "bytes.member") out.push(...member.filter((m) => m.id === "bytes.member" || m.id === "bytes.floor"));
-    else if (c.id !== "bytes.floor") out.push(c);
+    else if (c.id === "bytes.member") out.push(...member.filter((m) => m.id === "bytes.member" || m.id === "floor.record" || m.id === "floor.content"));
+    else if (c.id !== "floor.record" && c.id !== "floor.content") out.push(c);
   }
   return out;
 }
@@ -1402,7 +1411,7 @@ export async function checkTreeExports(
         verdict: verdictOf(claims),
         member: member ? { index: member.index, count: member.count, placement: member.placement } : null,
         count,
-        floorCovers: isMember && member ? (member.placement === "as-is" ? "none" : "committed-bytes") : null,
+        floorCovers: isMember && member ? (member.placement === "as-is" ? "record" : "content") : null,
         times: base.times,
         ceiling: sectionOf(exp.ceiling, (p) => typeof p.anchor === "object" && p.anchor !== null),
         settlement: sectionOf(exp.settlement, (p) => p.version !== undefined),
@@ -1441,7 +1450,7 @@ export async function checkTreeExports(
           proofAlreadyVerified: proofOk,
           ...(opts.extraSpecHashes ? { extraSpecHashes: opts.extraSpecHashes } : {}),
         });
-        const claims = mergeMemberClaims(base.claims, memberClaimsFor(tr));
+        const claims = mergeMemberClaims(base.claims, memberClaimsFor(tr, exp.proof.commit?.slotAnchor?.blockNumber));
         rows.push(rowOf(`${e}:${exportFile.name}:${k}:${f.name}`, "file", f, f.name || (typeof names[k] === "string" ? names[k]! : null), claims, tr.member, evidence));
         for (const c of fs) covered.add(c);
         await tick();

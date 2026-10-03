@@ -444,16 +444,19 @@ function writeReading(
   const position = proof.commit?.counter ?? "?";
   const epoch = (proof.commit?.epochId ?? "").replace(/=+$/, "").slice(0, 8);
   const fused = get("proof.fused");
-  const after = floorTs !== null ? `made after Ethereum block ${bounds.notBefore.blockNumber} (${iso(floorTs)})` : `made after Ethereum block ${bounds.notBefore.blockNumber}`;
+  const after = floorTs !== null ? `Recorded after Ethereum block ${bounds.notBefore.blockNumber} (${iso(floorTs)})` : `Recorded after Ethereum block ${bounds.notBefore.blockNumber}`;
   const by = ceilingTime ? `, and existed by Base block ${ceilingTime.blockNumber} (${iso(ceilingTime.blockTimestamp)})` : "";
   const settled = bounds.settledBy ? `, whose batch data Ethereum committed in block ${bounds.settledBy.blockNumber} (${iso(bounds.settledBy.timestamp)})` : "";
   const before = bounds.notAfter ? `; committed before the anchoring of Ethereum block ${bounds.notAfter.blockNumber}, a bound in position` : "";
   const digest = get("bytes.digest");
+  // Two floors (SPEC 8.6): every record has the record floor; only bytes that
+  // carry the commitment have the content floor. Without it, the bytes
+  // themselves are not dated.
   const subject = digest?.result !== "TRUE"
-    ? "The bytes this proof names were committed"
+    ? "The bytes this proof names were committed under this position."
     : fused?.result === "TRUE"
-      ? (fused.restsOn.includes("floor block") ? "These exact bytes were finished after the floor block existed" : "These exact bytes were finished after their position was opened")
-      : "These exact bytes were committed";
+      ? (fused.restsOn.includes("floor block") ? "These exact bytes carry the commitment, so they were finished after the floor block (the content floor)." : "These exact bytes carry the commitment, so they were finished after their position was opened (the content floor).")
+      : "These exact bytes carry no commitment, so the bytes themselves are not dated (the record floor only).";
   const att = get("attestation.root");
   const rests: string[] = ["SHA-256", "Ed25519"];
   if (att?.result === "TRUE") rests.push(`the AWS Nitro root (${awsNitroRootSha256().slice(0, 8)}…)`);
@@ -469,5 +472,5 @@ function writeReading(
   const pinLine = pins?.result === "TRUE" ? ` ${pins.detail.replace(/^PCR0 [0-9a-f]+… is /, "The enclave image is ")}.` : pins?.result === "UNDETERMINED" ? ` ${pins.detail}.` : !pins ? " The proof carries no attestation, so which enclave image signed it is not established." : "";
   const withheld = baseTimeWithheld ? ` The record is in a Base block, but its time is not used as a bound: ${baseTimeWithheld}.` : "";
   const lead = verdict === "UNDETERMINED" ? "Not judged in full. " : "";
-  return `${lead}${subject}: ${after}${by}${settled}${before}. Position ${position} of epoch ${epoch}…. Rests on: ${rests.join(", ")}. ${tail}${withheld}${pinLine}`;
+  return `${lead}${subject} ${after}${by}${settled}${before}. Position ${position} of epoch ${epoch}…. Rests on: ${rests.join(", ")}. ${tail}${withheld}${pinLine}`;
 }

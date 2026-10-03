@@ -248,7 +248,7 @@ test("the pipeline: a file over the cap goes in as is by its scan digest, never 
   const bg = new BitGraph({ baseUrl });
   const v = await bg.verify(lone, bg.memberExport({ ...t, proof: t.proof, rootDocument: t.rootDocumentHex, leaves: t.leavesB64, names: ["", ""], counter: null, epoch: null, artifactDigest: "", floor: { ...t.floor, header: null } }, t.members[0]!.leafIndex));
   assert.equal(claim(v, "bytes.member")?.result, "TRUE");
-  assert.match(claim(v, "bytes.floor")!.detail, /recorded as is/);
+  assert.match(claim(v, "floor.content")!.detail, /recorded as is: the bytes carry no commitment/);
 });
 
 test("a boundary that returns no floor makes nothing: the tree needs fuse/2", async () => {

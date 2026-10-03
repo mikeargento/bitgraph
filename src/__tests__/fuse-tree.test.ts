@@ -90,6 +90,10 @@ function assertSound(r: ExportVerifyResult, notCarried: readonly string[], label
     if (c.id === "attestation.signature") {
       assert.equal(c.result, "FALSE", `${label}: ${c.id}`);
       assert.match(c.detail, /no aws-nitro attestation/);
+    } else if (c.id === "floor.content" && r.floorCovers === "record") {
+      // An as-is member: the record floor holds, the content floor is not carried (SPEC 8.6).
+      assert.equal(c.result, "NOT_CARRIED", `${label}: ${c.id} ${c.detail}`);
+      assert.match(c.detail, /the bytes themselves are not dated/);
     } else if (notCarried.includes(c.id)) {
       assert.equal(c.result, "NOT_CARRIED", `${label}: ${c.id} ${c.detail}`);
     } else {
@@ -148,7 +152,7 @@ describe("fuseTree(): one position, one tree", () => {
 
     const fromOrigin = await verifyTreeMember({ proof: r.proof, member: ev, bytes: text });
     assert.equal(fromOrigin.category, "TREE_MEMBER_FROM_ORIGIN", fromOrigin.reason);
-    assert.equal(fromOrigin.floorCovers, "committed-bytes");
+    assert.equal(fromOrigin.floorCovers, "content");
     const direct = await verifyTreeMember({ proof: r.proof, member: ev, bytes: m.committedBytes! });
     assert.equal(direct.category, "TREE_MEMBER_DIRECT", direct.reason);
     assert.equal((await verifyTreeMember({ proof: r.proof, member: ev })).category, "TREE_PATH_VALID");
@@ -173,7 +177,7 @@ describe("fuseTree(): one position, one tree", () => {
       const d = await verifyTreeMember({ proof: r.proof, member: ev, bytes: m.committedBytes! });
       if (m.code === LEAF_AS_IS) {
         assert.equal(a.category, "TREE_MEMBER_AS_IS", `${m.name}: ${a.reason}`);
-        assert.equal(a.floorCovers, "none");
+        assert.equal(a.floorCovers, "record");
         assert.equal(m.artifactDigestB64, m.originDigestB64, "as is: the file is its own committed bytes");
       } else {
         assert.equal(a.category, "TREE_MEMBER_FROM_ORIGIN", `${m.name}: ${a.reason}`);
@@ -203,10 +207,12 @@ describe("fuseTree(): one position, one tree", () => {
     assert.deepEqual(r.leaves[asIs.leafIndex], { placement: 0, artifact: sha256(over), origin: sha256(over) });
     const v = await verifyTreeMember({ proof: r.proof, member: r.memberEvidence(0), bytes: over });
     assert.equal(v.category, "TREE_MEMBER_AS_IS", v.reason);
-    assert.equal(v.floorCovers, "none");
+    assert.equal(v.floorCovers, "record");
     const e = await verifyExport(buildMemberExport(r, asIs.leafIndex), { bytes: over });
     assertSound(e, ["floor.header", ...PENDING], "as-is export");
-    assert.match(claim(e, "bytes.floor")!.detail, /recorded as is: the file existed by the commit; nothing bounds it from below/);
+    assert.equal(claim(e, "floor.record")!.result, "TRUE");
+    assert.equal(claim(e, "floor.content")!.result, "NOT_CARRIED");
+    assert.match(claim(e, "floor.content")!.detail, /recorded as is: the bytes carry no commitment, so the bytes themselves are not dated/);
   });
 
   test("4. a file over the real 256 MiB cap goes in as is by default, and its own bytes verify it", async () => {

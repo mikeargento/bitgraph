@@ -187,7 +187,7 @@ describe("a single file is a tree of one", () => {
     assert.deepEqual(ev.path, []);
     const fromOrigin = await verifyTreeMember({ proof: t.proof, bytes: t.members[0]!.original, member: ev, extraSpecHashes });
     assert.equal(fromOrigin.category, "TREE_MEMBER_FROM_ORIGIN", fromOrigin.reason);
-    assert.equal(fromOrigin.floorCovers, "committed-bytes");
+    assert.equal(fromOrigin.floorCovers, "content");
     const direct = await verifyTreeMember({ proof: t.proof, bytes: t.members[0]!.committed, member: ev, extraSpecHashes });
     assert.equal(direct.category, "TREE_MEMBER_DIRECT", direct.reason);
     const rootOnly = await verifyTreeMember({ proof: t.proof, extraSpecHashes });
@@ -201,7 +201,7 @@ describe("a single file is a tree of one", () => {
     const t = await makeTree([{ name: "huge.bin", original: utf8("as is\n"), code: LEAF_AS_IS }]);
     const r = await verifyTreeMember({ proof: t.proof, bytes: t.members[0]!.original, member: t.evidenceOf(t.members[0]!), extraSpecHashes });
     assert.equal(r.category, "TREE_MEMBER_AS_IS", r.reason);
-    assert.equal(r.floorCovers, "none");
+    assert.equal(r.floorCovers, "record");
   });
 });
 

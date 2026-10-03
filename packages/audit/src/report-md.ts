@@ -1007,9 +1007,9 @@ function exportDetail(lines: string[], e: ExportCheck): void {
     t.floor !== null
       ? `- Floor: Ethereum block ${withCommas(t.floor.blockNumber)}, mined at ${formatTimestamp(t.floor.blockTimestamp)}, ` +
           `hash ${inlineCode(t.floor.blockHash)}: the proof's signed floor block, its header checked by hash. ` +
-          "Committed bytes that carry this position's commitment were finished after it; an original inside them " +
-          "has no floor of its own, and a file recorded as is has none at all. What the floor covers for each " +
-          "file is stated per run below." +
+          "Every file in the tree was recorded after it (the record floor). Committed bytes that carry this position's " +
+          "commitment were also finished after it (the content floor); an original inside them, and a file recorded as is, " +
+          "are not dated by it. What the floor covers for each file is stated per run below." +
           confirmedNote("confirmed.floor", "Ethereum")
       : `- Floor: not established (${why("floor.header")}).`
   );
@@ -1070,10 +1070,10 @@ function claimRow(c: ExportClaimRecord): string[] {
 function exportRunLine(r: ExportRun): string {
   const who = r.file !== null ? exportFileLabel(r.file) : "Without a file";
   const floor =
-    r.floorCovers === "committed-bytes"
-      ? " The floor covers the committed bytes; an original inside them has no floor of its own."
-      : r.floorCovers === "none"
-        ? " Recorded as is: the file existed by the commit, and nothing bounds it from below."
+    r.floorCovers === "content"
+      ? " Recorded after the floor block, and its committed bytes were finished after it; an original inside them is not dated by it."
+      : r.floorCovers === "record"
+        ? " Recorded as is: recorded after the floor block; the bytes themselves are not dated."
         : "";
   return `${who}: ${r.verdict}.${floor} Reading: ${r.reading.length > 0 ? r.reading : "(none)"}`;
 }

@@ -83,6 +83,7 @@ export {
   bytesEqual,
 } from "./fuse.js";
 export type { PlacementId, Placement, Located, FusePayload, FuseFrame, FuseMarker, MarkerSource, SetMember, SetManifest, FusedFrame } from "./fuse.js";
+export { MAX_CONTAINER_ENTRY_BYTES } from "./fuse.js";
 export { verifyFuse, assembledAfterCommit } from "./fuse-verify.js";
 export type { FuseCategory, FuseSpan, FuseVerifyResult, FuseVerifyOptions } from "./fuse-verify.js";
 export { verifyFuseMember } from "./fuse-member.js";

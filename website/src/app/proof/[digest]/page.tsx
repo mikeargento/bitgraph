@@ -237,7 +237,7 @@ export default function ProofPage() {
   // shown only from evidence: the drop box's hand-off, the export dropped
   // with the file, or, for a tree of one, the file itself (its root is its
   // only leaf). Nothing here says a file is in the tree on any other word.
-  const [treeMember, setTreeMember] = useState<{ index: number; count: number; placement: string; originDigestB64: string; floorCovers: "committed-bytes" | "none" | null; evidence: TreeMemberEvidence } | null>(null);
+  const [treeMember, setTreeMember] = useState<{ index: number; count: number; placement: string; originDigestB64: string; floorCovers: "content" | "record" | null; evidence: TreeMemberEvidence } | null>(null);
   useEffect(() => {
     if (!proof || !treeBound || !cachedFile) { setTreeMember(null); return; }
     let cancelled = false;
@@ -1909,7 +1909,7 @@ export default function ProofPage() {
                 ? [{ id: "tree.root", name: "The root document carries this position's commitment", result: "TRUE" as const, restsOn: "SHA-256 over the signed position record, its nonce and the signed floor block hash", detail: `a tree of ${treeBound.count.toLocaleString()} file${treeBound.count === 1 ? "" : "s"}, root ${bytesToHex(treeBound.root).slice(0, 16)}\u2026`, level: offline }]
                 : []),
               treeMember
-                ? { id: "tree.member", name: "The file in hand is in the tree", result: "TRUE", restsOn: "SHA-256 (RFC 9162 path)", detail: `file ${(treeMember.index + 1).toLocaleString()} of ${treeMember.count.toLocaleString()}; ${treeMember.floorCovers === "none" ? "kept as is: it existed by the commit, and nothing bounds it from below" : "its committed bytes were finished after the floor block; the original inside them has no floor of its own"}`, level: offline }
+                ? { id: "tree.member", name: "The file in hand is in the tree", result: "TRUE", restsOn: "SHA-256 (RFC 9162 path)", detail: `file ${(treeMember.index + 1).toLocaleString()} of ${treeMember.count.toLocaleString()}; ${treeMember.floorCovers === "record" ? "kept as is: it existed by the commit, and nothing bounds it from below" : "its committed bytes were finished after the floor block; the original inside them has no floor of its own"}`, level: offline }
                 : { id: "tree.member", name: "A file is in the tree", result: "NOT_CARRIED", restsOn: "", detail: treeBound?.count === 1 ? "drop the file above: a tree of one needs only the file" : "a file's place in the tree comes with that file's own export, or its recovery entry", level: offline },
             ];
             const at = claims.findIndex((x) => x.id.startsWith("attestation."));
@@ -1942,9 +1942,9 @@ export default function ProofPage() {
             anchorsBackHref,
             floor: floorView,
             floorNote: isTree
-              ? treeMember?.floorCovers === "none"
-                ? "The file in hand was kept as is: the floor does not cover it, and nothing bounds it from below."
-                : "In a tree, the floor covers each file's committed bytes; a file kept as is has none."
+              ? treeMember?.floorCovers === "record"
+                ? "The file in hand was kept as is: recorded after the floor block, but the bytes themselves are not dated."
+                : "Every file in a tree was recorded after the floor block. A placed file's committed bytes were also finished after it; a file kept as is is not dated by it."
               : null,
             commitAfter,
             ceilingPos: ceilView,
