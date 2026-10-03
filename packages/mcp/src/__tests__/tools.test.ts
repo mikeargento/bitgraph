@@ -156,6 +156,7 @@ before(async () => {
   const address = mock.address();
   if (address === null || typeof address === "string") throw new Error("no port");
   process.env["BITGRAPH_API_URL"] = `http://127.0.0.1:${address.port}`;
+  process.env["BITGRAPH_HOME"] = await mkdtemp(join(tmpdir(), "bitgraph-mcp-home-"));
   process.env["BITGRAPH_API_KEY"] = "test-key-123";
 });
 

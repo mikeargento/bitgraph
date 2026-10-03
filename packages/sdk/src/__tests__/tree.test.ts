@@ -99,6 +99,8 @@ before(async () => {
   priv = randomBytes(32);
   pub = b64(await getPublicKeyAsync(priv));
   root = await mkdtemp(join(tmpdir(), "bitgraph-sdk-tree-"));
+  // Pending recovery jobs go under $BITGRAPH_HOME, never this machine's ~/.bitgraph.
+  process.env["BITGRAPH_HOME"] = await mkdtemp(join(tmpdir(), "bitgraph-sdk-home-"));
   folder = join(root, "photos");
   await mkdir(join(folder, "sub"), { recursive: true });
   await writeFile(join(folder, "alpha.txt"), "alpha, a plain text member\n");
@@ -486,7 +488,7 @@ test("recovery: the tree's entries are written after the make; recording the sam
     const first = await bg.record(dir);
     const made = first.made!;
     assert.equal(made.count, 2);
-    assert.deepEqual(withoutState(made.recovery!), { entries: 4, kept: 4, written: 4, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: null, done: true }, "two entries per placed member: under the original and under the committed bytes");
+    assert.deepEqual(withoutState(made.recovery!), { entries: 4, kept: 4, written: 4, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: null, done: true, job: null }, "two entries per placed member: under the original and under the committed bytes");
     const commits = requests.filter((p) => p === "/api/fuse/commit").length;
 
     const again = await bg.record(dir);

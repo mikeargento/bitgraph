@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { MemoryRecoveryStore } from "../recovery-store.ts";
-import { recoveryTreeFrom, sealRecoveryMember } from "../recovery.ts";
+import { recoveryPlaintextFor, recoveryTreeFrom, sealRecoveryMember } from "../recovery.ts";
 import { recoverRows, treePositionKey } from "../recovery-fold.ts";
 import { fakeFetch, sha256, utf8, vectorTree } from "./recovery-helpers.ts";
 
@@ -75,6 +75,30 @@ describe("recovery fold", () => {
     assert.equal(r.found.size, 0);
     assert.equal(r.unknown.size, 0, "an empty listing is an answer");
     assert.equal(calls.filter((c) => c.endsWith("/api/recovery/lookup")).length, 2, "1,000 + 200");
+  });
+
+  test("a tree this browser made whose entries are not written yet still finds its members, through the local queue", async () => {
+    const t = vectorTree();
+    const tree = recoveryTreeFrom({ proof: t.proof, rootDocument: t.rootDocument, leavesBytes: t.leavesBytes });
+    const empty = new MemoryRecoveryStore();
+    const file = Buffer.from(TREE.files[0]!.originalHex, "hex");
+    const d = sha256(file);
+    // The queue's answer for this digest: member 0's entry, from the job's own leaves.
+    const local = async (digest32: Uint8Array) => {
+      if (Buffer.from(digest32).toString("hex") !== Buffer.from(d).toString("hex")) return [];
+      const index = TREE.files.findIndex((f) => f.name === t.names[0]) >= 0 ? t.names.indexOf(TREE.files[0]!.name) : 0;
+      const { plaintext } = recoveryPlaintextFor(tree, index, t.names[index]);
+      return [{ salted: false, matched: "origin" as const, proofHash: plaintext.proofHash, leafIndex: plaintext.leafIndex, rootDocument: plaintext.rootDocument, member: plaintext.member, proof: plaintext.proof, name: plaintext.name ?? null }];
+    };
+    const r = await recoverRows([row(file)], { fetch: fakeFetch(empty, { proofs: [t.proof] }), local });
+    assert.equal(r.unknown.size, 0);
+    assert.equal(r.found.size, 1, "found through the pending job, with nothing in the store");
+    assert.equal(r.found.get(0)![0]!.proofKey, treePositionKey(t.proof));
+    // The store down AND the local queue holding the member: found, not unknown.
+    empty.failing = true;
+    const down = await recoverRows([row(file)], { fetch: fakeFetch(empty, { proofs: [t.proof] }), local });
+    assert.equal(down.found.size, 1);
+    assert.equal(down.unknown.size, 0);
   });
 
   test("a store that cannot be read, or a proof route that is down, leaves the row unknown, never new", async () => {

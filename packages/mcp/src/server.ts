@@ -390,6 +390,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
               blocked: kept.blocked,
               pending: kept.pending,
               reason: kept.reason,
+              job: kept.job,
             },
           };
         }

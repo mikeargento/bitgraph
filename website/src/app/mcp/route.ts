@@ -85,8 +85,16 @@ import {
   type OpenState,
   type SetOutcome,
 } from "@/lib/mcp/fuse-hosted";
-import { keepTreeOnSite, siteRecoveryNote } from "@/lib/recovery-server";
+import { after } from "next/server";
+import { BUDGET_REASON, inProcessRecoveryFetch, keepTreeOnSite, recoveredOnSite, siteRecoveryNote, type SiteRecovered } from "@/lib/recovery-server";
 import { s3RecoveryStore } from "@/lib/recovery-store-s3";
+import { getProofsByDigest } from "@/lib/s3";
+
+/** Milliseconds a commit spends writing a tree's recovery entries before the answer; the rest follows after it (lib/recovery-server.ts). */
+const HOSTED_RECOVERY_BUDGET_MS = 15_000;
+
+/** The site reading its own recovery entries, in this process: the store's handlers and the ledger's by-digest read. */
+const siteRecoveryFetch = () => inProcessRecoveryFetch(s3RecoveryStore(), async (d) => (await getProofsByDigest(fromUrlSafeB64(d))).map((e) => e.proof));
 
 export const dynamic = "force-dynamic";
 // One commit chunk of TEE work (~1s/digest) must finish inside this window.
@@ -245,6 +253,13 @@ const handler = createMcpHandler(
           if ("error" in normalized) return fail(normalized.error);
           const standard = normalized.standard;
           const checked = await batchCheck([...new Set(standard)].map(toUrlSafeB64));
+          // A tree member is never indexed by its plain hash: a file already
+          // in a tree is found through its sealed recovery entry, read here
+          // from the store (lib/recovery-server.ts). A lookup that did not
+          // complete leaves the file UNKNOWN, and unknown is not new (SPEC
+          // section 13): it is not opened without again=true.
+          const notIndexed = again ? [] : [...new Set(standard)].filter((d) => (checked.results[toUrlSafeB64(d)]?.proofs ?? []).length === 0);
+          const inTrees = notIndexed.length > 0 ? await recoveredOnSite(notIndexed, siteRecoveryFetch()) : { found: new Map<string, SiteRecovered[]>(), unknown: new Map<string, string>() };
           const baseUrl = apiBaseUrl();
           const outcomes: OpenOutcome[] = new Array<OpenOutcome>(files.length);
           // Two passes: what each file is (on record, refused, or a candidate)
@@ -271,6 +286,18 @@ const handler = createMcpHandler(
             };
             if (prior.length > 0 && !again) {
               outcomes[i] = { ...base, outcome: "on record" };
+              continue;
+            }
+            const inTree = inTrees.found.get(digest);
+            if (inTree !== undefined && inTree.length > 0) {
+              // Its proof page is the tree's: a member is reached through the tree's artifact digest and position.
+              const t = inTree[0]!.proof as { artifact?: { digestB64?: string }; commit?: { counter?: string; epochId?: string } };
+              outcomes[i] = { ...base, outcome: "on record", total_positions: inTree.length, proof_url: proofUrl(baseUrl, t.artifact?.digestB64 ?? digest, t.commit?.counter ?? undefined, t.commit?.epochId) };
+              continue;
+            }
+            const unknownWhy = inTrees.unknown.get(digest);
+            if (unknownWhy !== undefined) {
+              outcomes[i] = { ...base, outcome: "not opened", error: `whether this file is already in a tree is unknown: ${unknownWhy}; call again when the site answers, or with again=true to open a position regardless` };
               continue;
             }
             if (seen.has(digest)) {
@@ -521,9 +548,18 @@ const handler = createMcpHandler(
             try {
               const t = await commitHostedTree(g);
               const ex = await treeExportFor(t);
-              // Each file's sealed recovery entries, after the proof is in hand (lib/recovery-server.ts).
-              const kept = await keepTreeOnSite({ proof: t.proof as never, rootDocument: t.rootDocument, leaves: t.leaves, names: t.names }, s3RecoveryStore);
+              // Each file's sealed recovery entries, after the proof is in hand
+              // (lib/recovery-server.ts): what fits in the budget now, the rest
+              // after the answer is sent. The export is the record either way.
+              const recoveryInput = { proof: t.proof as never, rootDocument: t.rootDocument, leaves: t.leaves, names: t.names };
+              const kept = await keepTreeOnSite(recoveryInput, s3RecoveryStore, { budgetMs: HOSTED_RECOVERY_BUDGET_MS });
               ex.notes.push(siteRecoveryNote(kept));
+              if (!kept.done && kept.reason === BUDGET_REASON) {
+                after(async () => {
+                  const rest = await keepTreeOnSite(recoveryInput, s3RecoveryStore, { state: kept.state });
+                  console.log(`[mcp] recovery entries after the answer: kept=${rest.kept} of ${rest.entries} pending=${rest.pending}${rest.reason !== null ? ` (${rest.reason})` : ""}`);
+                });
+              }
               const { counter, epoch } = positionOf(t.proof);
               const treeDigest = t.proof.artifact?.digestB64 ?? "";
               const url = proofUrl(baseUrl, treeDigest, counter ?? undefined, t.proof.commit?.epochId);

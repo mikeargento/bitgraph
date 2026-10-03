@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { bytesToBase64, computeSlotCommitment, inlineAttribution } from "@mikeargento/bitgraph-verify";
 import type { SlotAllocation } from "@mikeargento/bitgraph-verify";
 import { beginHosted, commitHostedTask, decodeTaskToken, decodeToken, encodeTaskToken, encodeToken, toBase64Url, type OpenState } from "../mcp/fuse-hosted.ts";
@@ -99,6 +100,72 @@ test("bitgraph_commit with a task token sends the inline marker and no origin, a
     // A proof that comes back with a file marker instead is refused before any integrity check.
     globalThis.fetch = answer({ name: "bitgraph-fuse/1", title: "trailer/1", message: digestB64() });
     await assert.rejects(commitHostedTask(state, artifact), (err: Error & { code?: string }) => err.code === "marker-mismatch");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+/**
+ * BitGraph Postseason (live.bitgraph.ing, ~/Code/before-the-pitch, src/sealer.ts)
+ * seals every at bat through the hosted MCP: bitgraph_open with no files,
+ * then bitgraph_commit with { fuse_token, artifact_digest, carry: "base64url" }.
+ * Its parser is strict about a handful of fields. They are pinned here, both
+ * as the route's source (the answers are shaped inline in app/mcp/route.ts)
+ * and as the parser itself run over an answer built the way the route builds
+ * it, so a change to the hosted route that would break the Postseason fails
+ * here before it ships.
+ */
+test("the Postseason sealer's fields are in the hosted route's answers, and its parser accepts an open answer built the route's way", async () => {
+  const route = readFileSync(new URL("../../app/mcp/route.ts", import.meta.url), "utf8");
+  // bitgraph_open, no files: what the sealer reads.
+  for (const needle of [
+    'outcome: "opened"',
+    "slot_counter: begun.slotCounter",
+    "epoch: begun.epochB64",
+    "commitment: begun.commitment",
+    "fuse_token: begun.token",
+    "expires_in_seconds: SLOT_TTL_SECONDS",
+    "floor: begun.floor === null ? null : { block: begun.floor.block, header_time: begun.floor.headerTime }",
+  ]) assert.ok(route.includes(needle), `bitgraph_open answer lost: ${needle}`);
+  // bitgraph_commit with a task token: outcome "fused", counter, proof_url, and the proof whole in frames[].
+  for (const needle of [
+    "const c = await commitHostedTask(t.state, t.artifactDigestB64);",
+    'outcomes[t.position] = { ...base, outcome: "fused", counter, epoch, proof_url: proofUrl(baseUrl, t.artifactDigestB64, counter ?? undefined, c.proof.commit?.epochId), positions: [{ counter, epoch }], recovered: c.recovered, error: null };',
+    'frames.push({ name: "task.proof.json", frame: c.proof });',
+    "results: outcomes,",
+    "frames,",
+  ]) assert.ok(route.includes(needle), `bitgraph_commit answer lost: ${needle}`);
+
+  // The sealer's own check (src/sealer.ts open()), over an answer built as the route builds it.
+  const s = slot();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith("/api/fuse/allocate")) return new Response(JSON.stringify({ slotId: s.nonceB64, slot: s, chainId: "bitgraph:main" }), { status: 200, headers: { "content-type": "application/json" } });
+    if (url.includes("/api/proofs/anchors?")) return new Response(JSON.stringify({ anchors: [{ commit: { anchor: { blockNumber: 25962561, blockHash: "0x" + "ab".repeat(32) } } }] }), { status: 200 });
+    return new Response(JSON.stringify({ error: "no" }), { status: 404 });
+  }) as typeof fetch;
+  try {
+    const begun = await beginHosted();
+    const r: Record<string, unknown> = {
+      outcome: "opened",
+      task: true,
+      slot_counter: begun.slotCounter,
+      epoch: begun.epochB64,
+      commitment: begun.commitment,
+      commitment_base64: begun.commitmentB64,
+      floor: begun.floor === null ? null : { block: begun.floor.block, header_time: begun.floor.headerTime },
+      fuse_token: begun.token,
+      expires_in_seconds: 120,
+    };
+    // Verbatim from the sealer.
+    assert.ok(!(r.outcome !== "opened" || typeof r.commitment !== "string" || typeof r.fuse_token !== "string"), "the sealer would throw: unexpected answer");
+    const floor = (r.floor ?? {}) as { block?: number; header_time?: number };
+    const pos = { slotCounter: String(r.slot_counter), epoch: String(r.epoch), commitment: r.commitment as string, floor: { block: floor.block ?? null, header_time: floor.header_time ?? null }, fuseToken: r.fuse_token as string, expiresInSeconds: Number(r.expires_in_seconds ?? 120) };
+    assert.equal(pos.slotCounter, "4321");
+    assert.equal(pos.floor.block, 25962561);
+    assert.ok(decodeTaskToken(pos.fuseToken), "the token the sealer sends back is a task token");
+    assert.doesNotMatch(pos.commitment, /[+/=]/, "the commitment the sealer puts into the task is base64url");
   } finally {
     globalThis.fetch = realFetch;
   }

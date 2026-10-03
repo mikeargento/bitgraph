@@ -15,9 +15,16 @@
  * the proof route was down) is UNKNOWN: it is not found, and it is not new
  * either, because a member of an earlier tree would look exactly like it.
  * The caller does not make an unknown row without asking (SPEC section 13).
+ *
+ * Trees this browser made whose entries are not written yet (a closed tab, a
+ * site that took no writes) are asked too, through `local`: their members are
+ * on record, and the store does not know it yet.
  */
 import { TREE_MEMBER_CATEGORIES, base64ToBytes, blobSource, hexToBytes, type BitGraphProof, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
-import { fetchRecoveredProof, recoverFromDigests, type FetchLike } from "./recovery.ts";
+import { fetchRecoveredProof, recoverFromDigests, type FetchLike, type RecoveredEntry } from "./recovery.ts";
+
+/** An entry this browser still owes (recovery-queue.ts, localEntriesFor): a tree made here whose writes are not all in. */
+export type LocalEntry = Omit<RecoveredEntry, "objectKey" | "entryId">;
 
 export interface RecoveryRow {
   status: string;
@@ -47,7 +54,7 @@ export interface RecoveryFold {
 export const treePositionKey = (p: { commit?: { epochId?: string; counter?: string }; artifact: { digestB64: string } }): string =>
   `${p.commit?.epochId ?? ""}:${p.commit?.counter ?? ""}:${p.artifact.digestB64}`;
 
-export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: FetchLike; baseUrl?: string } = {}): Promise<RecoveryFold> {
+export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: FetchLike; baseUrl?: string; local?: (digest32: Uint8Array) => Promise<LocalEntry[]> } = {}): Promise<RecoveryFold> {
   const out: RecoveryFold = { found: new Map(), unknown: new Map(), failed: 0 };
   const unfound = rows.map((r, i) => [r, i] as const).filter(([r]) => r.status === "new" && r.digestB64 && !r.fromProofJson);
   if (unfound.length === 0) return out;
@@ -63,16 +70,24 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
   const answers = await recoverFromDigests(digests, opts.fetch, lookupOpts);
   await Promise.all(asked.map(async ([r, i], k) => {
     const a = answers[k]!;
-    if (!a.ok) {
+    // What this browser still owes comes first: those trees are on record whatever the store says.
+    let local: LocalEntry[] = [];
+    try {
+      local = opts.local !== undefined ? await opts.local(digests[k]!) : [];
+    } catch {
+      local = [];
+    }
+    if (!a.ok && local.length === 0) {
       out.unknown.set(i, a.reason);
       return;
     }
-    if (a.entries.length === 0) return;
+    const entries: LocalEntry[] = [...local, ...(a.ok ? a.entries : [])];
+    if (entries.length === 0) return;
     try {
       // The file is checked as a stream: a 40 GB file is a 40 GB file.
       const source = blobSource(r.file);
       const trees: RecoveredTree[] = [];
-      for (const e of a.entries) {
+      for (const e of entries) {
         const bound = await fetchRecoveredProof(e, opts.fetch, { ...lookupOpts, source });
         if (!bound || !(TREE_MEMBER_CATEGORIES as readonly string[]).includes(bound.check.category)) continue;
         const rootDocument = hexToBytes(e.rootDocument);

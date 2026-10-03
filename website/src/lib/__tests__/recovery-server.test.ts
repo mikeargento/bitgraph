@@ -7,7 +7,13 @@ import * as assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { MemoryRecoveryStore, type PutOutcome } from "../recovery-store.ts";
 import { fetchRecoveredProof, recoverFromDigest, recoveryAddress, recoveryTreeFrom, sealRecoveryMember } from "../recovery.ts";
-import { keepTreeOnSite, siteRecoveryNote } from "../recovery-server.ts";
+import { BUDGET_REASON, inProcessRecoveryFetch, keepTreeOnSite, recoveredOnSite, siteRecoveryNote, type SiteRecoveryResult } from "../recovery-server.ts";
+
+/** A result's counts, without the progress it carries for resuming. */
+const counts = ({ state, ...rest }: SiteRecoveryResult) => {
+  void state;
+  return rest;
+};
 import { fakeFetch, sha256, vectorTree } from "./recovery-helpers.ts";
 
 const TREE = JSON.parse(readFileSync(new URL("../../../../spec/vectors/tree-1.json", import.meta.url), "utf8")) as {
@@ -36,7 +42,8 @@ describe("recovery written by the site", () => {
   test("writes on: every entry is stored, and each file then finds its proof from its own bytes", async () => {
     const store = new MemoryRecoveryStore();
     const r = await keepTreeOnSite(input, store, { writesOn: true });
-    assert.deepEqual(r, { entries: ENTRIES, written: ENTRIES, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: null });
+    assert.deepEqual(counts(r), { entries: ENTRIES, kept: ENTRIES, written: ENTRIES, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: null, done: true });
+    assert.ok(r.state.progress.every((b) => b === 3), "every member: both sides kept");
     assert.equal(siteRecoveryNote(r), "Each file finds this proof again from its own bytes on bitgraph.ing, even if this export is lost.");
     const fetch = fakeFetch(store, { proofs: [t.proof] });
     for (const f of TREE.files) {
@@ -47,14 +54,19 @@ describe("recovery written by the site", () => {
       assert.ok(bound?.check.category.startsWith("TREE_MEMBER"), `${f.name}: ${bound?.check.category}`);
     }
     const again = await keepTreeOnSite(input, store, { writesOn: true });
-    assert.deepEqual(again, { entries: ENTRIES, written: 0, alreadyThere: ENTRIES, salted: 0, blocked: 0, pending: 0, reason: null });
+    assert.deepEqual(counts(again), { entries: ENTRIES, kept: ENTRIES, written: 0, alreadyThere: ENTRIES, salted: 0, blocked: 0, pending: 0, reason: null, done: true });
+    // Resumed from a state that has everything: the store is not asked at all.
+    const puts = store.puts;
+    const resumed = await keepTreeOnSite(input, store, { writesOn: true, state: r.state });
+    assert.equal(store.puts, puts);
+    assert.deepEqual(counts(resumed), { entries: ENTRIES, kept: ENTRIES, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: null, done: true });
   });
 
   test("writes off: nothing is stored and the note says why", async () => {
     const store = new MemoryRecoveryStore();
     const r = await keepTreeOnSite(input, store, { writesOn: false });
     assert.equal(store.puts, 0);
-    assert.deepEqual(r, { entries: ENTRIES, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: ENTRIES, reason: "recovery writes are off on this site" });
+    assert.deepEqual(counts(r), { entries: ENTRIES, kept: 0, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: ENTRIES, reason: "recovery writes are off on this site", done: false });
     assert.match(siteRecoveryNote(r), /^Not yet recoverable from the files alone \(recovery writes are off on this site\); keep this export\.$/);
   });
 
@@ -98,6 +110,53 @@ describe("recovery written by the site", () => {
     assert.equal(d.pending, ENTRIES);
     assert.match(d.reason ?? "", /^the recovery store could not be written/);
     assert.ok(down.puts <= 8, `a failing store is not asked once per entry (${down.puts} calls)`);
+  });
+
+  test("a budget stops the work with its progress, and a second call from that state finishes without rewriting", async () => {
+    const store = new MemoryRecoveryStore();
+    const slow = new (class extends MemoryRecoveryStore {
+      override async putIfAbsent(key: string, envelope: Uint8Array) {
+        await new Promise((r) => setTimeout(r, 15));
+        const out = await super.putIfAbsent(key, envelope);
+        store.objects.set(key, envelope);
+        return out;
+      }
+    })();
+    const first = await keepTreeOnSite(input, slow, { writesOn: true, budgetMs: 1 });
+    assert.equal(first.done, false);
+    assert.equal(first.reason, BUDGET_REASON);
+    assert.ok(first.written < ENTRIES, `stopped early (${first.written} of ${ENTRIES})`);
+    assert.match(siteRecoveryNote(first), /being written after this answer/);
+    const rest = await keepTreeOnSite(input, slow, { writesOn: true, state: first.state });
+    assert.equal(rest.done, true);
+    assert.equal(rest.written + first.written, ENTRIES, "nothing written twice, nothing missed");
+    assert.equal(rest.alreadyThere, 0);
+    assert.equal(slow.objects.size, ENTRIES);
+  });
+
+  test("the site reads its own entries: a digest already in a tree is on record, with no bytes in hand; a store that cannot be read is unknown", async () => {
+    const store = new MemoryRecoveryStore();
+    await keepTreeOnSite(input, store, { writesOn: true });
+    const proofsByDigest = async (urlSafe: string) => (urlSafe === t.proof.artifact.digestB64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") ? [t.proof] : []);
+    const fetch = inProcessRecoveryFetch(store, proofsByDigest);
+    const digests = TREE.files.map((f) => Buffer.from(sha256(Buffer.from(f.originalHex, "hex"))).toString("base64"));
+    const r = await recoveredOnSite([...digests, Buffer.from(sha256(Buffer.from("never recorded"))).toString("base64")], fetch);
+    assert.equal(r.unknown.size, 0);
+    assert.equal(r.found.size, digests.length, "every member, by its original's digest");
+    for (const d of digests) {
+      const [hit] = r.found.get(d)!;
+      assert.equal(hit!.proof.commit?.counter, t.proof.commit?.counter);
+      assert.equal(hit!.rootDocumentHex, Buffer.from(t.rootDocument).toString("hex"));
+    }
+    // The ledger has no proof under the tree's digest (not written yet): not found, and not unknown either; the entry alone is not a position.
+    const noProof = await recoveredOnSite(digests.slice(0, 1), inProcessRecoveryFetch(store, async () => []));
+    assert.equal(noProof.found.size, 0);
+    assert.equal(noProof.unknown.size, 0);
+    // A store that cannot be read: unknown, never new.
+    store.failing = true;
+    const down = await recoveredOnSite(digests.slice(0, 2), fetch);
+    assert.equal(down.found.size, 0);
+    assert.equal(down.unknown.size, 2);
   });
 
   test("a tree that does not hold together is reported, never thrown", async () => {

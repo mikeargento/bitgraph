@@ -32,10 +32,11 @@ import { readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { BitGraph, type VerifyOutcome } from "./bitgraph.js";
 import { serve, DEFAULT_PORT } from "./serve.js";
-import { ApiError } from "./api.js";
+import { ApiError, configFromEnv } from "./api.js";
 import { carrierLine } from "./carrier-io.js";
 import { SLOT_TTL_SECONDS } from "./task.js";
 import { recoveryLine } from "./recovery.js";
+import { flushRecoveryJobs, jobFromOwnerExport, listRecoveryJobs, runRecoveryJob, saveRecoveryJob } from "./recovery-jobs.js";
 import { EXPORT_KINDS, looksLikeExport, memberExportFileName, memberExportFromOwner, readExportFile, type ExportKind } from "./exports.js";
 
 /** BitGraph's published ceiling writer on Base mainnet (bitgraph.ing/ceilings). */
@@ -100,6 +101,9 @@ const HELP = `bitgraph: make, check and verify BitGraphs from any stack
                                        check a ceiling in time offline; --rpc also
                                        asks a Base node that the block is Base's
   serve [--port ${DEFAULT_PORT}]                    localhost API (127.0.0.1 only)
+  recovery list                        trees whose recovery entries are still pending
+  recovery flush [--budget ms]         write them (the next record does this too)
+  recovery keep <owner-export.json>    write a tree's entries from its owner export
 
 Every command takes --json (one JSON document on stdout), --base-url and
 --api-key (or BITGRAPH_API_URL / BITGRAPH_API_KEY). Files are read locally
@@ -178,9 +182,42 @@ async function main(): Promise<void> {
           lines.push("no export was written (--exports none). A file proves it is in this BitGraph only with its export: --json holds the leaves to build one.");
         }
         if (made?.recovery) lines.push(recoveryLine(made.recovery));
+        if (r.backlog !== null && (r.backlog.jobs > 0 || r.backlog.left > 0)) {
+          lines.push(`earlier trees: ${r.backlog.written} pending recovery entr${r.backlog.written === 1 ? "y" : "ies"} written now${r.backlog.left > 0 ? `; ${r.backlog.left} tree${r.backlog.left === 1 ? "" : "s"} still pending (bitgraph recovery list)` : ""}`);
+        }
         return lines.join("\n");
       });
       return;
+    }
+    case "recovery": {
+      const config = { ...configFromEnv(), ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}) };
+      const sub = args[0];
+      if (sub === "list") {
+        const jobs = await listRecoveryJobs();
+        out(jobs, () => (jobs.length === 0 ? "no pending recovery entries" : jobs.map((j) => `#${j.counter ?? "?"} · tree of ${j.count} · ${j.baseUrl} · ${j.attempts} attempt${j.attempts === 1 ? "" : "s"}${j.lastReason !== null ? ` · ${j.lastReason}` : ""}\n  ${j.path}`).join("\n")));
+        return;
+      }
+      if (sub === "flush") {
+        const budget = flags.get("budget");
+        const r = await flushRecoveryJobs(config, { budgetMs: typeof budget === "string" ? Number(budget) : 10 * 60_000 });
+        out(r, () => {
+          const lines = r.worked.map((w) => `#${w.counter ?? "?"} · ${recoveryLine(w.result)}`);
+          if (r.left > 0) lines.push(`${r.left} tree${r.left === 1 ? "" : "s"} still pending`);
+          if (lines.length === 0) lines.push("no pending recovery entries");
+          return lines.join("\n");
+        });
+        return;
+      }
+      if (sub === "keep") {
+        const target = args[1];
+        if (target === undefined) fail("usage: bitgraph recovery keep <owner-export.json>");
+        const job = jobFromOwnerExport(JSON.parse(await readFile(target, "utf8")), config.baseUrl);
+        await saveRecoveryJob(job);
+        const r = await runRecoveryJob(job, { budgetMs: 10 * 60_000 });
+        out(r, () => (r === null ? "another process is writing this tree's entries" : `#${job.proof.commit?.counter ?? "?"} · ${recoveryLine({ ...r, job: r.done ? null : target })}`));
+        return;
+      }
+      fail("usage: bitgraph recovery list | bitgraph recovery flush [--budget ms] | bitgraph recovery keep <owner-export.json>");
     }
     case "check": {
       if (args.length === 0) fail("check needs paths or digests");

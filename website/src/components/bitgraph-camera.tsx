@@ -290,6 +290,13 @@ interface FileItem {
   tree?: { made: MadeTree; member: MadeTreeMember };
   /** Tree positions this file was found in by its recovery entry: the root document and its place, per position. */
   recoveredTrees?: Array<{ proofKey: string; rootDocument: Uint8Array; evidence: TreeMemberEvidence }>;
+  /**
+   * Set when the recovery lookup for this row did not complete, with why.
+   * The row reads "new", but whether it is already in a tree is UNKNOWN (a
+   * member of an earlier tree would look exactly like it), so it is not made
+   * without the visitor saying so (SPEC section 13).
+   */
+  recoveryUnknown?: string;
 }
 
 
@@ -299,10 +306,10 @@ interface FileItem {
  * and saved across a closed tab. Never in the way of the proof: a failure here
  * is logged, and the tree is exactly as made.
  */
-function keepRecoveryCopy(made: MadeTree): void {
+function keepRecoveryCopy(made: MadeTree, keep = true): void {
   try {
     void browserRecoveryQueue()
-      .enqueueTree({ proof: made.proof as never, rootDocument: made.rootDocument, leavesBytes: made.leavesBytes, names: made.names, keepRecoveryCopy: true })
+      .enqueueTree({ proof: made.proof as never, rootDocument: made.rootDocument, leavesBytes: made.leavesBytes, names: made.names, keepRecoveryCopy: keep })
       .catch((e: unknown) => console.warn("[recovery] could not queue this tree's recovery entries:", e));
   } catch (e) {
     console.warn("[recovery] queue unavailable:", e);
@@ -479,6 +486,14 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   /* A drop with a file that will take a while to hash, held until the visitor says so. */
   const [largeDrop, setLargeDrop] = useState<{ files: File[]; name: string; gb: string; seconds: number } | null>(null);
   const largeOkRef = useRef(new WeakSet<File>());
+  /* Rows whose recovery lookup did not complete are not made until the visitor
+     says so: the gate names how many and why, and holds the run it stopped. */
+  const [unknownGate, setUnknownGate] = useState<{ count: number; why: string; proceed: () => void } | null>(null);
+  const unknownOkRef = useRef(false);
+  /* The recovery switch (SPEC section 13, opting out): on, a tree made here keeps
+     a sealed entry per file so the file finds its proof again; off, nothing of
+     the tree is stored for recovery and a lost export cannot be recovered. */
+  const [keepRecovery] = useState(true);
   const [proveAnimCount, setProveAnimCount] = useState(0);
   const proveAnimRef = useRef(0);
   /**
@@ -1167,7 +1182,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      * read leaves the row "new" and says so in the console: the recovery store
      * being unreachable must not stop a first recording.
      */
-    const recovered = await recoverRows(results);
+    const recovered = await recoverRows(results, { local: (d) => browserRecoveryQueue().localEntriesFor(d) });
     for (const [i, trees] of recovered.found) {
       const r = results[i]!;
       r.proofs = trees.map((t) => treeHandoff(t.proof as unknown as Parameters<typeof treeHandoff>[0], t.rootDocumentHex, t.evidence) as unknown as BitGraphProof);
@@ -1176,7 +1191,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       r.status = "found";
       r.valid = null;
     }
-    if (recovered.failed) console.warn(`[recovery] ${recovered.failed} lookup(s) did not complete; those rows stay new`);
+    // A lookup that did not complete is not a verdict either way: the row
+    // stays "new" to look at, and is not made without asking (SPEC section 13).
+    for (const [i, why] of recovered.unknown) results[i]!.recoveryUnknown = why;
+    if (recovered.failed) console.warn(`[recovery] ${recovered.failed} lookup(s) did not complete; whether those files are already in a tree is unknown`);
     return results;
   }
 
@@ -1768,7 +1786,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   const treeInputFor = (t: FileItem) => treeInputOf({ file: t.file, digestB64: t.digestB64, placement: t.scan?.placement ?? null, state: t.scan?.state ?? null });
   async function makeOne(t: FileItem): Promise<{ proof: BitGraphProof; made: MadeTree }> {
     const made = await heldThroughRotation(() => makeTreeHere([treeInputFor(t)]));
-    keepRecoveryCopy(made);
+    keepRecoveryCopy(made, keepRecovery);
     return { proof: made.proof as unknown as BitGraphProof, made };
   }
   async function beginRun(digests: string[]) {
@@ -1836,6 +1854,15 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const eligible = (i: FileItem) => (again ? isAgainRow(i) : i.status === "new" || i.status === "error");
     const toProve = items.filter(eligible);
     if (!toProve.length) return;
+    // Unknown is not new: a row whose recovery lookup did not complete may be
+    // a member of an earlier tree. It is made only when the visitor says so
+    // (an again run already says so).
+    const unknown = again ? [] : toProve.filter((i) => i.recoveryUnknown !== undefined);
+    if (unknown.length > 0 && !unknownOkRef.current) {
+      setUnknownGate({ count: unknown.length, why: unknown[0]!.recoveryUnknown!, proceed: () => { unknownOkRef.current = true; void fuseRemaining(again); } });
+      return;
+    }
+    unknownOkRef.current = false;
     setStep("proving");
     setRecordMessage(null);
     setProveProgress({ current: 0, total: toProve.length });
@@ -1942,7 +1969,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             setProvePhase({ phase, done: walked, total: treeRows, at, since });
           },
         }));
-        keepRecoveryCopy(made);
+        keepRecoveryCopy(made, keepRecovery);
         if (lastPhase) chargeTo(lastPhase);
         setProvePhase(null);
         if (new URLSearchParams(window.location.search).has("timing")) {
@@ -2014,6 +2041,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // fact minted, so recording them again cannot double-record.
     const toProve = items.filter(i => i.status === "new" || i.status === "error");
     if (!toProve.length) return;
+    // Unknown is not new (see fuseRemaining): asked first, made only on a yes.
+    const unknown = toProve.filter((i) => i.recoveryUnknown !== undefined);
+    if (unknown.length > 0 && !unknownOkRef.current) {
+      setUnknownGate({ count: unknown.length, why: unknown[0]!.recoveryUnknown!, proceed: () => { unknownOkRef.current = true; void recordRemaining(); } });
+      return;
+    }
+    unknownOkRef.current = false;
 
     setStep("proving");
     setRecordMessage(null);
@@ -3079,6 +3113,28 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             {!showingResults && title && <h1 className="bg-page-title bitgraph-tagline">{title}</h1>}
             {!showingResults && above}
             <div className="bitgraph-camera">
+              {unknownGate && (
+                <div role="status" style={{ padding: "12px 16px 14px", fontSize: 14, lineHeight: 1.55, borderBottom: "1px solid var(--line-2)" }}>
+                  <p style={{ margin: 0 }}>
+                    {unknownGate.count === 1 ? "One file" : `${unknownGate.count} files`} could not be checked against earlier BitGraphs ({unknownGate.why}). {unknownGate.count === 1 ? "It" : "They"} may already be in one. Make {unknownGate.count === 1 ? "it" : "them"} anyway, or try again later.
+                  </p>
+                  <div style={{ display: "flex", gap: 20, marginTop: 8, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="bg-action-link is-make"
+                      onClick={() => {
+                        const g = unknownGate;
+                        setUnknownGate(null);
+                        g.proceed();
+                      }}
+                    >
+                      <span>Make anyway</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </button>
+                    <button type="button" className="bg-action-link" onClick={() => setUnknownGate(null)}><span>Not now</span></button>
+                  </div>
+                </div>
+              )}
               {largeDrop && (
                 <div role="status" style={{ padding: "12px 16px 14px", fontSize: 14, lineHeight: 1.55, borderBottom: "1px solid var(--line-2)" }}>
                   <p style={{ margin: 0 }}>

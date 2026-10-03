@@ -375,6 +375,31 @@ describe("the queue", () => {
     assert.equal(typeof globalThis.crypto.subtle.importKey, "function", "restored");
   });
 
+  test("a member of a tree made here whose entries are still pending is found locally, in a lookup's shape", T, async () => {
+    const { v, input } = vectorInput();
+    const leaf = decodeTreeLeaves(v.leavesBytes)![1]!;
+    // A site that takes no writes: the job stays pending, the tree is on record all the same.
+    const refusing: RecoveryTransport = { async post() { throw new RecoveryTransportError(503, "writes off"); } };
+    const waits: number[] = [];
+    const q = queueWith({ store: new MemoryRecoveryQueueStore(), transport: refusing }, waits);
+    const { id } = await q.enqueueTree(input);
+    // Let the first attempt fail, then stop: the job is pending and saved.
+    await new Promise((r) => setTimeout(r, 5));
+    await q.stop();
+    assert.equal(q.fileStatus(id, 1), "pending");
+    const byOrigin = await q.localEntriesFor(leaf.origin);
+    assert.equal(byOrigin.length, 1);
+    assert.equal(byOrigin[0]!.matched, "origin");
+    assert.equal(byOrigin[0]!.leafIndex, 1);
+    assert.equal(byOrigin[0]!.name, "hello.txt");
+    assert.equal(byOrigin[0]!.rootDocument, Buffer.from(v.rootDocument).toString("hex"));
+    assert.equal(byOrigin[0]!.proof.counter, v.proof.commit?.counter);
+    const byArtifact = await q.localEntriesFor(leaf.artifact);
+    assert.equal(byArtifact.length, 1);
+    assert.equal(byArtifact[0]!.matched, "artifact");
+    assert.deepEqual(await q.localEntriesFor(sha256(utf8("never recorded"))), []);
+  });
+
   test("enqueueing the same recording twice is one job", T, async () => {
     const { input } = vectorInput();
     const server = new MemoryRecoveryStore();

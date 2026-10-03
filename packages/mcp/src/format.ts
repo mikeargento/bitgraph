@@ -120,6 +120,8 @@ export interface TreeOutcome {
     /** Not written: the site takes no recovery writes yet, or the attempts ran out. */
     pending: number;
     reason: string | null;
+    /** The saved job's file while entries are pending (the next bitgraph_record finishes them); null once every entry is kept or blocked. */
+    job: string | null;
   } | null;
 }
 
@@ -128,7 +130,7 @@ export function recoveryText(r: NonNullable<TreeOutcome["recovery"]>): string {
   const kept = r.kept;
   if (r.entries > 0 && kept === r.entries) return `Each file finds this proof again from its own bytes (${fmt(r.entries)} sealed recovery entr${r.entries === 1 ? "y" : "ies"} kept).`;
   const parts: string[] = [];
-  if (r.pending > 0 || r.entries === 0) parts.push(`Not yet recoverable from the files alone: ${r.reason ?? "the entries were not written"}.`);
+  if (r.pending > 0 || r.entries === 0) parts.push(`Not yet recoverable from the files alone: ${r.reason ?? "the entries were not written"}.${r.pending > 0 && r.job !== null ? " The pending entries are saved; the next bitgraph_record finishes them." : ""}`);
   if (r.blocked > 0) parts.push(`${fmt(r.blocked)} of ${fmt(r.entries)} recovery entries are held by other entries under the same file, under both names; keep the export.`);
   if (parts.length === 0) parts.push(`${fmt(kept)} of ${fmt(r.entries)} recovery entries kept.`);
   return parts.join(" ");

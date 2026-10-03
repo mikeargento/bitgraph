@@ -123,6 +123,7 @@ before(async () => {
   const addr = boundary.address();
   if (addr === null || typeof addr === "string") throw new Error("no port");
   process.env["BITGRAPH_API_URL"] = `http://127.0.0.1:${addr.port}`;
+  process.env["BITGRAPH_HOME"] = await mkdtemp(join(tmpdir(), "bitgraph-mcp-home-"));
   delete process.env["BITGRAPH_API_KEY"];
 });
 
@@ -173,7 +174,7 @@ test("recovery: the tree keeps a sealed entry per file, and recording the same f
   const first = await client.callTool({ name: "bitgraph_record", arguments: { paths: [kept], response_format: "json" } });
   assert.ok(!first.isError, JSON.stringify(first.content).slice(0, 600));
   const made = (first.structuredContent as Out).tree!;
-  assert.deepEqual(made.recovery, { entries: 4, kept: 4, written: 4, already_there: 0, salted: 0, blocked: 0, pending: 0, reason: null });
+  assert.deepEqual(made.recovery, { entries: 4, kept: 4, written: 4, already_there: 0, salted: 0, blocked: 0, pending: 0, reason: null, job: null });
   const members = new Map((first.structuredContent as Out).results.map((r) => [r.path, r.member]));
 
   const again = await client.callTool({ name: "bitgraph_record", arguments: { paths: [kept] } });

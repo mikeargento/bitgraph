@@ -37,5 +37,10 @@ export type { BuiltCarrier, CompletedCarrier } from "./carrier-build.js";
 export { toUrlSafeB64, fromUrlSafeB64, looksLikeDigest, sha256FileB64, mapConcurrent } from "./encoding.js";
 export type { BitGraphProof, ProofDetailResponse, PositionView, AnchorView, SetMemberView, BatchCheckResponse, SearchResponse } from "./types.js";
 export { serve } from "./serve.js";
-export { lookupRecovered, keepRecoveryEntries, recoveryLine, type RecoveredRow, type RecoveryLookup, type RecoveryWriteResult } from "./recovery.js";
+export { lookupRecovered, keepRecoveryEntries, recoveryLine, type RecoveredRow, type RecoveryLookup, type RecoveryWriteResult, type KeptRecovery } from "./recovery.js";
+export {
+  recoveryJobsDir, registerRecoveryJob, runRecoveryJob, listRecoveryJobs, flushRecoveryJobs, jobFromOwnerExport, saveRecoveryJob, recoveryJobId,
+  RECOVERY_JOB_FORMAT, RECORD_RECOVERY_BUDGET_MS, FLUSH_ON_RECORD_BUDGET_MS, LOCK_STALE_MS,
+  type RecoveryJobFile, type RecoveryJobSummary, type FlushResult, type RunJobOptions,
+} from "./recovery-jobs.js";
 export type { ServeOptions, RunningServer } from "./serve.js";

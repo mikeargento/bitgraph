@@ -19,14 +19,17 @@
  * section 13).
  *
  * After a make, every member's entries are written. That happens after the
- * proof is in hand and never stands in its way; a site that does not take
- * writes yet leaves them pending, and the result says why.
+ * proof is in hand and never stands in its way; the job is saved first
+ * (recovery-jobs.ts), so a site that does not take writes yet, a lost
+ * connection or Ctrl-C leaves the entries pending on disk, not lost, and the
+ * result says why. The next record finishes them.
  */
 
 import { TREE_MEMBER_CATEGORIES } from "@mikeargento/bitgraph-verify";
 import { fetchRecoveredProof, recoverFromDigests, writeRecoveryEntries, type RecoveryWriteOptions, type RecoveryWriteResult } from "@mikeargento/bitgraph";
 import type { ApiConfig } from "./api.js";
 import { mapConcurrent } from "./encoding.js";
+import { RECORD_RECOVERY_BUDGET_MS, registerRecoveryJob, runRecoveryJob } from "./recovery-jobs.js";
 import { fileSource, type ScannedFile } from "./scan.js";
 import type { BitGraphProof, SetMemberView } from "./types.js";
 
@@ -47,6 +50,11 @@ export interface RecoveryLookup {
 }
 
 export type { RecoveryWriteResult };
+
+/** A tree's recovery result, with the pending job's file when entries are left to write (null once every entry is kept or blocked). */
+export type KeptRecovery = RecoveryWriteResult & { job: string | null };
+
+const EMPTY_STATE = () => ({ progress: new Uint8Array(0), salts: {} as Record<string, string> });
 
 /** Ask the recovery entries of files the ledger does not know: every file, a thousand addresses a request. */
 export async function lookupRecovered(files: readonly ScannedFile[], config: Pick<ApiConfig, "baseUrl">): Promise<RecoveryLookup> {
@@ -83,38 +91,58 @@ export async function lookupRecovered(files: readonly ScannedFile[], config: Pic
   return out;
 }
 
-/** Write a made tree's entries. Never throws: a failure is a result with its reason. */
+/**
+ * Write a made tree's entries, the job saved first so nothing is lost if this
+ * run is cut short: the saved job is finished by the next record or by
+ * `bitgraph recovery flush`. Never throws: a failure is a result with its
+ * reason. When even the job cannot be saved (a home directory that cannot be
+ * written), the entries are written now as far as they go, and the result
+ * says the rest is not saved.
+ */
 export async function keepRecoveryEntries(
   made: { proof: unknown; rootDocumentHex: string; leavesB64: string; names?: ReadonlyArray<string | null | undefined> },
   config: Pick<ApiConfig, "baseUrl">,
-  opts: Omit<RecoveryWriteOptions, "baseUrl"> = {},
-): Promise<RecoveryWriteResult> {
+  opts: Pick<RecoveryWriteOptions, "fetch" | "retries" | "backoffMs" | "timeoutMs" | "budgetMs"> = {},
+): Promise<KeptRecovery> {
+  const budgetMs = opts.budgetMs ?? RECORD_RECOVERY_BUDGET_MS;
+  const runOpts = { budgetMs, ...(opts.fetch !== undefined ? { fetch: opts.fetch } : {}), ...(opts.retries !== undefined ? { retries: opts.retries } : {}), ...(opts.backoffMs !== undefined ? { backoffMs: opts.backoffMs } : {}), ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}) };
+  let registered: Awaited<ReturnType<typeof registerRecoveryJob>> | null = null;
+  let saveError: string | null = null;
   try {
-    return await writeRecoveryEntries(
+    registered = await registerRecoveryJob(made, config);
+  } catch (e) {
+    saveError = e instanceof Error ? e.message : String(e);
+  }
+  if (registered !== null) {
+    const result = await runRecoveryJob(registered.job, runOpts);
+    if (result === null) {
+      return { entries: 0, kept: 0, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: "another process is writing this tree's entries", state: EMPTY_STATE(), done: false, job: registered.path };
+    }
+    return { ...result, job: result.done ? null : registered.path };
+  }
+  try {
+    const r = await writeRecoveryEntries(
       {
         proof: made.proof as never,
         rootDocument: Uint8Array.from(Buffer.from(made.rootDocumentHex, "hex")),
         leavesBytes: Uint8Array.from(Buffer.from(made.leavesB64, "base64")),
         ...(made.names !== undefined ? { names: made.names } : {}),
       },
-      { ...opts, baseUrl: config.baseUrl },
+      { ...runOpts, baseUrl: config.baseUrl },
     );
+    return { ...r, reason: r.pending > 0 ? `${r.reason ?? "entries pending"}; they could not be saved for later (${saveError})` : r.reason, job: null };
   } catch (e) {
-    return {
-      entries: 0, kept: 0, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: 0,
-      reason: `recovery entries were not written: ${(e as Error).message}`,
-      state: opts.state ?? { progress: new Uint8Array(0), salts: {} },
-      done: false,
-    };
+    return { entries: 0, kept: 0, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: `recovery entries were not written: ${(e as Error).message}`, state: EMPTY_STATE(), done: false, job: null };
   }
 }
 
 /** One line for a person: what the entries mean for finding this proof again. */
-export function recoveryLine(r: RecoveryWriteResult): string {
+export function recoveryLine(r: RecoveryWriteResult & { job?: string | null }): string {
   if (r.entries > 0 && r.kept === r.entries) return `each file finds this proof again from its own bytes (${r.entries} sealed entr${r.entries === 1 ? "y" : "ies"} kept)`;
   const parts: string[] = [];
   if (r.pending > 0 || r.entries === 0) parts.push(`not yet recoverable from the files alone: ${r.reason ?? "the entries were not written"}`);
   if (r.blocked > 0) parts.push(`${r.blocked} of ${r.entries} entries are held by other entries under the same file, under both names (SPEC section 13); keep the export`);
   if (parts.length === 0) parts.push(`${r.kept} of ${r.entries} recovery entries kept`);
+  if (r.pending > 0 && typeof r.job === "string") parts.push("the pending entries are saved; the next record finishes them, or run: bitgraph recovery flush");
   return parts.join("; ");
 }

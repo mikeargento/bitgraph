@@ -47,6 +47,7 @@
 
 import {
   base64ToBytes,
+  bytesEqual,
   bytesToBase64,
   bytesToHex,
   hexToBytes,
@@ -61,7 +62,9 @@ import {
   existingEntryHoldsMember,
   leavesBytesOf,
   newRecoverySalt,
+  recoveryDigestOf,
   recoveryMemberStatus,
+  recoveryPlaintextFor,
   recoveryProofParts,
   recoverySaltKey,
   recoverySaltsFor,
@@ -72,6 +75,7 @@ import {
   recoveryTreeFromParts,
   sealRecoveryMember,
   type FetchLike,
+  type RecoveredEntry,
   type RecoveryLocator,
   type RecoveryPlaintext,
   type RecoverySide,
@@ -629,6 +633,38 @@ export class RecoveryQueue {
     if (job === undefined || !job.rec.keep || !Number.isInteger(index) || index < 0 || index >= job.rec.count) return null;
     const b = job.progress[index]!;
     return { origin: recoverySideState(b, "origin"), artifact: recoverySideState(b, "artifact") };
+  }
+
+  /**
+   * The entries this browser still owes for a file: the members of working
+   * jobs (trees made here whose writes are not all in) whose original or
+   * committed bytes have this digest, in the shape a lookup returns. A file
+   * dropped again before its entries land is found here, not called new.
+   */
+  async localEntriesFor(digest32: Uint8Array): Promise<Array<Omit<RecoveredEntry, "objectKey" | "entryId">>> {
+    await this.load();
+    const out: Array<Omit<RecoveredEntry, "objectKey" | "entryId">> = [];
+    for (const job of this.jobs.values()) {
+      if (!job.rec.keep || job.rec.done || job.rec.leaves === null) continue;
+      const tree = this.treeOf(job);
+      if (tree === null) continue;
+      for (let i = 0; i < tree.count; i++) {
+        const sides = recoverySidesOf(tree, i).filter((side) => bytesEqual(recoveryDigestOf(tree, i, side), digest32));
+        if (sides.length === 0) continue;
+        const { plaintext } = recoveryPlaintextFor(tree, i, job.rec.names?.[i] ?? null);
+        out.push({
+          salted: false,
+          matched: sides[0]!,
+          proofHash: plaintext.proofHash,
+          leafIndex: plaintext.leafIndex,
+          rootDocument: plaintext.rootDocument,
+          member: plaintext.member,
+          proof: plaintext.proof,
+          name: plaintext.name ?? null,
+        });
+      }
+    }
+    return out;
   }
 
   /** Called with a job id whenever that job's status may have changed. Returns the unsubscribe. */

@@ -42,7 +42,8 @@ import { beginTask, decodeTaskToken, sealTask, writeProofBeside, SLOT_TTL_SECOND
 import { buildBitGraphedFile, completeBitGraphedFile, type BuiltCarrier, type CompletedCarrier } from "./carrier-build.js";
 import { completeExportFile, exportDataOf, fetchPinnedSpec, memberExportOf, ownerExportOf, writeTreeExports, type CompletedExportFile, type ExportKind, type TreeExportData, type WrittenExports } from "./exports.js";
 import type { FuseTreeProgress } from "@mikeargento/bitgraph";
-import { keepRecoveryEntries, lookupRecovered, type RecoveredRow, type RecoveryWriteResult } from "./recovery.js";
+import { keepRecoveryEntries, lookupRecovered, type KeptRecovery, type RecoveredRow } from "./recovery.js";
+import { FLUSH_ON_RECORD_BUDGET_MS, flushRecoveryJobs } from "./recovery-jobs.js";
 import type { BitGraphProof, ProofDetailResponse, SetMemberView } from "./types.js";
 
 export interface BitGraphOptions {
@@ -86,14 +87,16 @@ export interface TreeMade extends TreeExportData {
   rootDocumentEchoed: boolean;
   /** The export files this call wrote (record with exportDir); null when none were asked for. */
   exports: WrittenExports | null;
-  /** The tree's recovery entries (SPEC section 13): written, already there, blocked, or pending and why. Null when recovery was turned off. */
-  recovery: RecoveryWriteResult | null;
+  /** The tree's recovery entries (SPEC section 13): written, already there, blocked, or pending and why, with the saved job's file while any are pending. Null when recovery was turned off. */
+  recovery: KeptRecovery | null;
 }
 
 export interface RecordResult {
   /** What this call made: ONE tree of every fresh file, or nothing (everything was already on record or carried). */
   made: TreeMade | null;
   files: RecordedFile[];
+  /** Earlier trees whose recovery entries were still pending: what this call finished first (recovery-jobs.ts). Null when recovery was turned off. */
+  backlog: { jobs: number; written: number; left: number } | null;
 }
 
 export interface CheckedInput {
@@ -199,6 +202,14 @@ export class BitGraph {
       byDigest.set(f.digestB64, entry);
     }
     const unique = [...byDigest.keys()];
+    // Entries an earlier record left pending (a site that took no writes, a
+    // run cut short) are finished first, inside a small budget: the backlog
+    // drains with use, and nothing waits on it for long.
+    let backlog: RecordResult["backlog"] = null;
+    if (opts.recovery !== false) {
+      const flushed = await flushRecoveryJobs(this.config, { budgetMs: FLUSH_ON_RECORD_BUDGET_MS });
+      backlog = { jobs: flushed.worked.length, written: flushed.worked.reduce((n, w) => n + w.result.written, 0), left: flushed.left };
+    }
     const carrierInner = [...new Set(carriers.filter((c) => c.innerDigestB64 !== null).map((c) => c.innerDigestB64 as string))];
     const lookups = [...new Set([...unique, ...carrierInner])];
     const checked = lookups.length > 0 ? await batchCheck(this.config, lookups.map(toUrlSafeB64)) : { results: {} as Record<string, { proofs: Array<{ proof: BitGraphProof; member?: SetMemberView }> }> };
@@ -303,7 +314,7 @@ export class BitGraph {
         ...(c.view ? { carrier: c.view } : {}), ...(c.c2pa ? { c2pa: true as const } : {}),
       });
     }
-    return { made, files: out };
+    return { made, files: out, backlog };
   }
 
   /**
