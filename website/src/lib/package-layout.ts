@@ -12,6 +12,7 @@
  *   bitgraphed-file/<name>        one file carrying the whole proof inside it, when it could be built
  *   ethereum-anchors/             the floor and closing anchors with their block headers
  *   base-ceiling/                 the ceiling in time, and its settlement when attached
+ *   base-ceiling/blobs/           the Ethereum blob bytes the settlement pointer names (<versioned hash>.bin)
  *
  * Readers (the drop box, bitgraph-audit) find files by what they are, not by
  * these names, and still read the earlier layout (`new-file/` beside a
@@ -42,6 +43,12 @@ export interface ReadmeInput {
   floor: { block: number; iso: string | null } | null;
   ceilingInTime: { block: number; iso: string; txHash: string; reportedStatus: string } | null;
   settlement: { block: number; iso: string; txHash: string } | null;
+  /**
+   * The blob bytes the settlement pointer names (2026-10-02, outside review: "no .bin files are in
+   * the package, and the network prunes blobs after roughly 18 days"): the files put in
+   * base-ceiling/blobs/, and the versioned hashes that could not be fetched when the package was built.
+   */
+  settlementBlobs?: { inPackage: string[]; missing: string[] } | null;
   ceilingInPosition: { anchorCounter: string; block: number | null; iso: string | null } | null;
   pcr0: string | null;
   enclaveTag: string | null;
@@ -88,7 +95,7 @@ export function packageReadme(i: ReadmeInput): string {
     const st = (title: string, path: string, text: string) => { L.push(`${++stage}. ${title}: ${path}`, `   ${text}`, ""); };
     if (i.originalPath) st("The original", i.originalPath, "The file as it was before BitGraph touched it. Nothing added.");
     st("The committed file", i.committedPath, `${i.originalPath ? "The original" : "The file"} with a 48-byte commitment at the end. The commitment is a one-time code from the position BitGraph opened, and it could not exist before the floor block. This is the file the proof is about: its SHA-256 is the digest in proof.json.${i.originalPath ? " The original's is not." : ""}`);
-    if (i.carrierPath) st("The BitGraphed file", i.carrierPath, "The committed file with the proof, the Ethereum anchors and the Base ceiling packed inside it. One file that verifies with nothing else beside it.");
+    if (i.carrierPath) st("The BitGraphed file", i.carrierPath, "The committed file with the proof, the Ethereum anchors and the Base ceiling packed inside it. One file that verifies with nothing else beside it. Its own SHA-256 is not the committed digest and is not supposed to be: the proof block packed at its end is part of its bytes. The verifier strips that block and checks the bytes before it.");
     L.push("Which to use:", "");
     if (i.carrierPath) L.push("- To share or keep one file: the BitGraphed file. The proof travels inside it.");
     L.push("- To check the fingerprint by hand: the committed file, against proof.json.");
@@ -104,11 +111,13 @@ export function packageReadme(i: ReadmeInput): string {
   if (i.carrierPath) item(i.carrierPath, "The BitGraphed file: the committed bytes with the proof, the Ethereum anchors and the Base ceiling packed inside one file. It verifies with nothing else beside it.");
   if (i.hasAnchorsBefore || i.hasAnchorsAfter) item("ethereum-anchors/", "The anchor before (the floor) and the anchor after (the closing anchor), each with its Ethereum block header so the block's time reads offline.");
   item("base-ceiling/", "The ceiling in time: the Merkle path, the signed Base transaction, the Base block header and the transaction's inclusion proof. A file there whose name ends in -status.json says in words when something was not available.");
+  if (i.settlementBlobs && i.settlementBlobs.inPackage.length) item("base-ceiling/blobs/", `The Ethereum blob data that carries the Base batch (${i.settlementBlobs.inPackage.length} file${i.settlementBlobs.inPackage.length === 1 ? "" : "s"}, each named by its versioned hash). Ethereum nodes keep blob data only about 18 days, so these copies are what lets the settlement be checked later.`);
 
   if (i.committedSha256Hex || (i.originalSha256Hex && i.originalPath)) {
     L.push("## Which file to hash", "");
     if (i.committedSha256Hex) L.push(`- ${committed}`, `  SHA-256: ${i.committedSha256Hex}`, "  This equals artifact.digestB64 in proof.json (written there in base64).", "");
     if (i.originalSha256Hex && i.originalPath) L.push(`- ${i.originalPath}`, `  SHA-256: ${i.originalSha256Hex}`, "  This equals the signed attribution.message in proof.json. It is not the artifact digest, and it is not supposed to be.", "");
+    if (i.carrierPath) L.push(`- ${i.carrierPath}`, "  Its own SHA-256 is not the artifact digest, and it is not supposed to be: the proof is packed inside it. The committed bytes are this file minus the proof block at its end; the verifier strips the block and hashes what is left.", "");
   }
 
   L.push("## Check it yourself", "");
@@ -137,7 +146,14 @@ export function packageReadme(i: ReadmeInput): string {
   check("Inclusion on Base", `The ceiling transaction's signature, sender ${i.writer}, and its Merkle-Patricia proof against the Base block header in the base-ceiling folder.`, "yes");
   check("Chain confirmation", `That the block headers in this folder are the real chains' blocks. Compare the block hashes with any node or explorer${i.floor ? `: https://etherscan.io/block/${i.floor.block}` : ""}${i.ceilingInTime ? ` and https://basescan.org/block/${i.ceilingInTime.block}` : ""}`, "NO. One lookup each, by you");
   if (i.settlement) {
-    check("Settlement on Ethereum", `A bitgraph-settlement/1 pointer is attached in base-ceiling/ceiling.json: Ethereum block ${n(i.settlement.block)} (${utc(i.settlement.iso)}) carries the batch data that holds the Base block, in transaction ${i.settlement.txHash}`, "the pointer, yes. The blob bytes are checked by the audit when they are beside the package");
+    const blobs = i.settlementBlobs;
+    const where = "The same bytes are kept at https://bitgraph.ing/api/ceilings/blobs/<versioned hash>.bin, and any Ethereum beacon node serves them for about 18 days after the block.";
+    const blobText = blobs && blobs.inPackage.length && !blobs.missing.length
+      ? ` The blob bytes are in base-ceiling/blobs/. bitgraph-audit checks each one against its KZG commitment, decodes Base's batch from them and finds the ceiling transaction's exact bytes inside. ${where}`
+      : blobs && blobs.missing.length
+        ? ` ${blobs.missing.length} of the blob files could not be fetched when this package was built (${blobs.missing.join(", ")}). ${where} Put them in base-ceiling/blobs/ and run the audit again.`
+        : ` The blob bytes are not in this package. ${where} Put them in base-ceiling/blobs/ and the audit checks them.`;
+    check("Settlement on Ethereum", `A bitgraph-settlement/1 pointer is attached in base-ceiling/ceiling.json: Ethereum block ${n(i.settlement.block)} (${utc(i.settlement.iso)}) carries the batch data that holds the Base block, in transaction ${i.settlement.txHash}.${blobText} This shows the ceiling transaction's bytes were on Ethereum by that block; it does not show Base's derivation accepted the batch.`, blobs && blobs.inPackage.length && !blobs.missing.length ? "yes, the pointer and the blob bytes" : "the pointer, yes. The blob bytes, once they are in base-ceiling/blobs/");
   } else if (i.ceilingInTime) {
     check("Settlement on Ethereum", `Not attached. The ceiling file says BitGraph's Base node reported the block "${i.ceilingInTime.reportedStatus}" when it was written; that is a report, and nothing in this folder proves it. The settlement pointer is attached to the ceiling a few minutes after the Base block, once its batch is on Ethereum: download the package again later to get it.`, "no");
   } else {

@@ -1392,7 +1392,8 @@ export default function ProofPage() {
       ), null, 2));
     }
 
-    let ceilingDoc: { status?: string; settlement?: { l1?: { blockNumber?: number; blockTimestamp?: number; txHash?: string } } | null; anchor?: { blockNumber?: number; blockTimestamp?: number; txHash?: string } | null } | null = null;
+    let ceilingDoc: { status?: string; settlement?: { l1?: { blockNumber?: number; blockTimestamp?: number; txHash?: string }; blobs?: Array<{ versionedHash: string; file?: string }> } | null; anchor?: { blockNumber?: number; blockTimestamp?: number; txHash?: string } | null } | null = null;
+    let settlementBlobs: { inPackage: string[]; missing: string[] } | null = null;
     // The ceiling in time (bitgraph-ceiling/1) travels beside the proof, in its
     // own folder, exactly as the writer published it: the Merkle path, the
     // signed Base transaction, the block header and its inclusion proof, and
@@ -1418,6 +1419,24 @@ export default function ProofPage() {
             reportedBaseStatus: ceilingDoc.status ?? null,
             note: "No settlement pointer was attached to this ceiling when the package was built. The ceiling's status field is what BitGraph's Base node reported, which this package cannot prove. The pointer (the Ethereum block that carries the batch data holding this Base block) is attached a few minutes after the Base block: build the package again later to get it.",
           }, null, 2));
+        }
+        // The blob bytes the pointer names go in the package (outside review, 2026-10-02): Ethereum
+        // nodes prune blob data after about 18 days, and without the bytes nobody can show the
+        // ceiling transaction is inside that batch. bitgraph-audit finds them in base-ceiling/blobs/
+        // and checks each against its KZG commitment, so these copies are checked, not trusted.
+        const blobRefs = ceilingDoc?.settlement?.blobs ?? [];
+        if (blobRefs.length) {
+          const inPackage: string[] = [], missing: string[] = [];
+          await Promise.all(blobRefs.map(async (b) => {
+            const file = (b.file || `${b.versionedHash}.bin`).toLowerCase();
+            try {
+              const br = await fetch(`/api/ceilings/blobs/${file}`);
+              if (!br.ok) throw new Error(String(br.status));
+              files[`base-ceiling/blobs/${file}`] = new Uint8Array(await br.arrayBuffer());
+              inPackage.push(file);
+            } catch { missing.push(b.versionedHash); }
+          }));
+          settlementBlobs = { inPackage: inPackage.sort(), missing };
         }
       } else {
         files["base-ceiling/ceiling-status.json"] = strToU8(JSON.stringify({
@@ -1493,6 +1512,7 @@ export default function ProofPage() {
           ? { block: ca.blockNumber, iso: new Date(ca.blockTimestamp * 1000).toISOString(), txHash: ca.txHash, reportedStatus: String(ceilingDoc?.status ?? "included") } : null,
         settlement: st && typeof st.blockNumber === "number" && typeof st.blockTimestamp === "number" && st.txHash
           ? { block: st.blockNumber, iso: new Date(st.blockTimestamp * 1000).toISOString(), txHash: st.txHash } : null,
+        settlementBlobs,
         ceilingInPosition: afterCounter ? { anchorCounter: afterCounter, block: sides.after.block ?? null, iso: iso(sides.after.ts ?? null) } : null,
         pcr0, enclaveTag: tagNote ? `enclave-v${tagNote[1]}` : null,
         writer: "0xf3972408D853c975F86351C311f4310220bbF2a3",

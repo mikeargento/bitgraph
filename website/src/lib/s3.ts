@@ -255,6 +255,19 @@ export async function getObjectText(key: string): Promise<string | null> {
   }
 }
 
+/** One object's raw bytes, or null when it is not there. For binary files such as archived blob data. */
+export async function getObjectBytes(key: string): Promise<Uint8Array | null> {
+  try {
+    const result = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+    return (await result.Body?.transformToByteArray()) ?? null;
+  } catch (err) {
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
+    console.error("[s3] getObjectBytes failed:", name, (err as Error).message);
+    throw err;
+  }
+}
+
 /** Look up a proof by artifact digest (legacy single-object index: latest proof only) */
 export async function getProofByDigest(digestB64: string): Promise<Record<string, unknown> | null> {
   return readLegacyDigest(digestB64, false);
