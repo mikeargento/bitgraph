@@ -86,6 +86,8 @@ export interface BlockEvidence {
   headerRlp: string;
   txIndex: number;
   txInclusionProof: string[];
+  /** The transaction's own bytes, checked against its hash (the trie leaf the proof reaches). */
+  rawTx: string;
 }
 
 /**
@@ -143,5 +145,6 @@ export async function blockEvidence(rpc: Rpc, blockHash: string, txHash: string)
     headerRlp: bytesToHex(headerRlp),
     txIndex,
     txInclusionProof: proof.map(bytesToHex),
+    rawTx: bytesToHex(raws[txIndex]!),
   };
 }

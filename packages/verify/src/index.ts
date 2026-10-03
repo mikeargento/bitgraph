@@ -142,3 +142,25 @@ export { rlpEncode, rlpDecode, decodeHeader, decodeEip1559, mptVerify, txTrieKey
   hexToBytes as evmHexToBytes, bytesToHex as evmBytesToHex } from "./ceiling-evm.js";
 export { txTrieProof } from "./ceiling-trie.js";
 export type { RlpItem, DecodedHeader, DecodedTx } from "./ceiling-evm.js";
+
+/* tree/1 (2026-10-03): every BitGraph is a Merkle tree under one position; a single file is a tree of one. */
+export {
+  TREE_PLACEMENT_ID, TREE_PROFILE, TREE_DOMAIN, TREE_LEAF_BYTES, TREE_ROOT_DOCUMENT_BYTES, MAX_TREE_LEAVES, TREE_METADATA_KEY,
+  KNOWN_TREE_SPEC_HASHES, LEAF_AS_IS, LEAF_PLACEMENTS, TREE_MEMBER_CATEGORIES,
+  leafCodeOf, encodeTreeLeaf, decodeTreeLeaf, treeLeafHash, sortTreeLeaves, buildTree,
+  buildTreeRootDocument, parseTreeRootDocument, readTreeMetadata, treeAttribution, currentTreeSpecHash, isTreeProof,
+  buildTreeMemberEvidence, parseTreeMemberEvidence, treeRootFromMember, encodeTreeLeaves, decodeTreeLeaves, verifyTreeLeaves,
+  committedBytesFor, leafFor, verifyTreeMember,
+} from "./tree.js";
+export type { TreeLeaf, BuiltTree, TreeMemberEvidence, TreeLeavesCheck, TreeCategory, TreeVerifyOptions, TreeVerifyResult } from "./tree.js";
+
+/* bitgraph-output-root/1: a Base ceiling settled on Ethereum through Base's output root, without blobs. */
+export {
+  OUTPUT_ROOT_VERSION, HISTORY_STORAGE_ADDRESS, HISTORY_SERVE_WINDOW, BASE_DISPUTE_GAME_FACTORY,
+  computeOutputRoot, historySlot, verifyOutputRootSettlement,
+} from "./output-root.js";
+export type { OutputRootSettlement, OutputRootCheck, OutputRootVerifyResult } from "./output-root.js";
+
+/* bitgraph-export/1: one JSON file that, with the file, checks a tree/1 BitGraph with nothing of BitGraph's required. */
+export { EXPORT_FORMAT, parseExport, verifyExport, buildExport } from "./export.js";
+export type { BitGraphExport, ExportClaim, ExportClaimResult, ExportLookups, ExportVerifyOptions, ExportVerifyResult } from "./export.js";
