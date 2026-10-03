@@ -3241,7 +3241,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                 {/* Indexing stopped partway: the set is recorded either way, so
                     this offers exactly what is missing rather than the run. */}
                 {recordMessage && pendingIndexRef.current.length > 0 && !indexProgress && (
-                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "0 16px" }}>
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "12px 16px" }}>
                     <button type="button" className="bg-action-link" onClick={() => { setRecordMessage(null); void indexSetEvidence(); }}>
                       <span>Retry indexing</span>
                     </button>
