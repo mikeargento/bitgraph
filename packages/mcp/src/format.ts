@@ -108,10 +108,14 @@ export interface TreeOutcome {
   /** The tree's sealed recovery entries (SPEC section 13); null when recovery was turned off. */
   recovery: {
     entries: number;
+    /** Kept when the call ended: written now, or already stored as this member. */
+    kept: number;
     written: number;
     /** Already stored, and opened to hold this same member. */
     already_there: number;
-    /** Held by another tree's member under the same file. */
+    /** Of those kept, under a salted name: the deterministic key was held by another member's entry. */
+    salted: number;
+    /** Held by other entries under the same file, under both names. */
     blocked: number;
     /** Not written: the site takes no recovery writes yet, or the attempts ran out. */
     pending: number;
@@ -121,11 +125,11 @@ export interface TreeOutcome {
 
 /** What a tree's recovery entries mean for finding its proof again, in one line. */
 export function recoveryText(r: NonNullable<TreeOutcome["recovery"]>): string {
-  const kept = r.written + r.already_there;
+  const kept = r.kept;
   if (r.entries > 0 && kept === r.entries) return `Each file finds this proof again from its own bytes (${fmt(r.entries)} sealed recovery entr${r.entries === 1 ? "y" : "ies"} kept).`;
   const parts: string[] = [];
   if (r.pending > 0 || r.entries === 0) parts.push(`Not yet recoverable from the files alone: ${r.reason ?? "the entries were not written"}.`);
-  if (r.blocked > 0) parts.push(`${fmt(r.blocked)} of ${fmt(r.entries)} recovery entries are held by another tree's member under the same file; keep the export.`);
+  if (r.blocked > 0) parts.push(`${fmt(r.blocked)} of ${fmt(r.entries)} recovery entries are held by other entries under the same file, under both names; keep the export.`);
   if (parts.length === 0) parts.push(`${fmt(kept)} of ${fmt(r.entries)} recovery entries kept.`);
   return parts.join(" ");
 }

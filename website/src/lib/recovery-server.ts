@@ -10,10 +10,13 @@
  * Off unless RECOVERY_WRITES=on, the same switch as the route. Never throws
  * and never stands between a caller and a proof: the tree is made first, and
  * whatever happens here is reported, never raised. An entry already stored
- * counts only when it opens to this same member; anything else is blocked
- * (SPEC section 13, squatting), never written.
+ * counts only when it opens to this same member; a key that holds another
+ * member's entry (SPEC section 13, squatting) gets the same entry under its
+ * salted name, with a fresh salt (nothing here outlives the request, so a
+ * retried request may leave a second salted copy; a reader lists one member
+ * once); only a salted name that is held too is blocked.
  */
-import { existingEntryHoldsMember, recoveryTreeFrom, sealRecoveryMember, type RecoveryTreeInput } from "./recovery.ts";
+import { existingEntryHoldsMember, newRecoverySalt, recoveryTreeFrom, sealRecoveryMember, type RecoveryPlaintext, type RecoveryTreeInput, type RecoveryWrite } from "./recovery.ts";
 import { recoveryWritesOn, type RecoveryStore } from "./recovery-store.ts";
 
 export interface SiteRecoveryResult {
@@ -21,6 +24,8 @@ export interface SiteRecoveryResult {
   entries: number;
   written: number;
   alreadyThere: number;
+  /** Of the entries kept, those under a salted name: their deterministic key was held by another member's entry. */
+  salted: number;
   blocked: number;
   pending: number;
   /** Why entries are pending, when any are. */
@@ -39,7 +44,7 @@ export async function keepTreeOnSite(
   store: RecoveryStore | (() => RecoveryStore),
   opts: SiteRecoveryOptions = {},
 ): Promise<SiteRecoveryResult> {
-  const result: SiteRecoveryResult = { entries: 0, written: 0, alreadyThere: 0, blocked: 0, pending: 0, reason: null };
+  const result: SiteRecoveryResult = { entries: 0, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: null };
   try {
     const tree = recoveryTreeFrom(input);
     const sealed = [];
@@ -52,23 +57,32 @@ export async function keepTreeOnSite(
     }
     const s = typeof store === "function" ? store() : store;
     const retries = opts.conflictRetries ?? 3;
-    const work = sealed.flatMap(({ plaintext, writes }) => writes.map((w) => ({ w, plaintext })));
+    const work: Array<{ w: RecoveryWrite; plaintext: RecoveryPlaintext; index: number }> = sealed.flatMap(({ plaintext, writes }, index) => writes.map((w) => ({ w, plaintext, index })));
     // A store that fails once is not asked again this call: the rest stay pending.
     let broken = false;
     let next = 0;
     await Promise.all(Array.from({ length: Math.min(8, work.length) }, async () => {
       while (next < work.length) {
-        const { w, plaintext } = work[next++]!;
+        const { w, plaintext, index } = work[next++]!;
         let done = false;
         for (let attempt = 0; attempt <= retries && !done && !broken; attempt++) {
           try {
             const r = await s.putIfAbsent(w.objectKey, w.envelope);
             if (r.status === "created") {
               result.written++;
+              if (w.salted) result.salted++;
               done = true;
             } else if (r.status === "exists") {
-              if (await existingEntryHoldsMember(w.digest, w.objectKey, r.envelope, plaintext)) result.alreadyThere++;
-              else result.blocked++;
+              if (await existingEntryHoldsMember(w.digest, w.objectKey, r.envelope, plaintext)) {
+                result.alreadyThere++;
+                if (w.salted) result.salted++;
+              } else if (w.salted) {
+                result.blocked++;
+              } else {
+                // Another member's entry holds the deterministic key: the same entry, under its salted name, joins the work.
+                const again = await sealRecoveryMember(tree, index, input.names?.[index] ?? null, [w.side], { [w.side]: newRecoverySalt() });
+                for (const sw of again.writes) work.push({ w: sw, plaintext: again.plaintext, index });
+              }
               done = true;
             }
           } catch (e) {

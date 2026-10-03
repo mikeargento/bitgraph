@@ -23,6 +23,9 @@
  *
  *   address   = hex SHA-256( UTF-8 "bitgraph-lookup"       || digest32 )
  *   entryId   = hex SHA-256( UTF-8 "bitgraph-lookup-entry" || digest32 || proofHash32 || leafIndex u32 big-endian )
+ *   saltedId  = hex SHA-256( UTF-8 "bitgraph-lookup-entry/salted" || digest32 || proofHash32 || leafIndex u32 big-endian || salt32 )
+ *               the fallback name when the deterministic key is held by another entry (squatting, below);
+ *               the salt (32 random bytes) is sealed in the plaintext, so a reader checks the name either way
  *   key       =     SHA-256( UTF-8 "bitgraph-lookup-key"   || digest32 )          the AES-256-GCM key
  *   objectKey = "recovery/v1/" + address + "/" + entryId
  *   envelope  = 0x01 || nonce (12 random bytes, fresh per entry) || ciphertext || tag (16)
@@ -34,12 +37,30 @@
  *                 "rootDocument": hex (168),
  *                 "member": { "index", "count", "leaf", "path" }       TreeMemberEvidence
  *                 "proof": { "epochId", "counter", "artifactDigestB64" } a locator
+ *                 "salt"?: base64 (44),                                 present exactly when the entry is salted
  *                 "name"?: string }                                     advisory, at most 512 UTF-8 bytes
  *
- * The three labels differ and every input after a label is fixed length, so
- * the three preimages (47, 51 and 89 bytes) can never be confused with one
- * another. The address is public (it is in the object key); the key is not
- * derivable from it without the digest.
+ * The four labels differ and every input after a label is fixed length, so
+ * the four preimages (47, 51, 89 and 128 bytes) can never be confused with
+ * one another. The address is public (it is in the object key); the key is
+ * not derivable from it without the digest.
+ *
+ * SQUATTING, AND THE SALTED FALLBACK. Keys are deterministic and writes are
+ * create-only, so whoever knows a file's digest and its proof hash can occupy
+ * a member's deterministic key first. They cannot make a wrong proof come
+ * back (a reader binds every entry to its proof and verifies the member), but
+ * they could deny that one entry. So a writer that finds another member's
+ * envelope at its deterministic key writes the same plaintext, plus a fresh
+ * 32-byte salt, under the salted name instead; a reader accepts either name
+ * when the plaintext derives it, and lists one member once however many
+ * names it has. The salt is kept by the writer before the salted write, so a
+ * retry lands on the same key. Listing spam under an address stays a
+ * rate-limit matter.
+ *
+ * LOOKING UP MANY FILES AT ONCE. recoverFromDigests asks one request for the
+ * first page of many addresses. That tells the server which addresses were
+ * asked together, a linkage one-by-one requests only hint at by timing; the
+ * route logs counts, never addresses, and the SPEC says so.
  *
  * WHY THE ENTRY ID IS A HASH. The first draft keyed entries
  * "<address>/<proofHash>/<leafIndex>", which let anyone listing the bucket
@@ -152,7 +173,16 @@ const utf8 = (s: string): Uint8Array => encoder.encode(s);
 
 const LOOKUP_LABEL = utf8("bitgraph-lookup");
 const ENTRY_LABEL = utf8("bitgraph-lookup-entry");
+const SALTED_ENTRY_LABEL = utf8("bitgraph-lookup-entry/salted");
 const KEY_LABEL = utf8("bitgraph-lookup-key");
+/** A salted entry's salt: 32 random bytes, sealed in its plaintext. */
+export const SALT_BYTES = 32;
+/** Addresses one lookup request may ask for (POST /api/recovery/lookup). */
+export const MAX_LOOKUP_ADDRESSES = 1000;
+/** The most a lookup answer carries; addresses past it come back `truncated` and are listed one by one. */
+export const MAX_LOOKUP_RESPONSE_BYTES = 4_000_000;
+/** The most a lookup request's body may be (1,000 addresses are 70 KB). */
+export const MAX_LOOKUP_BODY_BYTES = 131_072;
 
 /** A caller handed the queue or the sealer something that must never be written. */
 export class RecoveryInputError extends Error {
@@ -196,6 +226,7 @@ function isPlainObject(x: unknown): x is Record<string, unknown> {
 }
 
 const toUrlSafe = (b64: string): string => b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 function checkDigest(digest32: Uint8Array, what = "a digest"): void {
   if (!(digest32 instanceof Uint8Array) || digest32.length !== 32) throw new TypeError(`${what} is the raw 32-byte SHA-256`);
@@ -225,6 +256,24 @@ export function recoveryEntryId(digest32: Uint8Array, proofHash32: Uint8Array, l
   const index = new Uint8Array(4);
   new DataView(index.buffer).setUint32(0, leafIndex, false);
   return bytesToHex(sha256(concat(ENTRY_LABEL, digest32, proofHash32, index)));
+}
+
+/** hex SHA-256("bitgraph-lookup-entry/salted" || digest32 || proofHash32 || leafIndex u32 BE || salt32): the entry's fallback name when its deterministic one is held. */
+export function recoverySaltedEntryId(digest32: Uint8Array, proofHash32: Uint8Array, leafIndex: number, salt32: Uint8Array): string {
+  checkDigest(digest32);
+  checkDigest(proofHash32, "a proof hash");
+  if (!(salt32 instanceof Uint8Array) || salt32.length !== SALT_BYTES) throw new TypeError(`a salt is ${SALT_BYTES} bytes`);
+  if (!Number.isInteger(leafIndex) || leafIndex < 0 || leafIndex > 0xffffffff) throw new RangeError("a leaf index is a u32");
+  const index = new Uint8Array(4);
+  new DataView(index.buffer).setUint32(0, leafIndex, false);
+  return bytesToHex(sha256(concat(SALTED_ENTRY_LABEL, digest32, proofHash32, index, salt32)));
+}
+
+/** A fresh salt for a salted entry. */
+export function newRecoverySalt(): Uint8Array {
+  const salt = new Uint8Array(SALT_BYTES);
+  crypto.getRandomValues(salt);
+  return salt;
 }
 
 export function recoveryObjectKey(address: string, entryId: string): string {
@@ -319,6 +368,8 @@ export interface RecoveryPlaintext {
   rootDocument: string;
   member: TreeMemberEvidence;
   proof: RecoveryLocator;
+  /** Present exactly when the entry sits under its salted name: the 32-byte salt, base64. */
+  salt?: string;
   /** Advisory, unsigned, like an export's names. */
   name?: string;
 }
@@ -332,6 +383,7 @@ export function encodeRecoveryPlaintext(p: RecoveryPlaintext): Uint8Array {
     rootDocument: p.rootDocument,
     member: { index: p.member.index, count: p.member.count, leaf: p.member.leaf, path: [...p.member.path] },
     proof: { epochId: p.proof.epochId, counter: p.proof.counter, artifactDigestB64: p.proof.artifactDigestB64 },
+    ...(p.salt !== undefined ? { salt: p.salt } : {}),
     ...(p.name !== undefined ? { name: p.name } : {}),
   };
   return utf8(JSON.stringify(ordered));
@@ -350,6 +402,8 @@ function parseLocator(v: unknown): RecoveryLocator | null {
 
 const PLAINTEXT_KEYS = "format,leafIndex,member,proof,proofHash,rootDocument";
 const PLAINTEXT_KEYS_NAMED = "format,leafIndex,member,name,proof,proofHash,rootDocument";
+const PLAINTEXT_KEYS_SALTED = "format,leafIndex,member,proof,proofHash,rootDocument,salt";
+const PLAINTEXT_KEYS_SALTED_NAMED = "format,leafIndex,member,name,proof,proofHash,rootDocument,salt";
 
 /**
  * Strict read, and every check that needs nothing but the plaintext: exactly
@@ -369,7 +423,7 @@ export function parseRecoveryPlaintext(bytes: Uint8Array): RecoveryPlaintext | n
   }
   if (!isPlainObject(v)) return null;
   const keys = Object.keys(v).sort().join(",");
-  if (keys !== PLAINTEXT_KEYS && keys !== PLAINTEXT_KEYS_NAMED) return null;
+  if (keys !== PLAINTEXT_KEYS && keys !== PLAINTEXT_KEYS_NAMED && keys !== PLAINTEXT_KEYS_SALTED && keys !== PLAINTEXT_KEYS_SALTED_NAMED) return null;
   if (v["format"] !== RECOVERY_FORMAT) return null;
   const proofHash = v["proofHash"];
   if (typeof proofHash !== "string") return null;
@@ -395,12 +449,25 @@ export function parseRecoveryPlaintext(bytes: Uint8Array): RecoveryPlaintext | n
     member: v["member"] as TreeMemberEvidence,
     proof,
   };
+  if ("salt" in v) {
+    const salt = v["salt"];
+    const bytes = typeof salt === "string" ? base64ToBytes(salt) : null;
+    if (typeof salt !== "string" || bytes === null || bytes.length !== SALT_BYTES) return null;
+    out.salt = salt;
+  }
   if ("name" in v) {
     const name = v["name"];
     if (typeof name !== "string" || name.length === 0 || utf8(name).length > MAX_NAME_BYTES) return null;
     out.name = name;
   }
   return out;
+}
+
+/** The entry id a plaintext derives for digest `d`: the salted name when it carries a salt, else the deterministic one. */
+export function recoveryEntryIdOf(digest32: Uint8Array, p: RecoveryPlaintext): string {
+  const proofHash32 = base64ToBytes(p.proofHash)!;
+  if (p.salt !== undefined) return recoverySaltedEntryId(digest32, proofHash32, p.leafIndex, base64ToBytes(p.salt)!);
+  return recoveryEntryId(digest32, proofHash32, p.leafIndex);
 }
 
 /**
@@ -411,7 +478,8 @@ export function parseRecoveryPlaintext(bytes: Uint8Array): RecoveryPlaintext | n
  * carries the right two numbers around a wrong path or a wrong locator, and a
  * client that accepted it would mark the file recoverable while its only
  * entry is useless. The name is left out on purpose: it is advisory and
- * unsigned, and nothing recovered rests on it.
+ * unsigned, and nothing recovered rests on it; so is the salt, which names
+ * the entry and says nothing about the member.
  */
 export function sameRecoveryMember(a: RecoveryPlaintext, b: RecoveryPlaintext): boolean {
   if (a.proofHash !== b.proofHash || a.leafIndex !== b.leafIndex || a.rootDocument !== b.rootDocument) return false;
@@ -574,10 +642,11 @@ export function leafBytesAt(tree: { leaves: Uint8Array }, index: number): Uint8A
  * plaintext past MAX_PLAINTEXT_BYTES (only possible with hundreds of escaped
  * control characters) is dropped, never the entry.
  */
-export function recoveryPlaintextFor(tree: RecoveryTree, index: number, name?: string | null): { plaintext: RecoveryPlaintext; bytes: Uint8Array } {
+export function recoveryPlaintextFor(tree: RecoveryTree, index: number, name?: string | null, salt?: Uint8Array | null): { plaintext: RecoveryPlaintext; bytes: Uint8Array } {
   if (!Number.isInteger(index) || index < 0 || index >= tree.count) throw new RangeError("member index out of range");
   const leaf = decodeTreeLeaf(leafBytesAt(tree, index));
   if (leaf === null) throw new RecoveryInputError(`leaf ${index} is not a valid tree/1 leaf`);
+  if (salt !== undefined && salt !== null && salt.length !== SALT_BYTES) throw new TypeError(`a salt is ${SALT_BYTES} bytes`);
   const base: RecoveryPlaintext = {
     format: RECOVERY_FORMAT,
     proofHash: tree.proofHash,
@@ -585,6 +654,7 @@ export function recoveryPlaintextFor(tree: RecoveryTree, index: number, name?: s
     rootDocument: tree.rootDocumentHex,
     member: buildTreeMemberEvidence(leaf, index, tree.count, tree.tree.path(index)),
     proof: { ...tree.locator },
+    ...(salt !== undefined && salt !== null ? { salt: bytesToBase64(salt) } : {}),
   };
   const clamped = clampRecoveryName(name);
   if (clamped !== undefined) {
@@ -606,6 +676,12 @@ export interface RecoveryWrite {
   digest: Uint8Array;
   objectKey: string;
   envelope: Uint8Array;
+  /** The entry's deterministic key: its own key, or the held key a salted entry stands in for. */
+  deterministicKey: string;
+  /** True when the entry sits under its salted name. */
+  salted: boolean;
+  /** The plaintext sealed into this envelope (the salt is in it when salted). */
+  plaintext: RecoveryPlaintext;
 }
 
 /** The sides member `index` is filed under: ["as-is"] for placement 0x00, else ["origin", "artifact"]. */
@@ -619,28 +695,86 @@ export function recoveryDigestOf(tree: { leaves: Uint8Array }, index: number, si
   return (side === "artifact" ? leaf.subarray(1, 33) : leaf.subarray(33, 65)).slice();
 }
 
-/** The object key one side of member `index` is filed under. */
-export function recoveryObjectKeyFor(tree: RecoveryTree, index: number, side: RecoverySide): string {
+// ---------------------------------------------------------------------------
+// Progress: one byte per member, the same for every writer that resumes
+// ---------------------------------------------------------------------------
+
+/** Bit 0 origin kept, bit 1 committed bytes kept, bit 2 origin blocked, bit 3 committed bytes blocked. An as-is member sets both bits of a kind at once. */
+export const ORIGIN_KEPT = 1;
+export const ARTIFACT_KEPT = 2;
+export const ORIGIN_BLOCKED = 4;
+export const ARTIFACT_BLOCKED = 8;
+export const RECOVERY_SIDE_BITS: Record<RecoverySide, { kept: number; blocked: number }> = {
+  origin: { kept: ORIGIN_KEPT, blocked: ORIGIN_BLOCKED },
+  artifact: { kept: ARTIFACT_KEPT, blocked: ARTIFACT_BLOCKED },
+  "as-is": { kept: ORIGIN_KEPT | ARTIFACT_KEPT, blocked: ORIGIN_BLOCKED | ARTIFACT_BLOCKED },
+};
+
+export type RecoveryMemberStatus = "pending" | "recoverable" | "blocked";
+export type RecoverySideState = "kept" | "pending" | "blocked";
+
+/** A member's status from its progress byte alone (so a finished job, whose list is gone, still answers). */
+export function recoveryMemberStatus(b: number): RecoveryMemberStatus {
+  if ((b & (ORIGIN_KEPT | ARTIFACT_KEPT)) === (ORIGIN_KEPT | ARTIFACT_KEPT)) return "recoverable";
+  if ((b & (ORIGIN_BLOCKED | ARTIFACT_BLOCKED)) !== 0) return "blocked";
+  return "pending";
+}
+
+export function recoverySideState(b: number, side: RecoverySide): RecoverySideState {
+  const s = RECOVERY_SIDE_BITS[side];
+  if ((b & s.kept) === s.kept) return "kept";
+  if ((b & s.blocked) === s.blocked) return "blocked";
+  return "pending";
+}
+
+export const recoverySideResolved = (b: number, side: RecoverySide): boolean => recoverySideState(b, side) !== "pending";
+
+/** The key a member's side has in a writer's salt table: "<leafIndex>:<side>". */
+export const recoverySaltKey = (index: number, side: RecoverySide): string => `${index}:${side}`;
+
+/** A writer's salt table (base64 salts by recoverySaltKey) as the `salts` sealRecoveryMember takes for member `index`; null when it holds none for that member. */
+export function recoverySaltsFor(salts: Readonly<Record<string, string>> | null | undefined, index: number): Partial<Record<RecoverySide, Uint8Array>> | null {
+  if (salts === null || salts === undefined) return null;
+  let out: Partial<Record<RecoverySide, Uint8Array>> | null = null;
+  for (const side of ["origin", "artifact", "as-is"] as const) {
+    const b64 = salts[recoverySaltKey(index, side)];
+    if (b64 === undefined) continue;
+    const salt = base64ToBytes(b64);
+    if (salt === null || salt.length !== SALT_BYTES) throw new RecoveryInputError(`the salt kept for member ${index} (${side}) is not ${SALT_BYTES} bytes`);
+    (out ??= {})[side] = salt;
+  }
+  return out;
+}
+
+/** The object key one side of member `index` is filed under: deterministic, or salted when a salt is given. */
+export function recoveryObjectKeyFor(tree: RecoveryTree, index: number, side: RecoverySide, salt?: Uint8Array | null): string {
   const digest = recoveryDigestOf(tree, index, side);
-  return recoveryObjectKey(recoveryAddress(digest), recoveryEntryId(digest, tree.proofHash32, index));
+  const id = salt !== undefined && salt !== null ? recoverySaltedEntryId(digest, tree.proofHash32, index, salt) : recoveryEntryId(digest, tree.proofHash32, index);
+  return recoveryObjectKey(recoveryAddress(digest), id);
 }
 
 /**
- * Seal member `index`: one plaintext, one envelope per side (or only the
- * sides asked for), each under its own key, nonce and AAD.
+ * Seal member `index`: one envelope per side (or only the sides asked for),
+ * each under its own key, nonce and AAD. A side named in `salts` is sealed
+ * under its salted name, with the salt in its plaintext; `plaintext` is the
+ * unsalted one, the member all of them describe.
  */
 export async function sealRecoveryMember(
   tree: RecoveryTree,
   index: number,
   name?: string | null,
   only?: readonly RecoverySide[],
+  salts?: Partial<Record<RecoverySide, Uint8Array>> | null,
 ): Promise<{ plaintext: RecoveryPlaintext; writes: RecoveryWrite[] }> {
-  const { plaintext, bytes } = recoveryPlaintextFor(tree, index, name);
+  const { plaintext } = recoveryPlaintextFor(tree, index, name);
   const sides = recoverySidesOf(tree, index).filter((s) => only === undefined || only.includes(s));
   const writes = await Promise.all(sides.map(async (side): Promise<RecoveryWrite> => {
     const digest = recoveryDigestOf(tree, index, side);
-    const objectKey = recoveryObjectKey(recoveryAddress(digest), recoveryEntryId(digest, tree.proofHash32, index));
-    return { side, digest, objectKey, envelope: await sealRecoveryEnvelope(recoveryKeyBytes(digest), objectKey, bytes) };
+    const salt = salts?.[side] ?? null;
+    const deterministicKey = recoveryObjectKey(recoveryAddress(digest), recoveryEntryId(digest, tree.proofHash32, index));
+    const objectKey = salt === null ? deterministicKey : recoveryObjectKey(recoveryAddress(digest), recoverySaltedEntryId(digest, tree.proofHash32, index, salt));
+    const sealed = salt === null ? recoveryPlaintextFor(tree, index, name) : recoveryPlaintextFor(tree, index, name, salt);
+    return { side, digest, objectKey, envelope: await sealRecoveryEnvelope(recoveryKeyBytes(digest), objectKey, sealed.bytes), deterministicKey, salted: salt !== null, plaintext: sealed.plaintext };
   }));
   return { plaintext, writes };
 }
@@ -665,6 +799,8 @@ export async function existingEntryHoldsMember(digest32: Uint8Array, objectKey: 
 export interface RecoveredEntry {
   objectKey: string;
   entryId: string;
+  /** True when the entry sits under its salted name (its deterministic one was held by another entry). */
+  salted: boolean;
   /** Which of the leaf's digests the looked-up digest is: "as-is" when the leaf has one. */
   matched: RecoverySide;
   /** base64 computeProofHash(proof) of the recording. */
@@ -685,49 +821,203 @@ export interface RecoveryLookupOptions {
   maxPages?: number;
 }
 
+/** One page of a listing, checked: { entries, next }. */
+interface ListingPage {
+  entries: unknown[];
+  next: string | null;
+}
+
+function checkPage(body: unknown): ListingPage {
+  if (!isPlainObject(body) || !Array.isArray(body["entries"]) || !(body["next"] === null || typeof body["next"] === "string")) {
+    throw new RecoveryUnavailableError("the listing is not { entries, next }");
+  }
+  return { entries: body["entries"] as unknown[], next: body["next"] as string | null };
+}
+
+/** Run `fn` over `items`, at most `limit` at once, results in item order. */
+async function mapPool<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]!, i);
+    }
+  }));
+  return out;
+}
+
+const asPlaintext = (e: RecoveredEntry): RecoveryPlaintext => ({ format: RECOVERY_FORMAT, proofHash: e.proofHash, leafIndex: e.leafIndex, rootDocument: e.rootDocument, member: e.member, proof: e.proof });
+
+/**
+ * One listing per member: the same member under its deterministic name and
+ * under a salted one (a writer that met a held key, or wrote twice) is one
+ * recovery. Two entries that name the same proof and leaf but describe
+ * different members are both kept; binding each to its proof sorts them out.
+ */
+function dedupeRecovered(entries: RecoveredEntry[]): RecoveredEntry[] {
+  const out: RecoveredEntry[] = [];
+  for (const e of entries) if (!out.some((o) => sameRecoveryMember(asPlaintext(o), asPlaintext(e)))) out.push(e);
+  return out;
+}
+
+/**
+ * Every entry under `address` that opens for `digest32`. `first` is a page
+ * already in hand (from a batch lookup); otherwise the pages are read with
+ * GET /api/recovery/<address> from the start. Either way the listing is
+ * followed to its end, or the lookup fails: a partial listing is never an
+ * answer.
+ */
+async function collectPages(address: string, digest32: Uint8Array, key: CryptoKey, first: ListingPage | null, fetchFn: FetchLike, opts: RecoveryLookupOptions): Promise<RecoveredEntry[]> {
+  const base = opts.baseUrl ?? "";
+  const maxPages = opts.maxPages ?? 1000;
+  const out: RecoveredEntry[] = [];
+  let after: string | null = null;
+  let page: ListingPage | null = first;
+  for (let n = 0; ; n++) {
+    if (n >= maxPages) throw new RecoveryUnavailableError(`more than ${maxPages} pages under one address`);
+    if (page === null) {
+      const url = `${base}/api/recovery/${address}${after !== null ? `?after=${after}` : ""}`;
+      let body: unknown;
+      try {
+        const res = await fetchFn(url, { headers: { accept: "application/json" }, cache: "no-store" });
+        // A site without the route keeps no entries at all: that is an
+        // answer (nothing is kept here), not a failed read.
+        if ((res.status === 404 || res.status === 405 || res.status === 501) && after === null && first === null) return [];
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        body = await res.json();
+      } catch (e) {
+        throw new RecoveryUnavailableError(`GET /api/recovery/${address.slice(0, 8)}…`, e);
+      }
+      page = checkPage(body);
+    }
+    for (const item of page.entries) {
+      const found = await openListed(item, digest32, address, key);
+      if (found !== null) out.push(found);
+    }
+    const next = page.next;
+    if (next === null) break;
+    if (!ENTRY_ID_PATTERN.test(next) || (after !== null && next <= after)) throw new RecoveryUnavailableError("the listing's cursor does not advance");
+    after = next;
+    page = null;
+  }
+  return dedupeRecovered(out);
+}
+
 /**
  * Every recording of the file whose SHA-256 is `digest32`, from the sealed
  * entries under its address: one entry per member per recording, so the same
- * file recorded twice comes back twice. An entry that does not authenticate,
- * does not parse, sits under an entry id its own contents do not derive, or
- * names a leaf that is not this digest is skipped: it is not ours to show.
- * The list is in the server's listing order; order the recordings by their
- * proofs' own times once fetched.
+ * file recorded twice comes back twice (and the same member under two names
+ * once). An entry that does not authenticate, does not parse, sits under an
+ * entry id its own contents do not derive, or names a leaf that is not this
+ * digest is skipped: it is not ours to show. The list is in the server's
+ * listing order; order the recordings by their proofs' own times once
+ * fetched.
  *
  * Raises RecoveryUnavailableError when the entries cannot be read. An empty
- * array is an answer (nothing is kept for these bytes); a failure never is.
+ * array is an answer (nothing is kept for these bytes, or the site keeps no
+ * recovery entries at all: its route answers 404); a failure never is.
  */
 export async function recoverFromDigest(digest32: Uint8Array, fetchFn: FetchLike = defaultFetch, opts: RecoveryLookupOptions = {}): Promise<RecoveredEntry[]> {
   checkDigest(digest32);
   const address = recoveryAddress(digest32);
   const key = await importKey(recoveryKeyBytes(digest32));
+  return collectPages(address, digest32, key, null, fetchFn, opts);
+}
+
+/** One digest's lookup in a batch: every page read and every entry opened, or why it could not be. A failure is never a verdict. */
+export type RecoveryLookupAnswer = { ok: true; entries: RecoveredEntry[] } | { ok: false; reason: string };
+
+/**
+ * recoverFromDigest for many files at once: the first page of every address
+ * in one request (POST /api/recovery/lookup, at most MAX_LOOKUP_ADDRESSES per
+ * request), then the rest of any longer listing page by page. One answer per
+ * digest, in order; a digest whose entries could not all be read answers
+ * { ok: false }, never an empty list. A site without the route (404) is asked
+ * one address at a time instead.
+ *
+ * Asking many addresses in one request tells the server which files were
+ * dropped together, which one-by-one requests only hint at by timing. The
+ * route logs counts, never addresses (SPEC section 13).
+ */
+export async function recoverFromDigests(digests: readonly Uint8Array[], fetchFn: FetchLike = defaultFetch, opts: RecoveryLookupOptions = {}): Promise<RecoveryLookupAnswer[]> {
+  for (const d of digests) checkDigest(d);
   const base = opts.baseUrl ?? "";
-  const maxPages = opts.maxPages ?? 1000;
-  const out: RecoveredEntry[] = [];
-  let after: string | null = null;
-  for (let page = 0; ; page++) {
-    if (page >= maxPages) throw new RecoveryUnavailableError(`more than ${maxPages} pages under one address`);
-    const url = `${base}/api/recovery/${address}${after !== null ? `?after=${after}` : ""}`;
-    let body: unknown;
-    try {
-      const res = await fetchFn(url, { headers: { accept: "application/json" }, cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      body = await res.json();
-    } catch (e) {
-      throw new RecoveryUnavailableError(`GET /api/recovery/${address.slice(0, 8)}…`, e);
-    }
-    if (!isPlainObject(body) || !Array.isArray(body["entries"]) || !(body["next"] === null || typeof body["next"] === "string")) {
-      throw new RecoveryUnavailableError("the listing is not { entries, next }");
-    }
-    for (const item of body["entries"] as unknown[]) {
-      const found = await openListed(item, digest32, address, key);
-      if (found !== null) out.push(found);
-    }
-    const next = body["next"] as string | null;
-    if (next === null) break;
-    if (!ENTRY_ID_PATTERN.test(next) || (after !== null && next <= after)) throw new RecoveryUnavailableError("the listing's cursor does not advance");
-    after = next;
+  const out: RecoveryLookupAnswer[] = new Array(digests.length);
+  const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+  // The same digest asked twice (an as-is file's original and committed bytes
+  // are one digest) is one address in the request and one answer for both.
+  const indexesByAddress = new Map<string, number[]>();
+  for (let i = 0; i < digests.length; i++) {
+    const address = recoveryAddress(digests[i]!);
+    const list = indexesByAddress.get(address);
+    if (list === undefined) indexesByAddress.set(address, [i]);
+    else list.push(i);
   }
+  const unique = [...indexesByAddress.keys()];
+  const slices: string[][] = [];
+  for (let at = 0; at < unique.length; at += MAX_LOOKUP_ADDRESSES) slices.push(unique.slice(at, at + MAX_LOOKUP_ADDRESSES));
+  const answerAll = (address: string, a: RecoveryLookupAnswer): void => {
+    for (const i of indexesByAddress.get(address)!) out[i] = a;
+  };
+
+  /** POST one slice, trying again after a 429 or a 5xx (Retry-After honoured, at most 30 s) or a network failure, three times in all. */
+  async function postLookup(addresses: string[]): Promise<{ kind: "answered"; body: unknown } | { kind: "no-route" } | { kind: "failed"; reason: string }> {
+    let reason = "";
+    let retryAfterSec = 0;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await sleep(Math.min(30_000, retryAfterSec > 0 ? retryAfterSec * 1000 : 500 * 2 ** (attempt - 1)));
+      try {
+        const res = await fetchFn(`${base}/api/recovery/lookup`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ addresses }), cache: "no-store" });
+        if (res.status === 404 || res.status === 405 || res.status === 501) return { kind: "no-route" };
+        if (res.status === 429 || res.status >= 500) {
+          reason = `POST /api/recovery/lookup answered ${res.status}`;
+          retryAfterSec = Number(res.headers.get("retry-after")) || 0;
+          continue;
+        }
+        if (!res.ok) return { kind: "failed", reason: `POST /api/recovery/lookup answered ${res.status}` };
+        return { kind: "answered", body: await res.json() };
+      } catch (e) {
+        reason = `POST /api/recovery/lookup: ${messageOf(e)}`;
+      }
+    }
+    return { kind: "failed", reason };
+  }
+
+  // Up to four requests in flight: 100,000 files are 100 requests.
+  await mapPool(slices, 4, async (addresses): Promise<void> => {
+    const posted = await postLookup(addresses);
+    if (posted.kind === "failed") {
+      for (const address of addresses) answerAll(address, { ok: false, reason: posted.reason });
+      return;
+    }
+    const results = new Map<string, Record<string, unknown>>();
+    if (posted.kind === "answered") {
+      if (!isPlainObject(posted.body) || !Array.isArray(posted.body["results"])) {
+        for (const address of addresses) answerAll(address, { ok: false, reason: "the lookup's answer is not { results }" });
+        return;
+      }
+      for (const r of posted.body["results"] as unknown[]) if (isPlainObject(r) && typeof r["address"] === "string") results.set(r["address"], r);
+    }
+    // A site without the route is asked one address at a time (GET), from the start of each listing.
+    const oneByOne = posted.kind === "no-route";
+    await mapPool(addresses, 8, async (address): Promise<void> => {
+      const digest32 = digests[indexesByAddress.get(address)![0]!]!;
+      try {
+        const key = await importKey(recoveryKeyBytes(digest32));
+        let first: ListingPage | null = null;
+        if (!oneByOne) {
+          const r = results.get(address);
+          if (r === undefined) throw new RecoveryUnavailableError("the lookup's answer has no result for this address");
+          if (r["error"] !== undefined) throw new RecoveryUnavailableError(`the site could not read this address (${String(r["error"])})`);
+          if (r["truncated"] !== true) first = checkPage(r);
+        }
+        answerAll(address, { ok: true, entries: await collectPages(address, digest32, key, first, fetchFn, opts) });
+      } catch (e) {
+        answerAll(address, { ok: false, reason: messageOf(e) });
+      }
+    });
+  });
   return out;
 }
 
@@ -741,7 +1031,8 @@ async function openListed(item: unknown, digest32: Uint8Array, address: string, 
   if (plain === null) return null;
   const p = parseRecoveryPlaintext(plain);
   if (p === null) return null;
-  if (recoveryEntryId(digest32, base64ToBytes(p.proofHash)!, p.leafIndex) !== parsedKey.entryId) return null;
+  // The name must be the one this plaintext derives: salted when it carries a salt, deterministic when it does not.
+  if (recoveryEntryIdOf(digest32, p) !== parsedKey.entryId) return null;
   const leaf = parseTreeMemberEvidence(p.member)!.leaf;
   const isArtifact = bytesEqual(leaf.artifact, digest32);
   const isOrigin = bytesEqual(leaf.origin, digest32);
@@ -749,6 +1040,7 @@ async function openListed(item: unknown, digest32: Uint8Array, address: string, 
   return {
     objectKey: item["key"],
     entryId: parsedKey.entryId,
+    salted: p.salt !== undefined,
     matched: leaf.placement === LEAF_AS_IS ? "as-is" : isOrigin ? "origin" : "artifact",
     proofHash: p.proofHash,
     leafIndex: p.leafIndex,

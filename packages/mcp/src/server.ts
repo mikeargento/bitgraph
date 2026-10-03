@@ -12,8 +12,8 @@
  * and never held, their digest finished from that state once the slot and
  * its floor exist; with as_is every file goes in as is; and the tree's root
  * document is committed under the same slot. Only digests, that document,
- * slot records and each file's sealed recovery entry (SPEC section 13: only a
- * holder of that file can open it) leave the machine. File contents are never
+ * slot records and each file's sealed recovery entry (SPEC section 13: anyone
+ * who knows the file's SHA-256 can open it, nobody else) leave the machine. File contents are never
  * uploaded and files are never modified. The export/1 file written beside the
  * inputs is how each file proves it is in the BitGraph; the recovery entry is
  * how the file finds its proof again when the export is lost.
@@ -185,7 +185,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
       description:
         "Make a BitGraph of files or folders. Everything in one call becomes ONE BitGraph on bitgraph.ing: one Merkle tree under one position (tree/1), every file one leaf; a single file is a tree of one. " +
         "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused position and its floor block are allocated before any new file exists; every file's committed bytes (the original plus a registered placement carrying the position commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; with as_is=true every file goes in as is (its own digest is its leaf: recorded after the floor block, the bytes themselves not dated), the user's choice and never a size's; and the tree's 84-byte root document is committed under the same position. " +
-        "Files are never modified and never uploaded: only digests, the root document, position records and each file's sealed recovery entry (which only a holder of that file can open) leave the machine. " +
+        "Files are never modified and never uploaded: only digests, the root document, position records and each file's sealed recovery entry (which anyone who knows the file's SHA-256 can open, and nobody else) leave the machine. " +
         "Give file paths, directory paths, or both (absolute paths preferred): a directory is every regular file under it, recursively, with hidden entries and symbolic links left out. " +
         "Files already on record are NOT made again by default; they come back as 'on record' with their earliest position, including a file in an earlier tree, found through its sealed recovery entry and verified from its own bytes. A file can also hold a BitGraph its holder keeps, which no lookup sees. Pass again=true to make a new BitGraph regardless. " +
         "A BitGraphed file (bitgraph-carrier/1, a file that carries its own proof) is never minted, with or without again: its carried proof is judged offline and reported, because the envelope is not the recorded thing, the bytes inside are. " +
@@ -278,12 +278,17 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         // A tree member is never indexed by its plain hash: before a file is
         // called new, its sealed recovery entry is asked, and a file verified
         // there from its own bytes is on record (the SDK's recovery.ts).
+        // A file whose lookup did not complete is neither found nor new (a
+        // member of an earlier tree would look exactly like it): refused with
+        // the reason, unless again=true asks for a new BitGraph regardless.
+        const excluded = new Map<string, string>();
         if (!again && recovery !== false) {
           const unknown = unique.filter((d) => !existing.has(d)).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
           if (unknown.length > 0) {
             report(0, 1, "checking recovery entries");
             const found = await lookupRecovered(unknown, config);
             for (const [d, rows] of found.found) existing.set(d, rows);
+            for (const [d, reason] of found.unknown) excluded.set(d, `whether this file is already in a tree is unknown: ${reason}; run bitgraph_record again when the site answers, or with again=true to make a new BitGraph regardless`);
           }
         }
         const carrierLedger = new Map<string, Array<{ proof: BitGraphProof }>>();
@@ -293,9 +298,8 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         }
 
         // 4. The tree: every fresh file (every file, with again), one call.
-        const excluded = new Map<string, string>();
         const toMint: ScannedFile[] = [];
-        for (const d of again ? unique : unique.filter((x) => !existing.has(x))) {
+        for (const d of again ? unique : unique.filter((x) => !existing.has(x) && !excluded.has(x))) {
           let f = (byDigest.get(d) as { file: ScannedFile }).file;
           if (f.state === null && !as_is) {
             // Its length changed while it was read: scanned again before any
@@ -379,8 +383,10 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             },
             recovery: kept === null ? null : {
               entries: kept.entries,
+              kept: kept.kept,
               written: kept.written,
               already_there: kept.alreadyThere,
+              salted: kept.salted,
               blocked: kept.blocked,
               pending: kept.pending,
               reason: kept.reason,

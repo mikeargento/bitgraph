@@ -67,12 +67,30 @@ describe("recovery fold", () => {
     assert.equal(r.failed, 1);
   });
 
-  test("more new rows than the limit: none are asked, and the fold says it skipped", async () => {
+  test("many new rows go a thousand addresses a request, and every one of them is answered", async () => {
     const { t, store } = await storeWithEveryMember();
     const calls: string[] = [];
-    const rows = Array.from({ length: 5 }, (_, i) => row(utf8(`file ${i}`)));
-    const r = await recoverRows(rows, { fetch: fakeFetch(store, { proofs: [t.proof], calls }), limit: 4 });
-    assert.equal(r.skipped, true);
-    assert.equal(calls.length, 0);
+    const rows = Array.from({ length: 1_200 }, (_, i) => row(utf8(`file ${i}`)));
+    const r = await recoverRows(rows, { fetch: fakeFetch(store, { proofs: [t.proof], calls }) });
+    assert.equal(r.found.size, 0);
+    assert.equal(r.unknown.size, 0, "an empty listing is an answer");
+    assert.equal(calls.filter((c) => c.endsWith("/api/recovery/lookup")).length, 2, "1,000 + 200");
+  });
+
+  test("a store that cannot be read, or a proof route that is down, leaves the row unknown, never new", async () => {
+    const { t, store } = await storeWithEveryMember();
+    const file = Buffer.from(TREE.files[0]!.originalHex, "hex");
+    store.failing = true;
+    const r = await recoverRows([row(file)], { fetch: fakeFetch(store, { proofs: [t.proof] }) });
+    assert.equal(r.found.size, 0);
+    assert.equal(r.unknown.size, 1);
+    assert.match(r.unknown.get(0)!, /could not read this address/);
+    store.failing = false;
+    // The entry is there, but the proof route answers 503: the file cannot be verified as that member, and it is not new either.
+    const inner = fakeFetch(store, { proofs: [t.proof] });
+    const proofsDown = async (u: string, init?: RequestInit) => (u.startsWith("/api/proofs/") ? new Response("down", { status: 503 }) : inner(u, init));
+    const d = await recoverRows([row(file)], { fetch: proofsDown });
+    assert.equal(d.found.size, 0);
+    assert.equal(d.unknown.size, 1);
   });
 });

@@ -22,7 +22,7 @@
  * The ground rules every verb keeps:
  * - Files are read on this machine and never uploaded; only digests, the
  *   committed artifact, slot records and each file's sealed recovery entry
- *   (only a holder of that file can open it) leave it.
+ *   (anyone who knows the file's SHA-256 can open it, nobody else) leave it.
  * - Recording is permanent. Bytes already on record are not made again
  *   unless asked (`again`), and a BitGraphed file is NEVER minted: the
  *   envelope is not the recorded thing, the bytes inside are.
@@ -211,8 +211,12 @@ export class BitGraph {
       ? await lookupRecovered(unique.filter((d) => rowsFor(d).length === 0).map((d) => (byDigest.get(d) as { file: ScannedFile }).file), this.config)
       : null;
     const knownRows = (d: string): Array<{ proof: BitGraphProof; member?: SetMemberView } | RecoveredRow> => (rowsFor(d).length > 0 ? rowsFor(d) : recovered?.found.get(d) ?? []);
+    // A file whose lookup did not complete is neither found nor new: a member
+    // of an earlier tree would look exactly like it. It is refused, with the
+    // reason, unless `again` asks for a new BitGraph regardless.
+    const unchecked = new Map<string, string>(recovered?.unknown ?? []);
 
-    const fresh = (opts.again ? unique : unique.filter((d) => knownRows(d).length === 0)).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
+    const fresh = (opts.again ? unique : unique.filter((d) => knownRows(d).length === 0 && !unchecked.has(d))).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
     // A file whose length changed while it was read left no hasher state and
     // a digest that is not its own. It is scanned again now, before any
     // position is opened; one that is still changing is refused, whatever
@@ -263,6 +267,8 @@ export class BitGraph {
           });
         } else if (unstable.has(digest)) {
           out.push({ path, digest: toUrlSafeB64(digest), outcome: "refused", counter: null, epoch: null, proofUrl: null, placement: null, member: null, memberCount: null, error: "the file changed while it was read, twice, so its digest is not the file's; record it again when it is still", ...c2pa });
+        } else if (prior.length === 0 && unchecked.has(digest)) {
+          out.push({ path, digest: toUrlSafeB64(digest), outcome: "refused", counter: null, epoch: null, proofUrl: null, placement: null, member: null, memberCount: null, error: `whether this file is already in a tree is unknown: ${unchecked.get(digest)}; record it again when the site answers, or pass again to make a new BitGraph regardless`, ...c2pa });
         } else if (prior.length > 0) {
           const first = prior[0] as { proof: BitGraphProof; member?: SetMemberView; tree?: true };
           out.push({

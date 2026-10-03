@@ -19,7 +19,7 @@ import {
   type BitGraphProof,
   type TreeLeaf,
 } from "@mikeargento/bitgraph-verify";
-import { handleRecoveryList, handleRecoveryPost, type MemoryRecoveryStore } from "../recovery-store.ts";
+import { handleRecoveryList, handleRecoveryLookup, handleRecoveryPost, type MemoryRecoveryStore } from "../recovery-store.ts";
 import { parsePostResults, type RecoveryTransport } from "../recovery-queue.ts";
 import type { FetchLike } from "../recovery.ts";
 
@@ -101,15 +101,22 @@ export function serverTransport(store: MemoryRecoveryStore, seen?: { requests: n
 }
 
 /**
- * fetch for the lookups: GET /api/recovery/<address> through the route's
- * handler (with `limit` forced when given, to exercise paging), and
- * GET /api/proofs/<digest> answering from `proofs`.
+ * fetch for the lookups: POST /api/recovery/lookup and GET
+ * /api/recovery/<address> through the route's handlers (with `limit` forced
+ * on the listing when given, to exercise paging; `noLookupRoute` answers the
+ * batch route 404, like a site without it), and GET /api/proofs/<digest>
+ * answering from `proofs`.
  */
-export function fakeFetch(store: MemoryRecoveryStore, opts: { limit?: number; proofs?: BitGraphProof[]; status?: number; calls?: string[] } = {}): FetchLike {
-  return async (input: string) => {
+export function fakeFetch(store: MemoryRecoveryStore, opts: { limit?: number; proofs?: BitGraphProof[]; status?: number; calls?: string[]; noLookupRoute?: boolean } = {}): FetchLike {
+  return async (input: string, init?: RequestInit) => {
     opts.calls?.push(input);
     if (opts.status !== undefined) return new Response(JSON.stringify({ error: "down" }), { status: opts.status });
     const url = new URL(input, "https://bitgraph.test");
+    if (url.pathname === "/api/recovery/lookup" && init?.method === "POST") {
+      if (opts.noLookupRoute) return new Response("not found", { status: 404 });
+      const r = await handleRecoveryLookup(String(init.body), store, { log: () => {} });
+      return new Response(JSON.stringify(r.body), { status: r.status, headers: { "content-type": "application/json" } });
+    }
     const rec = /^\/api\/recovery\/([^/]+)$/.exec(url.pathname);
     if (rec) {
       const q = new URLSearchParams(url.search);

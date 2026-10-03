@@ -7,7 +7,7 @@ One engine, three sockets. BitGraph gives a file's bytes a causal position in a 
 - **Any runtime that can call localhost**: `npx bitgraph serve` (127.0.0.1 only)
 - Agents already have their socket: [`@mikeargento/bitgraph-mcp`](https://www.npmjs.com/package/@mikeargento/bitgraph-mcp), which runs this same engine.
 
-Files are read on this machine and never uploaded; only digests, the tree's root document, position records and each file's sealed recovery entry leave it. A recovery entry is stored under a name derived from the file's hash and encrypted with a key derived from it too, so only someone holding the file can find or open it; it holds the file's leaf, its path to the root, its name in the tree and where the proof is, which is how a file finds its proof again when the export is lost (pass `recovery: false`, or `--no-recovery`, to keep none). **Recording is permanent**: record what was asked for, nothing more. Verification is free and fully offline.
+Files are read on this machine and never uploaded; only digests, the tree's root document, position records and each file's sealed recovery entry leave it. A recovery entry is stored under a name derived from the file's hash and encrypted with a key derived from it too, so anyone who knows the file's SHA-256 (holding the file, or a published digest) can find and open it, and nobody else; it holds the file's leaf, its path to the root, its name in the tree and where the proof is, which is how a file finds its proof again when the export is lost (pass `recovery: false`, or `--no-recovery`, to keep none). **Recording is permanent**: record what was asked for, nothing more. Verification is free and fully offline.
 
 ## Five lines, at write time
 

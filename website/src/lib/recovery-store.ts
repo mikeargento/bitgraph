@@ -24,7 +24,14 @@
  *     200 { address, entries: [{ key, envelope }], next: entryId | null }   ascending by entry id
  *     400 { error, code: "bad-request" }   503 { error, code: "recovery-unavailable" }
  *
- * Results come back in request order, one per entry, each naming its key.
+ *   POST /api/recovery/lookup   { addresses: [<64 hex>, ...] }   1 to 1,000 addresses, no address twice
+ *     200 { results: [ { address, entries: [{ key, envelope }], next: entryId | null }   the first page
+ *                    | { address, truncated: true }       past the answer's byte budget: list it one by one
+ *                    | { address, error: "unavailable" } ] }   this address could not be read: not an empty page
+ *     400 { error, code: "bad-request", index? }   413 { error, code: "too-large" }   429 { error, code: "rate-limited" }
+ *
+ * Results come back in request order, one per entry or address, each naming
+ * its key or address.
  */
 
 import { base64ToBytes, bytesToBase64 } from "@mikeargento/bitgraph-verify";
@@ -36,6 +43,9 @@ import {
   MAX_BODY_BYTES,
   MAX_ENVELOPE_BYTES,
   MAX_LIST_LIMIT,
+  MAX_LOOKUP_ADDRESSES,
+  MAX_LOOKUP_BODY_BYTES,
+  MAX_LOOKUP_RESPONSE_BYTES,
   MIN_ENVELOPE_BYTES,
   OBJECT_KEY_PATTERN,
   RECOVERY_PREFIX,
@@ -159,6 +169,8 @@ export class RateLimiter {
 }
 
 export const RECOVERY_POST_LIMIT = { max: 120, windowMs: 60_000 } as const;
+/** Lookup requests per caller per minute: a drop or a record is one request per 1,000 files, four in flight, so 100,000 files fit in a minute. */
+export const RECOVERY_LOOKUP_RATE = { max: 600, windowMs: 60_000 } as const;
 
 // ---------------------------------------------------------------------------
 // The handlers
@@ -306,4 +318,90 @@ export async function handleRecoveryList(address: string, query: ListQuery, stor
       next: page.next,
     },
   };
+}
+
+/** One address's part of a lookup answer. */
+export type LookupResult =
+  | { address: string; entries: Array<{ key: string; envelope: string }>; next: string | null }
+  | { address: string; truncated: true }
+  | { address: string; error: "unavailable" };
+
+export interface LookupOptions {
+  /** Listings in flight. Default 16. */
+  concurrency?: number;
+  /** The answer's byte budget; addresses past it come back truncated. Default MAX_LOOKUP_RESPONSE_BYTES. */
+  maxBytes?: number;
+  log?: (line: string) => void;
+}
+
+/**
+ * POST /api/recovery/lookup. The first page of each address's listing, in
+ * request order, in one answer. An address the store could not read answers
+ * { error: "unavailable" }, never an empty page (the one thing a failed read
+ * must not say); once the answer would pass its byte budget, the rest answer
+ * { truncated: true } and the client lists them one by one. Nothing about
+ * addresses is logged, only counts: the addresses in one request name the
+ * files that were dropped together, and that linkage stays in the request.
+ */
+export async function handleRecoveryLookup(bodyText: string, store: RecoveryStore, opts: LookupOptions = {}): Promise<HandlerResult> {
+  if (bodyText.length > MAX_LOOKUP_BODY_BYTES) return { status: 413, body: { error: `the body is over ${MAX_LOOKUP_BODY_BYTES} bytes`, code: "too-large" } };
+  let body: unknown;
+  try {
+    body = JSON.parse(bodyText);
+  } catch {
+    return bad("body must be JSON");
+  }
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return bad("body must be an object { addresses }");
+  if (Object.keys(body).join(",") !== "addresses") return bad("body has exactly one field, addresses");
+  const addresses = (body as { addresses: unknown }).addresses;
+  if (!Array.isArray(addresses) || addresses.length === 0) return bad("addresses must be a non-empty array");
+  if (addresses.length > MAX_LOOKUP_ADDRESSES) return bad(`at most ${MAX_LOOKUP_ADDRESSES} addresses per request`);
+  const seen = new Set<string>();
+  const checked: string[] = [];
+  for (let i = 0; i < addresses.length; i++) {
+    const a: unknown = addresses[i];
+    if (typeof a !== "string" || !ADDRESS_PATTERN.test(a)) return bad(`address ${i}: an address is 64 lowercase hex characters`, i);
+    if (seen.has(a)) return bad(`address ${i}: appears twice in one request`, i);
+    seen.add(a);
+    checked.push(a);
+  }
+
+  const pages = await pool(checked, opts.concurrency ?? 16, async (address): Promise<ListPage | null> => {
+    try {
+      return await store.list(address, null, MAX_LIST_LIMIT);
+    } catch (e) {
+      console.error("[api/recovery/lookup] list failed:", e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  });
+  const maxBytes = opts.maxBytes ?? MAX_LOOKUP_RESPONSE_BYTES;
+  let bytes = 0;
+  let truncated = 0;
+  let unavailable = 0;
+  let found = 0;
+  let entries = 0;
+  const results: LookupResult[] = [];
+  for (let i = 0; i < checked.length; i++) {
+    const address = checked[i]!;
+    const page = pages[i]!;
+    if (page === null) {
+      unavailable++;
+      results.push({ address, error: "unavailable" });
+      continue;
+    }
+    const encoded = page.entries.map((e) => ({ key: e.key, envelope: bytesToBase64(e.envelope) }));
+    const size = 120 + encoded.reduce((n, e) => n + e.key.length + e.envelope.length + 32, 0);
+    // Once over budget, every later address is truncated too, so the answer stays in request order.
+    if (truncated > 0 || (bytes + size > maxBytes && results.length > 0)) {
+      truncated++;
+      results.push({ address, truncated: true });
+      continue;
+    }
+    bytes += size;
+    if (encoded.length > 0) found++;
+    entries += encoded.length;
+    results.push({ address, entries: encoded, next: page.next });
+  }
+  (opts.log ?? console.log)(`[api/recovery/lookup] addresses=${checked.length} found=${found} entries=${entries} truncated=${truncated} unavailable=${unavailable}`);
+  return { status: 200, body: { results } };
 }

@@ -95,6 +95,13 @@ before(async () => {
               return { key, status: "created" };
             }),
           });
+        } else if (url.pathname === "/api/recovery/lookup" && req.method === "POST") {
+          const results = (body["addresses"] as string[]).map((address) => ({
+            address,
+            entries: [...recoveryEntries.entries()].filter(([k]) => k.startsWith(`recovery/v1/${address}/`)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, envelope]) => ({ key, envelope })),
+            next: null,
+          }));
+          send(200, { results });
         } else if (url.pathname.startsWith("/api/recovery/")) {
           const address = url.pathname.slice("/api/recovery/".length);
           const entries = [...recoveryEntries.entries()].filter(([k]) => k.startsWith(`recovery/v1/${address}/`)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, envelope]) => ({ key, envelope }));
@@ -166,7 +173,7 @@ test("recovery: the tree keeps a sealed entry per file, and recording the same f
   const first = await client.callTool({ name: "bitgraph_record", arguments: { paths: [kept], response_format: "json" } });
   assert.ok(!first.isError, JSON.stringify(first.content).slice(0, 600));
   const made = (first.structuredContent as Out).tree!;
-  assert.deepEqual(made.recovery, { entries: 4, written: 4, already_there: 0, blocked: 0, pending: 0, reason: null });
+  assert.deepEqual(made.recovery, { entries: 4, kept: 4, written: 4, already_there: 0, salted: 0, blocked: 0, pending: 0, reason: null });
   const members = new Map((first.structuredContent as Out).results.map((r) => [r.path, r.member]));
 
   const again = await client.callTool({ name: "bitgraph_record", arguments: { paths: [kept] } });

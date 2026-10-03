@@ -61,6 +61,8 @@ let slotCounter = 1000;
 // one with writes off, "on" keeps sealed entries in memory like the site's
 // create-only store.
 const mode: { witness: boolean; floor: boolean; spec: "pinned" | "wrong" | "none"; recovery: "absent" | "off" | "on" } = { witness: true, floor: true, spec: "none", recovery: "absent" };
+/** A recovery result without its resumable state (progress bytes and salts), for comparing the counts. */
+const withoutState = (r: object) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== "state"));
 const recoveryEntries = new Map<string, string>();
 const mintedByArtifact = new Map<string, Array<Record<string, unknown>>>();
 const SPEC_TEXT = new Uint8Array(await readFile(fileURLToPath(new URL("../../../../spec/SPEC.md", import.meta.url))));
@@ -141,6 +143,16 @@ before(async () => {
               recoveryEntries.set(key, envelope);
               return { key, status: "created" };
             });
+            send(200, { results });
+          }
+        } else if (url.pathname === "/api/recovery/lookup" && req.method === "POST") {
+          if (mode.recovery === "absent") send(404, { error: "unexpected /api/recovery/lookup" });
+          else {
+            const results = (body["addresses"] as string[]).map((address) => ({
+              address,
+              entries: [...recoveryEntries.entries()].filter(([k]) => k.startsWith(`recovery/v1/${address}/`)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, envelope]) => ({ key, envelope })),
+              next: null,
+            }));
             send(200, { results });
           }
         } else if (url.pathname.startsWith("/api/recovery/")) {
@@ -474,7 +486,7 @@ test("recovery: the tree's entries are written after the make; recording the sam
     const first = await bg.record(dir);
     const made = first.made!;
     assert.equal(made.count, 2);
-    assert.deepEqual(made.recovery, { entries: 4, written: 4, alreadyThere: 0, blocked: 0, pending: 0, reason: null }, "two entries per placed member: under the original and under the committed bytes");
+    assert.deepEqual(withoutState(made.recovery!), { entries: 4, kept: 4, written: 4, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: null, done: true }, "two entries per placed member: under the original and under the committed bytes");
     const commits = requests.filter((p) => p === "/api/fuse/commit").length;
 
     const again = await bg.record(dir);
@@ -491,7 +503,7 @@ test("recovery: the tree's entries are written after the make; recording the sam
 
     // Writing the same tree's entries again finds them all held, by this same member.
     const rewrite = await writeRecoveryEntries({ proof: made.proof as never, rootDocument: Uint8Array.from(Buffer.from(made.rootDocument, "hex")), leavesBytes: Uint8Array.from(Buffer.from(made.leaves, "base64")) }, { baseUrl });
-    assert.deepEqual(rewrite, { entries: 4, written: 0, alreadyThere: 4, blocked: 0, pending: 0, reason: null });
+    assert.deepEqual(withoutState(rewrite), { entries: 4, kept: 4, written: 0, alreadyThere: 4, salted: 0, blocked: 0, pending: 0, reason: null, done: true });
 
     // recovery: false is the plain-hash index alone: the files are new to it, and are made again.
     const opted = await bg.record(dir, { recovery: false });

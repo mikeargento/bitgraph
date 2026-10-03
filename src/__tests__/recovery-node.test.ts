@@ -23,10 +23,20 @@ import { TREE_MEMBER_CATEGORIES, base64ToBytes, hexToBytes, type BitGraphProof }
 import {
   fetchRecoveredProof,
   recoverFromDigest,
+  recoveryAddress,
+  recoveryObjectKeyFor,
+  recoverySideState,
   recoveryTreeFrom,
   sealRecoveryMember,
   writeRecoveryEntries,
+  type RecoveryWriteResult,
 } from "../index.js";
+
+/** A write result without its resumable state, for comparing the counts. */
+const counts = ({ state, ...rest }: RecoveryWriteResult): Omit<RecoveryWriteResult, "state"> => {
+  void state;
+  return rest;
+};
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
@@ -95,7 +105,10 @@ test("every member's entries are written once, and each file finds its proof aga
   const s = site();
   const opts = { baseUrl: "https://example.test", fetch: s.fetch, backoffMs: 1 };
   const w = await writeRecoveryEntries({ proof, rootDocument, leavesBytes, names }, opts);
-  assert.deepEqual(w, { entries: ENTRIES, written: ENTRIES, alreadyThere: 0, blocked: 0, pending: 0, reason: null });
+  assert.deepEqual(counts(w), { entries: ENTRIES, kept: ENTRIES, written: ENTRIES, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: null, done: true });
+  assert.equal(w.state.progress.length, count);
+  assert.ok(w.state.progress.every((b) => b === 3), "every member: both sides kept");
+  assert.deepEqual(w.state.salts, {});
   assert.equal(s.store.size, ENTRIES);
 
   for (const f of TREE.files) {
@@ -112,7 +125,12 @@ test("every member's entries are written once, and each file finds its proof aga
 
   // The same tree again: every entry is already there, opened and found to be this member.
   const again = await writeRecoveryEntries({ proof, rootDocument, leavesBytes, names }, opts);
-  assert.deepEqual(again, { entries: ENTRIES, written: 0, alreadyThere: ENTRIES, blocked: 0, pending: 0, reason: null });
+  assert.deepEqual(counts(again), { entries: ENTRIES, kept: ENTRIES, written: 0, alreadyThere: ENTRIES, salted: 0, blocked: 0, pending: 0, reason: null, done: true });
+  // Resumed from a state that already has everything: nothing is sent.
+  let calls = 0;
+  const resumed = await writeRecoveryEntries({ proof, rootDocument, leavesBytes, names }, { ...opts, state: w.state, fetch: async (u, i) => { calls++; return s.fetch(u, i); } });
+  assert.equal(calls, 0);
+  assert.deepEqual(counts(resumed), { entries: ENTRIES, kept: ENTRIES, written: 0, alreadyThere: 0, salted: 0, blocked: 0, pending: 0, reason: null, done: true });
 });
 
 test("a site with writes off, or without the route, leaves every entry pending and says why, after one request", async () => {
@@ -131,17 +149,51 @@ test("a site with writes off, or without the route, leaves every entry pending a
   }
 });
 
-test("an entry already held by something else is blocked, never counted as written", async () => {
+test("an entry already held by something else goes under its salted name, with the salt kept before the write; both names held is blocked", async () => {
   const s = site();
   const tree = recoveryTreeFrom({ proof, rootDocument, leavesBytes });
   const first = await sealRecoveryMember(tree, 0, names[0]);
   const second = await sealRecoveryMember(tree, 1, names[1]);
   // Member 1's envelope parked under member 0's first key: it opens with neither the right key nor the right AAD.
-  s.store.set(first.writes[0]!.objectKey, Buffer.from(second.writes[0]!.envelope).toString("base64"));
-  const w = await writeRecoveryEntries({ proof, rootDocument, leavesBytes, names }, { baseUrl: "https://example.test", fetch: s.fetch, backoffMs: 1 });
-  assert.equal(w.blocked, 1);
-  assert.equal(w.written, ENTRIES - 1);
+  const held = first.writes[0]!;
+  s.store.set(held.objectKey, Buffer.from(second.writes[0]!.envelope).toString("base64"));
+  const states: Array<{ progress: Uint8Array; salts: Record<string, string> }> = [];
+  const w = await writeRecoveryEntries({ proof, rootDocument, leavesBytes, names }, { baseUrl: "https://example.test", fetch: s.fetch, backoffMs: 1, onState: (st) => { states.push(st); } });
+  assert.equal(w.blocked, 0);
+  assert.equal(w.salted, 1);
+  assert.equal(w.written, ENTRIES);
   assert.equal(w.pending, 0);
+  const saltKey = `0:${held.side}`;
+  const salt = base64ToBytes(w.state.salts[saltKey]!)!;
+  assert.equal(salt.length, 32);
+  assert.ok(s.store.has(recoveryObjectKeyFor(tree, 0, held.side, salt)), "the entry sits under the name the salt derives");
+  // The salt reached onState before the salted write landed: the first state carrying it shows that side still pending.
+  const firstWithSalt = states.find((st) => st.salts[saltKey] !== undefined)!;
+  assert.ok(firstWithSalt, "a state carried the salt");
+  assert.equal(recoverySideState(firstWithSalt.progress[0]!, held.side), "pending");
+  // The file is found once, through the salted entry.
+  const found = await recoverFromDigest(held.digest, s.fetch, { baseUrl: "https://example.test" });
+  assert.equal(found.length, 1);
+  assert.equal(found[0]!.salted, true);
+  // A retry with the kept state reuses the salt: nothing new is written, the salted entry is found as this member.
+  const again = await writeRecoveryEntries({ proof, rootDocument, leavesBytes, names }, { baseUrl: "https://example.test", fetch: s.fetch, backoffMs: 1, state: w.state });
+  assert.equal(again.written, 0);
+  assert.deepEqual(again.state.salts, w.state.salts);
+
+  // Both names held: a site answering "exists" with somebody else's bytes for every key under this address.
+  const prefix = `recovery/v1/${recoveryAddress(held.digest)}/`;
+  const squatting = async (url: string, init?: RequestInit): Promise<Response> => {
+    const res = await s.fetch(url, init);
+    if (new URL(url).pathname !== "/api/recovery" || init?.method !== "POST") return res;
+    const body = (await res.json()) as { results: Array<{ key: string; status: string; envelope?: string }> };
+    for (const r of body.results) if (r.key.startsWith(prefix)) Object.assign(r, { status: "exists", envelope: Buffer.from(new Uint8Array(64).fill(1)).toString("base64") });
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const b = await writeRecoveryEntries({ proof, rootDocument, leavesBytes, names }, { baseUrl: "https://example.test", fetch: squatting, backoffMs: 1 });
+  assert.equal(b.blocked, 1, "the deterministic name and then a salted one, both held");
+  assert.equal(b.salted, 0);
+  assert.equal(b.alreadyThere, ENTRIES - 1, "the rest were written the first time");
+  assert.equal(b.pending, 0);
 });
 
 test("a site that errors is retried, then reported pending with the status", async () => {

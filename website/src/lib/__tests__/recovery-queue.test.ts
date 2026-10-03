@@ -8,7 +8,7 @@
  */
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { decodeTreeLeaves, parseTreeRootDocument, committedBytesFor } from "@mikeargento/bitgraph-verify";
+import { base64ToBytes, decodeTreeLeaves, parseTreeRootDocument, committedBytesFor } from "@mikeargento/bitgraph-verify";
 import {
   RecoveryInputError,
   recoverFromDigest,
@@ -16,6 +16,7 @@ import {
   recoveryEntryId,
   recoveryKeyBytes,
   recoveryObjectKey,
+  recoveryObjectKeyFor,
   recoveryPlaintextFor,
   recoveryTreeFrom,
   sealRecoveryEnvelope,
@@ -189,7 +190,7 @@ describe("the queue", () => {
     assert.equal(q.fileStatus(r.id, 0), "recoverable");
   });
 
-  test("a key held by somebody else's entry blocks only that side of that file, and is never counted a success", T, async () => {
+  test("a key held by somebody else's entry gets the same entry under a salted name, saved in the job before the write, and never counts the squatter a success", T, async () => {
     const { v, input } = vectorInput();
     const server = new MemoryRecoveryStore();
     const tree = recoveryTreeFrom(input);
@@ -197,14 +198,53 @@ describe("the queue", () => {
     // Someone who knows hello.txt's digest got there first with another member's plaintext.
     const squatKey = recoveryObjectKey(recoveryAddress(leaf.origin), recoveryEntryId(leaf.origin, tree.proofHash32, 1));
     server.objects.set(squatKey, await sealRecoveryEnvelope(recoveryKeyBytes(leaf.origin), squatKey, recoveryPlaintextFor(tree, 3, "note.md").bytes));
-    const q = queueWith({ store: new MemoryRecoveryQueueStore(), transport: serverTransport(server) });
+    const jobs = new MemoryRecoveryQueueStore();
+    const q = queueWith({ store: jobs, transport: serverTransport(server) });
+    const { id } = await q.enqueueTree(input);
+    await q.idle();
+    assert.equal(q.fileStatus(id, 1), "recoverable");
+    assert.deepEqual(q.fileDetail(id, 1), { origin: "kept", artifact: "kept" });
+    for (const i of [0, 2, 3, 4]) assert.equal(q.fileStatus(id, i), "recoverable");
+    assert.deepEqual({ ...q.status(id)!, id: "" }, { id: "", count: 5, keep: true, recoverable: 5, pending: 0, blocked: 0, done: true, persisted: true, broken: null });
+    // The salt was saved with the job, and the entry sits under the name it derives.
+    const salt = base64ToBytes(jobs.jobs.get(id)!.salts!["1:origin"]!)!;
+    assert.equal(salt.length, 32);
+    const saltedKey = recoveryObjectKeyFor(tree, 1, "origin", salt);
+    assert.ok(server.objects.has(saltedKey), "the salted entry was written");
+    assert.ok(server.objects.has(squatKey), "the squatter's bytes were not touched");
+    // The original finds the file, once, through the salted entry; the committed bytes find it through the deterministic one.
+    const byOrigin = await recoverFromDigest(leaf.origin, fakeFetch(server));
+    assert.equal(byOrigin.length, 1);
+    assert.equal(byOrigin[0]!.salted, true);
+    assert.equal(byOrigin[0]!.leafIndex, 1);
+    const committed = committedBytesFor(0x01, v.memberFile, parseTreeRootDocument(v.rootDocument)!.commitment);
+    const byArtifact = await recoverFromDigest(sha256(committed), fakeFetch(server));
+    assert.equal(byArtifact.length, 1);
+    assert.equal(byArtifact[0]!.salted, false);
+  });
+
+  test("both names held blocks only that side of that file", T, async () => {
+    const { v, input } = vectorInput();
+    const server = new MemoryRecoveryStore();
+    const leaf = decodeTreeLeaves(v.leavesBytes)![1]!;
+    const prefix = `recovery/v1/${recoveryAddress(leaf.origin)}/`;
+    // Every key under hello.txt's address answers "exists" with somebody else's bytes, whatever the name.
+    const inner = serverTransport(server);
+    const transport: RecoveryTransport = {
+      async post(entries) {
+        const rest = entries.filter((e) => !e.key.startsWith(prefix));
+        const results = rest.length > 0 ? await inner.post(rest) : [];
+        for (const e of entries) if (e.key.startsWith(prefix)) results.push({ key: e.key, status: "exists", envelope: Buffer.from(new Uint8Array(64).fill(1)).toString("base64") });
+        return results;
+      },
+    };
+    const q = queueWith({ store: new MemoryRecoveryQueueStore(), transport });
     const { id } = await q.enqueueTree(input);
     await q.idle();
     assert.equal(q.fileStatus(id, 1), "blocked");
     assert.deepEqual(q.fileDetail(id, 1), { origin: "blocked", artifact: "kept" }, "still recoverable from its committed bytes");
     for (const i of [0, 2, 3, 4]) assert.equal(q.fileStatus(id, i), "recoverable");
     assert.deepEqual({ ...q.status(id)!, id: "" }, { id: "", count: 5, keep: true, recoverable: 4, pending: 0, blocked: 1, done: true, persisted: true, broken: null });
-    // The committed bytes still recover the file.
     const committed = committedBytesFor(0x01, v.memberFile, parseTreeRootDocument(v.rootDocument)!.commitment);
     assert.equal((await recoverFromDigest(sha256(committed), fakeFetch(server))).length, 1);
   });

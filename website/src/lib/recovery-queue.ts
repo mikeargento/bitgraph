@@ -28,9 +28,12 @@
  *
  * A FILE'S STATUS. "pending" until every entry it needs is kept (two for a
  * placed file: origin and committed bytes; one as-is), then "recoverable".
- * "blocked" when a key it needs holds somebody else's entry (only someone who
- * knows the file's digest can do that, and it never counts as success: see
- * existingEntryHoldsMember); the file's other entry is still written, so it
+ * A key that holds somebody else's entry (only someone who knows the file's
+ * digest can do that, and it never counts as success: see
+ * existingEntryHoldsMember) is not the end of it: the entry is written again
+ * under its salted name (SPEC section 13), with a fresh salt saved in the job
+ * BEFORE the write so a retry lands on the same name. "blocked" only when the
+ * salted name is held too; the file's other entry is still written, so it
  * may be recoverable from one of its two forms. "not-kept" for a tree marked
  * "keep no recovery copy": nothing is written for it, nothing of its files is
  * stored here, only a marker that says so.
@@ -53,10 +56,17 @@ import {
 } from "@mikeargento/bitgraph-verify";
 import {
   MAX_BATCH_ENTRIES,
+  RECOVERY_SIDE_BITS,
   RecoveryInputError,
   existingEntryHoldsMember,
   leavesBytesOf,
+  newRecoverySalt,
+  recoveryMemberStatus,
   recoveryProofParts,
+  recoverySaltKey,
+  recoverySaltsFor,
+  recoverySideResolved,
+  recoverySideState,
   recoverySidesOf,
   recoveryTreeFrom,
   recoveryTreeFromParts,
@@ -65,6 +75,7 @@ import {
   type RecoveryLocator,
   type RecoveryPlaintext,
   type RecoverySide,
+  type RecoverySideState,
   type RecoveryTree,
   type RecoveryTreeInput,
   type RecoveryWrite,
@@ -75,37 +86,11 @@ import {
 // ---------------------------------------------------------------------------
 
 export type RecoveryFileStatus = "pending" | "recoverable" | "blocked" | "not-kept";
-export type RecoverySideState = "kept" | "pending" | "blocked";
+export type { RecoverySideState };
 
-/** One progress byte per member: bit 0 origin kept, bit 1 committed bytes kept, bit 2 origin blocked, bit 3 committed bytes blocked. An as-is member sets both bits of a kind at once. */
-const ORIGIN_KEPT = 1;
-const ARTIFACT_KEPT = 2;
-const ORIGIN_BLOCKED = 4;
-const ARTIFACT_BLOCKED = 8;
-const SIDE_BITS: Record<RecoverySide, { kept: number; blocked: number }> = {
-  origin: { kept: ORIGIN_KEPT, blocked: ORIGIN_BLOCKED },
-  artifact: { kept: ARTIFACT_KEPT, blocked: ARTIFACT_BLOCKED },
-  "as-is": { kept: ORIGIN_KEPT | ARTIFACT_KEPT, blocked: ORIGIN_BLOCKED | ARTIFACT_BLOCKED },
-};
-
-/** A member's status from its progress byte alone (so a finished job, whose list is gone, still answers). */
-function statusOfBits(b: number): "pending" | "recoverable" | "blocked" {
-  if ((b & (ORIGIN_KEPT | ARTIFACT_KEPT)) === (ORIGIN_KEPT | ARTIFACT_KEPT)) return "recoverable";
-  if ((b & (ORIGIN_BLOCKED | ARTIFACT_BLOCKED)) !== 0) return "blocked";
-  return "pending";
-}
-
-function sideResolved(b: number, side: RecoverySide): boolean {
-  const s = SIDE_BITS[side];
-  return (b & s.kept) === s.kept || (b & s.blocked) === s.blocked;
-}
-
-function sideState(b: number, side: RecoverySide): RecoverySideState {
-  const s = SIDE_BITS[side];
-  if ((b & s.kept) === s.kept) return "kept";
-  if ((b & s.blocked) === s.blocked) return "blocked";
-  return "pending";
-}
+// The progress byte (one per member) and its readers live in recovery.ts
+// (RECOVERY_SIDE_BITS, recoveryMemberStatus, recoverySideState), shared with
+// the CLI's writer so a job saved by either reads the same.
 
 /** OR two progress records; the longer length wins (they are always equal in practice). */
 export function mergeProgressBytes(stored: unknown, incoming: Uint8Array): Uint8Array {
@@ -135,6 +120,8 @@ export interface RecoveryJobRecord {
   leaves: Uint8Array | null;
   /** A name per leaf, tree order; null once done. */
   names: Array<string | null> | null;
+  /** Salts chosen for entries whose deterministic key was held, base64 by recoverySaltKey (recovery.ts); saved before the salted write. Absent on jobs saved before 2026-10-03. */
+  salts?: Record<string, string>;
   done: boolean;
 }
 
@@ -527,10 +514,10 @@ export class RecoveryQueue {
     const working = job.rec.keep && !job.rec.done && job.rec.leaves !== null;
     for (let i = 0; i < job.rec.count; i++) {
       const b = job.progress[i]!;
-      const s = statusOfBits(b);
+      const s = recoveryMemberStatus(b);
       if (s === "recoverable") recoverable++;
       else if (s === "blocked") blocked++;
-      if (working && this.sidesOf(job, i).some((side) => !sideResolved(b, side))) unresolved++;
+      if (working && this.sidesOf(job, i).some((side) => !recoverySideResolved(b, side))) unresolved++;
     }
     job.recoverable = recoverable;
     job.blocked = blocked;
@@ -633,7 +620,7 @@ export class RecoveryQueue {
     if (job === undefined) return null;
     if (!job.rec.keep) return "not-kept";
     if (!Number.isInteger(index) || index < 0 || index >= job.rec.count) return null;
-    return statusOfBits(job.progress[index]!);
+    return recoveryMemberStatus(job.progress[index]!);
   }
 
   /** Each entry of member `index` on its own: the original's and the committed bytes' (the same for an as-is member). */
@@ -641,7 +628,7 @@ export class RecoveryQueue {
     const job = this.jobs.get(id);
     if (job === undefined || !job.rec.keep || !Number.isInteger(index) || index < 0 || index >= job.rec.count) return null;
     const b = job.progress[index]!;
-    return { origin: sideState(b, "origin"), artifact: sideState(b, "artifact") };
+    return { origin: recoverySideState(b, "origin"), artifact: recoverySideState(b, "artifact") };
   }
 
   /** Called with a job id whenever that job's status may have changed. Returns the unsubscribe. */
@@ -792,7 +779,7 @@ export class RecoveryQueue {
       while (job.cursor < job.rec.count) {
         const i = job.cursor;
         const b = job.progress[i]!;
-        const sides = recoverySidesOf(tree, i).filter((s) => !sideResolved(b, s));
+        const sides = recoverySidesOf(tree, i).filter((s) => !recoverySideResolved(b, s));
         if (sides.length > 0) {
           if (n + sides.length > this.maxBatch) break;
           members.push({ index: i, sides });
@@ -804,7 +791,7 @@ export class RecoveryQueue {
       let sealed: PlannedWrite[][];
       try {
         sealed = await Promise.all(members.map(async (m) => {
-          const { plaintext, writes } = await sealRecoveryMember(tree, m.index, job.rec.names?.[m.index] ?? null, m.sides);
+          const { plaintext, writes } = await sealRecoveryMember(tree, m.index, job.rec.names?.[m.index] ?? null, m.sides, recoverySaltsFor(job.rec.salts, m.index));
           return writes.map((write): PlannedWrite => ({ index: m.index, plaintext, write }));
         }));
       } catch (e) {
@@ -823,31 +810,56 @@ export class RecoveryQueue {
     return null;
   }
 
-  /** Apply one request's results. True when anything was kept or settled as blocked. */
+  /** Apply one request's results. True when anything was kept, settled as blocked, or given a salted name to try. */
   private async apply(batch: Batch, results: RecoveryPostResult[]): Promise<boolean> {
     const byKey = new Map(results.map((r) => [r.key, r]));
     let progressed = false;
+    const toSalt: Array<{ index: number; side: RecoverySide }> = [];
     for (const w of batch.writes) {
       const r = byKey.get(w.write.objectKey);
       if (r === undefined) continue;
-      const bits = SIDE_BITS[w.write.side];
+      const bits = RECOVERY_SIDE_BITS[w.write.side];
       if (r.status === "created") {
         this.setBits(batch.job, w.index, bits.kept);
         progressed = true;
       } else if (r.status === "exists") {
         const there = base64ToBytes(r.envelope);
         // Not even base64 is our server's fault, not somebody's entry: it
-        // stays pending. Bytes that do not open to this member are another
-        // entry holding the key for good: blocked.
+        // stays pending.
         if (there === null) continue;
         const mine = await existingEntryHoldsMember(w.write.digest, w.write.objectKey, there, w.plaintext);
-        if (!mine) this.log(`[recovery] member ${w.index} of ${batch.job.rec.id.slice(0, 12)}: its ${w.write.side} key holds another entry`);
-        this.setBits(batch.job, w.index, mine ? bits.kept : bits.blocked);
+        if (mine) {
+          this.setBits(batch.job, w.index, bits.kept);
+        } else if (w.write.salted) {
+          // Even the salted name is held: nothing more to try for this side.
+          this.log(`[recovery] member ${w.index} of ${batch.job.rec.id.slice(0, 12)}: its salted ${w.write.side} key holds another entry too`);
+          this.setBits(batch.job, w.index, bits.blocked);
+        } else {
+          // Another member's entry holds the deterministic key (SPEC section
+          // 13, squatting). The same entry goes under a salted name on the
+          // next pass; the salt is saved first, so a retry lands on the same
+          // name. The side stays pending until then.
+          this.log(`[recovery] member ${w.index} of ${batch.job.rec.id.slice(0, 12)}: its ${w.write.side} key holds another entry; trying a salted name`);
+          toSalt.push({ index: w.index, side: w.write.side });
+        }
         progressed = true;
       }
       // "conflict" and "error" leave the entry pending for the next pass.
     }
+    if (toSalt.length > 0) await this.saltFor(batch.job, toSalt);
     return progressed;
+  }
+
+  /** Choose (and save, before any write under them) salts for sides whose deterministic key is held. A side that already has one keeps it. */
+  private async saltFor(job: LiveJob, sides: ReadonlyArray<{ index: number; side: RecoverySide }>): Promise<void> {
+    const salts = { ...(job.rec.salts ?? {}) };
+    for (const s of sides) salts[recoverySaltKey(s.index, s.side)] ??= bytesToBase64(newRecoverySalt());
+    job.rec = { ...job.rec, salts };
+    try {
+      await this.opts.store.saveJob(job.rec);
+    } catch (e) {
+      this.log(`[recovery] salts of ${job.rec.id.slice(0, 12)} could not be saved; they live in memory only: ${(e as Error).message}`);
+    }
   }
 
   private setBits(job: LiveJob, index: number, add: number): void {
@@ -855,10 +867,10 @@ export class RecoveryQueue {
     const after = before | add;
     if (after === before) return;
     const sides = this.sidesOf(job, index);
-    const wasUnresolved = sides.some((s) => !sideResolved(before, s));
-    const isUnresolved = sides.some((s) => !sideResolved(after, s));
-    const s0 = statusOfBits(before);
-    const s1 = statusOfBits(after);
+    const wasUnresolved = sides.some((s) => !recoverySideResolved(before, s));
+    const isUnresolved = sides.some((s) => !recoverySideResolved(after, s));
+    const s0 = recoveryMemberStatus(before);
+    const s1 = recoveryMemberStatus(after);
     if (s0 !== s1) {
       if (s0 === "recoverable") job.recoverable--;
       if (s0 === "blocked") job.blocked--;
