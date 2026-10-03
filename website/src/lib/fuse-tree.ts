@@ -57,6 +57,8 @@ import {
   type SlotAllocation,
   type TreeLeaf,
   type TreeMemberEvidence,
+  streamLeafCheck,
+  type ByteSource,
 } from "@mikeargento/bitgraph-verify";
 import { placementForBytes } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
@@ -256,6 +258,46 @@ const digestAsync = async (bytes: Uint8Array): Promise<Uint8Array> => new Uint8A
  * when the file is not this tree's one member. Never throws (it resolves to
  * null). Async because it hashes whole files, with the platform's hasher.
  */
+/**
+ * treeOfOneEvidence for a file read as a stream (a File or Blob of any size):
+ * the same candidates, each from one pass in flat memory. The file's own
+ * digest first (as is), then the placement its first bytes pick (as the
+ * original, and as the committed bytes), then the other placements.
+ */
+export async function treeOfOneEvidenceFromSource(bound: BoundTree, source: ByteSource): Promise<TreeMemberEvidence | null> {
+  if (bound.count !== 1) return null;
+  const hit = (leaf: TreeLeaf): TreeMemberEvidence | null => {
+    try {
+      return bytesEqual(treeLeafHash(leaf), bound.root) ? buildTreeMemberEvidence(leaf, 0, 1, []) : null;
+    } catch {
+      return null;
+    }
+  };
+  try {
+    const first = await streamLeafCheck(source, { placement: null, commitment: bound.commitment, origin: null });
+    const self = first.digest;
+    const asIs = hit({ placement: LEAF_AS_IS, artifact: self, origin: self });
+    if (asIs) return asIs;
+    const preferred = leafCodeOf(placementForBytes(first.head)) ?? 0x03;
+    for (const code of [preferred, 0x01, 0x02, 0x03].filter((c, i, all) => all.indexOf(c) === i)) {
+      const id = LEAF_PLACEMENTS[code];
+      if (id === undefined || id === "as-is") continue;
+      const scan = await streamLeafCheck(source, { placement: id as "trailer/1" | "container/1" | "container/2", commitment: bound.commitment, origin: self });
+      if (scan.fusedFromOrigin !== null) {
+        const found = hit({ placement: code, artifact: scan.fusedFromOrigin, origin: self });
+        if (found) return found;
+      }
+      if (scan.direct?.ok) {
+        const found = hit({ placement: code, artifact: self, origin: scan.direct.embeddedOrigin });
+        if (found) return found;
+      }
+    }
+  } catch {
+    /* not this tree's member */
+  }
+  return null;
+}
+
 export async function treeOfOneEvidence(bound: BoundTree, bytes: Uint8Array): Promise<TreeMemberEvidence | null> {
   if (bound.count !== 1) return null;
   const hit = (leaf: TreeLeaf): TreeMemberEvidence | null => {

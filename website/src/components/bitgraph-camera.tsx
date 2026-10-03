@@ -63,7 +63,7 @@ import { LEDGER_CHANGED } from "@/components/ledger-light";
 import { rebuildSetMember, isTeeRestarting, fusedMarkerOf, rebuildFromOrigin, makeTreeHere, planTrees, treeInputOf, type FusedOutcome, type FusedSetMember, type MadeTree, type MadeTreeMember } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
 import type { SitePlacement } from "@/lib/fuse-placement";
-import { SPEC_FILE_NAME, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, ownerTree, rootOnlyTree, treeHandoff, treeOfOneEvidence } from "@/lib/fuse-tree";
+import { SPEC_FILE_NAME, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, ownerTree, rootOnlyTree, treeHandoff, treeOfOneEvidence, treeOfOneEvidenceFromSource } from "@/lib/fuse-tree";
 import { recoverRows, treePositionKey } from "@/lib/recovery-fold";
 import { browserRecoveryQueue } from "@/lib/recovery-queue";
 import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
@@ -163,7 +163,7 @@ type BatchEntry = {
    *  positions these bytes hold, NOT a complete count. */
   partial?: true;
 };
-import { SET_METADATA_KEY, readSetMetadata, computeProofHash, bytesToHex as bytesToHexString, type BitGraphProof as VerifyProof, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
+import { SET_METADATA_KEY, readSetMetadata, computeProofHash, bytesToHex as bytesToHexString, type BitGraphProof as VerifyProof, type TreeMemberEvidence, blobSource, } from "@mikeargento/bitgraph-verify";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -2639,7 +2639,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         if (bound.ok && bound.tree.count === 1) {
           for (const r of job.rows) {
             if (r.fromProofJson) continue;
-            evidence = await treeOfOneEvidence(bound.tree, new Uint8Array(await r.file.arrayBuffer()));
+            evidence = await treeOfOneEvidenceFromSource(bound.tree, blobSource(r.file));
             if (evidence) { holder = r; break; }
           }
         }
@@ -3638,7 +3638,7 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
         let n = 0;
         for (const f of files) {
           setProgress({ done: ++n, total: files.length });
-          if (await treeOfOneEvidence(bound.tree, new Uint8Array(await f.arrayBuffer()))) { onMatched(f); return; }
+          if (await treeOfOneEvidenceFromSource(bound.tree, blobSource(f))) { onMatched(f); return; }
           await new Promise((r) => setTimeout(r, 0));
         }
         setCheckedCount(files.length);

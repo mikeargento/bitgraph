@@ -35,7 +35,7 @@ import { verify, verifyCarrier, verifyExport as verifyExportDocument, parseExpor
 import { ApiError, batchCheck, configFromEnv, getProofDetail, search, type ApiConfig } from "./api.js";
 import { fromUrlSafeB64, looksLikeDigest, mapConcurrent, toUrlSafeB64 } from "./encoding.js";
 import { classifyPath, fuseTreePipeline, type CarrierRow, type ClassifiedPath, type FuseFileFn, type FuseSetFn, type FuseTreeFn, type TreeSummary } from "./pipelines.js";
-import { expandPaths, sniffC2paBytes, type ScannedFile } from "./scan.js";
+import { expandPaths, fileSource, sniffC2paBytes, type ScannedFile } from "./scan.js";
 import { carrierWindowView, type CarrierWindowView } from "./carrier-io.js";
 import { beginTask, decodeTaskToken, sealTask, writeProofBeside, SLOT_TTL_SECONDS, type Begun, type SealedTask } from "./task.js";
 import { buildBitGraphedFile, completeBitGraphedFile, type BuiltCarrier, type CompletedCarrier } from "./carrier-build.js";
@@ -345,7 +345,9 @@ export class BitGraph {
     let exp: unknown = input;
     if (typeof input === "string") exp = input.trimStart().startsWith("{") ? input : await readFile(input, "utf8");
     if (parseExport(exp) === null) throw new ApiError(400, "not a bitgraph-export/1 document");
-    const bytes = file === undefined ? undefined : typeof file === "string" ? new Uint8Array(await readFile(file)) : file;
+    // A path is streamed (any size, flat memory); bytes in hand are used as given.
+    const source = typeof file === "string" ? await fileSource(file) : undefined;
+    const bytes = file !== undefined && typeof file !== "string" ? file : undefined;
     const pins = opts.pins;
     const exportPins: NonNullable<ExportVerifyOptions["pins"]> = {
       ...(pins?.pcr0 !== undefined ? { pcr0: pins.pcr0 } : {}),
@@ -354,6 +356,7 @@ export class BitGraph {
     };
     const r = await verifyExportDocument(exp, {
       ...(bytes !== undefined ? { bytes } : {}),
+      ...(source !== undefined ? { source } : {}),
       ...(opts.lookups !== undefined ? { lookups: opts.lookups } : {}),
       ...(Object.keys(exportPins).length > 0 ? { pins: exportPins } : {}),
     });
@@ -476,8 +479,9 @@ export class BitGraph {
    * the proof, as the object or its JSON text), which verifyExport answers.
    */
   async verify(input: string | Uint8Array, proof?: unknown, opts: VerifyOptions = {}): Promise<VerifyOutcome> {
+    // An export checks the file as a stream, whatever its size; the rest (a BitGraphed file's own block, a plain proof) reads it whole.
+    if (proof !== undefined && proof !== null && parseExport(proof) !== null) return this.verifyExport(proof as string | object, input, opts);
     const bytes = typeof input === "string" ? new Uint8Array(await readFile(input)) : input;
-    if (proof !== undefined && proof !== null && parseExport(proof) !== null) return this.verifyExport(proof as string | object, bytes, opts);
     const parsed = parseCarrier(bytes);
     if (parsed.kind === "carrier" || parsed.kind === "corrupt") {
       const r = await verifyCarrier(bytes, opts);

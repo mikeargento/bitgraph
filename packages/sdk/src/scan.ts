@@ -20,7 +20,19 @@ import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { placementForBytes } from "@mikeargento/bitgraph";
-import { getPlacement } from "@mikeargento/bitgraph-verify";
+import { getPlacement, type ByteSource } from "@mikeargento/bitgraph-verify";
+
+/** A file on disk as a verifier source: its size now, its bytes streamed from a fresh read each time. */
+export async function fileSource(path: string): Promise<ByteSource> {
+  const info = await stat(path);
+  if (!info.isFile()) throw new TypeError(`${path} is not a regular file`);
+  return {
+    size: info.size,
+    async *stream() {
+      for await (const chunk of createReadStream(path)) yield chunk as Uint8Array;
+    },
+  };
+}
 
 /** The placements the scan makes: chosen from the bytes by the core, never from the name. */
 export type ScanPlacement = "trailer/1" | "container/2";

@@ -92,7 +92,7 @@ import {
   type ExportVerifyResult,
   type TreeLeaf,
   type TreeMemberEvidence,
-  type TreeVerifyResult,
+  type TreeVerifyResult, blobSource,
 } from "@mikeargento/bitgraph-verify";
 
 /* The site keeps its own looser proof type (version: string); the reader
@@ -1429,7 +1429,7 @@ export async function checkTreeExports(
 
     if (plan.kind === "member") {
       for (const f of plan.targets) {
-        const r = await verifyExport(exp, { bytes: new Uint8Array(await f.arrayBuffer()), ...verifyOpts });
+        const r = await verifyExport(exp, { source: blobSource(f), ...verifyOpts });
         rows.push(rowOf(`${e}:${exportFile.name}:${f.name}`, "file", f, f.name, r.claims, r.member, exp.tree.member ?? null));
         await tick();
       }
@@ -1444,7 +1444,7 @@ export async function checkTreeExports(
         const evidence = buildTreeMemberEvidence(leaves[k]!, k, leaves.length, merkle.path(k));
         const tr = await verifyTreeMember({
           proof: exp.proof,
-          bytes: new Uint8Array(await f.arrayBuffer()),
+          source: blobSource(f),
           member: evidence,
           rootDocument,
           proofAlreadyVerified: proofOk,

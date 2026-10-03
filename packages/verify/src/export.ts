@@ -37,6 +37,7 @@ import { decodeHeader, hexToBytes as evmHex } from "./ceiling-evm.js";
 import { base64ToBytes, bytesEqual, hexToBytes } from "./fuse.js";
 import { OUTPUT_ROOT_VERSION, verifyOutputRootSettlement, type OutputRootSettlement } from "./output-root.js";
 import { MerkleTree } from "./fuse-merkle.js";
+import { streamDigest, type ByteSource } from "./stream.js";
 import { PUBLISHED_PCR0S, publishedMeasurement } from "./measurements.js";
 import {
   buildTreeMemberEvidence,
@@ -88,6 +89,8 @@ export interface ExportLookups {
 export interface ExportVerifyOptions {
   /** The file in hand (the original or the committed bytes). Without it, the claims about the file are NOT_CARRIED. */
   bytes?: Uint8Array;
+  /** The file in hand as a stream (stream.ts): the same judgment as `bytes` for a file of any size. An owner's export reads it twice (once to find the leaf). */
+  source?: ByteSource;
   lookups?: ExportLookups;
   pins?: {
     /**
@@ -252,9 +255,9 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     add("tree.leaves", "The whole list rebuilds the committed root, sorted and without duplicates", lc.ok ? "TRUE" : "FALSE", "SHA-256 (RFC 6962 tree)", lc.ok ? `${lc.count} leaves` : lc.reason ?? "invalid");
     // The owner's export: find the file's leaf in the list and build its path here.
     ownerList = { ok: lc.ok, found: false };
-    if (lc.ok && opts.bytes !== undefined && leavesBytes !== null && rootDoc !== null) {
+    if (lc.ok && (opts.bytes !== undefined || opts.source !== undefined) && leavesBytes !== null && rootDoc !== null) {
       const leaves = decodeTreeLeaves(leavesBytes)!;
-      const d = sha256(opts.bytes);
+      const d = opts.bytes !== undefined ? sha256(opts.bytes) : await streamDigest(opts.source!);
       const k = leaves.findIndex((l) => bytesEqual(l.artifact, d) || bytesEqual(l.origin, d));
       if (k >= 0) {
         const t = new MerkleTree(leaves.map(treeLeafHash));
@@ -263,9 +266,11 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
       }
     }
   }
+  const haveFile = opts.bytes !== undefined || opts.source !== undefined;
   const tr = await verifyTreeMember({
     proof,
     ...(opts.bytes !== undefined ? { bytes: opts.bytes } : {}),
+    ...(opts.source !== undefined ? { source: opts.source } : {}),
     ...(memberEvidence !== undefined ? { member: memberEvidence } : {}),
     // The export's own root document, never the proof's unsigned echo: a malformed one fails.
     rootDocument: rootDoc ?? new Uint8Array(0),
@@ -295,7 +300,7 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
       ? "the export carries no member evidence"
       : !ownerList.ok
         ? "the owner's list did not verify, so no member can be read from it"
-        : opts.bytes === undefined
+        : !haveFile
           ? "no file in hand to look up in the owner's list"
           : "the file in hand is not in the owner's list";
     add("tree.member", "The file's leaf is in the committed tree", "NOT_CARRIED", "", why);
@@ -304,7 +309,7 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
     add("tree.member", "The file's leaf is in the committed tree", pathOk ? "TRUE" : rootOk ? "FALSE" : "UNDETERMINED", "SHA-256 (RFC 9162 path)",
       pathOk ? `leaf ${tr.member!.index} of ${tr.member!.count}; a path proves this leaf only, not the order of the others` : tr.reason);
   }
-  if (opts.bytes === undefined) {
+  if (!haveFile) {
     add("bytes.member", "The file in hand is that member", "NOT_CARRIED", "", "the file is not in hand");
   } else if (ownerList !== null && ownerList.ok && !ownerList.found && tr.tree !== null) {
     // The whole list is verified (sorted, unique, rebuilds the signed root), so its absence from it is a finding, not a gap.

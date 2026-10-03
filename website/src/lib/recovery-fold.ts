@@ -11,7 +11,7 @@
  * read is not a verdict: the row stays "new", and the failure is returned so
  * the caller can say so.
  */
-import { TREE_MEMBER_CATEGORIES, base64ToBytes, hexToBytes, type BitGraphProof, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
+import { TREE_MEMBER_CATEGORIES, base64ToBytes, blobSource, hexToBytes, type BitGraphProof, type TreeMemberEvidence } from "@mikeargento/bitgraph-verify";
 import { fetchRecoveredProof, recoverFromDigest, type FetchLike } from "./recovery.ts";
 
 /** Rows still "new" beyond this count are a first recording, not lost exports: the round trips are skipped. */
@@ -60,10 +60,11 @@ export async function recoverRows(rows: readonly RecoveryRow[], opts: { fetch?: 
       if (digest32 === null || digest32.length !== 32) return;
       const entries = await recoverFromDigest(digest32, opts.fetch, lookupOpts);
       if (!entries.length) return;
-      const bytes = new Uint8Array(await r.file.arrayBuffer());
+      // The file is checked as a stream: a 40 GB file is a 40 GB file.
+      const source = blobSource(r.file);
       const trees: RecoveredTree[] = [];
       for (const e of entries) {
-        const bound = await fetchRecoveredProof(e, opts.fetch, { ...lookupOpts, bytes });
+        const bound = await fetchRecoveredProof(e, opts.fetch, { ...lookupOpts, source });
         if (!bound || !(TREE_MEMBER_CATEGORIES as readonly string[]).includes(bound.check.category)) continue;
         const rootDocument = hexToBytes(e.rootDocument);
         if (rootDocument === null) continue;

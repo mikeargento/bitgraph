@@ -24,7 +24,7 @@ export type { ExportKind, TreeExportData, WrittenExports, CompletedExportFile } 
 // The engine, piece by piece.
 export { configFromEnv, batchCheck, getProofDetail, search, indexSetMembers, ApiError, BATCH_CHECK_LIMIT } from "./api.js";
 export type { ApiConfig, SetIndexRequest } from "./api.js";
-export { scanFile, fusedDigestFor, expandPaths, sniffC2paBytes } from "./scan.js";
+export { scanFile, fusedDigestFor, expandPaths, sniffC2paBytes, fileSource } from "./scan.js";
 export type { ScannedFile, ScanPlacement, Expansion } from "./scan.js";
 export { sniffCarrierTail, readCarrierFile, carrierWindowView, carrierLine } from "./carrier-io.js";
 export type { CarrierWindowView, CarrierFileResult } from "./carrier-io.js";

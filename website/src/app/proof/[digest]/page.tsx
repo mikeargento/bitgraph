@@ -26,9 +26,9 @@ const originOfProof = (p: Parameters<typeof fusedMarkerOf>[0]) => {
 };
 import { getPreviewFromIDB, putPreviewToIDB, cacheArtifactToIDB } from "@/lib/file-cache";
 import { fusedMarkerOf, rebuildFromOrigin, unpackNewFile, rebuildSetMember, unpackSetMember, checkInline, isInlineProof, makeTreeHere, treeInputOf } from "@/lib/fuse-client";
-import { SPEC_FILE_NAME, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, type BoundTree } from "@/lib/fuse-tree";
+import { SPEC_FILE_NAME, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, rootOnlyTree, treeMemberHandoffOf, treeOfOneEvidence, treeOfOneEvidenceFromSource, type BoundTree } from "@/lib/fuse-tree";
 import { buildCarrierForProof, deCarrierFiles, fetchAnchorPair, assembleProofEvidence } from "@/lib/carrier-site";
-import { verifyCarrierPayload, type CarrierClaim, type CarrierLookups } from "@mikeargento/bitgraph-verify";
+import { verifyCarrierPayload, type CarrierClaim, type CarrierLookups, blobSource, } from "@mikeargento/bitgraph-verify";
 import { ProofView, type ProofViewModel, type FieldView, type PositionRowView, type SetRowView, type DownloadView } from "./proof-view";
 import { PUBLISHED_PCR0S, PUBLISHED_ENCLAVE_MEASUREMENTS } from "@/lib/enclave-measurements";
 import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_CARRIER_DIR, PKG_README, packageReadme } from "@/lib/package-layout";
@@ -2174,7 +2174,7 @@ function BringYourFile({
           let n = 0;
           for (const f of dropped.rest) {
             setProgress({ done: ++n, total: dropped.rest.length });
-            if (await treeOfOneEvidence(bound.tree, new Uint8Array(await f.arrayBuffer()))) { await accept(f); return; }
+            if (await treeOfOneEvidenceFromSource(bound.tree, blobSource(f))) { await accept(f); return; }
             await new Promise((r) => setTimeout(r, 0));
           }
           setCheckedCount(dropped.rest.length);

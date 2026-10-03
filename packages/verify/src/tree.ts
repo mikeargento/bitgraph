@@ -34,6 +34,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
+import { streamLeafCheck, type ByteSource, type StreamPlacement } from "./stream.js";
 import { merkleLeafHash, merkleRootFromPath, MerkleTree } from "./fuse-merkle.js";
 import {
   base64ToBytes,
@@ -377,6 +378,8 @@ export interface TreeVerifyOptions {
   proof: BitGraphProof;
   /** The file in hand: the original or the committed bytes. Omit to check the proof, the root and the path alone. */
   bytes?: Uint8Array;
+  /** The file in hand as a stream (stream.ts), for a file of any size: the same judgment as `bytes`, in constant memory. One of the two. */
+  source?: ByteSource;
   /** The member's evidence (TreeMemberEvidence JSON). Omit to check the proof and the root alone. */
   member?: unknown;
   /** The 84-byte root document; when omitted it is read from proof.metadata. */
@@ -455,11 +458,16 @@ export async function verifyTreeMember(opts: TreeVerifyOptions): Promise<TreeVer
   const tree = { count: doc.count, rootHex: bytesToHex(doc.root), commitmentHex: bytesToHex(commitment) };
 
   // 5. The member's path to that root.
+  if (opts.bytes !== undefined && opts.source !== undefined) throw new TypeError("pass the file as bytes or as a source, not both");
+  const haveFile = opts.bytes !== undefined || opts.source !== undefined;
   if (opts.member === undefined || opts.member === null) {
-    if (opts.bytes !== undefined && carriesCommitment(opts.bytes, commitment)) {
+    const carries = opts.bytes !== undefined
+      ? carriesCommitment(opts.bytes, commitment)
+      : opts.source !== undefined ? (await streamLeafCheck(opts.source, { placement: null, commitment, origin: null })).carriesCommitment : false;
+    if (carries) {
       return base("TREE_MEMBERSHIP_UNPROVEN", "these bytes carry this position's commitment, so they were finished after the floor block, but no member evidence is in hand to show they are in the tree", { proof: proofResult, specHashB64, tree });
     }
-    if (opts.bytes !== undefined) return base("NO_MATCH", "no member evidence is in hand and the bytes carry no commitment to this position", { proof: proofResult, specHashB64, tree });
+    if (haveFile) return base("NO_MATCH", "no member evidence is in hand and the bytes carry no commitment to this position", { proof: proofResult, specHashB64, tree });
     return base("TREE_ROOT_VALID", `the proof is valid and commits a tree of ${doc.count} leaves`, { proof: proofResult, specHashB64, tree });
   }
   const ev = parseTreeMemberEvidence(opts.member);
@@ -471,15 +479,42 @@ export async function verifyTreeMember(opts: TreeVerifyOptions): Promise<TreeVer
   const member = { index: ev.index, count: ev.count, placement: placementId, artifactHex: bytesToHex(ev.leaf.artifact), originHex: bytesToHex(ev.leaf.origin) };
   const ok = { proof: proofResult, specHashB64, tree, member };
 
-  if (opts.bytes === undefined) return base("TREE_PATH_VALID", `leaf ${ev.index} of ${ev.count} is in the committed tree; no file was checked`, ok);
+  if (!haveFile) return base("TREE_PATH_VALID", `leaf ${ev.index} of ${ev.count} is in the committed tree; no file was checked`, ok);
 
-  // 6. The file against the leaf.
-  const fileDigest = sha256(opts.bytes);
+  // 6. The file against the leaf. Streamed when the file came as a source: the
+  //    same three outcomes, from one pass in constant memory (stream.ts).
+  if (opts.source !== undefined) {
+    const scan = await streamLeafCheck(opts.source, { placement: ev.leaf.placement === LEAF_AS_IS ? null : (placementId as StreamPlacement), commitment, origin: ev.leaf.origin });
+    if (bytesEqual(scan.digest, ev.leaf.artifact)) {
+      if (ev.leaf.placement === LEAF_AS_IS) {
+        return base("TREE_MEMBER_AS_IS", `this file is leaf ${ev.index} of ${ev.count}, recorded as is: the record was made after the floor block; the bytes themselves are not dated`, { ...ok, floorCovers: "record" });
+      }
+      if (scan.direct === null || !scan.direct.ok) {
+        return base("INVALID_SLOT_COMMITMENT", `the bytes match leaf ${ev.index} but are not a valid ${placementId} carrying this position's commitment (${scan.direct?.ok === false ? scan.direct.reason : "no layout was checked"})`, ok);
+      }
+      if (!bytesEqual(scan.direct.embeddedOrigin, ev.leaf.origin)) {
+        return base("INVALID_ORIGIN", "the origin inside the committed bytes does not match the leaf's origin", ok);
+      }
+      return base("TREE_MEMBER_DIRECT", `these are the committed bytes of leaf ${ev.index} of ${ev.count}; they were finished after the floor block`, { ...ok, floorCovers: "content" });
+    }
+    if (bytesEqual(scan.digest, ev.leaf.origin) && ev.leaf.placement !== LEAF_AS_IS) {
+      if (scan.fusedFromOrigin === null || !bytesEqual(scan.fusedFromOrigin, ev.leaf.artifact)) {
+        return base("RECONSTRUCTION_MISMATCH", `this file is leaf ${ev.index}'s origin, but placing the commitment in it does not reproduce the committed digest`, ok);
+      }
+      return base("TREE_MEMBER_FROM_ORIGIN", `this file rebuilds the committed bytes of leaf ${ev.index} of ${ev.count}; the committed bytes were finished after the floor block, and this original is not dated by it`, { ...ok, floorCovers: "content" });
+    }
+    if (scan.carriesCommitment) {
+      return base("TREE_MEMBERSHIP_UNPROVEN", "these bytes carry this position's commitment, but the evidence in hand describes a different leaf", ok);
+    }
+    return base("NO_MATCH", "the file is neither this leaf's committed bytes nor its origin", ok);
+  }
+  const fileBytes = opts.bytes!;
+  const fileDigest = sha256(fileBytes);
   if (bytesEqual(fileDigest, ev.leaf.artifact)) {
     if (ev.leaf.placement === LEAF_AS_IS) {
       return base("TREE_MEMBER_AS_IS", `this file is leaf ${ev.index} of ${ev.count}, recorded as is: the record was made after the floor block; the bytes themselves are not dated`, { ...ok, floorCovers: "record" });
     }
-    const located = getPlacement(placementId)!.locate(opts.bytes);
+    const located = getPlacement(placementId)!.locate(fileBytes);
     if (located === null || !bytesEqual(located.commitment, commitment)) {
       return base("INVALID_SLOT_COMMITMENT", `the bytes match leaf ${ev.index} but are not a valid ${placementId} carrying this position's commitment (its structure, the original's digest or the commitment does not hold)`, ok);
     }
@@ -490,14 +525,14 @@ export async function verifyTreeMember(opts: TreeVerifyOptions): Promise<TreeVer
     return base("TREE_MEMBER_DIRECT", `these are the committed bytes of leaf ${ev.index} of ${ev.count}; they were finished after the floor block`, { ...ok, floorCovers: "content" });
   }
   if (bytesEqual(fileDigest, ev.leaf.origin) && ev.leaf.placement !== LEAF_AS_IS) {
-    const rebuilt = committedBytesFor(ev.leaf.placement, opts.bytes, commitment);
+    const rebuilt = committedBytesFor(ev.leaf.placement, fileBytes, commitment);
     if (!bytesEqual(sha256(rebuilt), ev.leaf.artifact)) {
       return base("RECONSTRUCTION_MISMATCH", `this file is leaf ${ev.index}'s origin, but placing the commitment in it does not reproduce the committed digest`, ok);
     }
     return base("TREE_MEMBER_FROM_ORIGIN", `this file rebuilds the committed bytes of leaf ${ev.index} of ${ev.count}; the committed bytes were finished after the floor block, and this original is not dated by it`, { ...ok, floorCovers: "content" });
   }
   // The evidence holds (its path reaches the root), so the member is known; the file is not it.
-  if (carriesCommitment(opts.bytes, commitment)) {
+  if (carriesCommitment(fileBytes, commitment)) {
     return base("TREE_MEMBERSHIP_UNPROVEN", "these bytes carry this position's commitment, but the evidence in hand describes a different leaf", ok);
   }
   return base("NO_MATCH", "the file is neither this leaf's committed bytes nor its origin", ok);

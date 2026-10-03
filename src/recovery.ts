@@ -115,6 +115,7 @@ import {
   type TreeLeaf,
   type TreeMemberEvidence,
   type TreeVerifyResult,
+  type ByteSource,
 } from "@mikeargento/bitgraph-verify";
 
 // ---------------------------------------------------------------------------
@@ -798,7 +799,7 @@ export interface RecoveredProof {
 export async function fetchRecoveredProof(
   entry: Pick<RecoveredEntry, "proofHash" | "rootDocument" | "member" | "proof">,
   fetchFn: FetchLike = defaultFetch,
-  opts: { baseUrl?: string; bytes?: Uint8Array; extraSpecHashes?: readonly string[] } = {},
+  opts: { baseUrl?: string; bytes?: Uint8Array; source?: ByteSource; extraSpecHashes?: readonly string[] } = {},
 ): Promise<RecoveredProof | null> {
   const url = `${opts.baseUrl ?? ""}/api/proofs/${toUrlSafe(entry.proof.artifactDigestB64)}`;
   let body: unknown;
@@ -827,6 +828,7 @@ export async function fetchRecoveredProof(
       member: entry.member,
       rootDocument,
       ...(opts.bytes !== undefined ? { bytes: opts.bytes } : {}),
+      ...(opts.source !== undefined ? { source: opts.source } : {}),
       ...(opts.extraSpecHashes !== undefined ? { extraSpecHashes: opts.extraSpecHashes } : {}),
     });
     return { proof, check };
