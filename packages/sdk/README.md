@@ -7,7 +7,7 @@ One engine, three sockets. BitGraph gives a file's bytes a causal position in a 
 - **Any runtime that can call localhost**: `npx bitgraph serve` (127.0.0.1 only)
 - Agents already have their socket: [`@mikeargento/bitgraph-mcp`](https://www.npmjs.com/package/@mikeargento/bitgraph-mcp), which runs this same engine.
 
-Files are read on this machine and never uploaded; only digests, the committed artifact and position records leave it. **Recording is permanent**: record what was asked for, nothing more. Verification is free and fully offline.
+Files are read on this machine and never uploaded; only digests, the tree's root document and position records leave it. **Recording is permanent**: record what was asked for, nothing more. Verification is free and fully offline.
 
 ## Five lines, at write time
 
@@ -15,15 +15,18 @@ Files are read on this machine and never uploaded; only digests, the committed a
 import { BitGraph } from "@mikeargento/bitgraph-sdk";
 
 const bg = new BitGraph();
-const r = await bg.record("run-042.log");
-console.log(r.files[0].proofUrl); // the record's public receipt
+const r = await bg.record("run-042.log", { exportDir: "." });
+console.log(r.files[0].proofUrl);     // the record's public receipt
+console.log(r.made?.exports?.owner);  // ./bitgraph-<n>.bitgraph.json: keep it with the file
 ```
 
-One file is fused on its own position. A folder, or many paths, becomes **one set under one position**:
+Every call makes **one BitGraph**: one Merkle tree under one position (tree/1), every file one leaf. A single file is a tree of one; a folder, or many paths, is one tree; a file over 256 MiB goes in as is, its own digest its leaf:
 
 ```ts
-await bg.record(["logs/step-001.json", "logs/step-002.json", "logs/step-003.json"]);
+await bg.record(["logs/step-001.json", "logs/step-002.json", "logs/step-003.json"], { exportDir: "proofs", exports: "both" });
 ```
+
+The proof commits only the tree's root, so a file shows it is in its BitGraph with its **export** (bitgraph-export/1): the owner's (`bitgraph-<n>.bitgraph.json`, every leaf and its name) or one per member (`<name>.bitgraph.json`), with SPEC.md, the rules the proof pins, beside them. Without `exportDir` nothing is written and `r.made` holds everything they are built from (`bg.ownerExport(r.made)`, `bg.memberExport(r.made, leaf)`, `bg.writeExports(r.made, dir)`).
 
 Bytes already on record come back `"on record"`, untouched. A BitGraphed file (one that carries its own proof) is judged offline from the proof inside and is **never minted**: the envelope is not the recorded thing, the bytes inside are.
 
@@ -45,16 +48,23 @@ The commitment did not exist before the position did, so the task could not have
 await bg.check("photo.jpg");                   // on record? read-only
 await bg.proof({ digest });                    // the proof and its window
 await bg.verify("photo.bitgraph.jpg");         // fully offline: verdict, floor, ceiling
+await bg.verifyExport("bitgraph-4821.bitgraph.json", "photo.jpg");   // a file with its export, one line per claim
+await bg.completeExport("bitgraph-4821.bitgraph.json");  // add the floor header, the Base ceiling and its settlement, later
 await bg.bitgraphedFile("photo.jpg");          // build the file that carries its own proof
 await bg.complete("photo.bitgraph.jpg");       // fetch the closing anchor and the Base ceiling in, later
 ```
+
+An export starts with its Base ceiling and Ethereum settlement pending: the ceiling lands seconds after the commit, the settlement when Base posts its output root to Ethereum. `completeExport` fetches each from the site's public routes and adds it only once it verifies; nothing already inside is replaced.
 
 `verify` needs no network and no server: a BitGraphed file argues for itself, one line per claim, each saying what it rests on (SHA-256, Ed25519, the AWS Nitro root, an Ethereum block, a Base block). The window is stated in the protocol's own units: no earlier than the floor block (a time), existed by the Base block (a time), committed before the anchoring of the later anchor (a position). Offline, the blocks are taken from their headers; `--eth-rpc` and `--base-rpc` confirm them against nodes you name.
 
 ## Any language
 
 ```bash
-npx bitgraph record run-042.log --json
+npx bitgraph record run-042.log --json          # one tree; writes ./bitgraph-<n>.bitgraph.json (--out DIR, --exports owner|members|both|none)
+npx bitgraph verify run-042.log bitgraph-<n>.bitgraph.json   # a file with its export, one line per claim
+npx bitgraph export complete bitgraph-<n>.bitgraph.json      # add the ceiling and settlement once they exist
+npx bitgraph export member bitgraph-<n>.bitgraph.json run-042.log   # one file's own export, from the owner's
 npx bitgraph verify photo.bitgraph.jpg          # one line per claim; exit 2 on FALSE or corrupt
 npx bitgraph verify photo.bitgraph.jpg --eth-rpc https://ethereum-rpc.publicnode.com --base-rpc https://mainnet.base.org   # confirm the blocks against nodes
 npx bitgraph open                               # prints the commitment and a token

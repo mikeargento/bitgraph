@@ -1,11 +1,13 @@
 // Copyright (c) 2024-2026 Argento Computing Inc. Licensed under the MIT License. See LICENSE.
 
 /**
- * The make pipelines, the same ones the site's drop runs: ONE way to make a
- * BitGraph (ruling 9). A single file is fused on its own slot; two or more
- * files become members of one set under one slot, one position. Files are
- * read on this machine; fused bytes are hashed and never written; only
- * digests, the committed artifact and slot records leave it.
+ * The make pipelines: ONE way to make a BitGraph (ruling 9). Since
+ * 2026-10-03 that way is tree/1 (fuseTreePipeline): every file in a call is
+ * one leaf of one Merkle tree under one position, a single file a tree of
+ * one. Files are read on this machine; committed bytes are hashed and never
+ * written; only digests, the root document and slot records leave it. The
+ * single-file and set pipelines below are superseded and kept so code that
+ * imports them keeps working.
  *
  * These are the engine shared by the SDK class, the CLI, `bitgraph serve`,
  * and the MCP server, so every socket makes a BitGraph the same way.
@@ -13,7 +15,8 @@
 
 import { readFile } from "node:fs/promises";
 import { stat } from "node:fs/promises";
-import { fuse, fuseSet, builderFor, fusedNamesFor, type FuseSetMember, type FuseSetProgress } from "@mikeargento/bitgraph";
+import { fuse, fuseSet, fuseTree, builderFor, fusedNamesFor, MAX_FUSE_BYTES, type FuseSetMember, type FuseSetProgress, type FuseTreeMember, type FuseTreeProgress } from "@mikeargento/bitgraph";
+import { bytesToBase64, bytesToHex, encodeTreeLeaves } from "@mikeargento/bitgraph-verify";
 import type { ApiConfig } from "./api.js";
 import { scanFile, fusedDigestFor, sniffC2paBytes, type ScannedFile } from "./scan.js";
 import { readCarrierFile, sniffCarrierTail, type CarrierWindowView } from "./carrier-io.js";
@@ -54,9 +57,70 @@ export type FuseSetFn = (
   opts: { set: "set/1" | "set/2"; onProgress?: (p: FuseSetProgress) => void }
 ) => Promise<SetSummary>;
 
+/** One tree/1 BitGraph as data: everything an export is built from, JSON-safe. */
+export interface TreeSummary {
+  proof: BitGraphProof;
+  /** The committed artifact: the 84-byte root document, lowercase hex. */
+  rootDocumentHex: string;
+  /** SHA-256 of the root document, standard base64: the proof's signed digest. */
+  artifactDigestB64: string;
+  count: number;
+  /** Every leaf in tree order, base64 (count x 65 bytes): the owner's list. */
+  leavesB64: string;
+  /** The floor block the proof signs (commit.slotAnchor). */
+  floor: { counter: string; blockNumber: number; blockHash: string };
+  recovered: boolean;
+  /** True when the proof's metadata carries the root document; exports carry it either way. */
+  rootDocumentEchoed: boolean;
+  /** In the order the files were given. */
+  members: Array<{ index: number; leafIndex: number; placement: string; originDigestB64: string; artifactDigestB64: string }>;
+}
+
+export type FuseTreeFn = (
+  files: readonly ScannedFile[],
+  config: ApiConfig,
+  opts: { onProgress?: (p: FuseTreeProgress) => void }
+) => Promise<TreeSummary>;
+
+/**
+ * The tree pipeline (tree/1): ONE BitGraph of every file given, under one
+ * position. A file over MAX_FUSE_BYTES goes in as is, by the digest its scan
+ * took, and is never read again. Any other file is placed: its committed
+ * digest is finished from the scan's open hasher for the slot's commitment,
+ * or, when its length changed while it was read, it is read again after the
+ * slot is held and checked against the scan's digest. The returned proof is
+ * verified, with every member's leaf bound to its root, before it is
+ * returned.
+ */
+export const fuseTreePipeline: FuseTreeFn = async (files, config, opts) => {
+  const members: FuseTreeMember[] = files.map((f): FuseTreeMember =>
+    f.size > MAX_FUSE_BYTES
+      ? { originDigest: f.originDigest, placement: "as-is", name: f.name }
+      : f.state !== null
+        ? { originDigest: f.originDigest, placement: f.placement, name: f.name, fusedDigest: ({ commitment }) => fusedDigestFor(f, commitment) }
+        : { load: async () => new Uint8Array(await readFile(f.path)), originDigest: f.originDigest, placement: f.placement, name: f.name }
+  );
+  const r = await fuseTree(members, {
+    ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
+    transport: { baseUrl: config.baseUrl, ...(config.apiKey ? { apiKey: config.apiKey } : {}) },
+  });
+  return {
+    proof: r.proof as unknown as BitGraphProof,
+    rootDocumentHex: bytesToHex(r.rootDocument),
+    artifactDigestB64: r.artifactDigestB64,
+    count: r.count,
+    leavesB64: bytesToBase64(encodeTreeLeaves(r.leaves)),
+    floor: r.floor,
+    recovered: r.recovered,
+    rootDocumentEchoed: r.rootDocumentEchoed,
+    members: r.members.map((m) => ({ index: m.index, leafIndex: m.leafIndex, placement: m.placement, originDigestB64: m.originDigestB64, artifactDigestB64: m.artifactDigestB64 })),
+  };
+};
+
 /**
  * One file, as a single drop on the site goes: its own slot, its own Frame,
- * and a Frame returned. The fused bytes are not kept.
+ * and a Frame returned. The fused bytes are not kept. Superseded by
+ * fuseTreePipeline (a single file is a tree of one).
  */
 export const fuseFilePipeline: FuseFileFn = async (file, config) => {
   const bytes = new Uint8Array(await readFile(file.path));
@@ -83,6 +147,7 @@ export const fuseFilePipeline: FuseFileFn = async (file, config) => {
  * finished from the scan's open hasher for that slot, the manifest (or, for
  * a set/2, its root document) committed under the same slot, and the
  * returned proof verified with every member bound to it by digest.
+ * Superseded by fuseTreePipeline (N files are one tree under one position).
  */
 export const fuseSetPipeline: FuseSetFn = async (files, config, opts) => {
   const members: FuseSetMember[] = files.map((f) =>

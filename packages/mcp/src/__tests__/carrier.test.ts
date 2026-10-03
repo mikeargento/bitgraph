@@ -9,8 +9,8 @@
  *   1. The lookups use the digest of the COMMITTED bytes inside, never the
  *      envelope's, and the carried proof is judged offline (verdict, window).
  *   2. bitgraph_record NEVER mints carrier bytes: the envelope is not the
- *      recorded thing. The fake pipelines fail the test if a carrier reaches
- *      them.
+ *      recorded thing. The fake tree pipeline fails the test if a carrier
+ *      reaches it.
  */
 
 import { test, before, after } from "node:test";
@@ -30,7 +30,8 @@ import {
   type CarrierProof,
   type CarrierWitness,
 } from "@mikeargento/bitgraph-verify";
-import { buildServer, type FuseFileFn, type FuseSetFn } from "../server.js";
+import { buildServer, type FuseTreeFn } from "../server.js";
+import { fakeTree } from "./fake-tree.js";
 import { toUrlSafeB64 } from "@mikeargento/bitgraph-sdk";
 import { sniffC2paBytes, scanFile } from "@mikeargento/bitgraph-sdk";
 
@@ -143,27 +144,16 @@ after(() => {
   delete process.env["BITGRAPH_API_KEY"];
 });
 
-/** The pipelines fail the test when carrier bytes reach them. */
+/** The tree pipeline fails the test when carrier bytes reach it. */
 const fusedNames: string[] = [];
-const guardFuseFile: FuseFileFn = async (file) => {
-  assert.ok(!file.name.includes(".bitgraph."), `a BitGraphed file reached the mint: ${file.name}`);
-  fusedNames.push(file.name);
-  const artifactDigestB64 = createHash("sha256").update("fused:" + file.digestB64).digest("base64");
-  return {
-    proof: { version: "bitgraph/1", artifact: { digestB64: artifactDigestB64 }, commit: { counter: "500", epochId: EPOCH } },
-    frame: { type: "bitgraph-fuse/1" },
-    placement: file.placement,
-    artifactDigestB64,
-    originDigestB64: file.digestB64,
-  };
-};
-const guardFuseSet: FuseSetFn = async (files) => {
-  for (const f of files) assert.ok(!f.name.includes(".bitgraph."), `a BitGraphed file reached the set mint: ${f.name}`);
-  throw new Error("no set expected in these tests");
+const guardFuseTree: FuseTreeFn = async (files) => {
+  for (const f of files) assert.ok(!f.name.includes(".bitgraph."), `a BitGraphed file reached the mint: ${f.name}`);
+  fusedNames.push(...files.map((f) => f.name));
+  return fakeTree(files, { counter: "500", epochId: EPOCH });
 };
 
 async function connectedClient(): Promise<Client> {
-  const server = buildServer({ fuseSet: guardFuseSet, fuseFile: guardFuseFile });
+  const server = buildServer({ fuseTree: guardFuseTree });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);

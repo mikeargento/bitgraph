@@ -1,7 +1,7 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
- * bitgraph-core — BitGraph
+ * bitgraph-core: BitGraph
  *
  * Portable cryptographic proof at finalization.
  * Hardware TEE enforcement via AWS Nitro Enclaves.
@@ -11,7 +11,7 @@
  * compatibility. Verification of BitGraph proofs is permissionless.
  */
 
-// Read side — re-exported from the permissive verifier package
+// Read side: re-exported from the permissive verifier package
 export type {
   BitGraphProof,
   BitGraphPolicy,
@@ -38,9 +38,20 @@ export type { HostCapabilities } from "./host.js";
 // Constructor (write path)
 export { Constructor } from "./constructor.js";
 
+// tree/1 (2026-10-03): every new BitGraph is one Merkle tree of 1 to N files
+// under one position; a single file is a tree of one. fuseTree makes it, and
+// the export builders write bitgraph-export/1 for one member or the owner.
+export { fuseTree, MAX_FUSE_BYTES, treePlacementFor } from "./fuse.js";
+export type { FuseTreeMember, FuseTreeBytesMember, FuseTreeLoadedMember, FuseTreeHashedMember, FuseTreeAsIsMember, TreeMemberPlacement, FuseTreeOptions, FuseTreeProgress, FuseTreeMemberResult, FuseTreeResult, AnchorMark } from "./fuse.js";
+export { buildMemberExport, buildOwnerExport, namesByLeaf, floorFromHeader, fetchFloorHeader, completeExport } from "./export.js";
+export type { ExportFloor, TreeExportSource, ExportParts, ExportFetchOptions, CompleteExportOptions, CompletedExport } from "./export.js";
+export { committedBytesFor, verifyTreeMember, verifyExport, parseExport, EXPORT_FORMAT } from "@mikeargento/bitgraph-verify";
+export type { BitGraphExport, TreeLeaf, TreeMemberEvidence, TreeVerifyResult, ExportClaim, ExportVerifyResult } from "@mikeargento/bitgraph-verify";
+
 // The producer profile over the primitive (working name Fuse): allocate a
 // slot, write a commitment to it into the artifact, hash, commit under the
-// same slot. The resulting proof is ordinary bitgraph/1.
+// same slot. The resulting proof is ordinary bitgraph/1. fuse and fuseSet are
+// superseded by fuseTree and kept so code that imports them keeps working.
 export { fuse, fuseSet, MAX_SET_MEMBERS, trailerBytesFor, builderFor, FuseError, digestFromBase64, placementForBytes, fusedNamesFor } from "./fuse.js";
 export { MAX_SET2_MEMBERS, SET2_PLACEMENT_ID, SET_MEMBER_METADATA_KEY } from "@mikeargento/bitgraph-verify";
 export type { FuseBuilder, BuilderInput, FuseOptions, FuseResult, FuseTransport, FuseErrorCode } from "./fuse.js";

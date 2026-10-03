@@ -3,8 +3,8 @@
 /**
  * End-to-end tool tests: a real MCP client drives the real server over an
  * in-memory transport, against a mock bitgraph.ing that asserts the exact
- * wire shapes, with the set pipeline replaced by a stand-in. No real ledger
- * writes ever happen here.
+ * wire shapes, with the tree pipeline replaced by a stand-in that builds a
+ * consistent tree without a boundary. No real ledger writes ever happen here.
  */
 
 import { test, before, after } from "node:test";
@@ -13,12 +13,13 @@ import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { writeFile, mkdtemp, mkdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { FuseError } from "@mikeargento/bitgraph";
-import { buildServer, pendingIndexCount, ROW_CAP, SET_INDEX_CHUNK, type FuseFileFn, type FuseSetFn } from "../server.js";
-import { toUrlSafeB64 } from "@mikeargento/bitgraph-sdk";
+import { buildServer, ROW_CAP, type FuseTreeFn } from "../server.js";
+import { fromUrlSafeB64, readExportFile, toUrlSafeB64 } from "@mikeargento/bitgraph-sdk";
+import { fakeTree } from "./fake-tree.js";
 
 interface Recorded {
   method: string;
@@ -35,13 +36,12 @@ let fileC = "";
 let copyB = "";
 let dir = "";
 let bigDir = "";
-const BIG = SET_INDEX_CHUNK + 100;
+const BIG = 2_600;
 let digestA = ""; // standard b64 of fileA bytes
 let digestB = "";
 let digestC = "";
 const EPOCH = createHash("sha256").update("test-epoch").digest("base64");
 let mintCounter = 100;
-let indexMode: "ok" | "fail" = "ok";
 
 function proofFor(digestB64: string): Record<string, unknown> {
   mintCounter += 2; // slot consumes one position, commit lands on the next
@@ -112,12 +112,8 @@ before(async () => {
         }
         send(200, { results });
       } else if (url.pathname === "/api/fuse/set-index") {
-        if (indexMode === "fail") {
-          send(500, { error: "indexing failed" });
-        } else {
-          const members = (body as { members: unknown[] }).members;
-          send(200, { count: BIG, written: members.length, failed: 0, rejected: 0 });
-        }
+        // Nothing indexes a tree's members; a call here is a test failure.
+        send(500, { error: "unexpected set-index" });
       } else if (url.pathname === "/api/commit" || url.pathname.startsWith("/api/fuse/allocate") || url.pathname.startsWith("/api/fuse/commit")) {
         // The stand-in pipeline never reaches the boundary; nothing here may.
         send(500, { error: `unexpected ${url.pathname}` });
@@ -169,49 +165,20 @@ after(() => {
   delete process.env["BITGRAPH_API_KEY"];
 });
 
-/** A stand-in for the set pipeline: no slot, no boundary; records what it was asked to fuse and answers like a set. */
-const setCalls: Array<{ names: string[]; digests: string[]; set: string }> = [];
-let fuseMode: "ok" | "fail" = "ok";
-const fakeFuseSet: FuseSetFn = async (files, _config, opts) => {
-  setCalls.push({ names: files.map((f) => f.name), digests: files.map((f) => f.digestB64), set: opts.set });
+/** A stand-in for the tree pipeline: no slot, no boundary; records what it was asked to make and answers with a consistent tree. */
+const treeCalls: Array<{ names: string[]; digests: string[] }> = [];
+let fuseMode: "ok" | "fail" | "no-floor" = "ok";
+const asIsDigests = new Set<string>();
+const fakeFuseTree: FuseTreeFn = async (files, _config, opts) => {
+  treeCalls.push({ names: files.map((f) => f.name), digests: files.map((f) => f.digestB64) });
   if (fuseMode === "fail") throw new FuseError("tee-restarting", "the boundary is restarting", 503);
+  if (fuseMode === "no-floor") throw new FuseError("floor-missing", "the allocation returned no floor anchor, so no tree/1 commitment can be made");
   opts.onProgress?.({ phase: "commit", done: 1, total: 1 });
-  const rows = files.map((f, index) => ({ index, artifact: createHash("sha256").update("fused:" + f.digestB64).digest("base64"), origin: f.digestB64, placement: f.placement }));
-  const sorted = [...rows].sort((a, b) => Buffer.from(a.artifact, "base64").compare(Buffer.from(b.artifact, "base64")));
-  const manifestIndex = new Map(sorted.map((r, k) => [r.index, k]));
-  const setDigest = createHash("sha256").update("set:" + sorted.map((r) => r.artifact).join(",")).digest("base64");
-  return {
-    set: opts.set,
-    proof: proofFor(setDigest),
-    artifactDigestB64: setDigest,
-    count: files.length,
-    manifestEchoed: true,
-    recovered: false,
-    members: rows.map((r) => {
-      const k = manifestIndex.get(r.index) as number;
-      return {
-        index: r.index,
-        manifestIndex: k,
-        placement: r.placement,
-        originDigestB64: r.origin,
-        artifactDigestB64: r.artifact,
-        ...(opts.set === "set/2"
-          ? { memberProof: { count: files.length, index: k, member: { artifact: { algorithm: "sha256", digest: "" }, origin: { algorithm: "sha256", digest: "" }, placement: r.placement }, path: [], placement: "set/2", type: "bitgraph-fuse/1" } }
-          : {}),
-      };
-    }),
-  };
-};
-/** A stand-in for the single-file pipeline: records what it was asked to fuse. */
-const soloCalls: Array<{ name: string; digestB64: string }> = [];
-const fakeFuseFile: FuseFileFn = async (file) => {
-  soloCalls.push({ name: file.name, digestB64: file.digestB64 });
-  if (fuseMode === "fail") throw new FuseError("tee-restarting", "the boundary is restarting", 503);
-  const artifactDigestB64 = createHash("sha256").update("fused:" + file.digestB64).digest("base64");
-  return { proof: proofFor(artifactDigestB64), frame: { type: "bitgraph-fuse/1" }, placement: file.placement, artifactDigestB64, originDigestB64: file.digestB64 };
+  mintCounter += 2; // the slot consumes one position, the commit lands on the next
+  return fakeTree(files, { counter: String(mintCounter), epochId: EPOCH, asIs: asIsDigests });
 };
 async function connectedClient(): Promise<Client> {
-  const server = buildServer({ fuseSet: fakeFuseSet, fuseFile: fakeFuseFile });
+  const server = buildServer({ fuseTree: fakeFuseTree });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
@@ -219,11 +186,13 @@ async function connectedClient(): Promise<Client> {
 }
 
 interface RecordStructured {
-  set: { set: string; count: number; counter: string | null; proof_url: string; index: { written: number; pending: number } | null } | null;
-  frames: Record<string, unknown>;
-  results: Array<{ path: string; outcome: string; counter: string | null; placement: string | null; artifact_digest: string | null; member: number | null; member_count: number | null; total_positions: number; proof_url: string | null; error?: string }>;
+  tree: {
+    format: string; count: number; counter: string | null; proof_url: string; artifact_digest: string; root_document: string;
+    export: { kind: string; dir: string | null; owner: string | null; members_dir: string | null; members: number; floor_header: boolean; error?: string };
+  } | null;
+  results: Array<{ path: string; outcome: string; counter: string | null; placement: string | null; artifact_digest: string | null; member: number | null; member_count: number | null; total_positions: number; proof_url: string | null; export?: string; error?: string }>;
   omitted: number;
-  summary: { files: number; directories: number; fused: number; on_record: number; not_fused: number };
+  summary: { files: number; directories: number; fused: number; recorded: number; on_record: number; carried: number; not_fused: number };
 }
 const textOf = (result: unknown): string => (((result as { content?: unknown }).content ?? []) as Array<{ text: string }>)[0]?.text ?? "";
 
@@ -232,31 +201,34 @@ test("lists the five tools", async () => {
   const tools = await client.listTools();
   const names = tools.tools.map((t) => t.name).sort();
   assert.deepEqual(names, ["bitgraph_check", "bitgraph_commit", "bitgraph_get_proof", "bitgraph_open", "bitgraph_record"]);
+  const record = tools.tools.find((t) => t.name === "bitgraph_record")!;
+  assert.deepEqual(Object.keys(record.inputSchema.properties ?? {}).sort(), ["again", "export_dir", "exports", "paths", "response_format"], "the old inputs stand; export_dir and exports are new and optional");
 });
 
-test("record makes ONE set of the fresh files and leaves on-record ones alone", async () => {
+test("record makes ONE tree of the fresh files, leaves on-record ones alone, and writes the owner's export beside them", async () => {
   const client = await connectedClient();
   requests.length = 0;
-  setCalls.length = 0;
+  treeCalls.length = 0;
   const result = await client.callTool({
     name: "bitgraph_record",
     arguments: { paths: [fileA, fileB, fileC] },
   });
   assert.ok(!result.isError, JSON.stringify(result.content));
-  assert.equal(requests.filter((r) => r.path === "/api/commit" || r.path.startsWith("/api/fuse/")).length, 0, "the stand-in never reaches the boundary; nothing is committed as bytes-only");
-  assert.equal(setCalls.length, 1, "one set for the whole call");
-  assert.deepEqual(setCalls[0]?.digests, [digestB, digestC], "only the fresh files are members; fileA was on record");
-  assert.deepEqual(setCalls[0]?.names, ["b.txt", "c.txt"], "members are named after the files");
-  assert.equal(setCalls[0]?.set, "set/1");
+  assert.equal(requests.filter((r) => r.path === "/api/commit" || r.path.startsWith("/api/fuse/")).length, 0, "the stand-in never reaches the boundary; nothing else is sent");
+  assert.equal(treeCalls.length, 1, "one tree for the whole call");
+  assert.deepEqual(treeCalls[0]?.digests, [digestB, digestC], "only the fresh files are leaves; fileA was on record");
+  assert.deepEqual(treeCalls[0]?.names, ["b.txt", "c.txt"], "members are named after the files");
   const batch = requests.find((r) => r.path === "/api/proofs/batch");
-  if (!batch) throw new Error("no batch check preceded the set");
+  if (!batch) throw new Error("no batch check preceded the tree");
   const batchBody = batch.body as { digests: string[] };
   assert.ok(batchBody.digests.every((d) => !d.includes("+") && !d.includes("=")), "check uses url-safe digests");
   const structured = result.structuredContent as RecordStructured;
-  assert.deepEqual(structured.summary, { files: 3, directories: 0, fused: 2, on_record: 1, carried: 0, not_fused: 0 });
-  assert.ok(structured.set, "the set is reported");
-  assert.equal(structured.set?.count, 2);
-  assert.ok(structured.set?.proof_url.includes("/proof/") && structured.set?.proof_url.includes("counter="), "the set's proof page is pinned to its position");
+  assert.deepEqual(structured.summary, { files: 3, directories: 0, fused: 2, recorded: 0, on_record: 1, carried: 0, not_fused: 0 });
+  const tree = structured.tree!;
+  assert.equal(tree.format, "tree/1");
+  assert.equal(tree.count, 2);
+  assert.equal(tree.root_document.length, 168, "the 84-byte root document, hex");
+  assert.ok(tree.proof_url.includes("/proof/") && tree.proof_url.includes("counter="), "the tree's proof page is pinned to its position");
   const a = structured.results.find((r) => r.path === fileA);
   const b = structured.results.find((r) => r.path === fileB);
   const c = structured.results.find((r) => r.path === fileC);
@@ -265,78 +237,86 @@ test("record makes ONE set of the fresh files and leaves on-record ones alone", 
   assert.equal(a?.member, 3, "an on-record set member reports its row, 1-based");
   assert.equal(a?.member_count, 10);
   assert.equal(b?.outcome, "fused");
-  assert.equal(b?.counter, structured.set?.counter, "a fused file's position is the set's");
+  assert.equal(b?.counter, tree.counter, "a recorded file's position is the tree's");
   assert.equal(b?.placement, "container/2", "text goes in a container");
   assert.equal(b?.member_count, 2);
   assert.ok(b?.member === 1 || b?.member === 2);
-  assert.notEqual(b?.member, c?.member, "two members, two rows");
-  assert.ok(b?.artifact_digest && !b.artifact_digest.includes("+"), "the member's fused digest, url-safe");
-  assert.ok(b?.proof_url?.includes(encodeURIComponent(toUrlSafeB64(digestB))), "the file's own digest finds the set");
+  assert.notEqual(b?.member, c?.member, "two leaves");
+  assert.ok(b?.artifact_digest && !b.artifact_digest.includes("+"), "the leaf's committed digest, url-safe");
+  assert.equal(b?.proof_url, tree.proof_url, "a leaf's page is its tree's");
+  // The owner's export, beside the files (the folder that holds the first path).
+  assert.equal(tree.export.kind, "owner");
+  assert.equal(tree.export.dir, dirname(fileA));
+  assert.ok(tree.export.owner?.startsWith(dirname(fileA)), String(tree.export.owner));
+  assert.equal(tree.export.members_dir, null);
+  const owner = await readExportFile(tree.export.owner!);
+  assert.deepEqual([...owner.tree.names!].sort(), ["b.txt", "c.txt"]);
+  assert.equal(owner.proof.artifact.digestB64, fromUrlSafeB64(tree.artifact_digest));
   const text = textOf(result);
-  assert.ok(text.startsWith("2 files BitGraphed as one set at #"), text);
-  assert.ok(text.includes("set of 2"), text);
+  assert.ok(text.startsWith("2 files BitGraphed as one tree at #"), text);
+  assert.ok(text.includes("tree of 2"), text);
+  assert.ok(text.includes(`Export, every file's leaf and name (keep it with the files): ${tree.export.owner}`), text);
+  assert.ok(text.includes("bitgraph export complete"), text);
 });
 
-test("a single file is fused on its own, with its Frame; again=true fuses an on-record one", async () => {
+test("a single file is a tree of one; again=true makes an on-record one again", async () => {
   const client = await connectedClient();
-  setCalls.length = 0;
-  soloCalls.length = 0;
+  treeCalls.length = 0;
   const result = await client.callTool({
     name: "bitgraph_record",
     arguments: { paths: [fileA], again: true },
   });
   assert.ok(!result.isError, JSON.stringify(result.content));
-  assert.equal(setCalls.length, 0, "one file is not a set");
-  assert.deepEqual(soloCalls.map((c) => c.digestB64), [digestA]);
+  assert.deepEqual(treeCalls.map((c) => c.digests), [[digestA]]);
   const structured = result.structuredContent as RecordStructured;
-  assert.equal(structured.set, null);
+  assert.equal(structured.tree?.count, 1);
   const row = structured.results[0];
   assert.equal(row?.outcome, "fused");
-  assert.equal(row?.member, null);
+  assert.equal(row?.member, 1);
+  assert.equal(row?.member_count, 1);
   assert.equal(row?.total_positions, 3, "two prior positions plus the new BitGraph");
-  assert.ok(row?.artifact_digest && structured.frames[row.artifact_digest], "the Frame rides in the structured result under the fused digest");
-  assert.ok(row?.proof_url?.includes(encodeURIComponent(row.artifact_digest ?? "")), "a single file's proof page is its own");
+  assert.equal(row?.proof_url, structured.tree?.proof_url);
+  assert.ok(!("frames" in structured), "no Frame: a tree's evidence is its export");
   const text = textOf(result);
-  assert.ok(text.startsWith("1 fused, 0 already on record."), text);
-  assert.ok(text.includes("its Frame is in the structured result"), text);
+  assert.ok(text.startsWith("1 file BitGraphed as one tree at #"), text);
 });
 
-test("a directory is its regular files, hidden entries and links left out", async () => {
+test("a directory is its regular files, hidden entries and links left out; its export goes beside it, never inside", async () => {
   const client = await connectedClient();
-  setCalls.length = 0;
+  treeCalls.length = 0;
   const result = await client.callTool({
     name: "bitgraph_record",
     arguments: { paths: [dir] },
   });
   assert.ok(!result.isError, JSON.stringify(result.content));
-  assert.deepEqual(setCalls[0]?.names, ["a1.txt", "a2.txt"]);
+  assert.deepEqual(treeCalls[0]?.names, ["a1.txt", "a2.txt"]);
   const structured = result.structuredContent as RecordStructured;
-  assert.deepEqual(structured.summary, { files: 2, directories: 1, fused: 2, on_record: 0, carried: 0, not_fused: 0 });
-  assert.equal(structured.set?.count, 2);
+  assert.deepEqual(structured.summary, { files: 2, directories: 1, fused: 2, recorded: 0, on_record: 0, carried: 0, not_fused: 0 });
+  assert.equal(structured.tree?.count, 2);
+  assert.equal(structured.tree?.export.dir, dirname(dir), "beside the folder");
+  const owner = await readExportFile(structured.tree!.export.owner!);
+  assert.deepEqual([...owner.tree.names!].sort(), ["a1.txt", join("sub", "a2.txt")], "names under the folder");
 });
 
-test("the same bytes under two paths are one file, fused once and reported twice", async () => {
+test("the same bytes under two paths are one leaf, made once and reported twice", async () => {
   const client = await connectedClient();
-  setCalls.length = 0;
-  soloCalls.length = 0;
+  treeCalls.length = 0;
   const result = await client.callTool({
     name: "bitgraph_record",
     arguments: { paths: [fileB, copyB] },
   });
   assert.ok(!result.isError, JSON.stringify(result.content));
-  assert.equal(setCalls.length, 0, "one distinct file is fused on its own");
-  assert.deepEqual(soloCalls.map((c) => c.digestB64), [digestB]);
+  assert.deepEqual(treeCalls.map((c) => c.digests), [[digestB]]);
   const structured = result.structuredContent as RecordStructured;
-  assert.equal(structured.set, null);
+  assert.equal(structured.tree?.count, 1);
   assert.equal(structured.summary.fused, 2);
   assert.equal(structured.results[0]?.artifact_digest, structured.results[1]?.artifact_digest);
 });
 
-test("above the set/1 cap the set is a set/2 and its evidence is indexed in chunks", async () => {
+test("a big folder is one tree: every file a leaf, nothing indexed afterwards, rows capped, progress reported", async () => {
   const client = await connectedClient();
   requests.length = 0;
-  setCalls.length = 0;
-  indexMode = "ok";
+  treeCalls.length = 0;
   const progress: string[] = [];
   const result = await client.callTool({ name: "bitgraph_record", arguments: { paths: [bigDir] } }, undefined, {
     onprogress: (p) => {
@@ -344,62 +324,77 @@ test("above the set/1 cap the set is a set/2 and its evidence is indexed in chun
     },
   });
   assert.ok(!result.isError, JSON.stringify(result.content).slice(0, 500));
-  assert.equal(setCalls[0]?.set, "set/2");
-  assert.equal(setCalls[0]?.digests.length, BIG);
-  const index = requests.filter((r) => r.path === "/api/fuse/set-index");
-  assert.deepEqual(index.map((r) => (r.body as { members: unknown[] }).members.length), [SET_INDEX_CHUNK, BIG - SET_INDEX_CHUNK], "evidence goes in the site's chunks");
-  const body = index[0]?.body as { setDigest: string; epoch: string; counter: string };
-  assert.ok(!body.setDigest.includes("+") && !body.setDigest.includes("="), "the set digest travels url-safe");
-  assert.ok(!body.epoch.includes("+") && !body.epoch.includes("="), "so does the epoch");
+  assert.equal(treeCalls.length, 1);
+  assert.equal(treeCalls[0]?.digests.length, BIG);
+  assert.equal(requests.filter((r) => r.path === "/api/fuse/set-index").length, 0, "a tree's members are not sent anywhere: the export holds them");
   const structured = result.structuredContent as RecordStructured;
-  assert.equal(body.counter, structured.set?.counter);
-  assert.equal(structured.set?.set, "set/2");
-  assert.deepEqual(structured.set?.index, { written: BIG, pending: 0 });
+  assert.equal(structured.tree?.count, BIG);
   assert.equal(structured.summary.fused, BIG);
   assert.equal(structured.results.length, ROW_CAP, "the structured rows are capped");
   assert.equal(structured.omitted, BIG - ROW_CAP);
-  assert.equal(pendingIndexCount(), 0);
+  const owner = await readExportFile(structured.tree!.export.owner!);
+  assert.equal(Buffer.from(owner.tree.leaves!, "base64").length, BIG * 65, "the owner's export lists every leaf");
   const text = textOf(result);
-  assert.ok(text.includes(`set of ${BIG.toLocaleString("en-US")}`), text.slice(0, 300));
-  assert.ok(text.includes("more files in the same set"), "the markdown lists a few rows and counts the rest");
+  assert.ok(text.includes(`tree of ${BIG.toLocaleString("en-US")}`), text.slice(0, 300));
+  assert.ok(text.includes("more files in the same tree"), "the markdown lists a few rows and counts the rest");
   assert.ok(progress.some((m) => /^hashed \d+ of \d+$/.test(m)), `progress notifications arrived: ${progress.slice(0, 3).join(" | ")}`);
-  assert.ok(progress.some((m) => /^indexing \d+ of \d+$/.test(m)), "indexing reports progress too");
+  assert.ok(progress.includes("committing 1 of 1"), "the pipeline's phases are reported");
 });
 
-test("evidence the site cannot index waits, blocks a new set, and is sent first once the site is back", async () => {
+test("exports: one per file under the tree's names, both, none, and export_dir honored", async () => {
   const client = await connectedClient();
-  indexMode = "fail";
-  const first = await client.callTool({ name: "bitgraph_record", arguments: { paths: [bigDir] } });
-  assert.ok(!first.isError, "the set was made; a failed index is reported, not an error");
-  const s1 = first.structuredContent as RecordStructured;
-  assert.deepEqual(s1.set?.index, { written: 0, pending: BIG });
-  assert.equal(pendingIndexCount(), BIG);
-  assert.ok(textOf(first).includes("The set proof beside the originals is the record either way."), textOf(first).slice(0, 400));
-
-  // Still down: nothing new is made, so the members cannot be made again by mistake.
-  requests.length = 0;
-  setCalls.length = 0;
-  const blocked = await client.callTool({ name: "bitgraph_record", arguments: { paths: [fileC] } });
-  assert.ok(blocked.isError);
-  assert.ok(textOf(blocked).includes("waiting to be indexed"), textOf(blocked));
-  assert.equal(setCalls.length, 0, "no set was made");
-  assert.ok(!requests.some((r) => r.path === "/api/proofs/batch"), "the ledger was not even checked");
-  assert.equal(pendingIndexCount(), BIG);
-
-  // Back: the waiting evidence goes first, then the call proceeds.
-  indexMode = "ok";
-  requests.length = 0;
-  const next = await client.callTool({ name: "bitgraph_record", arguments: { paths: [fileC] } });
-  assert.ok(!next.isError, JSON.stringify(next.content).slice(0, 400));
-  const firstBatch = requests.findIndex((r) => r.path === "/api/proofs/batch");
-  const indexCalls = requests.map((r, i) => ({ i, path: r.path })).filter((r) => r.path === "/api/fuse/set-index");
-  assert.equal(indexCalls.length, 2);
-  assert.ok(indexCalls.every((r) => r.i < firstBatch), "pending evidence is sent before the ledger check");
-  assert.equal(pendingIndexCount(), 0);
-  assert.equal((next.structuredContent as RecordStructured).summary.fused, 1);
+  const out = await mkdtemp(join(tmpdir(), "bitgraph-mcp-exports-"));
+  const both = await client.callTool({ name: "bitgraph_record", arguments: { paths: [dir], again: true, export_dir: out, exports: "both" } });
+  assert.ok(!both.isError, JSON.stringify(both.content));
+  const s = both.structuredContent as RecordStructured;
+  assert.equal(s.tree?.export.dir, out);
+  assert.ok(s.tree?.export.owner?.startsWith(out));
+  assert.equal(s.tree?.export.members, 2);
+  for (const row of s.results) {
+    assert.ok(row.export?.startsWith(s.tree!.export.members_dir!), `${row.path} names its own export`);
+    const exp = await readExportFile(row.export!);
+    assert.equal(exp.tree.member?.index, row.member! - 1);
+    assert.equal(exp.tree.leaves, undefined);
+  }
+  assert.ok(textOf(both).includes(`One export per file: ${s.tree?.export.members_dir}`));
+  const none = await client.callTool({ name: "bitgraph_record", arguments: { paths: [fileC], again: true, export_dir: out, exports: "none" } });
+  const n = none.structuredContent as RecordStructured;
+  assert.deepEqual([n.tree?.export.owner, n.tree?.export.members_dir, n.tree?.export.dir], [null, null, null]);
+  assert.ok(textOf(none).includes("without an export no file here can show it is in this BitGraph"), textOf(none));
+  // A folder that cannot be written: the export goes to the temp folder, and says so.
+  const blocked = join(out, "not-a-folder");
+  await writeFile(blocked, "a file where a folder should be");
+  const fallback = await client.callTool({ name: "bitgraph_record", arguments: { paths: [fileC], again: true, export_dir: join(blocked, "inside") } });
+  assert.ok(!fallback.isError, JSON.stringify(fallback.content));
+  const f = fallback.structuredContent as RecordStructured;
+  assert.match(f.tree?.export.error ?? "", /written to .*bitgraph-exports instead/);
+  assert.equal(f.tree?.export.dir, join(tmpdir(), "bitgraph-exports"));
+  assert.ok(f.tree?.export.owner?.startsWith(join(tmpdir(), "bitgraph-exports")));
+  assert.ok(textOf(fallback).includes("The export could not be written where asked"), textOf(fallback));
 });
 
-test("a set failure labels every attempted file 'not fused', never 'on record'", async () => {
+test("a file recorded as is is its own leaf, reported as recorded, not fused", async () => {
+  const client = await connectedClient();
+  asIsDigests.add(digestC);
+  try {
+    const result = await client.callTool({ name: "bitgraph_record", arguments: { paths: [fileB, fileC], again: true } });
+    assert.ok(!result.isError, JSON.stringify(result.content));
+    const s = result.structuredContent as RecordStructured;
+    assert.deepEqual([s.summary.fused, s.summary.recorded], [1, 1]);
+    const c = s.results.find((r) => r.path === fileC)!;
+    assert.equal(c.outcome, "recorded");
+    assert.equal(c.placement, "as-is");
+    assert.equal(c.artifact_digest, toUrlSafeB64(digestC), "as is: the leaf is the file's own digest");
+    const text = textOf(result);
+    assert.ok(text.startsWith("2 files BitGraphed as one tree at #"), text);
+    assert.ok(text.includes(`- recorded as is · ${fileC} (`), text);
+    assert.ok(text.includes("A file over 256 MiB is recorded as is: it existed by the commit, and nothing bounds it from below."), text);
+  } finally {
+    asIsDigests.clear();
+  }
+});
+
+test("a tree failure labels every attempted file 'not fused', never 'on record'", async () => {
   const client = await connectedClient();
   fuseMode = "fail";
   try {
@@ -412,9 +407,21 @@ test("a set failure labels every attempted file 'not fused', never 'on record'",
     assert.ok(text.includes("Nothing was BitGraphed"), text);
     assert.ok(text.includes("the boundary is restarting"), text);
     const structured = result.structuredContent as RecordStructured;
-    assert.equal(structured.set, null);
+    assert.equal(structured.tree, null);
     assert.ok(structured.results.every((r) => r.outcome === "not fused" && r.proof_url === null));
-    assert.deepEqual(structured.summary, { files: 2, directories: 0, fused: 0, on_record: 0, carried: 0, not_fused: 2 });
+    assert.deepEqual(structured.summary, { files: 2, directories: 0, fused: 0, recorded: 0, on_record: 0, carried: 0, not_fused: 2 });
+  } finally {
+    fuseMode = "ok";
+  }
+});
+
+test("a boundary without a floor makes nothing, and says why", async () => {
+  const client = await connectedClient();
+  fuseMode = "no-floor";
+  try {
+    const result = await client.callTool({ name: "bitgraph_record", arguments: { paths: [fileC], again: true } });
+    assert.ok(result.isError);
+    assert.ok(textOf(result).includes("does not return the floor block a tree needs"), textOf(result));
   } finally {
     fuseMode = "ok";
   }
@@ -423,14 +430,14 @@ test("a set failure labels every attempted file 'not fused', never 'on record'",
 test("record surfaces unreadable paths before any network call", async () => {
   const client = await connectedClient();
   requests.length = 0;
-  setCalls.length = 0;
+  treeCalls.length = 0;
   const result = await client.callTool({
     name: "bitgraph_record",
     arguments: { paths: [fileA, "/definitely/missing/file.bin"] },
   });
   assert.ok(result.isError);
   assert.equal(requests.length, 0, "no API call happened; nothing was minted");
-  assert.equal(setCalls.length, 0);
+  assert.equal(treeCalls.length, 0);
   const text = textOf(result);
   assert.ok(text.includes("nothing was BitGraphed"), text);
   assert.ok(text.includes("/definitely/missing/file.bin"), text);

@@ -8,12 +8,15 @@
  *   const r = await bg.record("run-042.log");
  *   console.log(r.files[0].proofUrl);
  *
- * Six verbs. record makes ONE BitGraph of everything in a call (one file is
- * fused on its own slot; two or more become one set under one position).
- * check and proof are read-only. open holds a position BEFORE any work
- * exists, and its seal commits the task that carries the commitment. verify
- * judges proofs and BitGraphed files fully offline. bitgraphedFile and
- * complete build and close the file that carries its own proof.
+ * Six verbs. record makes ONE BitGraph of everything in a call: since
+ * 2026-10-03 a tree/1, every file one leaf of one Merkle tree under one
+ * position (one file is a tree of one; a file over 256 MiB goes in as is),
+ * with the export/1 files that let each file prove it is in it. check and
+ * proof are read-only. open holds a position BEFORE any work exists, and its
+ * seal commits the task that carries the commitment. verify judges proofs,
+ * exports and BitGraphed files fully offline. bitgraphedFile and complete
+ * build and close the file that carries its own proof; completeExport fills
+ * an export's ceiling and settlement once they exist.
  *
  * The ground rules every verb keeps:
  * - Files are read on this machine and never uploaded; only digests, the
@@ -27,15 +30,16 @@
 
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { verify, verifyCarrier, createVerificationContext, parseCarrier, type CarrierClaim, type CarrierVerifyOptions } from "@mikeargento/bitgraph-verify";
+import { verify, verifyCarrier, verifyExport as verifyExportDocument, parseExport, createVerificationContext, parseCarrier, type BitGraphExport, type CarrierClaim, type CarrierVerifyOptions, type ExportVerifyOptions, type ExportVerifyResult } from "@mikeargento/bitgraph-verify";
 import { ApiError, batchCheck, configFromEnv, getProofDetail, search, type ApiConfig } from "./api.js";
 import { fromUrlSafeB64, looksLikeDigest, mapConcurrent, toUrlSafeB64 } from "./encoding.js";
-import { classifyPath, fuseFilePipeline, fuseSetPipeline, type CarrierRow, type ClassifiedPath, type FuseFileFn, type FuseSetFn, type SetSummary } from "./pipelines.js";
+import { classifyPath, fuseTreePipeline, type CarrierRow, type ClassifiedPath, type FuseFileFn, type FuseSetFn, type FuseTreeFn, type TreeSummary } from "./pipelines.js";
 import { expandPaths, sniffC2paBytes, type ScannedFile } from "./scan.js";
 import { carrierWindowView, type CarrierWindowView } from "./carrier-io.js";
 import { beginTask, decodeTaskToken, sealTask, writeProofBeside, SLOT_TTL_SECONDS, type Begun, type SealedTask } from "./task.js";
 import { buildBitGraphedFile, completeBitGraphedFile, type BuiltCarrier, type CompletedCarrier } from "./carrier-build.js";
-import { MAX_SET_MEMBERS, type FuseSetProgress } from "@mikeargento/bitgraph";
+import { completeExportFile, exportDataOf, fetchPinnedSpec, memberExportOf, ownerExportOf, writeTreeExports, type CompletedExportFile, type ExportKind, type TreeExportData, type WrittenExports } from "./exports.js";
+import { MAX_FUSE_BYTES, type FuseTreeProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, ProofDetailResponse, SetMemberView } from "./types.js";
 
 export interface BitGraphOptions {
@@ -43,8 +47,8 @@ export interface BitGraphOptions {
   baseUrl?: string;
   /** A licensee's key. Default: BITGRAPH_API_KEY. The public boundary needs none. */
   apiKey?: string;
-  /** Test seams; the defaults are the site's own pipelines. */
-  pipelines?: { fuseFile?: FuseFileFn; fuseSet?: FuseSetFn };
+  /** Test seams; the default is the tree pipeline. fuseFile and fuseSet are superseded: accepted so existing callers compile, and ignored. */
+  pipelines?: { fuseTree?: FuseTreeFn; fuseFile?: FuseFileFn; fuseSet?: FuseSetFn };
 }
 
 export interface RecordedFile {
@@ -55,10 +59,13 @@ export interface RecordedFile {
   counter: string | null;
   epoch: string | null;
   proofUrl: string | null;
+  /** How the file went into the tree made here: "as-is", or the placement of its committed bytes. */
   placement: string | null;
-  /** This file's row in the set made here (1-based), when a set was made. */
+  /** This file's leaf in the tree made here (1-based), or its row in an earlier set the ledger reports. */
   member: number | null;
   memberCount: number | null;
+  /** The member's own export file, when member exports were written. */
+  export?: string;
   /** A BitGraphed file's offline judgment (verdict and window). */
   carrier?: CarrierWindowView;
   /** Content Credentials (C2PA) detected in the bytes. */
@@ -66,12 +73,21 @@ export interface RecordedFile {
   error?: string;
 }
 
+/** The one tree/1 BitGraph a record call made, as data: the proof, the root document, every leaf and a name per leaf. */
+export interface TreeMade extends TreeExportData {
+  kind: "tree";
+  format: "tree/1";
+  count: number;
+  proofUrl: string;
+  recovered: boolean;
+  rootDocumentEchoed: boolean;
+  /** The export files this call wrote (record with exportDir); null when none were asked for. */
+  exports: WrittenExports | null;
+}
+
 export interface RecordResult {
-  /** What this call made: one solo BitGraph, one set, or nothing (everything was already on record or carried). */
-  made:
-    | { kind: "solo"; counter: string | null; epoch: string | null; artifactDigest: string; proofUrl: string; proof: BitGraphProof; frame: unknown }
-    | { kind: "set"; set: "set/1" | "set/2"; count: number; counter: string | null; epoch: string | null; artifactDigest: string; proofUrl: string; proof: BitGraphProof; members: SetSummary["members"] }
-    | null;
+  /** What this call made: ONE tree of every fresh file, or nothing (everything was already on record or carried). */
+  made: TreeMade | null;
   files: RecordedFile[];
 }
 
@@ -92,10 +108,14 @@ export interface VerifyOutcome {
   carrier: "ok" | "none" | "corrupt";
   bounds: CarrierWindowView | null;
   reasons: string[];
-  /** One result per claim, each saying what it rests on (a BitGraphed file only). */
+  /** One result per claim, each saying what it rests on (a BitGraphed file, or an export). */
   claims: CarrierClaim[];
   /** Plain language, written from the claims. */
   reading: string | null;
+  /** An export only: the leaf the file matched (or the export's own member). */
+  member?: ExportVerifyResult["member"];
+  /** An export only: the three time claims as established (floor, Base ceiling, Ethereum settlement); null fields were not. */
+  times?: ExportVerifyResult["times"];
 }
 
 /** For the confirmed level: nodes that answer the one online question per chain, and the verifier's own pins. */
@@ -121,16 +141,14 @@ const MAX_FILES = 100_000;
 
 export class BitGraph {
   readonly config: ApiConfig;
-  private readonly fuseFile: FuseFileFn;
-  private readonly fuseSet: FuseSetFn;
+  private readonly fuseTree: FuseTreeFn;
 
   constructor(options: BitGraphOptions = {}) {
     const env = configFromEnv();
     const baseUrl = (options.baseUrl ?? env.baseUrl).replace(/\/+$/, "");
     const apiKey = options.apiKey ?? env.apiKey;
     this.config = apiKey !== undefined ? { baseUrl, apiKey } : { baseUrl };
-    this.fuseFile = options.pipelines?.fuseFile ?? fuseFilePipeline;
-    this.fuseSet = options.pipelines?.fuseSet ?? fuseSetPipeline;
+    this.fuseTree = options.pipelines?.fuseTree ?? fuseTreePipeline;
   }
 
   proofUrl(standardDigest: string, counter?: string | null, epochId?: string | null): string {
@@ -143,13 +161,19 @@ export class BitGraph {
   }
 
   /**
-   * Make ONE BitGraph of the given files and folders. A single fresh file is
-   * fused on its own slot; two or more become one set under one position.
-   * Files already on record come back as "on record" untouched (pass
-   * `again: true` to make a new BitGraph regardless), and a BitGraphed file
-   * is judged from the proof it carries and never minted.
+   * Make ONE BitGraph of the given files and folders: a tree/1, every fresh
+   * file one leaf under one position (a single file is a tree of one; a file
+   * over 256 MiB goes in as is). Files already on record come back as "on
+   * record" untouched (pass `again: true` to make a new BitGraph
+   * regardless), and a BitGraphed file is judged from the proof it carries
+   * and never minted. With `exportDir`, the export/1 files are written there
+   * (`exports`: the owner's, one per member, both or none; default the
+   * owner's); without it, `made` holds everything they are built from.
    */
-  async record(paths: string | readonly string[], opts: { again?: boolean; onProgress?: (p: FuseSetProgress) => void } = {}): Promise<RecordResult> {
+  async record(
+    paths: string | readonly string[],
+    opts: { again?: boolean; onProgress?: (p: FuseTreeProgress) => void; exportDir?: string; exports?: ExportKind } = {}
+  ): Promise<RecordResult> {
     const list = typeof paths === "string" ? [paths] : [...paths];
     const { files } = await expandPaths(list, MAX_FILES);
     if (files.length === 0) throw new ApiError(400, "nothing to record: the given directories hold no regular files");
@@ -171,38 +195,25 @@ export class BitGraph {
     const checked = lookups.length > 0 ? await batchCheck(this.config, lookups.map(toUrlSafeB64)) : { results: {} as Record<string, { proofs: Array<{ proof: BitGraphProof; member?: SetMemberView }> }> };
     const rowsFor = (d: string) => checked.results[toUrlSafeB64(d)]?.proofs ?? [];
 
-    const toMint = (opts.again ? unique : unique.filter((d) => rowsFor(d).length === 0)).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
+    const fresh = (opts.again ? unique : unique.filter((d) => rowsFor(d).length === 0)).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
+    // A file over the cap goes in as is by the digest its scan took; when its
+    // length changed while it was read, that digest is not the file's.
+    const unstable = new Set(fresh.filter((f) => f.state === null && f.size > MAX_FUSE_BYTES).map((f) => f.digestB64));
+    const toMint = fresh.filter((f) => !unstable.has(f.digestB64));
 
-    let made: RecordResult["made"] = null;
-    const memberOf = new Map<string, SetSummary["members"][number]>();
-    if (toMint.length === 1) {
-      const one = toMint[0] as ScannedFile;
-      const solo = await this.fuseFile(one, this.config);
-      const counter = solo.proof.commit?.counter ?? null;
-      const epochId = solo.proof.commit?.epochId ?? null;
-      made = {
-        kind: "solo", counter, epoch: epochId !== null ? toUrlSafeB64(epochId) : null,
-        artifactDigest: toUrlSafeB64(solo.artifactDigestB64),
-        proofUrl: this.proofUrl(solo.artifactDigestB64, counter, epochId),
-        proof: solo.proof, frame: solo.frame,
-      };
-      memberOf.set(one.digestB64, { index: 0, manifestIndex: 0, placement: solo.placement, originDigestB64: one.digestB64, artifactDigestB64: solo.artifactDigestB64 });
-    } else if (toMint.length > 1) {
-      const kind: "set/1" | "set/2" = toMint.length > MAX_SET_MEMBERS ? "set/2" : "set/1";
-      const set = await this.fuseSet(toMint, this.config, {
-        set: kind,
-        ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
-      });
-      const counter = set.proof.commit?.counter ?? null;
-      const epochId = set.proof.commit?.epochId ?? null;
-      made = {
-        kind: "set", set: set.set, count: set.count, counter,
-        epoch: epochId !== null ? toUrlSafeB64(epochId) : null,
-        artifactDigest: toUrlSafeB64(set.artifactDigestB64),
-        proofUrl: this.proofUrl(set.artifactDigestB64, counter, epochId),
-        proof: set.proof, members: set.members,
-      };
-      for (const m of set.members) memberOf.set(m.originDigestB64, m);
+    let made: TreeMade | null = null;
+    const memberOf = new Map<string, TreeSummary["members"][number]>();
+    const exportOf = new Map<number, string>();
+    if (toMint.length > 0) {
+      const tree = await this.fuseTree(toMint, this.config, opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {});
+      made = await this.madeFrom(tree, toMint);
+      for (const m of tree.members) memberOf.set((toMint[m.index] as ScannedFile).digestB64, m);
+      const kind = opts.exports ?? "owner";
+      if (opts.exportDir !== undefined && kind !== "none") {
+        const spec = await fetchPinnedSpec(this.config, made.proof.attribution?.message ?? "");
+        made.exports = await writeTreeExports(made, { dir: opts.exportDir, kind, spec });
+        for (const m of made.exports.members) exportOf.set(m.leafIndex, m.path);
+      }
     }
 
     const out: RecordedFile[] = [];
@@ -212,15 +223,19 @@ export class BitGraph {
       for (const path of entry.paths) {
         const c2pa = entry.file.c2pa ? { c2pa: true as const } : {};
         if (minted !== undefined && made !== null) {
+          const memberExport = exportOf.get(minted.leafIndex);
           out.push({
             path, digest: toUrlSafeB64(digest), outcome: "recorded",
             counter: made.counter, epoch: made.epoch,
-            proofUrl: made.kind === "solo" ? made.proofUrl : this.proofUrl(digest, made.counter ?? undefined, undefined),
+            proofUrl: made.proofUrl,
             placement: minted.placement,
-            member: made.kind === "set" ? minted.manifestIndex + 1 : null,
-            memberCount: made.kind === "set" ? made.count : null,
+            member: minted.leafIndex + 1,
+            memberCount: made.count,
+            ...(memberExport !== undefined ? { export: memberExport } : {}),
             ...c2pa,
           });
+        } else if (unstable.has(digest)) {
+          out.push({ path, digest: toUrlSafeB64(digest), outcome: "refused", counter: null, epoch: null, proofUrl: null, placement: null, member: null, memberCount: null, error: `the file changed while it was read and is over ${MAX_FUSE_BYTES / (1024 * 1024)} MiB, so its digest is not the file's; record it again when it is still`, ...c2pa });
         } else if (prior.length > 0) {
           const first = prior[0] as { proof: BitGraphProof; member?: SetMemberView };
           out.push({
@@ -255,6 +270,75 @@ export class BitGraph {
       });
     }
     return { made, files: out };
+  }
+
+  /**
+   * A tree as data (exportDataOf): names under the deepest folder holding
+   * every file, and the floor block's header when the site has it (null
+   * otherwise; `bitgraph export complete` fetches it later).
+   */
+  private async madeFrom(tree: TreeSummary, files: readonly ScannedFile[]): Promise<TreeMade> {
+    const data = await exportDataOf(tree, files.map((f) => f.path), this.config);
+    return {
+      kind: "tree",
+      format: "tree/1",
+      count: tree.count,
+      ...data,
+      proofUrl: this.proofUrl(tree.artifactDigestB64, data.counter, tree.proof.commit?.epochId ?? null),
+      recovered: tree.recovered,
+      rootDocumentEchoed: tree.rootDocumentEchoed,
+      exports: null,
+    };
+  }
+
+  /** The owner's export of a tree this SDK made: every leaf and a name per leaf. */
+  ownerExport(made: TreeExportData): BitGraphExport {
+    return ownerExportOf(made);
+  }
+
+  /** One member's export of a tree this SDK made, by its leaf (RecordedFile.member - 1). */
+  memberExport(made: TreeExportData, leafIndex: number): BitGraphExport {
+    return memberExportOf(made, leafIndex);
+  }
+
+  /** Write a made tree's exports into a folder: the owner's (default), one per member, or both, with SPEC.md beside them when the site serves the pinned text. Never over an existing file. */
+  async writeExports(made: TreeExportData, dir: string, kind: ExportKind = "owner"): Promise<WrittenExports> {
+    const spec = kind === "none" ? null : await fetchPinnedSpec(this.config, made.proof.attribution?.message ?? "");
+    return writeTreeExports(made, { dir, kind, spec });
+  }
+
+  /**
+   * Fetch what an export file is waiting for (the floor header, the Base
+   * ceiling, its settlement on Ethereum), each verified before it is added;
+   * the file is written back when anything was, or to `out`.
+   */
+  completeExport(path: string, opts: { out?: string; waitMs?: number } = {}): Promise<CompletedExportFile> {
+    return completeExportFile(this.config, path, opts);
+  }
+
+  /**
+   * Check an export/1 offline, one claim per line, with the file it is about
+   * when given (its original or its committed bytes). The export is a path,
+   * its JSON text, or the parsed object. The lookups and pins confirm the
+   * blocks and name the images and the ceiling writer accepted.
+   */
+  async verifyExport(input: string | object, file?: string | Uint8Array, opts: VerifyOptions = {}): Promise<VerifyOutcome> {
+    let exp: unknown = input;
+    if (typeof input === "string") exp = input.trimStart().startsWith("{") ? input : await readFile(input, "utf8");
+    if (parseExport(exp) === null) throw new ApiError(400, "not a bitgraph-export/1 document");
+    const bytes = file === undefined ? undefined : typeof file === "string" ? new Uint8Array(await readFile(file)) : file;
+    const pins = opts.pins;
+    const exportPins: NonNullable<ExportVerifyOptions["pins"]> = {
+      ...(pins?.pcr0 !== undefined ? { pcr0: pins.pcr0 } : {}),
+      ...(pins?.ceilingWriter !== undefined ? { ceilingWriter: pins.ceilingWriter } : {}),
+      ...(pins?.baseChainId !== undefined ? { baseChainId: pins.baseChainId } : {}),
+    };
+    const r = await verifyExportDocument(exp, {
+      ...(bytes !== undefined ? { bytes } : {}),
+      ...(opts.lookups !== undefined ? { lookups: opts.lookups } : {}),
+      ...(Object.keys(exportPins).length > 0 ? { pins: exportPins } : {}),
+    });
+    return { verdict: r.verdict, carrier: "none", bounds: null, reasons: r.reasons, claims: r.claims, reading: r.reading, member: r.member, times: r.times };
   }
 
   /** Read-only: are these bytes on record? Paths, folders, raw digests or bytes; a BitGraphed file is judged offline and looked up by the committed bytes inside. */
@@ -369,10 +453,12 @@ export class BitGraph {
 
   /**
    * Fully offline judgment, no network ever. A BitGraphed file needs nothing
-   * else; plain bytes need their proof.
+   * else; plain bytes need their proof, or their export/1 (passed in place of
+   * the proof, as the object or its JSON text), which verifyExport answers.
    */
   async verify(input: string | Uint8Array, proof?: unknown, opts: VerifyOptions = {}): Promise<VerifyOutcome> {
     const bytes = typeof input === "string" ? new Uint8Array(await readFile(input)) : input;
+    if (proof !== undefined && proof !== null && parseExport(proof) !== null) return this.verifyExport(proof as string | object, bytes, opts);
     const parsed = parseCarrier(bytes);
     if (parsed.kind === "carrier" || parsed.kind === "corrupt") {
       const r = await verifyCarrier(bytes, opts);

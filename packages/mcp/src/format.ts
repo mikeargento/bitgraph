@@ -36,29 +36,35 @@ export function proofUrl(
 
 /**
  * One outcome per path, in the product's own vocabulary. "fused": the file is
- * a member of the set just made, its new fused bytes listed by digest in the
- * committed artifact. "on record": the bytes already had a recording or a
- * fused artifact naming them as origin, and nothing was made. "not fused":
- * the attempt failed or the file was left out; never claim "on record" for
- * bytes that have no proof. "carried": the file is a BitGraphed file, its
- * proof travels inside it; the committed bytes it holds were judged offline
- * and NOTHING was minted, because the envelope is never the recorded thing.
+ * a leaf of the tree just made, and its committed bytes (listed by digest in
+ * its leaf) carry the position commitment. "recorded": the file is a leaf
+ * recorded as is (over 256 MiB): its own digest is its leaf; it existed by
+ * the commit, and nothing bounds it from below. "on record": the bytes
+ * already had a recording or a fused artifact naming them as origin, and
+ * nothing was made. "not fused": the attempt failed or the file was left out;
+ * never claim "on record" for bytes that have no proof. "carried": the file
+ * is a BitGraphed file, its proof travels inside it; the committed bytes it
+ * holds were judged offline and NOTHING was minted, because the envelope is
+ * never the recorded thing.
  */
 export interface RecordOutcome {
   path: string;
-  /** The file's own digest (URL-safe): the origin of its fused bytes. For a "carried" row, the COMMITTED bytes' digest. */
+  /** The file's own digest (URL-safe): the origin of its committed bytes. For a "carried" row, the COMMITTED bytes' digest. */
   digest: string;
-  outcome: "fused" | "on record" | "not fused" | "carried";
+  outcome: "fused" | "recorded" | "on record" | "not fused" | "carried";
+  /** The file's own export (bitgraph-export/1), when one export per file was written. */
+  export?: string;
   /** A BitGraphed file's offline judgment: the carried proof's verdict and window. */
   carrier?: CarrierWindowView;
   /** True when the bytes carry Content Credentials (a C2PA manifest); the proof page displays them. */
   c2pa?: boolean;
-  /** The member's fused digest (URL-safe), present on a "fused" outcome. */
+  /** The leaf's artifact (URL-safe): the committed bytes' digest; for "recorded" (as is), the file's own. */
   artifact_digest: string | null;
+  /** "as-is", or the placement of the committed bytes. */
   placement: string | null;
   counter: string | null;
   epoch: string | null; // URL-safe
-  /** The file's row in the set just made, 1-based, of member_count. */
+  /** The file's leaf in the tree just made (1-based, of member_count), or its row in an earlier set the ledger reports. */
   member: number | null;
   member_count: number | null;
   total_positions: number;
@@ -66,7 +72,42 @@ export interface RecordOutcome {
   error?: string;
 }
 
-/** The one BitGraph a record call makes: a set, one position for every fused row. */
+/** The one BitGraph a record call makes: a tree/1, one position for every recorded row. */
+export interface TreeOutcome {
+  format: "tree/1";
+  count: number;
+  counter: string | null;
+  epoch: string | null; // URL-safe
+  /** The committed artifact's digest (URL-safe): the root document's. */
+  artifact_digest: string;
+  proof_url: string;
+  /** The committed artifact: the 84-byte root document, hex. */
+  root_document: string;
+  /** The Ethereum block the commitment binds: the floor. */
+  floor_block: number;
+  /** True when the boundary echoed the root document in the proof's metadata. Exports carry it either way. */
+  root_document_echoed: boolean;
+  /** True when the commit response was lost and the proof was read back by digest. */
+  recovered: boolean;
+  export: {
+    kind: "owner" | "members" | "both" | "none";
+    /** Where the exports were written; null when none were asked for. */
+    dir: string | null;
+    /** The owner's export: every file's leaf and name. */
+    owner: string | null;
+    /** The folder of per-file exports. */
+    members_dir: string | null;
+    members: number;
+    /** SPEC.md beside the exports: the rules the proof pins, written when the site served that exact text. */
+    spec: string | null;
+    /** True when the floor block's header is in the export (fetched and checked at make time). */
+    floor_header: boolean;
+    /** Why the exports could not be written where asked, when they could not. */
+    error?: string;
+  };
+}
+
+/** Superseded by TreeOutcome: the set a record call made before tree/1. Kept for code that imports the type. */
 export interface SetOutcome {
   /** "set/1": the committed artifact lists every member. "set/2": it is a Merkle root over the rows, and each member's evidence is indexed on the site. */
   set: "set/1" | "set/2";
@@ -115,15 +156,17 @@ function memberNote(m: SetMemberView | undefined): string {
 const c2paNote = (o: { c2pa?: boolean }): string =>
   o.c2pa === true ? `\n  Content Credentials (C2PA) detected in the file; the proof page displays them.` : "";
 
-export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: SetOutcome | null = null, omitted = 0): string {
+export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], tree: TreeOutcome | null = null, omitted = 0): string {
   const fused = outcomes.filter((o) => o.outcome === "fused");
+  const asIs = outcomes.filter((o) => o.outcome === "recorded");
+  const made = outcomes.filter((o) => o.outcome === "fused" || o.outcome === "recorded");
   const onRecord = outcomes.filter((o) => o.outcome === "on record");
   const carried = outcomes.filter((o) => o.outcome === "carried");
   const notFused = outcomes.filter((o) => o.outcome === "not fused");
   const lines: string[] = [];
   const parts: string[] = [];
-  if (set !== null && fused.length > 0) {
-    parts.push(`${fmt(fused.length)} file${fused.length === 1 ? "" : "s"} BitGraphed as one set at #${set.counter ?? "?"} (set of ${fmt(set.count)})`);
+  if (tree !== null && made.length > 0) {
+    parts.push(`${fmt(made.length)} file${made.length === 1 ? "" : "s"} BitGraphed as one tree at #${tree.counter ?? "?"} (tree of ${fmt(tree.count)})`);
   } else {
     parts.push(`${fmt(fused.length)} fused`);
   }
@@ -131,13 +174,17 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
   if (carried.length > 0) parts.push(`${fmt(carried.length)} BitGraphed file${carried.length === 1 ? "" : "s"} (proof inside, nothing minted)`);
   if (notFused.length > 0) parts.push(`${fmt(notFused.length)} NOT fused`);
   lines.push(`${parts.join(", ")}.`);
-  if (set !== null && fused.length > 0) {
-    lines.push(`- #${set.counter ?? "?"} · set of ${fmt(set.count)} · ${set.proof_url}`);
-    if (set.index !== null && set.index.pending > 0) {
-      lines.push(`  The set is made. The evidence for ${fmt(set.index.pending)} of its ${fmt(set.count)} members has not reached BitGraph yet and is sent again at the start of the next bitgraph_record call. The set proof beside the originals is the record either way.`);
-    }
-    if (!set.manifest_echoed) {
-      lines.push(`  The boundary did not echo the committed artifact; BitGraph's copy of this proof carries no member list. Keep the set's proof page.`);
+  if (tree !== null && made.length > 0) {
+    lines.push(`- #${tree.counter ?? "?"} · tree of ${fmt(tree.count)} · ${tree.proof_url}`);
+    const ex = tree.export;
+    if (ex.owner !== null) lines.push(`  Export, every file's leaf and name (keep it with the files): ${ex.owner}`);
+    if (ex.members_dir !== null) lines.push(`  One export per file: ${ex.members_dir}`);
+    if (ex.spec !== null) lines.push(`  The rules the proof pins (SPEC.md), beside it: ${ex.spec}`);
+    if (ex.error !== undefined) lines.push(`  The export could not be written where asked: ${ex.error}`);
+    if (ex.kind === "none") lines.push("  No export was written (exports='none'). The proof commits only the tree's root: without an export no file here can show it is in this BitGraph.");
+    else if (ex.owner !== null || ex.members_dir !== null) {
+      const first = ex.owner ?? ex.members_dir ?? "";
+      lines.push(`  The Base ceiling lands seconds after the commit and its settlement on Ethereum later; to add them${ex.floor_header ? "" : ", and the floor block's header,"} to an export: npx -p @mikeargento/bitgraph-sdk bitgraph export complete ${JSON.stringify(first)}`);
     }
   }
   const group = (rows: readonly RecordOutcome[], render: (o: RecordOutcome) => string, more: (n: number) => string) => {
@@ -168,20 +215,24 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
     (n) => `and ${fmt(n)} more BitGraphed files`
   );
   group(
-    fused,
+    made,
     (o) =>
       o.member === null
-        ? `- fused · #${o.counter ?? "?"} · ${o.path} (${o.placement ?? "?"})${c2paNote(o)}\n  ${o.proof_url}`
-        : `- fused · ${o.path} (${fmt(o.member)} of ${fmt(o.member_count ?? 0)}, ${o.placement ?? "?"})${c2paNote(o)}`,
-    (n) => `and ${fmt(n)} more files in the same set`
+        ? `- ${o.outcome === "recorded" ? "recorded as is" : "fused"} · #${o.counter ?? "?"} · ${o.path} (${o.placement ?? "?"})${c2paNote(o)}\n  ${o.proof_url}`
+        : o.outcome === "recorded"
+          ? `- recorded as is · ${o.path} (${fmt(o.member)} of ${fmt(o.member_count ?? 0)})${c2paNote(o)}`
+          : `- fused · ${o.path} (${fmt(o.member)} of ${fmt(o.member_count ?? 0)}, ${o.placement ?? "?"})${c2paNote(o)}`,
+    (n) => `and ${fmt(n)} more files in the same tree`
   );
-  if (set !== null && fused.length > 0) {
+  if (tree !== null && made.length > 0) {
     lines.push(
-      "\nOne BitGraph holds every file made here: one position, and the committed artifact lists each file's new fused bytes by digest. Those bytes were hashed on this machine and never written or uploaded; the file itself is unchanged, and the original plus the set proof rebuilds them. Keep the set proof beside the originals; BitGraph does not index it."
+      "\nOne BitGraph holds every file made here: one position, one Merkle tree, each file a leaf naming the digest of its committed bytes and its own. The committed bytes were hashed on this machine and never written or uploaded; the files are unchanged, and each original plus the proof rebuilds them." +
+        (asIs.length > 0 ? " A file over 256 MiB is recorded as is: it existed by the commit, and nothing bounds it from below." : "") +
+        " The proof commits only the tree's root: keep the export with the files, because with a file it shows that file is in this BitGraph, with nothing of BitGraph's required."
     );
   } else if (fused.length > 0) {
     lines.push(
-      "\nThe new fused file was built in memory from the file, hashed and committed under its own position; the file itself is unchanged and was not uploaded. The original plus the proof rebuilds the new file; its Frame is in the structured result."
+      "\nThe new fused file was built in memory from the file, hashed and committed under its own position; the file itself is unchanged and was not uploaded. The original plus the proof rebuilds the new file."
     );
   }
   if (onRecord.length > 0) {
@@ -190,7 +241,7 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], set: Se
     );
   }
   if (omitted > 0) {
-    lines.push(`\nThe structured result lists the first rows only (${fmt(omitted)} omitted); every fused file shares the set's position above.`);
+    lines.push(`\nThe structured result lists the first rows only (${fmt(omitted)} omitted); every file made here shares the tree's position above.`);
   }
   return lines.join("\n");
 }

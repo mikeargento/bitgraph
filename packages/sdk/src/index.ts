@@ -12,7 +12,14 @@
  */
 
 export { BitGraph } from "./bitgraph.js";
-export type { BitGraphOptions, RecordResult, RecordedFile, CheckedInput, VerifyOutcome, VerifyOptions, Slot } from "./bitgraph.js";
+export type { BitGraphOptions, RecordResult, RecordedFile, TreeMade, CheckedInput, VerifyOutcome, VerifyOptions, Slot } from "./bitgraph.js";
+
+// tree/1 exports on this machine: write, read, complete, and derive a member's from the owner's.
+export {
+  EXPORT_KINDS, exportDataOf, exportSourceOf, ownerExportOf, memberExportOf, exportBaseName, memberExportFileName, safeRelativeName, relativeNames,
+  writeTreeExports, fetchPinnedSpec, readExportFile, looksLikeExport, completeExportFile, memberExportFromOwner,
+} from "./exports.js";
+export type { ExportKind, TreeExportData, WrittenExports, CompletedExportFile } from "./exports.js";
 
 // The engine, piece by piece.
 export { configFromEnv, batchCheck, getProofDetail, search, indexSetMembers, ApiError, BATCH_CHECK_LIMIT } from "./api.js";
@@ -21,8 +28,8 @@ export { scanFile, fusedDigestFor, expandPaths, sniffC2paBytes } from "./scan.js
 export type { ScannedFile, ScanPlacement, Expansion } from "./scan.js";
 export { sniffCarrierTail, readCarrierFile, carrierWindowView, carrierLine } from "./carrier-io.js";
 export type { CarrierWindowView, CarrierFileResult } from "./carrier-io.js";
-export { fuseFilePipeline, fuseSetPipeline, classifyPath, MAX_LOADED_BYTES } from "./pipelines.js";
-export type { FuseFileFn, FuseSetFn, FusedSummary, SetSummary, CarrierRow, ClassifiedPath } from "./pipelines.js";
+export { fuseTreePipeline, fuseFilePipeline, fuseSetPipeline, classifyPath, MAX_LOADED_BYTES } from "./pipelines.js";
+export type { FuseTreeFn, TreeSummary, FuseFileFn, FuseSetFn, FusedSummary, SetSummary, CarrierRow, ClassifiedPath } from "./pipelines.js";
 export { beginTask, sealTask, decodeTaskToken, encodeTaskToken, writeProofBeside, SLOT_TTL_SECONDS } from "./task.js";
 export type { Begun, SealedTask, TaskState } from "./task.js";
 export { buildBitGraphedFile, completeBitGraphedFile, carrierFileName } from "./carrier-build.js";

@@ -18,11 +18,11 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildCarrier, computeSlotCommitment, bytesToBase64, type CarrierPayload, type CarrierProof, type CarrierWitness } from "@mikeargento/bitgraph-verify";
+import { buildCarrier, computeSlotCommitment, bytesToBase64, bytesToHex, buildTree, buildTreeRootDocument, encodeTreeLeaves, leafCodeOf, currentTreeSpecHash, treeAttribution, type CarrierPayload, type CarrierProof, type CarrierWitness, type TreeLeaf } from "@mikeargento/bitgraph-verify";
 import { BitGraph } from "../bitgraph.js";
 import { serve } from "../serve.js";
 import { toUrlSafeB64 } from "../encoding.js";
-import type { FuseFileFn, FuseSetFn } from "../pipelines.js";
+import type { FuseTreeFn } from "../pipelines.js";
 
 const fixtures = fileURLToPath(new URL("../../../verify/src/__tests__/fixtures/carrier/", import.meta.url));
 const readJson = <T>(name: string): T => JSON.parse(readFileSync(join(fixtures, name), "utf-8")) as T;
@@ -129,49 +129,48 @@ after(() => {
 });
 
 const fusedNames: string[] = [];
-const guardFuseFile: FuseFileFn = async (file) => {
-  assert.ok(!file.name.includes(".bitgraph."), `carrier bytes reached the mint: ${file.name}`);
-  fusedNames.push(file.name);
-  const artifactDigestB64 = createHash("sha256").update("fused:" + file.digestB64).digest("base64");
-  return {
-    proof: { version: "bitgraph/1", artifact: { digestB64: artifactDigestB64 }, commit: { counter: "101", epochId: EPOCH } },
-    frame: { type: "bitgraph-fuse/1" },
-    placement: file.placement,
-    artifactDigestB64,
-    originDigestB64: file.digestB64,
-  };
-};
-const guardFuseSet: FuseSetFn = async (files, _config, opts) => {
-  for (const f of files) assert.ok(!f.name.includes(".bitgraph."), `carrier bytes reached the set mint: ${f.name}`);
+const sha = (s: string | Uint8Array) => new Uint8Array(createHash("sha256").update(s).digest());
+/**
+ * A stand-in for the tree pipeline: no slot, no boundary, an unsigned proof;
+ * but the tree is a real one over real leaves, so the exports built from it
+ * are consistent. Fails the test if carrier bytes ever reach it.
+ */
+const guardFuseTree: FuseTreeFn = async (files) => {
+  for (const f of files) assert.ok(!f.name.includes(".bitgraph."), `carrier bytes reached the mint: ${f.name}`);
   fusedNames.push(...files.map((f) => f.name));
-  const rows = files.map((f, index) => ({
-    index,
-    manifestIndex: index,
-    placement: f.placement,
-    originDigestB64: f.digestB64,
-    artifactDigestB64: createHash("sha256").update("fused:" + f.digestB64).digest("base64"),
-  }));
-  const setDigest = createHash("sha256").update("set:" + rows.map((r) => r.artifactDigestB64).join(",")).digest("base64");
+  const leaves: TreeLeaf[] = files.map((f) => ({ placement: leafCodeOf(f.placement)!, artifact: sha("fused:" + f.digestB64), origin: Uint8Array.from(Buffer.from(f.digestB64, "base64")) }));
+  const built = buildTree(leaves);
+  const rootDocument = buildTreeRootDocument(sha("commitment"), built.sorted.length, built.root);
+  const digestB64 = bytesToBase64(sha(rootDocument));
+  const leafIndex = (l: TreeLeaf) => built.sorted.findIndex((s) => Buffer.from(s.artifact).equals(Buffer.from(l.artifact)));
   return {
-    set: opts.set,
-    proof: { version: "bitgraph/1", artifact: { digestB64: setDigest }, commit: { counter: "202", epochId: EPOCH } },
-    artifactDigestB64: setDigest,
+    proof: { version: "bitgraph/1", artifact: { digestB64 }, commit: { counter: "202", epochId: EPOCH }, attribution: treeAttribution(currentTreeSpecHash()) },
+    rootDocumentHex: bytesToHex(rootDocument),
+    artifactDigestB64: digestB64,
     count: files.length,
-    manifestEchoed: true,
+    leavesB64: bytesToBase64(encodeTreeLeaves(built.sorted)),
+    floor: { counter: "40", blockNumber: 25_000_000, blockHash: "0x" + "ab".repeat(32) },
     recovered: false,
-    members: rows,
+    rootDocumentEchoed: true,
+    members: files.map((f, index) => ({ index, leafIndex: leafIndex(leaves[index]!), placement: f.placement, originDigestB64: f.digestB64, artifactDigestB64: bytesToBase64(leaves[index]!.artifact) })),
   };
 };
 
-const sdk = () => new BitGraph({ baseUrl, pipelines: { fuseFile: guardFuseFile, fuseSet: guardFuseSet } });
+const sdk = () => new BitGraph({ baseUrl, pipelines: { fuseTree: guardFuseTree } });
 
-test("record: one fresh file mints solo; a known file is left alone; carriers never mint", async () => {
+test("record: one fresh file is a tree of one; a known file is left alone; carriers never mint", async () => {
   fusedNames.length = 0;
   const r = await sdk().record([freshA, knownPath, carrierComplete, carrierForeign]);
   assert.deepEqual(fusedNames, ["a.txt"]);
-  assert.equal(r.made?.kind, "solo");
+  assert.equal(r.made?.kind, "tree");
+  assert.equal(r.made?.count, 1);
+  assert.equal(r.made?.exports, null, "the class writes no file unless asked");
+  assert.deepEqual(r.made?.names, ["a.txt"]);
   const byPath = new Map(r.files.map((f) => [f.path, f]));
   assert.equal(byPath.get(freshA)?.outcome, "recorded");
+  assert.equal(byPath.get(freshA)?.member, 1);
+  assert.equal(byPath.get(freshA)?.memberCount, 1);
+  assert.equal(byPath.get(freshA)?.proofUrl, r.made?.proofUrl, "a member's page is its tree's");
   assert.equal(byPath.get(knownPath)?.outcome, "on record");
   assert.equal(byPath.get(knownPath)?.counter, "7");
   const complete = byPath.get(carrierComplete);
@@ -183,15 +182,25 @@ test("record: one fresh file mints solo; a known file is left alone; carriers ne
   assert.equal(foreign?.carrier?.ceiling, "unfetched");
 });
 
-test("record: two fresh files become one set with member rows", async () => {
+test("record: two fresh files become one tree with a leaf each; exportDir writes the owner's export", async () => {
   fusedNames.length = 0;
-  const r = await sdk().record([freshA, freshB]);
-  assert.equal(r.made?.kind, "set");
-  assert.equal(r.made?.kind === "set" ? r.made.count : 0, 2);
+  const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-exports-"));
+  const r = await sdk().record([freshA, freshB], { exportDir: out });
+  assert.equal(r.made?.kind, "tree");
+  assert.equal(r.made?.count, 2);
   assert.deepEqual(new Set(fusedNames), new Set(["a.txt", "b.txt"]));
   const members = r.files.filter((f) => f.outcome === "recorded");
   assert.equal(members.length, 2);
-  assert.ok(members.every((m) => m.member !== null && m.memberCount === 2));
+  assert.deepEqual(new Set(members.map((m) => m.member)), new Set([1, 2]));
+  assert.ok(members.every((m) => m.memberCount === 2));
+  assert.deepEqual(new Set(r.made?.names), new Set(["a.txt", "b.txt"]));
+  const owner = r.made?.exports?.owner;
+  assert.ok(owner && owner.startsWith(out) && owner.endsWith(".bitgraph.json"), String(owner));
+  const written = JSON.parse(readFileSync(owner, "utf-8")) as { format: string; tree: { leaves: string; names: string[] }; ceiling: unknown };
+  assert.equal(written.format, "bitgraph-export/1");
+  assert.equal(Buffer.from(written.tree.leaves, "base64").length, 2 * 65);
+  assert.deepEqual(written.tree.names, r.made?.names);
+  assert.deepEqual(written.ceiling, { status: "pending" });
 });
 
 test("check: paths, digests and carriers, with the carrier judged offline", async () => {

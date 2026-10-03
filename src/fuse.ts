@@ -1,6 +1,16 @@
 // Copyright (c) Argento Computing Inc. All rights reserved. See LICENSE.
 
 /**
+ * fuseTree(members, options): the producer of every NEW BitGraph since
+ * 2026-10-03 (tree/1). One position, one Merkle tree of 1 to N files; a
+ * single file is a tree of one. Each file is a 65-byte leaf (placement code,
+ * committed digest, origin digest); the committed artifact is the 84-byte
+ * root document; the signed attribution is bitgraph-fuse/2 with title
+ * "tree/1" and the spec's hash as its message. tree/1 needs the floor the
+ * allocation returns (enclave v9 and later): without it nothing is made.
+ * fuse() and fuseSet() below are superseded by it and kept so code that
+ * imports them keeps working; what they made stays readable.
+ *
  * fuse(builder, options): the producer interface of the bitgraph-fuse/1
  * profile (working name; outwardly this is simply BitGraph).
  *
@@ -63,8 +73,20 @@ import {
   verifyFuse,
   verifyFuseMember,
   base64ToBytes,
+  buildTree,
+  buildTreeMemberEvidence,
+  buildTreeRootDocument,
+  currentTreeSpecHash,
+  leafCodeOf,
+  LEAF_AS_IS,
+  MAX_TREE_LEAVES,
+  readTreeMetadata,
+  TREE_METADATA_KEY,
+  treeAttribution,
+  treeRootFromMember,
+  verifyTreeMember,
 } from "@mikeargento/bitgraph-verify";
-import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, Located, Placement, PlacementId, SetManifest, SetMember, SetMemberProof, SetRoot, SlotAllocation } from "@mikeargento/bitgraph-verify";
+import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, Located, MerkleTree, Placement, PlacementId, SetManifest, SetMember, SetMemberProof, SetRoot, SlotAllocation, TreeLeaf, TreeMemberEvidence, TreeVerifyResult } from "@mikeargento/bitgraph-verify";
 
 /**
  * SHA-256 over bytes: the platform's native hasher when one is present
@@ -172,7 +194,9 @@ export type FuseErrorCode =
   | "network"
   | "slot-mismatch"
   | "verification-failed"
-  | "transport";
+  | "transport"
+  /** tree/1 only: the allocation returned no floor anchor (a boundary before enclave v9), so no tree/1 commitment can be made. */
+  | "floor-missing";
 
 export class FuseError extends Error {
   readonly code: FuseErrorCode;
@@ -420,6 +444,9 @@ async function commitUnderSlot(t: BoundTransport, body: Record<string, unknown>,
  * Allocate, fuse, hash, fill. Returns the Frame with the unchanged proof, or
  * throws a FuseError; it never returns an ordinary recording in place of a
  * fused one.
+ *
+ * Superseded by fuseTree (tree/1, 2026-10-03): a new BitGraph of one file is
+ * a tree of one. Kept so code that imports it keeps working.
  */
 export async function fuse(builder: FuseBuilder, options: FuseOptions): Promise<FuseResult> {
   const placement = getPlacement(options.placement);
@@ -681,6 +708,9 @@ export interface FuseSetResult {
  * allocates a second slot. Members may be given as bytes, as a loader read
  * one at a time after the slot is held, or as a digest the caller finishes
  * itself; one set may mix them.
+ *
+ * Superseded by fuseTree (tree/1, 2026-10-03): N files are one tree under one
+ * position. Kept so code that imports it keeps working.
  */
 export async function fuseSet(members: readonly FuseSetMember[], options: FuseSetOptions = {}): Promise<FuseSetResult> {
   // 0. validate, before any request. A refusal here burns nothing.
@@ -950,6 +980,446 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
     members: results,
     recovered,
     manifestEchoed,
+    verification,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// tree/1: every BitGraph is a Merkle tree under one position (2026-10-03)
+// ---------------------------------------------------------------------------
+
+/**
+ * Files above this many bytes go into a tree as is (leaf code 0x00): the
+ * file's own digest is its leaf, nothing is placed in it, and nothing bounds
+ * it from below. At or below it, any verifier can rebuild a placed member's
+ * committed bytes in memory from the original. The same 256 MiB at which the
+ * site's drop box records rather than fuses (website/src/lib/fuse-placement.ts).
+ */
+export const MAX_FUSE_BYTES = 256 * 1024 * 1024;
+
+/** How a file goes into a tree: as is (0x00), or placed into committed bytes that carry the commitment. */
+export type TreeMemberPlacement = "as-is" | SetMemberPlacement;
+
+/**
+ * The placement a file takes in a tree, from its size and its first bytes
+ * (every magic number placementForBytes reads sits in the first 16): as is
+ * above maxFuseBytes, otherwise placementForBytes.
+ */
+export function treePlacementFor(size: number, head: Uint8Array, maxFuseBytes: number = MAX_FUSE_BYTES): TreeMemberPlacement {
+  return size > maxFuseBytes ? "as-is" : placementForBytes(head);
+}
+
+/** A tree member given as bytes: hashed, placed (unless as is), checked and hashed again by the core. */
+export interface FuseTreeBytesMember {
+  original: Uint8Array;
+  /** Default: treePlacementFor(original.length, original, options.maxFuseBytes). */
+  placement?: TreeMemberPlacement;
+  /** Unsigned and informational: the owner's export lists it beside the leaf. */
+  name?: string;
+  /** Placed members only. Default: the placement's own build. The locate and origin guards run regardless. */
+  builder?: FuseBuilder;
+}
+
+/** A placed member read only when it is its turn, after the slot is held, and checked against its named digest. */
+export interface FuseTreeLoadedMember {
+  load: () => Promise<Uint8Array> | Uint8Array;
+  originDigest: Uint8Array;
+  placement: SetMemberPlacement;
+  name?: string;
+  builder?: FuseBuilder;
+}
+
+/**
+ * A placed member whose committed digest the caller finishes itself for the
+ * held commitment (a scanner's saved hash state finished with the placement's
+ * suffix). The core never sees its bytes.
+ */
+export interface FuseTreeHashedMember {
+  originDigest: Uint8Array;
+  placement: SetMemberPlacement;
+  fusedDigest: (input: FusedDigestInput) => Promise<Uint8Array> | Uint8Array;
+  name?: string;
+}
+
+/** A file that goes in as is, given by its digest alone: nothing is read, placed or loaded. */
+export interface FuseTreeAsIsMember {
+  originDigest: Uint8Array;
+  placement: "as-is";
+  name?: string;
+}
+
+export type FuseTreeMember = FuseTreeBytesMember | FuseTreeLoadedMember | FuseTreeHashedMember | FuseTreeAsIsMember;
+
+/** Progress, in fuseSet's phases: hash (before any request), fuse (each leaf, after the slot is held), tree, commit, verify (only with verifyMembers). */
+export type FuseTreeProgress = FuseSetProgress;
+
+export interface FuseTreeOptions {
+  /** Above this many bytes a bytes member that names no placement goes in as is. Default MAX_FUSE_BYTES. */
+  maxFuseBytes?: number;
+  /** Return each member's committed bytes (for as is, the original itself) when they passed through the core. Default false: they are virtual, rebuilt from the original and the proof. */
+  keepCommitted?: boolean;
+  /**
+   * Run verifyTreeMember over every member's committed bytes after the
+   * commit and return each verdict. Default false: every member's leaf is
+   * bound to the returned proof by its path to the verified root, which
+   * reads no bytes. A hashed member, or an as-is member given by its digest,
+   * has no bytes here and is refused before any request.
+   */
+  verifyMembers?: boolean;
+  /** Called as the tree advances. A throw inside it is ignored: a progress hook never changes the outcome. */
+  onProgress?: (progress: FuseTreeProgress) => void;
+  /** Actor-bound commits: an agency envelope passed through untouched. */
+  agency?: unknown;
+  transport?: FuseTransport;
+}
+
+export interface FuseTreeMemberResult {
+  /** The caller's index into members. */
+  index: number;
+  /** The member's leaf in the sorted tree: its evidence's index. */
+  leafIndex: number;
+  placement: TreeMemberPlacement;
+  /** The leaf's placement code: 0x00 as is, 0x01 trailer/1, 0x02 container/1, 0x03 container/2. */
+  code: number;
+  originDigestB64: string;
+  /** SHA-256 of the committed bytes: the leaf's artifact. For as is, the file's own digest. */
+  artifactDigestB64: string;
+  name: string | null;
+  /** Present only with keepCommitted, for a member whose bytes passed through the core (never a hashed member, nor an as-is member given by its digest). */
+  committedBytes?: Uint8Array;
+  /** Present only with verifyMembers: the verifier's verdict on the committed bytes, TREE_MEMBER_DIRECT (TREE_MEMBER_AS_IS for as is) on success. */
+  verification?: TreeVerifyResult;
+}
+
+export interface FuseTreeResult {
+  proof: BitGraphProof;
+  /** The committed artifact: the 84-byte root document. Its SHA-256 is the signed digest; every export carries it. */
+  rootDocument: Uint8Array;
+  /** SHA-256 of rootDocument, standard base64; equals proof.artifact.digestB64. */
+  artifactDigestB64: string;
+  count: number;
+  /** The tree's root, lowercase hex. */
+  rootHex: string;
+  /** commitment/2, which every placed member's committed bytes carry. committedBytesFor(member.code, original, commitment) rebuilds them. */
+  commitment: Uint8Array;
+  /** The floor block the commitment binds, as the proof signs it (commit.slotAnchor). */
+  floor: AnchorMark;
+  /** The spec hash the signed attribution pins, standard base64. */
+  specHashB64: string;
+  /** Every leaf, in tree order (strictly ascending artifact digest). */
+  leaves: TreeLeaf[];
+  /** The tree over those leaves: tree.path(k) is leaf k's path. */
+  tree: MerkleTree;
+  /** In the caller's order. */
+  members: FuseTreeMemberResult[];
+  /** A member's evidence (TreeMemberEvidence JSON) by the caller's index, built on demand so a large tree holds no path it is not asked for. */
+  memberEvidence: (index: number) => TreeMemberEvidence;
+  /** True when the commit response was lost and the proof was read back by the root document's digest. */
+  recovered: boolean;
+  /** True only when the proof's metadata carries this root document. Absent is normal for a boundary that drops metadata; exports carry the document either way. */
+  rootDocumentEchoed: boolean;
+  /** verifyTreeMember over the proof and the root document: TREE_ROOT_VALID on success. */
+  verification: TreeVerifyResult;
+}
+
+function compareDigests(a: Uint8Array, b: Uint8Array): number {
+  for (let i = 0; i < a.length && i < b.length; i++) if (a[i] !== b[i]) return a[i]! - b[i]!;
+  return a.length - b.length;
+}
+
+/** The index of the leaf with this artifact digest in a sorted list, or -1. */
+function leafIndexOf(sorted: readonly TreeLeaf[], artifact: Uint8Array): number {
+  let lo = 0;
+  let hi = sorted.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const c = compareDigests(sorted[mid]!.artifact, artifact);
+    if (c === 0) return mid;
+    if (c < 0) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return -1;
+}
+
+/**
+ * Make ONE tree/1 BitGraph of 1 to N files: allocate one slot, take its floor,
+ * make every member's leaf under commitment/2, build the tree and its root
+ * document, commit the document's digest under the same slot with the spec
+ * pinned in the signed attribution, and verify what comes back before
+ * returning it. Throws a FuseError otherwise; it never commits a partial
+ * tree, never allocates a second slot, and never makes a tree without the
+ * floor. Members may be bytes, a loader read after the slot is held, a digest
+ * the caller finishes from a saved hash state, or (for as is) a digest alone;
+ * one tree may mix them.
+ */
+export async function fuseTree(members: readonly FuseTreeMember[], options: FuseTreeOptions = {}): Promise<FuseTreeResult> {
+  // 0. validate, before any request. A refusal here burns nothing.
+  if (!Array.isArray(members) || members.length === 0) throw new FuseError("bad-input", "a tree lists at least one member");
+  if (members.length > MAX_TREE_LEAVES) throw new FuseError("bad-input", `a tree lists at most ${MAX_TREE_LEAVES} members (got ${members.length})`);
+  const maxFuseBytes = options.maxFuseBytes ?? MAX_FUSE_BYTES;
+  if (typeof maxFuseBytes !== "number" || !Number.isFinite(maxFuseBytes) || maxFuseBytes < 0) throw new FuseError("bad-input", "maxFuseBytes must be a non-negative number");
+  const keep = options.keepCommitted === true;
+  const verifyMembers = options.verifyMembers === true;
+  let specHash: Uint8Array;
+  try {
+    specHash = currentTreeSpecHash();
+  } catch (err) {
+    throw new FuseError("bad-input", `no tree/1 spec hash to pin: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  type Kind = "bytes" | "loaded" | "hashed" | "as-is";
+  interface Checked {
+    kind: Kind;
+    id: TreeMemberPlacement;
+    code: number;
+    /** The registered placement; null for as is. */
+    placement: Placement | null;
+    originDigest: Uint8Array;
+    name: string | null;
+    original: Uint8Array | null;
+    load: (() => Promise<Uint8Array> | Uint8Array) | null;
+    builder: FuseBuilder | null;
+    fusedDigest: ((input: FusedDigestInput) => Promise<Uint8Array> | Uint8Array) | null;
+  }
+  const checked: Checked[] = [];
+  const seen = new Map<string, number>();
+  const report = (phase: FuseTreeProgress["phase"], done: number, total: number) => {
+    if (options.onProgress === undefined) return;
+    try {
+      options.onProgress({ phase, done, total });
+    } catch {
+      // a progress hook never changes the outcome
+    }
+  };
+  const bad = (i: number, message: string) => new FuseError("bad-input", `member ${i}: ${message}`, null, i);
+  const shapes = 'original must be a Uint8Array, or load or fusedDigest a function, or placement "as-is" with an originDigest';
+  interface Loose { original?: unknown; load?: unknown; fusedDigest?: unknown; placement?: unknown; originDigest?: unknown; name?: unknown; builder?: unknown }
+  for (let i = 0; i < members.length; i++) {
+    // A null, undefined or missing element is refused like any other member without bytes, a loader or a digest.
+    const m = members[i] as Loose | null | undefined;
+    if (m === null || m === undefined || typeof m !== "object") throw bad(i, shapes);
+    const kind: Kind | null = m.original instanceof Uint8Array ? "bytes" : typeof m.load === "function" ? "loaded" : typeof m.fusedDigest === "function" ? "hashed" : m.placement === "as-is" ? "as-is" : null;
+    if (kind === null) throw bad(i, shapes);
+    if (kind !== "bytes" && m.placement === undefined) throw bad(i, `a ${kind} member names its placement`);
+    if (m.placement !== undefined && typeof m.placement !== "string") throw bad(i, "placement must be a string");
+    const original = kind === "bytes" ? (m.original as Uint8Array) : null;
+    const id = m.placement !== undefined ? (m.placement as string) : treePlacementFor(original!.length, original!, maxFuseBytes);
+    const code = leafCodeOf(id);
+    if (code === null) {
+      if (getPlacement(id) === undefined) throw new FuseError("bad-placement", `member ${i}: placement "${id}" is not registered`, null, i);
+      throw bad(i, `${id} is not a tree placement; a tree holds as-is, trailer/1, container/1 and container/2 members`);
+    }
+    if ((kind === "loaded" || kind === "hashed") && code === LEAF_AS_IS) throw bad(i, `an as-is member is given by its bytes or its originDigest alone; a ${kind} member is placed`);
+    if (m.name !== undefined && typeof m.name !== "string") throw bad(i, "name must be a string");
+    if (m.builder !== undefined && typeof m.builder !== "function") throw bad(i, "builder must be a function");
+    if (code === LEAF_AS_IS && m.builder !== undefined) throw bad(i, "an as-is member takes no builder: nothing is placed in it");
+    if (kind !== "bytes" && !(m.originDigest instanceof Uint8Array && m.originDigest.length === 32)) throw bad(i, `${kind === "as-is" ? "an as-is" : `a ${kind}`} member names its originDigest, 32 bytes`);
+    if (verifyMembers && (kind === "hashed" || kind === "as-is")) throw bad(i, `${kind === "as-is" ? "an as-is member given by its digest" : "a hashed member"} cannot be verified in full; pass its bytes or drop verifyMembers`);
+    const originDigest = original !== null ? await digest(original) : (m.originDigest as Uint8Array);
+    // The same original under the same placement makes the same leaf, which a tree lists once.
+    const key = `${code}:${bytesToHex(originDigest)}`;
+    const j = seen.get(key);
+    if (j !== undefined) {
+      throw new FuseError("bad-input", `members ${j} and ${i} are the same original under the same placement (${id}) and would make the same leaf; a tree lists each leaf once`, null, i);
+    }
+    seen.set(key, i);
+    checked.push({
+      kind,
+      id: id as TreeMemberPlacement,
+      code,
+      placement: code === LEAF_AS_IS ? null : getPlacement(id)!,
+      originDigest,
+      name: typeof m.name === "string" ? m.name : null,
+      original,
+      load: kind === "loaded" ? (m.load as Checked["load"]) : null,
+      builder: (kind === "bytes" || kind === "loaded") && m.builder !== undefined ? (m.builder as FuseBuilder) : null,
+      fusedDigest: kind === "hashed" ? (m.fusedDigest as Checked["fusedDigest"]) : null,
+    });
+    report("hash", i + 1, members.length);
+  }
+  const t: BoundTransport = { ...DEFAULTS, ...(options.transport ?? {}) };
+
+  // 1. nonce: one slot for the whole tree, and the floor it binds.
+  const { slot, anchor } = await allocateSlot(t);
+  if (anchor === null) {
+    throw new FuseError("floor-missing", "the allocation returned no floor anchor, so no tree/1 commitment can be made (tree/1 binds the floor block: bitgraph-fuse/2, enclave v9 and later); nothing was committed and the position will expire");
+  }
+  const { commitment, version } = producerCommitment(slot, anchor);
+  if (version !== 2) throw new FuseError("floor-missing", "the floor anchor could not be bound into the commitment; nothing was committed and the position will expire");
+  const commitmentHex = bytesToHex(commitment);
+  const expiring = "nothing was committed and the slot will expire";
+
+  // 2. leaves: every member's under the one commitment. Committed bytes are
+  //    virtual: each is built, checked, hashed and released in turn, held only
+  //    for a caller who keeps them or asks the full verifier to read them.
+  const leaves: TreeLeaf[] = [];
+  const held: (Uint8Array | null)[] = [];
+  for (let i = 0; i < checked.length; i++) {
+    const c = checked[i]!;
+    let artifact: Uint8Array;
+    let bytes: Uint8Array | null = null;
+    if (c.code === LEAF_AS_IS) {
+      // As is: the file is its own committed bytes and its digest its artifact.
+      artifact = c.originDigest;
+      if (c.original !== null && (keep || verifyMembers)) bytes = c.original;
+    } else if (c.kind === "hashed") {
+      let d: unknown;
+      try {
+        d = await c.fusedDigest!({ commitment, commitmentHex, fuseVersion: version, floor: anchor, slot });
+      } catch (err) {
+        throw new FuseError("builder-failed", `member ${i}: fusedDigest threw: ${err instanceof Error ? err.message : String(err)}; ${expiring}`, null, i);
+      }
+      if (!(d instanceof Uint8Array) || d.length !== 32) throw new FuseError("builder-failed", `member ${i}: fusedDigest must return a 32-byte digest; ${expiring}`, null, i);
+      artifact = d;
+    } else {
+      let original: Uint8Array;
+      if (c.kind === "loaded") {
+        let loaded: unknown;
+        try {
+          loaded = await c.load!();
+        } catch (err) {
+          throw new FuseError("load-failed", `member ${i}: load threw: ${err instanceof Error ? err.message : String(err)}; ${expiring}`, null, i);
+        }
+        if (!(loaded instanceof Uint8Array)) throw new FuseError("load-failed", `member ${i}: load must return a Uint8Array; ${expiring}`, null, i);
+        original = loaded;
+        if (!bytesEqual(await digest(original), c.originDigest)) throw new FuseError("bad-input", `member ${i}: originDigest is not the SHA-256 of the loaded bytes; ${expiring}`, null, i);
+      } else {
+        original = c.original!;
+      }
+      const builder = c.builder ?? builderFor(c.id as PlacementId, original);
+      let committed: Uint8Array;
+      try {
+        committed = await builder({ commitment, commitmentHex, fuseVersion: version, floor: anchor, originDigest: c.originDigest, slot });
+      } catch (err) {
+        throw new FuseError("builder-failed", `member ${i}: the builder threw: ${err instanceof Error ? err.message : String(err)}; ${expiring}`, null, i);
+      }
+      if (!(committed instanceof Uint8Array)) throw new FuseError("builder-failed", `member ${i}: the builder must return a Uint8Array; ${expiring}`, null, i);
+      const located = requireCommitment(c.placement!, committed, commitment, i);
+      // The leaf's origin must be the origin the bytes embed (declared, and
+      // carried byte for byte), else the member would verify INVALID_ORIGIN
+      // after the slot is spent; the same two checks fuseSet runs.
+      const declared = located.originDigest;
+      const carried = located.originalBytes;
+      if ((declared !== undefined && !bytesEqual(declared, c.originDigest)) || (carried !== undefined && !bytesEqual(carried, original))) {
+        throw new FuseError("builder-failed", `member ${i}: the committed bytes embed an origin that is not the member's original; ${expiring}`, null, i);
+      }
+      artifact = await digest(committed);
+      if (keep || verifyMembers) bytes = committed;
+    }
+    leaves.push({ placement: c.code, artifact, origin: c.originDigest });
+    held.push(bytes);
+    report("fuse", i + 1, checked.length);
+  }
+
+  // 3. hash: the tree, and the root document that is the committed artifact.
+  report("tree", 0, 1);
+  let built: ReturnType<typeof buildTree>;
+  try {
+    built = buildTree(leaves);
+  } catch (err) {
+    throw new FuseError("bad-input", `the tree could not be built: ${err instanceof Error ? err.message : String(err)}; ${expiring}`);
+  }
+  const count = built.sorted.length;
+  const rootDocument = buildTreeRootDocument(commitment, count, built.root);
+  report("tree", 1, 1);
+  const artifactDigestB64 = bytesToBase64(await digest(rootDocument));
+  const specHashB64 = bytesToBase64(specHash);
+
+  // 4. fill: one commit; the root document rides as unsigned metadata, bound by its hash.
+  const body: Record<string, unknown> = {
+    digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
+    slotId: slot.nonceB64,
+    slot,
+    chainId: "bitgraph:main",
+    attribution: treeAttribution(specHash),
+    metadata: { [TREE_METADATA_KEY]: bytesToHex(rootDocument) },
+    // fuse/2: the boundary checks the bound floor against its ledger before spending the slot.
+    anchor,
+  };
+  if (options.agency !== undefined) body.agency = options.agency;
+  report("commit", 0, 1);
+  const { proof, recovered } = await commitUnderSlot(t, body, artifactDigestB64, slot);
+  report("commit", 1, 1);
+
+  // A reader verifies the proof before it is called a tree: the signature,
+  // fuse/2 and a known spec, the commitment recomputed from the proof's own
+  // slot record and signed floor, and this root document under the signed
+  // digest. The explicit document is used, so no verdict rests on the echo.
+  const verification = await verifyTreeMember({ proof, rootDocument });
+  if (verification.category !== "TREE_ROOT_VALID") {
+    throw new FuseError("verification-failed", `the returned proof does not verify as this tree: ${verification.category} (${verification.reason})`);
+  }
+  if (proof.attribution?.message !== specHashB64) {
+    throw new FuseError("verification-failed", "the returned proof pins a different spec than the one sent");
+  }
+  // The echo is unsigned and advisory: absent is normal, different is a rewrite.
+  let rootDocumentEchoed = false;
+  if (proof.metadata?.[TREE_METADATA_KEY] !== undefined) {
+    const echoed = readTreeMetadata(proof);
+    if (echoed === null || !bytesEqual(echoed, rootDocument)) {
+      throw new FuseError("verification-failed", `the returned proof echoes a root document under metadata["${TREE_METADATA_KEY}"] that differs from the committed one`);
+    }
+    rootDocumentEchoed = true;
+  }
+  const floor = proof.commit.slotAnchor!;
+
+  // Every member is bound to the verified root by its own path (the
+  // verifier's check, run here once per member); no member's bytes are read
+  // again. With verifyMembers the full verifier reads the committed bytes too.
+  const results: FuseTreeMemberResult[] = [];
+  for (let i = 0; i < checked.length; i++) {
+    const c = checked[i]!;
+    const leaf = leaves[i]!;
+    const k = leafIndexOf(built.sorted, leaf.artifact);
+    const listed = k >= 0 ? built.sorted[k] : undefined;
+    if (listed === undefined || listed.placement !== leaf.placement || !bytesEqual(listed.origin, leaf.origin)) {
+      throw new FuseError("verification-failed", `member ${i}: the committed tree does not list this member's leaf`, null, i);
+    }
+    const path = built.tree.path(k);
+    const reached = treeRootFromMember(listed, k, count, path);
+    if (reached === null || !bytesEqual(reached, built.root)) throw new FuseError("verification-failed", `member ${i}: its path does not recompute the committed root`, null, i);
+    let memberVerification: TreeVerifyResult | undefined;
+    if (verifyMembers) {
+      const want = c.code === LEAF_AS_IS ? "TREE_MEMBER_AS_IS" : "TREE_MEMBER_DIRECT";
+      const v = await verifyTreeMember({ proof, rootDocument, member: buildTreeMemberEvidence(listed, k, count, path), bytes: held[i]!, proofAlreadyVerified: true });
+      if (v.category !== want || v.member?.index !== k) {
+        throw new FuseError("verification-failed", `member ${i}: the returned proof does not verify this member: ${v.category} (${v.reason})`, null, i);
+      }
+      memberVerification = v;
+      report("verify", i + 1, checked.length);
+    }
+    const kept = held[i];
+    results.push({
+      index: i,
+      leafIndex: k,
+      placement: c.id,
+      code: c.code,
+      originDigestB64: bytesToBase64(c.originDigest),
+      artifactDigestB64: bytesToBase64(leaf.artifact),
+      name: c.name,
+      ...(keep && kept !== null && kept !== undefined ? { committedBytes: kept } : {}),
+      ...(memberVerification !== undefined ? { verification: memberVerification } : {}),
+    });
+  }
+  const memberEvidence = (index: number): TreeMemberEvidence => {
+    const r = results[index];
+    if (r === undefined) throw new RangeError(`no member ${index}`);
+    return buildTreeMemberEvidence(built.sorted[r.leafIndex]!, r.leafIndex, count, built.tree.path(r.leafIndex));
+  };
+  return {
+    proof,
+    rootDocument,
+    artifactDigestB64,
+    count,
+    rootHex: bytesToHex(built.root),
+    commitment,
+    floor: { counter: floor.counter, blockNumber: floor.blockNumber, blockHash: floor.blockHash },
+    specHashB64,
+    leaves: built.sorted,
+    tree: built.tree,
+    members: results,
+    memberEvidence,
+    recovered,
+    rootDocumentEchoed,
     verification,
   };
 }

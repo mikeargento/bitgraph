@@ -13,13 +13,14 @@
  * bytes anywhere: the daemon runs the same local pipelines as the class.
  *
  * Routes (all POST unless noted):
- *   GET  /            → { name, version, verbs } — the map
- *   POST /record      → { paths: string[], again? }            → RecordResult
+ *   GET  /            → { name, version, verbs }: the map
+ *   POST /record      → { paths: string[], again?, exportDir?, exports? } → RecordResult (one tree; exports written into exportDir)
  *   POST /check       → { paths?: string[], digests?: string[] } → CheckedInput[]
  *   POST /proof       → { digest? | path? | number?, counter?, epoch? } → proof detail
  *   POST /open        → {}                                      → Slot (token included; seal within ttlSeconds)
  *   POST /seal        → { token, path? | digestB64? }           → sealed task (proof written beside path)
- *   POST /verify      → { path }                                → offline verdict and window
+ *   POST /verify      → { path?, export? }                      → offline verdict and window; with export (a path), the export's claims
+ *   POST /export-complete → { path, waitMs?, out? }             → the export's floor header, ceiling and settlement fetched in
  *   POST /bitgraphed  → { path, waitForCeilingMs?, out? }       → writes the BitGraphed file, returns where
  *   POST /complete    → { path, waitForCeilingMs?, out? }       → closing anchor fetched in, returns where
  */
@@ -30,6 +31,7 @@ import { dirname, join } from "node:path";
 import { BitGraph } from "./bitgraph.js";
 import { carrierFileName } from "./carrier-build.js";
 import { ApiError } from "./api.js";
+import { EXPORT_KINDS, type ExportKind } from "./exports.js";
 
 export interface ServeOptions {
   port?: number;
@@ -73,7 +75,7 @@ export function serve(options: ServeOptions = {}): Promise<RunningServer> {
       if (req.method === "GET" && url.pathname === "/") {
         send(200, {
           name: "bitgraph serve",
-          verbs: ["record", "check", "proof", "open", "seal", "verify", "bitgraphed", "complete"],
+          verbs: ["record", "check", "proof", "open", "seal", "verify", "export-complete", "bitgraphed", "complete"],
           note: "POST JSON to each verb; 127.0.0.1 only; files are read locally and never uploaded.",
         });
         return;
@@ -87,7 +89,14 @@ export function serve(options: ServeOptions = {}): Promise<RunningServer> {
         case "/record": {
           const paths = Array.isArray(b["paths"]) ? (b["paths"] as string[]) : undefined;
           if (!paths || paths.length === 0) throw new ApiError(400, "paths: string[] is required");
-          send(200, await bg.record(paths, b["again"] === true ? { again: true } : {}));
+          const exportDir = str(b, "exportDir");
+          const exports = str(b, "exports");
+          if (exports !== undefined && !EXPORT_KINDS.includes(exports as ExportKind)) throw new ApiError(400, `exports must be one of ${EXPORT_KINDS.join(", ")}`);
+          send(200, await bg.record(paths, {
+            ...(b["again"] === true ? { again: true } : {}),
+            ...(exportDir !== undefined ? { exportDir } : {}),
+            ...(exports !== undefined ? { exports: exports as ExportKind } : {}),
+          }));
           return;
         }
         case "/check": {
@@ -129,8 +138,21 @@ export function serve(options: ServeOptions = {}): Promise<RunningServer> {
         }
         case "/verify": {
           const path = str(b, "path");
-          if (path === undefined) throw new ApiError(400, "path is required");
+          const exported = str(b, "export");
+          if (exported !== undefined) {
+            send(200, await bg.verifyExport(exported, path));
+            return;
+          }
+          if (path === undefined) throw new ApiError(400, "path is required (or export, a path to a bitgraph-export/1 file)");
           send(200, await bg.verify(path));
+          return;
+        }
+        case "/export-complete": {
+          const path = str(b, "path");
+          if (path === undefined) throw new ApiError(400, "path is required (a bitgraph-export/1 file)");
+          const wait = num(b, "waitMs");
+          const outPath = str(b, "out");
+          send(200, await bg.completeExport(path, { ...(wait !== undefined ? { waitMs: wait } : {}), ...(outPath !== undefined ? { out: outPath } : {}) }));
           return;
         }
         case "/bitgraphed": {

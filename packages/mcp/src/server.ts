@@ -5,28 +5,33 @@
  *
  * Three gestures, the same three the website has: make a BitGraph, check
  * whether bytes are on record, fetch a proof. Making a BitGraph is one
- * gesture for any number of files, the way a drop on the site is: a single
- * file is fused on its own slot, and two or more become members of ONE set
- * under ONE slot. For a set each file is read once, on this machine, for its
- * digest and a hasher state; the new fused bytes are never written and never
- * held, their digest is finished from that state once the slot exists; and
- * the set's committed artifact is hashed and committed under the same slot.
- * Only digests, that artifact and slot records leave the machine. File
- * contents are never uploaded and files are never modified.
+ * gesture for any number of files: since 2026-10-03 every call makes ONE
+ * tree/1, every file one leaf of one Merkle tree under one position (a
+ * single file is a tree of one). Each file is read once, on this machine,
+ * for its digest and a hasher state; its committed bytes are never written
+ * and never held, their digest finished from that state once the slot and
+ * its floor exist; a file over 256 MiB goes in as is; and the tree's root
+ * document is committed under the same slot. Only digests, that document and
+ * slot records leave the machine. File contents are never uploaded and files
+ * are never modified. The export/1 file written beside the inputs is how
+ * each file proves it is in the BitGraph.
  */
 
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { FuseError, MAX_SET_MEMBERS, type FuseSetProgress } from "@mikeargento/bitgraph";
+import { FuseError, MAX_FUSE_BYTES, type FuseTreeProgress } from "@mikeargento/bitgraph";
 import {
-  ApiError, batchCheck, configFromEnv, getProofDetail, indexSetMembers, search, type ApiConfig,
+  ApiError, batchCheck, configFromEnv, getProofDetail, search,
   fromUrlSafeB64, looksLikeDigest, mapConcurrent, sha256FileB64, toUrlSafeB64,
-  expandPaths, scanFile, type ScannedFile,
+  expandPaths, type ScannedFile,
   type CarrierWindowView,
-  classifyPath, fuseFilePipeline, fuseSetPipeline, MAX_LOADED_BYTES,
-  type CarrierRow, type FuseFileFn, type FuseSetFn, type FusedSummary, type SetSummary,
+  classifyPath, fuseTreePipeline,
+  type CarrierRow, type FuseTreeFn, type FuseFileFn, type FuseSetFn, type TreeSummary,
+  exportDataOf, fetchPinnedSpec, writeTreeExports, EXPORT_KINDS, type WrittenExports,
   SLOT_TTL_SECONDS, beginTask, decodeTaskToken, sealTask, writeProofBeside,
   type BitGraphProof, type ProofDetailResponse,
 } from "@mikeargento/bitgraph-sdk";
@@ -39,34 +44,31 @@ import {
   renderRecordMarkdown,
   type CheckOutcome,
   type RecordOutcome,
-  type SetOutcome,
+  type TreeOutcome,
 } from "./format.js";
 import { TASK_INSTRUCTIONS } from "./instructions.js";
 
-export type { FuseFileFn, FuseSetFn, FusedSummary, SetSummary } from "@mikeargento/bitgraph-sdk";
+export type { FuseTreeFn, TreeSummary, FuseFileFn, FuseSetFn, FusedSummary, SetSummary } from "@mikeargento/bitgraph-sdk";
 
 export const SERVER_VERSION = "0.8.0";
 
 const SCAN_CONCURRENCY = 4;
 /** Paths per call; a directory counts once and expands to its files. */
 const MAX_PATHS = 2000;
-/** Files one call may BitGraph after directories expand: one set. The site's own ceiling for a set/2. */
+/** Files one call may BitGraph after directories expand: one tree. */
 export const MAX_MEMBERS = 100_000;
 /** Files one check may cover after directories expand. */
 const MAX_CHECK_FILES = 10_000;
-/** A file whose length changed while it was read is fused from its bytes instead; above this it is left out rather than held in memory. */
-/** A single file up to this size is fused on its own, in memory, with its Frame; a larger one is a set of one, never held. */
-const MAX_SOLO_BYTES = 256 * 1024 * 1024;
-/** Rows the structured result lists in full; every fused row shares the set's position. */
+/** Rows the structured result lists in full; every recorded row shares the tree's position. */
 export const ROW_CAP = 500;
-/** Members' evidence per set-index request: the site's own chunk. */
-export const SET_INDEX_CHUNK = 2500;
 
-/** What one set yields, in the shape the tool reports; tests inject a stand-in. */
+/** The make pipeline; tests inject a stand-in. */
 export interface ServerDeps {
-  /** The set pipeline; tests inject a stand-in. Default: the core package's fuseSet() against the configured site. */
+  /** The tree pipeline. Default: the SDK's fuseTreePipeline (the core's fuseTree) against the configured site. */
+  fuseTree?: FuseTreeFn;
+  /** Superseded (set/1 and set/2); no longer used. Kept so callers that pass it still type-check. */
   fuseSet?: FuseSetFn;
-  /** The single-file pipeline; tests inject a stand-in. Default: the core package's fuse() against the configured site. */
+  /** Superseded (the single-file Frame); no longer used. Kept so callers that pass it still type-check. */
   fuseFile?: FuseFileFn;
 }
 
@@ -118,16 +120,18 @@ function errorText(err: unknown): string {
   return `Error: ${err instanceof Error ? err.message : String(err)}`;
 }
 
-/** Why the set was not made, and what to do next. Never a success-looking line. */
-function setFailureText(err: unknown): string {
+/** Why the tree was not made, and what to do next. Never a success-looking line. */
+function makeFailureText(err: unknown): string {
   if (err instanceof FuseError) {
     const where = err.member !== null ? ` (member ${err.member})` : "";
     switch (err.code) {
       case "tee-restarting":
         return `Nothing was BitGraphed: ${err.message}. The boundary restarts once a day at 23:59 UTC; run bitgraph_record again with the same paths in a minute.`;
+      case "floor-missing":
+        return `Nothing was BitGraphed: ${err.message}. This boundary does not return the floor block a tree needs; it is older than enclave v9.`;
       case "network":
       case "transport":
-        return `Nothing is known to be BitGraphed: ${err.message}. Run bitgraph_record again with the same paths: files a set did land come back as on record and are not made again.`;
+        return `Nothing is known to be BitGraphed: ${err.message}. Run bitgraph_record again with the same paths: if the tree did land, its files come back as on record once the site indexes them; otherwise they are made again.`;
       default:
         return `Nothing was BitGraphed${where}: ${err.message} (${err.code}). Run bitgraph_record again with the same paths.`;
     }
@@ -147,70 +151,16 @@ function progressReporter(extra: Extra): Report {
   };
 }
 
-const PHASES: Record<FuseSetProgress["phase"], string> = {
+const PHASES: Record<FuseTreeProgress["phase"], string> = {
   hash: "checking members",
-  fuse: "fusing",
+  fuse: "placing",
   tree: "building the tree",
   commit: "committing",
   verify: "verifying",
 };
 
-/**
- * A set/2's members are indexed on the site after the commit, evidence by
- * evidence, so a lookup by any member's own digest finds the set. Evidence
- * the site could not take waits here for the life of this process and is
- * sent again before anything else is made: a member the site cannot find
- * by hash would otherwise look new and be made again.
- */
-interface PendingIndex {
-  setDigest: string;
-  epoch: string;
-  counter: string;
-  members: unknown[];
-}
-const pendingIndex: PendingIndex[] = [];
-
-/** How many members' evidence is waiting to be indexed (tests read it). */
-export function pendingIndexCount(): number {
-  return pendingIndex.reduce((n, p) => n + p.members.length, 0);
-}
-
-/** Send pending evidence in chunks; what fails stays pending. */
-async function flushIndex(config: ApiConfig, report: Report): Promise<{ written: number; pending: number }> {
-  const total = pendingIndexCount();
-  let written = 0;
-  let stopped = false;
-  for (const set of pendingIndex) {
-    while (set.members.length > 0 && !stopped) {
-      const chunk = set.members.slice(0, SET_INDEX_CHUNK);
-      let ok = false;
-      for (let attempt = 0; attempt < 2 && !ok; attempt++) {
-        try {
-          await indexSetMembers(config, { setDigest: set.setDigest, epoch: set.epoch, counter: set.counter, members: chunk });
-          ok = true;
-        } catch {
-          ok = false;
-        }
-      }
-      if (!ok) {
-        stopped = true;
-        break;
-      }
-      set.members.splice(0, chunk.length);
-      written += chunk.length;
-      report(written, total, `indexing ${written} of ${total}`);
-    }
-    if (stopped) break;
-  }
-  const left = pendingIndex.filter((s) => s.members.length > 0);
-  pendingIndex.length = 0;
-  pendingIndex.push(...left);
-  return { written, pending: total - written };
-}
-
 export function buildServer(deps: ServerDeps = {}): McpServer {
-  const runFuseSet = deps.fuseSet ?? fuseSetPipeline;
-  const runFuseFile = deps.fuseFile ?? fuseFilePipeline;
+  const runFuseTree = deps.fuseTree ?? fuseTreePipeline;
   const server = new McpServer(
     {
       name: "bitgraph-mcp-server",
@@ -218,8 +168,8 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     },
     {
       instructions:
-        "BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: a single file is fused on its own; two or more become one set under one position, every file's new fused bytes listed by digest in the committed artifact. " +
-        "Files are read on this machine and never uploaded or modified; the new bytes are virtual and never written. Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. bitgraph_check and bitgraph_get_proof are read-only. " +
+        "BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: one Merkle tree under one position (tree/1), every file one leaf, a single file a tree of one; a file over 256 MiB is recorded as is. " +
+        "Files are read on this machine and never uploaded or modified; the committed bytes are virtual and never written. bitgraph_record writes the BitGraph's export (bitgraph-export/1) beside what was recorded: keep it, because a file proves it is in the BitGraph with its export, the proof alone commits only the tree's root. Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. bitgraph_check and bitgraph_get_proof are read-only. " +
         "A BitGraphed file (one that carries its own proof, bitgraph-carrier/1) is recognized by its structure: bitgraph_check judges it offline from the proof inside and states the window, and bitgraph_record never re-mints it, because the envelope is not the recorded thing, the bytes inside are. " +
         "To do work INSIDE a BitGraph, call bitgraph_open BEFORE starting: it returns a position and its commitment; put the commitment string into the task, seal the task with bitgraph_commit within 120 seconds, then record the outputs with bitgraph_record. The task then could not have existed before the position's floor block, and the outputs sit after it.",
     }
@@ -230,14 +180,15 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     {
       title: "Make a BitGraph",
       description:
-        "Make a BitGraph of files or folders. Everything in one call becomes ONE BitGraph, the way a drop on the site works: a single file is fused on its own position; two or more files become a set under a single position on BitGraph (bitgraph.ing). " +
-        "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused position is allocated before any new file exists; every file's new fused bytes (the original plus a registered placement carrying the position commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; and for a set the canonical list of those digests (above 2,000 files, a Merkle root over it) is committed under the same position. " +
-        "Files are never modified and never uploaded: only digests, the committed artifact and position records leave the machine. " +
+        "Make a BitGraph of files or folders. Everything in one call becomes ONE BitGraph on bitgraph.ing: one Merkle tree under one position (tree/1), every file one leaf; a single file is a tree of one. " +
+        "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused position and its floor block are allocated before any new file exists; every file's committed bytes (the original plus a registered placement carrying the position commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; a file over 256 MiB goes in as is (its own digest is its leaf: it existed by the commit, and nothing bounds it from below); and the tree's 84-byte root document is committed under the same position. " +
+        "Files are never modified and never uploaded: only digests, the root document and position records leave the machine. " +
         "Give file paths, directory paths, or both (absolute paths preferred): a directory is every regular file under it, recursively, with hidden entries and symbolic links left out. " +
         "Files already on record are NOT made again by default; they come back as 'on record' with their earliest position. A file can also hold a BitGraph its holder keeps, which no lookup sees. Pass again=true to make a new BitGraph regardless. " +
         "A BitGraphed file (bitgraph-carrier/1, a file that carries its own proof) is never minted, with or without again: its carried proof is judged offline and reported, because the envelope is not the recorded thing, the bytes inside are. " +
-        "Positions are permanent and the proof comes back to you to keep, so only BitGraph files the user asked to, and never generate content just to record it. " +
-        "Returns one outcome per file: 'fused' (for a set, its row, one of N, and the set's position and proof page; for a single file, its own position and Frame), 'on record', or 'not fused' (with the reason). Keep the proof beside the files; BitGraph does not index it. " +
+        "The BitGraph's export (bitgraph-export/1) is written into export_dir, by default the folder that holds the first path given (a folder's export goes beside the folder, never inside it): the owner's export lists every file's leaf and name, and with a file it proves that file is in this BitGraph with nothing of BitGraph's required; exports='members' or 'both' also writes one export per file. The proof alone commits only the tree's root, so keep the export. " +
+        "Positions are permanent, so only BitGraph files the user asked to, and never generate content just to record it. " +
+        "Returns one outcome per file: 'fused' (its leaf's committed bytes carry the position commitment), 'recorded' (recorded as is), 'on record', 'carried', or 'not fused' (with the reason), with the file's leaf (one of N), the tree's position and proof page, and the export's path. " +
         "Use bitgraph_check instead when the user only wants to know whether files are on record.",
       inputSchema: {
         paths: z
@@ -249,8 +200,17 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           .boolean()
           .default(false)
           .describe(
-            "false (default): files already on record are returned as-is, nothing made. true: put every file in the set regardless. Outcomes are per unique file content: two paths with identical bytes are one member."
+            "false (default): files already on record are returned as-is, nothing made. true: put every file in the tree regardless. Outcomes are per unique file content: two paths with identical bytes are one leaf."
           ),
+        export_dir: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Where to write the export files (absolute path preferred). Default: the folder that holds the first path given."),
+        exports: z
+          .enum(["owner", "members", "both", "none"])
+          .default("owner")
+          .describe("owner (default): one export listing every file's leaf and name. members: one export per file, each proving that file alone. both. none: write nothing (the json result still carries the leaves)."),
         response_format: responseFormatSchema,
       },
       annotations: {
@@ -260,7 +220,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ paths, again, response_format }, extra) => {
+    async ({ paths, again, export_dir, exports, response_format }, extra) => {
       const config = configFromEnv();
       const report = progressReporter(extra);
       try {
@@ -271,17 +231,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           return fail("Error: nothing to BitGraph: the given directories hold no regular files (hidden entries and symbolic links are left out).");
         }
 
-        // 1. Evidence from an earlier set that the site has not indexed yet goes first.
-        if (pendingIndexCount() > 0) {
-          const flushed = await flushIndex(config, report);
-          if (flushed.pending > 0) {
-            return fail(
-              `Error: ${flushed.pending} members of an earlier set are still waiting to be indexed and the site could not take them; nothing was BitGraphed. Run bitgraph_record again in a moment: the waiting evidence is sent first.`
-            );
-          }
-        }
-
-        // 2. The scan: one pass per file. A BitGraphed file is set aside here,
+        // 1. The scan: one pass per file. A BitGraphed file is set aside here,
         //    judged from the proof it carries, and never enters the mint below.
         let scanned = 0;
         report(0, files.length, `hashing ${files.length} files`);
@@ -294,7 +244,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const scans = classified.filter((c): c is { kind: "plain"; file: ScannedFile } => c.kind === "plain").map((c) => c.file);
         const carriers = classified.filter((c): c is CarrierRow => c.kind === "carrier");
 
-        // 3. Unique by content; the first path names the member, every path is reported.
+        // 2. Unique by content; the first path names the member, every path is reported.
         const byDigest = new Map<string, { file: ScannedFile; paths: string[] }>();
         for (const s of scans) {
           const entry = byDigest.get(s.digestB64) ?? { file: s, paths: [] };
@@ -303,7 +253,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         }
         const unique = [...byDigest.keys()];
 
-        // 4. What is on record already. A BitGraphed file is looked up by the
+        // 3. What is on record already. A BitGraphed file is looked up by the
         //    digest of its committed bytes, never by the envelope's.
         report(0, 1, "checking BitGraph's copy");
         const carrierInner = [...new Set(carriers.filter((c) => c.innerDigestB64 !== null).map((c) => c.innerDigestB64 as string))];
@@ -320,106 +270,106 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           if (entry && entry.proofs.length > 0) carrierLedger.set(d, entry.proofs);
         }
 
-        // 5. The set: every fresh file (every file, with again), one call.
+        // 4. The tree: every fresh file (every file, with again), one call.
         const excluded = new Map<string, string>();
         const toMint: ScannedFile[] = [];
         for (const d of again ? unique : unique.filter((x) => !existing.has(x))) {
           const f = (byDigest.get(d) as { file: ScannedFile }).file;
-          if (f.state === null && f.size > MAX_LOADED_BYTES) {
-            excluded.set(d, "the file changed while it was read and is too large to read again in memory; run bitgraph_record again for it");
+          if (f.state === null && f.size > MAX_FUSE_BYTES) {
+            excluded.set(d, `the file changed while it was read and is over ${MAX_FUSE_BYTES / (1024 * 1024)} MiB, so its digest is not the file's; run bitgraph_record again for it when it is still`);
             continue;
           }
           toMint.push(f);
         }
         const attempted = new Set(toMint.map((f) => f.digestB64));
-        let made: SetSummary | null = null;
-        let solo: (FusedSummary & { file: ScannedFile }) | null = null;
+        let made: TreeSummary | null = null;
         let failure: string | null = null;
-        const one = toMint.length === 1 ? (toMint[0] as ScannedFile) : null;
-        if (one !== null && one.size <= MAX_SOLO_BYTES) {
-          // One file, as a single drop on the site goes: its own slot, its own Frame.
-          report(0, 1, "fusing");
+        if (toMint.length > 0) {
           try {
-            solo = { ...(await runFuseFile(one, config)), file: one };
-          } catch (err) {
-            failure = setFailureText(err);
-          }
-        } else if (toMint.length > 0) {
-          const kind: "set/1" | "set/2" = toMint.length > MAX_SET_MEMBERS ? "set/2" : "set/1";
-          try {
-            made = await runFuseSet(toMint, config, {
-              set: kind,
+            made = await runFuseTree(toMint, config, {
               onProgress: (p) => report(p.done, p.total, `${PHASES[p.phase]} ${p.done} of ${p.total}`),
             });
           } catch (err) {
-            failure = setFailureText(err);
+            failure = makeFailureText(err);
           }
         }
 
-        // 6. A set/2 lands with only its root on the ledger; its members are indexed afterwards.
-        let index: SetOutcome["index"] = null;
-        if (made !== null && made.set === "set/2") {
-          const counter = made.proof.commit?.counter;
-          const epochId = made.proof.commit?.epochId;
-          const members = made.members.map((m) => m.memberProof).filter((e) => e !== undefined);
-          if (counter !== undefined && epochId !== undefined && members.length > 0) {
-            pendingIndex.push({ setDigest: toUrlSafeB64(made.artifactDigestB64), epoch: toUrlSafeB64(epochId), counter, members });
-            index = await flushIndex(config, report);
-          }
-        }
-
-        // 7. Outcomes.
-        let setOutcome: SetOutcome | null = null;
-        const memberOf = new Map<string, SetSummary["members"][number]>();
+        // 5. The export, beside what was recorded. The tree is made either way;
+        //    a write that fails is stated, with what to do, never hidden.
+        let tree: TreeOutcome | null = null;
+        let written: WrittenExports | null = null;
+        const memberExports = new Map<number, string>();
         if (made !== null) {
-          for (const m of made.members) memberOf.set(m.originDigestB64, m);
+          const data = await exportDataOf(made, toMint.map((f) => f.path), config);
+          const kind = EXPORT_KINDS.includes(exports) ? exports : "owner";
+          const dir = export_dir ?? dirname(resolve(paths[0] as string));
+          let exportError: string | null = null;
+          if (kind !== "none") {
+            // SPEC.md goes beside the export when the site serves the very text the proof pins.
+            const spec = await fetchPinnedSpec(config, made.proof.attribution?.message ?? "");
+            try {
+              written = await writeTreeExports(data, { dir, kind, spec });
+            } catch (err) {
+              // The tree is made and permanent; its export is not lost with the folder that refused it.
+              exportError = err instanceof Error ? err.message : String(err);
+              const fallback = join(tmpdir(), "bitgraph-exports");
+              try {
+                written = await writeTreeExports(data, { dir: fallback, kind, spec });
+                exportError += `; written to ${written.dir} instead, move it beside the files`;
+              } catch (again) {
+                exportError += `; the fallback ${fallback} failed too (${again instanceof Error ? again.message : String(again)}); call bitgraph_record again with export_dir set to a folder that can be written and again=true`;
+              }
+            }
+            for (const m of written?.members ?? []) memberExports.set(m.leafIndex, m.path);
+          }
           const { counter, epoch } = positionOf(made.proof);
-          setOutcome = {
-            set: made.set,
+          tree = {
+            format: "tree/1",
             count: made.count,
             counter,
             epoch,
             artifact_digest: toUrlSafeB64(made.artifactDigestB64),
             proof_url: proofUrl(config.baseUrl, made.artifactDigestB64, counter ?? undefined, made.proof.commit?.epochId),
-            manifest_echoed: made.manifestEchoed,
+            root_document: made.rootDocumentHex,
+            floor_block: made.floor.blockNumber,
+            root_document_echoed: made.rootDocumentEchoed,
             recovered: made.recovered,
-            index,
+            export: {
+              kind,
+              dir: written?.dir ?? (kind === "none" ? null : resolve(dir)),
+              owner: written?.owner ?? null,
+              members_dir: written?.membersDir ?? null,
+              members: written?.members.length ?? 0,
+              spec: written?.spec ?? null,
+              floor_header: data.floor.header !== null,
+              ...(exportError !== null ? { error: exportError } : {}),
+            },
           };
         }
-        const frames: Record<string, unknown> = {};
-        if (solo !== null) frames[toUrlSafeB64(solo.artifactDigestB64)] = solo.frame;
+
+        // 6. Outcomes.
+        const memberOf = new Map<string, TreeSummary["members"][number]>();
+        if (made !== null) for (const m of made.members) memberOf.set((toMint[m.index] as ScannedFile).digestB64, m);
         const outcomes: RecordOutcome[] = [];
         for (const [digest, entry] of byDigest) {
           const m = memberOf.get(digest);
           const prior = existing.get(digest);
           for (const path of entry.paths) {
             const base = { path, digest: toUrlSafeB64(digest), ...(entry.file.c2pa ? { c2pa: true as const } : {}) };
-            if (solo !== null && solo.file.digestB64 === digest) {
-              const { counter, epoch } = positionOf(solo.proof);
+            if (m !== undefined && made !== null && tree !== null) {
+              const own = memberExports.get(m.leafIndex);
               outcomes.push({
                 ...base,
-                outcome: "fused",
-                artifact_digest: toUrlSafeB64(solo.artifactDigestB64),
-                placement: solo.placement,
-                counter,
-                epoch,
-                member: null,
-                member_count: null,
-                total_positions: (prior?.length ?? 0) + 1,
-                proof_url: proofUrl(config.baseUrl, solo.artifactDigestB64, counter ?? undefined, solo.proof.commit?.epochId),
-              });
-            } else if (m !== undefined && made !== null && setOutcome !== null) {
-              outcomes.push({
-                ...base,
-                outcome: "fused",
+                outcome: m.placement === "as-is" ? "recorded" : "fused",
                 artifact_digest: toUrlSafeB64(m.artifactDigestB64),
                 placement: m.placement,
-                counter: setOutcome.counter,
-                epoch: setOutcome.epoch,
-                member: m.manifestIndex + 1,
+                counter: tree.counter,
+                epoch: tree.epoch,
+                member: m.leafIndex + 1,
                 member_count: made.count,
                 total_positions: (prior?.length ?? 0) + 1,
-                proof_url: proofUrl(config.baseUrl, digest, setOutcome.counter ?? undefined, made.proof.commit?.epochId),
+                proof_url: tree.proof_url,
+                ...(own !== undefined ? { export: own } : {}),
               });
             } else if (prior && !attempted.has(digest) && !excluded.has(digest)) {
               const first = prior[0];
@@ -454,7 +404,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             }
           }
         }
-        // 7b. BitGraphed files: judged from the proof inside, never minted.
+        // 6b. BitGraphed files: judged from the proof inside, never minted.
         for (const c of carriers) {
           if (c.status !== "ok" || c.innerDigestB64 === null) {
             outcomes.push({
@@ -482,8 +432,8 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             });
           }
         }
-        // Rows that need reading come first, so a cap drops fused rows, which all share one position.
-        const order = { "not fused": 0, "on record": 1, carried: 2, fused: 3 } as const;
+        // Rows that need reading come first, so a cap drops recorded rows, which all share one position.
+        const order = { "not fused": 0, "on record": 1, carried: 2, recorded: 3, fused: 4 } as const;
         outcomes.sort((a, b) => order[a.outcome] - order[b.outcome]);
         const listed = outcomes.slice(0, ROW_CAP);
         const omitted = outcomes.length - listed.length;
@@ -491,18 +441,18 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           files: files.length,
           directories: expanded.directories,
           fused: outcomes.filter((o) => o.outcome === "fused").length,
+          recorded: outcomes.filter((o) => o.outcome === "recorded").length,
           on_record: outcomes.filter((o) => o.outcome === "on record").length,
           carried: outcomes.filter((o) => o.outcome === "carried").length,
           not_fused: outcomes.filter((o) => o.outcome === "not fused").length,
         };
         const structured = {
-          set: setOutcome,
+          tree,
           results: listed as unknown as Record<string, unknown>[],
-          frames,
           omitted,
           summary,
         };
-        const markdown = renderRecordMarkdown(outcomes, setOutcome, omitted);
+        const markdown = renderRecordMarkdown(outcomes, tree, omitted);
         if (summary.not_fused > 0) {
           return {
             isError: true,
@@ -511,7 +461,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           };
         }
         if (response_format === "json") {
-          const full = { ...structured, set: setOutcome !== null && made !== null ? { ...setOutcome, proof: made.proof } : null };
+          const full = { ...structured, tree: tree !== null && made !== null ? { ...tree, proof: made.proof } : null };
           return ok(capJson(full).text, structured);
         }
         return ok(markdown, structured);
@@ -520,6 +470,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
       }
     }
   );
+
 
   server.registerTool(
     "bitgraph_open",

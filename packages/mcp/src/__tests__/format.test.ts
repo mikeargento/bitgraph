@@ -40,26 +40,45 @@ test("record markdown mentions again=true only when something was already on rec
   assert.ok(mixed.startsWith("1 fused, 1 already on record."));
 });
 
-test("record markdown names the set once and its members by row", () => {
-  const set = {
-    set: "set/1" as const,
-    count: 2,
+test("record markdown names the tree once, its files by leaf, as is apart, and the export with what completes it", () => {
+  const tree = {
+    format: "tree/1" as const,
+    count: 3,
     counter: "1386",
     epoch: toUrlSafeB64(EPOCH),
-    artifact_digest: "c2V0",
-    proof_url: "https://bitgraph.ing/proof/c2V0?counter=1386",
-    manifest_echoed: true,
+    artifact_digest: "dHJlZQ",
+    proof_url: "https://bitgraph.ing/proof/dHJlZQ?counter=1386",
+    root_document: "00".repeat(84),
+    floor_block: 25_000_000,
+    root_document_echoed: true,
     recovered: false,
-    index: null,
+    export: { kind: "owner" as const, dir: "/photos-parent", owner: "/photos-parent/bitgraph-1386.bitgraph.json", members_dir: null, members: 0, spec: "/photos-parent/SPEC.md", floor_header: true },
   };
-  const row = { digest: toUrlSafeB64(DIGEST), counter: "1386", epoch: toUrlSafeB64(EPOCH), total_positions: 1, proof_url: "https://bitgraph.ing/proof/x", artifact_digest: "ZnVzZWQ", outcome: "fused" as const, member_count: 2 };
-  const md = renderRecordMarkdown([{ ...row, path: "/a.png", placement: "trailer/1", member: 2 }, { ...row, path: "/b.txt", placement: "container/2", member: 1 }], set);
-  assert.ok(md.startsWith("2 files BitGraphed as one set at #1386 (set of 2), 0 already on record."), md);
-  assert.ok(md.includes("- #1386 · set of 2 · https://bitgraph.ing/proof/c2V0?counter=1386"), md);
-  assert.ok(md.includes("- fused · /a.png (2 of 2, trailer/1)"), md);
-  assert.ok(md.includes("- fused · /b.txt (1 of 2, container/2)"), md);
-  const waiting = renderRecordMarkdown([{ ...row, path: "/a.png", placement: "trailer/1", member: 1 }], { ...set, set: "set/2", index: { written: 0, pending: 2 } });
-  assert.ok(waiting.includes("The set proof beside the originals is the record either way."), waiting);
+  const row = { digest: toUrlSafeB64(DIGEST), counter: "1386", epoch: toUrlSafeB64(EPOCH), total_positions: 1, proof_url: tree.proof_url, artifact_digest: "ZnVzZWQ", outcome: "fused" as const, member_count: 3 };
+  const rows = [
+    { ...row, path: "/a.png", placement: "trailer/1", member: 2 },
+    { ...row, path: "/b.txt", placement: "container/2", member: 1 },
+    { ...row, path: "/c.mov", placement: "as-is", member: 3, outcome: "recorded" as const },
+  ];
+  const md = renderRecordMarkdown(rows, tree);
+  assert.ok(md.startsWith("3 files BitGraphed as one tree at #1386 (tree of 3), 0 already on record."), md);
+  assert.ok(md.includes("- #1386 · tree of 3 · https://bitgraph.ing/proof/dHJlZQ?counter=1386"), md);
+  assert.ok(md.includes("  Export, every file's leaf and name (keep it with the files): /photos-parent/bitgraph-1386.bitgraph.json"), md);
+  assert.ok(md.includes("  The rules the proof pins (SPEC.md), beside it: /photos-parent/SPEC.md"), md);
+  assert.ok(md.includes('bitgraph export complete "/photos-parent/bitgraph-1386.bitgraph.json"'), md);
+  assert.ok(!md.includes("and the floor block's header"), "the floor header is in hand");
+  assert.ok(md.includes("- fused · /a.png (2 of 3, trailer/1)"), md);
+  assert.ok(md.includes("- fused · /b.txt (1 of 3, container/2)"), md);
+  assert.ok(md.includes("- recorded as is · /c.mov (3 of 3)"), md);
+  assert.ok(md.includes("nothing bounds it from below"), md);
+  assert.ok(md.includes("The proof commits only the tree's root: keep the export with the files"), md);
+  assert.ok(!md.includes("\u2014"), "no em dashes");
+  const noHeader = renderRecordMarkdown(rows.slice(0, 2), { ...tree, export: { ...tree.export, floor_header: false } });
+  assert.ok(noHeader.includes("and the floor block's header"), noHeader);
+  assert.ok(!noHeader.includes("recorded as is"), "nothing as is, nothing said about it");
+  const none = renderRecordMarkdown(rows.slice(0, 1), { ...tree, export: { ...tree.export, kind: "none", dir: null, owner: null, spec: null } });
+  assert.ok(!none.includes("SPEC.md"), none);
+  assert.ok(none.includes("No export was written (exports='none')"), none);
 });
 
 test("proof markdown states the floor in time and the ceiling in position", () => {
