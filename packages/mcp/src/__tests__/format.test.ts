@@ -75,7 +75,7 @@ test("record markdown names the tree once, its files by leaf, as is apart, and t
   assert.ok(md.includes("- fused · /a.png (2 of 3, trailer/1)"), md);
   assert.ok(md.includes("- fused · /b.txt (1 of 3, container/2)"), md);
   assert.ok(md.includes("- recorded as is · /c.mov (3 of 3)"), md);
-  assert.ok(md.includes("nothing bounds it from below"), md);
+  assert.ok(md.includes("A file recorded as is was recorded after the floor block; the bytes themselves are not dated."), md);
   assert.ok(md.includes("The proof commits only the tree's root: keep the export with the files"), md);
   assert.ok(!md.includes("\u2014"), "no em dashes");
   const noHeader = renderRecordMarkdown(rows.slice(0, 2), { ...tree, export: { ...tree.export, floor_header: false } });

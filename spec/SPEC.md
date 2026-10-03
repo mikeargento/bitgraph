@@ -305,7 +305,7 @@ Both are plain ustar archives any tar tool can list. To locate: parse exactly tw
 
 ### 7.5 Which placement producers choose
 
-trailer/1 when the file starts with a JPEG (`FF D8 FF`), PNG (`89 50 4E 47 0D 0A 1A 0A`), GIF (`47 49 46 38`), TIFF (`49 49 2A 00` or `4D 4D 00 2A`), BMP (`42 4D`, at least 14 bytes) or RIFF (`52 49 46 46`, at least 12 bytes) signature; container/2 for everything else. Files over 268,435,456 bytes (256 MiB) are recorded as they are (section 8.1, code 0x00). New BitGraphs never use container/1; verifiers MUST still accept it.
+trailer/1 when the file starts with a JPEG (`FF D8 FF`), PNG (`89 50 4E 47 0D 0A 1A 0A`), GIF (`47 49 46 38`), TIFF (`49 49 2A 00` or `4D 4D 00 2A`), BMP (`42 4D`, at least 14 bytes) or RIFF (`52 49 46 46`, at least 12 bytes) signature; container/2 for everything else up to 8,589,934,591 bytes (the ustar entry limit, section 7.3); trailer/1 for any file above that, whatever its bytes (the committed bytes are virtual, so a trailer costs the file nothing). The protocol has no size in it: a producer MUST NOT choose as is (code 0x00) by size or by default. As is is the user's choice, for a file that must stay byte-identical or that they do not own, and every producer offers it as such. New BitGraphs never use container/1; verifiers MUST still accept it.
 
 ---
 

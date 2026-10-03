@@ -78,8 +78,10 @@ import { getPlacement,
   type FuseFrame,
   type SetMember,
   type SlotAllocation,
+  LEAF_AS_IS,
+  MAX_CONTAINER_ENTRY_BYTES,
 } from "@mikeargento/bitgraph-verify";
-import { fusedNamesFor, placementForBytes } from "@mikeargento/bitgraph";
+import { fusedNamesFor, treePlacementFor } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "../fuse-commitment.ts";
 import { FUSE_CHAIN, FUSE2_ATTRIBUTION_NAME, isSlotRecord } from "../fuse-core.ts";
 import { apiBaseUrl } from "./api.ts";
@@ -159,7 +161,9 @@ function padTo(n: number): number {
 
 export type Recipe =
   | { placement: "trailer/1"; append: Uint8Array }
-  | { placement: "container/1" | "container/2"; prefix: Uint8Array; suffix: Uint8Array };
+  | { placement: "container/1" | "container/2"; prefix: Uint8Array; suffix: Uint8Array }
+  /** Kept as is (the user's choice): nothing to build; the file's own digest is committed. */
+  | { placement: "as-is" };
 
 /** The bytes the caller adds to the original. Pure: no I/O, no randomness. */
 export function recipeFor(
@@ -198,6 +202,7 @@ export function recipeFor(
 
 /** What a caller builds from a recipe. Used by the test and by nothing on the server: the new file is virtual. */
 export function assemble(recipe: Recipe, original: Uint8Array): Uint8Array {
+  if (recipe.placement === "as-is") return original;
   return recipe.placement === "trailer/1"
     ? concat(original, recipe.append)
     : concat(recipe.prefix, original, recipe.suffix);
@@ -210,13 +215,14 @@ export function assemble(recipe: Recipe, original: Uint8Array): Uint8Array {
  * here matches what the SDK would make with the whole file in hand.
  */
 export function choosePlacement(head: Uint8Array | null, originSize: number): HostedPlacement | { error: string } {
-  if (head === null) return "container/2";
+  if (head === null) return originSize > MAX_CONTAINER_ENTRY_BYTES ? "trailer/1" : "container/2";
   if (head.length > HEAD_MAX_BYTES) return { error: `head_base64 carries more than ${HEAD_MAX_BYTES} bytes` };
   if (head.length > originSize) return { error: "head_base64 is longer than the file itself" };
   if (head.length < HEAD_MIN_BYTES && head.length !== originSize) {
     return { error: `head_base64 must carry the first ${HEAD_MIN_BYTES} bytes of the file (or the whole file when it is shorter)` };
   }
-  return placementForBytes(head);
+  // The trailer above the ustar entry limit, whatever the bytes (SPEC 7.5).
+  return treePlacementFor(originSize, head);
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +237,8 @@ export interface OpenState {
   /** The floor bound into a fuse/2 commitment; absent on a fuse/1 token. */
   anchor?: AnchorMark;
   placement: HostedPlacement;
+  /** Present when the user keeps the file as it is: the leaf is its own digest, nothing is built (needs a floor, so a tree). */
+  asIs?: true;
   origin: { digestB64: string; size: number; name: string };
   fusedName: string;
   frameName: string;
@@ -342,15 +350,17 @@ export interface OpenInput {
   size: number;
   digestB64: string;
   head: Uint8Array | null;
+  /** The user's choice to record the file as it is. Never a producer's default. */
+  asIs?: boolean;
 }
 
 /** What the recipe needs from one file, checked before any slot exists so a bad input costs nothing. */
-function memberInput(input: OpenInput): { originDigest: Uint8Array; placement: HostedPlacement } {
+function memberInput(input: OpenInput): { originDigest: Uint8Array; placement: HostedPlacement; asIs: boolean } {
   const originDigest = base64ToBytes(input.digestB64);
   if (originDigest === null || originDigest.length !== 32) throw new HostedFuseError("bad-input", "digest must be a base64 SHA-256");
   const placement = choosePlacement(input.head, input.size);
   if (typeof placement !== "string") throw new HostedFuseError("bad-input", placement.error);
-  return { originDigest, placement };
+  return { originDigest, placement, asIs: input.asIs === true };
 }
 
 /**
@@ -406,14 +416,16 @@ async function allocateHosted(): Promise<{ slot: SlotAllocation; anchor: AnchorM
 }
 
 /** The recipe and token for one file under a held slot. Pure once the slot is in hand. */
-function openMember(slot: SlotAllocation, commitment: Uint8Array, input: OpenInput, member: { originDigest: Uint8Array; placement: HostedPlacement }, set: boolean, anchor: AnchorMark | null = null): Opened {
-  const recipe = recipeFor(member.placement, member.originDigest, input.size, commitment);
-  const names = fusedNamesFor(input.name, member.placement);
+function openMember(slot: SlotAllocation, commitment: Uint8Array, input: OpenInput, member: { originDigest: Uint8Array; placement: HostedPlacement; asIs?: boolean }, set: boolean, anchor: AnchorMark | null = null): Opened {
+  if (member.asIs && !anchor) throw new HostedFuseError("bad-input", `${input.name}: a file kept as is needs a tree, and a tree needs a floor; this boundary returned none`);
+  const recipe: Recipe = member.asIs ? { placement: "as-is" } : recipeFor(member.placement, member.originDigest, input.size, commitment);
+  const names = member.asIs ? { fusedName: input.name, frameName: `${input.name}.bitgraph-fuse.json` } : fusedNamesFor(input.name, member.placement);
   const state: OpenState = {
     v: 1,
     slot,
     ...(anchor ? { anchor } : {}),
     placement: member.placement,
+    ...(member.asIs ? { asIs: true as const } : {}),
     origin: { digestB64: input.digestB64, size: input.size, name: input.name },
     fusedName: names.fusedName,
     frameName: names.frameName,
@@ -560,6 +572,7 @@ export async function commitHosted(state: OpenState, artifactDigestB64: string):
   if (artifactDigest === null || artifactDigest.length !== 32) throw new HostedFuseError("bad-input", "artifact digest must be a base64 SHA-256");
   const originDigest = base64ToBytes(state.origin.digestB64);
   if (originDigest === null || originDigest.length !== 32) throw new HostedFuseError("bad-input", "the token carries no origin digest");
+  if (state.asIs) throw new HostedFuseError("bad-input", "a file kept as is needs a tree; open it under a floor");
   const { slot, placement } = state;
   const { proof, recovered } = await commitUnderSlot(slot, artifactDigestB64, {
     digests: [{ digestB64: artifactDigestB64, hashAlg: "sha256" }],
@@ -623,6 +636,7 @@ export async function setManifestFor(entries: readonly SetEntry[]): Promise<SetM
     if (artifact === null || artifact.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: artifact digest must be a base64 SHA-256`);
     const origin = base64ToBytes(e.state.origin.digestB64);
     if (origin === null || origin.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: the token carries no origin digest`);
+    if (e.state.asIs) throw new HostedFuseError("bad-input", `${e.state.origin.name}: a file kept as is needs a tree; open it under a floor`);
     if (seen.has(e.artifactDigestB64)) continue;
     seen.set(e.artifactDigestB64, members.length);
     members.push({ artifact, origin, placement: e.state.placement });
@@ -741,7 +755,9 @@ export async function commitHostedTree(entries: readonly SetEntry[]): Promise<Co
     if (artifact === null || artifact.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: artifact digest must be a base64 SHA-256`);
     const origin = base64ToBytes(e.state.origin.digestB64);
     if (origin === null || origin.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: the token carries no origin digest`);
-    const code = leafCodeOf(e.state.placement);
+    // Kept as is: the leaf is the file's own digest, so that is what is committed.
+    if (e.state.asIs && e.artifactDigestB64 !== e.state.origin.digestB64) throw new HostedFuseError("bad-input", `${e.state.origin.name}: a file kept as is is committed by its own digest, which this is not`);
+    const code = e.state.asIs ? LEAF_AS_IS : leafCodeOf(e.state.placement);
     if (code === null) throw new HostedFuseError("bad-input", `${e.state.origin.name}: placement ${e.state.placement} has no leaf code`);
     // The same new file listed twice is one leaf.
     const k = leafKey.get(e.artifactDigestB64);
@@ -984,7 +1000,7 @@ export interface OpenOutcome {
   set?: boolean;
   /** True when the position was opened under a floor: the commit makes tree/1 (one tree of everything opened together). */
   tree?: boolean;
-  placement: HostedPlacement | null;
+  placement: HostedPlacement | "as-is" | null;
   slot_counter: string | null;
   epoch: string | null;
   fused_name: string | null;
@@ -993,6 +1009,8 @@ export interface OpenOutcome {
   recipe:
     | { kind: "append"; append_base64: string }
     | { kind: "wrap"; prefix_base64: string; suffix_base64: string }
+    /** Kept as is: nothing to build; commit the file's own digest. */
+    | { kind: "as-is" }
     | null;
   total_positions: number;
   proof_url: string | null;
@@ -1004,7 +1022,7 @@ export interface CommitOutcome {
   origin_digest: string; // URL-safe
   artifact_digest: string; // URL-safe
   outcome: "fused" | "not fused";
-  placement: HostedPlacement | "base64url";
+  placement: HostedPlacement | "as-is" | "base64url";
   slot_counter: string | null;
   counter: string | null;
   epoch: string | null;
@@ -1045,13 +1063,14 @@ export interface SetOutcome {
 }
 
 export function recipeJson(recipe: Recipe): NonNullable<OpenOutcome["recipe"]> {
+  if (recipe.placement === "as-is") return { kind: "as-is" };
   return recipe.placement === "trailer/1"
     ? { kind: "append", append_base64: Buffer.from(recipe.append).toString("base64") }
     : { kind: "wrap", prefix_base64: Buffer.from(recipe.prefix).toString("base64"), suffix_base64: Buffer.from(recipe.suffix).toString("base64") };
 }
 
 export const ASSEMBLY_INSTRUCTIONS =
-  "Build each new file locally, exactly: kind 'append' means new_file = original + append; kind 'wrap' means new_file = prefix + original + suffix (all base64-decoded to bytes). " +
+  "Build each new file locally, exactly: kind 'append' means new_file = original + append; kind 'wrap' means new_file = prefix + original + suffix (all base64-decoded to bytes); kind 'as-is' means nothing to build: commit the file's own digest (the record is dated after the floor block, the bytes themselves are not). " +
   "Never alter the original. Then SHA-256 the new file, base64 that, and call bitgraph_commit with the fuse_token and that digest. " +
   `The position expires ${SLOT_TTL_SECONDS} seconds after it is opened: commit inside that window, in the same session. A file need not be read twice: hash it with a copyable hasher before opening (Python's hashlib supports copy()), then finish a copy with the recipe's bytes.`;
 

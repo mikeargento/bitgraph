@@ -99,6 +99,25 @@ import { attachSetProofs } from "@/lib/set-members";
  * for 48,000 files is still far from the 48,000 it replaced.
  */
 const SCAN_BATCH = 25;
+
+/* A very large file is said before it is hashed (Mike, 2026-10-03: the browser
+   warns, it never downgrades; as is is never chosen for the visitor). The scan
+   streams every file BEFORE any position opens, so what is at stake is the
+   visitor's wait, not a burned position: the drop box's hasher (hash-wasm)
+   ran at 325 MB/s in Chromium on a 2026 Mac, measured 2026-10-03. Past
+   LARGE_FILE_WARN_SECONDS of hashing for one file the visitor is told and
+   chooses; the command line tool streams the same file at disk speed. */
+const BROWSER_HASH_BYTES_PER_SECOND = 325_000_000;
+const LARGE_FILE_WARN_SECONDS = 10;
+function slowestFile(files: readonly File[]): { file: File; gb: string; seconds: number } | null {
+  let largest: File | null = null;
+  for (const f of files) if (largest === null || f.size > largest.size) largest = f;
+  if (largest === null) return null;
+  const seconds = largest.size / BROWSER_HASH_BYTES_PER_SECOND;
+  if (seconds <= LARGE_FILE_WARN_SECONDS) return null;
+  const gb = largest.size / 1e9;
+  return { file: largest, gb: gb >= 10 ? gb.toFixed(0) : gb.toFixed(1), seconds: Math.max(15, Math.ceil(seconds / 5) * 5) };
+}
 /**
  * Digests per lookup request.
  *
@@ -319,7 +338,7 @@ export function clearCameraCache(id: BitGraphCameraProps["id"]) {
 /**
  * A row a found drop can BitGraph again: on record, and with the file's digest
  * in hand. A dropped proof.json has nothing to make. Since tree/1 a file over
- * the in-browser cap has an again too: it is a leaf as is in the new tree, at
+ * kept as is has an again too: it is a leaf as is in the new tree, at
  * a new position, where it used to be recorded by digest and answered with
  * the same proof.
  */
@@ -457,6 +476,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // dragging is the only way a folder arrives. Closes again when the next
   // drop starts, so every results page begins the same way.
   const [boxOpen, setBoxOpen] = useState(false);
+  /* A drop with a file that will take a while to hash, held until the visitor says so. */
+  const [largeDrop, setLargeDrop] = useState<{ files: File[]; name: string; gb: string; seconds: number } | null>(null);
+  const largeOkRef = useRef(new WeakSet<File>());
   const [proveAnimCount, setProveAnimCount] = useState(0);
   const proveAnimRef = useRef(0);
   /**
@@ -1280,6 +1302,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     if (rest.length === 0) { setStep("drop"); setBoxOpen(true); return; }
     files = rest;
 
+    /* The browser warns, it does not downgrade: a file that will take long to
+       hash is named, with the wait, before anything is read, and the drop
+       goes on only when the visitor says so. Nothing is chosen for them. */
+    const slow = slowestFile(files);
+    if (slow !== null && !largeOkRef.current.has(slow.file)) {
+      setLargeDrop({ files, name: slow.file.name, gb: slow.gb, seconds: slow.seconds });
+      setStep("drop");
+      setBoxOpen(true);
+      return;
+    }
+
     /* export/1: a tree/1 BitGraph's one JSON file, dropped alone or with the
        files it covers. It is checked here, from the drop alone, and the files
        it covers come OUT of the drop before anything can offer to make them:
@@ -1423,7 +1456,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         try {
           // By default the file becomes a tree of one (tree/1): a position is
           // allocated for it, its committed bytes are built and hashed in
-          // memory (or, over the in-browser cap, the file is a leaf as is),
+          // memory (or, when the user kept it as is, the file is a leaf as is),
           // and the root document over its one leaf consumes that position.
           // The proof page then shows the visitor's own file, which rebuilds
           // its leaf (see the tree card there).
@@ -1726,10 +1759,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   }
   /* ── Making: tree/1, whatever the count (2026-10-03) ──
      One file is a tree of one and a drop is a tree of N: one position, one
-     commit, every file a leaf. A file too large to build in memory is a leaf
-     AS IS in the same tree (its own digest twice, never read again, no floor
-     of its own) where it used to leave the BitGraph for an ordinary
-     recording. The proof comes back with the tree beside it (the root
+     commit, every file a leaf, whatever its size (the scan streams every
+     file before any position opens). A file the user keeps AS IS is a leaf
+     with its own digest twice: recorded after the floor block, the bytes
+     themselves not dated. The proof comes back with the tree beside it (the root
      document, every leaf, each file's evidence), which is everything its
      export is made of; nothing is indexed by a member's digest. */
   const treeInputFor = (t: FileItem) => treeInputOf({ file: t.file, digestB64: t.digestB64, placement: t.scan?.placement ?? null, state: t.scan?.state ?? null });
@@ -1816,9 +1849,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // over rows instead put a duplicate straddling a cut into two sets (the
     // set/1 days), so the second spent a position no row ever showed. A tree
     // is ONE BitGraph: one position, one commit, every file ceilinged by it
-    // and every file but those kept as is floored by it (files over the
-    // in-browser cap are leaves as is: they existed by the commit, and
-    // nothing bounds them from below). A drop that fits one budget is one
+    // and every file's committed bytes floored by it (a file the user keeps
+    // as is has the record floor only: recorded after the block, its bytes
+    // themselves not dated). A drop that fits one budget is one
     // tree; a drop too big for a browser tab becomes consecutive trees, each
     // its own position (planTrees says where it cuts).
     const firstOf = new Map<string, FileItem>();
@@ -3046,6 +3079,30 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
             {!showingResults && title && <h1 className="bg-page-title bitgraph-tagline">{title}</h1>}
             {!showingResults && above}
             <div className="bitgraph-camera">
+              {largeDrop && (
+                <div role="status" style={{ padding: "12px 16px 14px", fontSize: 14, lineHeight: 1.55, borderBottom: "1px solid var(--line-2)" }}>
+                  <p style={{ margin: 0 }}>
+                    This file is {largeDrop.gb} GB. Fusing may take about {largeDrop.seconds} seconds. Continue, or use the command line tool.
+                  </p>
+                  <div style={{ display: "flex", gap: 20, marginTop: 8, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="bg-action-link is-make"
+                      onClick={() => {
+                        const d = largeDrop;
+                        setLargeDrop(null);
+                        for (const f of d.files) largeOkRef.current.add(f);
+                        void handleFiles(d.files);
+                      }}
+                    >
+                      <span>Continue</span>
+                      <span className="arrow" aria-hidden>&rarr;</span>
+                    </button>
+                    <a className="bg-action-link" href="/docs/sdk"><span>Use the command line tool</span></a>
+                    <button type="button" className="bg-action-link" onClick={() => setLargeDrop(null)}><span>Not now</span></button>
+                  </div>
+                </div>
+              )}
               <FileDrop
                 multiple
                 onFile={(f) => { dropNameRef.current = null; void handleFiles([f]); }}

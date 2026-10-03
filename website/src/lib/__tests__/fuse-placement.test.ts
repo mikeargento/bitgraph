@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { placementFor, fusedNames, toleratesTrailer, MAX_FUSE_BYTES } from "../fuse-placement.ts";
+import { placementFor, fusedNames, toleratesTrailer } from "../fuse-placement.ts";
 
 const bytes = (...b: number[]) => new Uint8Array([...b, ...new Array(24).fill(0)]);
 
@@ -32,5 +32,4 @@ test("names keep the extension for trailer placements and use .tar for container
   assert.deepEqual(fusedNames("contract.pdf", "container/1"), { fusedName: "contract.fused.tar", frameName: "contract.pdf.bitgraph-fuse.json" });
   assert.deepEqual(fusedNames("README", "container/1"), { fusedName: "README.fused.tar", frameName: "README.bitgraph-fuse.json" });
   assert.deepEqual(fusedNames(".env", "container/1"), { fusedName: ".env.fused.tar", frameName: ".env.bitgraph-fuse.json" });
-  assert.ok(MAX_FUSE_BYTES > 100 * 1024 * 1024);
 });

@@ -10,7 +10,7 @@
  * single file is a tree of one). Each file is read once, on this machine,
  * for its digest and a hasher state; its committed bytes are never written
  * and never held, their digest finished from that state once the slot and
- * its floor exist; a file over 256 MiB goes in as is; and the tree's root
+ * its floor exist; with as_is every file goes in as is; and the tree's root
  * document is committed under the same slot. Only digests, that document,
  * slot records and each file's sealed recovery entry (SPEC section 13: only a
  * holder of that file can open it) leave the machine. File contents are never
@@ -25,11 +25,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { FuseError, MAX_FUSE_BYTES, type FuseTreeProgress } from "@mikeargento/bitgraph";
+import { FuseError, type FuseTreeProgress } from "@mikeargento/bitgraph";
 import {
   ApiError, batchCheck, configFromEnv, getProofDetail, search,
   fromUrlSafeB64, looksLikeDigest, mapConcurrent, sha256FileB64, toUrlSafeB64,
-  expandPaths, type ScannedFile,
+  expandPaths, scanFile, type ScannedFile,
   type CarrierWindowView,
   classifyPath, fuseTreePipeline,
   type CarrierRow, type FuseTreeFn, type FuseFileFn, type FuseSetFn, type TreeSummary,
@@ -171,7 +171,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
     },
     {
       instructions:
-        "BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: one Merkle tree under one position (tree/1), every file one leaf, a single file a tree of one; a file over 256 MiB is recorded as is. " +
+        "BitGraph gives a file's bytes a causal position in a public sequence bracketed by Ethereum anchors. bitgraph_record makes ONE BitGraph of everything in a call, files and folders alike: one Merkle tree under one position (tree/1), every file one leaf, a single file a tree of one; with as_is=true the files are recorded as they are. " +
         "Files are read on this machine and never uploaded or modified; the committed bytes are virtual and never written. bitgraph_record writes the BitGraph's export (bitgraph-export/1) beside what was recorded: keep it, because a file proves it is in the BitGraph with its export, the proof alone commits only the tree's root. Recordings are permanent: only make BitGraphs of files the user asked for, and never generate content just to record it. bitgraph_check and bitgraph_get_proof are read-only. " +
         "A BitGraphed file (one that carries its own proof, bitgraph-carrier/1) is recognized by its structure: bitgraph_check judges it offline from the proof inside and states the window, and bitgraph_record never re-mints it, because the envelope is not the recorded thing, the bytes inside are. " +
         "To do work INSIDE a BitGraph, call bitgraph_open BEFORE starting: it returns a position and its commitment; put the commitment string into the task, seal the task with bitgraph_commit within 120 seconds, then record the outputs with bitgraph_record. The task then could not have existed before the position's floor block, and the outputs sit after it.",
@@ -184,7 +184,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
       title: "Make a BitGraph",
       description:
         "Make a BitGraph of files or folders. Everything in one call becomes ONE BitGraph on bitgraph.ing: one Merkle tree under one position (tree/1), every file one leaf; a single file is a tree of one. " +
-        "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused position and its floor block are allocated before any new file exists; every file's committed bytes (the original plus a registered placement carrying the position commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; a file over 256 MiB goes in as is (its own digest is its leaf: it existed by the commit, and nothing bounds it from below); and the tree's 84-byte root document is committed under the same position. " +
+        "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused position and its floor block are allocated before any new file exists; every file's committed bytes (the original plus a registered placement carrying the position commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; with as_is=true every file goes in as is (its own digest is its leaf: recorded after the floor block, the bytes themselves not dated), the user's choice and never a size's; and the tree's 84-byte root document is committed under the same position. " +
         "Files are never modified and never uploaded: only digests, the root document, position records and each file's sealed recovery entry (which only a holder of that file can open) leave the machine. " +
         "Give file paths, directory paths, or both (absolute paths preferred): a directory is every regular file under it, recursively, with hidden entries and symbolic links left out. " +
         "Files already on record are NOT made again by default; they come back as 'on record' with their earliest position, including a file in an earlier tree, found through its sealed recovery entry and verified from its own bytes. A file can also hold a BitGraph its holder keeps, which no lookup sees. Pass again=true to make a new BitGraph regardless. " +
@@ -214,6 +214,10 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           .enum(["owner", "members", "both", "none"])
           .default("owner")
           .describe("owner (default): one export listing every file's leaf and name. members: one export per file, each proving that file alone. both. none: write nothing (the json result still carries the leaves)."),
+        as_is: z
+          .boolean()
+          .default(false)
+          .describe("false (default): every file is placed, its committed bytes carrying the position commitment (the content floor). true: every file goes in as it is, its own digest its leaf: recorded after the floor block, but the bytes themselves are not dated. For files that must stay byte-identical or that the user does not own; never chosen for the user."),
         recovery: z
           .boolean()
           .default(true)
@@ -227,7 +231,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ paths, again, export_dir, exports, recovery, response_format }, extra) => {
+    async ({ paths, again, export_dir, exports, as_is, recovery, response_format }, extra) => {
       const config = configFromEnv();
       const report = progressReporter(extra);
       try {
@@ -292,10 +296,16 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const excluded = new Map<string, string>();
         const toMint: ScannedFile[] = [];
         for (const d of again ? unique : unique.filter((x) => !existing.has(x))) {
-          const f = (byDigest.get(d) as { file: ScannedFile }).file;
-          if (f.state === null && f.size > MAX_FUSE_BYTES) {
-            excluded.set(d, `the file changed while it was read and is over ${MAX_FUSE_BYTES / (1024 * 1024)} MiB, so its digest is not the file's; run bitgraph_record again for it when it is still`);
-            continue;
+          let f = (byDigest.get(d) as { file: ScannedFile }).file;
+          if (f.state === null && !as_is) {
+            // Its length changed while it was read: scanned again before any
+            // position is opened; still changing, it is refused, whatever its size.
+            const rescan = await scanFile(f.path).catch(() => null);
+            if (rescan === null || rescan.state === null || rescan.digestB64 !== f.digestB64) {
+              excluded.set(d, "the file changed while it was read, twice, so its digest is not the file's; run bitgraph_record again for it when it is still");
+              continue;
+            }
+            f = rescan;
           }
           toMint.push(f);
         }
@@ -306,6 +316,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           try {
             made = await runFuseTree(toMint, config, {
               onProgress: (p) => report(p.done, p.total, `${PHASES[p.phase]} ${p.done} of ${p.total}`),
+              ...(as_is ? { asIs: true } : {}),
             });
           } catch (err) {
             failure = makeFailureText(err);

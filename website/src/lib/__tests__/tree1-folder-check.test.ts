@@ -22,10 +22,10 @@ const asFile = (name: string, bytes: Uint8Array, type = "") => new File([bytes.s
 const withDigests = (files: File[], bytes: Uint8Array[]) => files.map((file, i) => ({ file, digestB64: digestB64(bytes[i]!) }));
 const offline = (claims: ExportClaim[]) => claims.filter((c) => c.level === "offline").map((c) => `${c.id}=${c.result}`);
 
-async function madeTree(files: Array<{ name: string; bytes: Uint8Array }>, maxFuseBytes?: number) {
+async function madeTree(files: Array<{ name: string; bytes: Uint8Array }>, asIs: readonly string[] = []) {
   const stub = await makeStub();
-  const inputs: TreeInput[] = files.map((f) => ({ file: new Blob([f.bytes.slice()]), name: f.name, digestB64: digestB64(f.bytes), placement: null, state: null }));
-  const made = await makeTree(inputs, { transport: { fetch: stub.fetch }, ...(maxFuseBytes !== undefined ? { maxFuseBytes } : {}) });
+  const inputs: TreeInput[] = files.map((f) => ({ file: new Blob([f.bytes.slice()]), name: f.name, digestB64: digestB64(f.bytes), placement: null, state: null, ...(asIs.includes(f.name) ? { asIs: true } : {}) }));
+  const made = await makeTree(inputs, { transport: { fetch: stub.fetch } });
   const evidence = await fetchTreeEvidence(made.proof, { fetch: stub.fetch });
   return { stub, made, evidence };
 }
@@ -87,7 +87,7 @@ test("the owner's export with its files: each file placed by the list, the claim
     { name: "empty.bin", bytes: new Uint8Array(0) },
     { name: "kept.bin", bytes: utf8("kept exactly as it is: over the test cap\n") },
   ];
-  const { made, evidence } = await madeTree(files, 32);
+  const { made, evidence } = await madeTree(files, ["kept.bin"]);
   assert.deepEqual(made.members.map((m) => m.placement), ["trailer/1", "container/2", "container/2", "as-is"]);
   const built = await buildTreeExport(made.proof, ownerTree(made.rootDocument, made.leavesBytes, made.names), evidence);
   const owner: DroppedExport = { file: asFile(ownerExportName(made.proof), utf8(exportJson(built.exp))), exp: built.exp };

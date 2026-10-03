@@ -27,7 +27,7 @@ import {
   canonicalize, canonicalSlotBody, evmBytesToHex, keccak256, rlpEncode, verifyExport, parseExport,
   type ExportVerifyResult, type SlotAllocation,
 } from "@mikeargento/bitgraph-verify";
-import { MAX_FUSE_BYTES, writeRecoveryEntries } from "@mikeargento/bitgraph";
+import { writeRecoveryEntries } from "@mikeargento/bitgraph";
 import { BitGraph } from "../bitgraph.js";
 import { fuseTreePipeline } from "../pipelines.js";
 import { serve } from "../serve.js";
@@ -237,18 +237,26 @@ test("the class: a folder and a file become ONE tree on the real pipeline; each 
   }
 });
 
-test("the pipeline: a file over the cap goes in as is by its scan digest, never read again", async () => {
+test("the pipeline: as is is asked for, never decided by size; the file goes in by its scan digest and is never read again", async () => {
   const scanned = await scanFile(lone);
-  // The scan's own record of a file over 256 MiB, without the 256 MiB: the pipeline decides by size alone.
-  const huge: ScannedFile = { ...scanned, size: MAX_FUSE_BYTES + 1, path: join(root, "does-not-exist.bin") };
+  // The scan's own record of a file that no longer exists at its path: with asIs nothing is read again.
+  const gone: ScannedFile = { ...scanned, path: join(root, "does-not-exist.bin") };
   const other = await scanFile(join(folder, "alpha.txt"));
-  const t = await fuseTreePipeline([huge, other], { baseUrl }, {});
-  assert.deepEqual(t.members.map((m) => m.placement), ["as-is", "container/2"]);
+  const placed = await fuseTreePipeline([await scanFile(lone), other], { baseUrl }, {});
+  assert.deepEqual(placed.members.map((m) => m.placement), ["container/2", "container/2"], "no size makes a file as is");
+  const t = await fuseTreePipeline([gone, other], { baseUrl }, { asIs: true });
+  assert.deepEqual(t.members.map((m) => m.placement), ["as-is", "as-is"]);
   assert.equal(t.members[0]!.artifactDigestB64, scanned.digestB64, "as is: the leaf is the file's own digest");
   const bg = new BitGraph({ baseUrl });
   const v = await bg.verify(lone, bg.memberExport({ ...t, proof: t.proof, rootDocument: t.rootDocumentHex, leaves: t.leavesB64, names: ["", ""], counter: null, epoch: null, artifactDigest: "", floor: { ...t.floor, header: null } }, t.members[0]!.leafIndex));
   assert.equal(claim(v, "bytes.member")?.result, "TRUE");
   assert.match(claim(v, "floor.content")!.detail, /recorded as is: the bytes carry no commitment/);
+  // The CLI's --as-is says what it did.
+  const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-as-is-"));
+  const cli = await run([cliPath, "record", lone, "--out", out, "--again", "--as-is", "--json"]);
+  assert.equal(cli.code, 0, cli.stderr);
+  const rec = JSON.parse(cli.stdout) as { files: Array<{ placement: string | null; outcome: string }> };
+  assert.deepEqual(rec.files.map((f) => [f.outcome, f.placement]), [["recorded", "as-is"]]);
 });
 
 test("a boundary that returns no floor makes nothing: the tree needs fuse/2", async () => {

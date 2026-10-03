@@ -15,7 +15,7 @@
  * the placement's own suffix equals the hash of the placement's own build.
  */
 import { createSHA256, type IHasher } from "hash-wasm";
-import { placementForBytes } from "@mikeargento/bitgraph";
+import { placementForBytes, treePlacementFor } from "@mikeargento/bitgraph";
 import { getPlacement } from "@mikeargento/bitgraph-verify";
 import type { SitePlacement } from "./fuse-placement";
 
@@ -80,7 +80,7 @@ export async function hashChunks(chunks: AsyncIterable<Uint8Array>, size?: numbe
     if (run.placement === null) {
       head = head === null ? chunk : concat(head, chunk);
       if (head.length >= SNIFF) {
-        await start(placementForBytes(head.subarray(0, SNIFF)));
+        await start(size === undefined ? placementForBytes(head.subarray(0, SNIFF)) : treePlacementFor(size, head.subarray(0, SNIFF)));
         feed(head);
         head = null;
       }
@@ -91,7 +91,7 @@ export async function hashChunks(chunks: AsyncIterable<Uint8Array>, size?: numbe
   }
   if (run.placement === null) {
     // A short file: decide from what there is, then hash it.
-    await start(placementForBytes(head ?? new Uint8Array(0)));
+    await start(size === undefined ? placementForBytes(head ?? new Uint8Array(0)) : treePlacementFor(size, head ?? new Uint8Array(0)));
     if (head !== null) feed(head);
   }
   if (size !== undefined && bytes !== size) run.stateless = true;

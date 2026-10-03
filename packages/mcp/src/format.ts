@@ -251,7 +251,7 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], tree: T
   if (tree !== null && made.length > 0) {
     lines.push(
       "\nOne BitGraph holds every file made here: one position, one Merkle tree, each file a leaf naming the digest of its committed bytes and its own. The committed bytes were hashed on this machine and never written or uploaded; the files are unchanged, and each original plus the proof rebuilds them." +
-        (asIs.length > 0 ? " A file over 256 MiB is recorded as is: it existed by the commit, and nothing bounds it from below." : "") +
+        (asIs.length > 0 ? " A file recorded as is was recorded after the floor block; the bytes themselves are not dated." : "") +
         " The proof commits only the tree's root: keep the export with the files, because with a file it shows that file is in this BitGraph, with nothing of BitGraph's required."
     );
   } else if (fused.length > 0) {

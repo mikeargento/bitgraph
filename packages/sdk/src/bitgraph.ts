@@ -10,7 +10,8 @@
  *
  * Six verbs. record makes ONE BitGraph of everything in a call: since
  * 2026-10-03 a tree/1, every file one leaf of one Merkle tree under one
- * position (one file is a tree of one; a file over 256 MiB goes in as is),
+ * position (one file is a tree of one; with `asIs` the files go in as they
+ * are, the user's choice, never a size's),
  * with the export/1 files that let each file prove it is in it. check and
  * proof are read-only. open holds a position BEFORE any work exists, and its
  * seal commits the task that carries the commitment. verify judges proofs,
@@ -35,12 +36,12 @@ import { verify, verifyCarrier, verifyExport as verifyExportDocument, parseExpor
 import { ApiError, batchCheck, configFromEnv, getProofDetail, search, type ApiConfig } from "./api.js";
 import { fromUrlSafeB64, looksLikeDigest, mapConcurrent, toUrlSafeB64 } from "./encoding.js";
 import { classifyPath, fuseTreePipeline, type CarrierRow, type ClassifiedPath, type FuseFileFn, type FuseSetFn, type FuseTreeFn, type TreeSummary } from "./pipelines.js";
-import { expandPaths, fileSource, sniffC2paBytes, type ScannedFile } from "./scan.js";
+import { expandPaths, fileSource, scanFile, sniffC2paBytes, type ScannedFile } from "./scan.js";
 import { carrierWindowView, type CarrierWindowView } from "./carrier-io.js";
 import { beginTask, decodeTaskToken, sealTask, writeProofBeside, SLOT_TTL_SECONDS, type Begun, type SealedTask } from "./task.js";
 import { buildBitGraphedFile, completeBitGraphedFile, type BuiltCarrier, type CompletedCarrier } from "./carrier-build.js";
 import { completeExportFile, exportDataOf, fetchPinnedSpec, memberExportOf, ownerExportOf, writeTreeExports, type CompletedExportFile, type ExportKind, type TreeExportData, type WrittenExports } from "./exports.js";
-import { MAX_FUSE_BYTES, type FuseTreeProgress } from "@mikeargento/bitgraph";
+import type { FuseTreeProgress } from "@mikeargento/bitgraph";
 import { keepRecoveryEntries, lookupRecovered, type RecoveredRow, type RecoveryWriteResult } from "./recovery.js";
 import type { BitGraphProof, ProofDetailResponse, SetMemberView } from "./types.js";
 
@@ -166,8 +167,9 @@ export class BitGraph {
 
   /**
    * Make ONE BitGraph of the given files and folders: a tree/1, every fresh
-   * file one leaf under one position (a single file is a tree of one; a file
-   * over 256 MiB goes in as is). Files already on record come back as "on
+   * file one leaf under one position (a single file is a tree of one; with
+   * `asIs` every file goes in as it is: recorded after the floor block, the
+   * bytes themselves not dated). Files already on record come back as "on
    * record" untouched (pass `again: true` to make a new BitGraph
    * regardless), and a BitGraphed file is judged from the proof it carries
    * and never minted. With `exportDir`, the export/1 files are written there
@@ -179,7 +181,7 @@ export class BitGraph {
    */
   async record(
     paths: string | readonly string[],
-    opts: { again?: boolean; onProgress?: (p: FuseTreeProgress) => void; exportDir?: string; exports?: ExportKind; recovery?: boolean } = {}
+    opts: { again?: boolean; asIs?: boolean; onProgress?: (p: FuseTreeProgress) => void; exportDir?: string; exports?: ExportKind; recovery?: boolean } = {}
   ): Promise<RecordResult> {
     const list = typeof paths === "string" ? [paths] : [...paths];
     const { files } = await expandPaths(list, MAX_FILES);
@@ -211,16 +213,24 @@ export class BitGraph {
     const knownRows = (d: string): Array<{ proof: BitGraphProof; member?: SetMemberView } | RecoveredRow> => (rowsFor(d).length > 0 ? rowsFor(d) : recovered?.found.get(d) ?? []);
 
     const fresh = (opts.again ? unique : unique.filter((d) => knownRows(d).length === 0)).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
-    // A file over the cap goes in as is by the digest its scan took; when its
-    // length changed while it was read, that digest is not the file's.
-    const unstable = new Set(fresh.filter((f) => f.state === null && f.size > MAX_FUSE_BYTES).map((f) => f.digestB64));
-    const toMint = fresh.filter((f) => !unstable.has(f.digestB64));
+    // A file whose length changed while it was read left no hasher state and
+    // a digest that is not its own. It is scanned again now, before any
+    // position is opened; one that is still changing is refused, whatever
+    // its size. Nothing is ever read inside the position's window.
+    const unstable = new Set<string>();
+    const toMint: ScannedFile[] = [];
+    for (const f of fresh) {
+      if (f.state !== null || opts.asIs === true) { toMint.push(f); continue; }
+      const again = await scanFile(f.path).catch(() => null);
+      if (again === null || again.state === null || again.digestB64 !== f.digestB64) unstable.add(f.digestB64);
+      else toMint.push(again);
+    }
 
     let made: TreeMade | null = null;
     const memberOf = new Map<string, TreeSummary["members"][number]>();
     const exportOf = new Map<number, string>();
     if (toMint.length > 0) {
-      const tree = await this.fuseTree(toMint, this.config, opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {});
+      const tree = await this.fuseTree(toMint, this.config, { ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}), ...(opts.asIs === true ? { asIs: true } : {}) });
       made = await this.madeFrom(tree, toMint);
       // The tree's recovery entries, written after the proof is in hand and never in its way.
       if (opts.recovery !== false) made.recovery = await keepRecoveryEntries({ proof: made.proof, rootDocumentHex: made.rootDocument, leavesB64: made.leaves, names: made.names }, this.config);
@@ -252,7 +262,7 @@ export class BitGraph {
             ...c2pa,
           });
         } else if (unstable.has(digest)) {
-          out.push({ path, digest: toUrlSafeB64(digest), outcome: "refused", counter: null, epoch: null, proofUrl: null, placement: null, member: null, memberCount: null, error: `the file changed while it was read and is over ${MAX_FUSE_BYTES / (1024 * 1024)} MiB, so its digest is not the file's; record it again when it is still`, ...c2pa });
+          out.push({ path, digest: toUrlSafeB64(digest), outcome: "refused", counter: null, epoch: null, proofUrl: null, placement: null, member: null, memberCount: null, error: "the file changed while it was read, twice, so its digest is not the file's; record it again when it is still", ...c2pa });
         } else if (prior.length > 0) {
           const first = prior[0] as { proof: BitGraphProof; member?: SetMemberView; tree?: true };
           out.push({

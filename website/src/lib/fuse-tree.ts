@@ -63,7 +63,6 @@ import {
 import { placementForBytes } from "@mikeargento/bitgraph";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
 import { FUSE2_ATTRIBUTION_NAME, TREE_TITLE as CORE_TREE_TITLE } from "./fuse-core.ts";
-import { MAX_FUSE_BYTES } from "./fuse-placement.ts";
 
 /** The signed title of a tree/1 proof (attribution.title). Pinned; the suite checks it equals TREE_PLACEMENT_ID. */
 export const TREE_TITLE: typeof TREE_PLACEMENT_ID = CORE_TREE_TITLE as typeof TREE_PLACEMENT_ID;
@@ -311,12 +310,9 @@ export async function treeOfOneEvidence(bound: BoundTree, bytes: Uint8Array): Pr
     // The file's own hash is both a candidate origin and, when the file is
     // the committed bytes, the artifact: taken once, whatever is tried.
     const self = await digestAsync(bytes);
-    // A file over the in-browser cap is always made as is, so that is tried
-    // first for one; anything else under the placement its bytes pick.
+    // The placement its bytes pick first, then as is (the user's choice), then the rest.
     const preferred = leafCodeOf(placementForBytes(bytes)) ?? 0x03;
-    const order = (bytes.length > MAX_FUSE_BYTES ? [LEAF_AS_IS, preferred] : [preferred, LEAF_AS_IS])
-      .concat([0x01, 0x02, 0x03])
-      .filter((c, i, all) => all.indexOf(c) === i);
+    const order = [preferred, LEAF_AS_IS, 0x01, 0x02, 0x03].filter((c, i, all) => all.indexOf(c) === i);
     for (const code of order) {
       const leaf: TreeLeaf = code === LEAF_AS_IS
         ? { placement: LEAF_AS_IS, artifact: self, origin: self }

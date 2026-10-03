@@ -20,7 +20,7 @@ console.log(r.files[0].proofUrl);     // the record's public receipt
 console.log(r.made?.exports?.owner);  // ./bitgraph-<n>.bitgraph.json: keep it with the file
 ```
 
-Every call makes **one BitGraph**: one Merkle tree under one position (tree/1), every file one leaf. A single file is a tree of one; a folder, or many paths, is one tree; a file over 256 MiB goes in as is, its own digest its leaf:
+Every call makes **one BitGraph**: one Merkle tree under one position (tree/1), every file one leaf. A single file is a tree of one; a folder, or many paths, is one tree; with `asIs` (or `--as-is`) the files go in as they are, each its own digest, recorded after the floor block and not dated themselves; a file of any size streams:
 
 ```ts
 await bg.record(["logs/step-001.json", "logs/step-002.json", "logs/step-003.json"], { exportDir: "proofs", exports: "both" });

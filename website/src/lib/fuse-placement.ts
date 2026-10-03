@@ -36,5 +36,3 @@ export function fusedNames(originalName: string, placement: SitePlacement): { fu
   return fusedNamesFor(originalName, placement);
 }
 
-/** Files above this are recorded rather than fused: the fused bytes are built in memory in the browser. */
-export const MAX_FUSE_BYTES = 256 * 1024 * 1024;

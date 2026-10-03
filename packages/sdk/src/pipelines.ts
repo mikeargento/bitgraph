@@ -17,7 +17,7 @@
 
 import { readFile } from "node:fs/promises";
 import { stat } from "node:fs/promises";
-import { fuse, fuseSet, fuseTree, builderFor, fusedNamesFor, MAX_FUSE_BYTES, type FuseSetMember, type FuseSetProgress, type FuseTreeMember, type FuseTreeProgress } from "@mikeargento/bitgraph";
+import { fuse, fuseSet, fuseTree, builderFor, fusedNamesFor, type FuseSetMember, type FuseSetProgress, type FuseTreeMember, type FuseTreeProgress } from "@mikeargento/bitgraph";
 import { bytesToBase64, bytesToHex, encodeTreeLeaves } from "@mikeargento/bitgraph-verify";
 import type { ApiConfig } from "./api.js";
 import { scanFile, fusedDigestFor, sniffC2paBytes, type ScannedFile } from "./scan.js";
@@ -81,22 +81,22 @@ export interface TreeSummary {
 export type FuseTreeFn = (
   files: readonly ScannedFile[],
   config: ApiConfig,
-  opts: { onProgress?: (p: FuseTreeProgress) => void }
+  opts: { onProgress?: (p: FuseTreeProgress) => void; asIs?: boolean }
 ) => Promise<TreeSummary>;
 
 /**
  * The tree pipeline (tree/1): ONE BitGraph of every file given, under one
- * position. A file over MAX_FUSE_BYTES goes in as is, by the digest its scan
- * took, and is never read again. Any other file is placed: its committed
- * digest is finished from the scan's open hasher for the slot's commitment,
- * or, when its length changed while it was read, it is read again after the
- * slot is held and checked against the scan's digest. The returned proof is
- * verified, with every member's leaf bound to its root, before it is
+ * position. With `asIs` every file goes in as is, by the digest its scan
+ * took (the user's choice, never a size's). Otherwise each file is placed:
+ * its committed digest is finished from the scan's open hasher for the
+ * slot's commitment, or, when the scan left no state, it is read again after
+ * the slot is held and checked against the scan's digest. The returned proof
+ * is verified, with every member's leaf bound to its root, before it is
  * returned.
  */
 export const fuseTreePipeline: FuseTreeFn = async (files, config, opts) => {
   const members: FuseTreeMember[] = files.map((f): FuseTreeMember =>
-    f.size > MAX_FUSE_BYTES
+    opts.asIs === true
       ? { originDigest: f.originDigest, placement: "as-is", name: f.name }
       : f.state !== null
         ? { originDigest: f.originDigest, placement: f.placement, name: f.name, fusedDigest: ({ commitment }) => fusedDigestFor(f, commitment) }

@@ -85,6 +85,7 @@ import {
   treeAttribution,
   treeRootFromMember,
   verifyTreeMember,
+  MAX_CONTAINER_ENTRY_BYTES,
 } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, Located, MerkleTree, Placement, PlacementId, SetManifest, SetMember, SetMemberProof, SetRoot, SlotAllocation, TreeLeaf, TreeMemberEvidence, TreeVerifyResult } from "@mikeargento/bitgraph-verify";
 
@@ -993,31 +994,26 @@ export async function fuseSet(members: readonly FuseSetMember[], options: FuseSe
 // tree/1: every BitGraph is a Merkle tree under one position (2026-10-03)
 // ---------------------------------------------------------------------------
 
-/**
- * Files above this many bytes go into a tree as is (leaf code 0x00): the
- * file's own digest is its leaf, nothing is placed in it, and nothing bounds
- * it from below. At or below it, any verifier can rebuild a placed member's
- * committed bytes in memory from the original. The same 256 MiB at which the
- * site's drop box records rather than fuses (website/src/lib/fuse-placement.ts).
- */
-export const MAX_FUSE_BYTES = 256 * 1024 * 1024;
-
 /** How a file goes into a tree: as is (0x00), or placed into committed bytes that carry the commitment. */
 export type TreeMemberPlacement = "as-is" | SetMemberPlacement;
 
 /**
  * The placement a file takes in a tree, from its size and its first bytes
- * (every magic number placementForBytes reads sits in the first 16): as is
- * above maxFuseBytes, otherwise placementForBytes.
+ * (every magic number placementForBytes reads sits in the first 16): trailer/1
+ * for the formats that ignore trailing bytes, container/2 for everything else,
+ * except that a file too large for a ustar entry (MAX_CONTAINER_ENTRY_BYTES,
+ * 8 GiB - 1, SPEC 7.3) takes trailer/1 whatever its bytes: the committed
+ * bytes are virtual, so a trailer costs the file nothing. Never as is: that
+ * is the user's choice, and no producer decides it by size (SPEC 7.5, 8.1).
  */
-export function treePlacementFor(size: number, head: Uint8Array, maxFuseBytes: number = MAX_FUSE_BYTES): TreeMemberPlacement {
-  return size > maxFuseBytes ? "as-is" : placementForBytes(head);
+export function treePlacementFor(size: number, head: Uint8Array): "trailer/1" | "container/2" {
+  return size > MAX_CONTAINER_ENTRY_BYTES ? "trailer/1" : placementForBytes(head);
 }
 
 /** A tree member given as bytes: hashed, placed (unless as is), checked and hashed again by the core. */
 export interface FuseTreeBytesMember {
   original: Uint8Array;
-  /** Default: treePlacementFor(original.length, original, options.maxFuseBytes). */
+  /** Default: treePlacementFor(original.length, original). As is is asked for by name, never by size. */
   placement?: TreeMemberPlacement;
   /** Unsigned and informational: the owner's export lists it beside the leaf. */
   name?: string;
@@ -1059,8 +1055,6 @@ export type FuseTreeMember = FuseTreeBytesMember | FuseTreeLoadedMember | FuseTr
 export type FuseTreeProgress = FuseSetProgress;
 
 export interface FuseTreeOptions {
-  /** Above this many bytes a bytes member that names no placement goes in as is. Default MAX_FUSE_BYTES. */
-  maxFuseBytes?: number;
   /** Return each member's committed bytes (for as is, the original itself) when they passed through the core. Default false: they are virtual, rebuilt from the original and the proof. */
   keepCommitted?: boolean;
   /**
@@ -1161,8 +1155,6 @@ export async function fuseTree(members: readonly FuseTreeMember[], options: Fuse
   // 0. validate, before any request. A refusal here burns nothing.
   if (!Array.isArray(members) || members.length === 0) throw new FuseError("bad-input", "a tree lists at least one member");
   if (members.length > MAX_TREE_LEAVES) throw new FuseError("bad-input", `a tree lists at most ${MAX_TREE_LEAVES} members (got ${members.length})`);
-  const maxFuseBytes = options.maxFuseBytes ?? MAX_FUSE_BYTES;
-  if (typeof maxFuseBytes !== "number" || !Number.isFinite(maxFuseBytes) || maxFuseBytes < 0) throw new FuseError("bad-input", "maxFuseBytes must be a non-negative number");
   const keep = options.keepCommitted === true;
   const verifyMembers = options.verifyMembers === true;
   let specHash: Uint8Array;
@@ -1207,7 +1199,7 @@ export async function fuseTree(members: readonly FuseTreeMember[], options: Fuse
     if (kind !== "bytes" && m.placement === undefined) throw bad(i, `a ${kind} member names its placement`);
     if (m.placement !== undefined && typeof m.placement !== "string") throw bad(i, "placement must be a string");
     const original = kind === "bytes" ? (m.original as Uint8Array) : null;
-    const id = m.placement !== undefined ? (m.placement as string) : treePlacementFor(original!.length, original!, maxFuseBytes);
+    const id = m.placement !== undefined ? (m.placement as string) : treePlacementFor(original!.length, original!);
     const code = leafCodeOf(id);
     if (code === null) {
       if (getPlacement(id) === undefined) throw new FuseError("bad-placement", `member ${i}: placement "${id}" is not registered`, null, i);

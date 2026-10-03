@@ -12,9 +12,10 @@
  *   2. leaves    commitment/2 from that record and that block, then one
  *                65-byte leaf per distinct file: placement code, SHA-256 of
  *                the committed bytes, SHA-256 of the file as dropped.
- *                  - a file over MAX_FUSE_BYTES is a leaf AS IS (code 0x00):
- *                    its own digest twice, no bytes read, and no floor for it
- *                    (it existed by the commit; nothing bounds it from below)
+ *                  - a file the user keeps AS IS is a leaf (code 0x00) with its
+ *                    own digest twice, no bytes read: recorded after the floor
+ *                    block, the bytes themselves not dated. Never by size: the
+ *                    protocol has none (SPEC 7.5)
  *                  - a file the scan saved a hasher state for is finished with
  *                    its placement's suffix: no second read
  *                  - any other file is read now, checked against the scan's
@@ -63,10 +64,10 @@ import {
   type TreeLeaf,
   type TreeMemberEvidence,
 } from "@mikeargento/bitgraph-verify";
-import { finishState } from "./scan-hash.ts";
+import { finishState, hashBlob } from "./scan-hash.ts";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
 import { FUSE_CHAIN, isAnchorMark, isSlotRecord, type AnchorMark } from "./fuse-core.ts";
-import { MAX_FUSE_BYTES, type SitePlacement } from "./fuse-placement.ts";
+import type { SitePlacement } from "./fuse-placement.ts";
 import { TREE_KEY } from "./fuse-tree.ts";
 
 /**
@@ -97,6 +98,8 @@ export interface TreeInput {
   placement: SitePlacement | null;
   /** The scan's saved hasher state after the placement's prefix and the file's last byte, or null. */
   state: Uint8Array | null;
+  /** The user's choice to keep the file as it is (code 0x00): no bytes are read for it. Never set by size. */
+  asIs?: boolean;
 }
 
 export interface TreeTransport {
@@ -136,8 +139,6 @@ export interface MakeTreeOptions {
   paint?: () => Promise<void>;
   /** Milliseconds of work between paints. Default 250. */
   paintEveryMs?: number;
-  /** Files above this are leaves as is. Default MAX_FUSE_BYTES. */
-  maxFuseBytes?: number;
   /** Default SITE_MAX_TREE_LEAVES. */
   maxLeaves?: number;
   /** Actor-bound commits: an agency envelope passed through untouched. */
@@ -311,7 +312,6 @@ const codeFor = (p: SitePlacement): number => leafCodeOf(p) ?? 0x03;
  * failure is one file's). Never commits a partial tree.
  */
 export async function makeTree(inputs: readonly TreeInput[], opts: MakeTreeOptions = {}): Promise<MadeTree> {
-  const cap = opts.maxFuseBytes ?? MAX_FUSE_BYTES;
   const maxLeaves = opts.maxLeaves ?? SITE_MAX_TREE_LEAVES;
   const report = (phase: TreeProgress["phase"], done: number, total: number) => {
     if (opts.onProgress === undefined) return;
@@ -335,7 +335,7 @@ export async function makeTree(inputs: readonly TreeInput[], opts: MakeTreeOptio
     const f = inputs[i]!;
     const origin = base64ToBytes(f.digestB64);
     if (origin === null || origin.length !== 32) throw new FuseError("bad-input", `${f.name}: the scan left no 32-byte digest`, null, i);
-    const asIs = f.file.size > cap;
+    const asIs = f.asIs === true;
     // The same bytes under the same rule make the same leaf: one member.
     const key = `${asIs ? 0 : 1}:${f.digestB64}`;
     let d = keyOf.get(key);
@@ -348,6 +348,25 @@ export async function makeTree(inputs: readonly TreeInput[], opts: MakeTreeOptio
     report("hash", i + 1, inputs.length);
   }
   if (distinct.length > maxLeaves) throw new FuseError("bad-input", `a tree the site makes lists at most ${maxLeaves} files (got ${distinct.length})`);
+
+  // 0b. A file the scan left no state for (its length changed while it was
+  // read, or an old scan) is scanned again NOW, before any position is
+  // opened: streamed, never read whole, and never inside the position's
+  // window. Its digest must still be the one dropped.
+  for (const d of distinct) {
+    const f = d.input;
+    if (d.asIs || f.state !== null) continue;
+    let again: Awaited<ReturnType<typeof hashBlob>>;
+    try {
+      again = await hashBlob(f.file);
+    } catch (err) {
+      throw new FuseError("load-failed", `${f.name} could not be read (${err instanceof Error ? err.message : String(err)})`, null, d.first);
+    }
+    if (again.digestB64 !== f.digestB64) throw new FuseError("bad-input", `${f.name} changed after it was read; drop it again`, null, d.first);
+    if (again.state === null) throw new FuseError("bad-input", `${f.name} could not be streamed into a placement`, null, d.first);
+    d.input = { ...f, placement: again.placement, state: again.state };
+    await breathe();
+  }
   const t: Bound = { ...DEFAULTS, ...(opts.transport ?? {}) };
 
   // 1. position
@@ -376,38 +395,9 @@ export async function makeTree(inputs: readonly TreeInput[], opts: MakeTreeOptio
       leaves.push({ placement: codeFor(f.placement), artifact, origin: d.origin });
       placements.push(f.placement);
     } else {
-      let original: Uint8Array;
-      try {
-        original = new Uint8Array(await f.file.arrayBuffer());
-      } catch (err) {
-        throw new FuseError("load-failed", `${f.name} could not be read (${err instanceof Error ? err.message : String(err)}); ${EXPIRING}`, null, d.first);
-      }
-      // The scan's digest is the leaf's origin; it must still be these bytes'.
-      if (!bytesEqual(await sha256(original), d.origin)) {
-        throw new FuseError("bad-input", `${f.name} changed after it was read; ${EXPIRING}`, null, d.first);
-      }
-      // No scan placement: the same choice every producer makes, from the
-      // bytes. container/1 is read forever and made never again (SPEC.md
-      // 7.5), so an old scan's container/1 is decided again too.
-      const id: SitePlacement = f.placement !== null && f.placement !== "container/1" ? f.placement : placementForBytes(original);
-      const p = getPlacement(id);
-      if (p === undefined) throw new FuseError("bad-placement", `${f.name}: placement "${id}" is not registered`, null, d.first);
-      let committed: Uint8Array;
-      try {
-        committed = p.build({ original, originDigest: d.origin, commitment });
-      } catch (err) {
-        throw new FuseError("builder-failed", `${f.name}: the ${id} build failed (${err instanceof Error ? err.message : String(err)}); ${EXPIRING}`, null, d.first);
-      }
-      // Fail closed: never list bytes that do not carry this commitment and their own origin.
-      const located = p.locate(committed);
-      if (located === null || !bytesEqual(located.commitment, commitment)) {
-        throw new FuseError("commitment-missing", `${f.name}: the ${id} bytes do not carry the commitment; ${EXPIRING}`, null, d.first);
-      }
-      if ((located.originDigest !== undefined && !bytesEqual(located.originDigest, d.origin)) || (located.originalBytes !== undefined && !bytesEqual(located.originalBytes, original))) {
-        throw new FuseError("builder-failed", `${f.name}: the ${id} bytes embed an origin that is not this file; ${EXPIRING}`, null, d.first);
-      }
-      leaves.push({ placement: codeFor(id), artifact: await sha256(committed), origin: d.origin });
-      placements.push(id);
+      // Every placed file reaches here with a state (step 0b scanned the rest
+      // again before the position opened): a file is never read whole.
+      throw new FuseError("bad-input", `${f.name}: no saved hash state to finish; ${EXPIRING}`, null, d.first);
     }
     report("fuse", k + 1, distinct.length);
   }
@@ -520,23 +510,24 @@ export interface PlanFile {
   size: number;
   /** True when the scan saved a hasher state the placement can finish. */
   stateful: boolean;
+  /** True when the user keeps the file as it is: no bytes are read for it. */
+  asIs?: boolean;
 }
 
 /**
  * Partition a drop into trees, in drop order: a new tree whenever adding a
- * file would pass the site's leaf cap or the re-read budget. As-is files
- * (over MAX_FUSE_BYTES) and files with a saved state cost no read, so a drop
- * of photos is one tree up to the leaf cap whatever its size. Returns index
- * groups into `files`. Callers pass distinct files (the same bytes once).
+ * file would pass the site's leaf cap or the re-scan budget. Files kept as is
+ * and files with a saved state cost no read, so a drop of photos is one tree
+ * up to the leaf cap whatever its size. Returns index groups into `files`.
+ * Callers pass distinct files (the same bytes once).
  */
-export function planTrees(files: readonly PlanFile[], rereadBudget = DEFAULT_TREE_REREAD_BUDGET, opts: { maxLeaves?: number; maxFuseBytes?: number } = {}): number[][] {
+export function planTrees(files: readonly PlanFile[], rereadBudget = DEFAULT_TREE_REREAD_BUDGET, opts: { maxLeaves?: number } = {}): number[][] {
   const maxLeaves = opts.maxLeaves ?? SITE_MAX_TREE_LEAVES;
-  const cap = opts.maxFuseBytes ?? MAX_FUSE_BYTES;
   const out: number[][] = [];
   let current: number[] = [];
   let reread = 0;
   files.forEach((f, i) => {
-    const cost = f.size > cap || f.stateful ? 0 : f.size;
+    const cost = f.asIs === true || f.stateful ? 0 : f.size;
     if (current.length > 0 && (current.length >= maxLeaves || reread + cost > rereadBudget)) {
       out.push(current);
       current = [];

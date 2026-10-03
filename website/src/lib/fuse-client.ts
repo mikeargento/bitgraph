@@ -31,7 +31,7 @@ export type { FuseSetProgress } from "@mikeargento/bitgraph";
 import type { BitGraphProof, FuseFrame, FuseMemberResult, FuseVerifyResult, PlacementId, SetManifest, SetMemberProof, SetRoot } from "@mikeargento/bitgraph-verify";
 import { paintFrame, PAINT_EVERY_MS } from "./paint-frame";
 import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, getPlacement, isCarryEncoding, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
-import { MAX_FUSE_BYTES, fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
+import { fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
 import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
 import { makeTree, type MadeTree, type TreeInput, type TreeProgress } from "./fuse-tree-make";
 import { isTreeTitled } from "./fuse-tree";
@@ -84,16 +84,8 @@ export function isTeeRestarting(e: unknown): boolean {
   return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "tee-restarting";
 }
 
-export class FuseTooLargeError extends Error {
-  readonly code = "too-large";
-  constructor(name: string, size: number) {
-    super(`${name} is ${(size / (1024 * 1024)).toFixed(0)} MB; files over ${MAX_FUSE_BYTES / (1024 * 1024)} MB are recorded rather than fused in the browser`);
-  }
-}
-
 /** Fuse one dropped file through this site's own routes. */
 export async function fuseFile(file: File, opts: { agency?: unknown } = {}): Promise<FusedOutcome> {
-  if (file.size > MAX_FUSE_BYTES) throw new FuseTooLargeError(file.name, file.size);
   const original = new Uint8Array(await file.arrayBuffer());
   const placement = placementFor(original);
   const { fusedName, frameName } = fusedNames(file.name, placement);
@@ -153,8 +145,8 @@ export async function makeTreeHere(inputs: TreeInput[], opts: { onProgress?: (p:
 }
 
 /** A scanned file as the maker takes it: no placement or state means "decide from the bytes when they are read". */
-export function treeInputOf(f: { file: File; digestB64: string; placement?: SitePlacement | null; state?: Uint8Array | null }): TreeInput {
-  return { file: f.file, name: f.file.name, digestB64: f.digestB64, placement: f.placement ?? null, state: f.state ?? null };
+export function treeInputOf(f: { file: File; digestB64: string; placement?: SitePlacement | null; state?: Uint8Array | null; asIs?: boolean }): TreeInput {
+  return { file: f.file, name: f.file.name, digestB64: f.digestB64, placement: f.placement ?? null, state: f.state ?? null, ...(f.asIs === true ? { asIs: true } : {}) };
 }
 
 export interface Rebuilt {
@@ -337,11 +329,11 @@ export const DEFAULT_REREAD_BUDGET = 4 * 1024 * 1024 * 1024;
 export const SITE_MAX_SET2_MEMBERS = 100_000;
 
 /**
- * Partition a drop: files over MAX_FUSE_BYTES are recorded rather than fused
- * (drop order kept); the rest fill sets greedily in drop order, a new set
- * whenever adding a file would exceed MAX_SET_MEMBERS or the re-read budget.
- * A drop of photos scanned with their states is one set up to the member
- * cap, whatever its size.
+ * Partition a drop into sets (superseded by planTrees in fuse-tree-make.ts):
+ * files fill sets greedily in drop order, a new set whenever adding a file
+ * would exceed MAX_SET_MEMBERS or the re-read budget. A drop of photos
+ * scanned with their states is one set up to the member cap, whatever its
+ * size. No file is set aside by size: the protocol has none (SPEC 7.5).
  */
 export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUDGET): SetPlan {
   const sets: ScannedFile[][] = [];
@@ -351,13 +343,9 @@ export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUD
   // Up to MAX_SET_MEMBERS fusable files make a set/1, whose proof carries the
   // whole list; more make a set/2, one position for the whole drop up to the
   // site's own cap, each member carrying its path instead.
-  const fusable = files.filter((f) => f.file.size <= MAX_FUSE_BYTES).length;
+  const fusable = files.length;
   const cap = fusable > MAX_SET_MEMBERS ? SITE_MAX_SET2_MEMBERS : MAX_SET_MEMBERS;
   for (const f of files) {
-    if (f.file.size > MAX_FUSE_BYTES) {
-      tooLarge.push(f);
-      continue;
-    }
     const cost = f.state !== null ? 0 : f.file.size;
     if (current.length > 0 && (current.length >= cap || reread + cost > rereadBudget)) {
       sets.push(current);
@@ -378,8 +366,8 @@ export function planSets(files: ScannedFile[], rereadBudget = DEFAULT_REREAD_BUD
  * with its placement's suffix for the slot, so its bytes are never read
  * again. Any other file is a loaded member: read when it is that member's
  * turn, checked against the scan's digest, fused, hashed and released. Every
- * file must be under MAX_FUSE_BYTES and there must be 1 to MAX_SET_MEMBERS
- * of them (callers plan first). The same original under the same placement
+ * file of any size streams; there must be 1 to MAX_SET_MEMBERS of them
+ * (callers plan first). The same original under the same placement
  * is sent once, the first File carrying the member. A FuseError from the
  * pipeline passes through untouched. No fused bytes are kept.
  */
@@ -394,9 +382,6 @@ export async function fuseFiles(files: ScannedFile[], opts: { agency?: unknown; 
   const seen = new Set<string>();
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
-    if (f.file.size > MAX_FUSE_BYTES) {
-      throw new FuseError("bad-input", `${f.file.name} is ${(f.file.size / (1024 * 1024)).toFixed(0)} MB; files over ${MAX_FUSE_BYTES / (1024 * 1024)} MB are recorded rather than fused in the browser`, null, i);
-    }
     const key = `${f.placement}:${f.digestB64}`;
     if (seen.has(key)) continue;
     seen.add(key);

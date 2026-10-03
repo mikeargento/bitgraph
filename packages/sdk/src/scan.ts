@@ -19,7 +19,7 @@ import { createHash, type Hash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { placementForBytes } from "@mikeargento/bitgraph";
+import { treePlacementFor } from "@mikeargento/bitgraph";
 import { getPlacement, type ByteSource } from "@mikeargento/bitgraph-verify";
 
 /** A file on disk as a verifier source: its size now, its bytes streamed from a fresh read each time. */
@@ -128,7 +128,7 @@ export async function scanFile(path: string): Promise<ScannedFile> {
     if (run.placement === null) {
       head = head === null ? chunk : Buffer.concat([head, chunk]);
       if (head.length >= SNIFF) {
-        start(placementForBytes(new Uint8Array(head.subarray(0, SNIFF))));
+        start(treePlacementFor(size, new Uint8Array(head.subarray(0, SNIFF))));
         feed(head);
         head = null;
       }
@@ -139,7 +139,7 @@ export async function scanFile(path: string): Promise<ScannedFile> {
   }
   if (run.placement === null) {
     // A short file: decide from what there is, then hash it.
-    start(placementForBytes(new Uint8Array(head ?? Buffer.alloc(0))));
+    start(treePlacementFor(size, new Uint8Array(head ?? Buffer.alloc(0))));
     if (head !== null) feed(head);
   }
   const placement = run.placement as ScanPlacement;

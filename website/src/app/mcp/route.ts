@@ -188,6 +188,10 @@ const handler = createMcpHandler(
                   .max(Math.ceil(HEAD_MAX_BYTES / 3) * 4)
                   .optional()
                   .describe("The file's first 16 bytes (up to 64), base64; the whole file when it is shorter than 16 bytes. Omit to place any file in a container."),
+                as_is: z
+                  .boolean()
+                  .optional()
+                  .describe("true: record the file as it is, the user's choice (for a file that must stay byte-identical, or one they do not own): its own digest is its leaf, nothing is built, and the commit is that digest. Recorded after the floor block; the bytes themselves are not dated. Never choose this for the user."),
               })
             )
             .max(MAX_OPEN_FILES)
@@ -281,7 +285,7 @@ const handler = createMcpHandler(
             }
             seen.add(digest);
             outcomes[i] = { ...base, outcome: "not opened", error: "not opened" };
-            candidates.push({ i, input: { name: f.name, size: f.size, digestB64: digest, head } });
+            candidates.push({ i, input: { name: f.name, size: f.size, digestB64: digest, head, ...(f.as_is === true ? { asIs: true } : {}) } });
           }
           const openedOutcome = (i: number, o: Opened, set: boolean): OpenOutcome => ({
             ...(outcomes[i] as OpenOutcome),
@@ -289,7 +293,7 @@ const handler = createMcpHandler(
             error: null,
             ...(set ? { set: true } : {}),
             ...(o.state.anchor ? { tree: true } : {}),
-            placement: o.state.placement,
+            placement: o.state.asIs ? "as-is" : o.state.placement,
             slot_counter: o.slotCounter,
             epoch: o.epochB64,
             fused_name: o.state.fusedName,
@@ -422,7 +426,7 @@ const handler = createMcpHandler(
             name: state.origin.name,
             origin_digest: toUrlSafeB64(state.origin.digestB64),
             artifact_digest: toUrlSafeB64(artifact),
-            placement: state.placement,
+            placement: state.asIs ? ("as-is" as const) : state.placement,
             slot_counter: state.slot.counter,
             fused_name: state.fusedName,
             frame_name: state.frameName,

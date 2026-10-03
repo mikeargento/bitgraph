@@ -42,10 +42,11 @@ import {
   verifyExport,
   verifyTreeLeaves,
   verifyTreeMember,
+  MAX_CONTAINER_ENTRY_BYTES,
 } from "@mikeargento/bitgraph-verify";
 import type { BitGraphExport, ExportVerifyResult } from "@mikeargento/bitgraph-verify";
 import { utf8 } from "./audit-fixtures.js";
-import { fuseTree, fuseSet, FuseError, MAX_FUSE_BYTES, treePlacementFor, trailerBytesFor } from "../fuse.js";
+import { fuseTree, fuseSet, FuseError, treePlacementFor, trailerBytesFor } from "../fuse.js";
 import type { FuseTreeMember, FuseTreeProgress, FuseTreeResult } from "../fuse.js";
 import { buildMemberExport, buildOwnerExport, completeExport, fetchFloorHeader, floorFromHeader, namesByLeaf } from "../export.js";
 import { BASE_TEST_CHAIN, FLOOR_NUMBER, FLOOR_TIME, allocates, boundaryTransport, chainWorld, commits, floorBlock, makeBoundary, mintFromBody, siteFetcher } from "./tree-fixtures.js";
@@ -190,17 +191,17 @@ describe("fuseTree(): one position, one tree", () => {
     }
   });
 
-  test("3. above the cap a file goes in as is: 256 MiB by default, maxFuseBytes when given; nothing bounds it from below", async () => {
+  test("3. as is is the user's choice, never a size: the placement rule never returns it, a file above the ustar limit takes the trailer, and an as-is member has the record floor only", async () => {
     const jpegHead = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]);
-    assert.equal(MAX_FUSE_BYTES, 256 * 1024 * 1024);
-    assert.equal(treePlacementFor(MAX_FUSE_BYTES + 1, jpegHead), "as-is");
-    assert.equal(treePlacementFor(MAX_FUSE_BYTES, jpegHead), "trailer/1");
-    assert.equal(treePlacementFor(MAX_FUSE_BYTES, note), "container/2");
-    assert.equal(treePlacementFor(41, note, 40), "as-is");
+    assert.equal(treePlacementFor(300 * 1024 * 1024, jpegHead), "trailer/1", "no size makes a file as is");
+    assert.equal(treePlacementFor(300 * 1024 * 1024, note), "container/2");
+    assert.equal(treePlacementFor(MAX_CONTAINER_ENTRY_BYTES, note), "container/2", "the last size a ustar entry holds");
+    assert.equal(treePlacementFor(MAX_CONTAINER_ENTRY_BYTES + 1, note), "trailer/1", "above the ustar entry limit, the trailer for every format");
+    assert.equal(treePlacementFor(MAX_CONTAINER_ENTRY_BYTES + 1, jpegHead), "trailer/1");
 
-    const over = utf8("forty-one bytes of text, over the test cap\n");
+    const over = utf8("forty-one bytes of text, kept as is by choice\n");
     const under = utf8("ten bytes\n");
-    const { r } = await honestTree([{ original: over, name: "over.txt" }, { original: under, name: "under.txt" }], { maxFuseBytes: 16 });
+    const { r } = await honestTree([{ original: over, name: "over.txt", placement: "as-is" }, { original: under, name: "under.txt" }]);
     assert.deepEqual(r.members.map((m) => m.placement), ["as-is", "container/2"]);
     const asIs = r.members[0]!;
     assert.equal(asIs.artifactDigestB64, bytesToBase64(sha256(over)));
@@ -215,18 +216,19 @@ describe("fuseTree(): one position, one tree", () => {
     assert.match(claim(e, "floor.content")!.detail, /recorded as is: the bytes carry no commitment, so the bytes themselves are not dated/);
   });
 
-  test("4. a file over the real 256 MiB cap goes in as is by default, and its own bytes verify it", async () => {
-    // One buffer of MAX_FUSE_BYTES + 1 bytes, released when the test ends. A JPEG head: below the cap it would take trailer/1.
-    const big = new Uint8Array(MAX_FUSE_BYTES + 1);
+  test("4. a file past the old 256 MiB cap is fused like any other, and its own bytes verify it from a stream", async () => {
+    // One buffer of 256 MiB + 1 bytes, released when the test ends; a JPEG head takes the trailer.
+    const big = new Uint8Array(256 * 1024 * 1024 + 1);
     big.set([0xff, 0xd8, 0xff, 0xe0]);
     const { r } = await honestTree([{ original: big, name: "huge.jpg" }]);
     const m = r.members[0]!;
-    assert.equal(m.placement, "as-is");
-    assert.equal(m.code, LEAF_AS_IS);
-    assert.equal(m.artifactDigestB64, m.originDigestB64);
-    assert.ok(!("committedBytes" in m), "nothing kept, nothing built");
-    const v = await verifyTreeMember({ proof: r.proof, member: r.memberEvidence(0), bytes: big });
-    assert.equal(v.category, "TREE_MEMBER_AS_IS", v.reason);
+    assert.equal(m.placement, "trailer/1");
+    assert.equal(m.code, 0x01);
+    assert.notEqual(m.artifactDigestB64, m.originDigestB64);
+    assert.ok(!("committedBytes" in m), "nothing kept: the committed bytes are virtual");
+    const v = await verifyTreeMember({ proof: r.proof, member: r.memberEvidence(0), source: { size: big.length, async *stream() { for (let i = 0; i < big.length; i += 1 << 20) yield big.subarray(i, Math.min(big.length, i + (1 << 20))); } } });
+    assert.equal(v.category, "TREE_MEMBER_FROM_ORIGIN", v.reason);
+    assert.equal(v.floorCovers, "content");
   });
 
   test("5. the same original under two placements is two leaves; under one placement twice it is refused before any request", async () => {
@@ -383,7 +385,6 @@ describe("fuseTree(): refusals", () => {
     await refuse([{ load: () => text, originDigest: sha256(text) }], /^member 0: a loaded member names its placement/);
     await refuse([{ originDigest: sha256(text), placement: "trailer/1", fusedDigest: () => sha256(text) }], /^member 0: a hashed member cannot be verified in full/, "bad-input", { verifyMembers: true });
     await refuse([{ originDigest: sha256(text), placement: "as-is" }], /^member 0: an as-is member given by its digest cannot be verified in full/, "bad-input", { verifyMembers: true });
-    await refuse([{ original: text }], /maxFuseBytes must be a non-negative number/, "bad-input", { maxFuseBytes: -1 });
     assert.equal(calls.length, 0, "no slot was burned by any refusal");
   });
 
@@ -691,12 +692,13 @@ describe("completeExport()", () => {
 describe("wiring", () => {
   test("24. the core index exports the tree producer and the export builders beside the superseded fuse and fuseSet", () => {
     const index = readFileSync(fileURLToPath(new URL("../../src/index.ts", import.meta.url)), "utf8");
-    for (const name of ["fuseTree", "MAX_FUSE_BYTES", "treePlacementFor"]) assert.match(index, new RegExp(`export \\{[^}]*\\b${name}\\b[^}]*\\} from "\\./fuse\\.js"`), name);
+    for (const name of ["fuseTree", "treePlacementFor"]) assert.match(index, new RegExp(`export \\{[^}]*\\b${name}\\b[^}]*\\} from "\\./fuse\\.js"`), name);
+    assert.ok(!index.includes("MAX_FUSE_BYTES"), "no size rule is exported: as is is the user's choice");
     for (const name of ["buildMemberExport", "buildOwnerExport", "completeExport", "fetchFloorHeader", "namesByLeaf"]) assert.match(index, new RegExp(`export \\{[^}]*\\b${name}\\b[^}]*\\} from "\\./export\\.js"`), name);
     assert.match(index, /export \{[^}]*\bfuse\b[^}]*\bfuseSet\b[^}]*\} from "\.\/fuse\.js"/);
-    // The cap is the site's own: the drop box and every other producer split as is from placed at the same size.
+    // No producer splits as is from placed by size (SPEC 7.5): the site has no such constant either.
     const site = readFileSync(fileURLToPath(new URL("../../website/src/lib/fuse-placement.ts", import.meta.url)), "utf8");
-    assert.match(site, /export const MAX_FUSE_BYTES = 256 \* 1024 \* 1024;/);
+    assert.ok(!site.includes("MAX_FUSE_BYTES"), "the site has no size rule");
     const src = readFileSync(fileURLToPath(new URL("../../src/fuse.ts", import.meta.url)), "utf8") + readFileSync(fileURLToPath(new URL("../../src/export.ts", import.meta.url)), "utf8");
     assert.ok(!src.includes("\u2014"), "no em dashes");
   });

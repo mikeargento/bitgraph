@@ -127,3 +127,22 @@ test("the commit's words say tree for a tree and name its export (a set keeps it
   assert.match(solo, /- fused · c\.txt → c\.fused\.tar \(container\/2\) · export c\.txt\.bitgraph\.json/);
   assert.doesNotMatch(solo, /Frame/, "a tree of one has an export, not a Frame");
 });
+
+test("a file kept as is (the user's choice) is its own leaf: committed by its own digest, verified with the record floor only; any other digest is refused", async () => {
+  const bytes = utf8("kept exactly as it is, by choice\n");
+  const digest = bytesToBase64(sha256(bytes));
+  const opened = await openHosted({ ...fileInput("kept.bin", bytes), asIs: true });
+  assert.equal(opened.recipe.placement, "as-is");
+  assert.equal(opened.state.asIs, true);
+  assert.equal(opened.state.fusedName, "kept.bin", "nothing new is named: the file stays as it is");
+  await assert.rejects(commitHostedTree([{ state: opened.state, artifactDigestB64: bytesToBase64(sha256(utf8("other"))) }]), /kept as is is committed by its own digest/);
+  const t = await commitHostedTree([{ state: opened.state, artifactDigestB64: digest }]);
+  assert.equal(t.count, 1);
+  assert.equal(t.leaves[0]!.placement, 0, "leaf code 0x00");
+  const ex = await treeExportFor(t);
+  const r = await verifyExport(ex.export, { bytes });
+  assert.equal(claim(r, "bytes.member"), "TRUE");
+  assert.equal(claim(r, "floor.record"), "TRUE");
+  assert.equal(claim(r, "floor.content"), "NOT_CARRIED");
+  assert.equal(r.floorCovers, "record");
+});

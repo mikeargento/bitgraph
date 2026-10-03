@@ -65,7 +65,7 @@ test("one file is a tree of one: one allocation, one commit, the root is its lea
   assert.equal(await treeOfOneEvidence(bound.tree, utf8("a different file\n")), null);
 });
 
-test("files across the placements: a saved state is finished, an unscanned file is placed from its bytes, an old scan's container/1 is decided again (never made new), a file over the cap is a leaf as is and is never read, a duplicate is one leaf", async () => {
+test("files across the placements: a saved state is finished, an unscanned file is scanned again and placed from its bytes, an old scan's container/1 is decided again (never made new), a file the user keeps as is is a leaf as is", async () => {
   const stub = await makeStub();
   const jpeg = JPEG(4000);
   const png = PNG(70);
@@ -80,11 +80,11 @@ test("files across the placements: a saved state is finished, an unscanned file 
     await scanned("notes.txt", text),
     await scanned("paper.pdf", pdf, false),
     { file: new Blob([old.slice()]), name: "old.txt", digestB64: digestB64(old), placement: "container/1", state: null },
-    { file: big, name: "video.mov", digestB64: bigDigest, placement: null, state: null },
+    { file: big, name: "video.mov", digestB64: bigDigest, placement: null, state: null, asIs: true },
     await scanned("photo copy.jpg", jpeg),
   ];
   const phases = new Set<string>();
-  const made = await makeTree(inputs, { transport: { fetch: stub.fetch }, maxFuseBytes: 4096 - 1, onProgress: (p) => phases.add(p.phase) });
+  const made = await makeTree(inputs, { transport: { fetch: stub.fetch }, onProgress: (p) => phases.add(p.phase) });
   assert.deepEqual([...phases].sort(), ["commit", "fuse", "hash", "tree", "verify"]);
   assert.equal(made.count, 6, "seven inputs, six distinct files");
   assert.equal(made.members.length, 7);
@@ -112,10 +112,10 @@ test("files across the placements: a saved state is finished, an unscanned file 
   assert.notEqual(wrong.category, "TREE_MEMBER_FROM_ORIGIN");
 });
 
-test("as is over the cap: a tree of one large file is made without reading it, and verifies as is with no floor", async () => {
+test("as is by the user's choice: a tree of one file is made without reading it, and verifies as is with the record floor only", async () => {
   const stub = await makeStub();
   const bytes = utf8("the whole file, kept exactly as it is\n");
-  const made = await makeTree([{ file: unreadable(bytes.length), name: "huge.bin", digestB64: digestB64(bytes), placement: null, state: null }], { transport: { fetch: stub.fetch }, maxFuseBytes: 8 });
+  const made = await makeTree([{ file: unreadable(bytes.length), name: "huge.bin", digestB64: digestB64(bytes), placement: null, state: null, asIs: true }], { transport: { fetch: stub.fetch } });
   assert.equal(made.members[0]!.code, LEAF_AS_IS);
   const r = await verifyTreeMember({ proof: made.proof, bytes, member: made.evidenceOf(made.members[0]!.leafIndex) });
   assert.equal(r.category, "TREE_MEMBER_AS_IS", r.reason);
@@ -172,7 +172,8 @@ test("a lost reply is read back by digest under this position, never another", a
 test("planTrees: files with a state and files as is cost no read; a drop past the cap or the budget becomes consecutive trees", () => {
   const MB = 1024 * 1024;
   assert.deepEqual(planTrees([{ size: 10 * MB, stateful: true }, { size: 10 * MB, stateful: true }], 1), [[0, 1]], "stateful files never cut a tree");
-  assert.deepEqual(planTrees([{ size: 300 * MB, stateful: false }, { size: 300 * MB, stateful: false }], 1), [[0, 1]], "as-is files are never read");
+  assert.deepEqual(planTrees([{ size: 300 * MB, stateful: false, asIs: true }, { size: 300 * MB, stateful: false, asIs: true }], 1), [[0, 1]], "as-is files are never read");
+  assert.deepEqual(planTrees([{ size: 300 * MB, stateful: false }, { size: 300 * MB, stateful: false }], 1), [[0], [1]], "no size makes a file as is: a stateless file costs its re-scan");
   assert.deepEqual(planTrees([{ size: 5, stateful: false }, { size: 5, stateful: false }, { size: 5, stateful: false }], 10), [[0, 1], [2]]);
   assert.deepEqual(planTrees(Array.from({ length: 5 }, () => ({ size: 1, stateful: true })), 1, { maxLeaves: 2 }), [[0, 1], [2, 3], [4]]);
   assert.equal(SITE_MAX_TREE_LEAVES, 100_000);

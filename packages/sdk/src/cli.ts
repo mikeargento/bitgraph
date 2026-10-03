@@ -71,11 +71,13 @@ function parseArgv(argv: string[]): Parsed {
 
 const HELP = `bitgraph: make, check and verify BitGraphs from any stack
 
-  record <paths...> [--out DIR] [--exports owner|members|both|none] [--again] [--no-recovery]
+  record <paths...> [--out DIR] [--exports owner|members|both|none] [--again] [--as-is] [--no-recovery]
                                        make ONE BitGraph of everything given: one tree, one
-                                       position (a file over 256 MiB goes in as is), and write
-                                       its export/1 into DIR (default .): the owner's (every
-                                       file's leaf, default), one per member, both, or none.
+                                       position, any size (streamed), and write its export/1
+                                       into DIR (default .): the owner's (every file's leaf,
+                                       default), one per member, both, or none. --as-is records
+                                       the files as they are: recorded after the floor block,
+                                       the bytes themselves not dated (your choice, never a size's).
                                        Files already on record are left alone unless --again;
                                        a file in an earlier tree is found by its sealed recovery
                                        entry, and each file made here gets one (--no-recovery: neither)
@@ -152,7 +154,7 @@ async function main(): Promise<void> {
       const kind = (typeof kindFlag === "string" ? kindFlag : "owner") as ExportKind;
       if (!EXPORT_KINDS.includes(kind)) fail(`--exports must be one of ${EXPORT_KINDS.join(", ")}`);
       const outFlag = flags.get("out");
-      const r = await bg.record(args, { exportDir: typeof outFlag === "string" ? outFlag : ".", exports: kind, ...(flags.get("again") === true ? { again: true } : {}), ...(flags.get("no-recovery") === true ? { recovery: false } : {}) });
+      const r = await bg.record(args, { exportDir: typeof outFlag === "string" ? outFlag : ".", exports: kind, ...(flags.get("again") === true ? { again: true } : {}), ...(flags.get("as-is") === true ? { asIs: true } : {}), ...(flags.get("no-recovery") === true ? { recovery: false } : {}) });
       out(r, () => {
         const lines: string[] = [];
         const made = r.made;

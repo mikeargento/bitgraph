@@ -41,7 +41,7 @@ export { Constructor } from "./constructor.js";
 // tree/1 (2026-10-03): every new BitGraph is one Merkle tree of 1 to N files
 // under one position; a single file is a tree of one. fuseTree makes it, and
 // the export builders write bitgraph-export/1 for one member or the owner.
-export { fuseTree, MAX_FUSE_BYTES, treePlacementFor } from "./fuse.js";
+export { fuseTree, treePlacementFor } from "./fuse.js";
 export type { FuseTreeMember, FuseTreeBytesMember, FuseTreeLoadedMember, FuseTreeHashedMember, FuseTreeAsIsMember, TreeMemberPlacement, FuseTreeOptions, FuseTreeProgress, FuseTreeMemberResult, FuseTreeResult, AnchorMark } from "./fuse.js";
 export { buildMemberExport, buildOwnerExport, namesByLeaf, floorFromHeader, fetchFloorHeader, completeExport } from "./export.js";
 export type { ExportFloor, TreeExportSource, ExportParts, ExportFetchOptions, CompleteExportOptions, CompletedExport } from "./export.js";

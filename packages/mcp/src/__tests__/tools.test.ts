@@ -202,7 +202,7 @@ test("lists the five tools", async () => {
   const names = tools.tools.map((t) => t.name).sort();
   assert.deepEqual(names, ["bitgraph_check", "bitgraph_commit", "bitgraph_get_proof", "bitgraph_open", "bitgraph_record"]);
   const record = tools.tools.find((t) => t.name === "bitgraph_record")!;
-  assert.deepEqual(Object.keys(record.inputSchema.properties ?? {}).sort(), ["again", "export_dir", "exports", "paths", "recovery", "response_format"], "the old inputs stand; export_dir, exports and recovery are new and optional");
+  assert.deepEqual(Object.keys(record.inputSchema.properties ?? {}).sort(), ["again", "as_is", "export_dir", "exports", "paths", "recovery", "response_format"], "the old inputs stand; export_dir, exports, as_is and recovery are new and optional");
   assert.ok(!(record.inputSchema.required ?? []).includes("recovery"), "recovery is optional");
 });
 
@@ -389,7 +389,7 @@ test("a file recorded as is is its own leaf, reported as recorded, not fused", a
     const text = textOf(result);
     assert.ok(text.startsWith("2 files BitGraphed as one tree at #"), text);
     assert.ok(text.includes(`- recorded as is · ${fileC} (`), text);
-    assert.ok(text.includes("A file over 256 MiB is recorded as is: it existed by the commit, and nothing bounds it from below."), text);
+    assert.ok(text.includes("A file recorded as is was recorded after the floor block; the bytes themselves are not dated."), text);
   } finally {
     asIsDigests.clear();
   }

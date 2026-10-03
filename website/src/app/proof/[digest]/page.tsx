@@ -2055,7 +2055,7 @@ function BitGraphAgainButton({ proof, cachedFile }: { proof: BitGraphProof; cach
     setMessage("");
     try {
       // A new BitGraph is a new tree of one (tree/1), at a new position: the
-      // same making the drop box does, a file over the in-browser cap as is.
+      // same making the drop box does.
       const file = new File([cachedFile.data], cachedFile.name);
       const digestB64 = await hashBytes(new Uint8Array(cachedFile.data));
       const made = await makeTreeHere([treeInputOf({ file, digestB64 })]);
