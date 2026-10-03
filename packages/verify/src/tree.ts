@@ -493,10 +493,11 @@ export async function verifyTreeMember(opts: TreeVerifyOptions): Promise<TreeVer
     }
     return base("TREE_MEMBER_FROM_ORIGIN", `this file rebuilds the committed bytes of leaf ${ev.index} of ${ev.count}; the committed bytes were finished after the floor block, and this original existed by the commit`, { ...ok, floorCovers: "committed-bytes" });
   }
+  // The evidence holds (its path reaches the root), so the member is known; the file is not it.
   if (carriesCommitment(opts.bytes, commitment)) {
-    return base("TREE_MEMBERSHIP_UNPROVEN", "these bytes carry this position's commitment, but the evidence in hand describes a different leaf", { proof: proofResult, specHashB64, tree });
+    return base("TREE_MEMBERSHIP_UNPROVEN", "these bytes carry this position's commitment, but the evidence in hand describes a different leaf", ok);
   }
-  return base("NO_MATCH", "the file is neither this leaf's committed bytes nor its origin", { proof: proofResult, specHashB64, tree });
+  return base("NO_MATCH", "the file is neither this leaf's committed bytes nor its origin", ok);
 }
 
 function carriesCommitment(bytes: Uint8Array, commitment: Uint8Array): boolean {

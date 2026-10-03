@@ -184,9 +184,6 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   // 2. The tree: the spec pin, the root document, and the member or the whole list.
   const rootDoc = hexToBytes(exp.tree.rootDocument);
   const extra = opts.extraSpecHashes ?? [];
-  if (exp.spec !== proof.attribution?.message) {
-    add("spec.label", "The export's spec label matches the signed pin", "FALSE", "", "the export's \"spec\" field differs from the proof's signed attribution.message; the signed value is the one that counts");
-  }
   let memberEvidence: unknown = exp.tree.member;
   const leavesBytes = typeof exp.tree.leaves === "string" ? base64ToBytes(exp.tree.leaves) : null;
   if (exp.tree.leaves !== undefined) {
@@ -213,7 +210,7 @@ export async function verifyExport(input: unknown, opts: ExportVerifyOptions = {
   });
   const specOk = tr.category !== "UNKNOWN_SPEC" && tr.category !== "INVALID_TREE_MARKER" && tr.category !== "NOT_TREE";
   add("spec.pin", "The proof pins a spec this verifier knows", tr.category === "NOT_TREE" ? "FALSE" : specOk ? "TRUE" : "FALSE", "the signed attribution.message",
-    specOk ? `SPEC.md SHA-256 ${tr.specHashB64}` : tr.reason);
+    (specOk ? `SPEC.md SHA-256 ${tr.specHashB64}` : tr.reason) + (exp.spec !== proof.attribution?.message ? `; note: the export's unsigned "spec" label (${String(exp.spec)}) differs, and only the signed value counts` : ""));
   const rootOk = tr.tree !== null;
   add("tree.root", "The root document is the signed one and carries this position's commitment", rootOk ? "TRUE" : specOk ? "FALSE" : "UNDETERMINED", "SHA-256 over the signed position record, its nonce and the signed floor block hash",
     rootOk ? `a tree of ${tr.tree!.count} leaves, root ${tr.tree!.rootHex.slice(0, 16)}…` : tr.reason);
