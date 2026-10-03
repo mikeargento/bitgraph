@@ -27,7 +27,7 @@ import {
   canonicalize, canonicalSlotBody, evmBytesToHex, keccak256, rlpEncode, verifyExport, parseExport,
   type ExportVerifyResult, type SlotAllocation,
 } from "@mikeargento/bitgraph-verify";
-import { MAX_FUSE_BYTES } from "@mikeargento/bitgraph";
+import { MAX_FUSE_BYTES, writeRecoveryEntries } from "@mikeargento/bitgraph";
 import { BitGraph } from "../bitgraph.js";
 import { fuseTreePipeline } from "../pipelines.js";
 import { serve } from "../serve.js";
@@ -36,6 +36,7 @@ import { memberExportFromOwner, memberExportFileName, readExportFile, relativeNa
 
 const cliPath = fileURLToPath(new URL("../cli.js", import.meta.url));
 const b64 = (b: Uint8Array) => Buffer.from(b).toString("base64");
+const toUrlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const sha = (b: Uint8Array | string) => new Uint8Array(createHash("sha256").update(b).digest());
 const EPOCH = b64(sha("sdk-tree-epoch"));
 const FLOOR_NUMBER = 25_600_000;
@@ -56,7 +57,12 @@ let baseUrl = "";
 let priv: Uint8Array;
 let pub = "";
 let slotCounter = 1000;
-const mode: { witness: boolean; floor: boolean; spec: "pinned" | "wrong" | "none" } = { witness: true, floor: true, spec: "none" };
+// recovery: "absent" answers 404 like a site without the route, "off" 503 like
+// one with writes off, "on" keeps sealed entries in memory like the site's
+// create-only store.
+const mode: { witness: boolean; floor: boolean; spec: "pinned" | "wrong" | "none"; recovery: "absent" | "off" | "on" } = { witness: true, floor: true, spec: "none", recovery: "absent" };
+const recoveryEntries = new Map<string, string>();
+const mintedByArtifact = new Map<string, Array<Record<string, unknown>>>();
 const SPEC_TEXT = new Uint8Array(await readFile(fileURLToPath(new URL("../../../../spec/SPEC.md", import.meta.url))));
 const requests: string[] = [];
 let root = "";
@@ -121,10 +127,38 @@ before(async () => {
           const anchor = { counter: String(slotCounter - 1), blockNumber: FLOOR_NUMBER, blockHash: floorHash };
           send(200, { slotId: slot.nonceB64, slot, chainId: "bitgraph:main", ...(mode.floor ? { anchor } : {}) });
         } else if (url.pathname === "/api/fuse/commit") {
-          send(200, { proof: await mint(body as never) });
+          const proof = await mint(body as never);
+          const key = toUrlSafe((proof["artifact"] as { digestB64: string }).digestB64);
+          mintedByArtifact.set(key, [...(mintedByArtifact.get(key) ?? []), proof]);
+          send(200, { proof });
+        } else if (url.pathname === "/api/recovery" && req.method === "POST") {
+          if (mode.recovery === "absent") send(404, { error: "unexpected /api/recovery" });
+          else if (mode.recovery === "off") send(503, { error: "recovery writes are off on this site", code: "recovery-writes-off" });
+          else {
+            const results = (body["entries"] as Array<{ key: string; envelope: string }>).map(({ key, envelope }) => {
+              const held = recoveryEntries.get(key);
+              if (held !== undefined) return { key, status: "exists", envelope: held };
+              recoveryEntries.set(key, envelope);
+              return { key, status: "created" };
+            });
+            send(200, { results });
+          }
+        } else if (url.pathname.startsWith("/api/recovery/")) {
+          if (mode.recovery === "absent") send(404, { error: `unexpected ${url.pathname}` });
+          else {
+            const address = url.pathname.slice("/api/recovery/".length);
+            const after = url.searchParams.get("after");
+            const entries = [...recoveryEntries.entries()]
+              .filter(([k]) => k.startsWith(`recovery/v1/${address}/`) && (after === null || k.slice(-64) > after))
+              .sort(([a], [b]) => (a < b ? -1 : 1))
+              .map(([key, envelope]) => ({ key, envelope }));
+            send(200, { address, entries, next: null });
+          }
         } else if (url.pathname === "/api/proofs/witness") {
           if (mode.witness && url.searchParams.get("hash") === floorHash) send(200, { version: "bitgraph-anchor-witness/1", headerRlpHex: floorHeaderHex, blockNumber: FLOOR_NUMBER, blockHash: floorHash });
           else send(404, { error: "witness unavailable" });
+        } else if (url.pathname.startsWith("/api/proofs/") && req.method === "GET") {
+          send(200, { proofs: (mintedByArtifact.get(decodeURIComponent(url.pathname.slice("/api/proofs/".length))) ?? []).map((proof) => ({ proof })) });
         } else if (url.pathname.startsWith("/api/ceilings/")) {
           send(404, { error: "no ceiling recorded" });
         } else if (url.pathname === "/spec/SPEC.md" && mode.spec !== "none") {
@@ -418,5 +452,108 @@ test("serve: /record writes the export, /verify reads a file with it, /export-co
     assert.equal(missing.status, 400);
   } finally {
     await running.close();
+  }
+});
+
+test("recovery: the tree's entries are written after the make; recording the same files again finds every one and makes nothing", async () => {
+  const dir = join(root, "kept");
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, "one.txt"), "kept one\n");
+  await writeFile(join(dir, "two.png"), Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("kept two")]));
+  mode.recovery = "on";
+  try {
+    const bg = new BitGraph({ baseUrl });
+    const first = await bg.record(dir);
+    const made = first.made!;
+    assert.equal(made.count, 2);
+    assert.deepEqual(made.recovery, { entries: 4, written: 4, alreadyThere: 0, blocked: 0, pending: 0, reason: null }, "two entries per placed member: under the original and under the committed bytes");
+    const commits = requests.filter((p) => p === "/api/fuse/commit").length;
+
+    const again = await bg.record(dir);
+    assert.equal(again.made, null, "nothing was made");
+    assert.equal(requests.filter((p) => p === "/api/fuse/commit").length, commits, "no commit was sent");
+    const was = new Map(first.files.map((f) => [f.path, f]));
+    for (const f of again.files) {
+      assert.equal(f.outcome, "on record", f.path);
+      assert.equal(f.counter, made.counter);
+      assert.equal(f.member, was.get(f.path)?.member, "the same leaf");
+      assert.equal(f.memberCount, 2);
+      assert.equal(f.proofUrl, made.proofUrl, "the tree's own proof page, not a plain-hash lookup");
+    }
+
+    // Writing the same tree's entries again finds them all held, by this same member.
+    const rewrite = await writeRecoveryEntries({ proof: made.proof as never, rootDocument: Uint8Array.from(Buffer.from(made.rootDocument, "hex")), leavesBytes: Uint8Array.from(Buffer.from(made.leaves, "base64")) }, { baseUrl });
+    assert.deepEqual(rewrite, { entries: 4, written: 0, alreadyThere: 4, blocked: 0, pending: 0, reason: null });
+
+    // recovery: false is the plain-hash index alone: the files are new to it, and are made again.
+    const opted = await bg.record(dir, { recovery: false });
+    assert.notEqual(opted.made, null);
+    assert.equal(opted.made!.recovery, null);
+  } finally {
+    mode.recovery = "absent";
+  }
+});
+
+test("recovery: a site not taking writes leaves the entries pending and says why; the tree is made all the same", async () => {
+  const file = join(root, "pending.txt");
+  await writeFile(file, "made while the site takes no recovery writes\n");
+  for (const m of ["off", "absent"] as const) {
+    mode.recovery = m;
+    try {
+      const r = await new BitGraph({ baseUrl }).record(file, { again: true });
+      assert.equal(r.made?.count, 1);
+      assert.equal(r.made?.recovery?.written, 0);
+      assert.equal(r.made?.recovery?.pending, 2);
+      assert.match(r.made?.recovery?.reason ?? "", /is not taking recovery writes yet/);
+    } finally {
+      mode.recovery = "absent";
+    }
+  }
+});
+
+test("recovery: an entry whose leaf names a file's digest but not its bytes is not that file's proof; the file is made", async () => {
+  // A producer that lies: the leaf says origin = the victim's digest, but its
+  // committed digest is built from other bytes. The tree is signed all the
+  // same (the enclave never sees leaves), and its entries land under the
+  // victim's address.
+  const victim = join(root, "victim.txt");
+  await writeFile(victim, "the victim's own bytes\n");
+  const decoy = join(root, "decoy.png");
+  await writeFile(decoy, Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("decoy")]));
+  const v = await scanFile(victim);
+  const d = await scanFile(decoy);
+  mode.recovery = "on";
+  try {
+    const lying = await fuseTreePipeline([{ ...d, digestB64: v.digestB64, originDigest: v.originDigest, name: "victim.txt" }], { baseUrl }, {});
+    const w = await writeRecoveryEntries({ proof: lying.proof as never, rootDocument: Uint8Array.from(Buffer.from(lying.rootDocumentHex, "hex")), leavesBytes: Uint8Array.from(Buffer.from(lying.leavesB64, "base64")) }, { baseUrl });
+    assert.equal(w.written, 2, "the squatted entries are stored");
+    const r = await new BitGraph({ baseUrl }).record(victim);
+    assert.notEqual(r.made, null, "the victim's file was made, not taken as on record");
+    assert.equal(r.files[0]?.outcome, "recorded");
+  } finally {
+    mode.recovery = "absent";
+  }
+});
+
+test("cli: record says whether the files can find their proof again from their bytes alone", async () => {
+  const dir = join(root, "cli-kept");
+  const out = await mkdtemp(join(tmpdir(), "bitgraph-sdk-cli-kept-"));
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, "a.txt"), "cli kept a\n");
+  mode.recovery = "on";
+  try {
+    const first = await run([cliPath, "record", dir, "--out", out]);
+    assert.equal(first.code, 0, first.stderr);
+    assert.match(first.stdout, /^each file finds this proof again from its own bytes \(2 sealed entries kept\)$/m);
+    const again = await run([cliPath, "record", dir, "--out", out]);
+    assert.match(again.stdout, /^on record · #\d+ · /m, "found through its recovery entry");
+    assert.doesNotMatch(again.stdout, /^recorded/m);
+    mode.recovery = "off";
+    const off = await run([cliPath, "record", dir, "--out", out, "--again"]);
+    assert.match(off.stdout, /^not yet recoverable from the files alone: 127\.0\.0\.1:\d+ is not taking recovery writes yet/m);
+    const none = await run([cliPath, "record", dir, "--out", out, "--again", "--no-recovery"]);
+    assert.doesNotMatch(none.stdout, /recoverable|finds this proof again/);
+  } finally {
+    mode.recovery = "absent";
   }
 });

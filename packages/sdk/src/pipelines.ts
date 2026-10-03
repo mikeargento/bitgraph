@@ -5,7 +5,9 @@
  * 2026-10-03 that way is tree/1 (fuseTreePipeline): every file in a call is
  * one leaf of one Merkle tree under one position, a single file a tree of
  * one. Files are read on this machine; committed bytes are hashed and never
- * written; only digests, the root document and slot records leave it. The
+ * written; only digests, the root document, slot records and each file's
+ * sealed recovery entry (recovery.ts; only a holder of the file can open it)
+ * leave it. The
  * single-file and set pipelines below are superseded and kept so code that
  * imports them keeps working.
  *

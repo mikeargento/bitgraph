@@ -53,6 +53,7 @@ test("record markdown names the tree once, its files by leaf, as is apart, and t
     root_document_echoed: true,
     recovered: false,
     export: { kind: "owner" as const, dir: "/photos-parent", owner: "/photos-parent/bitgraph-1386.bitgraph.json", members_dir: null, members: 0, spec: "/photos-parent/SPEC.md", floor_header: true },
+    recovery: { entries: 5, written: 5, already_there: 0, blocked: 0, pending: 0, reason: null },
   };
   const row = { digest: toUrlSafeB64(DIGEST), counter: "1386", epoch: toUrlSafeB64(EPOCH), total_positions: 1, proof_url: tree.proof_url, artifact_digest: "ZnVzZWQ", outcome: "fused" as const, member_count: 3 };
   const rows = [
@@ -66,6 +67,10 @@ test("record markdown names the tree once, its files by leaf, as is apart, and t
   assert.ok(md.includes("  Export, every file's leaf and name (keep it with the files): /photos-parent/bitgraph-1386.bitgraph.json"), md);
   assert.ok(md.includes("  The rules the proof pins (SPEC.md), beside it: /photos-parent/SPEC.md"), md);
   assert.ok(md.includes('bitgraph export complete "/photos-parent/bitgraph-1386.bitgraph.json"'), md);
+  assert.ok(md.includes("  Each file finds this proof again from its own bytes (5 sealed recovery entries kept)."), md);
+  const pending = renderRecordMarkdown(rows, { ...tree, recovery: { entries: 5, written: 0, already_there: 0, blocked: 0, pending: 5, reason: "bitgraph.ing is not taking recovery writes yet" } });
+  assert.ok(pending.includes("  Not yet recoverable from the files alone: bitgraph.ing is not taking recovery writes yet."), pending);
+  assert.ok(!renderRecordMarkdown(rows, { ...tree, recovery: null }).includes("recover"), "recovery off says nothing");
   assert.ok(!md.includes("and the floor block's header"), "the floor header is in hand");
   assert.ok(md.includes("- fused · /a.png (2 of 3, trailer/1)"), md);
   assert.ok(md.includes("- fused · /b.txt (1 of 3, container/2)"), md);

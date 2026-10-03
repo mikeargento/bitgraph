@@ -202,7 +202,8 @@ test("lists the five tools", async () => {
   const names = tools.tools.map((t) => t.name).sort();
   assert.deepEqual(names, ["bitgraph_check", "bitgraph_commit", "bitgraph_get_proof", "bitgraph_open", "bitgraph_record"]);
   const record = tools.tools.find((t) => t.name === "bitgraph_record")!;
-  assert.deepEqual(Object.keys(record.inputSchema.properties ?? {}).sort(), ["again", "export_dir", "exports", "paths", "response_format"], "the old inputs stand; export_dir and exports are new and optional");
+  assert.deepEqual(Object.keys(record.inputSchema.properties ?? {}).sort(), ["again", "export_dir", "exports", "paths", "recovery", "response_format"], "the old inputs stand; export_dir, exports and recovery are new and optional");
+  assert.ok(!(record.inputSchema.required ?? []).includes("recovery"), "recovery is optional");
 });
 
 test("record makes ONE tree of the fresh files, leaves on-record ones alone, and writes the owner's export beside them", async () => {

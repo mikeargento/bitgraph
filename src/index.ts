@@ -71,3 +71,14 @@ export type {
   PolicyRules,
   ActionValidationResult,
 } from "./policy.js";
+
+// Recovery from the file (2026-10-03): the sealed entries a tree's files are
+// found again by, and the writer the CLI, SDK and MCP use after making a tree.
+export { writeRecoveryEntries } from "./recovery-write.js";
+export type { RecoveryWriteInput, RecoveryWriteOptions, RecoveryWriteResult } from "./recovery-write.js";
+export {
+  recoveryAddress, recoveryEntryId, recoveryKeyBytes, recoveryObjectKey, sealRecoveryEnvelope, openRecoveryEnvelope,
+  encodeRecoveryPlaintext, parseRecoveryPlaintext, recoveryTreeFrom, sealRecoveryMember, recoverFromDigest, fetchRecoveredProof,
+  RECOVERY_FORMAT, RECOVERY_PREFIX,
+} from "./recovery.js";
+export type { RecoveredEntry, RecoveryPlaintext } from "./recovery.js";

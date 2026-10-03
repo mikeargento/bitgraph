@@ -85,6 +85,8 @@ import {
   type OpenState,
   type SetOutcome,
 } from "@/lib/mcp/fuse-hosted";
+import { keepTreeOnSite, siteRecoveryNote } from "@/lib/recovery-server";
+import { s3RecoveryStore } from "@/lib/recovery-store-s3";
 
 export const dynamic = "force-dynamic";
 // One commit chunk of TEE work (~1s/digest) must finish inside this window.
@@ -515,6 +517,9 @@ const handler = createMcpHandler(
             try {
               const t = await commitHostedTree(g);
               const ex = await treeExportFor(t);
+              // Each file's sealed recovery entries, after the proof is in hand (lib/recovery-server.ts).
+              const kept = await keepTreeOnSite({ proof: t.proof as never, rootDocument: t.rootDocument, leaves: t.leaves, names: t.names }, s3RecoveryStore);
+              ex.notes.push(siteRecoveryNote(kept));
               const { counter, epoch } = positionOf(t.proof);
               const treeDigest = t.proof.artifact?.digestB64 ?? "";
               const url = proofUrl(baseUrl, treeDigest, counter ?? undefined, t.proof.commit?.epochId);

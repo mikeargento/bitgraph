@@ -35,6 +35,7 @@ import { serve, DEFAULT_PORT } from "./serve.js";
 import { ApiError } from "./api.js";
 import { carrierLine } from "./carrier-io.js";
 import { SLOT_TTL_SECONDS } from "./task.js";
+import { recoveryLine } from "./recovery.js";
 import { EXPORT_KINDS, looksLikeExport, memberExportFileName, memberExportFromOwner, readExportFile, type ExportKind } from "./exports.js";
 
 /** BitGraph's published ceiling writer on Base mainnet (bitgraph.ing/ceilings). */
@@ -70,12 +71,14 @@ function parseArgv(argv: string[]): Parsed {
 
 const HELP = `bitgraph: make, check and verify BitGraphs from any stack
 
-  record <paths...> [--out DIR] [--exports owner|members|both|none] [--again]
+  record <paths...> [--out DIR] [--exports owner|members|both|none] [--again] [--no-recovery]
                                        make ONE BitGraph of everything given: one tree, one
                                        position (a file over 256 MiB goes in as is), and write
                                        its export/1 into DIR (default .): the owner's (every
                                        file's leaf, default), one per member, both, or none.
-                                       Files already on record are left alone unless --again
+                                       Files already on record are left alone unless --again;
+                                       a file in an earlier tree is found by its sealed recovery
+                                       entry, and each file made here gets one (--no-recovery: neither)
   check <paths|digests...>             read-only: are these bytes on record?
   proof --digest D | --path P | --number N
   open                                 hold a position before the work exists
@@ -149,7 +152,7 @@ async function main(): Promise<void> {
       const kind = (typeof kindFlag === "string" ? kindFlag : "owner") as ExportKind;
       if (!EXPORT_KINDS.includes(kind)) fail(`--exports must be one of ${EXPORT_KINDS.join(", ")}`);
       const outFlag = flags.get("out");
-      const r = await bg.record(args, { exportDir: typeof outFlag === "string" ? outFlag : ".", exports: kind, ...(flags.get("again") === true ? { again: true } : {}) });
+      const r = await bg.record(args, { exportDir: typeof outFlag === "string" ? outFlag : ".", exports: kind, ...(flags.get("again") === true ? { again: true } : {}), ...(flags.get("no-recovery") === true ? { recovery: false } : {}) });
       out(r, () => {
         const lines: string[] = [];
         const made = r.made;
@@ -172,6 +175,7 @@ async function main(): Promise<void> {
         } else if (made !== null) {
           lines.push("no export was written (--exports none). A file proves it is in this BitGraph only with its export: --json holds the leaves to build one.");
         }
+        if (made?.recovery) lines.push(recoveryLine(made.recovery));
         return lines.join("\n");
       });
       return;

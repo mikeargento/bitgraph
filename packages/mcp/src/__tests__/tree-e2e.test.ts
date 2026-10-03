@@ -43,6 +43,10 @@ let pub = "";
 let counter = 2000;
 let folder = "";
 const SPEC_TEXT = new Uint8Array(await readFile(fileURLToPath(new URL("../../../../spec/SPEC.md", import.meta.url))));
+// The site's create-only recovery store and proofs by artifact digest, in memory.
+const recoveryEntries = new Map<string, string>();
+const minted = new Map<string, unknown[]>();
+const toUrlSafe = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 before(async () => {
   priv = randomBytes(32);
@@ -79,7 +83,24 @@ before(async () => {
           const artifact = { hashAlg: "sha256", digestB64: (body["digests"] as Array<{ digestB64: string }>)[0]!.digestB64 };
           const signed = { version: "bitgraph/1", artifact, commit, publicKeyB64: pub, enforcement: "stub", measurement: "mcp-tree-e2e", attribution: body["attribution"] };
           const signatureB64 = b64(await signAsync(canonicalize(signed as never), priv));
-          send(200, { proof: { version: "bitgraph/1", artifact, commit, signer: { publicKeyB64: pub, signatureB64 }, environment: { enforcement: "stub", measurement: "mcp-tree-e2e" }, attribution: body["attribution"], slotAllocation: slot, metadata: body["metadata"] } });
+          const proof = { version: "bitgraph/1", artifact, commit, signer: { publicKeyB64: pub, signatureB64 }, environment: { enforcement: "stub", measurement: "mcp-tree-e2e" }, attribution: body["attribution"], slotAllocation: slot, metadata: body["metadata"] };
+          minted.set(toUrlSafe(artifact.digestB64), [...(minted.get(toUrlSafe(artifact.digestB64)) ?? []), proof]);
+          send(200, { proof });
+        } else if (url.pathname === "/api/recovery" && req.method === "POST") {
+          send(200, {
+            results: (body["entries"] as Array<{ key: string; envelope: string }>).map(({ key, envelope }) => {
+              const held = recoveryEntries.get(key);
+              if (held !== undefined) return { key, status: "exists", envelope: held };
+              recoveryEntries.set(key, envelope);
+              return { key, status: "created" };
+            }),
+          });
+        } else if (url.pathname.startsWith("/api/recovery/")) {
+          const address = url.pathname.slice("/api/recovery/".length);
+          const entries = [...recoveryEntries.entries()].filter(([k]) => k.startsWith(`recovery/v1/${address}/`)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, envelope]) => ({ key, envelope }));
+          send(200, { address, entries, next: null });
+        } else if (url.pathname.startsWith("/api/proofs/") && req.method === "GET" && url.pathname !== "/api/proofs/witness") {
+          send(200, { proofs: (minted.get(decodeURIComponent(url.pathname.slice("/api/proofs/".length))) ?? []).map((proof) => ({ proof })) });
         } else if (url.pathname === "/spec/SPEC.md") {
           res.writeHead(200, { "Content-Type": "text/markdown" });
           res.end(Buffer.from(SPEC_TEXT));
@@ -130,4 +151,40 @@ test("the default pipeline makes a signed tree/1 and the export it writes proves
     assert.equal(v.member?.index, row.member - 1);
     assert.equal(v.member?.placement, row.placement);
   }
+});
+
+test("recovery: the tree keeps a sealed entry per file, and recording the same files again finds them on record in that tree", async () => {
+  const kept = join(dirname(folder), "kept");
+  await mkdir(kept, { recursive: true });
+  await writeFile(join(kept, "a.txt"), "kept a\n");
+  await writeFile(join(kept, "b.png"), Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("kept b")]));
+  const server = buildServer();
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "test-client", version: "0.0.0" });
+  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  type Out = { tree: { count: number; proof_url: string; counter: string; recovery: { entries: number; written: number; pending: number } | null } | null; results: Array<{ path: string; outcome: string; member: number | null; member_count: number | null; proof_url: string | null; counter: string | null }> };
+  const first = await client.callTool({ name: "bitgraph_record", arguments: { paths: [kept], response_format: "json" } });
+  assert.ok(!first.isError, JSON.stringify(first.content).slice(0, 600));
+  const made = (first.structuredContent as Out).tree!;
+  assert.deepEqual(made.recovery, { entries: 4, written: 4, already_there: 0, blocked: 0, pending: 0, reason: null });
+  const members = new Map((first.structuredContent as Out).results.map((r) => [r.path, r.member]));
+
+  const again = await client.callTool({ name: "bitgraph_record", arguments: { paths: [kept] } });
+  assert.ok(!again.isError, JSON.stringify(again.content).slice(0, 600));
+  const s = again.structuredContent as Out;
+  assert.equal(s.tree, null, "nothing was made");
+  for (const r of s.results) {
+    assert.equal(r.outcome, "on record", r.path);
+    assert.equal(r.counter, made.counter);
+    assert.equal(r.member, members.get(r.path));
+    assert.equal(r.member_count, 2);
+    assert.equal(r.proof_url, made.proof_url, "the tree's proof page");
+  }
+  const text = (again.content as Array<{ text: string }>)[0]!.text;
+  assert.ok(text.startsWith("0 fused, 2 already on record."), text);
+
+  const off = await client.callTool({ name: "bitgraph_record", arguments: { paths: [kept], recovery: false, response_format: "json" } });
+  const offTree = (off.structuredContent as Out).tree;
+  assert.equal(offTree?.count, 2, "recovery=false: the plain-hash index alone, so the files are made again");
+  assert.equal(offTree?.recovery, null);
 });

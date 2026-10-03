@@ -105,6 +105,29 @@ export interface TreeOutcome {
     /** Why the exports could not be written where asked, when they could not. */
     error?: string;
   };
+  /** The tree's sealed recovery entries (SPEC section 13); null when recovery was turned off. */
+  recovery: {
+    entries: number;
+    written: number;
+    /** Already stored, and opened to hold this same member. */
+    already_there: number;
+    /** Held by another tree's member under the same file. */
+    blocked: number;
+    /** Not written: the site takes no recovery writes yet, or the attempts ran out. */
+    pending: number;
+    reason: string | null;
+  } | null;
+}
+
+/** What a tree's recovery entries mean for finding its proof again, in one line. */
+export function recoveryText(r: NonNullable<TreeOutcome["recovery"]>): string {
+  const kept = r.written + r.already_there;
+  if (r.entries > 0 && kept === r.entries) return `Each file finds this proof again from its own bytes (${fmt(r.entries)} sealed recovery entr${r.entries === 1 ? "y" : "ies"} kept).`;
+  const parts: string[] = [];
+  if (r.pending > 0 || r.entries === 0) parts.push(`Not yet recoverable from the files alone: ${r.reason ?? "the entries were not written"}.`);
+  if (r.blocked > 0) parts.push(`${fmt(r.blocked)} of ${fmt(r.entries)} recovery entries are held by another tree's member under the same file; keep the export.`);
+  if (parts.length === 0) parts.push(`${fmt(kept)} of ${fmt(r.entries)} recovery entries kept.`);
+  return parts.join(" ");
 }
 
 /** Superseded by TreeOutcome: the set a record call made before tree/1. Kept for code that imports the type. */
@@ -181,6 +204,7 @@ export function renderRecordMarkdown(outcomes: readonly RecordOutcome[], tree: T
     if (ex.members_dir !== null) lines.push(`  One export per file: ${ex.members_dir}`);
     if (ex.spec !== null) lines.push(`  The rules the proof pins (SPEC.md), beside it: ${ex.spec}`);
     if (ex.error !== undefined) lines.push(`  The export could not be written where asked: ${ex.error}`);
+    if (tree.recovery !== null) lines.push(`  ${recoveryText(tree.recovery)}`);
     if (ex.kind === "none") lines.push("  No export was written (exports='none'). The proof commits only the tree's root: without an export no file here can show it is in this BitGraph.");
     else if (ex.owner !== null || ex.members_dir !== null) {
       const first = ex.owner ?? ex.members_dir ?? "";

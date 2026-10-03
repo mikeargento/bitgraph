@@ -14,7 +14,7 @@
  *
  * Routes (all POST unless noted):
  *   GET  /            → { name, version, verbs }: the map
- *   POST /record      → { paths: string[], again?, exportDir?, exports? } → RecordResult (one tree; exports written into exportDir)
+ *   POST /record      → { paths: string[], again?, recovery?, exportDir?, exports? } → RecordResult (one tree; exports written into exportDir)
  *   POST /check       → { paths?: string[], digests?: string[] } → CheckedInput[]
  *   POST /proof       → { digest? | path? | number?, counter?, epoch? } → proof detail
  *   POST /open        → {}                                      → Slot (token included; seal within ttlSeconds)
@@ -94,6 +94,7 @@ export function serve(options: ServeOptions = {}): Promise<RunningServer> {
           if (exports !== undefined && !EXPORT_KINDS.includes(exports as ExportKind)) throw new ApiError(400, `exports must be one of ${EXPORT_KINDS.join(", ")}`);
           send(200, await bg.record(paths, {
             ...(b["again"] === true ? { again: true } : {}),
+            ...(b["recovery"] === false ? { recovery: false } : {}),
             ...(exportDir !== undefined ? { exportDir } : {}),
             ...(exports !== undefined ? { exports: exports as ExportKind } : {}),
           }));

@@ -20,7 +20,8 @@
  *
  * The ground rules every verb keeps:
  * - Files are read on this machine and never uploaded; only digests, the
- *   committed artifact and slot records leave it.
+ *   committed artifact, slot records and each file's sealed recovery entry
+ *   (only a holder of that file can open it) leave it.
  * - Recording is permanent. Bytes already on record are not made again
  *   unless asked (`again`), and a BitGraphed file is NEVER minted: the
  *   envelope is not the recorded thing, the bytes inside are.
@@ -40,6 +41,7 @@ import { beginTask, decodeTaskToken, sealTask, writeProofBeside, SLOT_TTL_SECOND
 import { buildBitGraphedFile, completeBitGraphedFile, type BuiltCarrier, type CompletedCarrier } from "./carrier-build.js";
 import { completeExportFile, exportDataOf, fetchPinnedSpec, memberExportOf, ownerExportOf, writeTreeExports, type CompletedExportFile, type ExportKind, type TreeExportData, type WrittenExports } from "./exports.js";
 import { MAX_FUSE_BYTES, type FuseTreeProgress } from "@mikeargento/bitgraph";
+import { keepRecoveryEntries, lookupRecovered, type RecoveredRow, type RecoveryWriteResult } from "./recovery.js";
 import type { BitGraphProof, ProofDetailResponse, SetMemberView } from "./types.js";
 
 export interface BitGraphOptions {
@@ -83,6 +85,8 @@ export interface TreeMade extends TreeExportData {
   rootDocumentEchoed: boolean;
   /** The export files this call wrote (record with exportDir); null when none were asked for. */
   exports: WrittenExports | null;
+  /** The tree's recovery entries (SPEC section 13): written, already there, blocked, or pending and why. Null when recovery was turned off. */
+  recovery: RecoveryWriteResult | null;
 }
 
 export interface RecordResult {
@@ -169,10 +173,13 @@ export class BitGraph {
    * and never minted. With `exportDir`, the export/1 files are written there
    * (`exports`: the owner's, one per member, both or none; default the
    * owner's); without it, `made` holds everything they are built from.
+   * A file in an earlier tree is found by its sealed recovery entry before it
+   * is called fresh, and each file made here gets one (`made.recovery` says
+   * which were written); `recovery: false` does neither.
    */
   async record(
     paths: string | readonly string[],
-    opts: { again?: boolean; onProgress?: (p: FuseTreeProgress) => void; exportDir?: string; exports?: ExportKind } = {}
+    opts: { again?: boolean; onProgress?: (p: FuseTreeProgress) => void; exportDir?: string; exports?: ExportKind; recovery?: boolean } = {}
   ): Promise<RecordResult> {
     const list = typeof paths === "string" ? [paths] : [...paths];
     const { files } = await expandPaths(list, MAX_FILES);
@@ -195,7 +202,15 @@ export class BitGraph {
     const checked = lookups.length > 0 ? await batchCheck(this.config, lookups.map(toUrlSafeB64)) : { results: {} as Record<string, { proofs: Array<{ proof: BitGraphProof; member?: SetMemberView }> }> };
     const rowsFor = (d: string) => checked.results[toUrlSafeB64(d)]?.proofs ?? [];
 
-    const fresh = (opts.again ? unique : unique.filter((d) => rowsFor(d).length === 0)).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
+    // A file made inside a tree is never indexed by its plain hash, so the
+    // ledger's silence is not "new": its sealed recovery entry is asked first
+    // (recovery.ts). A file verified there is on record and not made again.
+    const recovered = opts.recovery !== false && !opts.again
+      ? await lookupRecovered(unique.filter((d) => rowsFor(d).length === 0).map((d) => (byDigest.get(d) as { file: ScannedFile }).file), this.config)
+      : null;
+    const knownRows = (d: string): Array<{ proof: BitGraphProof; member?: SetMemberView } | RecoveredRow> => (rowsFor(d).length > 0 ? rowsFor(d) : recovered?.found.get(d) ?? []);
+
+    const fresh = (opts.again ? unique : unique.filter((d) => knownRows(d).length === 0)).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
     // A file over the cap goes in as is by the digest its scan took; when its
     // length changed while it was read, that digest is not the file's.
     const unstable = new Set(fresh.filter((f) => f.state === null && f.size > MAX_FUSE_BYTES).map((f) => f.digestB64));
@@ -207,6 +222,8 @@ export class BitGraph {
     if (toMint.length > 0) {
       const tree = await this.fuseTree(toMint, this.config, opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {});
       made = await this.madeFrom(tree, toMint);
+      // The tree's recovery entries, written after the proof is in hand and never in its way.
+      if (opts.recovery !== false) made.recovery = await keepRecoveryEntries({ proof: made.proof, rootDocumentHex: made.rootDocument, leavesB64: made.leaves, names: made.names }, this.config);
       for (const m of tree.members) memberOf.set((toMint[m.index] as ScannedFile).digestB64, m);
       const kind = opts.exports ?? "owner";
       if (opts.exportDir !== undefined && kind !== "none") {
@@ -219,7 +236,7 @@ export class BitGraph {
     const out: RecordedFile[] = [];
     for (const [digest, entry] of byDigest) {
       const minted = memberOf.get(digest);
-      const prior = rowsFor(digest);
+      const prior = knownRows(digest);
       for (const path of entry.paths) {
         const c2pa = entry.file.c2pa ? { c2pa: true as const } : {};
         if (minted !== undefined && made !== null) {
@@ -237,12 +254,13 @@ export class BitGraph {
         } else if (unstable.has(digest)) {
           out.push({ path, digest: toUrlSafeB64(digest), outcome: "refused", counter: null, epoch: null, proofUrl: null, placement: null, member: null, memberCount: null, error: `the file changed while it was read and is over ${MAX_FUSE_BYTES / (1024 * 1024)} MiB, so its digest is not the file's; record it again when it is still`, ...c2pa });
         } else if (prior.length > 0) {
-          const first = prior[0] as { proof: BitGraphProof; member?: SetMemberView };
+          const first = prior[0] as { proof: BitGraphProof; member?: SetMemberView; tree?: true };
           out.push({
             path, digest: toUrlSafeB64(digest), outcome: "on record",
             counter: first.proof.commit?.counter ?? null,
             epoch: first.proof.commit?.epochId !== undefined ? toUrlSafeB64(first.proof.commit.epochId) : null,
-            proofUrl: this.proofUrl(digest), placement: null,
+            // A tree member is never indexed by its own hash: its proof page is the tree's.
+            proofUrl: first.tree && typeof first.proof.artifact?.digestB64 === "string" ? this.proofUrl(first.proof.artifact.digestB64, first.proof.commit?.counter ?? null, first.proof.commit?.epochId ?? null) : this.proofUrl(digest), placement: null,
             member: first.member ? first.member.index + 1 : null,
             memberCount: first.member ? first.member.count : null,
             ...c2pa,
@@ -288,6 +306,7 @@ export class BitGraph {
       recovered: tree.recovered,
       rootDocumentEchoed: tree.rootDocumentEchoed,
       exports: null,
+      recovery: null,
     };
   }
 

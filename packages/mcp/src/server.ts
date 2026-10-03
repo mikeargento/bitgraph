@@ -11,10 +11,12 @@
  * for its digest and a hasher state; its committed bytes are never written
  * and never held, their digest finished from that state once the slot and
  * its floor exist; a file over 256 MiB goes in as is; and the tree's root
- * document is committed under the same slot. Only digests, that document and
- * slot records leave the machine. File contents are never uploaded and files
- * are never modified. The export/1 file written beside the inputs is how
- * each file proves it is in the BitGraph.
+ * document is committed under the same slot. Only digests, that document,
+ * slot records and each file's sealed recovery entry (SPEC section 13: only a
+ * holder of that file can open it) leave the machine. File contents are never
+ * uploaded and files are never modified. The export/1 file written beside the
+ * inputs is how each file proves it is in the BitGraph; the recovery entry is
+ * how the file finds its proof again when the export is lost.
  */
 
 import { tmpdir } from "node:os";
@@ -32,6 +34,7 @@ import {
   classifyPath, fuseTreePipeline,
   type CarrierRow, type FuseTreeFn, type FuseFileFn, type FuseSetFn, type TreeSummary,
   exportDataOf, fetchPinnedSpec, writeTreeExports, EXPORT_KINDS, type WrittenExports,
+  lookupRecovered, keepRecoveryEntries, type RecoveredRow,
   SLOT_TTL_SECONDS, beginTask, decodeTaskToken, sealTask, writeProofBeside,
   type BitGraphProof, type ProofDetailResponse,
 } from "@mikeargento/bitgraph-sdk";
@@ -182,9 +185,9 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
       description:
         "Make a BitGraph of files or folders. Everything in one call becomes ONE BitGraph on bitgraph.ing: one Merkle tree under one position (tree/1), every file one leaf; a single file is a tree of one. " +
         "On this machine each file is read once for its SHA-256 (the origin) and a hasher state; an unused position and its floor block are allocated before any new file exists; every file's committed bytes (the original plus a registered placement carrying the position commitment: a 48-byte trailer for JPEG, PNG, GIF, TIFF and TIFF-based raws, BMP, WebP, WAV and AVI, a small tar container with the original first for everything else) are hashed from that state without being written or held; a file over 256 MiB goes in as is (its own digest is its leaf: it existed by the commit, and nothing bounds it from below); and the tree's 84-byte root document is committed under the same position. " +
-        "Files are never modified and never uploaded: only digests, the root document and position records leave the machine. " +
+        "Files are never modified and never uploaded: only digests, the root document, position records and each file's sealed recovery entry (which only a holder of that file can open) leave the machine. " +
         "Give file paths, directory paths, or both (absolute paths preferred): a directory is every regular file under it, recursively, with hidden entries and symbolic links left out. " +
-        "Files already on record are NOT made again by default; they come back as 'on record' with their earliest position. A file can also hold a BitGraph its holder keeps, which no lookup sees. Pass again=true to make a new BitGraph regardless. " +
+        "Files already on record are NOT made again by default; they come back as 'on record' with their earliest position, including a file in an earlier tree, found through its sealed recovery entry and verified from its own bytes. A file can also hold a BitGraph its holder keeps, which no lookup sees. Pass again=true to make a new BitGraph regardless. " +
         "A BitGraphed file (bitgraph-carrier/1, a file that carries its own proof) is never minted, with or without again: its carried proof is judged offline and reported, because the envelope is not the recorded thing, the bytes inside are. " +
         "The BitGraph's export (bitgraph-export/1) is written into export_dir, by default the folder that holds the first path given (a folder's export goes beside the folder, never inside it): the owner's export lists every file's leaf and name, and with a file it proves that file is in this BitGraph with nothing of BitGraph's required; exports='members' or 'both' also writes one export per file. The proof alone commits only the tree's root, so keep the export. " +
         "Positions are permanent, so only BitGraph files the user asked to, and never generate content just to record it. " +
@@ -211,6 +214,10 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
           .enum(["owner", "members", "both", "none"])
           .default("owner")
           .describe("owner (default): one export listing every file's leaf and name. members: one export per file, each proving that file alone. both. none: write nothing (the json result still carries the leaves)."),
+        recovery: z
+          .boolean()
+          .default(true)
+          .describe("true (default): look for each file in earlier trees through its sealed recovery entry before calling it new, and keep one for each file made here, so the file finds its proof again from its bytes alone. false: neither."),
         response_format: responseFormatSchema,
       },
       annotations: {
@@ -220,7 +227,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ paths, again, export_dir, exports, response_format }, extra) => {
+    async ({ paths, again, export_dir, exports, recovery, response_format }, extra) => {
       const config = configFromEnv();
       const report = progressReporter(extra);
       try {
@@ -259,10 +266,21 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
         const carrierInner = [...new Set(carriers.filter((c) => c.innerDigestB64 !== null).map((c) => c.innerDigestB64 as string))];
         const lookups = [...new Set([...unique, ...carrierInner])];
         const checked = lookups.length > 0 ? await batchCheck(config, lookups.map(toUrlSafeB64)) : { results: {} as Record<string, { proofs: Array<{ proof: BitGraphProof }> }> };
-        const existing = new Map<string, Array<{ proof: BitGraphProof }>>();
+        const existing = new Map<string, Array<{ proof: BitGraphProof; member?: { index: number; count: number } } | RecoveredRow>>();
         for (const d of unique) {
           const entry = checked.results[toUrlSafeB64(d)];
           if (entry && entry.proofs.length > 0) existing.set(d, entry.proofs);
+        }
+        // A tree member is never indexed by its plain hash: before a file is
+        // called new, its sealed recovery entry is asked, and a file verified
+        // there from its own bytes is on record (the SDK's recovery.ts).
+        if (!again && recovery !== false) {
+          const unknown = unique.filter((d) => !existing.has(d)).map((d) => (byDigest.get(d) as { file: ScannedFile }).file);
+          if (unknown.length > 0) {
+            report(0, 1, "checking recovery entries");
+            const found = await lookupRecovered(unknown, config);
+            for (const [d, rows] of found.found) existing.set(d, rows);
+          }
         }
         const carrierLedger = new Map<string, Array<{ proof: BitGraphProof }>>();
         for (const d of carrierInner) {
@@ -322,6 +340,10 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             }
             for (const m of written?.members ?? []) memberExports.set(m.leafIndex, m.path);
           }
+          // The tree's recovery entries, after the proof is in hand and never in its way.
+          const kept = recovery !== false
+            ? await keepRecoveryEntries({ proof: made.proof, rootDocumentHex: made.rootDocumentHex, leavesB64: made.leavesB64, names: data.names }, config)
+            : null;
           const { counter, epoch } = positionOf(made.proof);
           tree = {
             format: "tree/1",
@@ -343,6 +365,14 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
               spec: written?.spec ?? null,
               floor_header: data.floor.header !== null,
               ...(exportError !== null ? { error: exportError } : {}),
+            },
+            recovery: kept === null ? null : {
+              entries: kept.entries,
+              written: kept.written,
+              already_there: kept.alreadyThere,
+              blocked: kept.blocked,
+              pending: kept.pending,
+              reason: kept.reason,
             },
           };
         }
@@ -374,7 +404,9 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
             } else if (prior && !attempted.has(digest) && !excluded.has(digest)) {
               const first = prior[0];
               const { counter, epoch } = first ? positionOf(first.proof) : { counter: null, epoch: null };
-              const row = (first as { member?: { index: number; count: number } } | undefined)?.member;
+              const row = first?.member;
+              // A tree member found through its recovery entry: its proof page is the tree's.
+              const treeArtifact = first !== undefined && "tree" in first ? first.proof.artifact?.digestB64 : undefined;
               outcomes.push({
                 ...base,
                 outcome: "on record",
@@ -385,7 +417,7 @@ export function buildServer(deps: ServerDeps = {}): McpServer {
                 member: row ? row.index + 1 : null,
                 member_count: row ? row.count : null,
                 total_positions: prior.length,
-                proof_url: proofUrl(config.baseUrl, digest),
+                proof_url: treeArtifact !== undefined ? proofUrl(config.baseUrl, treeArtifact, counter ?? undefined, first?.proof.commit?.epochId) : proofUrl(config.baseUrl, digest),
               });
             } else {
               outcomes.push({

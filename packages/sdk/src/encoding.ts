@@ -37,8 +37,8 @@ export function looksLikeDigest(s: string): boolean {
 
 /**
  * SHA-256 of a file's bytes as standard base64.
- * Streams from disk, so file size is not a memory concern. Only this digest
- * ever leaves the machine; file contents are never uploaded.
+ * Streams from disk, so file size is not a memory concern. This digest is what
+ * a lookup sends; file contents are never uploaded.
  */
 export async function sha256FileB64(path: string): Promise<string> {
   const info = await stat(path);
