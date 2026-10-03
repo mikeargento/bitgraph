@@ -80,7 +80,7 @@ export const TREE_METADATA_KEY = TREE_PROFILE;
  */
 export const KNOWN_TREE_SPEC_HASHES: readonly string[] = Object.freeze([
   // SPEC.md v1 (spec/SPEC.md). Filled in when the spec text is final; see spec/README.md.
-  "__SPEC_V1_HASH__",
+  "6P2QcSxZ5xg2YHAJEVhNAu7gtJcwQNoFpJj3GUCRpHI=",
 ]);
 
 /** Placement codes: the first byte of a leaf. */
