@@ -47,6 +47,7 @@ import {
   verifyTreeMember,
   KNOWN_TREE_SPEC_HASHES,
   currentTreeSpecHash,
+  readFuseAttribution,
 } from "@mikeargento/bitgraph-verify";
 import type { BitGraphProof, SlotAllocation, TreeLeaf, TreeMemberEvidence, Attribution } from "@mikeargento/bitgraph-verify";
 import { makeKey, signBody, b64, utf8 } from "./audit-fixtures.js";
@@ -405,5 +406,12 @@ describe("the spec pin", () => {
     assert.equal(vec.memberExport.spec, h, "run: node spec/tools/gen-vectors.mjs");
     const site = readFileSync(fileURLToPath(new URL("../../website/public/spec/SPEC.md", import.meta.url)));
     assert.ok(Buffer.compare(site, spec) === 0, "copy spec/SPEC.md to website/public/spec/SPEC.md");
+  });
+});
+
+describe("tree/1 is never read as a single fused file", () => {
+  test("readFuseAttribution returns null for a tree/1 proof, so its spec hash is never taken for an origin", async () => {
+    const t = await makeTree(FIVE());
+    assert.equal(readFuseAttribution(t.proof), null);
   });
 });

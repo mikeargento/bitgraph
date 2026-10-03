@@ -106,6 +106,8 @@ export interface ExportVerifyResult {
   claims: ExportClaim[];
   /** The member the file matched (or the export's own member), when one did. */
   member: TreeVerifyResult["member"];
+  /** What the floor covers for the file in hand: "committed-bytes" (placements 0x01-0x03), "none" (as is), or null when no file was matched. */
+  floorCovers: TreeVerifyResult["floorCovers"];
   /** The three time claims, as established. Null fields were not established. */
   times: {
     floor: { blockNumber: number; blockHash: string; blockTimestamp: number } | null;
@@ -357,7 +359,7 @@ function finish(claims: ExportClaim[], exp: BitGraphExport | null, times: Export
     if (times.ceilingEthereum) parts.push(`It existed by Ethereum block ${times.ceilingEthereum.blockNumber} (${iso(times.ceilingEthereum.blockTimestamp)}).`);
     if (member) parts.push(`The file is leaf ${member.index} of ${member.count} in the committed tree.`);
   }
-  return { verdict, reasons, claims, member, times, reading: parts.join(" ") };
+  return { verdict, reasons, claims, member, floorCovers, times, reading: parts.join(" ") };
 }
 
 /** Build an export object from its parts (producers). Fields are written in the order the spec lists them. */

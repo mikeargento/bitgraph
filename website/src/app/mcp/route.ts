@@ -6,15 +6,19 @@
  * caller builds the new file itself. bitgraph_open sends the origin digest and
  * size and gets back a slot and a recipe (the exact bytes the new file adds
  * around the original); bitgraph_commit sends the digest of the file the
- * caller built and gets back the proof and the Frame, committed under that
- * exact slot. If a caller can hash a file it can build the virtual new file
- * and hash that (Mike, 2026-09-03). Only digests, sizes, a file's first bytes,
- * slot records and recipe bytes travel; file contents are never uploaded.
+ * caller built and gets back its export (the proof, and the file's place in
+ * the tree), committed under that exact slot. If a caller can hash a file it
+ * can build the virtual new file and hash that (Mike, 2026-09-03). Only
+ * digests, sizes, a file's first bytes, slot records and recipe bytes travel;
+ * file contents are never uploaded.
  *
  * Two or more files opened together are ONE BitGraph (2026-09-06): one slot
- * for all of them, one commit of the set's manifest, one position, each file
- * a member with its row, the way a drop on the site works. A single file is
- * fused on its own.
+ * for all of them, one commit, one position, the way a drop on the site works.
+ * Since 2026-10-03 that BitGraph is a tree/1 (fuse-hosted.ts, commitHostedTree):
+ * every file a leaf, a single file a tree of one, and ONE export/1 per tree
+ * comes back. A token opened without a floor (an enclave before v9) still
+ * commits the earlier way: a set's manifest, or a single fused file and its
+ * Frame.
  *
  * There is no digest-only tool here (2026-09-06): every model handed one
  * reached for it and made a plain recording of a file it could have fused.
@@ -48,6 +52,8 @@ import {
  * body to be checked against (Grok, 2026-09-13).
  */
 const PROOF_KEEPING = "Save each proof whole and unedited, every field, beside the bytes it is about, including environment.attestation.reportB64, the long base64 string, copied exactly: a proof missing slotAllocation, environment, or the attestation cannot be verified.";
+/** Said with every export handed back (tree/1). */
+const EXPORT_KEEPING = "Save each export exactly as it is (it carries the proof, attestation included), with SPEC.md from https://bitgraph.ing/spec/SPEC.md beside it: its SHA-256 is the one the proof pins.";
 import {
   beginHosted,
   commitHostedTask,
@@ -63,6 +69,8 @@ import {
   choosePlacement,
   commitHosted,
   commitHostedSet,
+  commitHostedTree,
+  treeExportFor,
   decodeToken,
   groupCommitEntries,
   openHosted,
@@ -82,7 +90,8 @@ export const dynamic = "force-dynamic";
 // One commit chunk of TEE work (~1s/digest) must finish inside this window.
 export const maxDuration = 60;
 
-const SERVER_VERSION = "0.3.1";
+// 0.4.0 (2026-10-03): an anchored commit makes tree/1 and returns its export/1 in exports[].
+const SERVER_VERSION = "0.4.0";
 
 // Check is a cheap S3 lookup; the batch endpoint's cap.
 const MAX_CHECK = 500;
@@ -158,7 +167,7 @@ const handler = createMcpHandler(
         title: "Make a BitGraph: open",
         description:
           "Step one of making a BitGraph, for a caller that holds the files: open a position and get, per file, the recipe to build its new fused file locally. " +
-          "Everything opened in one call is ONE BitGraph: two or more files share a single position and become one set, each with its row; a single file is fused on its own. Open a batch together, never one file at a time. " +
+          "Everything opened in one call is ONE BitGraph: the files share a single position and become one Merkle tree (tree/1), each file a leaf; a single file is a tree of one. Open a batch together, never one file at a time. " +
           "Send, per file, its name, exact byte size and SHA-256 digest (base64, either form), plus head_base64: the file's first 16 bytes (the whole file when shorter), which decides the placement. " +
           "The boundary allocates an unused position before any new file exists, and this returns per file a fuse_token, the placement, and the recipe: bytes to append after the original (trailer/1, for formats that ignore trailing data: JPEG, PNG, GIF, TIFF and raws, BMP, WebP, WAV, AVI) or to put before and after it (container/2, a tar that carries the original untouched and first, for everything else). " +
           `Then build each new file exactly as its recipe says, SHA-256 it, and call bitgraph_commit ONCE with every fuse_token and digest, within ${SLOT_TTL_SECONDS} seconds of opening. ` +
@@ -169,7 +178,7 @@ const handler = createMcpHandler(
           files: z
             .array(
               z.object({
-                name: z.string().min(1).max(255).describe("The file's name; the new file and its Frame are named from it."),
+                name: z.string().min(1).max(255).describe("The file's name; the new file and its export are named from it."),
                 size: z.number().int().min(0).max(MAX_ORIGIN_BYTES).describe("Exact byte length of the file."),
                 digest: z.string().min(1).max(100).describe("SHA-256 of the file's bytes, base64 (standard or URL-safe)."),
                 head_base64: z
@@ -277,6 +286,7 @@ const handler = createMcpHandler(
             outcome: "opened",
             error: null,
             ...(set ? { set: true } : {}),
+            ...(o.state.anchor ? { tree: true } : {}),
             placement: o.state.placement,
             slot_counter: o.slotCounter,
             epoch: o.epochB64,
@@ -330,10 +340,11 @@ const handler = createMcpHandler(
         title: "Make a BitGraph: commit",
         description:
           "Step two of making a BitGraph: commit the new files built from bitgraph_open recipes. " +
-          "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. Send every file opened together in ONE call: they share a position and become one set, and the set is whatever this call carries. " +
-          "For a set, the canonical manifest of the members' digests is built here and committed under the shared position with the set marker (profile bitgraph-fuse/1, placement set/1); the returned proof is verified against it before any file is called fused, and comes back once as sets[].proof with every member's row. Save it beside the originals. " +
-          "For a single file, the digest is committed under its own position with the signed marker (placement, origin digest) and this returns the proof and the Frame; save the Frame next to the original as frame_name. " +
-          "New files are virtual: keep the originals unchanged and the proof, and any reader can rebuild a new file and check it. Keep the set proof beside the originals; BitGraph does not index it. " +
+          "Send, per file, the fuse_token from bitgraph_open and the SHA-256 digest (base64) of the new file you built from its recipe. Send every file opened together in ONE call: they share a position and become one BitGraph, and it is whatever this call carries. " +
+          "Every file becomes a leaf of one Merkle tree (tree/1; a single file is a tree of one): the tree is built here from the digests, its root document is committed under the shared position with the tree/1 marker, and the returned proof is verified before any file is called fused. " +
+          "It comes back as ONE export per tree in exports[] (bitgraph-export/1: the proof, the root document, and the file's own leaf and path, or for several files every leaf and name). Save each export exactly as it is beside the files, with SPEC.md from https://bitgraph.ing/spec/SPEC.md; with the file it checks with nothing of BitGraph's. " +
+          "New files are virtual: keep the originals unchanged and the export, and any reader can rebuild a new file and check it. BitGraph does not index a tree's files. " +
+          "(A fuse_token from an older open, without a floor, still commits the earlier way: a set with sets[].proof, or one file with its Frame in frames[].) " +
           "Returns, per file, the position just made, plus any earlier position BitGraph's copy holds. Positions held elsewhere are in their holder's proofs. " +
           "A 'not fused' outcome says why and what to do (usually: commit again in a few seconds, or open again). Nothing is labelled fused unless the proof came back under the named position and verified.",
         inputSchema: z.object({
@@ -362,6 +373,10 @@ const handler = createMcpHandler(
           const outcomes: CommitOutcome[] = new Array<CommitOutcome>(entries.length);
           const frames: Array<{ name: string; frame: unknown }> = [];
           const sets: Array<SetOutcome & { proof: unknown }> = [];
+          // tree/1: one summary and one export per tree (the export carries the proof).
+          const trees: SetOutcome[] = [];
+          const exportsOut: Array<{ name: string; export: unknown; notes: string[] }> = [];
+          const treeGroups: Array<Array<{ position: number; state: OpenState; artifactDigestB64: string }>> = [];
           const decoded: Array<{ position: number; state: OpenState; artifactDigestB64: string }> = [];
           const tasks: Array<{ position: number; state: import("@/lib/mcp/fuse-hosted").TaskState; artifactDigestB64: string }> = [];
           for (let position = 0; position < entries.length; position++) {
@@ -433,8 +448,12 @@ const handler = createMcpHandler(
             }
           }
           const groups = groupCommitEntries(decoded);
+          // A token opened under a floor (every enclave since v9) makes tree/1:
+          // one file is a tree of one, files opened together are one tree. A
+          // token without one keeps the earlier making, below.
           // Single files: each under its own slot, as before.
           for (const s of groups.solos) {
+            if (s.state.anchor) { treeGroups.push([s]); continue; }
             try {
               const c = await commitHosted(s.state, s.artifactDigestB64);
               const { counter, epoch } = positionOf(c.proof);
@@ -455,6 +474,7 @@ const handler = createMcpHandler(
           }
           // Sets: every member that shares a slot, one manifest, one commit, one position.
           for (const g of groups.sets) {
+            if (g.entries[0]?.state.anchor) { treeGroups.push(g.entries); continue; }
             try {
               const c = await commitHostedSet(g.entries);
               const { counter, epoch } = positionOf(c.proof);
@@ -490,6 +510,37 @@ const handler = createMcpHandler(
               for (const e of g.entries) outcomes[e.position] = notFused(e.state, e.artifactDigestB64, text);
             }
           }
+          // Trees: every file's leaf, one root document, one commit, one position, one export.
+          for (const g of treeGroups) {
+            try {
+              const t = await commitHostedTree(g);
+              const ex = await treeExportFor(t);
+              const { counter, epoch } = positionOf(t.proof);
+              const treeDigest = t.proof.artifact?.digestB64 ?? "";
+              const url = proofUrl(baseUrl, treeDigest, counter ?? undefined, t.proof.commit?.epochId);
+              exportsOut.push({ name: ex.name, export: ex.export, notes: ex.notes });
+              if (t.count > 1) {
+                trees.push({ slot_counter: g[0]!.state.slot.counter, counter, epoch, count: t.count, artifact_digest: toUrlSafeB64(treeDigest), proof_url: url, manifest_echoed: t.echoed, recovered: t.recovered, tree: true, export_name: ex.name });
+              }
+              g.forEach((e, k) => {
+                outcomes[e.position] = {
+                  ...commonOf(e.state, e.artifactDigestB64),
+                  outcome: "fused",
+                  counter,
+                  epoch,
+                  proof_url: url,
+                  positions: [],
+                  recovered: t.recovered,
+                  error: null,
+                  ...(t.count > 1 ? { member: (t.leafOf[k] as number) + 1, member_count: t.count, set_digest: toUrlSafeB64(treeDigest) } : {}),
+                  export_name: ex.name,
+                };
+              });
+            } catch (err) {
+              const text = hostedErrorText(err);
+              for (const e of g) outcomes[e.position] = notFused(e.state, e.artifactDigestB64, text);
+            }
+          }
           /* One ledger read, after the writes, so a caller who asked to BitGraph
              a file AGAIN is told every position those bytes occupy and not only
              the one just made. The origin digest is what carries the history:
@@ -522,17 +573,21 @@ const handler = createMcpHandler(
           const structured = {
             results: outcomes,
             sets,
+            trees,
+            exports: exportsOut,
             frames,
-            instructions: PROOF_KEEPING,
+            instructions: exportsOut.length > 0 ? `${PROOF_KEEPING} ${EXPORT_KEEPING}` : PROOF_KEEPING,
             summary: {
               fused: outcomes.filter((o) => o.outcome === "fused").length,
               not_fused: outcomes.filter((o) => o.outcome === "not fused").length,
               sets: sets.length,
+              trees: exportsOut.length,
             },
           };
           if (response_format === "json") return ok(capJson(structured).text);
           const setSummaries: SetOutcome[] = sets.map((s) => ({ slot_counter: s.slot_counter, counter: s.counter, epoch: s.epoch, count: s.count, artifact_digest: s.artifact_digest, proof_url: s.proof_url, manifest_echoed: s.manifest_echoed, recovered: s.recovered }));
-          let md = renderCommitMarkdown(outcomes, setSummaries);
+          let md = renderCommitMarkdown(outcomes, [...setSummaries, ...trees]);
+          if (exportsOut.length > 0) md += `\n\nExports, one per tree (save each as its name beside the files). ${EXPORT_KEEPING}\n` + "```json\n" + capJson(exportsOut.map((x) => ({ name: x.name, export: x.export }))).text + "\n```";
           if (sets.length > 0) md += "\n\nSet proofs, one per set (save each beside its originals):\n```json\n" + capJson(sets).text + "\n```";
           if (frames.length > 0) md += "\n\nProofs, one per single fused file or task (save each as its name). " + PROOF_KEEPING + "\n```json\n" + capJson(frames).text + "\n```";
           return ok(md);

@@ -1,0 +1,136 @@
+"use client";
+
+/* The verdicts on dropped export/1 files: a tree/1 BitGraph checked from the
+ * drop alone (lib/folder-check.ts, checkTreeExports). One row per file an
+ * export covers, or per export dropped without its files.
+ *
+ * Each row says the verdict and then the three time claims on their own lines,
+ * never merged (SPEC.md section 1): the floor (the committed bytes were
+ * finished after an Ethereum block; a file recorded as is has none), the Base
+ * ceiling (existed by a Base block, its time provisional until that block is
+ * checked against Base), and the Ethereum ceiling (existed by an Ethereum
+ * block, through Base's output root; Base's honesty is not needed).
+ *
+ * Fixed-height rows, windowed like the drop's own list: an owner's export
+ * dropped with its folder is one row per file, and that can be thousands.
+ */
+
+import { useWindowedRows } from "@/components/windowed-rows";
+import { fmtRowWhen } from "@/components/folder-list";
+import type { TreeExportRow } from "@/lib/folder-check";
+
+/** One row: five lines of type and the padding around them. */
+const ROW_H = 118;
+
+const verdictWord = (r: TreeExportRow): { text: string; color: string } =>
+  r.verdict === "TRUE"
+    ? { text: r.scope === "file" ? "Verified" : "Proof verified", color: "var(--accent)" }
+    : r.verdict === "FALSE"
+      ? { text: "Does not verify", color: "var(--err)" }
+      : { text: "Not determined", color: "var(--dim)" };
+
+const fmtBlock = (n: number) => n.toLocaleString("en-US");
+const fmtTime = (unix: number) => fmtRowWhen(unix * 1000);
+
+/**
+ * The floor line, for what this row is about. The floor covers a leaf's
+ * COMMITTED bytes, which carry the commitment; a file kept as is carries none,
+ * so for it the floor says nothing at all (SPEC.md 8.6). An export alone,
+ * without a leaf of its own, can only say when the tree was committed.
+ */
+function floorLine(r: TreeExportRow): string {
+  if (r.floorCovers === "none" || r.member?.placement === "as-is") return "No floor: kept as is, the file existed by the commit and nothing bounds it from below";
+  const f = r.times.floor;
+  if (f === null) return "Not in this export";
+  const what = r.member ? "Its committed bytes were finished" : "The tree was committed";
+  return `${what} after Ethereum block ${fmtBlock(f.blockNumber)} · ${fmtTime(f.blockTimestamp)}`;
+}
+
+function baseLine(r: TreeExportRow): string {
+  const b = r.times.ceilingBase;
+  if (b !== null) return `Existed by Base block ${fmtBlock(b.blockNumber)} · ${fmtTime(b.blockTimestamp)}${b.provisional ? " (provisional until checked against Base)" : ""}`;
+  return r.ceiling === "pending" ? "Pending when exported" : r.ceiling === "present" ? "Did not verify" : "Not in this export";
+}
+
+function ethereumLine(r: TreeExportRow): string {
+  const e = r.times.ceilingEthereum;
+  if (e !== null) return `Existed by Ethereum block ${fmtBlock(e.blockNumber)} · ${fmtTime(e.blockTimestamp)}`;
+  return r.settlement === "pending" ? "Pending when exported" : r.settlement === "present" ? "Did not verify" : "Not in this export";
+}
+
+/** The second line: where the file sits, or why there is no file. */
+function whereLine(r: TreeExportRow): string {
+  const pos = r.counter != null ? `#${Number(r.counter).toLocaleString("en-US")}` : null;
+  if (r.problems.length > 0 && r.verdict !== "TRUE") return r.problems[0]!;
+  if (r.scope === "export" && r.member) {
+    // One file's export, without the file.
+    return `File ${(r.member.index + 1).toLocaleString("en-US")} of ${r.member.count.toLocaleString("en-US")} in the tree${pos ? ` at ${pos}` : ""}. The file was not in this drop: drop it with its export to check it.`;
+  }
+  if (r.scope === "export") {
+    const size = r.count !== null ? `A tree of ${r.count.toLocaleString("en-US")} file${r.count === 1 ? "" : "s"}` : "A tree";
+    return `${size}${pos ? ` at ${pos}` : ""}. None of its files was in this drop: drop them with the export to check them.`;
+  }
+  const m = r.member;
+  const leaf = m ? `File ${(m.index + 1).toLocaleString("en-US")} of ${m.count.toLocaleString("en-US")} in the tree` : "In the tree";
+  const placement = m ? (m.placement === "as-is" ? "as is" : m.placement) : null;
+  return [leaf, placement, pos].filter(Boolean).join(" · ");
+}
+
+export function TreeExportList({ rows, onOpen }: { rows: TreeExportRow[]; onOpen: (r: TreeExportRow) => void }) {
+  const { ref, first, last } = useWindowedRows(rows.length, ROW_H);
+  const files = rows.filter((r) => r.scope === "file");
+  const verified = files.filter((r) => r.verdict === "TRUE").length;
+  const failed = rows.filter((r) => r.verdict === "FALSE").length;
+  const alone = rows.length - files.length;
+  const spec = rows.some((r) => r.spec === "other") ? "other" : rows.some((r) => r.spec === "pinned") ? "pinned" : null;
+  const label = { fontSize: 12, color: "var(--faint)", width: 72, flexShrink: 0 } as const;
+  const line = { fontSize: 12.5, color: "var(--dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 } as const;
+  return (
+    <div style={{ border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden", background: "var(--bg)" }}>
+      <div style={{ background: "var(--panel)", padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>
+          {files.length > 0
+            ? `${verified} of ${files.length} file${files.length === 1 ? "" : "s"} verified`
+            : `${rows.length} export${rows.length === 1 ? "" : "s"} checked`}
+          {alone > 0 && files.length > 0 && <span style={{ fontWeight: 400, color: "var(--dim)" }}>{` · ${alone} export${alone === 1 ? "" : "s"} without ${alone === 1 ? "its" : "their"} file`}</span>}
+        </span>
+        {failed > 0 && <span style={{ fontSize: 13, fontWeight: 600, color: "var(--err)" }}>{failed} {failed === 1 ? "does" : "do"} not verify</span>}
+      </div>
+      {spec && (
+        <div style={{ padding: "10px 16px", fontSize: 13, color: spec === "pinned" ? "var(--dim)" : "var(--err)", borderBottom: "1px solid var(--line-2)" }}>
+          {spec === "pinned"
+            ? "The SPEC.md beside it is the text the proof pins."
+            : "A SPEC.md in this drop is not the text the proof pins: the proof names the rules it follows by their SHA-256."}
+        </div>
+      )}
+      <div ref={ref}>
+        <div style={{ height: first * ROW_H }} aria-hidden />
+        {rows.slice(first, last).map((r, k) => {
+          const i = first + k;
+          const v = verdictWord(r);
+          return (
+            <div
+              key={r.key}
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpen(r)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(r); } }}
+              className="bitgraph-file-row"
+              style={{ height: ROW_H, padding: "10px 14px", overflow: "hidden", borderTop: i > 0 ? "1px solid var(--line-2)" : "none", cursor: "pointer", display: "flex", flexDirection: "column", gap: 3, boxSizing: "border-box" }}
+            >
+              <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15, color: "var(--ink)" }}>{r.fileName ?? r.exportName}</span>
+                <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: v.color }}>{v.text}</span>
+              </div>
+              <div style={{ ...line, color: r.verdict === "FALSE" ? "var(--err)" : "var(--dim)" }}>{whereLine(r)}</div>
+              <div style={{ display: "flex", gap: 8 }}><span style={label}>Floor</span><span style={line}>{floorLine(r)}</span></div>
+              <div style={{ display: "flex", gap: 8 }}><span style={label}>Base</span><span style={line}>{baseLine(r)}</span></div>
+              <div style={{ display: "flex", gap: 8 }}><span style={label}>Ethereum</span><span style={line}>{ethereumLine(r)}</span></div>
+            </div>
+          );
+        })}
+        <div style={{ height: Math.max(0, (rows.length - last) * ROW_H) }} aria-hidden />
+      </div>
+    </div>
+  );
+}

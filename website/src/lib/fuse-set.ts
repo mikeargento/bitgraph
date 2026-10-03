@@ -14,7 +14,7 @@
  */
 import type { BitGraphProof, SetManifest, SetMemberProof, SetRoot, SlotAllocation } from "@mikeargento/bitgraph-verify";
 import { computeCommitmentFor } from "./fuse-commitment.ts";
-import { bytesEqual, bytesToBase64, bytesToHex, computeSlotCommitment, parseSetManifest, parseSetMemberProof, parseSetRoot, readSetMetadata, setRootFromMember, MAX_SET2_MEMBERS, SET2_PLACEMENT_ID, SET_MEMBER_METADATA_KEY } from "@mikeargento/bitgraph-verify";
+import { bytesEqual, bytesToBase64, bytesToHex, commitmentForProof, isFuseMarkerName, parseSetManifest, parseSetMemberProof, parseSetRoot, readSetMetadata, setRootFromMember, MAX_SET2_MEMBERS, SET2_PLACEMENT_ID, SET_MEMBER_METADATA_KEY } from "@mikeargento/bitgraph-verify";
 
 /** The signed placement id of a set/1 proof (attribution.title). Pinned; the suite checks it equals SET_PLACEMENT_ID. */
 export const SET_TITLE = "set/1";
@@ -92,10 +92,20 @@ function rowsOf(members: readonly { artifact: Uint8Array; origin: Uint8Array; pl
   }));
 }
 
-/** Which set kind the SIGNED attribution declares: "set/1", "set/2", or null for anything else. Nothing unsigned decides this. */
+/**
+ * Which set kind the SIGNED attribution declares: "set/1", "set/2", or null
+ * for anything else. Nothing unsigned decides this.
+ *
+ * ⚠️ EITHER MARKER NAME. Since enclave v9 (2026-09-30) a set is made under
+ * "bitgraph-fuse/2", whose commitment also binds the floor block; this read
+ * only "bitgraph-fuse/1" until 2026-10-03, so every fuse/2 set looked like no
+ * set at all to the proof page, the by-digest index, the camera and the
+ * set-index route, which is how a real 100,000-file set/2 indexed 0 of its
+ * members. The metadata key stays "bitgraph-fuse/1" under both names.
+ */
 export function setKindOf(proof: { attribution?: unknown } | null | undefined): "set/1" | "set/2" | null {
   const a = proof?.attribution;
-  if (typeof a !== "object" || a === null || (a as { name?: unknown }).name !== SET_KEY) return null;
+  if (typeof a !== "object" || a === null || !isFuseMarkerName((a as { name?: unknown }).name)) return null;
   const title = (a as { title?: unknown }).title;
   return title === SET_TITLE ? "set/1" : title === SET2_TITLE ? "set/2" : null;
 }
@@ -133,6 +143,11 @@ export function parseSetOf(proof: Record<string, unknown>): { kind: "set/1" | "s
  * MAX_SET_MEMBERS rows. Explicit manifest bytes win over proof.metadata.
  * Null on any failure; never throws. Every place that asserts membership,
  * lists members or writes an index key binds through here.
+ *
+ * The commitment is the one the SIGNED marker names (commitmentForProof):
+ * commitment/1 under "bitgraph-fuse/1", commitment/2 under "bitgraph-fuse/2",
+ * which also binds the proof's own signed floor block (commit.slotAnchor).
+ * A fuse/2 proof without a signed floor binds nothing.
  */
 export async function bindSet(proof: Record<string, unknown>, manifest?: Uint8Array | null): Promise<BoundSet | null> {
   try {
@@ -145,7 +160,7 @@ export async function bindSet(proof: Record<string, unknown>, manifest?: Uint8Ar
     if (typeof artifact !== "string" || (await sha256B64(bytes)) !== artifact) return null;
     const slot = proof.slotAllocation;
     if (typeof slot !== "object" || slot === null) return null;
-    const commitment = computeSlotCommitment(slot as SlotAllocation);
+    const commitment = commitmentForProof(asVerify(proof), slot as SlotAllocation);
     if (kind === "set/2") {
       const doc = parseSetRoot(bytes);
       if (doc === null || !bytesEqual(doc.commitment, commitment)) return null;
@@ -266,7 +281,7 @@ export async function validateSetCommit(
   try {
     const kind: "set/1" | "set/2" | null = input.title === SET_TITLE ? "set/1" : input.title === SET2_TITLE ? "set/2" : null;
     const isSet = kind !== null;
-    if (!isSet && input.metadata !== undefined) return refuse("metadata is accepted only for a set/1 or set/2 commit");
+    if (!isSet && input.metadata !== undefined) return refuse("metadata is accepted only for a set/1, set/2 or tree/1 commit");
     if (isSet && input.metadata === undefined) return refuse(`a ${kind} commit requires metadata['${SET_KEY}']`);
     if (isSet && typeof input.message === "string" && input.message.length > 0) return refuse(`a ${kind} commit carries no origin digest`);
 

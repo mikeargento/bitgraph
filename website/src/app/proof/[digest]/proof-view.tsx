@@ -116,11 +116,14 @@ export interface ProofViewModel {
   /** The file pane: the preview, the drop box, or for an anchor the block row. */
   filePane: ReactNode;
   c2pa: C2PAReadResult | null;
-  set: { kind: "set/1" | "set/2"; count: number; root: string | null; rows: SetRowView[] } | null;
+  /** A set, or a tree/1 (whose page can list only the file in hand, once placed: a tree's members are known file by file, from evidence). */
+  set: { kind: "set/1" | "set/2" | "tree/1"; count: number; root: string | null; rows: SetRowView[] } | null;
   /** Anchors: which Ethereum block this anchor recorded, and its Etherscan link. */
   anchorBlock: { number: string | null; minedMs: number | null; etherscanUrl: string | null } | null;
   anchorsBackHref: string | null;
   floor: AnchorSideView | null;
+  /** A sentence about what the floor covers, for a tree/1 record (a file kept as is has no floor). */
+  floorNote?: string | null;
   /** The anchor before the commit when it is later than the signed floor: a tighter bound on the commit by hash order. */
   commitAfter: { counter: string; blockNumber: number; blockTime: string | null; digestB64: string | null } | null;
   ceilingPos: AnchorSideView | null;
@@ -228,7 +231,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
   const okCount = c.claims.filter((x) => x.result === "TRUE").length;
   const badCount = c.claims.filter((x) => x.result === "FALSE").length;
   const groups: Array<[string, (id: string) => boolean]> = [
-    ["The bytes", (id) => id.startsWith("bytes.") || id === "proof.fused" || id === "block"],
+    ["The bytes", (id) => id.startsWith("bytes.") || id.startsWith("tree.") || id === "proof.fused" || id === "block"],
     ["The proof", (id) => id === "proof.signature" || id === "proof.hash"],
     ["The hardware", (id) => id.startsWith("attestation.")],
     ["The floor", (id) => id.startsWith("floor.") || id === "confirmed.floor"],
@@ -248,7 +251,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
               {m.recordName}
               {isAnchor && <span className="pv-kind">Ethereum anchor</span>}
               {m.kind === "interval" && <span className="pv-kind">Interval</span>}
-              {m.set && <span className="pv-kind">Set of {fmtNum(m.set.count)}</span>}
+              {m.set && <span className="pv-kind">{m.set.kind === "tree/1" ? (m.set.count === 1 ? "Tree of one" : `Tree of ${fmtNum(m.set.count)}`) : `Set of ${fmtNum(m.set.count)}`}</span>}
             </div>
             {m.epochFull && (
               <div className="pv-epoch" title={m.epochFull}>epoch <span className="pv-mono">{m.epochFull}</span></div>
@@ -271,7 +274,26 @@ export function ProofView({ m }: { m: ProofViewModel }) {
 
         {m.c2pa?.present && <ContentCredentials c2pa={m.c2pa} />}
 
-        {m.set && (
+        {m.set && m.set.kind === "tree/1" && (
+          <div className="pv-sub">
+            <div className="pv-sub-title">Files</div>
+            {m.set.rows.length === 0 ? (
+              <div className="pv-sub-note">
+                {m.set.count === 1
+                  ? <>One file under this position, tree root <span className="pv-mono">{truncateHash(m.set.root ?? "", 16)}</span>. Drop the file above to check it: a tree of one needs nothing else.</>
+                  : <>{fmtNum(m.set.count)} files under one position, tree root <span className="pv-mono">{truncateHash(m.set.root ?? "", 16)}</span>. A file&rsquo;s own export, or its recovery entry, shows whether it is one of them: drop the file with its export above.</>}
+              </div>
+            ) : m.set.rows.map((r) => (
+              <div key={r.key} className="pv-list-row">
+                <span className="pv-list-num">{r.ordinal} of {fmtNum(m.set!.count)}</span>
+                <span className="pv-list-mid pv-mono">{truncateHash(r.originDigestB64, 12)}</span>
+                <span className="pv-list-dim pv-mono">{r.placement}</span>
+                <span className="pv-list-viewing">Viewing</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {m.set && m.set.kind !== "tree/1" && (
           <div className="pv-sub">
             <div className="pv-sub-title">Members</div>
             {m.set.rows.length === 0 ? (
@@ -304,7 +326,7 @@ export function ProofView({ m }: { m: ProofViewModel }) {
             <Moment
               label="Floor in time"
               title={<>Made after Ethereum block #{fmtNum(m.floor.blockNumber)}{floorMs !== null ? <span className="pv-moment-dim"> · mined {whenBeside(floorMs, attested)}</span> : null}</>}
-              note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot be known before its block exists.{m.floor.recordedMs !== null ? <> Recorded as anchor #{fmtNum(m.floor.counter)} at {whenBeside(m.floor.recordedMs, attested)}.</> : null}{m.commitAfter ? <> The commit also follows anchor #{fmtNum(m.commitAfter.counter)}, Ethereum block #{fmtNum(m.commitAfter.blockNumber)}{m.commitAfter.blockTime ? <> (mined {whenBeside(new Date(m.commitAfter.blockTime).getTime(), attested)})</> : null}, by the chain of proof hashes: a tighter bound on the commit, not on the bytes.</> : null}</>}
+              note={<>Fixed by the enclave when the position opened and signed into the proof; a block hash cannot be known before its block exists.{m.floor.recordedMs !== null ? <> Recorded as anchor #{fmtNum(m.floor.counter)} at {whenBeside(m.floor.recordedMs, attested)}.</> : null}{m.commitAfter ? <> The commit also follows anchor #{fmtNum(m.commitAfter.counter)}, Ethereum block #{fmtNum(m.commitAfter.blockNumber)}{m.commitAfter.blockTime ? <> (mined {whenBeside(new Date(m.commitAfter.blockTime).getTime(), attested)})</> : null}, by the chain of proof hashes: a tighter bound on the commit, not on the bytes.</> : null}{m.floorNote ? <> {m.floorNote}</> : null}</>}
             >
               {m.floor.etherscanUrl && <Pill href={m.floor.etherscanUrl} external>Etherscan</Pill>}
               {m.floor.digestB64 && <Pill href={`/proof/${encodeURIComponent(safe(m.floor.digestB64))}`}>Anchor #{fmtNum(m.floor.counter)}</Pill>}

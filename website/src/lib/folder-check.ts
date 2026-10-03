@@ -41,29 +41,58 @@
  * digest is the manifest of every member's fused digest and whose metadata
  * carries that manifest. No file in the unit hashes to the digest; a member
  * is judged by the manifest, and the manifest by hashing to the signature.
+ *
+ * A tree/1 BitGraph (2026-10-03, everything the site makes now) exports none
+ * of that: no folder, no proof.json, no copy of the file. Its export is ONE
+ * JSON file, bitgraph-export/1, with SPEC.md beside it, and it is checked by
+ * verifyExport against whichever files it covers in the same drop (the end of
+ * this module: readTreeExports, checkTreeExports). The package checks above
+ * are untouched and still read every package made before then.
  */
 
 import { PKG_COMMITTED_DIR, PKG_ORIGINAL_DIR, PKG_LEGACY_NEW_FILE_DIR, PKG_README, PKG_KNOWN_DIRS } from "./package-layout.ts";
 import { isFuseName } from "./fuse-core.ts";
+// Explicit .ts specifiers, so node's test runner can load this module (the
+// export/1 check below is tested there); the bundler reads them the same way.
 import {
   hashFile,
   isBitGraphProof,
   verifyProofSignature,
   proofHashB64,
   type BitGraphProof,
-} from "./bitgraph";
-import { toUrlSafeB64 } from "./explorer";
-import { blockTimeFromHeader } from "./export-pages";
+} from "./bitgraph.ts";
+import { toUrlSafeB64 } from "./explorer.ts";
+import { blockTimeFromHeader } from "./export-pages.ts";
 import {
   FUSE_ATTRIBUTION_NAME,
+  KNOWN_TREE_SPEC_HASHES,
+  MerkleTree,
   SET_PLACEMENT_ID,
   SET2_PLACEMENT_ID,
   SET_MEMBER_METADATA_KEY,
+  TREE_MEMBER_CATEGORIES,
+  base64ToBytes,
+  buildTreeMemberEvidence,
+  bytesToBase64,
+  decodeTreeLeaves,
+  hexToBytes,
+  parseExport,
+  parseTreeMemberEvidence,
   readFuseAttribution,
   readSetMetadata,
+  treeLeafHash,
+  verifyExport,
   verifyFuse,
   verifyFuseMember,
+  verifyTreeMember,
+  type BitGraphExport,
   type BitGraphProof as VerifyProof,
+  type ExportClaim,
+  type ExportLookups,
+  type ExportVerifyResult,
+  type TreeLeaf,
+  type TreeMemberEvidence,
+  type TreeVerifyResult,
 } from "@mikeargento/bitgraph-verify";
 
 /* The site keeps its own looser proof type (version: string); the reader
@@ -1118,4 +1147,315 @@ export async function checkExports(
   return startFolderCheck(candidates, {
     onUpdate: () => progress.onCheck?.(++doneCount, candidates.length),
   }, apiBase).done;
+}
+
+/* ── export/1: a tree/1 BitGraph's one JSON file ──
+ *
+ * What a holder keeps for a BitGraph made since 2026-10-03 is a single
+ * bitgraph-export/1 file beside the file itself (SPEC.md section 12): the
+ * proof, the root document, the member's evidence (one file's export) or the
+ * whole list of leaves (the owner's export), and the three time sections.
+ * Dropped alone it is checked on its own; dropped with the files it covers,
+ * each file is checked against its leaf. Everything here is a read, and none
+ * of it asks BitGraph anything: the verdict rests on the bytes in the drop.
+ *
+ * ⚠️ A FILE AN EXPORT COVERS IS NEVER A NEW FILE. Before this, a photo dropped
+ * with its export read as "not yet BitGraphed" (its digest is no key anywhere:
+ * a tree's members are not indexed) and a lone one was made AGAIN at a fresh
+ * position. The caller takes `covered` out of the drop before anything can
+ * offer to make it, and SPEC.md, which travels beside every export, with it.
+ */
+
+/** The first bytes buildExport writes are the format line; read before parsing anything large. */
+const EXPORT_SNIFF_BYTES = 4096;
+/** Small JSON files are parsed whole, whatever their key order. */
+const EXPORT_PARSE_ANY_BYTES = 2 * 1024 * 1024;
+/** An owner's export of 1,000,000 leaves is about 90 MB of base64; nothing larger is read as text. */
+const EXPORT_MAX_BYTES = 192 * 1024 * 1024;
+
+export interface DroppedExport {
+  file: File;
+  exp: BitGraphExport;
+}
+
+/**
+ * Take the export/1 files out of a drop. A .json file is opened only when it
+ * is small, or when its first bytes carry the format line, so a folder of
+ * ordinary large JSON is never read as text. Everything else comes back in
+ * `rest`, in drop order.
+ */
+export async function readTreeExports(files: File[]): Promise<{ exports: DroppedExport[]; rest: File[] }> {
+  const exports: DroppedExport[] = [];
+  const rest: File[] = [];
+  for (const f of files) {
+    const jsonish = /\.json$/i.test(f.name) || f.type === "application/json";
+    if (!jsonish || f.size > EXPORT_MAX_BYTES || f.size < 16) { rest.push(f); continue; }
+    try {
+      if (f.size > EXPORT_PARSE_ANY_BYTES) {
+        const head = await f.slice(0, EXPORT_SNIFF_BYTES).text();
+        if (!head.includes('"bitgraph-export/1"')) { rest.push(f); continue; }
+      }
+      const exp = parseExport(await f.text());
+      if (exp) exports.push({ file: f, exp }); else rest.push(f);
+    } catch {
+      rest.push(f);
+    }
+  }
+  return { exports, rest };
+}
+
+/** One row of an export check: one covered file against its leaf, or an export with none of its files in the drop. */
+export interface TreeExportRow {
+  key: string;
+  /** The export file's name. */
+  exportName: string;
+  /** "file": a file in the drop was checked against its leaf. "export": the export alone. */
+  scope: "file" | "export";
+  /** The covered file in the drop, when one was checked. */
+  file: File | null;
+  /** The file's name in the drop, else the name the owner's export lists for the leaf. */
+  fileName: string | null;
+  verdict: "TRUE" | "FALSE" | "UNDETERMINED";
+  /** The leaf, once its path reached the committed root. */
+  member: { index: number; count: number; placement: string } | null;
+  /** The tree's size from the bound root document, when it bound. */
+  count: number | null;
+  /** For a checked file: "committed-bytes" when the floor covers its committed bytes, "none" when it was recorded as is. */
+  floorCovers: "committed-bytes" | "none" | null;
+  times: ExportVerifyResult["times"];
+  /** Whether the export carries each later section at all ("pending" counts as carried-but-pending). */
+  ceiling: "present" | "pending" | "absent";
+  settlement: "present" | "pending" | "absent";
+  claims: ExportClaim[];
+  /** Offline claims that failed or could not be decided, one line each. */
+  problems: string[];
+  proof: BitGraphProof;
+  /** The export's root document, hex: handed to the proof page beside the proof (unsigned; the page binds it by hash). */
+  rootDocumentHex: string;
+  /** The checked file's evidence, when its path reached the root: lets the proof page show the file as the member it is. */
+  evidence: TreeMemberEvidence | null;
+  counter: string | null;
+  epochUrlSafe: string | null;
+  /** The proof's artifact digest (the root document's), URL-safe: the proof page's address. */
+  digestUrlSafe: string;
+  /** SPEC.md in the drop: "pinned" when one is the text this proof pins, "other" when a SPEC.md is there but is not. */
+  spec: "pinned" | "other" | null;
+}
+
+/** export.ts's verdict rule, exactly: FALSE on any offline FALSE, UNDETERMINED on any offline UNDETERMINED but the pins. */
+function verdictOf(claims: ExportClaim[]): TreeExportRow["verdict"] {
+  const offline = claims.filter((c) => c.level === "offline");
+  if (offline.some((c) => c.result === "FALSE")) return "FALSE";
+  if (offline.some((c) => c.result === "UNDETERMINED" && c.id !== "attestation.pins")) return "UNDETERMINED";
+  return "TRUE";
+}
+
+/**
+ * The three claims about one file, written exactly as verifyExport writes
+ * them for a file in hand, from the same verifyTreeMember result. The owner's
+ * export is checked ONCE without a file (signature, attestation, list, root,
+ * floor, ceilings) and these replace that run's NOT_CARRIED lines for each
+ * file, so a drop of thousands of files is not thousands of full checks. A
+ * test holds the merged claims equal to verifyExport's own, file by file.
+ */
+export function memberClaimsFor(tr: TreeVerifyResult): ExportClaim[] {
+  const out: ExportClaim[] = [];
+  const add = (id: string, name: string, result: ExportClaim["result"], restsOn: string, detail: string) => out.push({ id, name, result, restsOn, detail, level: "offline" });
+  const rootOk = tr.tree !== null;
+  const pathOk = tr.member !== null;
+  add("tree.member", "The file's leaf is in the committed tree", pathOk ? "TRUE" : rootOk ? "FALSE" : "UNDETERMINED", "SHA-256 (RFC 9162 path)",
+    pathOk ? `leaf ${tr.member!.index} of ${tr.member!.count}; a path proves this leaf only, not the order of the others` : tr.reason);
+  const isMember = (TREE_MEMBER_CATEGORIES as readonly string[]).includes(tr.category);
+  add("bytes.member", "The file in hand is that member", isMember ? "TRUE" : tr.member !== null ? "FALSE" : "UNDETERMINED", tr.category === "TREE_MEMBER_FROM_ORIGIN" ? "the placement rule, rebuilt here" : "SHA-256",
+    `${tr.category}: ${tr.reason}`);
+  if (isMember) {
+    add("bytes.floor", "What the floor covers for this file", "TRUE", "",
+      tr.floorCovers === "none" ? "recorded as is: the file existed by the commit; nothing bounds it from below" : "the committed bytes were finished after the floor block; the original inside them has no floor of its own");
+  }
+  return out;
+}
+
+/** The export-level claims with one file's three in place of the file-less run's. */
+export function mergeMemberClaims(base: ExportClaim[], member: ExportClaim[]): ExportClaim[] {
+  const out: ExportClaim[] = [];
+  for (const c of base) {
+    if (c.id === "tree.member") out.push(member.find((m) => m.id === "tree.member") ?? c);
+    else if (c.id === "bytes.member") out.push(...member.filter((m) => m.id === "bytes.member" || m.id === "bytes.floor"));
+    else if (c.id !== "bytes.floor") out.push(c);
+  }
+  return out;
+}
+
+const sectionOf = (part: unknown, presentWhen: (p: Record<string, unknown>) => boolean): "present" | "pending" | "absent" => {
+  if (part === null || typeof part !== "object") return "absent";
+  const p = part as Record<string, unknown>;
+  if (p.status === "pending") return "pending";
+  return presentWhen(p) ? "present" : "pending";
+};
+
+/**
+ * Check every dropped export against the files in the same drop.
+ *
+ *   one file's export   its leaf's two digests (artifact, origin) find the
+ *                       file; verifyExport runs with the file's bytes.
+ *   the owner's export  verifyExport runs once without a file; every dropped
+ *                       file whose digest is a leaf's is then placed by a
+ *                       path built from the list, and verifyTreeMember judges
+ *                       it, the same call verifyExport makes for one file.
+ *   no file found       one row for the export itself: the proof, the root
+ *                       and the times hold or not, and the file is not
+ *                       carried, which is said rather than failed.
+ *
+ * `files` are the drop's other files with their SHA-256 (standard base64),
+ * as the scan left them. Returns the rows, the files an export covers (never
+ * to be offered as new) and the SPEC.md copies found beside them.
+ */
+export async function checkTreeExports(
+  exports: DroppedExport[],
+  files: Array<{ file: File; digestB64: string }>,
+  opts: {
+    lookups?: ExportLookups;
+    /** The verifier's own allowlists (the published PCR0s, in the camera). Without them, PCR0 is reported, not judged. */
+    pins?: { pcr0?: string[]; ceilingWriter?: string; baseChainId?: number };
+    extraSpecHashes?: readonly string[];
+    onProgress?: (done: number, total: number) => void;
+  } = {},
+): Promise<{ rows: TreeExportRow[]; covered: Set<File>; specFiles: Set<File> }> {
+  const rows: TreeExportRow[] = [];
+  const covered = new Set<File>();
+  const specFiles = new Set<File>();
+  const byDigest = new Map<string, File[]>();
+  for (const f of files) {
+    if (!f.digestB64) continue;
+    const at = byDigest.get(f.digestB64);
+    if (at) at.push(f.file); else byDigest.set(f.digestB64, [f.file]);
+    if (exports.length > 0 && KNOWN_TREE_SPEC_HASHES.includes(f.digestB64)) specFiles.add(f.file);
+  }
+  const specNamed = files.some((f) => f.file.name.toLowerCase() === "spec.md");
+  const verifyOpts = { ...(opts.lookups ? { lookups: opts.lookups } : {}), ...(opts.pins ? { pins: opts.pins } : {}), ...(opts.extraSpecHashes ? { extraSpecHashes: opts.extraSpecHashes } : {}) };
+
+  // Pass 1: which dropped files each export covers, from its own leaves.
+  // Nothing is verified yet; this only decides what pass 2 reads.
+  type Plan =
+    | { kind: "member"; targets: File[]; all: File[] }
+    | { kind: "owner"; leaves: TreeLeaf[]; hits: Array<[number, File[]]> }
+    | { kind: "alone" };
+  const plans: Plan[] = exports.map(({ exp }) => {
+    const tree = exp.tree;
+    if (tree.member !== undefined) {
+      const ev = parseTreeMemberEvidence(tree.member);
+      if (ev === null) return { kind: "alone" };
+      // The file in either form: its committed bytes, or the original they were made from.
+      const digests = [...new Set([bytesToBase64(ev.leaf.artifact), bytesToBase64(ev.leaf.origin)])];
+      const targets = digests.flatMap((d) => (byDigest.get(d) ?? []).slice(0, 1));
+      const all = digests.flatMap((d) => byDigest.get(d) ?? []);
+      return targets.length > 0 ? { kind: "member", targets, all } : { kind: "alone" };
+    }
+    if (typeof tree.leaves === "string") {
+      const bytes = base64ToBytes(tree.leaves);
+      const leaves = bytes === null ? null : decodeTreeLeaves(bytes);
+      if (leaves === null) return { kind: "alone" };
+      const index = new Map<string, number>();
+      leaves.forEach((l, k) => {
+        index.set(bytesToBase64(l.artifact), k);
+        const o = bytesToBase64(l.origin);
+        if (!index.has(o)) index.set(o, k);
+      });
+      const hits = new Map<number, File[]>();
+      for (const [d, fs] of byDigest) {
+        const k = index.get(d);
+        if (k === undefined) continue;
+        const at = hits.get(k);
+        if (at) at.push(...fs); else hits.set(k, [...fs]);
+      }
+      return hits.size > 0 ? { kind: "owner", leaves, hits: [...hits.entries()].sort((a, b) => a[0] - b[0]) } : { kind: "alone" };
+    }
+    return { kind: "alone" };
+  });
+  const total = plans.reduce((n, p) => n + (p.kind === "member" ? p.targets.length : p.kind === "owner" ? p.hits.length : 1), 0);
+  let done = 0;
+  const tick = async () => {
+    opts.onProgress?.(++done, total);
+    // Hand the page a frame now and then on a drop of thousands.
+    if (done % 25 === 0) await new Promise((r) => setTimeout(r, 0));
+  };
+
+  // Pass 2: verify.
+  for (let e = 0; e < exports.length; e++) {
+    const { file: exportFile, exp } = exports[e]!;
+    const plan = plans[e]!;
+    const proof = exp.proof as unknown as BitGraphProof;
+    const pin = typeof exp.proof.attribution?.message === "string" ? exp.proof.attribution.message : null;
+    const spec: TreeExportRow["spec"] = pin !== null && (byDigest.get(pin)?.length ?? 0) > 0 ? "pinned" : specNamed ? "other" : null;
+    const base = await verifyExport(exp, verifyOpts);
+    const rootDocument = hexToBytes(exp.tree.rootDocument);
+    const rootOk = base.claims.some((c) => c.id === "tree.root" && c.result === "TRUE");
+    const count = rootOk && rootDocument !== null && rootDocument.length === 84 ? new DataView(rootDocument.buffer, rootDocument.byteOffset).getUint32(16, false) : null;
+    const rowOf = (key: string, scope: TreeExportRow["scope"], file: File | null, fileName: string | null, claims: ExportClaim[], member: TreeVerifyResult["member"], evidence: TreeMemberEvidence | null = null): TreeExportRow => {
+      const isMember = claims.some((c) => c.id === "bytes.member" && c.result === "TRUE");
+      return {
+        key,
+        exportName: exportFile.name,
+        scope,
+        file,
+        fileName,
+        verdict: verdictOf(claims),
+        member: member ? { index: member.index, count: member.count, placement: member.placement } : null,
+        count,
+        floorCovers: isMember && member ? (member.placement === "as-is" ? "none" : "committed-bytes") : null,
+        times: base.times,
+        ceiling: sectionOf(exp.ceiling, (p) => typeof p.anchor === "object" && p.anchor !== null),
+        settlement: sectionOf(exp.settlement, (p) => p.version !== undefined),
+        claims,
+        problems: claims.filter((c) => c.level === "offline" && (c.result === "FALSE" || (c.result === "UNDETERMINED" && c.id !== "attestation.pins"))).map((c) => `${c.name}: ${c.detail}`),
+        proof,
+        rootDocumentHex: exp.tree.rootDocument,
+        evidence: member ? evidence : null,
+        counter: proof.commit?.counter ?? null,
+        epochUrlSafe: proof.commit?.epochId ? toUrlSafeB64(proof.commit.epochId) : null,
+        digestUrlSafe: toUrlSafeB64(proof.artifact.digestB64),
+        spec,
+      };
+    };
+
+    if (plan.kind === "member") {
+      for (const f of plan.targets) {
+        const r = await verifyExport(exp, { bytes: new Uint8Array(await f.arrayBuffer()), ...verifyOpts });
+        rows.push(rowOf(`${e}:${exportFile.name}:${f.name}`, "file", f, f.name, r.claims, r.member, exp.tree.member ?? null));
+        await tick();
+      }
+      for (const f of plan.all) covered.add(f);
+    } else if (plan.kind === "owner" && rootDocument !== null && base.claims.some((c) => c.id === "tree.leaves" && c.result === "TRUE")) {
+      const leaves = plan.leaves;
+      const merkle = new MerkleTree(leaves.map(treeLeafHash));
+      const proofOk = base.claims.some((c) => c.id === "proof.signature" && c.result === "TRUE");
+      const names = Array.isArray(exp.tree.names) ? exp.tree.names : [];
+      for (const [k, fs] of plan.hits) {
+        const f = fs[0]!;
+        const evidence = buildTreeMemberEvidence(leaves[k]!, k, leaves.length, merkle.path(k));
+        const tr = await verifyTreeMember({
+          proof: exp.proof,
+          bytes: new Uint8Array(await f.arrayBuffer()),
+          member: evidence,
+          rootDocument,
+          proofAlreadyVerified: proofOk,
+          ...(opts.extraSpecHashes ? { extraSpecHashes: opts.extraSpecHashes } : {}),
+        });
+        const claims = mergeMemberClaims(base.claims, memberClaimsFor(tr));
+        rows.push(rowOf(`${e}:${exportFile.name}:${k}:${f.name}`, "file", f, f.name || (typeof names[k] === "string" ? names[k]! : null), claims, tr.member, evidence));
+        for (const c of fs) covered.add(c);
+        await tick();
+      }
+    } else {
+      // The export alone: its file is not in the drop (or its list does not hold, which base already says).
+      const claims = typeof exp.tree.leaves === "string"
+        ? base.claims.map((c) => (c.id === "tree.member" && c.result === "NOT_CARRIED" ? { ...c, detail: "no file of this tree was in the drop" } : c))
+        : base.claims;
+      rows.push(rowOf(`${e}:${exportFile.name}:export`, "export", null, null, claims, base.member, exp.tree.member ?? null));
+      // An owner's export whose list failed still names its files: they are not new.
+      if (plan.kind === "owner") for (const [, fs] of plan.hits) for (const c of fs) covered.add(c);
+      await tick();
+    }
+  }
+  return { rows, covered, specFiles };
 }

@@ -1077,6 +1077,11 @@ export function readFuseAttribution(proof: BitGraphProof): FuseMarker | null {
   const a = proof.attribution;
   const version = fuseVersionOfName(a?.name);
   if (a === undefined || version === null) return null;
+  // A tree/1 proof carries the fuse/2 name, but it is not a single fused file:
+  // its committed artifact is the tree's root document and its message is the
+  // SPEC hash, not an origin. Read it with verifyTreeMember (tree.ts), never
+  // here, or the spec hash would be taken for an origin digest.
+  if (a.title === "tree/1") return null;
   const declared = typeof a.title === "string" && a.title.length > 0;
   const marker: FuseMarker = { placement: declared ? (a.title as string) : null, placementSource: declared ? "attribution" : null, source: "attribution", version };
   if (typeof a.message === "string" && a.message.length > 0) {

@@ -41,7 +41,9 @@ import {
 } from "@/lib/bitgraph";
 import type { CommitStrategy } from "@/lib/commit-strategy";
 import { toUrlSafeB64 } from "@/lib/explorer";
-import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, type CapturedDrop, type WalkedFile, type ExportCheckResult } from "@/lib/folder-check";
+import { discoverDrop, startFolderCheck, findMatchInDrop, findMatchInFiles, findAnyMatchInDrop, findAnyMatchInFiles, captureDrop, readTreeExports, checkTreeExports, walkEntries, type CapturedDrop, type WalkedFile, type ExportCheckResult, type TreeExportRow } from "@/lib/folder-check";
+import { TreeExportList } from "@/components/tree-export-list";
+import { PUBLISHED_PCR0S } from "@/lib/enclave-measurements";
 import { CheckedList, fmtRowWhen } from "@/components/folder-list";
 import { recordedMsOf } from "@/lib/recorded-time";
 import { useWindowedRows } from "@/components/windowed-rows";
@@ -58,9 +60,10 @@ import { cacheArtifactToIDB, putPackageToIDB } from "@/lib/file-cache";
 import { buildBitGraphsFile } from "@/lib/bitgraphs-file";
 import { emptyLedger, addProofs, readBitGraphsFiles, heldFor, saveLedger, loadLedger, type LocalLedger } from "@/lib/local-ledger";
 import { LEDGER_CHANGED } from "@/components/ledger-light";
-import { fuseFile, fuseFiles, planSets, rebuildSetMember, isTeeRestarting, FuseTooLargeError, fusedMarkerOf, rebuildFromOrigin, type FusedOutcome, type FusedSetMember, type ScannedFile } from "@/lib/fuse-client";
+import { rebuildSetMember, isTeeRestarting, fusedMarkerOf, rebuildFromOrigin, makeTreeHere, planTrees, treeInputOf, type FusedOutcome, type FusedSetMember, type MadeTree, type MadeTreeMember } from "@/lib/fuse-client";
 import { scanPool } from "@/lib/scan-pool";
-import { MAX_FUSE_BYTES, type SitePlacement } from "@/lib/fuse-placement";
+import type { SitePlacement } from "@/lib/fuse-placement";
+import { SPEC_FILE_NAME, bindTree, buildTreeExport, exportJson, fetchSpecFor, fetchTreeEvidence, isTreeTitled, memberExportName, memberTree, ownerExportName, ownerTree, rootOnlyTree, treeHandoff, treeOfOneEvidence } from "@/lib/fuse-tree";
 import { attachSetManifests, bindSet, isSetProof, memberEvidenceOf, SET_INDEX_CHUNK } from "@/lib/fuse-set";
 import { paintFrame, PAINT_EVERY_MS } from "@/lib/paint-frame";
 import { attachEnvironments } from "@/lib/proof-environment";
@@ -158,7 +161,7 @@ type BatchEntry = {
    *  positions these bytes hold, NOT a complete count. */
   partial?: true;
 };
-import { SET_METADATA_KEY, readSetMetadata, computeProofHash, type BitGraphProof as VerifyProof } from "@mikeargento/bitgraph-verify";
+import { SET_METADATA_KEY, readSetMetadata, computeProofHash, bytesToHex as bytesToHexString, type BitGraphProof as VerifyProof } from "@mikeargento/bitgraph-verify";
 
 type Step = "drop" | "scanning" | "results" | "proving" | "exporting";
 
@@ -256,6 +259,14 @@ interface FileItem {
   member?: Array<{ index: number; count: number; role: "origin" | "fused" } | null> | null;
   /** Set when this drop fused the file as one of N: the member row, the shared manifest and the set proof. NO fused bytes are held; the export rebuilds them. */
   setMember?: { member: FusedSetMember; manifestBytes: Uint8Array; count: number; proof: BitGraphProof };
+  /**
+   * Set when this drop made the file a member of a tree/1 BitGraph: the tree
+   * (shared, by reference, by every row it covers: the proof, the root
+   * document, every leaf and name, which the owner's export is made of) and
+   * this file's own leaf and evidence. No committed bytes are held: an export
+   * carries none, and the file in hand rebuilds them.
+   */
+  tree?: { made: MadeTree; member: MadeTreeMember };
 }
 
 // The results list survives leaving for a proof page: client-side navigation
@@ -267,6 +278,8 @@ const cachedResults = new Map<string, FileItem[]>();
 // Same survival rule for a dropped folder's check verdicts (the File objects
 // inside are only used again for click-through caching, so nothing serializes).
 const cachedChecked = new Map<string, ExportCheckResult[]>();
+// And for the verdicts on dropped export/1 files (tree/1 BitGraphs).
+const cachedExports = new Map<string, TreeExportRow[]>();
 
 /** Drop a page's remembered batch. /actor calls this when the device is
  *  forgotten: rows looked up or recorded under a key that is gone should not
@@ -274,6 +287,7 @@ const cachedChecked = new Map<string, ExportCheckResult[]>();
 export function clearCameraCache(id: BitGraphCameraProps["id"]) {
   cachedResults.delete(id);
   cachedChecked.delete(id);
+  cachedExports.delete(id);
 }
 
 /** The set proof as it leaves the page: with its manifest at
@@ -282,13 +296,14 @@ export function clearCameraCache(id: BitGraphCameraProps["id"]) {
  *  belt, since a proof.json without its manifest is a set no member can be
  *  checked against. */
 /**
- * A row a found drop can BitGraph again: on record, fusable, and with the
- * scan's placement in hand. A dropped proof.json has nothing to make, and a
- * file over the fuse cap is recorded by digest, which the boundary answers
- * with the same proof, so neither has an again.
+ * A row a found drop can BitGraph again: on record, and with the file's digest
+ * in hand. A dropped proof.json has nothing to make. Since tree/1 a file over
+ * the in-browser cap has an again too: it is a leaf as is in the new tree, at
+ * a new position, where it used to be recorded by digest and answered with
+ * the same proof.
  */
 function isAgainRow(i: FileItem): boolean {
-  return i.status === "found" && !i.fromProofJson && !!i.digestB64 && !!i.scan && i.file.size <= MAX_FUSE_BYTES;
+  return i.status === "found" && !i.fromProofJson && !!i.digestB64;
 }
 
 function withSetManifest(proof: BitGraphProof, manifestBytes: Uint8Array): BitGraphProof {
@@ -300,7 +315,7 @@ function withSetManifest(proof: BitGraphProof, manifestBytes: Uint8Array): BitGr
 
 export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, above, below, belowClassName, frameNote, acceptsPendingDrop, fitViewport = true, dropHeadline = "Make or check BitGraphs", dropHint = "Choose files, or drag in a whole folder.", dropSubhint = "Hashed in your browser, never uploaded.", dropPrompt }: BitGraphCameraProps) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length ? "results" : "drop"));
+  const [step, setStep] = useState<Step>(() => (cachedResults.get(id)?.length || cachedChecked.get(id)?.length || cachedExports.get(id)?.length ? "results" : "drop"));
   const [items, setItems] = useState<FileItem[]>(() => cachedResults.get(id) ?? []);
   // Verdicts for a dropped folder of BitGraph exports (the skeptic's drop):
   // one entry per export directory found in the drop, in walk order.
@@ -333,6 +348,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     }
   }
   const [checked, setChecked] = useState<ExportCheckResult[]>(() => cachedChecked.get(id) ?? []);
+  // Verdicts for dropped export/1 files: one row per file an export covers,
+  // or per export dropped without its files. Checked from the drop alone.
+  const [exportRows, setExportRows] = useState<TreeExportRow[]>(() => cachedExports.get(id) ?? []);
   // True while checkExports is doing its per-export ledger work, so the
   // checking wait shows a live count even for small folders (each export is
   // its own round trips, unlike the one-request digest lookup).
@@ -449,6 +467,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   useEffect(() => {
     if (step === "results" && checked.length > 0) cachedChecked.set(id, checked);
   }, [id, step, checked]);
+  useEffect(() => {
+    if (step === "results") { if (exportRows.length > 0) cachedExports.set(id, exportRows); else cachedExports.delete(id); }
+  }, [id, step, exportRows]);
 
   useEffect(() => {
     if (step !== "drop") window.scrollTo(0, 0);
@@ -527,7 +548,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
 
   // Results are on the page: the camera (title row, box) is closed behind
   // one link on the results heading until asked for (see the render).
-  const showingResults = step === "results" && (items.length > 0 || checked.length > 0);
+  const showingResults = step === "results" && (items.length > 0 || checked.length > 0 || exportRows.length > 0);
 
   /* The one link on a closed results page. It sits on the right of the first
      results heading (the folder's list when there is one, else the files'
@@ -565,6 +586,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   // errored file is still an unrecorded file; see proveRemaining).
   const unproven = items.filter(i => i.status === "new" || i.status === "error");
   const againRows = items.filter(isAgainRow);
+  // The trees this drop made, once each (every row of a tree holds the same one).
+  const madeTrees = useMemo(() => [...new Map(items.filter((i) => i.tree).map((i) => [`${i.tree!.made.proof.commit.counter}:${i.tree!.made.proof.artifact.digestB64}`, i.tree!.made] as const)).values()], [items]);
   // The distinct positions the dropped files hold, across every row: a set is
   // one position for many files, and a file BitGraphed twice holds two.
   // ⚠️ ZERO when any row's positions were not fully enumerated, which hides
@@ -718,14 +741,39 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
        The page is a VIEWER, and the browser is already holding the committed
        proof, so the click needs no lookup at all. The receiving half of this
        hand-off was fixed on 2026-09-16 for the same complaint; this is the
-       sender, which was never wired. Same shape openCheckedRow uses. */
+       sender, which was never wired. Same shape openCheckedRow uses.
+
+       A tree this drop made goes over with the row's own evidence beside it
+       (unsigned, TREE_MEMBER_KEY), so the page can show the file as the leaf
+       it is: a tree's page is one page for all its files, reached by the
+       root document's digest, and its members are indexed nowhere. */
+    const madeHere = item.tree && item.tree.made.proof.artifact.digestB64 === p.artifact.digestB64 && item.tree.made.proof.commit.counter === p.commit?.counter ? item.tree : null;
+    const handed = madeHere ? (treeHandoff(madeHere.made.proof, bytesToHexString(madeHere.made.rootDocument), madeHere.made.evidenceOf(madeHere.member.leafIndex)) as unknown as BitGraphProof) : p;
     setFreshProof(toUrlSafeB64(proofDigest), {
-      proofs: [{ proof: p }],
+      proofs: [{ proof: handed }],
       positions: c ? [{ counter: c, epoch: epoch || null, lowerTime: null, upperTime: null }] : [],
       causalWindow: null,
       anchorBlock: null,
     });
     router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
+  }
+
+  /* Open a checked export's proof page, handed the proof, its root document
+     and, when the row's file is the member it says, that file and its
+     evidence. A file that did not verify is never cached for the page: it
+     would show on the record's own page as if it were the record's. */
+  function openExportRow(r: TreeExportRow) {
+    const member = r.claims.some((x) => x.id === "bytes.member" && x.result === "TRUE");
+    const handed = treeHandoff(r.proof as unknown as VerifyProof, r.rootDocumentHex, member ? r.evidence : null) as unknown as BitGraphProof;
+    setFreshProof(r.digestUrlSafe, {
+      proofs: [{ proof: handed }],
+      positions: r.counter ? [{ counter: r.counter, epoch: r.epochUrlSafe, lowerTime: null, upperTime: null }] : [],
+      causalWindow: null,
+      anchorBlock: null,
+    });
+    if (member && r.file) void cacheArtifactToIDB(r.file, r.proof.artifact.digestB64).catch((e) => console.error("[bitgraph] cache error:", e));
+    const sel = r.counter ? `?counter=${encodeURIComponent(r.counter)}${r.epochUrlSafe ? `&epoch=${encodeURIComponent(r.epochUrlSafe)}` : ""}` : "";
+    router.push(`/proof/${encodeURIComponent(r.digestUrlSafe)}${sel}`);
   }
   // Tiny thumbs from the dropped bytes, for recognition in the results list
   // (record and check alike): you dropped forty photos, the rows should look
@@ -1100,6 +1148,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
        before (two drops in a row, one of each); ordinary now that a dropped
        zip takes the folder path. */
     setChecked([]);
+    setExportRows([]);
     setAnchorPlan(null);
     setAnchorNote(null);
     setCarrierDrops([]);
@@ -1176,6 +1225,39 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const rest = await connectFrom(files);
     if (rest.length === 0) { setStep("drop"); setBoxOpen(true); return; }
     files = rest;
+
+    /* export/1: a tree/1 BitGraph's one JSON file, dropped alone or with the
+       files it covers. It is checked here, from the drop alone, and the files
+       it covers come OUT of the drop before anything can offer to make them:
+       a photo dropped beside its export is a check, never a new BitGraph. Its
+       digest is no key on the ledger (a tree's members are not indexed), so
+       without this the lookup below calls it new and a lone one is made again
+       at a fresh position. SPEC.md, which travels beside every export, comes
+       out with them. Nothing on this path can mint. */
+    const dropped = await readTreeExports(files);
+    if (dropped.exports.length > 0) {
+      const scannedRest = await scanFiles(dropped.rest, carrierProofs);
+      setScanPhase("checking");
+      setCheckProgress({ current: 0, total: 0 });
+      let left = scannedRest;
+      try {
+        const verdicts = await checkTreeExports(
+          dropped.exports,
+          scannedRest.filter((r) => !r.fromProofJson && r.digestB64).map((r) => ({ file: r.file, digestB64: r.digestB64 })),
+          // The enclave images BitGraph publishes: PCR0 is judged, not just reported.
+          { pins: { pcr0: [...PUBLISHED_PCR0S] }, onProgress: (current, total) => setCheckProgress({ current, total }) },
+        );
+        left = scannedRest.filter((r) => !verdicts.covered.has(r.file) && !verdicts.specFiles.has(r.file));
+        setExportRows(verdicts.rows);
+      } catch (e) {
+        console.error("[bitgraph] export check failed:", e);
+        setRecordMessage(`The export could not be checked: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      setItems(left);
+      setStep("results");
+      setAnimCount(left.filter((r) => r.status === "found").length);
+      return;
+    }
     const results = await scanFiles(files, carrierProofs);
 
     // One file in, one page out. A single artifact drop always lands on its
@@ -1190,7 +1272,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     const solo = results.length === 1 ? results[0] : null;
     // fresh=true plays the capture flash on the proof page (a just-recorded
     // BitGraph), never on a lookup of something already on record.
-    const openProofPage = (p: BitGraphProof, file: File, fresh = false, fused: FusedOutcome | null = null) => {
+    const openProofPage = (p: BitGraphProof, file: File, fresh = false) => {
       const proofDigest = p.artifact.digestB64;
       const c = p.commit?.counter;
       const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
@@ -1285,26 +1367,28 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // away.
         let begun = false;
         try {
-          // Fuse by default: the dropped file is the origin, a slot is
-          // allocated for it, and the fused bytes built in memory consume
-          // that slot. The proof page then shows the visitor's own file,
-          // which rebuilds the committed artifact (see BringYourFile).
+          // By default the file becomes a tree of one (tree/1): a position is
+          // allocated for it, its committed bytes are built and hashed in
+          // memory (or, over the in-browser cap, the file is a leaf as is),
+          // and the root document over its one leaf consumes that position.
+          // The proof page then shows the visitor's own file, which rebuilds
+          // its leaf (see the tree card there).
           const made = fuseByDefault
-            ? await fuseOrRecordOne(solo.file, solo.digestB64, () => { begun = true; })
+            ? await makeOne(solo)
             : await (async () => {
                 await commitThroughRotation(() => beginRun([solo.digestB64]));
                 begun = true;
-                return { proof: await commitThroughRotation(() => strategy.one(solo.digestB64)), fused: null };
+                return { proof: await commitThroughRotation(() => strategy.one(solo.digestB64)) };
               })();
           const p = made.proof;
           void announceRecorded([p]);
-          openProofPage(p, solo.file, true, made.fused);
+          openProofPage(p, solo.file, true);
           return;
         } catch (e) {
           // Recording failed: fall back to the results card so the user can
           // retry via the explicit button instead of a dead end. The file
           // stays "new" either way (a solo commit that fails mints nothing).
-          setRecordMessage(strategy.errorMessage?.(e, begun ? "commit" : "begin") ?? null);
+          setRecordMessage(strategy.errorMessage?.(e, begun ? "commit" : "begin") ?? (e instanceof Error ? e.message : null));
           setItems(prev => prev.map(i => i.digestB64 === solo.digestB64 ? { ...i, status: "new" as const } : i));
           setAnimCount(0);
           setStep("results");
@@ -1342,6 +1426,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
   async function handleFolder(walked: WalkedFile[]) {
     setRecordMessage(null);
     setBoxOpen(false);
+    setExportRows([]);
     const scan = discoverDrop(walked);
     /* Connect before anything else is decided. A dragged BitGraphs folder IS
        the connection gesture — it holds no proof.json, so discoverDrop finds
@@ -1418,12 +1503,22 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     });
     // Files in the drop that belong to no export are just files: hash and
     // look them up like any other drop (their card renders below the
-    // verdicts), with none of the solo routing.
+    // verdicts), with none of the solo routing. An export/1 among them is
+    // checked against the files it covers, which then leave the list, the
+    // same rule handleFiles keeps.
     if (strays.length) {
-      void scanFiles(strays).then((strayItems) => {
-        setItems(strayItems);
-        setAnimCount(strayItems.filter((r) => r.status === "found").length);
-      }).catch(() => { /* strays are secondary; the ledger stands */ });
+      void (async () => {
+        const dropped = await readTreeExports(strays);
+        const strayItems = await scanFiles(dropped.rest);
+        let left = strayItems;
+        if (dropped.exports.length > 0) {
+          const verdicts = await checkTreeExports(dropped.exports, strayItems.filter((r) => !r.fromProofJson && r.digestB64).map((r) => ({ file: r.file, digestB64: r.digestB64 })), { pins: { pcr0: [...PUBLISHED_PCR0S] } });
+          left = strayItems.filter((r) => !verdicts.covered.has(r.file) && !verdicts.specFiles.has(r.file));
+          setExportRows(verdicts.rows);
+        }
+        setItems(left);
+        setAnimCount(left.filter((r) => r.status === "found").length);
+      })().catch(() => { /* strays are secondary; the ledger stands */ });
     }
   }
 
@@ -1575,25 +1670,18 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       }
     });
   }
-  async function fuseOne(file: File): Promise<FusedOutcome> {
-    return heldThroughRotation(() => fuseFile(file));
-  }
-  // A file too large to build in memory is recorded as itself instead, the
-  // compatibility operation, through the strategy's ordinary path.
-  /* Returns the fused OUTCOME, not just its proof: the export writes the new
-     file's bytes under new-file/, and a solo make now saves its own package,
-     so throwing the outcome away here would quietly hand a solo maker a
-     package missing what the manual export puts in. */
-  async function fuseOrRecordOne(file: File, digestB64: string, onBegun: () => void): Promise<{ proof: BitGraphProof; fused: FusedOutcome | null }> {
-    try {
-      const out = await fuseOne(file);
-      return { proof: out.proof, fused: out };
-    } catch (e) {
-      if (!(e instanceof FuseTooLargeError)) throw e;
-    }
-    await commitThroughRotation(() => beginRun([digestB64]));
-    onBegun();
-    return { proof: await commitThroughRotation(() => strategy.one(digestB64)), fused: null };
+  /* ── Making: tree/1, whatever the count (2026-10-03) ──
+     One file is a tree of one and a drop is a tree of N: one position, one
+     commit, every file a leaf. A file too large to build in memory is a leaf
+     AS IS in the same tree (its own digest twice, never read again, no floor
+     of its own) where it used to leave the BitGraph for an ordinary
+     recording. The proof comes back with the tree beside it (the root
+     document, every leaf, each file's evidence), which is everything its
+     export is made of; nothing is indexed by a member's digest. */
+  const treeInputFor = (t: FileItem) => treeInputOf({ file: t.file, digestB64: t.digestB64, placement: t.scan?.placement ?? null, state: t.scan?.state ?? null });
+  async function makeOne(t: FileItem): Promise<{ proof: BitGraphProof; made: MadeTree }> {
+    const made = await heldThroughRotation(() => makeTreeHere([treeInputFor(t)]));
+    return { proof: made.proof as unknown as BitGraphProof, made };
   }
   async function beginRun(digests: string[]) {
     if (!strategy.begin) return;
@@ -1653,10 +1741,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
 
   async function fuseRemaining(again = false) {
     // A fresh run takes the rows not yet on record. An again run takes the
-    // rows on record and makes them a NEW set: one new slot, every member
-    // fused under its commitment, one new position beside the ones the files
-    // already hold. The group is a unit of meaning, and a new set is its new
-    // set hash.
+    // rows on record and makes them a NEW tree: one new position, every file
+    // a leaf under its commitment, one new position beside the ones the files
+    // already hold. The group is a unit of meaning, and a new tree is its new
+    // root.
     const eligible = (i: FileItem) => (again ? isAgainRow(i) : i.status === "new" || i.status === "error");
     const toProve = items.filter(eligible);
     if (!toProve.length) return;
@@ -1665,75 +1753,45 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     setProveProgress({ current: 0, total: toProve.length });
     setItems(prev => prev.map(i => eligible(i) ? { ...i, status: "proving" as const } : i));
     let minted = 0;
-    // Held in an object: fuseSolo below assigns it, and a closure's write is
+    // Held in an object: the loop assigns it, and a closure's write is
     // invisible to the narrowing at the navigation check after the loop.
-    const last: { out: FusedOutcome | null } = { out: null };
+    const last: { made: MadeTree | null } = { made: null };
     // The drop's plan, over DISTINCT bytes: the same file dropped twice is
-    // one file to fuse, and every row carrying its digest flips together.
-    // Planning over rows instead put a duplicate straddling a cut into two
-    // sets, so the second set fused bytes the first had already made a
-    // member, spent a position no row ever showed, and the row it did show
-    // was the earlier set's. Files over the in-browser cap go to the record
-    // path below, as before; the rest fill sets, and a set is ONE BitGraph:
-    // one slot, one commit, every member floored and ceilinged by it. A drop
-    // that fits one budget is one set; a drop too big for a browser tab
-    // becomes consecutive sets, each its own position (planSets says where
-    // it cuts).
+    // one leaf, and every row carrying its digest flips together. Planning
+    // over rows instead put a duplicate straddling a cut into two sets (the
+    // set/1 days), so the second spent a position no row ever showed. A tree
+    // is ONE BitGraph: one position, one commit, every file ceilinged by it
+    // and every file but those kept as is floored by it (files over the
+    // in-browser cap are leaves as is: they existed by the commit, and
+    // nothing bounds them from below). A drop that fits one budget is one
+    // tree; a drop too big for a browser tab becomes consecutive trees, each
+    // its own position (planTrees says where it cuts).
     const firstOf = new Map<string, FileItem>();
     for (const t of toProve) if (!firstOf.has(t.digestB64)) firstOf.set(t.digestB64, t);
-    // The plan reads what the scan learned: a trailer/1 file with its saved
-    // state costs no read, so a folder of photos is ONE set up to the member
-    // cap whatever its size; a file that must be read again fills a set to a
-    // budget set by the scan's own speed, which keeps the fuse phase well
-    // inside the slot TTL. A file the scan could not place goes in a container,
-    // which carries any bytes whole.
+    const distinct = [...firstOf.values()];
+    // The plan reads what the scan learned: a file with its saved hasher state
+    // costs no read, and neither does a file as is, so a folder of photos is
+    // ONE tree up to the leaf cap whatever its size; a file that must be read
+    // again fills a tree to a budget set by the scan's own speed, which keeps
+    // the leaf pass well inside the position's window. A file the scan could
+    // not place is placed from its bytes when it is read, by the same rule
+    // every producer uses (trailer/1 for the formats that ignore a trailer,
+    // container/2 for everything else).
     const rate = scanRateRef.current;
     const budget = rate === null ? undefined : Math.min(32 * 1024 ** 3, Math.max(512 * 1024 ** 2, rate * 45));
-    const scannedOf = (t: FileItem): ScannedFile => ({ file: t.file, digestB64: t.digestB64, placement: t.scan?.placement ?? "container/1", state: t.scan?.state ?? null });
-    const plan = planSets([...firstOf.values()].map(scannedOf), budget);
-    const itemOf = new Map([...firstOf.values()].map((t) => [t.file, t] as const));
-    const tooLarge: FileItem[] = plan.tooLarge.flatMap((sf) => { const t = itemOf.get(sf.file); return t ? [t] : []; });
+    const plan = planTrees(distinct.map((t) => ({ size: t.file.size, stateful: !!t.scan?.placement && !!t.scan?.state })), budget);
     // Progress counts ROWS, so a drop with duplicates still reaches its total.
     const rowsOf = (digests: Iterable<string>) => { const d = new Set(digests); return toProve.filter((t) => d.has(t.digestB64)).length; };
     let done = 0;
     const tick = () => new Promise((r) => setTimeout(r, 0));
-    // One file on its own slot, as a solo drop gets: a set of one is
-    // protocol-legal and the site never makes one, whether the file is the
-    // whole drop's fusable part or the remainder a cut left alone.
-    const fuseSolo = async (t: FileItem) => {
-      try {
-        const out = await fuseOne(t.file);
-        last.out = out;
-        // minted counts ROWS, as the results card does: a file dropped twice is
-        // one member and two rows.
-        minted += rowsOf([t.digestB64]);
-        setItems(prev => prev.map(i => i.status === "proving" && i.digestB64 === t.digestB64
-          ? { ...i, proof: out.proof, proofs: [out.proof, ...i.proofs], kinds: ["fused" as const, ...(i.kinds ?? i.proofs.map(() => "recorded" as const))], member: i.member ? [null, ...i.member] : i.member, times: undefined, fused: out, valid: true, status: "proved" as const }
-          : i));
-        void announceRecorded([out.proof]);
-      } catch (e) {
-        if (e instanceof FuseTooLargeError) tooLarge.push(t); else throw e;
-      }
-      done += rowsOf([t.digestB64]);
-      setProveProgress({ current: done, total: toProve.length });
-      await tick();
-    };
     try {
-      for (const set of plan.sets) {
-        if (set.length === 1) {
-          const t = itemOf.get(set[0].file);
-          if (t) await fuseSolo(t);
-          continue;
-        }
-        // All or nothing: a set commits as one, so no member is ever shown
-        // proved on its own, and a set already made stays made when a later
+      for (const group of plan) {
+        const tree = group.map((k) => distinct[k]!);
+        // All or nothing: a tree commits as one, so no file is ever shown
+        // proved on its own, and a tree already made stays made when a later
         // one in the same drop fails.
-        // The bar moves as the set's members are built, in rows: the core
-        // hashes every original before the slot is held, builds each member
-        // under it, and the count then holds while the one commit is in flight.
-        // Rows covered by this set's first i members, precomputed.
         //
-        // ⚠️ THE CALLBACK BELOW RUNS ~90,000 TIMES FOR A 30,000 FILE SET, so
+        // ⚠️ THE CALLBACK BELOW RUNS ~90,000 TIMES FOR A 30,000 FILE TREE, so
         // nothing in it may walk the drop. It used to call rowsOf(set.slice(0,
         // p.done)), which slices, maps, builds a Set and filters every row, on
         // every event: billions of operations, and the tab simply stops (Mike,
@@ -1741,13 +1799,13 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         // front, makes each event a single array read.
         const rowsPerDigest = new Map<string, number>();
         for (const t of toProve) rowsPerDigest.set(t.digestB64, (rowsPerDigest.get(t.digestB64) ?? 0) + 1);
-        const rowsUpTo = new Int32Array(set.length + 1);
-        for (let i = 0; i < set.length; i++) rowsUpTo[i + 1] = rowsUpTo[i] + (rowsPerDigest.get(set[i].digestB64) ?? 0);
-        const setRows = rowsUpTo[set.length];
+        const rowsUpTo = new Int32Array(tree.length + 1);
+        for (let i = 0; i < tree.length; i++) rowsUpTo[i + 1] = rowsUpTo[i] + (rowsPerDigest.get(tree[i].digestB64) ?? 0);
+        const treeRows = rowsUpTo[tree.length];
         // One render per event is the other half of the same mistake: 90,000
         // state writes is its own freeze, and no one can read a number that
         // changes 90,000 times. Report a step of the bar, not an event.
-        const step = Math.max(1, Math.floor(setRows / 200));
+        const step = Math.max(1, Math.floor(treeRows / 200));
         let lastPhase = "";
         let lastWalked = -step;
         let since = Date.now();
@@ -1767,41 +1825,33 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
           spent.set(ph, (spent.get(ph) ?? 0) + (now - phaseStart));
           phaseStart = now;
         };
-        const out = await heldThroughRotation(() => fuseFiles(set, {
+        const made = await heldThroughRotation(() => makeTreeHere(tree.map(treeInputFor), {
           onProgress: (p) => {
-            // ⚠️ The core opens the set's slot BETWEEN the last hash report and
-            // the first fuse one, and reports nothing while it waits on the
-            // enclave:
-            //   report("hash", i + 1, members.length)
-            //   const slot = await allocateSlot(t)
-            //   ... report("fuse", i + 1, checked.length)
-            // So the bar sat on a finished count with no explanation, which
-            // reads as stuck rather than waiting (Mike, 2026-09-07, on 50,000
-            // files: "this screen sits and progress bar sort of stays right
-            // there"). The last hash event is that wait beginning, so it is
-            // shown as what it is. Every file is hashed by this point; what is
-            // outstanding is the position.
+            // ⚠️ The maker holds the position BETWEEN the last check report
+            // and the first leaf, and reports nothing while it waits on the
+            // enclave. The last "hash" event is that wait beginning, so it is
+            // shown as what it is: every file is checked, the position is
+            // what is outstanding (Mike, 2026-09-07, on 50,000 files: "this
+            // screen sits and progress bar sort of stays right there").
             const phase = p.phase === "hash" && p.done >= p.total ? "slot" : p.phase;
             const counts = phase === "hash" || phase === "fuse" || phase === "verify";
-            if (phase === lastPhase && counts && p.done < lastWalked + step && p.done < set.length) return;
+            if (phase === lastPhase && counts && p.done < lastWalked + step && p.done < tree.length) return;
             if (phase !== lastPhase) { if (lastPhase) chargeTo(lastPhase); since = Date.now(); }
             lastPhase = phase;
             lastWalked = p.done;
-            // Counted in ROWS of this set, as the bar is: the phases walk
-            // files, and a file dropped twice is one file to hash and two
-            // rows. A drop that fits one set is the ordinary case and its
-            // counts run to the drop's own total.
-            const walked = counts ? rowsUpTo[Math.min(p.done, set.length)] : 0;
-            const third = setRows / 3;
+            // Counted in ROWS of this tree, as the bar is: the phases walk
+            // files, and a file dropped twice is one leaf and two rows.
+            const walked = counts ? rowsUpTo[Math.min(p.done, tree.length)] : 0;
+            const third = treeRows / 3;
             const at = phase === "hash" ? done + walked / 3
-              // The slot wait sits where hashing left it: nothing is built yet.
+              // The position wait sits where checking left it: nothing is built yet.
               : phase === "slot" ? done + third
               : phase === "fuse" ? done + third + walked / 3
               : phase === "verify" ? done + 2 * third + walked / 3
-              // tree and commit: every member is built and the position is
-              // being taken, so the bar waits where fuse left it.
+              // tree and commit: every leaf is made and the position is being
+              // taken, so the bar waits where the leaves left it.
               : done + 2 * third;
-            setProvePhase({ phase, done: walked, total: setRows, at, since });
+            setProvePhase({ phase, done: walked, total: treeRows, at, since });
           },
         }));
         if (lastPhase) chargeTo(lastPhase);
@@ -1809,64 +1859,47 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         if (new URLSearchParams(window.location.search).has("timing")) {
           const parts = [...spent.entries()].map(([k, ms]) => `${k} ${(ms / 1000).toFixed(1)}s`);
           const total = [...spent.values()].reduce((a, b) => a + b, 0);
-          // What the repainting itself cost, so the next argument about it is
-          // settled by a number rather than by reasoning about primitives.
-          const p = out.paints;
-          const paints = p ? ` · ${p.count} paints ${(p.ms / 1000).toFixed(1)}s` : "";
-          setRecordMessage(`${set.length} files · ${parts.join(" · ")} · total ${(total / 1000).toFixed(1)}s${paints}`);
+          setRecordMessage(`${tree.length} files · ${parts.join(" · ")} · total ${(total / 1000).toFixed(1)}s`);
         }
-        const count = out.members.length;
-        // The rows this set covers, and ONLY this set's: the plan holds each
-        // digest once, so the set's digests name its rows and a row waiting
-        // on a later set is never flipped by this one.
-        const setDigests = new Set(set.map((sf) => sf.digestB64));
-        const byOrigin = new Map(out.members.map((m) => [m.originDigestB64, m] as const));
-        // Every row the set covers flips to the one shared proof, the new
+        const proof = made.proof as unknown as BitGraphProof;
+        // The rows this tree covers, and ONLY this tree's: the plan holds each
+        // digest once, so the tree's digests name its rows and a row waiting
+        // on a later tree is never flipped by this one.
+        const treeDigests = new Set(tree.map((t) => t.digestB64));
+        const memberOf = new Map(made.members.map((m) => [m.originDigestB64, m] as const));
+        // Every row the tree covers flips to the one shared proof, the new
         // position first and the positions the row already held behind it
-        // (an again run adds one; a fresh row had none). The same bytes
-        // dropped twice are one member, and both rows carry it. Nothing here
-        // keeps the fused bytes: the export rebuilds them.
+        // (an again run adds one; a fresh row had none). Nothing here keeps
+        // committed bytes: an export carries none, and the file rebuilds them.
         setItems(prev => prev.map(i => {
-          const m = i.status === "proving" && setDigests.has(i.digestB64) ? byOrigin.get(i.digestB64) : undefined;
+          const m = i.status === "proving" && treeDigests.has(i.digestB64) ? memberOf.get(i.digestB64) : undefined;
           return m
-            ? { ...i, proof: out.proof, proofs: [out.proof, ...i.proofs], kinds: ["fused" as const, ...(i.kinds ?? i.proofs.map(() => "recorded" as const))], member: [{ index: m.manifestIndex, count, role: "origin" as const }, ...(i.member ?? i.proofs.map(() => null))], times: undefined, setMember: { member: m, manifestBytes: out.manifestBytes, count, proof: out.proof }, valid: true, status: "proved" as const }
+            ? { ...i, proof, proofs: [proof, ...i.proofs], kinds: ["fused" as const, ...(i.kinds ?? i.proofs.map(() => "recorded" as const))], member: i.member ? [null, ...i.member] : i.member, times: undefined, tree: { made, member: m }, valid: true, status: "proved" as const }
             : i;
         }));
-        const rows = rowsOf(byOrigin.keys());
+        const rows = rowsOf(treeDigests);
         minted += rows;
         done += rows;
+        last.made = made;
         setProveProgress({ current: done, total: toProve.length });
-        void announceRecorded([out.proof]);
-        // A set/2 leaves its members to be indexed from their evidence once
-        // the results are on the page.
-        if (out.set === "set/2") {
-          const c = out.proof.commit;
-          const evidence = out.members.map((m) => m.memberProof).filter((e) => e !== undefined);
-          if (c?.epochId && c?.counter && evidence.length) pendingIndexRef.current.push({ setDigest: out.artifactDigestB64, epoch: toUrlSafeB64(c.epochId), counter: String(c.counter), members: evidence });
-        }
+        void announceRecorded([proof]);
         await tick();
       }
-      if (tooLarge.length) {
-        await commitThroughRotation(() => beginRun(tooLarge.map((t) => t.digestB64)));
-        for (let offset = 0; offset < tooLarge.length; offset += 50) {
-          const chunk = tooLarge.slice(offset, offset + 50);
-          const proofs = await commitThroughRotation(() => strategy.chunk(chunk.map((t) => t.digestB64), offset));
-          minted += proofs.length;
-          const chunkMap = new Map(chunk.map((t, i) => [t.digestB64, proofs[i]] as const));
-          setItems(prev => prev.map(i => { const p = chunkMap.get(i.digestB64); return p ? { ...i, proof: p, proofs: [p], kinds: ["recorded" as const], valid: true, status: "proved" as const } : i; }));
-          // The label counts these rows too: it read "2 of 3" for the whole
-          // record path when it stopped at the fusable rows.
-          done += rowsOf(chunkMap.keys());
-          setProveProgress({ current: done, total: toProve.length });
-          void announceRecorded(proofs);
-        }
-      }
-      if (items.length === 1 && minted === 1 && last.out !== null) {
-        const proofDigest = last.out.proof.artifact.digestB64;
-        const c = last.out.proof.commit?.counter;
-        const epoch = last.out.proof.commit?.epochId ? toUrlSafeB64(last.out.proof.commit.epochId) : "";
+      // One file in, one page out, as a lone drop gets: the page is handed
+      // the proof it shows, and the file it shows.
+      if (items.length === 1 && minted === 1 && last.made !== null) {
+        const p = last.made.proof as unknown as BitGraphProof;
+        const proofDigest = p.artifact.digestB64;
+        const c = p.commit?.counter;
+        const epoch = p.commit?.epochId ? toUrlSafeB64(p.commit.epochId) : "";
         const sel = c ? `?counter=${encodeURIComponent(c)}${epoch ? `&epoch=${encodeURIComponent(epoch)}` : ""}&fresh=1` : "?fresh=1";
         void cacheArtifactToIDB(toProve[0].file, proofDigest).catch((e) => console.error("[bitgraph] cache error:", e));
+        setFreshProof(toUrlSafeB64(proofDigest), {
+          proofs: [{ proof: p }],
+          positions: c ? [{ counter: c, epoch: epoch || null, lowerTime: null, upperTime: null }] : [],
+          causalWindow: null,
+          anchorBlock: null,
+        });
         saveMinted(dropNameRef.current);
         router.push(`/proof/${encodeURIComponent(toUrlSafeB64(proofDigest))}${sel}`);
         return;
@@ -1878,9 +1911,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     setProvePhase(null);
     setStep("results");
     if (minted > 0) { setPackageNote(null); saveMinted(dropNameRef.current); }
-    // The members of any set/2 this run made become findable by hash now that
-    // the results are on the page: a later drop of one of them is then a
-    // lookup, not a second recording.
+    // The members of any set/2 a run made before tree/1 are indexed from
+    // their evidence; a tree's members are not (its export, or its recovery
+    // entry, is what shows a member), so a run here leaves nothing pending.
     if (pendingIndexRef.current.length > 0) void indexSetEvidence();
     // An again run gives no row a place it did not have; the count is the rows on record.
     setAnimCount(items.filter(i => i.status === "found" || i.status === "proved").length + (again ? 0 : minted));
@@ -2093,8 +2126,44 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      state. The auto-save below runs the instant a mint returns, when `items`
      is still the pre-mint list, so it must pass what it just made. */
   async function downloadZip(source?: FileItem[]) {
-    const withProofs = (source ?? items).filter(i => i.proof);
-    if (!withProofs.length) return;
+    const all = (source ?? items).filter(i => i.proof);
+    if (!all.length) return;
+
+    /* ⚠️ TWO KINDS OF BITGRAPH, TWO KINDS OF EXPORT (2026-10-03).
+     *
+     * A tree/1 position exports as ONE JSON file, bitgraph-export/1, with
+     * SPEC.md beside it: a tree of one as that file's own export (its leaf and
+     * path), a tree of many as the owner's export (every leaf, every name).
+     * No folder per file, no copy of any file, no proof.json: the export holds
+     * the proof, and the files travel on their own (SPEC.md section 12).
+     *
+     * Every other position keeps the package path below, untouched: the
+     * legacy rows are handed to it with their tree positions taken out, so a
+     * file that holds an older set position AND a new tree position exports
+     * both, each the way its own kind is read. */
+    const legacyView = (i: FileItem): FileItem | null => {
+      const ps = i.proofs.length ? i.proofs : i.proof ? [i.proof] : [];
+      const keep = ps.map((p, k) => [p, k] as const).filter(([p]) => !isTreeTitled(p));
+      if (keep.length === 0) return null;
+      if (keep.length === ps.length && !i.tree) return i;
+      const pick = <T,>(arr: T[] | null | undefined): T[] | null | undefined => (arr ? keep.map(([, k]) => arr[k] as T) : arr);
+      return { ...i, proof: keep[0][0], proofs: keep.map(([p]) => p), member: pick(i.member), kinds: pick(i.kinds) ?? undefined, times: pick(i.times) ?? undefined, tree: undefined };
+    };
+    const withProofs = all.map(legacyView).filter((i): i is FileItem => i !== null);
+    // One job per tree position held by any row, with the tree this drop made
+    // when it made it (the owner's list and every member's evidence).
+    const treeJobs = new Map<string, { proof: BitGraphProof; made: MadeTree | null; rows: FileItem[] }>();
+    const positionKey = (p: BitGraphProof) => `${p.commit?.epochId ?? ""}:${p.commit?.counter ?? ""}:${p.artifact.digestB64}`;
+    for (const i of all) {
+      for (const p of i.proofs.length ? i.proofs : i.proof ? [i.proof] : []) {
+        if (!isTreeTitled(p)) continue;
+        const key = positionKey(p);
+        const job = treeJobs.get(key) ?? { proof: p, made: null, rows: [] };
+        if (i.tree && positionKey(i.tree.made.proof as unknown as BitGraphProof) === key) job.made = i.tree.made;
+        job.rows.push(i);
+        treeJobs.set(key, job);
+      }
+    }
 
     /**
      * ⚠️ READ BACK ANY MEMBER ANSWERED FROM A SET'S LIST.
@@ -2156,9 +2225,10 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     }
 
     setStep("exporting");
-    const totalSteps = withProofs.length + 2; // files + anchors + zip
+    const totalSteps = withProofs.length + treeJobs.size + 2; // files + trees + anchors + zip
     setExportProgress({ current: 0, total: totalSteps, phase: "packaging" });
-    const multi = withProofs.length > 1;
+    // A legacy file gets its own folder whenever anything else shares the zip.
+    const multi = withProofs.length > 1 || (withProofs.length > 0 && treeJobs.size > 0);
 
     // Streaming zip: chunks accumulate as each file is added
     const chunks: Uint8Array[] = [];
@@ -2178,6 +2248,12 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       const entry = new ZipPassThrough(name);
       z.add(entry);
       entry.push(new TextEncoder().encode(text), true);
+    };
+    // And one whose bytes must travel exactly as they are (SPEC.md: its hash is pinned).
+    const addBytes = (name: string, bytes: Uint8Array) => {
+      const entry = new ZipPassThrough(name);
+      z.add(entry);
+      entry.push(bytes, true);
     };
 
     // One entry per proof folder, gathered as the zip is built so the pages
@@ -2463,10 +2539,81 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
       }
     }
 
+    /* ── tree/1: one export/1 file per position, SPEC.md once ──
+       A tree this drop made exports from what the maker handed back: a tree
+       of one as its file's own export, a tree of many as the owner's. A tree
+       position found on record (not made here) has neither in hand: a tree
+       of one is rebuilt from the file itself (its root is its only leaf), and
+       anything else exports the root document alone, which checks the proof
+       and its times and says the file's membership is not carried. The floor
+       header, the Base ceiling and the settlement are read from this site's
+       routes and vetted before they are written (buildTreeExport). */
+    const treeNotes: string[] = [];
+    const usedNames = new Set<string>();
+    const uniqueName = (name: string, proof: BitGraphProof) => {
+      if (!usedNames.has(name)) { usedNames.add(name); return name; }
+      const alt = name.replace(/\.bitgraph\.json$/, ` #${proof.commit?.counter ?? "?"}.bitgraph.json`);
+      usedNames.add(alt);
+      return alt;
+    };
+    const specFor = new Map<string, Uint8Array | null>();
+    let treeStep = withProofs.length;
+    for (const job of treeJobs.values()) {
+      setExportProgress({ current: ++treeStep, total: totalSteps, phase: "packaging" });
+      await tick();
+      const proof = job.proof as unknown as VerifyProof;
+      let tree: Parameters<typeof buildTreeExport>[1];
+      let name: string;
+      if (job.made && job.made.count === 1) {
+        tree = memberTree(job.made.rootDocument, job.made.evidenceOf(0));
+        name = memberExportName(job.rows[0]!.file.name);
+      } else if (job.made) {
+        tree = ownerTree(job.made.rootDocument, job.made.leavesBytes, job.made.names);
+        name = ownerExportName(proof);
+      } else {
+        const bound = bindTree(proof);
+        let evidence: Awaited<ReturnType<typeof treeOfOneEvidence>> = null;
+        let holder: FileItem | null = null;
+        if (bound.ok && bound.tree.count === 1) {
+          for (const r of job.rows) {
+            if (r.fromProofJson) continue;
+            evidence = await treeOfOneEvidence(bound.tree, new Uint8Array(await r.file.arrayBuffer()));
+            if (evidence) { holder = r; break; }
+          }
+        }
+        if (bound.ok && evidence && holder) {
+          tree = memberTree(bound.tree.rootDocument, evidence);
+          name = memberExportName(holder.file.name);
+        } else if (bound.ok) {
+          tree = rootOnlyTree(bound.tree.rootDocument);
+          name = ownerExportName(proof);
+          treeNotes.push(`BitGraph #${proof.commit?.counter ?? "?"} is a tree of ${bound.tree.count} files and this browser did not make it, so its export carries the proof and its times but no file's membership: that comes with the file's own export, or its recovery entry.`);
+        } else {
+          treeNotes.push(`BitGraph #${proof.commit?.counter ?? "?"} could not be exported: ${bound.reason}.`);
+          continue;
+        }
+      }
+      try {
+        const evidenceParts = await fetchTreeEvidence(proof);
+        const built = await buildTreeExport(proof, tree, evidenceParts);
+        addText(uniqueName(name, job.proof), exportJson(built.exp));
+        treeNotes.push(...built.notes);
+        const pin = typeof proof.attribution?.message === "string" ? proof.attribution.message : "";
+        if (!specFor.has(pin)) specFor.set(pin, await fetchSpecFor(pin));
+      } catch (e) {
+        treeNotes.push(`BitGraph #${proof.commit?.counter ?? "?"} could not be exported: ${(e as Error).message}.`);
+      }
+    }
+    // SPEC.md travels beside the exports, byte for byte the text their proofs pin.
+    for (const [pin, spec] of specFor) {
+      if (spec) addBytes(specFor.size === 1 ? SPEC_FILE_NAME : `SPEC (${pin.slice(0, 8).replace(/[+/]/g, "_")}).md`, spec);
+      else treeNotes.push("SPEC.md could not be fetched, so it is not beside the export. It is at bitgraph.ing/spec/SPEC.md; its SHA-256 is the one the proof pins.");
+    }
+
     // Bracket the single-recording proofs with a batch-level anchor window:
     // "after" follows the highest counter, "before" precedes the lowest.
     // Multi-recording files already carry per-recording anchors above.
-    setExportProgress({ current: withProofs.length + 1, total: totalSteps, phase: "packaging" });
+    setExportProgress({ current: withProofs.length + treeJobs.size + 1, total: totalSteps, phase: "packaging" });
     await tick();
     if (singles.length > 0) {
       const last = singles.reduce((a, b) =>
@@ -2506,9 +2653,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     // The Folder's naming, in both arities: one file is `BitGraph (name).zip`
     // exactly as its export folder would be called, and a batch says what it
     // holds instead of "batch". Two other schemes lived here before.
-    a.download = withProofs.length === 1
-      ? `BitGraph (${withProofs[0].file.name.replace(/[\x00-\x1f\x7f/]/g, " ").trim()}).zip`
-      : `BitGraph (${withProofs.length} files).zip`;
+    a.download = all.length === 1
+      ? `BitGraph (${all[0].file.name.replace(/[\x00-\x1f\x7f/]/g, " ").trim()}).zip`
+      : `BitGraph (${all.length} files).zip`;
     a.click();
     URL.revokeObjectURL(url);
 
@@ -2518,7 +2665,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
      * is a different kind of bad. Best effort by design: it must never be able
      * to break the download that has already happened. */
     {
-      const positions = [...new Set(withProofs.flatMap((i) =>
+      const positions = [...new Set(all.flatMap((i) =>
         (i.proofs.length ? i.proofs : i.proof ? [i.proof] : [])
           .map((pr) => `${pr.commit?.epochId ?? ""} ${pr.commit?.counter ?? ""}`)))];
       void putPackageToIDB(positions[0] || String(Date.now()),
@@ -2548,6 +2695,8 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
     if (unknown > 0) {
       said.push(`${unknown} position${unknown === 1 ? "'s anchors" : "s' anchors"} could not be looked up. That is our gap, not a fact about your files. Drop the folder back in to try again.`);
     }
+    // What each tree's export went out short of, once per sentence.
+    said.push(...new Set(treeNotes));
     setPackageNote(said.length ? said.join(" ") : null);
     setStep("results");
   }
@@ -2960,7 +3109,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     : provePhase.phase === "verify" ? `Verifying ${provePhase.done} of ${provePhase.total}`
                     : /* The three that cannot count say how long they have been
                          at it instead, once it is long enough to wonder. */
-                      `${provePhase.phase === "slot" ? "Holding a position" : provePhase.phase === "tree" ? "Building the set" : "Committing the set"}…${phaseSeconds >= 3 ? ` ${phaseSeconds}s` : ""}`}
+                      `${provePhase.phase === "slot" ? "Holding a position" : provePhase.phase === "tree" ? "Building the tree" : "Committing the tree"}…${phaseSeconds >= 3 ? ` ${phaseSeconds}s` : ""}`}
                 </div>
                 <div style={waitTrack}>
                   <div style={waitFill(proveProgress.total ? Math.min(100, (provePhase.at / proveProgress.total) * 100) : 0)} />
@@ -3011,7 +3160,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
         })()}
 
         {/* ── Results ── */}
-        {step === "results" && (items.length > 0 || checked.length > 0) && (
+        {step === "results" && (items.length > 0 || checked.length > 0 || exportRows.length > 0) && (
           <div style={{ animation: "slideIn 0.3s ease-out", display: "flex", flexDirection: "column", gap: 24 }}>
 
               {/* The drop box now sits above this (see the camera block), so a
@@ -3085,6 +3234,24 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
 
               {checked.length > 0 && <CheckedList checked={checked} onOpen={openCheckedRow} heading={boxOpen ? null : "BitGraphs in this folder"} aside={openLink} />}
 
+              {/* ── export/1: tree/1 BitGraphs checked from their export ──
+                  One row per file an export covers (checked against its leaf),
+                  or per export dropped without its files; the verdict, then
+                  the floor, the Base ceiling and the Ethereum ceiling, each
+                  on its own line. The files these rows cover are not in the
+                  list below: they are checked, not new. */}
+              {exportRows.length > 0 && (
+                <div>
+                  {!boxOpen && (
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+                      <div className="bg-page-title">BitGraph{exportRows.length === 1 ? "" : "s"} Checked</div>
+                      {checked.length === 0 && openLink}
+                    </div>
+                  )}
+                  <TreeExportList rows={exportRows} onOpen={openExportRow} />
+                </div>
+              )}
+
               {/* The whole batch state lives in one receipt card (same anatomy
                   as the proof page's receipt): count + export in the body, and
                   when files remain unrecorded, a Record row in the arrow-link
@@ -3157,7 +3324,7 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                   </div>
                   {/* The link to reopen the camera, on the first heading only:
                       when a folder's Ledger is above this, it carries it. */}
-                  {checked.length === 0 && openLink}
+                  {checked.length === 0 && exportRows.length === 0 && openLink}
                 </div>
               )}
               <div style={{ background: "var(--panel)", border: "1px solid var(--line)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
@@ -3193,6 +3360,17 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
                     </button>
                   )}
                 </div>
+                {/* The trees this drop made: one BitGraph per tree, whatever
+                    its file count. Said once, above the rows, which each
+                    repeat the tree's one position. */}
+                {madeTrees.length > 0 && (
+                  <div style={{ borderTop: "1px solid var(--line-2)", padding: "10px 16px", fontSize: 13, lineHeight: 1.55, color: "var(--dim)" }}>
+                    {madeTrees.length === 1
+                      ? `One BitGraph: a tree of ${madeTrees[0].count.toLocaleString("en-US")} file${madeTrees[0].count === 1 ? "" : "s"} at #${Number(madeTrees[0].proof.commit.counter ?? 0).toLocaleString("en-US")}.`
+                      : `${madeTrees.length} BitGraphs, one tree each: ${madeTrees.map((t) => `#${Number(t.proof.commit.counter ?? 0).toLocaleString("en-US")} (${t.count.toLocaleString("en-US")} file${t.count === 1 ? "" : "s"})`).join(", ")}.`}
+                    {madeTrees.length === 1 ? " Export it to keep it: one file for the tree, with SPEC.md beside it." : " Export them to keep them: one file per tree, with SPEC.md beside them."}
+                  </div>
+                )}
                 {/* What the package that just downloaded is short, and what to
                     do about it. Only ever rendered when something IS short. */}
                 {packageNote && (
@@ -3372,7 +3550,9 @@ export function BitGraphCamera({ id, strategy, fuseByDefault = false, title, abo
    compared to the proof's digest; nothing is uploaded. Mirrors the proof page's
    BringYourFile, scaled down to sit inside a results row. ── */
 function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched: (file: File) => void }) {
-  const [state, setState] = useState<"idle" | "checking" | "mismatch">("idle");
+  const [state, setState] = useState<"idle" | "checking" | "mismatch" | "tree">("idle");
+  // A tree of more than one file: its size, for the sentence that says how its files are checked.
+  const [treeCount, setTreeCount] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [checkedCount, setCheckedCount] = useState(0);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -3384,6 +3564,25 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
     setState("checking");
     setProgress({ done: 0, total: 0 });
     try {
+      /* A tree/1 proof names no file's digest: its artifact is the root
+         document. A tree of ONE needs nothing but the file (its root is its
+         only leaf, rebuilt here from each candidate); a larger tree places a
+         file only with that file's export, which this box says rather than
+         reporting a mismatch it cannot know. */
+      if (isTreeTitled(proof)) {
+        const bound = bindTree(proof);
+        if (!bound.ok || bound.tree.count !== 1) { setState(bound.ok ? "tree" : "mismatch"); setTreeCount(bound.ok ? bound.tree.count : null); return; }
+        const files = Array.isArray(source) ? source : source.entries ? (await walkEntries(source.entries)).map((w) => w.file) : source.files;
+        let n = 0;
+        for (const f of files) {
+          setProgress({ done: ++n, total: files.length });
+          if (await treeOfOneEvidence(bound.tree, new Uint8Array(await f.arrayBuffer()))) { onMatched(f); return; }
+          await new Promise((r) => setTimeout(r, 0));
+        }
+        setCheckedCount(files.length);
+        setState("mismatch");
+        return;
+      }
       const { match, checked } = Array.isArray(source)
         ? await findMatchInFiles(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }))
         : await findMatchInDrop(source, proof.artifact.digestB64, (done, total) => setProgress({ done, total }));
@@ -3459,6 +3658,13 @@ function FileMatchCheck({ proof, onMatched }: { proof: BitGraphProof; onMatched:
               : "These bytes don’t match this proof"}
           </div>
           <div className="dropbox-quiet">A single changed bit produces a completely different hash. Drop the exact original to check again.</div>
+        </>
+      ) : state === "tree" ? (
+        <>
+          <div className="dropbox-title" style={{ color: "var(--dim)" }}>
+            {treeCount !== null ? `This BitGraph is a tree of ${treeCount.toLocaleString()} files` : "This BitGraph is a tree of files"}
+          </div>
+          <div className="dropbox-quiet">To check a file in it, drop the file and its export together on the box above.</div>
         </>
       ) : (
         <>

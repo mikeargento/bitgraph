@@ -1,6 +1,12 @@
 /**
  * Hosted BitGraph: the two-step recipe protocol.
  *
+ * ⚠️ SINCE 2026-10-03 AN ANCHORED COMMIT MAKES tree/1 (commitHostedTree): a
+ * token opened under a floor (every enclave since v9) commits its files as the
+ * leaves of one tree, one file a tree of one, and the caller gets ONE
+ * export/1 per tree back. The single-file and set/1 paths described below are
+ * kept for a token without a floor and are otherwise the earlier making.
+ *
  * The hosted MCP endpoint never holds a caller's file, so it cannot run the
  * SDK's fuse() itself. It does not need to. Every registered placement is a
  * deterministic function of (original bytes, origin digest, commitment), and
@@ -37,6 +43,19 @@
  * prefix + original + suffix equals that placement's own build, byte for byte.
  */
 import { getPlacement,
+  TREE_METADATA_KEY,
+  buildTree,
+  buildTreeMemberEvidence,
+  buildTreeRootDocument,
+  bytesToHex,
+  currentTreeSpecHash,
+  encodeTreeLeaves,
+  leafCodeOf,
+  treeAttribution,
+  verifyTreeMember,
+  type BitGraphExport,
+  type TreeLeaf,
+  type TreeMemberEvidence,
   CONTAINER_MANIFEST_PATH,
   CONTAINER_ORIGINAL_PATH,
   SET_METADATA_KEY,
@@ -66,6 +85,7 @@ import { FUSE_CHAIN, FUSE2_ATTRIBUTION_NAME, isSlotRecord } from "../fuse-core.t
 import { apiBaseUrl } from "./api.ts";
 import { toUrlSafeB64 } from "./encoding.ts";
 import { blockTimeFromHeader } from "../export-pages.ts";
+import { buildTreeExport, fetchTreeEvidence, memberExportName, memberTree, ownerExportName, ownerTree, SPEC_PATH } from "../fuse-tree.ts";
 import type { BitGraphProof } from "./types.ts";
 
 export type HostedPlacement = "trailer/1" | "container/1" | "container/2";
@@ -647,13 +667,20 @@ export interface CommittedSet {
 export async function commitHostedSet(entries: readonly SetEntry[]): Promise<CommittedSet> {
   const built = await setManifestFor(entries);
   const slot = entries[0]!.state.slot;
+  // The marker and the floor go with the commitment the manifest was built
+  // with (setManifestFor binds the token's floor when it carries one): a
+  // fuse/2 manifest under a fuse/1 name, without the floor it bound, is one
+  // the commit route recomputes as commitment/1 and refuses. That shipped
+  // until 2026-10-03; an anchored token goes to commitHostedTree now anyway.
+  const anchor = entries[0]!.state.anchor;
   const { proof, recovered } = await commitUnderSlot(slot, built.digestB64, {
     digests: [{ digestB64: built.digestB64, hashAlg: "sha256" }],
     slotId: slot.nonceB64,
     slot,
     chainId: FUSE_CHAIN,
-    attribution: fuseAttribution(SET_PLACEMENT_ID),
+    attribution: markerFor(fuseAttribution(SET_PLACEMENT_ID), anchor),
     metadata: { [SET_METADATA_KEY]: built.manifestObject },
+    ...(anchor ? { anchor } : {}),
   });
   // The committed bytes ARE in hand here, so the whole verification runs, not only the integrity half.
   const verification = await verifyFuse({ proof: proof as unknown as VerifyProof, bytes: built.manifestBytes });
@@ -670,6 +697,122 @@ export async function commitHostedSet(entries: readonly SetEntry[]): Promise<Com
   }
   return { proof, manifestBytes: built.manifestBytes, artifactDigestB64: built.digestB64, count: built.count, rowOf: built.rowOf, recovered, manifestEchoed: echoed !== null };
 }
+
+/* ── tree/1: what every anchored commit makes (2026-10-03) ── */
+
+/**
+ * The commit for tokens opened under a floor (enclave v9 and later), one file
+ * or many: every file's leaf (placement code, the digest of the new file the
+ * caller built, the original's digest) in ONE tree/1 under the shared
+ * position, its 84-byte root document committed with the tree/1 marker and
+ * carried under metadata["bitgraph-tree/1"], the floor the commitment bound
+ * beside it. The same making the site's drop box does (fuse-tree-make.ts),
+ * here from digests alone: the files never travel, so a leaf states what the
+ * caller built, and every reader checks it against the bytes later, exactly as
+ * a set's row was. The returned proof is read before any file is called made.
+ */
+export interface CommittedTree {
+  proof: BitGraphProof;
+  rootDocument: Uint8Array;
+  count: number;
+  /** Every leaf in tree order, and a file name per leaf (the first entry carrying it). */
+  leaves: TreeLeaf[];
+  names: string[];
+  /** Per entry, in the order given: its leaf's index and its evidence. */
+  leafOf: number[];
+  evidence: TreeMemberEvidence[];
+  recovered: boolean;
+  echoed: boolean;
+}
+
+export async function commitHostedTree(entries: readonly SetEntry[]): Promise<CommittedTree> {
+  if (entries.length === 0) throw new HostedFuseError("bad-input", "a tree commits at least one file");
+  const slot = entries[0]!.state.slot;
+  const anchor = entries[0]!.state.anchor;
+  if (!anchor) throw new HostedFuseError("bad-input", "a tree binds the floor block, and this token carries none; open the files again");
+  const commitment = computeCommitmentFor(slot, anchor.blockHash);
+  const leaves: TreeLeaf[] = [];
+  const leafKey = new Map<string, number>();
+  const entryLeaf: number[] = [];
+  for (const e of entries) {
+    if (e.state.slot.nonceB64 !== slot.nonceB64) throw new HostedFuseError("bad-input", "every file of a tree commits under the same position");
+    if (e.state.anchor?.blockHash !== anchor.blockHash) throw new HostedFuseError("bad-input", "every file of a tree carries the same floor");
+    const artifact = base64ToBytes(e.artifactDigestB64);
+    if (artifact === null || artifact.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: artifact digest must be a base64 SHA-256`);
+    const origin = base64ToBytes(e.state.origin.digestB64);
+    if (origin === null || origin.length !== 32) throw new HostedFuseError("bad-input", `${e.state.origin.name}: the token carries no origin digest`);
+    const code = leafCodeOf(e.state.placement);
+    if (code === null) throw new HostedFuseError("bad-input", `${e.state.origin.name}: placement ${e.state.placement} has no leaf code`);
+    // The same new file listed twice is one leaf.
+    const k = leafKey.get(e.artifactDigestB64);
+    if (k !== undefined) { entryLeaf.push(k); continue; }
+    leafKey.set(e.artifactDigestB64, leaves.length);
+    entryLeaf.push(leaves.length);
+    leaves.push({ placement: code, artifact, origin });
+  }
+  let built: ReturnType<typeof buildTree>;
+  let rootDocument: Uint8Array;
+  try {
+    built = buildTree(leaves);
+    rootDocument = buildTreeRootDocument(commitment, built.sorted.length, built.root);
+  } catch (err) {
+    throw new HostedFuseError("bad-input", `the tree could not be built: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const digestB64 = bytesToBase64(new Uint8Array(await crypto.subtle.digest("SHA-256", rootDocument as BufferSource)));
+  const hex = bytesToHex(rootDocument);
+  const { proof, recovered } = await commitUnderSlot(slot, digestB64, {
+    digests: [{ digestB64, hashAlg: "sha256" }],
+    slotId: slot.nonceB64,
+    slot,
+    chainId: FUSE_CHAIN,
+    attribution: treeAttribution(currentTreeSpecHash()),
+    metadata: { [TREE_METADATA_KEY]: hex },
+    anchor,
+  });
+  // The root document rides unsigned: an echo must be these bytes, and a proof without one gets it attached.
+  const md = proof.metadata;
+  const mdObj = md !== null && typeof md === "object" && !Array.isArray(md) ? (md as Record<string, unknown>) : null;
+  if (mdObj?.[TREE_METADATA_KEY] !== undefined && mdObj[TREE_METADATA_KEY] !== hex) {
+    throw new HostedFuseError("verification-failed", "the returned proof carries a different root document; nothing is labelled fused");
+  }
+  const echoed = mdObj?.[TREE_METADATA_KEY] !== undefined;
+  if (!echoed) proof.metadata = { ...(mdObj ?? {}), [TREE_METADATA_KEY]: hex };
+  // Read by a verifier before anything is called made: signature, marker and spec, commitment, root document.
+  const v = await verifyTreeMember({ proof: proof as unknown as VerifyProof, rootDocument });
+  if (v.category !== "TREE_ROOT_VALID") {
+    throw new HostedFuseError("verification-failed", `the returned proof does not verify as this tree: ${v.category} (${v.reason})`);
+  }
+  const indexOf = new Map<string, number>();
+  built.sorted.forEach((l, i) => indexOf.set(bytesToHex(l.artifact), i));
+  const count = built.sorted.length;
+  const names: string[] = new Array(count).fill("");
+  const leafOf = entries.map((e, i) => {
+    const k = indexOf.get(bytesToHex(leaves[entryLeaf[i]!]!.artifact))!;
+    if (names[k] === "") names[k] = e.state.origin.name;
+    return k;
+  });
+  const evidence = leafOf.map((k) => buildTreeMemberEvidence(built.sorted[k]!, k, count, built.tree.path(k)));
+  return { proof, rootDocument, count, leaves: built.sorted, names, leafOf, evidence, recovered, echoed };
+}
+
+/**
+ * What the caller keeps for a tree: ONE export/1 file. A tree of one is that
+ * file's own export (its leaf and path); a tree of many is the owner's export
+ * (every leaf, a name per leaf), from which any file's place rebuilds. The
+ * floor header and whatever ceiling exists are read from the site's routes and
+ * vetted first; a tree just made has its ceiling and settlement pending, which
+ * a verifier reports as not carried, never as a failure.
+ */
+export async function treeExportFor(t: CommittedTree): Promise<{ name: string; export: BitGraphExport; notes: string[] }> {
+  const vp = t.proof as unknown as VerifyProof;
+  const evidence = await fetchTreeEvidence(vp, { baseUrl: apiBaseUrl() });
+  const tree = t.count === 1 ? memberTree(t.rootDocument, t.evidence[0]!) : ownerTree(t.rootDocument, encodeTreeLeaves(t.leaves), t.names);
+  const built = await buildTreeExport(vp, tree, evidence);
+  return { name: t.count === 1 ? memberExportName(t.names[0] || "file") : ownerExportName(vp), export: built.exp, notes: built.notes };
+}
+
+/** Where a tree's SPEC.md is read, to keep beside its export (its SHA-256 is the proof's signed attribution.message). */
+export const specUrl = (): string => `${apiBaseUrl()}${SPEC_PATH}`;
 
 export interface CommitGroups {
   /** Entries whose tokens name a slot opened for a set, grouped by slot, in first-seen order. */
@@ -839,6 +982,8 @@ export interface OpenOutcome {
   outcome: "opened" | "on record" | "not opened";
   /** True when this file shares its slot with the others opened in the same call: they commit together as one set. */
   set?: boolean;
+  /** True when the position was opened under a floor: the commit makes tree/1 (one tree of everything opened together). */
+  tree?: boolean;
   placement: HostedPlacement | null;
   slot_counter: string | null;
   epoch: string | null;
@@ -879,19 +1024,24 @@ export interface CommitOutcome {
   member_count?: number;
   /** Set members only: the set proof's artifact digest (URL-safe), the manifest of every member. */
   set_digest?: string;
+  /** tree/1 only: the export file that carries this file (in exports[] by this name). */
+  export_name?: string;
 }
 
-/** The one BitGraph a set commit makes: one position for every member. */
+/** The one BitGraph a set (or a tree) commit makes: one position for every member. */
 export interface SetOutcome {
   slot_counter: string;
   counter: string | null;
   epoch: string | null; // URL-safe
   count: number;
-  /** URL-safe: the manifest's digest, the committed artifact. */
+  /** URL-safe: the manifest's digest (a tree: the root document's), the committed artifact. */
   artifact_digest: string;
   proof_url: string;
   manifest_echoed: boolean;
   recovered: boolean;
+  /** tree/1: one tree of `count` files; its export is in exports[] under export_name. */
+  tree?: true;
+  export_name?: string;
 }
 
 export function recipeJson(recipe: Recipe): NonNullable<OpenOutcome["recipe"]> {
@@ -907,7 +1057,7 @@ export const ASSEMBLY_INSTRUCTIONS =
 
 export const SET_INSTRUCTIONS =
   "The files opened together share ONE position and are ONE BitGraph: commit every one of them in a single bitgraph_commit call, each with its own fuse_token and digest. " +
-  "Whatever that call carries becomes the set; a member left out cannot be added afterwards (the position is consumed) and would need a new open.";
+  "Whatever that call carries becomes the BitGraph (one tree of those files); a file left out cannot be added afterwards (the position is consumed) and would need a new open.";
 
 export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
   const opened = outcomes.filter((o) => o.outcome === "opened");
@@ -915,7 +1065,7 @@ export function renderOpenMarkdown(outcomes: readonly OpenOutcome[]): string {
   const failed = outcomes.filter((o) => o.outcome === "not opened");
   const asSet = opened.length > 0 && opened.every((o) => o.set === true);
   const lines: string[] = [];
-  const head = asSet ? `${opened.length} opened under one slot #${opened[0]?.slot_counter ?? "?"} (one set)` : `${opened.length} opened`;
+  const head = asSet ? `${opened.length} opened under one slot #${opened[0]?.slot_counter ?? "?"} (${opened.every((o) => o.tree) ? "one tree" : "one set"})` : `${opened.length} opened`;
   let headline = `${head}, ${onRecord.length} already on record.`;
   if (failed.length > 0) headline = `${head}, ${onRecord.length} already on record, ${failed.length} NOT opened.`;
   lines.push(headline);
@@ -947,14 +1097,19 @@ export function renderCommitMarkdown(outcomes: readonly CommitOutcome[], sets: r
   const fused = outcomes.filter((o) => o.outcome === "fused");
   const failed = outcomes.filter((o) => o.outcome === "not fused");
   const lines: string[] = [];
-  const setNote = sets.length === 1 ? ` as one set at #${sets[0]?.counter ?? "?"} (set of ${sets[0]?.count ?? "?"})` : sets.length > 1 ? ` in ${sets.length} sets` : "";
+  const word = (s: SetOutcome | undefined) => (s?.tree ? "tree" : "set");
+  const setNote = sets.length === 1 ? ` as one ${word(sets[0])} at #${sets[0]?.counter ?? "?"} (${word(sets[0])} of ${sets[0]?.count ?? "?"})` : sets.length > 1 ? ` in ${sets.length} ${sets.every((s) => s.tree) ? "trees" : "sets"}` : "";
   lines.push(failed.length > 0 ? `${fused.length} fused${setNote}, ${failed.length} NOT fused.` : `${fused.length} fused${setNote}.`);
   for (const s of sets) {
     const rec = s.recovered ? " (recovered from BitGraph's copy)" : "";
-    lines.push(`- set · slot #${s.slot_counter} → #${s.counter ?? "?"} · set of ${s.count}${rec}\n  ${s.proof_url}`);
+    const exp = s.export_name ? ` · export ${s.export_name}` : "";
+    lines.push(`- ${word(s)} · slot #${s.slot_counter} → #${s.counter ?? "?"} · ${word(s)} of ${s.count}${exp}${rec}\n  ${s.proof_url}`);
   }
   for (const o of outcomes) {
-    if (o.outcome === "fused" && o.member !== undefined) {
+    if (o.outcome === "fused" && o.export_name !== undefined && o.member === undefined) {
+      // A tree of one: the file and its own export.
+      lines.push(`- fused · ${o.name} → ${o.fused_name} (${o.placement}) · export ${o.export_name}`);
+    } else if (o.outcome === "fused" && o.member !== undefined) {
       lines.push(`- fused · ${o.name} → ${o.fused_name} (${o.member} of ${o.member_count ?? "?"}, ${o.placement})`);
       if (o.positions.length > 1) {
         const all = o.positions.map((p) => `#${p.counter ?? "?"}`).join(" · ");
@@ -980,13 +1135,19 @@ export function renderCommitMarkdown(outcomes: readonly CommitOutcome[], sets: r
       "A file may occupy any number of positions. The list above holds the position just made and any that BitGraph's copy holds; positions held elsewhere are in their holder's proofs."
     );
   }
-  if (sets.length > 0) {
+  if (sets.some((s) => s.tree) || fused.some((o) => o.export_name !== undefined)) {
+    lines.push(
+      "",
+      `Each tree's export (bitgraph-export/1) is in the JSON as exports[]: save each as its name, beside the files, with SPEC.md from ${specUrl()} (the proof pins its SHA-256). One file's export, or the owner's export of every file, checks with the file alone: nothing of BitGraph's is needed. A new file is virtual: the original plus the export rebuilds it.`
+    );
+  }
+  if (sets.some((s) => !s.tree)) {
     lines.push(
       "",
       "Each set's proof (with the manifest listing every member) is in the JSON as sets[].proof; save it once beside the originals. A member's new file is virtual: the original plus the set proof rebuilds it, and the set proof beside the originals is the record; BitGraph does not index it."
     );
   }
-  if (fused.some((o) => o.member === undefined)) {
+  if (fused.some((o) => o.member === undefined && o.export_name === undefined)) {
     lines.push(
       "",
       "Each fused file's Frame (proof plus manifest) is in the JSON as frames[]; save it next to the original as frame_name. The new file is virtual: the original plus the Frame rebuilds it, so keep the original unchanged."

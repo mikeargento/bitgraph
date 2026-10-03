@@ -3,6 +3,7 @@ import { storeProofByDigest, getProofByDigest, getAnchorBeforeCounter, LedgerUna
 import { TEE_URL, teeRestarting503 } from "@/lib/anchor-gate";
 import { FUSE_ATTRIBUTION_NAME, FUSE2_ATTRIBUTION_NAME, FUSE_CHAIN, FUSE_ENABLED, fuseDisabled, isAnchorMark, isDigestB64, isFuseName, isSlotRecord, retryAfterHeaders } from "@/lib/fuse";
 import { SET_KEY, SET_TITLE, SET2_TITLE, reconcileSetMetadata, validateSetCommit, type SetCommitOk } from "@/lib/fuse-set";
+import { TREE_KEY, TREE_TITLE, reconcileTreeMetadata, validateTreeCommit, type TreeCommitOk } from "@/lib/fuse-tree";
 
 export const dynamic = "force-dynamic";
 // A set's member index (one key per member, up to 4000 for the largest set)
@@ -33,6 +34,21 @@ const PRINTABLE = /^[\x20-\x7e]+$/;
  * enclave v6 echoes metadata on a held-slot commit, v5 and older boundaries
  * dropped it, and the site works under both. Metadata on any other title is
  * refused.
+ *
+ * A tree (attribution { name "bitgraph-fuse/2", title "tree/1", message the
+ * SHA-256 of SPEC.md }, 2026-10-03) is what the site and its tools make now:
+ * the committed artifact is an 84-byte root document over a Merkle tree of
+ * the files, carried as hex under metadata["bitgraph-tree/1"]. It is checked
+ * here the same way, before anything is spent (validateTreeCommit: the marker,
+ * a known spec, the exact metadata shape, the root document's commitment
+ * against the named position and floor, its hash against the digest), and
+ * the returned proof carries the root document whether or not the boundary
+ * echoed it. Its members are not indexed here: a member is shown by its own
+ * export or its recovery entry, never by a key this route writes.
+ *
+ * set/1 and set/2 commits stay accepted: the published SDK, CLI and MCP
+ * packages (bitgraph 1.10, mcp 0.8 and earlier) make them against this route,
+ * and refusing them would break every copy already installed.
  *
  * The proxy forwards the body to the parent's /commit with the slotId, then
  * writes the by-digest index the parent does not (per-position entries, for
@@ -105,8 +121,15 @@ export async function POST(req: NextRequest) {
     // afterwards through /api/fuse/set-index, each with the path that proves
     // its place.
     const isSet = attr.title === SET_TITLE || attr.title === SET2_TITLE;
+    const isTree = attr.title === TREE_TITLE;
     let verifiedSet: SetCommitOk | null = null;
-    if (isSet || body.metadata !== undefined) {
+    let verifiedTree: TreeCommitOk | null = null;
+    if (isTree) {
+      // Before the set check, which refuses metadata on every title but its own.
+      const v = validateTreeCommit({ name: attr.name, message: attr.message, metadata: body.metadata, digestB64, slot, floorBlockHash: isAnchorMark(boundFloor) ? boundFloor.blockHash : null });
+      if (!v.ok) return NextResponse.json({ error: v.error }, { status: v.status });
+      verifiedTree = v;
+    } else if (isSet || body.metadata !== undefined) {
       const v = await validateSetCommit({ title: attr.title, message: attr.message, metadata: body.metadata, digestB64, slot, floorBlockHash: isAnchorMark(boundFloor) ? boundFloor.blockHash : null });
       if (!v.ok) return NextResponse.json({ error: v.error }, { status: v.status });
       verifiedSet = v;
@@ -162,6 +185,7 @@ export async function POST(req: NextRequest) {
     };
     if (body.agency !== undefined) forward.agency = body.agency;
     if (verifiedSet !== null) forward.metadata = { [SET_KEY]: verifiedSet.manifestObject };
+    if (verifiedTree !== null) forward.metadata = { [TREE_KEY]: verifiedTree.hex };
 
     let teeRes: Response;
     try {
@@ -204,6 +228,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "The boundary returned a different set manifest", code: "manifest-mismatch" }, { status: 502 });
       }
       console.log("[api/fuse/commit] set manifest echoed=" + (outcome === "echoed"));
+    }
+    if (verifiedTree !== null) {
+      // The same rule for a tree's root document: attached when dropped, kept
+      // when echoed byte for byte, refused when the boundary returned another.
+      const outcome = reconcileTreeMetadata(proof, verifiedTree);
+      if (outcome === "mismatch") {
+        console.error("[api/fuse/commit] boundary returned a different root document");
+        return NextResponse.json({ error: "The boundary returned a different root document", code: "root-mismatch" }, { status: 502 });
+      }
+      console.log("[api/fuse/commit] tree root document echoed=" + (outcome === "echoed"));
     }
 
     await storeProofByDigest(proof, priorLegacy);

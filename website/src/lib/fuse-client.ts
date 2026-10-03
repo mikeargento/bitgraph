@@ -1,4 +1,11 @@
 /**
+ * ⚠️ SINCE 2026-10-03 THE SITE MAKES tree/1 ONLY (makeTreeHere, below, over
+ * fuse-tree-make.ts): one file or a hundred thousand, one position, files over
+ * the in-browser cap as leaves as is. Everything else in this module is the
+ * READING half for BitGraphs made before then (a single fused file, set/1,
+ * set/2), which keep verifying forever. fuseFile and fuseFiles below are the
+ * old making half and nothing on the site calls them any more.
+ *
  * The public drop's Fuse pipeline, run entirely in the browser (profile
  * bitgraph-fuse/1). The visitor's file is the origin; it is never modified and
  * never uploaded. In memory, on the visitor's machine: hash the origin,
@@ -26,6 +33,10 @@ import { paintFrame, PAINT_EVERY_MS } from "./paint-frame";
 import { SET_METADATA_KEY, base64ToBytes, buildFrame, bytesToBase64, getPlacement, isCarryEncoding, readFuseAttribution, readSetMetadata, verifyFuse, verifyFuseMember } from "@mikeargento/bitgraph-verify";
 import { MAX_FUSE_BYTES, fusedNames, placementFor, type SitePlacement } from "./fuse-placement";
 import type { BitGraphProof as SiteProof } from "@/lib/bitgraph";
+import { makeTree, type MadeTree, type TreeInput, type TreeProgress } from "./fuse-tree-make";
+import { isTreeTitled } from "./fuse-tree";
+export type { MadeTree, MadeTreeMember, TreeInput, TreeProgress } from "./fuse-tree-make";
+export { planTrees, SITE_MAX_TREE_LEAVES } from "./fuse-tree-make";
 
 // The site keeps its own looser proof type (version: string); the verify
 // package narrows it. Every cast between the two lives in this file.
@@ -109,11 +120,41 @@ export async function fuseFile(file: File, opts: { agency?: unknown } = {}): Pro
   };
 }
 
-/** The signed fused marker on a proof, or null for an ordinary recording. */
+/**
+ * The signed fused marker on a proof, or null for an ordinary recording.
+ * ⚠️ A tree/1 marker names no origin: its 32-byte message is SPEC.md's hash
+ * (see fusedOriginDigestOf in fuse-core.ts), and each member's origin is in
+ * its leaf. Every caller indexes or matches the origin this returns, so a
+ * tree must come back without one.
+ */
 export function fusedMarkerOf(proof: SiteProof): { placement: string | null; originDigestB64: string | null } | null {
   const m = readFuseAttribution(asVerify(proof));
   if (m === null) return null;
+  if (isTreeTitled(proof)) return { placement: m.placement, originDigestB64: null };
   return { placement: m.placement, originDigestB64: m.originDigest ? btoa(String.fromCharCode(...m.originDigest)) : null };
+}
+
+/* ── tree/1: what the site makes (2026-10-03) ── */
+
+/**
+ * Make ONE tree/1 BitGraph of these files through this site's own routes,
+ * handing the browser a frame now and then (the maker's loop is mostly pure
+ * computation; see fuse-tree-make.ts and the freeze note in fuseFiles below).
+ * Every file is a leaf: fused when it fits in memory, as is when it does not.
+ */
+export async function makeTreeHere(inputs: TreeInput[], opts: { onProgress?: (p: TreeProgress) => void; agency?: unknown } = {}): Promise<MadeTree> {
+  return makeTree(inputs, {
+    transport: { baseUrl: window.location.origin },
+    paint: paintFrame,
+    paintEveryMs: PAINT_EVERY_MS,
+    ...(opts.onProgress !== undefined ? { onProgress: opts.onProgress } : {}),
+    ...(opts.agency !== undefined ? { agency: opts.agency } : {}),
+  });
+}
+
+/** A scanned file as the maker takes it: no placement or state means "decide from the bytes when they are read". */
+export function treeInputOf(f: { file: File; digestB64: string; placement?: SitePlacement | null; state?: Uint8Array | null }): TreeInput {
+  return { file: f.file, name: f.file.name, digestB64: f.digestB64, placement: f.placement ?? null, state: f.state ?? null };
 }
 
 export interface Rebuilt {

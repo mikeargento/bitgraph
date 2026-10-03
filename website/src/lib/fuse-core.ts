@@ -76,14 +76,25 @@ export function isSlotRecord(x: unknown): x is SlotRecord {
 
 export const isDigestB64 = (x: unknown): x is string => typeof x === "string" && B64_32.test(x);
 
+/** The signed title of a tree/1 proof. Pinned; the suite checks it equals TREE_PLACEMENT_ID. */
+export const TREE_TITLE = "tree/1";
+
 /**
  * The origin digest a fused proof names in its SIGNED attribution, or null
  * when the proof is not fused or names no origin. The only field a ledger
  * index may trust for an origin: it is inside the Ed25519 signature.
+ *
+ * ⚠️ A tree/1 proof names NO origin, although its message is 32 bytes of
+ * base64: it is the SHA-256 of SPEC.md, the spec the proof follows, and each
+ * member's origin lives in its leaf. Reading it as an origin would index every
+ * tree under the spec's hash, permanently (the bucket is under Object Lock),
+ * and make SPEC.md itself, which travels beside every export, look like a file
+ * on record wherever it was dropped.
  */
 export function fusedOriginDigestOf(proof: Record<string, unknown>): string | null {
-  const a = proof.attribution as { name?: unknown; message?: unknown } | undefined;
+  const a = proof.attribution as { name?: unknown; title?: unknown; message?: unknown } | undefined;
   if (!a || !isFuseName(a.name) || typeof a.message !== "string") return null;
+  if (a.title === TREE_TITLE) return null;
   if (!B64_32.test(a.message)) return null;
   const bytes = Buffer.from(a.message, "base64");
   return bytes.length === 32 && bytes.toString("base64") === a.message ? a.message : null;
